@@ -4489,14 +4489,14 @@ HWY_API VFromD<D> PromoteTo(D du64, VFromD<Rebind<float, D>> v) {
             lo32_or_mask);
 }
 
-#ifdef HWY_NATIVE_F32_TO_UI64_FAST_PROMOTE_TO
-#undef HWY_NATIVE_F32_TO_UI64_FAST_PROMOTE_TO
+#ifdef HWY_NATIVE_F32_TO_UI64_PROMOTE_IN_RANGE_TO
+#undef HWY_NATIVE_F32_TO_UI64_PROMOTE_IN_RANGE_TO
 #else
-#define HWY_NATIVE_F32_TO_UI64_FAST_PROMOTE_TO
+#define HWY_NATIVE_F32_TO_UI64_PROMOTE_IN_RANGE_TO
 #endif
 
 template <class D, HWY_IF_UI64_D(D)>
-HWY_API VFromD<D> FastPromoteTo(D d64, VFromD<Rebind<float, D>> v) {
+HWY_API VFromD<D> PromoteInRangeTo(D d64, VFromD<Rebind<float, D>> v) {
   const Rebind<MakeNarrow<TFromD<D>>, decltype(d64)> d32;
   const RebindToFloat<decltype(d32)> df32;
   const RebindToUnsigned<decltype(d32)> du32;

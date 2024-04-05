@@ -1655,7 +1655,7 @@ All functions except `Stream` are defined in cache_control.h.
     the closest representable value if the input exceeds the destination range.
 
 *   `V`: `{f}` \
-    <code>Vec&lt;D&gt; **FastConvertTo**(D, V)</code>: rounds floating point
+    <code>Vec&lt;D&gt; **ConvertInRangeTo**(D, V)</code>: rounds floating point
     towards zero and converts the value to same-sized signed/unsigned integer.
     Returns an implementation-defined value if the input exceeds the destination
     range.
@@ -1692,7 +1692,7 @@ obtain the `D` that describes the return type.
     representable value if the input exceeds the destination range.
 
 *   `V`,`D`: `f64,{u,i}32` \
-    <code>Vec&lt;D&gt; **FastDemoteTo**(D, V v)</code>: rounds floating point
+    <code>Vec&lt;D&gt; **DemoteInRangeTo**(D, V v)</code>: rounds floating point
     towards zero and converts the value to 32-bit integers. Returns an
     implementation-defined value if the input exceeds the destination range.
 
@@ -1725,7 +1725,7 @@ These functions promote a half vector to a full vector. To obtain halves, use
     Returns the representable value if the input exceeds the destination range.
 
 *   `f32` to `i64` or `u64` \
-    <code>Vec&lt;D&gt; **FastPromoteTo**(D, V part)</code>: rounds `part[i]`
+    <code>Vec&lt;D&gt; **PromoteInRangeTo**(D, V part)</code>: rounds `part[i]`
     towards zero and converts the rounded value to a 64-bit signed or unsigned
     integer. Returns an implementation-defined value if the input exceeds the
     destination range.
@@ -1751,7 +1751,7 @@ The following may be more convenient or efficient than also calling `LowerHalf`
     the return value.
 
 *   `f32` to `i64` or `u64` \
-    <code>Vec&lt;D&gt; **FastPromoteLowerTo**(D, V v)</code>: rounds `v[i]`
+    <code>Vec&lt;D&gt; **PromoteInRangeLowerTo**(D, V v)</code>: rounds `v[i]`
     towards zero and converts the rounded value to a 64-bit signed or unsigned
     integer, for i in `[0, Lanes(D()))`. Note that `V` has twice as many lanes
     as `D` and the return value. Returns an implementation-defined value if the
@@ -1778,7 +1778,7 @@ The following may be more convenient or efficient than also calling `LowerHalf`
     `HWY_TARGET != HWY_SCALAR`.
 
 *   `f32` to `i64` or `u64` \
-    <code>Vec&lt;D&gt; **FastPromoteUpperTo**(D, V v)</code>: rounds `v[i]`
+    <code>Vec&lt;D&gt; **PromoteInRangeUpperTo**(D, V v)</code>: rounds `v[i]`
     towards zero and converts the rounded value to a 64-bit signed or unsigned
     integer, for i in `[Lanes(D()), 2 * Lanes(D()))`. Note that `V` has twice as
     many lanes as `D` and the return value. Returns an implementation-defined
@@ -1803,17 +1803,17 @@ or `ConcatOdd` followed by `PromoteLowerTo`:
     v))`. Only available if `HWY_TARGET != HWY_SCALAR`.
 
 *   `V`:`f32`, `D`:`{u,i}64` \
-    <code>Vec&lt;D&gt; **FastPromoteEvenTo**(D, V v)</code>: promotes the even
-    lanes of `v` to `TFromD<D>`. Note that `V` has twice as many lanes as `D`
-    and the return value. `FastPromoteEvenTo(d, v)` is equivalent to, but
-    potentially more efficient than `FastPromoteLowerTo(d, ConcatEven(
+    <code>Vec&lt;D&gt; **PromoteInRangeEvenTo**(D, V v)</code>: promotes the
+    even lanes of `v` to `TFromD<D>`. Note that `V` has twice as many lanes as
+    `D` and the return value. `PromoteInRangeEvenTo(d, v)` is equivalent to, but
+    potentially more efficient than `PromoteInRangeLowerTo(d, ConcatEven(
     Repartition<TFromV<V>, D>(), v, v))`.
 
 *   `V`:`f32`, `D`:`{u,i}64` \
-    <code>Vec&lt;D&gt; **FastPromoteOddTo**(D, V v)</code>: promotes the odd
+    <code>Vec&lt;D&gt; **PromoteInRangeOddTo**(D, V v)</code>: promotes the odd
     lanes of `v` to `TFromD<D>`. Note that `V` has twice as many lanes as `D`
-    and the return value. `FastPromoteOddTo(d, v)` is equivalent to, but
-    potentially more efficient than `FastPromoteLowerTo(d, ConcatOdd(
+    and the return value. `PromoteInRangeOddTo(d, v)` is equivalent to, but
+    potentially more efficient than `PromoteInRangeLowerTo(d, ConcatOdd(
     Repartition<TFromV<V>, D>(), v, v))`.
 
 #### Two-vector demotion

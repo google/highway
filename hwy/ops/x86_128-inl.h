@@ -10046,14 +10046,14 @@ HWY_INLINE VFromD<DI> FixConversionOverflow(DI di,
 
 }  // namespace detail
 
-#ifdef HWY_NATIVE_F64_TO_UI32_FAST_DEMOTE_TO
-#undef HWY_NATIVE_F64_TO_UI32_FAST_DEMOTE_TO
+#ifdef HWY_NATIVE_F64_TO_UI32_DEMOTE_IN_RANGE_TO
+#undef HWY_NATIVE_F64_TO_UI32_DEMOTE_IN_RANGE_TO
 #else
-#define HWY_NATIVE_F64_TO_UI32_FAST_DEMOTE_TO
+#define HWY_NATIVE_F64_TO_UI32_DEMOTE_IN_RANGE_TO
 #endif
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_I32_D(D)>
-HWY_API VFromD<D> FastDemoteTo(D /* tag */, VFromD<Rebind<double, D>> v) {
+HWY_API VFromD<D> DemoteInRangeTo(D /* tag */, VFromD<Rebind<double, D>> v) {
   return VFromD<D>{_mm_cvttpd_epi32(v.raw)};
 }
 
@@ -10062,12 +10062,12 @@ template <class D, HWY_IF_I32_D(D)>
 HWY_API VFromD<D> DemoteTo(D di32, VFromD<Rebind<double, D>> v) {
   const Rebind<double, decltype(di32)> df64;
   const VFromD<decltype(df64)> clamped = detail::ClampF64ToI32Max(df64, v);
-  return FastDemoteTo(di32, clamped);
+  return DemoteInRangeTo(di32, clamped);
 }
 
 #if HWY_TARGET <= HWY_AVX3
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U32_D(D)>
-HWY_API VFromD<D> FastDemoteTo(D /* tag */, VFromD<Rebind<double, D>> v) {
+HWY_API VFromD<D> DemoteInRangeTo(D /* tag */, VFromD<Rebind<double, D>> v) {
   return VFromD<D>{_mm_cvttpd_epu32(v.raw)};
 }
 
@@ -10078,10 +10078,10 @@ HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<Rebind<double, D>> v) {
 }
 #else   // HWY_TARGET > HWY_AVX3
 
-// F64 to U32 FastDemoteTo is generic for all vector lengths on
+// F64 to U32 DemoteInRangeTo is generic for all vector lengths on
 // SSE2/SSSE3/SSE4/AVX2
 template <class D, HWY_IF_U32_D(D)>
-HWY_API VFromD<D> FastDemoteTo(D du32, VFromD<Rebind<double, D>> v) {
+HWY_API VFromD<D> DemoteInRangeTo(D du32, VFromD<Rebind<double, D>> v) {
   const RebindToSigned<decltype(du32)> di32;
   const Rebind<double, decltype(du32)> df64;
   const RebindToUnsigned<decltype(df64)> du64;
@@ -10090,7 +10090,7 @@ HWY_API VFromD<D> FastDemoteTo(D du32, VFromD<Rebind<double, D>> v) {
   const auto v_is_ge_k2_31 = (v >= k2_31);
   const auto clamped_lo31_f64 = v - IfThenElseZero(v_is_ge_k2_31, k2_31);
   const auto clamped_lo31_u32 =
-      BitCast(du32, FastDemoteTo(di32, clamped_lo31_f64));
+      BitCast(du32, DemoteInRangeTo(di32, clamped_lo31_f64));
   const auto clamped_u32_msb = ShiftLeft<31>(
       TruncateTo(du32, BitCast(du64, VecFromMask(df64, v_is_ge_k2_31))));
   return Or(clamped_lo31_u32, clamped_u32_msb);
@@ -10101,7 +10101,7 @@ template <class D, HWY_IF_U32_D(D)>
 HWY_API VFromD<D> DemoteTo(D du32, VFromD<Rebind<double, D>> v) {
   const Rebind<double, decltype(du32)> df64;
   const auto clamped = Min(ZeroIfNegative(v), Set(df64, 4294967295.0));
-  return FastDemoteTo(du32, clamped);
+  return DemoteInRangeTo(du32, clamped);
 }
 #endif  // HWY_TARGET <= HWY_AVX3
 
@@ -10193,10 +10193,10 @@ HWY_API Vec128<uint8_t, N> U8FromU32(const Vec128<uint32_t, N> v) {
 }
 
 // ------------------------------ F32->UI64 PromoteTo
-#ifdef HWY_NATIVE_F32_TO_UI64_FAST_PROMOTE_TO
-#undef HWY_NATIVE_F32_TO_UI64_FAST_PROMOTE_TO
+#ifdef HWY_NATIVE_F32_TO_UI64_PROMOTE_IN_RANGE_TO
+#undef HWY_NATIVE_F32_TO_UI64_PROMOTE_IN_RANGE_TO
 #else
-#define HWY_NATIVE_F32_TO_UI64_FAST_PROMOTE_TO
+#define HWY_NATIVE_F32_TO_UI64_PROMOTE_IN_RANGE_TO
 #endif
 
 #if HWY_TARGET <= HWY_AVX3
@@ -10210,10 +10210,10 @@ HWY_API VFromD<D> PromoteTo(D di64, VFromD<Rebind<float, D>> v) {
       di64,
       BitCast(df64, InterleaveLower(ResizeBitCast(dt_f32, v),
                                     ResizeBitCast(dt_f32, v))),
-      FastPromoteTo(di64, v));
+      PromoteInRangeTo(di64, v));
 }
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I64_D(D)>
-HWY_API VFromD<D> FastPromoteTo(D /*di64*/, VFromD<Rebind<float, D>> v) {
+HWY_API VFromD<D> PromoteInRangeTo(D /*di64*/, VFromD<Rebind<float, D>> v) {
   return VFromD<D>{_mm_cvttps_epi64(v.raw)};
 }
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U64_D(D)>
@@ -10222,7 +10222,7 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<float, D>> v) {
       _mm_maskz_cvttps_epu64(detail::UnmaskedNot(MaskFromVec(v)).raw, v.raw)};
 }
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U64_D(D)>
-HWY_API VFromD<D> FastPromoteTo(D /* tag */, VFromD<Rebind<float, D>> v) {
+HWY_API VFromD<D> PromoteInRangeTo(D /* tag */, VFromD<Rebind<float, D>> v) {
   return VFromD<D>{_mm_cvttps_epu64(v.raw)};
 }
 #else   // AVX2 or below
@@ -10256,7 +10256,7 @@ HWY_API VFromD<D> PromoteTo(D di64, VFromD<Rebind<float, D>> v) {
 
 // Generic for all vector lengths on SSE2/SSSE3/SSE4/AVX2
 template <class D, HWY_IF_UI64_D(D)>
-HWY_API VFromD<D> FastPromoteTo(D d64, VFromD<Rebind<float, D>> v) {
+HWY_API VFromD<D> PromoteInRangeTo(D d64, VFromD<Rebind<float, D>> v) {
   const Rebind<MakeNarrow<TFromD<D>>, decltype(d64)> d32;
   const RebindToSigned<decltype(d32)> di32;
   const RebindToFloat<decltype(d32)> df32;
@@ -10270,7 +10270,7 @@ HWY_API VFromD<D> FastPromoteTo(D d64, VFromD<Rebind<float, D>> v) {
   const auto adj_v =
       BitCast(df32, BitCast(du32, v) - ShiftLeft<23>(exponent_adj));
 
-  const auto f32_to_i32_result = FastConvertTo(di32, adj_v);
+  const auto f32_to_i32_result = ConvertInRangeTo(di32, adj_v);
   return PromoteTo(d64, BitCast(d32, f32_to_i32_result))
          << PromoteTo(d64, exponent_adj);
 }
@@ -10315,7 +10315,7 @@ HWY_API VFromD<D> PromoteTo(D du64, VFromD<Rebind<float, D>> v) {
 
   const auto adj_v =
       BitCast(df32, BitCast(du32, non_neg_v) - ShiftLeft<23>(exponent_adj));
-  const auto f32_to_i32_result = FastConvertTo(di32, adj_v);
+  const auto f32_to_i32_result = ConvertInRangeTo(di32, adj_v);
 
   const auto i32_overflow_mask = BroadcastSignBit(f32_to_i32_result);
   const auto overflow_result =
@@ -10783,26 +10783,26 @@ HWY_API VFromD<D> ConvertTo(D dd, VFromD<Rebind<uint64_t, D>> v) {
 
 // Truncates (rounds toward zero).
 
-#ifdef HWY_NATIVE_F2I_FAST_CONVERT_TO
-#undef HWY_NATIVE_F2I_FAST_CONVERT_TO
+#ifdef HWY_NATIVE_F2I_CONVERT_IN_RANGE_TO
+#undef HWY_NATIVE_F2I_CONVERT_IN_RANGE_TO
 #else
-#define HWY_NATIVE_F2I_FAST_CONVERT_TO
+#define HWY_NATIVE_F2I_CONVERT_IN_RANGE_TO
 #endif
 
 #if HWY_HAVE_FLOAT16
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I16_D(D)>
-HWY_API VFromD<D> FastConvertTo(D /*di*/, VFromD<RebindToFloat<D>> v) {
+HWY_API VFromD<D> ConvertInRangeTo(D /*di*/, VFromD<RebindToFloat<D>> v) {
   return VFromD<D>{_mm_cvttph_epi16(v.raw)};
 }
 
 // F16 to I16 ConvertTo is generic for all vector lengths
 template <class D, HWY_IF_I16_D(D)>
 HWY_API VFromD<D> ConvertTo(D di, VFromD<RebindToFloat<D>> v) {
-  return detail::FixConversionOverflow(di, v, FastConvertTo(di, v));
+  return detail::FixConversionOverflow(di, v, ConvertInRangeTo(di, v));
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U16_D(D)>
-HWY_API VFromD<D> FastConvertTo(D /* tag */, VFromD<RebindToFloat<D>> v) {
+HWY_API VFromD<D> ConvertInRangeTo(D /* tag */, VFromD<RebindToFloat<D>> v) {
   return VFromD<D>{_mm_cvttph_epu16(v.raw)};
 }
 
@@ -10814,30 +10814,30 @@ HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<RebindToFloat<D>> v) {
 #endif  // HWY_HAVE_FLOAT16
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I32_D(D)>
-HWY_API VFromD<D> FastConvertTo(D /*di*/, VFromD<RebindToFloat<D>> v) {
+HWY_API VFromD<D> ConvertInRangeTo(D /*di*/, VFromD<RebindToFloat<D>> v) {
   return VFromD<D>{_mm_cvttps_epi32(v.raw)};
 }
 
 // F32 to I32 ConvertTo is generic for all vector lengths
 template <class D, HWY_IF_I32_D(D)>
 HWY_API VFromD<D> ConvertTo(D di, VFromD<RebindToFloat<D>> v) {
-  return detail::FixConversionOverflow(di, v, FastConvertTo(di, v));
+  return detail::FixConversionOverflow(di, v, ConvertInRangeTo(di, v));
 }
 
 #if HWY_TARGET <= HWY_AVX3
 template <class DI, HWY_IF_V_SIZE_LE_D(DI, 16), HWY_IF_I64_D(DI)>
-HWY_API VFromD<DI> FastConvertTo(DI /*di*/, VFromD<RebindToFloat<DI>> v) {
+HWY_API VFromD<DI> ConvertInRangeTo(DI /*di*/, VFromD<RebindToFloat<DI>> v) {
   return VFromD<DI>{_mm_cvttpd_epi64(v.raw)};
 }
 
 // F64 to I64 ConvertTo is generic for all vector lengths on AVX3
 template <class DI, HWY_IF_I64_D(DI)>
 HWY_API VFromD<DI> ConvertTo(DI di, VFromD<RebindToFloat<DI>> v) {
-  return detail::FixConversionOverflow(di, v, FastConvertTo(di, v));
+  return detail::FixConversionOverflow(di, v, ConvertInRangeTo(di, v));
 }
 
 template <class DU, HWY_IF_V_SIZE_LE_D(DU, 16), HWY_IF_U32_D(DU)>
-HWY_API VFromD<DU> FastConvertTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
+HWY_API VFromD<DU> ConvertInRangeTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
   return VFromD<DU>{_mm_cvttps_epu32(v.raw)};
 }
 
@@ -10848,7 +10848,7 @@ HWY_API VFromD<DU> ConvertTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
 }
 
 template <class DU, HWY_IF_V_SIZE_LE_D(DU, 16), HWY_IF_U64_D(DU)>
-HWY_API VFromD<DU> FastConvertTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
+HWY_API VFromD<DU> ConvertInRangeTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
   return VFromD<DU>{_mm_cvttpd_epu64(v.raw)};
 }
 
@@ -10863,7 +10863,7 @@ HWY_API VFromD<DU> ConvertTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
 namespace detail {
 
 template <class DU32, HWY_IF_U32_D(DU32)>
-static HWY_INLINE VFromD<DU32> FastConvertF32ToU32(
+static HWY_INLINE VFromD<DU32> ConvInRangeF32ToU32(
     DU32 du32, VFromD<RebindToFloat<DU32>> v, VFromD<DU32>& exp_diff) {
   const RebindToSigned<decltype(du32)> di32;
   const RebindToFloat<decltype(du32)> df32;
@@ -10874,19 +10874,21 @@ static HWY_INLINE VFromD<DU32> FastConvertF32ToU32(
 
   const auto v_scaled =
       BitCast(df32, BitCast(du32, v) + ShiftLeft<23>(scale_down_f32_val_mask));
-  const auto f32_to_u32_result = BitCast(du32, FastConvertTo(di32, v_scaled));
+  const auto f32_to_u32_result =
+      BitCast(du32, ConvertInRangeTo(di32, v_scaled));
 
   return f32_to_u32_result + And(f32_to_u32_result, scale_down_f32_val_mask);
 }
 
 }  // namespace detail
 
-// F32 to U32 FastConvertTo is generic for all vector lengths on
+// F32 to U32 ConvertInRangeTo is generic for all vector lengths on
 // SSE2/SSSE3/SSE4/AVX2
 template <class DU32, HWY_IF_U32_D(DU32)>
-HWY_API VFromD<DU32> FastConvertTo(DU32 du32, VFromD<RebindToFloat<DU32>> v) {
+HWY_API VFromD<DU32> ConvertInRangeTo(DU32 du32,
+                                      VFromD<RebindToFloat<DU32>> v) {
   VFromD<DU32> exp_diff;
-  const auto f32_to_u32_result = detail::FastConvertF32ToU32(du32, v, exp_diff);
+  const auto f32_to_u32_result = detail::ConvInRangeF32ToU32(du32, v, exp_diff);
   return f32_to_u32_result;
 }
 
@@ -10899,7 +10901,7 @@ HWY_API VFromD<DU32> ConvertTo(DU32 du32, VFromD<RebindToFloat<DU32>> v) {
   const auto non_neg_v = ZeroIfNegative(v);
   VFromD<DU32> exp_diff;
   const auto f32_to_u32_result =
-      detail::FastConvertF32ToU32(du32, non_neg_v, exp_diff);
+      detail::ConvInRangeF32ToU32(du32, non_neg_v, exp_diff);
 
   return Or(f32_to_u32_result,
             BitCast(du32, BroadcastSignBit(BitCast(di32, exp_diff))));
@@ -10908,7 +10910,7 @@ HWY_API VFromD<DU32> ConvertTo(DU32 du32, VFromD<RebindToFloat<DU32>> v) {
 namespace detail {
 
 template <class D64, HWY_IF_UI64_D(D64)>
-HWY_API VFromD<D64> FastConvertAbsF64ToUI64(D64 d64,
+HWY_API VFromD<D64> ConvAbsInRangeF64ToUI64(D64 d64,
                                             VFromD<Rebind<double, D64>> v,
                                             VFromD<D64>& biased_exp) {
   const RebindToSigned<decltype(d64)> di64;
@@ -10963,11 +10965,11 @@ HWY_API VFromD<D64> FastConvertAbsF64ToUI64(D64 d64,
 
 #if HWY_ARCH_X86_64
 template <class DI, HWY_IF_V_SIZE_D(DI, 8), HWY_IF_I64_D(DI)>
-HWY_API VFromD<DI> FastConvertTo(DI /*di*/, Vec64<double> v) {
+HWY_API VFromD<DI> ConvertInRangeTo(DI /*di*/, Vec64<double> v) {
   return VFromD<DI>{_mm_cvtsi64_si128(_mm_cvttsd_si64(v.raw))};
 }
 template <class DI, HWY_IF_V_SIZE_D(DI, 16), HWY_IF_I64_D(DI)>
-HWY_API VFromD<DI> FastConvertTo(DI /*di*/, Vec128<double> v) {
+HWY_API VFromD<DI> ConvertInRangeTo(DI /*di*/, Vec128<double> v) {
   const __m128i i0 = _mm_cvtsi64_si128(_mm_cvttsd_si64(v.raw));
   const Full64<double> dd2;
   const __m128i i1 = _mm_cvtsi64_si128(_mm_cvttsd_si64(UpperHalf(dd2, v).raw));
@@ -10976,18 +10978,18 @@ HWY_API VFromD<DI> FastConvertTo(DI /*di*/, Vec128<double> v) {
 
 template <class DI, HWY_IF_V_SIZE_LE_D(DI, 16), HWY_IF_I64_D(DI)>
 HWY_API VFromD<DI> ConvertTo(DI di, VFromD<Rebind<double, DI>> v) {
-  return detail::FixConversionOverflow(di, v, FastConvertTo(di, v));
+  return detail::FixConversionOverflow(di, v, ConvertInRangeTo(di, v));
 }
 #endif  // HWY_ARCH_X86_64
 
 #if !HWY_ARCH_X86_64 || HWY_TARGET <= HWY_AVX2
 template <class DI, HWY_IF_V_SIZE_GT_D(DI, (HWY_ARCH_X86_64 ? 16 : 0)),
           HWY_IF_I64_D(DI)>
-HWY_API VFromD<DI> FastConvertTo(DI di, VFromD<Rebind<double, DI>> v) {
+HWY_API VFromD<DI> ConvertInRangeTo(DI di, VFromD<Rebind<double, DI>> v) {
   using VI = VFromD<DI>;
 
   VI biased_exp;
-  const VI shifted = detail::FastConvertAbsF64ToUI64(di, v, biased_exp);
+  const VI shifted = detail::ConvAbsInRangeF64ToUI64(di, v, biased_exp);
   const VI sign_mask = BroadcastSignBit(BitCast(di, v));
 
   // If the input was negative, negate the integer (two's complement).
@@ -11000,7 +11002,7 @@ HWY_API VFromD<DI> ConvertTo(DI di, VFromD<Rebind<double, DI>> v) {
   using VI = VFromD<DI>;
 
   VI biased_exp;
-  const VI shifted = detail::FastConvertAbsF64ToUI64(di, v, biased_exp);
+  const VI shifted = detail::ConvAbsInRangeF64ToUI64(di, v, biased_exp);
 
 #if HWY_TARGET <= HWY_SSE4
   const auto in_range = biased_exp < Set(di, 1086);
@@ -11023,9 +11025,9 @@ HWY_API VFromD<DI> ConvertTo(DI di, VFromD<Rebind<double, DI>> v) {
 
 // Generic for all vector lengths on SSE2/SSSE3/SSE4/AVX2
 template <class DU, HWY_IF_U64_D(DU)>
-HWY_API VFromD<DU> FastConvertTo(DU du, VFromD<Rebind<double, DU>> v) {
+HWY_API VFromD<DU> ConvertInRangeTo(DU du, VFromD<Rebind<double, DU>> v) {
   VFromD<DU> biased_exp;
-  const auto shifted = detail::FastConvertAbsF64ToUI64(du, v, biased_exp);
+  const auto shifted = detail::ConvAbsInRangeF64ToUI64(du, v, biased_exp);
   return shifted;
 }
 
@@ -11037,7 +11039,7 @@ HWY_API VFromD<DU> ConvertTo(DU du, VFromD<Rebind<double, DU>> v) {
 
   VU biased_exp;
   const VU shifted =
-      detail::FastConvertAbsF64ToUI64(du, ZeroIfNegative(v), biased_exp);
+      detail::ConvAbsInRangeF64ToUI64(du, ZeroIfNegative(v), biased_exp);
 
   // Exponent indicates whether the number can be represented as uint64_t.
 #if HWY_TARGET <= HWY_SSE4

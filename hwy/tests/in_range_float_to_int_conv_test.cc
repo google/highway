@@ -16,7 +16,7 @@
 #include "hwy/base.h"
 
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "tests/fast_float_to_int_conv_test.cc"
+#define HWY_TARGET_INCLUDE "tests/in_range_float_to_int_conv_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
 #include "hwy/nanobenchmark.h"
@@ -26,28 +26,28 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
-// HWY_FAST_F2I_CONV_TEST_CONST_ASSERT(condition, msg) checks that condition is
-// true using static_assert if constexpr BitCastScalar is available and Highway
-// is being compiled in C++11 mode.
+// HWY_IN_RANGE_F2I_CONV_TEST_CONST_ASSERT(condition, msg) checks that condition
+// is true using static_assert if constexpr BitCastScalar is available and
+// Highway is being compiled in C++11 mode.
 //
 // Otherwise, if constexpr BitCastScalar is not available or Highway is being
-// compiled in C++11 mode, HWY_FAST_F2I_CONV_TEST_CONST_ASSERT(condition, msg)
-// checks that condition is true using a run-time assertion.
+// compiled in C++11 mode, HWY_IN_RANGE_F2I_CONV_TEST_CONST_ASSERT(condition,
+// msg) checks that condition is true using a run-time assertion.
 #if (HWY_HAS_BUILTIN(__builtin_bit_cast) || HWY_COMPILER_MSVC >= 1926) && \
     __cpp_constexpr >= 201304L
-#define HWY_FAST_F2I_CONV_TEST_CONST_ASSERT(condition, msg) \
+#define HWY_IN_RANGE_F2I_CONV_TEST_CONST_ASSERT(condition, msg) \
   static_assert((condition), msg)
 #else
-#define HWY_FAST_F2I_CONV_TEST_CONST_ASSERT(condition, msg) \
-  do {                                                      \
-    if (HWY_UNLIKELY(!(condition))) {                       \
-      HWY_ABORT("Assert %s failed:\n%s", #condition, msg);  \
-    }                                                       \
+#define HWY_IN_RANGE_F2I_CONV_TEST_CONST_ASSERT(condition, msg) \
+  do {                                                          \
+    if (HWY_UNLIKELY(!(condition))) {                           \
+      HWY_ABORT("Assert %s failed:\n%s", #condition, msg);      \
+    }                                                           \
   } while (0)
 #endif
 
 template <class TTo>
-class TestFastConvertFloatToInt {
+class TestConvertInRangeFloatToInt {
   static_assert(!IsFloat<TTo>() && !IsSpecialFloat<TTo>(),
                 "TTo must be an integer type");
 
@@ -144,31 +144,31 @@ class TestFastConvertFloatToInt {
     HWY_BITCASTSCALAR_CXX14_CONSTEXPR const TFArith kLowestInRangeVal =
         HWY_MAX(kLowestTFromVal, kLowestTToVal);
 
-    HWY_FAST_F2I_CONV_TEST_CONST_ASSERT(
+    HWY_IN_RANGE_F2I_CONV_TEST_CONST_ASSERT(
         ScalarIsFinite(kLowestInRangeVal) &&
             kLowestInRangeVal >= static_cast<TFArith>(LimitsMin<int64_t>()),
         "kLowestInRangeVal must be a finite value that is greater than or "
         "equal to LimitsMin<int64_t>()");
-    HWY_FAST_F2I_CONV_TEST_CONST_ASSERT(
+    HWY_IN_RANGE_F2I_CONV_TEST_CONST_ASSERT(
         kLowestInRangeVal < static_cast<TFArith>(0.0),
         "kLowestInRangeVal must be less than zero");
 
     // Disable the C4056 (overflow in floating-point constant arithmetic)
     // warning that MSVC generates when kLowestInRangeVal is cast to an
-    // int64_t in the HWY_FAST_F2I_CONV_TEST_CONST_ASSERT statements below as
-    // kLowestInRangeVal is known to be within the range of an int64_t due to
-    // the HWY_FAST_F2I_CONV_TEST_CONST_ASSERT checks above
+    // int64_t in the HWY_IN_RANGE_F2I_CONV_TEST_CONST_ASSERT statements below
+    // as kLowestInRangeVal is known to be within the range of an int64_t due to
+    // the HWY_IN_RANGE_F2I_CONV_TEST_CONST_ASSERT checks above
 
 #if HWY_COMPILER_MSVC
     HWY_DIAGNOSTICS(push)
     HWY_DIAGNOSTICS_OFF(disable : 4056, ignored "-Woverflow")
 #endif
 
-    HWY_FAST_F2I_CONV_TEST_CONST_ASSERT(
+    HWY_IN_RANGE_F2I_CONV_TEST_CONST_ASSERT(
         static_cast<int64_t>(kLowestInRangeVal) <= 0,
         "static_cast<int64_t>(kLowestInRangeVal) must be less than "
         "or equal to 0");
-    HWY_FAST_F2I_CONV_TEST_CONST_ASSERT(
+    HWY_IN_RANGE_F2I_CONV_TEST_CONST_ASSERT(
         static_cast<int64_t>(kLowestInRangeVal) >=
             static_cast<int64_t>(LimitsMin<TTo>()),
         "static_cast<int64_t>(kLowestInRangeVal) must be greater "
@@ -201,17 +201,17 @@ class TestFastConvertFloatToInt {
     HWY_BITCASTSCALAR_CXX14_CONSTEXPR const TFArith kHighestInRangeVal =
         HWY_MIN(kHighestTFromVal, kHighestTToVal);
 
-    HWY_FAST_F2I_CONV_TEST_CONST_ASSERT(
+    HWY_IN_RANGE_F2I_CONV_TEST_CONST_ASSERT(
         ScalarIsFinite(kHighestInRangeVal) &&
             kHighestInRangeVal < static_cast<TFArith>(18446744073709551616.0),
         "kHighestInRangeVal must be a finite value that is less than or "
         "equal to LimitsMax<uint64_t>()");
-    HWY_FAST_F2I_CONV_TEST_CONST_ASSERT(
+    HWY_IN_RANGE_F2I_CONV_TEST_CONST_ASSERT(
         kHighestInRangeVal > 0, "kHighestInRangeVal must be greater than 0");
-    HWY_FAST_F2I_CONV_TEST_CONST_ASSERT(
+    HWY_IN_RANGE_F2I_CONV_TEST_CONST_ASSERT(
         static_cast<uint64_t>(kHighestInRangeVal) > 0,
         "static_cast<uint64_t>(kHighestInRangeVal) must be greater than 0");
-    HWY_FAST_F2I_CONV_TEST_CONST_ASSERT(
+    HWY_IN_RANGE_F2I_CONV_TEST_CONST_ASSERT(
         static_cast<uint64_t>(kHighestInRangeVal) <=
             static_cast<uint64_t>(LimitsMax<TTo>()),
         "static_cast<uint64_t>(kHighestInRangeVal) must be less "
@@ -244,17 +244,17 @@ class TestFastConvertFloatToInt {
   }
   template <class DTo, class VFrom,
             HWY_IF_T_SIZE_LE_D(DTo, sizeof(TFromV<VFrom>) - 1)>
-  static HWY_INLINE Vec<DTo> DoFastF2IConvVector(DTo d_to, VFrom v_from) {
-    return FastDemoteTo(d_to, v_from);
+  static HWY_INLINE Vec<DTo> DoInRangeF2IConvVector(DTo d_to, VFrom v_from) {
+    return DemoteInRangeTo(d_to, v_from);
   }
   template <class DTo, class VFrom, HWY_IF_T_SIZE_D(DTo, sizeof(TFromV<VFrom>))>
-  static HWY_INLINE Vec<DTo> DoFastF2IConvVector(DTo d_to, VFrom v_from) {
-    return FastConvertTo(d_to, v_from);
+  static HWY_INLINE Vec<DTo> DoInRangeF2IConvVector(DTo d_to, VFrom v_from) {
+    return ConvertInRangeTo(d_to, v_from);
   }
   template <class DTo, class VFrom,
             HWY_IF_T_SIZE_GT_D(DTo, sizeof(TFromV<VFrom>))>
-  static HWY_INLINE Vec<DTo> DoFastF2IConvVector(DTo d_to, VFrom v_from) {
-    return FastPromoteTo(d_to, v_from);
+  static HWY_INLINE Vec<DTo> DoInRangeF2IConvVector(DTo d_to, VFrom v_from) {
+    return PromoteInRangeTo(d_to, v_from);
   }
 
  public:
@@ -284,10 +284,10 @@ class TestFastConvertFloatToInt {
                     kHighestInRangeFltValBits) +
             1u);
 
-    HWY_FAST_F2I_CONV_TEST_CONST_ASSERT(
+    HWY_IN_RANGE_F2I_CONV_TEST_CONST_ASSERT(
         kMinOutOfRangeRandFltBits > kHighestInRangeFltValBits,
         "kMinOutOfRangeRandFltBits > kHighestInRangeFltValBits must be true");
-    HWY_FAST_F2I_CONV_TEST_CONST_ASSERT(
+    HWY_IN_RANGE_F2I_CONV_TEST_CONST_ASSERT(
         kMinOutOfRangeRandFltBits <= static_cast<TUFrom>(LimitsMax<TIFrom>()),
         "kMinOutOfRangeRandFltBits <= LimitsMax<TIFrom>() must be true");
 
@@ -300,23 +300,23 @@ class TestFastConvertFloatToInt {
 
     HWY_ASSERT_VEC_EQ(
         d_to, Set(d_to, static_cast<TTo>(0)),
-        DoFastF2IConvVector(d_to, Set(d_from, ConvertScalarTo<TFrom>(0))));
+        DoInRangeF2IConvVector(d_to, Set(d_from, ConvertScalarTo<TFrom>(0))));
     HWY_ASSERT_VEC_EQ(
         d_to, Set(d_to, static_cast<TTo>(1)),
-        DoFastF2IConvVector(d_to, Set(d_from, ConvertScalarTo<TFrom>(1))));
+        DoInRangeF2IConvVector(d_to, Set(d_from, ConvertScalarTo<TFrom>(1))));
 
     if (IsSigned<TTo>()) {
-      HWY_ASSERT_VEC_EQ(
-          d_to, Set(d_to, static_cast<TTo>(-1)),
-          DoFastF2IConvVector(d_to, Set(d_from, ConvertScalarTo<TFrom>(-1))));
+      HWY_ASSERT_VEC_EQ(d_to, Set(d_to, static_cast<TTo>(-1)),
+                        DoInRangeF2IConvVector(
+                            d_to, Set(d_from, ConvertScalarTo<TFrom>(-1))));
     }
 
     HWY_ASSERT_VEC_EQ(
         d_to, Set(d_to, kLowestInRangeIntVal),
-        DoFastF2IConvVector(d_to, Set(d_from, kLowestInRangeFltVal)));
+        DoInRangeF2IConvVector(d_to, Set(d_from, kLowestInRangeFltVal)));
     HWY_ASSERT_VEC_EQ(
         d_to, Set(d_to, kHighestInRangeIntVal),
-        DoFastF2IConvVector(d_to, Set(d_from, kHighestInRangeFltVal)));
+        DoInRangeF2IConvVector(d_to, Set(d_from, kHighestInRangeFltVal)));
 
     constexpr TIFrom kIotaMask =
         static_cast<TIFrom>(static_cast<uint64_t>(MantissaMask<TFrom>()) &
@@ -404,30 +404,31 @@ class TestFastConvertFloatToInt {
 
       const auto from = Load(d_from, from_lanes.get());
 
-      HWY_ASSERT_VEC_EQ(d_to, expected.get(), DoFastF2IConvVector(d_to, from));
+      HWY_ASSERT_VEC_EQ(d_to, expected.get(),
+                        DoInRangeF2IConvVector(d_to, from));
       HWY_ASSERT_VEC_EQ(
           d_to, expected.get(),
-          OddEven(DoFastF2IConvVector(d_to, OddEven(from, pos_nan)),
-                  DoFastF2IConvVector(d_to, OddEven(pos_nan, from))));
+          OddEven(DoInRangeF2IConvVector(d_to, OddEven(from, pos_nan)),
+                  DoInRangeF2IConvVector(d_to, OddEven(pos_nan, from))));
       HWY_ASSERT_VEC_EQ(
           d_to, expected.get(),
-          OddEven(DoFastF2IConvVector(d_to, OddEven(from, neg_nan)),
-                  DoFastF2IConvVector(d_to, OddEven(neg_nan, from))));
+          OddEven(DoInRangeF2IConvVector(d_to, OddEven(from, neg_nan)),
+                  DoInRangeF2IConvVector(d_to, OddEven(neg_nan, from))));
       HWY_ASSERT_VEC_EQ(
           d_to, expected.get(),
-          OddEven(DoFastF2IConvVector(d_to, OddEven(from, pos_inf)),
-                  DoFastF2IConvVector(d_to, OddEven(pos_inf, from))));
+          OddEven(DoInRangeF2IConvVector(d_to, OddEven(from, pos_inf)),
+                  DoInRangeF2IConvVector(d_to, OddEven(pos_inf, from))));
       HWY_ASSERT_VEC_EQ(
           d_to, expected.get(),
-          OddEven(DoFastF2IConvVector(d_to, OddEven(from, neg_inf)),
-                  DoFastF2IConvVector(d_to, OddEven(neg_inf, from))));
+          OddEven(DoInRangeF2IConvVector(d_to, OddEven(from, neg_inf)),
+                  DoInRangeF2IConvVector(d_to, OddEven(neg_inf, from))));
     }
 
     HWY_BITCASTSCALAR_CXX14_CONSTEXPR const uint64_t
         kOutOfRangeRandBitsModulus =
             static_cast<uint64_t>(static_cast<TUFrom>(LimitsMax<TIFrom>()) -
                                   kMinOutOfRangeRandFltBits + 1);
-    HWY_FAST_F2I_CONV_TEST_CONST_ASSERT(
+    HWY_IN_RANGE_F2I_CONV_TEST_CONST_ASSERT(
         kOutOfRangeRandBitsModulus != 0,
         "kOutOfRangeRandBitsModulus != 0 must be true");
 
@@ -454,7 +455,7 @@ class TestFastConvertFloatToInt {
       }
 
       const auto from = Load(d_from, from_lanes.get());
-      const auto actual = DoFastF2IConvVector(d_to, from);
+      const auto actual = DoInRangeF2IConvVector(d_to, from);
       HWY_ASSERT_VEC_EQ(
           d_to, expected.get(),
           And(actual,
@@ -474,30 +475,30 @@ class TestFastConvertFloatToInt {
   }
 };
 
-HWY_NOINLINE void TestAllFastConvertFloatToInt() {
+HWY_NOINLINE void TestAllConvertInRangeFloatToInt() {
 #if HWY_HAVE_FLOAT16
-  ForPartialVectors<TestFastConvertFloatToInt<int16_t>>()(hwy::float16_t());
-  ForPartialVectors<TestFastConvertFloatToInt<uint16_t>>()(hwy::float16_t());
+  ForPartialVectors<TestConvertInRangeFloatToInt<int16_t>>()(hwy::float16_t());
+  ForPartialVectors<TestConvertInRangeFloatToInt<uint16_t>>()(hwy::float16_t());
 #endif
 
-  ForPartialVectors<TestFastConvertFloatToInt<int32_t>>()(float());
-  ForPartialVectors<TestFastConvertFloatToInt<uint32_t>>()(float());
+  ForPartialVectors<TestConvertInRangeFloatToInt<int32_t>>()(float());
+  ForPartialVectors<TestConvertInRangeFloatToInt<uint32_t>>()(float());
 
 #if HWY_HAVE_INTEGER64
-  ForPromoteVectors<TestFastConvertFloatToInt<int64_t>>()(float());
-  ForPromoteVectors<TestFastConvertFloatToInt<uint64_t>>()(float());
+  ForPromoteVectors<TestConvertInRangeFloatToInt<int64_t>>()(float());
+  ForPromoteVectors<TestConvertInRangeFloatToInt<uint64_t>>()(float());
 #endif
 
 #if HWY_HAVE_FLOAT64
-  ForDemoteVectors<TestFastConvertFloatToInt<int32_t>>()(double());
-  ForDemoteVectors<TestFastConvertFloatToInt<uint32_t>>()(double());
-  ForPartialVectors<TestFastConvertFloatToInt<int64_t>>()(double());
-  ForPartialVectors<TestFastConvertFloatToInt<uint64_t>>()(double());
+  ForDemoteVectors<TestConvertInRangeFloatToInt<int32_t>>()(double());
+  ForDemoteVectors<TestConvertInRangeFloatToInt<uint32_t>>()(double());
+  ForPartialVectors<TestConvertInRangeFloatToInt<int64_t>>()(double());
+  ForPartialVectors<TestConvertInRangeFloatToInt<uint64_t>>()(double());
 #endif
 }
 
 template <class TTo>
-struct TestFastPromoteUpperLowerFloatToInt {
+struct TestPromoteInRangeUpperLowerFloatToInt {
   template <typename TFrom, class DFrom>
   HWY_NOINLINE void operator()(TFrom /*unused*/, DFrom d_from) {
     static_assert(IsFloat<TFrom>(), "TFrom must be a floating-point type");
@@ -528,7 +529,7 @@ struct TestFastPromoteUpperLowerFloatToInt {
     }
 
     const auto from = Load(d_from, from_lanes.get());
-    HWY_ASSERT_VEC_EQ(d_to, expected.get(), FastPromoteLowerTo(d_to, from));
+    HWY_ASSERT_VEC_EQ(d_to, expected.get(), PromoteInRangeLowerTo(d_to, from));
 
 #if HWY_TARGET != HWY_SCALAR
     for (size_t i = 0; i < N / 2; ++i) {
@@ -537,22 +538,22 @@ struct TestFastPromoteUpperLowerFloatToInt {
       expected[i] = static_cast<TTo>(from_val);
     }
 
-    HWY_ASSERT_VEC_EQ(d_to, expected.get(), FastPromoteUpperTo(d_to, from));
+    HWY_ASSERT_VEC_EQ(d_to, expected.get(), PromoteInRangeUpperTo(d_to, from));
 #endif
   }
 };
 
-HWY_NOINLINE void TestAllFastPromoteUpperLowerFloatToInt() {
+HWY_NOINLINE void TestAllPromoteInRangeUpperLowerFloatToInt() {
 #if HWY_HAVE_INTEGER64
-  ForShrinkableVectors<TestFastPromoteUpperLowerFloatToInt<int64_t>, 1>()(
+  ForShrinkableVectors<TestPromoteInRangeUpperLowerFloatToInt<int64_t>, 1>()(
       float());
-  ForShrinkableVectors<TestFastPromoteUpperLowerFloatToInt<uint64_t>, 1>()(
+  ForShrinkableVectors<TestPromoteInRangeUpperLowerFloatToInt<uint64_t>, 1>()(
       float());
 #endif
 }
 
 template <class TTo>
-struct TestFastPromoteOddEvenFloatToInt {
+struct TestPromoteInRangeOddEvenFloatToInt {
   template <typename TFrom, class DFrom>
   HWY_NOINLINE void operator()(TFrom /*unused*/, DFrom d_from) {
     static_assert(IsFloat<TFrom>(), "TFrom must be a floating-point type");
@@ -584,7 +585,7 @@ struct TestFastPromoteOddEvenFloatToInt {
     }
 
     const auto from = Load(d_from, from_lanes.get());
-    HWY_ASSERT_VEC_EQ(d_to, expected.get(), FastPromoteEvenTo(d_to, from));
+    HWY_ASSERT_VEC_EQ(d_to, expected.get(), PromoteInRangeEvenTo(d_to, from));
 
 #if HWY_TARGET != HWY_SCALAR
     for (size_t i = 0; i < N / 2; ++i) {
@@ -593,20 +594,21 @@ struct TestFastPromoteOddEvenFloatToInt {
       expected[i] = static_cast<TTo>(from_val);
     }
 
-    HWY_ASSERT_VEC_EQ(d_to, expected.get(), FastPromoteOddTo(d_to, from));
+    HWY_ASSERT_VEC_EQ(d_to, expected.get(), PromoteInRangeOddTo(d_to, from));
 #endif
   }
 };
 
-HWY_NOINLINE void TestAllFastPromoteOddEvenFloatToInt() {
+HWY_NOINLINE void TestAllPromoteInRangeOddEvenFloatToInt() {
 #if HWY_HAVE_INTEGER64
-  ForShrinkableVectors<TestFastPromoteOddEvenFloatToInt<int64_t>, 1>()(float());
-  ForShrinkableVectors<TestFastPromoteOddEvenFloatToInt<uint64_t>, 1>()(
+  ForShrinkableVectors<TestPromoteInRangeOddEvenFloatToInt<int64_t>, 1>()(
+      float());
+  ForShrinkableVectors<TestPromoteInRangeOddEvenFloatToInt<uint64_t>, 1>()(
       float());
 #endif
 }
 
-#undef HWY_FAST_F2I_CONV_TEST_CONST_ASSERT
+#undef HWY_IN_RANGE_F2I_CONV_TEST_CONST_ASSERT
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -616,12 +618,13 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 
 namespace hwy {
-HWY_BEFORE_TEST(HwyFastFloatToIntConvTest);
-HWY_EXPORT_AND_TEST_P(HwyFastFloatToIntConvTest, TestAllFastConvertFloatToInt);
-HWY_EXPORT_AND_TEST_P(HwyFastFloatToIntConvTest,
-                      TestAllFastPromoteUpperLowerFloatToInt);
-HWY_EXPORT_AND_TEST_P(HwyFastFloatToIntConvTest,
-                      TestAllFastPromoteOddEvenFloatToInt);
+HWY_BEFORE_TEST(HwyInRangeFloatToIntConvTest);
+HWY_EXPORT_AND_TEST_P(HwyInRangeFloatToIntConvTest,
+                      TestAllConvertInRangeFloatToInt);
+HWY_EXPORT_AND_TEST_P(HwyInRangeFloatToIntConvTest,
+                      TestAllPromoteInRangeUpperLowerFloatToInt);
+HWY_EXPORT_AND_TEST_P(HwyInRangeFloatToIntConvTest,
+                      TestAllPromoteInRangeOddEvenFloatToInt);
 HWY_AFTER_TEST();
 }  // namespace hwy
 

@@ -5515,11 +5515,11 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, Vec256<uint32_t> v) {
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_I64_D(D)>
-HWY_API VFromD<D> FastPromoteTo(D /*di64*/, VFromD<Rebind<float, D>> v) {
+HWY_API VFromD<D> PromoteInRangeTo(D /*di64*/, VFromD<Rebind<float, D>> v) {
   return VFromD<D>{_mm512_cvttps_epi64(v.raw)};
 }
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_U64_D(D)>
-HWY_API VFromD<D> FastPromoteTo(D /* tag */, VFromD<Rebind<float, D>> v) {
+HWY_API VFromD<D> PromoteInRangeTo(D /* tag */, VFromD<Rebind<float, D>> v) {
   return VFromD<D>{_mm512_cvttps_epu64(v.raw)};
 }
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_U64_D(D)>
@@ -5797,12 +5797,12 @@ HWY_API VFromD<D> DemoteTo(D /* tag */, Vec512<double> v) {
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I32_D(D)>
-HWY_API VFromD<D> FastDemoteTo(D /* tag */, Vec512<double> v) {
+HWY_API VFromD<D> DemoteInRangeTo(D /* tag */, Vec512<double> v) {
   return VFromD<D>{_mm512_cvttpd_epi32(v.raw)};
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U32_D(D)>
-HWY_API VFromD<D> FastDemoteTo(D /* tag */, Vec512<double> v) {
+HWY_API VFromD<D> DemoteInRangeTo(D /* tag */, Vec512<double> v) {
   return VFromD<D>{_mm512_cvttpd_epu32(v.raw)};
 }
 
@@ -5968,11 +5968,11 @@ HWY_API VFromD<D> ConvertTo(D /* tag*/, Vec512<uint64_t> v) {
 // Truncates (rounds toward zero).
 #if HWY_HAVE_FLOAT16
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_I16_D(D)>
-HWY_API VFromD<D> FastConvertTo(D /*d*/, Vec512<float16_t> v) {
+HWY_API VFromD<D> ConvertInRangeTo(D /*d*/, Vec512<float16_t> v) {
   return VFromD<D>{_mm512_cvttph_epi16(v.raw)};
 }
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_U16_D(D)>
-HWY_API VFromD<D> FastConvertTo(D /* tag */, VFromD<RebindToFloat<D>> v) {
+HWY_API VFromD<D> ConvertInRangeTo(D /* tag */, VFromD<RebindToFloat<D>> v) {
   return VFromD<D>{_mm512_cvttph_epu16(v.raw)};
 }
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_U16_D(D)>
@@ -5981,15 +5981,15 @@ HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<RebindToFloat<D>> v) {
 }
 #endif  // HWY_HAVE_FLOAT16
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_I32_D(D)>
-HWY_API VFromD<D> FastConvertTo(D /*d*/, Vec512<float> v) {
+HWY_API VFromD<D> ConvertInRangeTo(D /*d*/, Vec512<float> v) {
   return VFromD<D>{_mm512_cvttps_epi32(v.raw)};
 }
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_I64_D(D)>
-HWY_API VFromD<D> FastConvertTo(D /*di*/, Vec512<double> v) {
+HWY_API VFromD<D> ConvertInRangeTo(D /*di*/, Vec512<double> v) {
   return VFromD<D>{_mm512_cvttpd_epi64(v.raw)};
 }
 template <class DU, HWY_IF_V_SIZE_D(DU, 64), HWY_IF_U32_D(DU)>
-HWY_API VFromD<DU> FastConvertTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
+HWY_API VFromD<DU> ConvertInRangeTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
   return VFromD<DU>{_mm512_cvttps_epu32(v.raw)};
 }
 template <class DU, HWY_IF_V_SIZE_D(DU, 64), HWY_IF_U32_D(DU)>
@@ -5997,7 +5997,7 @@ HWY_API VFromD<DU> ConvertTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
   return VFromD<DU>{_mm512_maskz_cvttps_epu32(Not(MaskFromVec(v)).raw, v.raw)};
 }
 template <class DU, HWY_IF_V_SIZE_D(DU, 64), HWY_IF_U64_D(DU)>
-HWY_API VFromD<DU> FastConvertTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
+HWY_API VFromD<DU> ConvertInRangeTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
   return VFromD<DU>{_mm512_cvttpd_epu64(v.raw)};
 }
 template <class DU, HWY_IF_V_SIZE_D(DU, 64), HWY_IF_U64_D(DU)>

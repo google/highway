@@ -1311,13 +1311,13 @@ HWY_INLINE ToT CastValueForPromoteTo(hwy::UnsignedTag /*to_type_tag*/,
   return CastValueForF2IConv<ToT>(val);
 }
 
-// If val is within the range of ToT, CastValueForFastF2IConv<ToT>(val) returns
-// static_cast<ToT>(val)
+// If val is within the range of ToT, CastValueForInRangeF2IConv<ToT>(val)
+// returns static_cast<ToT>(val)
 //
-// Otherwise, CastValueForFastF2IConv<ToT>(val) returns an
+// Otherwise, CastValueForInRangeF2IConv<ToT>(val) returns an
 // implementation-defined result if val is not within the range of ToT.
 template <class ToT, class FromT>
-HWY_INLINE ToT CastValueForFastF2IConv(FromT val) {
+HWY_INLINE ToT CastValueForInRangeF2IConv(FromT val) {
   // Prevent ubsan errors when converting float to narrower integer
 
   using FromTU = MakeUnsigned<FromT>;
@@ -1369,16 +1369,16 @@ HWY_API Vec1<TTo> PromoteTo(DTo /* tag */, Vec1<TFrom> from) {
       detail::CastValueForPromoteTo<TTo>(hwy::TypeTag<TTo>(), from.raw));
 }
 
-#ifdef HWY_NATIVE_F32_TO_UI64_FAST_PROMOTE_TO
-#undef HWY_NATIVE_F32_TO_UI64_FAST_PROMOTE_TO
+#ifdef HWY_NATIVE_F32_TO_UI64_PROMOTE_IN_RANGE_TO
+#undef HWY_NATIVE_F32_TO_UI64_PROMOTE_IN_RANGE_TO
 #else
-#define HWY_NATIVE_F32_TO_UI64_FAST_PROMOTE_TO
+#define HWY_NATIVE_F32_TO_UI64_PROMOTE_IN_RANGE_TO
 #endif
 
 template <class DTo, HWY_IF_UI64_D(DTo)>
-HWY_API VFromD<DTo> FastPromoteTo(DTo /* tag */, Vec1<float> from) {
+HWY_API VFromD<DTo> PromoteInRangeTo(DTo /* tag */, Vec1<float> from) {
   using TTo = TFromD<DTo>;
-  return Vec1<TTo>(detail::CastValueForFastF2IConv<TTo>(from.raw));
+  return Vec1<TTo>(detail::CastValueForInRangeF2IConv<TTo>(from.raw));
 }
 
 // MSVC 19.10 cannot deduce the argument type if HWY_IF_FLOAT(TFrom) is here,
@@ -1443,16 +1443,17 @@ HWY_API Vec1<TTo> DemoteTo(DTo /* tag */, Vec1<TFrom> from) {
   return Vec1<TTo>(static_cast<TTo>(from.raw));
 }
 
-#ifdef HWY_NATIVE_F64_TO_UI32_FAST_DEMOTE_TO
-#undef HWY_NATIVE_F64_TO_UI32_FAST_DEMOTE_TO
+#ifdef HWY_NATIVE_F64_TO_UI32_DEMOTE_IN_RANGE_TO
+#undef HWY_NATIVE_F64_TO_UI32_DEMOTE_IN_RANGE_TO
 #else
-#define HWY_NATIVE_F64_TO_UI32_FAST_DEMOTE_TO
+#define HWY_NATIVE_F64_TO_UI32_DEMOTE_IN_RANGE_TO
 #endif
 
 template <class D32, HWY_IF_UI32_D(D32)>
-HWY_API VFromD<D32> FastDemoteTo(D32 /*d32*/, VFromD<Rebind<double, D32>> v) {
+HWY_API VFromD<D32> DemoteInRangeTo(D32 /*d32*/,
+                                    VFromD<Rebind<double, D32>> v) {
   using TTo = TFromD<D32>;
-  return Vec1<TTo>(detail::CastValueForFastF2IConv<TTo>(v.raw));
+  return Vec1<TTo>(detail::CastValueForInRangeF2IConv<TTo>(v.raw));
 }
 
 // Per-target flag to prevent generic_ops-inl.h from defining f16 conversions;
@@ -1510,17 +1511,17 @@ HWY_API Vec1<TTo> ConvertTo(DTo /* tag */, Vec1<TFrom> from) {
   return Vec1<TTo>(static_cast<TTo>(from.raw));
 }
 
-#ifdef HWY_NATIVE_F2I_FAST_CONVERT_TO
-#undef HWY_NATIVE_F2I_FAST_CONVERT_TO
+#ifdef HWY_NATIVE_F2I_CONVERT_IN_RANGE_TO
+#undef HWY_NATIVE_F2I_CONVERT_IN_RANGE_TO
 #else
-#define HWY_NATIVE_F2I_FAST_CONVERT_TO
+#define HWY_NATIVE_F2I_CONVERT_IN_RANGE_TO
 #endif
 
 template <class DI, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DI),
           HWY_IF_T_SIZE_ONE_OF_D(DI, (1 << 4) | (1 << 8))>
-HWY_API VFromD<DI> FastConvertTo(DI /*di*/, VFromD<RebindToFloat<DI>> v) {
+HWY_API VFromD<DI> ConvertInRangeTo(DI /*di*/, VFromD<RebindToFloat<DI>> v) {
   using TTo = TFromD<DI>;
-  return VFromD<DI>(detail::CastValueForFastF2IConv<TTo>(v.raw));
+  return VFromD<DI>(detail::CastValueForInRangeF2IConv<TTo>(v.raw));
 }
 
 HWY_API Vec1<uint8_t> U8FromU32(const Vec1<uint32_t> v) {
