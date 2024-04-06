@@ -4,7 +4,7 @@
 
 #include "hwy/abort.h"
 
-#include "gtest/gtest.h"
+#include "hwy/tests/hwy_gtest.h"
 #include "hwy/base.h"
 
 namespace hwy {
