@@ -7,6 +7,8 @@
 #include "hwy/tests/hwy_gtest.h"
 #include "hwy/base.h"
 
+#include "hwy/tests/test_util-inl.h"  // HWY_ASSERT_EQ
+
 namespace hwy {
 
 #ifdef GTEST_HAS_DEATH_TEST
@@ -52,12 +54,12 @@ TEST(AbortTest, AbortOverrideChain) {
     fprintf(stderr, "%s from %d of %s", formatted_err, line, file);
   };
 
-  ASSERT_EQ(SetAbortFunc(FirstHandler), nullptr);
-  ASSERT_EQ(GetAbortFunc(), FirstHandler);
-  ASSERT_EQ(SetAbortFunc(SecondHandler), FirstHandler);
-  ASSERT_EQ(GetAbortFunc(), SecondHandler);
-  ASSERT_EQ(SetAbortFunc(nullptr), SecondHandler);
-  ASSERT_EQ(GetAbortFunc(), nullptr);
+  HWY_ASSERT(SetAbortFunc(FirstHandler) == nullptr);
+  HWY_ASSERT(GetAbortFunc() == FirstHandler);
+  HWY_ASSERT(SetAbortFunc(SecondHandler) == FirstHandler);
+  HWY_ASSERT(GetAbortFunc() == SecondHandler);
+  HWY_ASSERT(SetAbortFunc(nullptr) == SecondHandler);
+  HWY_ASSERT(GetAbortFunc() == nullptr);
 }
 
 }  // namespace hwy
