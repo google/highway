@@ -63,3 +63,5 @@ TEST(AbortTest, AbortOverrideChain) {
 }
 
 }  // namespace hwy
+
+HWY_TEST_MAIN();
