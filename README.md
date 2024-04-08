@@ -321,7 +321,7 @@ function templates) are usually inlined.
 
 ## Compiler flags
 
-Applications should be compiled with optimizations enabled - without inlining,
+Applications should be compiled with optimizations enabled. Without inlining
 SIMD code may slow down by factors of 10 to 100. For clang and GCC, `-O2` is
 generally sufficient.
 
