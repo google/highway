@@ -454,9 +454,12 @@ struct TestIntegerDiv {
 
     const auto vmin = Set(d, LimitsMin<T>());
     const auto vmax = Set(d, LimitsMax<T>());
+    const auto v1 = Set(d, static_cast<T>(Unpredictable1()));
     const auto v2 = Set(d, static_cast<T>(Unpredictable1() + 1));
     const auto v3 = Set(d, static_cast<T>(Unpredictable1() + 2));
 
+    HWY_ASSERT_VEC_EQ(d, vmin, Div(vmin, v1));
+    HWY_ASSERT_VEC_EQ(d, vmax, Div(vmax, v1));
     HWY_ASSERT_VEC_EQ(d, Set(d, static_cast<T>(LimitsMin<T>() / 2)),
                       Div(vmin, v2));
     HWY_ASSERT_VEC_EQ(d, Set(d, static_cast<T>(LimitsMin<T>() / 3)),

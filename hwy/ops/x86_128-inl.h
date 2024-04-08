@@ -10060,36 +10060,64 @@ HWY_INLINE VFromD<DI> FixConversionOverflow(DI di,
 
 }  // namespace detail
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_I32_D(D),
-          class DF = Rebind<double, D>>
-HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<DF> v) {
-  const VFromD<DF> clamped = detail::ClampF64ToI32Max(DF(), v);
-  return VFromD<D>{_mm_cvttpd_epi32(clamped.raw)};
+#ifdef HWY_NATIVE_F64_TO_UI32_DEMOTE_IN_RANGE_TO
+#undef HWY_NATIVE_F64_TO_UI32_DEMOTE_IN_RANGE_TO
+#else
+#define HWY_NATIVE_F64_TO_UI32_DEMOTE_IN_RANGE_TO
+#endif
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_I32_D(D)>
+HWY_API VFromD<D> DemoteInRangeTo(D /* tag */, VFromD<Rebind<double, D>> v) {
+  return VFromD<D>{_mm_cvttpd_epi32(v.raw)};
+}
+
+// F64 to I32 DemoteTo is generic for all vector lengths
+template <class D, HWY_IF_I32_D(D)>
+HWY_API VFromD<D> DemoteTo(D di32, VFromD<Rebind<double, D>> v) {
+  const Rebind<double, decltype(di32)> df64;
+  const VFromD<decltype(df64)> clamped = detail::ClampF64ToI32Max(df64, v);
+  return DemoteInRangeTo(di32, clamped);
+}
+
+#if HWY_TARGET <= HWY_AVX3
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U32_D(D)>
+HWY_API VFromD<D> DemoteInRangeTo(D /* tag */, VFromD<Rebind<double, D>> v) {
+  return VFromD<D>{_mm_cvttpd_epu32(v.raw)};
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U32_D(D)>
-HWY_API VFromD<D> DemoteTo(D du32, VFromD<Rebind<double, D>> v) {
-#if HWY_TARGET <= HWY_AVX3
-  (void)du32;
+HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<Rebind<double, D>> v) {
   return VFromD<D>{
       _mm_maskz_cvttpd_epu32(detail::UnmaskedNot(MaskFromVec(v)).raw, v.raw)};
-#else  // AVX2 or earlier
+}
+#else   // HWY_TARGET > HWY_AVX3
+
+// F64 to U32 DemoteInRangeTo is generic for all vector lengths on
+// SSE2/SSSE3/SSE4/AVX2
+template <class D, HWY_IF_U32_D(D)>
+HWY_API VFromD<D> DemoteInRangeTo(D du32, VFromD<Rebind<double, D>> v) {
+  const RebindToSigned<decltype(du32)> di32;
   const Rebind<double, decltype(du32)> df64;
   const RebindToUnsigned<decltype(df64)> du64;
 
-  // Clamp v[i] to a value between 0 and 4294967295
-  const auto clamped = Min(ZeroIfNegative(v), Set(df64, 4294967295.0));
-
   const auto k2_31 = Set(df64, 2147483648.0);
-  const auto clamped_is_ge_k2_31 = (clamped >= k2_31);
-  const auto clamped_lo31_f64 =
-      clamped - IfThenElseZero(clamped_is_ge_k2_31, k2_31);
-  const VFromD<D> clamped_lo31_u32{_mm_cvttpd_epi32(clamped_lo31_f64.raw)};
+  const auto v_is_ge_k2_31 = (v >= k2_31);
+  const auto clamped_lo31_f64 = v - IfThenElseZero(v_is_ge_k2_31, k2_31);
+  const auto clamped_lo31_u32 =
+      BitCast(du32, DemoteInRangeTo(di32, clamped_lo31_f64));
   const auto clamped_u32_msb = ShiftLeft<31>(
-      TruncateTo(du32, BitCast(du64, VecFromMask(df64, clamped_is_ge_k2_31))));
+      TruncateTo(du32, BitCast(du64, VecFromMask(df64, v_is_ge_k2_31))));
   return Or(clamped_lo31_u32, clamped_u32_msb);
-#endif
 }
+
+// F64 to U32 DemoteTo is generic for all vector lengths on SSE2/SSSE3/SSE4/AVX2
+template <class D, HWY_IF_U32_D(D)>
+HWY_API VFromD<D> DemoteTo(D du32, VFromD<Rebind<double, D>> v) {
+  const Rebind<double, decltype(du32)> df64;
+  const auto clamped = Min(ZeroIfNegative(v), Set(df64, 4294967295.0));
+  return DemoteInRangeTo(du32, clamped);
+}
+#endif  // HWY_TARGET <= HWY_AVX3
 
 #if HWY_TARGET <= HWY_AVX3
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F32_D(D)>
@@ -10179,6 +10207,12 @@ HWY_API Vec128<uint8_t, N> U8FromU32(const Vec128<uint32_t, N> v) {
 }
 
 // ------------------------------ F32->UI64 PromoteTo
+#ifdef HWY_NATIVE_F32_TO_UI64_PROMOTE_IN_RANGE_TO
+#undef HWY_NATIVE_F32_TO_UI64_PROMOTE_IN_RANGE_TO
+#else
+#define HWY_NATIVE_F32_TO_UI64_PROMOTE_IN_RANGE_TO
+#endif
+
 #if HWY_TARGET <= HWY_AVX3
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I64_D(D)>
 HWY_API VFromD<D> PromoteTo(D di64, VFromD<Rebind<float, D>> v) {
@@ -10190,12 +10224,20 @@ HWY_API VFromD<D> PromoteTo(D di64, VFromD<Rebind<float, D>> v) {
       di64,
       BitCast(df64, InterleaveLower(ResizeBitCast(dt_f32, v),
                                     ResizeBitCast(dt_f32, v))),
-      VFromD<D>{_mm_cvttps_epi64(v.raw)});
+      PromoteInRangeTo(di64, v));
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I64_D(D)>
+HWY_API VFromD<D> PromoteInRangeTo(D /*di64*/, VFromD<Rebind<float, D>> v) {
+  return VFromD<D>{_mm_cvttps_epi64(v.raw)};
 }
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U64_D(D)>
 HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<float, D>> v) {
   return VFromD<D>{
       _mm_maskz_cvttps_epu64(detail::UnmaskedNot(MaskFromVec(v)).raw, v.raw)};
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U64_D(D)>
+HWY_API VFromD<D> PromoteInRangeTo(D /* tag */, VFromD<Rebind<float, D>> v) {
+  return VFromD<D>{_mm_cvttps_epu64(v.raw)};
 }
 #else   // AVX2 or below
 
@@ -10224,6 +10266,27 @@ HWY_API VFromD<D> PromoteTo(D di64, VFromD<Rebind<float, D>> v) {
   return Or(PromoteTo(di64, BitCast(di32, f32_to_i32_result))
                 << PromoteTo(di64, exponent_adj),
             lo64_or_mask);
+}
+
+// Generic for all vector lengths on SSE2/SSSE3/SSE4/AVX2
+template <class D, HWY_IF_UI64_D(D)>
+HWY_API VFromD<D> PromoteInRangeTo(D d64, VFromD<Rebind<float, D>> v) {
+  const Rebind<MakeNarrow<TFromD<D>>, decltype(d64)> d32;
+  const RebindToSigned<decltype(d32)> di32;
+  const RebindToFloat<decltype(d32)> df32;
+  const RebindToUnsigned<decltype(d32)> du32;
+  const Repartition<uint8_t, decltype(d32)> du32_as_du8;
+
+  const auto exponent_adj = BitCast(
+      du32,
+      SaturatedSub(BitCast(du32_as_du8, ShiftRight<23>(BitCast(du32, v))),
+                   BitCast(du32_as_du8, Set(du32, uint32_t{0xFFFFFF9Du}))));
+  const auto adj_v =
+      BitCast(df32, BitCast(du32, v) - ShiftLeft<23>(exponent_adj));
+
+  const auto f32_to_i32_result = ConvertInRangeTo(di32, adj_v);
+  return PromoteTo(d64, BitCast(d32, f32_to_i32_result))
+         << PromoteTo(d64, exponent_adj);
 }
 
 namespace detail {
@@ -10266,7 +10329,7 @@ HWY_API VFromD<D> PromoteTo(D du64, VFromD<Rebind<float, D>> v) {
 
   const auto adj_v =
       BitCast(df32, BitCast(du32, non_neg_v) - ShiftLeft<23>(exponent_adj));
-  const VFromD<decltype(di32)> f32_to_i32_result{_mm_cvttps_epi32(adj_v.raw)};
+  const auto f32_to_i32_result = ConvertInRangeTo(di32, adj_v);
 
   const auto i32_overflow_mask = BroadcastSignBit(f32_to_i32_result);
   const auto overflow_result =
@@ -10734,12 +10797,29 @@ HWY_API VFromD<D> ConvertTo(D dd, VFromD<Rebind<uint64_t, D>> v) {
 
 // Truncates (rounds toward zero).
 
+#ifdef HWY_NATIVE_F2I_CONVERT_IN_RANGE_TO
+#undef HWY_NATIVE_F2I_CONVERT_IN_RANGE_TO
+#else
+#define HWY_NATIVE_F2I_CONVERT_IN_RANGE_TO
+#endif
+
 #if HWY_HAVE_FLOAT16
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I16_D(D)>
-HWY_API VFromD<D> ConvertTo(D di, VFromD<RebindToFloat<D>> v) {
-  return detail::FixConversionOverflow(
-      di, v, VFromD<RebindToSigned<D>>{_mm_cvttph_epi16(v.raw)});
+HWY_API VFromD<D> ConvertInRangeTo(D /*di*/, VFromD<RebindToFloat<D>> v) {
+  return VFromD<D>{_mm_cvttph_epi16(v.raw)};
 }
+
+// F16 to I16 ConvertTo is generic for all vector lengths
+template <class D, HWY_IF_I16_D(D)>
+HWY_API VFromD<D> ConvertTo(D di, VFromD<RebindToFloat<D>> v) {
+  return detail::FixConversionOverflow(di, v, ConvertInRangeTo(di, v));
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U16_D(D)>
+HWY_API VFromD<D> ConvertInRangeTo(D /* tag */, VFromD<RebindToFloat<D>> v) {
+  return VFromD<D>{_mm_cvttph_epu16(v.raw)};
+}
+
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U16_D(D)>
 HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<RebindToFloat<D>> v) {
   return VFromD<D>{
@@ -10748,22 +10828,42 @@ HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<RebindToFloat<D>> v) {
 #endif  // HWY_HAVE_FLOAT16
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I32_D(D)>
+HWY_API VFromD<D> ConvertInRangeTo(D /*di*/, VFromD<RebindToFloat<D>> v) {
+  return VFromD<D>{_mm_cvttps_epi32(v.raw)};
+}
+
+// F32 to I32 ConvertTo is generic for all vector lengths
+template <class D, HWY_IF_I32_D(D)>
 HWY_API VFromD<D> ConvertTo(D di, VFromD<RebindToFloat<D>> v) {
-  return detail::FixConversionOverflow(
-      di, v, VFromD<RebindToSigned<D>>{_mm_cvttps_epi32(v.raw)});
+  return detail::FixConversionOverflow(di, v, ConvertInRangeTo(di, v));
 }
 
 #if HWY_TARGET <= HWY_AVX3
 template <class DI, HWY_IF_V_SIZE_LE_D(DI, 16), HWY_IF_I64_D(DI)>
+HWY_API VFromD<DI> ConvertInRangeTo(DI /*di*/, VFromD<RebindToFloat<DI>> v) {
+  return VFromD<DI>{_mm_cvttpd_epi64(v.raw)};
+}
+
+// F64 to I64 ConvertTo is generic for all vector lengths on AVX3
+template <class DI, HWY_IF_I64_D(DI)>
 HWY_API VFromD<DI> ConvertTo(DI di, VFromD<RebindToFloat<DI>> v) {
-  return detail::FixConversionOverflow(di, v,
-                                       VFromD<DI>{_mm_cvttpd_epi64(v.raw)});
+  return detail::FixConversionOverflow(di, v, ConvertInRangeTo(di, v));
+}
+
+template <class DU, HWY_IF_V_SIZE_LE_D(DU, 16), HWY_IF_U32_D(DU)>
+HWY_API VFromD<DU> ConvertInRangeTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
+  return VFromD<DU>{_mm_cvttps_epu32(v.raw)};
 }
 
 template <class DU, HWY_IF_V_SIZE_LE_D(DU, 16), HWY_IF_U32_D(DU)>
 HWY_API VFromD<DU> ConvertTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
   return VFromD<DU>{
       _mm_maskz_cvttps_epu32(detail::UnmaskedNot(MaskFromVec(v)).raw, v.raw)};
+}
+
+template <class DU, HWY_IF_V_SIZE_LE_D(DU, 16), HWY_IF_U64_D(DU)>
+HWY_API VFromD<DU> ConvertInRangeTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
+  return VFromD<DU>{_mm_cvttpd_epu64(v.raw)};
 }
 
 template <class DU, HWY_IF_V_SIZE_LE_D(DU, 16), HWY_IF_U64_D(DU)>
@@ -10774,63 +10874,70 @@ HWY_API VFromD<DU> ConvertTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
 
 #else  // AVX2 or below
 
-template <class DU32, HWY_IF_V_SIZE_LE_D(DU32, 16), HWY_IF_U32_D(DU32)>
-HWY_API VFromD<DU32> ConvertTo(DU32 du32, VFromD<RebindToFloat<DU32>> v) {
+namespace detail {
+
+template <class DU32, HWY_IF_U32_D(DU32)>
+static HWY_INLINE VFromD<DU32> ConvInRangeF32ToU32(
+    DU32 du32, VFromD<RebindToFloat<DU32>> v, VFromD<DU32>& exp_diff) {
   const RebindToSigned<decltype(du32)> di32;
   const RebindToFloat<decltype(du32)> df32;
 
-  const auto non_neg_v = ZeroIfNegative(v);
-  const auto exp_diff = Set(di32, int32_t{158}) -
-                        BitCast(di32, ShiftRight<23>(BitCast(du32, non_neg_v)));
+  exp_diff = Set(du32, uint32_t{158}) - ShiftRight<23>(BitCast(du32, v));
   const auto scale_down_f32_val_mask =
-      BitCast(du32, VecFromMask(di32, Eq(exp_diff, Zero(di32))));
+      VecFromMask(du32, Eq(exp_diff, Zero(du32)));
 
-  const auto v_scaled = BitCast(
-      df32, BitCast(du32, non_neg_v) + ShiftLeft<23>(scale_down_f32_val_mask));
-  const VFromD<decltype(du32)> f32_to_u32_result{
-      _mm_cvttps_epi32(v_scaled.raw)};
+  const auto v_scaled =
+      BitCast(df32, BitCast(du32, v) + ShiftLeft<23>(scale_down_f32_val_mask));
+  const auto f32_to_u32_result =
+      BitCast(du32, ConvertInRangeTo(di32, v_scaled));
 
-  return Or(
-      BitCast(du32, BroadcastSignBit(exp_diff)),
-      f32_to_u32_result + And(f32_to_u32_result, scale_down_f32_val_mask));
+  return f32_to_u32_result + And(f32_to_u32_result, scale_down_f32_val_mask);
 }
 
-#if HWY_ARCH_X86_64
-template <class DI, HWY_IF_V_SIZE_D(DI, 8), HWY_IF_I64_D(DI)>
-HWY_API VFromD<DI> ConvertTo(DI di, Vec64<double> v) {
-  const Vec64<int64_t> i0{_mm_cvtsi64_si128(_mm_cvttsd_si64(v.raw))};
-  return detail::FixConversionOverflow(di, v, i0);
-}
-template <class DI, HWY_IF_V_SIZE_D(DI, 16), HWY_IF_I64_D(DI)>
-HWY_API VFromD<DI> ConvertTo(DI di, Vec128<double> v) {
-  const __m128i i0 = _mm_cvtsi64_si128(_mm_cvttsd_si64(v.raw));
-  const Full64<double> dd2;
-  const __m128i i1 = _mm_cvtsi64_si128(_mm_cvttsd_si64(UpperHalf(dd2, v).raw));
-  return detail::FixConversionOverflow(
-      di, v, Vec128<int64_t>{_mm_unpacklo_epi64(i0, i1)});
-}
-#endif  // HWY_ARCH_X86_64
+}  // namespace detail
 
-#if !HWY_ARCH_X86_64 || HWY_TARGET <= HWY_AVX2
-template <class DI, HWY_IF_V_SIZE_GT_D(DI, (HWY_ARCH_X86_64 ? 16 : 0)),
-          HWY_IF_I64_D(DI)>
-HWY_API VFromD<DI> ConvertTo(DI di, VFromD<Rebind<double, DI>> v) {
-  using VI = VFromD<decltype(di)>;
-  const RebindToUnsigned<decltype(di)> du;
-  using VU = VFromD<decltype(du)>;
-  const Repartition<uint16_t, decltype(di)> du16;
-  const VI k1075 = Set(di, 1075); /* biased exponent of 2^52 */
+// F32 to U32 ConvertInRangeTo is generic for all vector lengths on
+// SSE2/SSSE3/SSE4/AVX2
+template <class DU32, HWY_IF_U32_D(DU32)>
+HWY_API VFromD<DU32> ConvertInRangeTo(DU32 du32,
+                                      VFromD<RebindToFloat<DU32>> v) {
+  VFromD<DU32> exp_diff;
+  const auto f32_to_u32_result = detail::ConvInRangeF32ToU32(du32, v, exp_diff);
+  return f32_to_u32_result;
+}
+
+// F32 to U32 ConvertTo is generic for all vector lengths on
+// SSE2/SSSE3/SSE4/AVX2
+template <class DU32, HWY_IF_U32_D(DU32)>
+HWY_API VFromD<DU32> ConvertTo(DU32 du32, VFromD<RebindToFloat<DU32>> v) {
+  const RebindToSigned<decltype(du32)> di32;
+
+  const auto non_neg_v = ZeroIfNegative(v);
+  VFromD<DU32> exp_diff;
+  const auto f32_to_u32_result =
+      detail::ConvInRangeF32ToU32(du32, non_neg_v, exp_diff);
+
+  return Or(f32_to_u32_result,
+            BitCast(du32, BroadcastSignBit(BitCast(di32, exp_diff))));
+}
+
+namespace detail {
+
+template <class D64, HWY_IF_UI64_D(D64)>
+HWY_API VFromD<D64> ConvAbsInRangeF64ToUI64(D64 d64,
+                                            VFromD<Rebind<double, D64>> v,
+                                            VFromD<D64>& biased_exp) {
+  const RebindToSigned<decltype(d64)> di64;
+  const RebindToUnsigned<decltype(d64)> du64;
+  using VU64 = VFromD<decltype(du64)>;
+  const Repartition<uint16_t, decltype(di64)> du16;
+  const VU64 k1075 = Set(du64, 1075); /* biased exponent of 2^52 */
 
   // Exponent indicates whether the number can be represented as int64_t.
-  const VU biased_exp = ShiftRight<52>(BitCast(du, v)) & Set(du, 0x7FF);
-#if HWY_TARGET <= HWY_SSE4
-  const auto in_range = BitCast(di, biased_exp) < Set(di, 1086);
-#else
-  const Repartition<int32_t, decltype(di)> di32;
-  const auto in_range = MaskFromVec(BitCast(
-      di,
-      VecFromMask(di32, DupEven(BitCast(di32, biased_exp)) < Set(di32, 1086))));
-#endif
+  biased_exp = BitCast(d64, ShiftRight<52>(BitCast(du64, v)));
+  HWY_IF_CONSTEXPR(IsSigned<TFromD<D64>>()) {
+    biased_exp = And(biased_exp, Set(d64, TFromD<D64>{0x7FF}));
+  }
 
   // If we were to cap the exponent at 51 and add 2^52, the number would be in
   // [2^52, 2^53) and mantissa bits could be read out directly. We need to
@@ -10850,27 +10957,80 @@ HWY_API VFromD<DI> ConvertTo(DI di, VFromD<Rebind<double, DI>> v) {
   // The upper 48 bits of both shift_mnt and shift_int are guaranteed to be
   // zero as the upper 48 bits of both k1075 and biased_exp are zero.
 
-  const VU shift_mnt = BitCast(
-      du, SaturatedSub(BitCast(du16, k1075), BitCast(du16, biased_exp)));
-  const VU shift_int = BitCast(
-      du, SaturatedSub(BitCast(du16, biased_exp), BitCast(du16, k1075)));
-  const VU mantissa = BitCast(du, v) & Set(du, (1ULL << 52) - 1);
+  const VU64 shift_mnt = BitCast(
+      du64, SaturatedSub(BitCast(du16, k1075), BitCast(du16, biased_exp)));
+  const VU64 shift_int = BitCast(
+      du64, SaturatedSub(BitCast(du16, biased_exp), BitCast(du16, k1075)));
+  const VU64 mantissa = BitCast(du64, v) & Set(du64, (1ULL << 52) - 1);
   // Include implicit 1-bit. NOTE: the shift count may exceed 63; we rely on x86
   // returning zero in that case.
-  const VU int53 = (mantissa | Set(du, 1ULL << 52)) >> shift_mnt;
+  const VU64 int53 = (mantissa | Set(du64, 1ULL << 52)) >> shift_mnt;
 
   // For inputs larger than 2^53 - 1, insert zeros at the bottom.
 
-  // For inputs less than 2^63, the implicit 1-bit is guaranteed not to be
-  // shifted out of the left shift result below as shift_int[i] <= 10 is true
-  // for any inputs that are less than 2^63.
+  // For inputs less than 2^64, the implicit 1-bit is guaranteed not to be
+  // shifted out of the left shift result below as shift_int[i] <= 11 is true
+  // for any inputs that are less than 2^64.
 
-  const VU shifted = int53 << shift_int;
+  return BitCast(d64, int53 << shift_int);
+}
+
+}  // namespace detail
+
+#if HWY_ARCH_X86_64
+template <class DI, HWY_IF_V_SIZE_D(DI, 8), HWY_IF_I64_D(DI)>
+HWY_API VFromD<DI> ConvertInRangeTo(DI /*di*/, Vec64<double> v) {
+  return VFromD<DI>{_mm_cvtsi64_si128(_mm_cvttsd_si64(v.raw))};
+}
+template <class DI, HWY_IF_V_SIZE_D(DI, 16), HWY_IF_I64_D(DI)>
+HWY_API VFromD<DI> ConvertInRangeTo(DI /*di*/, Vec128<double> v) {
+  const __m128i i0 = _mm_cvtsi64_si128(_mm_cvttsd_si64(v.raw));
+  const Full64<double> dd2;
+  const __m128i i1 = _mm_cvtsi64_si128(_mm_cvttsd_si64(UpperHalf(dd2, v).raw));
+  return VFromD<DI>{_mm_unpacklo_epi64(i0, i1)};
+}
+
+template <class DI, HWY_IF_V_SIZE_LE_D(DI, 16), HWY_IF_I64_D(DI)>
+HWY_API VFromD<DI> ConvertTo(DI di, VFromD<Rebind<double, DI>> v) {
+  return detail::FixConversionOverflow(di, v, ConvertInRangeTo(di, v));
+}
+#endif  // HWY_ARCH_X86_64
+
+#if !HWY_ARCH_X86_64 || HWY_TARGET <= HWY_AVX2
+template <class DI, HWY_IF_V_SIZE_GT_D(DI, (HWY_ARCH_X86_64 ? 16 : 0)),
+          HWY_IF_I64_D(DI)>
+HWY_API VFromD<DI> ConvertInRangeTo(DI di, VFromD<Rebind<double, DI>> v) {
+  using VI = VFromD<DI>;
+
+  VI biased_exp;
+  const VI shifted = detail::ConvAbsInRangeF64ToUI64(di, v, biased_exp);
+  const VI sign_mask = BroadcastSignBit(BitCast(di, v));
+
+  // If the input was negative, negate the integer (two's complement).
+  return (shifted ^ sign_mask) - sign_mask;
+}
+
+template <class DI, HWY_IF_V_SIZE_GT_D(DI, (HWY_ARCH_X86_64 ? 16 : 0)),
+          HWY_IF_I64_D(DI)>
+HWY_API VFromD<DI> ConvertTo(DI di, VFromD<Rebind<double, DI>> v) {
+  using VI = VFromD<DI>;
+
+  VI biased_exp;
+  const VI shifted = detail::ConvAbsInRangeF64ToUI64(di, v, biased_exp);
+
+#if HWY_TARGET <= HWY_SSE4
+  const auto in_range = biased_exp < Set(di, 1086);
+#else
+  const Repartition<int32_t, decltype(di)> di32;
+  const auto in_range = MaskFromVec(BitCast(
+      di,
+      VecFromMask(di32, DupEven(BitCast(di32, biased_exp)) < Set(di32, 1086))));
+#endif
 
   // Saturate to LimitsMin (unchanged when negating below) or LimitsMax.
   const VI sign_mask = BroadcastSignBit(BitCast(di, v));
   const VI limit = Set(di, LimitsMax<int64_t>()) - sign_mask;
-  const VI magnitude = IfThenElse(in_range, BitCast(di, shifted), limit);
+  const VI magnitude = IfThenElse(in_range, shifted, limit);
 
   // If the input was negative, negate the integer (two's complement).
   return (magnitude ^ sign_mask) - sign_mask;
@@ -10879,16 +11039,23 @@ HWY_API VFromD<DI> ConvertTo(DI di, VFromD<Rebind<double, DI>> v) {
 
 // Generic for all vector lengths on SSE2/SSSE3/SSE4/AVX2
 template <class DU, HWY_IF_U64_D(DU)>
+HWY_API VFromD<DU> ConvertInRangeTo(DU du, VFromD<Rebind<double, DU>> v) {
+  VFromD<DU> biased_exp;
+  const auto shifted = detail::ConvAbsInRangeF64ToUI64(du, v, biased_exp);
+  return shifted;
+}
+
+// Generic for all vector lengths on SSE2/SSSE3/SSE4/AVX2
+template <class DU, HWY_IF_U64_D(DU)>
 HWY_API VFromD<DU> ConvertTo(DU du, VFromD<Rebind<double, DU>> v) {
-  const RebindToSigned<decltype(du)> di;
-  using VU = VFromD<decltype(du)>;
-  const Repartition<uint16_t, decltype(di)> du16;
-  const VU k1075 = Set(du, 1075); /* biased exponent of 2^52 */
+  const RebindToSigned<DU> di;
+  using VU = VFromD<DU>;
 
-  const auto non_neg_v = ZeroIfNegative(v);
+  VU biased_exp;
+  const VU shifted =
+      detail::ConvAbsInRangeF64ToUI64(du, ZeroIfNegative(v), biased_exp);
 
-  // Exponent indicates whether the number can be represented as int64_t.
-  const VU biased_exp = ShiftRight<52>(BitCast(du, non_neg_v));
+  // Exponent indicates whether the number can be represented as uint64_t.
 #if HWY_TARGET <= HWY_SSE4
   const VU out_of_range =
       BitCast(du, VecFromMask(di, BitCast(di, biased_exp) > Set(di, 1086)));
@@ -10899,40 +11066,6 @@ HWY_API VFromD<DU> ConvertTo(DU du, VFromD<Rebind<double, DU>> v) {
       VecFromMask(di32, DupEven(BitCast(di32, biased_exp)) > Set(di32, 1086)));
 #endif
 
-  // If we were to cap the exponent at 51 and add 2^52, the number would be in
-  // [2^52, 2^53) and mantissa bits could be read out directly. We need to
-  // round-to-0 (truncate), but changing rounding mode in MXCSR hits a
-  // compiler reordering bug: https://gcc.godbolt.org/z/4hKj6c6qc . We instead
-  // manually shift the mantissa into place (we already have many of the
-  // inputs anyway).
-
-  // Use 16-bit saturated unsigned subtraction to compute shift_mnt and
-  // shift_int since biased_exp[i] is a non-negative integer that is less than
-  // or equal to 2047.
-
-  // 16-bit saturated unsigned subtraction is also more efficient than a
-  // 64-bit subtraction followed by a 64-bit signed Max operation on
-  // SSE2/SSSE3/SSE4/AVX2.
-
-  // The upper 48 bits of both shift_mnt and shift_int are guaranteed to be
-  // zero as the upper 48 bits of both k1075 and biased_exp are zero.
-
-  const VU shift_mnt = BitCast(
-      du, SaturatedSub(BitCast(du16, k1075), BitCast(du16, biased_exp)));
-  const VU shift_int = BitCast(
-      du, SaturatedSub(BitCast(du16, biased_exp), BitCast(du16, k1075)));
-  const VU mantissa = BitCast(du, non_neg_v) & Set(du, (1ULL << 52) - 1);
-  // Include implicit 1-bit. NOTE: the shift count may exceed 63; we rely on x86
-  // returning zero in that case.
-  const VU int53 = (mantissa | Set(du, 1ULL << 52)) >> shift_mnt;
-
-  // For inputs larger than 2^53 - 1, insert zeros at the bottom.
-
-  // For inputs less than 2^64, the implicit 1-bit is guaranteed not to be
-  // shifted out of the left shift result below as shift_int[i] <= 11 is true
-  // for any inputs that are less than 2^64.
-
-  const VU shifted = int53 << shift_int;
   return (shifted | out_of_range);
 }
 #endif  // HWY_TARGET <= HWY_AVX3
