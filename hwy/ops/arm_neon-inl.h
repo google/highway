@@ -2579,7 +2579,7 @@ HWY_API Vec128<T, N> NegMulAdd(Vec128<T, N> mul, Vec128<T, N> x,
 
 namespace detail {
 
-#if defined(__ARM_FEATURE_FMA) || defined(__ARM_VFPV4__) || HWY_ARCH_ARM_A64
+#if HWY_NATIVE_FMA
 // Wrappers for changing argument order to what intrinsics expect.
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(MulAdd, vfma, _, 3)
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(NegMulAdd, vfms, _, 3)
@@ -2597,7 +2597,7 @@ HWY_API Vec128<float, N> NegMulAdd(Vec128<float, N> add, Vec128<float, N> mul,
   return add - mul * x;
 }
 
-#endif  // defined(__ARM_FEATURE_FMA) || defined(__ARM_VFPV4__) || HWY_ARCH_ARM_A64
+#endif  // HWY_NATIVE_FMA
 }  // namespace detail
 
 template <typename T, size_t N, HWY_IF_FLOAT(T)>
