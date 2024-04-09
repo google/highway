@@ -1,7 +1,5 @@
 # Highway implementation details
 
-[TOC]
-
 ## Introduction
 
 This doc explains some of the Highway implementation details; understanding them

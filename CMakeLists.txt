@@ -1,4 +1,7 @@
 # Copyright 2019 Google LLC
+# Copyright 2024 Arm Limited and/or its affiliates <open-source-office@arm.com>
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BSD-3-Clause
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -132,6 +135,8 @@ list(APPEND HWY_CONTRIB_SOURCES
 endif()  # HWY_ENABLE_CONTRIB
 
 set(HWY_SOURCES
+    hwy/abort.cc
+    hwy/abort.h
     hwy/aligned_allocator.cc
     hwy/aligned_allocator.h
     hwy/base.h
@@ -607,6 +612,7 @@ set(HWY_TEST_FILES
   hwy/contrib/algo/copy_test.cc
   hwy/contrib/algo/find_test.cc
   hwy/contrib/algo/transform_test.cc
+  hwy/abort_test.cc
   hwy/aligned_allocator_test.cc
   hwy/base_test.cc
   hwy/highway_test.cc

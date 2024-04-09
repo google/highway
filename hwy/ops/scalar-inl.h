@@ -2011,6 +2011,35 @@ HWY_API Vec1<int32_t> WidenMulPairwiseAdd(D32 /* tag */, Vec1<int16_t> a,
   return Vec1<int32_t>(a.raw * b.raw);
 }
 
+// ------------------------------ SatWidenMulAccumFixedPoint
+#ifdef HWY_NATIVE_I16_SATWIDENMULACCUMFIXEDPOINT
+#undef HWY_NATIVE_I16_SATWIDENMULACCUMFIXEDPOINT
+#else
+#define HWY_NATIVE_I16_SATWIDENMULACCUMFIXEDPOINT
+#endif
+
+template <class DI32, HWY_IF_I32_D(DI32)>
+HWY_API VFromD<DI32> SatWidenMulAccumFixedPoint(DI32 di32,
+                                                VFromD<Rebind<int16_t, DI32>> a,
+                                                VFromD<Rebind<int16_t, DI32>> b,
+                                                VFromD<DI32> sum) {
+  // Multiplying static_cast<int32_t>(a.raw) by static_cast<int32_t>(b.raw)
+  // followed by an addition of the product is okay as
+  // (a.raw * b.raw * 2) is between -2147418112 and 2147483648 and as
+  // a.raw * b.raw * 2 can only overflow an int32_t if both a.raw and b.raw are
+  // equal to -32768.
+
+  const VFromD<DI32> product(static_cast<int32_t>(a.raw) *
+                             static_cast<int32_t>(b.raw));
+  const VFromD<DI32> product2 = Add(product, product);
+
+  const auto mul_overflow =
+      VecFromMask(di32, Eq(product2, Set(di32, LimitsMin<int32_t>())));
+
+  return SaturatedAdd(Sub(sum, And(BroadcastSignBit(sum), mul_overflow)),
+                      Add(product2, mul_overflow));
+}
+
 // ------------------------------ SatWidenMulPairwiseAdd
 
 #ifdef HWY_NATIVE_U8_I8_SATWIDENMULPAIRWISEADD

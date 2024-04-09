@@ -1,7 +1,5 @@
 # Frequently Asked Questions
 
-[[TOC]]
-
 ## Getting started
 
 Q0.0: How do I **get the Highway library**?

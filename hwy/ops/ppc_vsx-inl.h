@@ -3518,6 +3518,24 @@ HWY_API VW RearrangeToOddPlusEven(const VW sum0, const VW sum1) {
   return Add(sum0, sum1);
 }
 
+// ------------------------------ SatWidenMulPairwiseAccumulate
+#if !HWY_S390X_HAVE_Z14
+
+#ifdef HWY_NATIVE_I16_I16_SATWIDENMULPAIRWISEACCUM
+#undef HWY_NATIVE_I16_I16_SATWIDENMULPAIRWISEACCUM
+#else
+#define HWY_NATIVE_I16_I16_SATWIDENMULPAIRWISEACCUM
+#endif
+
+template <class DI32, HWY_IF_I32_D(DI32), HWY_IF_V_SIZE_LE_D(DI32, 16)>
+HWY_API VFromD<DI32> SatWidenMulPairwiseAccumulate(
+    DI32 /* tag */, VFromD<Repartition<int16_t, DI32>> a,
+    VFromD<Repartition<int16_t, DI32>> b, VFromD<DI32> sum) {
+  return VFromD<DI32>{vec_msums(a.raw, b.raw, sum.raw)};
+}
+
+#endif  // !HWY_S390X_HAVE_Z14
+
 // ------------------------------ SumOfMulQuadAccumulate
 #if !HWY_S390X_HAVE_Z14
 

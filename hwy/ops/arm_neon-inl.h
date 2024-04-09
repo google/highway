@@ -1,5 +1,7 @@
 // Copyright 2019 Google LLC
+// Copyright 2024 Arm Limited and/or its affiliates <open-source-office@arm.com>
 // SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: BSD-3-Clause
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,16 +23,12 @@
 
 #include "hwy/ops/shared-inl.h"
 
-HWY_BEFORE_NAMESPACE();
-
-// Must come after HWY_BEFORE_NAMESPACE so that the intrinsics are compiled with
-// the same target attribute as our code, see #834.
 HWY_DIAGNOSTICS(push)
 HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wuninitialized")
 #include <arm_neon.h>  // NOLINT(build/include_order)
 HWY_DIAGNOSTICS(pop)
 
-// Must come after arm_neon.h.
+HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
@@ -2577,7 +2575,7 @@ HWY_API Vec128<T, N> NegMulAdd(Vec128<T, N> mul, Vec128<T, N> x,
 
 namespace detail {
 
-#if defined(__ARM_VFPV4__) || HWY_ARCH_ARM_A64
+#if HWY_NATIVE_FMA
 // Wrappers for changing argument order to what intrinsics expect.
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(MulAdd, vfma, _, 3)
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(NegMulAdd, vfms, _, 3)
@@ -2595,7 +2593,7 @@ HWY_API Vec128<float, N> NegMulAdd(Vec128<float, N> add, Vec128<float, N> mul,
   return add - mul * x;
 }
 
-#endif  // defined(__ARM_VFPV4__) || HWY_ARCH_ARM_A64
+#endif  // HWY_NATIVE_FMA
 }  // namespace detail
 
 template <typename T, size_t N, HWY_IF_FLOAT(T)>
@@ -6798,6 +6796,34 @@ HWY_API Vec64<uint64_t> WidenMulAdd(D /* tag */, Vec32<uint32_t> mul,
   Vec128<uint64_t> mulRs = Vec128<uint64_t>(vmull_u32(mul.raw, x.raw));
   const Vec64<uint64_t> mul10(LowerHalf(mulRs));
   return add + mul10;
+=======
+// ------------------------------ SatWidenMulAccumFixedPoint
+
+#ifdef HWY_NATIVE_I16_SATWIDENMULACCUMFIXEDPOINT
+#undef HWY_NATIVE_I16_SATWIDENMULACCUMFIXEDPOINT
+#else
+#define HWY_NATIVE_I16_SATWIDENMULACCUMFIXEDPOINT
+#endif
+
+template <class DI32, HWY_IF_I32_D(DI32), HWY_IF_V_SIZE_D(DI32, 16)>
+HWY_API VFromD<DI32> SatWidenMulAccumFixedPoint(DI32 /*di32*/,
+                                                VFromD<Rebind<int16_t, DI32>> a,
+                                                VFromD<Rebind<int16_t, DI32>> b,
+                                                VFromD<DI32> sum) {
+  return VFromD<DI32>(vqdmlal_s16(sum.raw, a.raw, b.raw));
+}
+
+template <class DI32, HWY_IF_I32_D(DI32), HWY_IF_V_SIZE_LE_D(DI32, 8)>
+HWY_API VFromD<DI32> SatWidenMulAccumFixedPoint(DI32 di32,
+                                                VFromD<Rebind<int16_t, DI32>> a,
+                                                VFromD<Rebind<int16_t, DI32>> b,
+                                                VFromD<DI32> sum) {
+  const Full128<TFromD<DI32>> di32_full;
+  const Rebind<int16_t, decltype(di32_full)> di16_full64;
+  return ResizeBitCast(
+      di32, SatWidenMulAccumFixedPoint(di32_full, ResizeBitCast(di16_full64, a),
+                                       ResizeBitCast(di16_full64, b),
+                                       ResizeBitCast(di32_full, sum)));
 }
 
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
