@@ -1,7 +1,5 @@
 # API synopsis / quick reference
 
-[[_TOC_]]
-
 ## High-level overview
 
 Highway is a collection of 'ops': platform-agnostic pure functions that operate
