@@ -347,6 +347,103 @@ HWY_NOINLINE void TestAllReorderWidenMulAccumulate() {
   ForShrinkableVectors<TestReorderWidenMulAccumulate>()(uint16_t());
 }
 
+struct TestWidenMulAccumulate {
+  template <typename TN, class DN>
+  HWY_INLINE void operator()(TN /*unused*/, DN dn) {
+    using TW = MakeWide<TN>;
+    const RepartitionToWide<DN> dw;
+    const Half<DN> dnh;
+    using VW = Vec<decltype(dw)>;
+    using VN = Vec<decltype(dn)>;
+    const size_t NN = Lanes(dn);
+
+    VW f0 = Zero(dw);
+    const VW f1 = Set(dw, TW{5});
+    const VN bf0 = Zero(dn);
+    const VN bf1 = ReorderDemote2To(dn, f1, f1);
+
+    // Any input zero => both outputs zero
+    VW sum1 = f0;
+    HWY_ASSERT_VEC_EQ(dw, f0,
+                      WidenMulAccumulate(dn, bf0, bf0, f0, sum1));
+    HWY_ASSERT_VEC_EQ(dw, f0, sum1);
+    HWY_ASSERT_VEC_EQ(dw, f0,
+                      WidenMulAccumulate(dn, bf0, bf1, f0, sum1));
+    HWY_ASSERT_VEC_EQ(dw, f0, sum1);
+    HWY_ASSERT_VEC_EQ(dw, f0, WidenMulAccumulate(dn, bf1, bf0, f0, sum1));
+    HWY_ASSERT_VEC_EQ(dw, f0, sum1);
+
+    // delta[p] := 1, all others zero.
+    auto delta_w = AllocateAligned<TW>(NN);
+    for (size_t p = 0; p < NN; ++p) {
+      // Workaround for incorrect Clang wasm codegen: re-initialize the entire
+      // array rather than zero-initialize once and then toggle lane p.
+      for (size_t i = 0; i < NN; ++i) {
+        delta_w[i] = static_cast<TW>(i == p);
+      }
+      const VW delta0 = Load(dw, delta_w.get());
+      const VW delta1 = Load(dw, delta_w.get() + NN / 2);
+      const VN delta = ReorderDemote2To(dn, delta0, delta1);
+      VW highSumBefore;
+
+      f0 = Set(dw, 6);
+
+      {
+        sum1 = f0;
+        highSumBefore = sum1;
+        const VW sum0 = WidenMulAccumulate(dn, delta, bf1, f0, sum1);
+        const VW expectedLow = MulAdd(PromoteLowerTo(dw, delta), PromoteLowerTo(dw, bf1), f0);
+        HWY_ASSERT_VEC_EQ(dw, expectedLow, sum0);
+        const VW expectedHigh = MulAdd(PromoteUpperTo(dw, delta), PromoteUpperTo(dw, bf1), highSumBefore);
+        HWY_ASSERT_VEC_EQ(dw, expectedHigh, sum1);
+      }
+      // Swapped arg order
+      {
+        sum1 = f0;
+        highSumBefore = sum1;
+        const VW sum0 = WidenMulAccumulate(dn, bf1, delta, f0, sum1);
+        const VW expectedLow = MulAdd(PromoteLowerTo(dw, bf1), PromoteLowerTo(dw, delta), f0);
+        HWY_ASSERT_VEC_EQ(dw, expectedLow, sum0);
+        const VW expectedHigh = MulAdd(PromoteUpperTo(dw, bf1), PromoteUpperTo(dw, delta), highSumBefore);
+        HWY_ASSERT_VEC_EQ(dw, expectedHigh, sum1);
+      }
+      // Start with nonzero sum0 or sum1
+      {
+        VW sum0 = PromoteTo(dw, LowerHalf(dnh, delta));
+        VW lowSumBefore = sum0;
+        sum1 = PromoteTo(dw, UpperHalf(dnh, delta));
+        highSumBefore = sum1;
+        sum0 = WidenMulAccumulate(dn, delta, bf1, sum0, sum1);
+        const VW expectedLow = MulAdd(PromoteLowerTo(dw, delta), PromoteLowerTo(dw, bf1), lowSumBefore);
+        HWY_ASSERT_VEC_EQ(dw, expectedLow, sum0);
+        const VW expectedHigh = MulAdd(PromoteUpperTo(dw, delta), PromoteUpperTo(dw, bf1), highSumBefore);
+        HWY_ASSERT_VEC_EQ(dw, expectedHigh, sum1);
+      }
+      // Start with nonzero sum0 or sum1, and swap arg order
+      {
+        VW sum0 = PromoteTo(dw, LowerHalf(dnh, delta));
+        VW lowSumBefore = sum0;
+        sum1 = PromoteTo(dw, UpperHalf(dnh, delta));
+        highSumBefore = sum1;
+        sum0 = WidenMulAccumulate(dn, bf1, delta, sum0, sum1);
+        const VW expectedLow = MulAdd(PromoteLowerTo(dw, bf1), PromoteLowerTo(dw, delta), lowSumBefore);
+        HWY_ASSERT_VEC_EQ(dw, expectedLow, sum0);
+        const VW expectedHigh = MulAdd(PromoteUpperTo(dw, bf1), PromoteUpperTo(dw, delta), highSumBefore);
+        HWY_ASSERT_VEC_EQ(dw, expectedHigh, sum1);
+      }
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllWidenMulAccumulate() {
+  ForShrinkableVectors<TestWidenMulAccumulate>()(int32_t());
+  ForShrinkableVectors<TestWidenMulAccumulate>()(uint32_t());
+  ForShrinkableVectors<TestWidenMulAccumulate>()(int16_t());
+  ForShrinkableVectors<TestWidenMulAccumulate>()(uint16_t());
+  ForShrinkableVectors<TestWidenMulAccumulate>()(int8_t());
+  ForShrinkableVectors<TestWidenMulAccumulate>()(uint8_t());
+}
+
 struct TestRearrangeToOddPlusEven {
   // Must be inlined on aarch64 for bf16, else clang crashes.
   template <typename TN, class DN>
@@ -497,6 +594,7 @@ HWY_EXPORT_AND_TEST_P(HwyWidenMulTest, TestAllSatWidenMulPairwiseAdd);
 HWY_EXPORT_AND_TEST_P(HwyWidenMulTest, TestAllReorderWidenMulAccumulate);
 HWY_EXPORT_AND_TEST_P(HwyWidenMulTest, TestAllRearrangeToOddPlusEven);
 HWY_EXPORT_AND_TEST_P(HwyWidenMulTest, TestAllSumOfMulQuadAccumulate);
+HWY_EXPORT_AND_TEST_P(HwyWidenMulTest, TestAllWidenMulAccumulate);
 HWY_AFTER_TEST();
 }  // namespace hwy
 

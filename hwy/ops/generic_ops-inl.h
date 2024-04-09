@@ -5134,6 +5134,55 @@ HWY_API Vec512<T> operator%(Vec512<T> a, Vec512<T> b) {
 
 #endif  // HWY_NATIVE_INT_DIV
 
+#if (defined(HWY_NATIVE_WIDEN_MUL_ADD) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_WIDEN_MUL_ADD
+#undef HWY_NATIVE_WIDEN_MUL_ADD
+#else
+#define HWY_NATIVE_WIDEN_MUL_ADD
+#endif
+
+template<class D, HWY_IF_INTEGER(TFromD<D>),
+         class DW = Rebind<MakeWide<TFromD<D>>, D>, class VW = VFromD<DW>>
+HWY_API VW WidenMulAdd(D /* tag */, VFromD<D> mul, VFromD<D> x, VW add) {
+  const DW dw;
+  return MulAdd(PromoteTo(dw, mul), PromoteTo(dw, x), add);
+}
+
+#endif
+
+#if (defined(HWY_NATIVE_WIDEN_HIGH_MUL_ADD) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_WIDEN_HIGH_MUL_ADD
+#undef HWY_NATIVE_WIDEN_HIGH_MUL_ADD
+#else
+#define HWY_NATIVE_WIDEN_HIGH_MUL_ADD
+#endif
+
+template<class D, HWY_IF_INTEGER(TFromD<D>),
+         class DW = RepartitionToWide<D>, class VW = VFromD<DW>>
+HWY_API VW WidenHighMulAdd(D /* tag */, VFromD<D> mul, VFromD<D> x, VW add) {
+  const Half<D> dh;
+  return WidenMulAdd(dh, UpperHalf(dh, mul), UpperHalf(dh, x), add);
+}
+
+#endif
+
+#if (defined(HWY_NATIVE_WIDEN_MUL_ACCUMULATE) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_WIDEN_MUL_ACCUMULATE
+#undef HWY_NATIVE_WIDEN_MUL_ACCUMULATE
+#else
+#define HWY_NATIVE_WIDEN_MUL_ACCUMULATE
+#endif
+
+template<class D, HWY_IF_INTEGER(TFromD<D>), HWY_IF_LANES_GT_D(D, 1),
+         class DW = RepartitionToWide<D>, typename VW = VFromD<DW>>
+HWY_API VW WidenMulAccumulate(D d, VFromD<D> mul, VFromD<D> x, VW low, VW& high) {
+  const Half<decltype(d)> dh;
+  high = WidenHighMulAdd(d, mul, x, high);
+  return WidenMulAdd(dh, LowerHalf(dh, mul), LowerHalf(dh, x), low);
+}
+
+#endif
+
 // ------------------------------ SatWidenMulPairwiseAdd
 
 #if (defined(HWY_NATIVE_U8_I8_SATWIDENMULPAIRWISEADD) == \
