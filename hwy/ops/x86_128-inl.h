@@ -9217,6 +9217,27 @@ HWY_API VFromD<DI16> SatWidenMulPairwiseAdd(
 
 #endif
 
+// ------------------------------ SatWidenMulPairwiseAccumulate
+
+#if HWY_TARGET <= HWY_AVX3_DL
+
+#ifdef HWY_NATIVE_I16_I16_SATWIDENMULPAIRWISEACCUM
+#undef HWY_NATIVE_I16_I16_SATWIDENMULPAIRWISEACCUM
+#else
+#define HWY_NATIVE_I16_I16_SATWIDENMULPAIRWISEACCUM
+#endif
+
+// Even if N=1, the I16 vectors have at least 2 lanes, hence _mm_dpwssds_epi32
+// is safe.
+template <class DI32, HWY_IF_I32_D(DI32), HWY_IF_V_SIZE_LE_D(DI32, 16)>
+HWY_API VFromD<DI32> SatWidenMulPairwiseAccumulate(
+    DI32 /* tag */, VFromD<Repartition<int16_t, DI32>> a,
+    VFromD<Repartition<int16_t, DI32>> b, VFromD<DI32> sum) {
+  return VFromD<DI32>{_mm_dpwssds_epi32(sum.raw, a.raw, b.raw)};
+}
+
+#endif  // HWY_TARGET <= HWY_AVX3_DL
+
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ShiftLeft)
 
 // Generic for all vector lengths.

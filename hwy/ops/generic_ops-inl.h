@@ -5164,6 +5164,66 @@ HWY_API Vec<DI16> SatWidenMulPairwiseAdd(DI16 di16, VU8 a, VI8 b) {
 
 #endif
 
+// ------------------------------ SatWidenMulPairwiseAccumulate
+
+#if (defined(HWY_NATIVE_I16_I16_SATWIDENMULPAIRWISEACCUM) == \
+     defined(HWY_TARGET_TOGGLE))
+
+#ifdef HWY_NATIVE_I16_I16_SATWIDENMULPAIRWISEACCUM
+#undef HWY_NATIVE_I16_I16_SATWIDENMULPAIRWISEACCUM
+#else
+#define HWY_NATIVE_I16_I16_SATWIDENMULPAIRWISEACCUM
+#endif
+
+template <class DI32, HWY_IF_I32_D(DI32)>
+HWY_API VFromD<DI32> SatWidenMulPairwiseAccumulate(
+    DI32 di32, VFromD<Repartition<int16_t, DI32>> a,
+    VFromD<Repartition<int16_t, DI32>> b, VFromD<DI32> sum) {
+  // WidenMulPairwiseAdd(di32, a, b) is okay here as
+  // a[0]*b[0]+a[1]*b[1] is between -2147418112 and 2147483648 and as
+  // a[0]*b[0]+a[1]*b[1] can only overflow an int32_t if
+  // a[0], b[0], a[1], and b[1] are all equal to -32768.
+
+  const auto product = WidenMulPairwiseAdd(di32, a, b);
+
+  const auto mul_overflow =
+      VecFromMask(di32, Eq(product, Set(di32, LimitsMin<int32_t>())));
+
+  return SaturatedAdd(Sub(sum, And(BroadcastSignBit(sum), mul_overflow)),
+                      Add(product, mul_overflow));
+}
+
+#endif  // HWY_NATIVE_I16_I16_SATWIDENMULPAIRWISEACCUM
+
+// ------------------------------ SatWidenMulAccumFixedPoint
+
+#if (defined(HWY_NATIVE_I16_SATWIDENMULACCUMFIXEDPOINT) == \
+     defined(HWY_TARGET_TOGGLE))
+
+#ifdef HWY_NATIVE_I16_SATWIDENMULACCUMFIXEDPOINT
+#undef HWY_NATIVE_I16_SATWIDENMULACCUMFIXEDPOINT
+#else
+#define HWY_NATIVE_I16_SATWIDENMULACCUMFIXEDPOINT
+#endif
+
+template <class DI32, HWY_IF_I32_D(DI32)>
+HWY_API VFromD<DI32> SatWidenMulAccumFixedPoint(DI32 di32,
+                                                VFromD<Rebind<int16_t, DI32>> a,
+                                                VFromD<Rebind<int16_t, DI32>> b,
+                                                VFromD<DI32> sum) {
+  const Repartition<int16_t, DI32> dt_i16;
+
+  const auto vt_a = ResizeBitCast(dt_i16, a);
+  const auto vt_b = ResizeBitCast(dt_i16, b);
+
+  const auto dup_a = InterleaveWholeLower(dt_i16, vt_a, vt_a);
+  const auto dup_b = InterleaveWholeLower(dt_i16, vt_b, vt_b);
+
+  return SatWidenMulPairwiseAccumulate(di32, dup_a, dup_b, sum);
+}
+
+#endif  // HWY_NATIVE_I16_SATWIDENMULACCUMFIXEDPOINT
+
 // ------------------------------ SumOfMulQuadAccumulate
 
 #if (defined(HWY_NATIVE_I8_I8_SUMOFMULQUADACCUMULATE) == \
