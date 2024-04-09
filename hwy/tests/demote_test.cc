@@ -151,21 +151,128 @@ struct TestDemoteToFloat {
     static_assert(sizeof(T) > sizeof(ToT), "Input type must be wider");
     const Rebind<ToT, D> to_d;
 
+    using TU = MakeUnsigned<T>;
+    using ToTU = MakeUnsigned<ToT>;
+
     const size_t N = Lanes(from_d);
     auto from = AllocateAligned<T>(N);
     auto expected = AllocateAligned<ToT>(N);
     HWY_ASSERT(from && expected);
 
+    constexpr int kMaxToBiasedExp = static_cast<int>(MaxExponentField<ToT>());
+    static_assert(kMaxToBiasedExp > 0, "kMaxToBiasedExp > 0 must be true");
+
+    constexpr int kMaxFromBiasedExp = static_cast<int>(MaxExponentField<T>());
+    static_assert(kMaxFromBiasedExp >= kMaxToBiasedExp,
+                  "kMaxFromBiasedExp >= kMaxToBiasedExp must be true");
+
+    constexpr int kMaxFromExpBias = (kMaxFromBiasedExp / 2);
+    constexpr int kMaxToExpBias = (kMaxToBiasedExp / 2);
+
+    constexpr int kMinToTNormalFromTBiasedExp =
+        1 - kMaxToExpBias + kMaxFromExpBias;
+    static_assert(kMinToTNormalFromTBiasedExp > 0,
+                  "kMinToTNormalFromTBiasedExp must be greater than 0");
+    static_assert(
+        kMinToTNormalFromTBiasedExp < kMaxFromExpBias,
+        "kMinToTNormalFromTBiasedExp must be less than kMaxFromExpBias");
+
+    const T min_normal = BitCastScalar<T>(static_cast<TU>(
+        static_cast<TU>(kMinToTNormalFromTBiasedExp) << MantissaBits<T>()));
+    HWY_ASSERT(ScalarIsFinite(min_normal));
+    HWY_ASSERT(min_normal > static_cast<T>(0) &&
+               min_normal < static_cast<T>(1));
+
+    const T max_denormal =
+        ConvertScalarTo<T>(BitCastScalar<ToT>(MantissaMask<ToT>()));
+    HWY_ASSERT(ScalarIsFinite(max_denormal));
+    HWY_ASSERT(max_denormal > static_cast<T>(0) && max_denormal < min_normal);
+
+    const T min_denormal = ConvertScalarTo<T>(BitCastScalar<ToT>(ToTU{1}));
+    HWY_ASSERT(ScalarIsFinite(min_denormal));
+    HWY_ASSERT(min_denormal > static_cast<T>(0) && min_denormal < max_denormal);
+
+    const T half_min_denormal =
+        static_cast<T>(min_denormal * static_cast<T>(0.5));
+    HWY_ASSERT(ScalarIsFinite(half_min_denormal));
+    HWY_ASSERT(half_min_denormal > static_cast<T>(0) &&
+               half_min_denormal < min_denormal);
+
+    const T max_abs = ConvertScalarTo<T>(HighestValue<ToT>());
+    HWY_ASSERT(ScalarIsFinite(max_abs));
+    HWY_ASSERT(max_abs > static_cast<T>(1));
+
+    const T min_out_of_range = BitCastScalar<T>(
+        static_cast<TU>((BitCastScalar<TU>(max_abs) & ExponentMask<T>()) +
+                        (TU{1} << MantissaBits<T>())));
+    HWY_ASSERT(!ScalarIsNaN(min_out_of_range));
+    HWY_ASSERT(max_abs < min_out_of_range);
+
+    const ToTU kToTPosInfBits = ExponentMask<ToT>();
+
     RandomState rng;
+
+    // Check that values that are within the range of a normal finite ToT are
+    // converted to a correctly rounded normal value
     for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
       for (size_t i = 0; i < N; ++i) {
-        from[i] = RandomFiniteValue<T>(&rng);
-        const T magn = std::abs(from[i]);
-        const T max_abs = HighestValue<ToT>();
-        // NOTE: std:: version from C++11 cmath is not defined in RVV GCC, see
-        // https://lists.freebsd.org/pipermail/freebsd-current/2014-January/048130.html
-        const T clipped = copysign(HWY_MIN(magn, max_abs), from[i]);
-        expected[i] = static_cast<ToT>(clipped);
+        const T rand_val = RandomFiniteValue<T>(&rng);
+        const T magn = ScalarAbs(rand_val);
+        const T clipped = ScalarCopySign(
+            HWY_MIN(HWY_MAX(magn, min_normal), max_abs), rand_val);
+        from[i] = clipped;
+        expected[i] = ConvertScalarTo<ToT>(clipped);
+      }
+
+      HWY_ASSERT_VEC_EQ(to_d, expected.get(),
+                        DemoteTo(to_d, Load(from_d, from.get())));
+    }
+
+    // Check that values that are between min_denormal and max_denormal are
+    // converted to a correctly rounded denormal value
+    for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        const T rand_val = RandomFiniteValue<T>(&rng);
+        const T magn = ScalarAbs(rand_val);
+        const T clipped = ScalarCopySign(
+            HWY_MIN(HWY_MAX(magn, min_denormal), max_denormal), rand_val);
+        from[i] = clipped;
+        expected[i] = ConvertScalarTo<ToT>(clipped);
+      }
+
+      HWY_ASSERT_VEC_EQ(to_d, expected.get(),
+                        DemoteTo(to_d, Load(from_d, from.get())));
+    }
+
+    // Check that denormal values whose absolute value is less than or equal to
+    // half_min_denormal is converted to zero
+    for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        const T rand_val = RandomFiniteValue<T>(&rng);
+        const T magn = ScalarAbs(rand_val);
+        const T clipped =
+            ScalarCopySign(HWY_MIN(magn, half_min_denormal), rand_val);
+        from[i] = clipped;
+      }
+
+      HWY_ASSERT_VEC_EQ(to_d, Zero(to_d),
+                        DemoteTo(to_d, Load(from_d, from.get())));
+    }
+
+    // Check that finite values that are out of the range of ToT are correctly
+    // converted to positive infinity or negative infinity
+    for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        const T rand_val = RandomFiniteValue<T>(&rng);
+        const T abs_rand_val = ScalarAbs(rand_val);
+        const T rand_out_of_range_val =
+            ScalarCopySign(HWY_MAX(abs_rand_val, min_out_of_range), rand_val);
+
+        from[i] = rand_out_of_range_val;
+
+        expected[i] = BitCastScalar<ToT>(static_cast<ToTU>(
+            kToTPosInfBits | (static_cast<ToTU>(ScalarSignBit(rand_val))
+                              << (sizeof(ToTU) * 8 - 1))));
       }
 
       HWY_ASSERT_VEC_EQ(to_d, expected.get(),
@@ -175,12 +282,16 @@ struct TestDemoteToFloat {
 };
 
 HWY_NOINLINE void TestAllDemoteToFloat() {
-  // Must test f16 separately because we can only load/store/convert them.
-
 #if HWY_HAVE_FLOAT64
   const ForDemoteVectors<TestDemoteToFloat<float>, 1> to_float;
   to_float(double());
+
+  const ForDemoteVectors<TestDemoteToFloat<hwy::float16_t>, 2> f64_to_f16;
+  f64_to_f16(double());
 #endif
+
+  const ForDemoteVectors<TestDemoteToFloat<hwy::float16_t>, 1> f32_to_f16;
+  f32_to_f16(float());
 }
 
 struct TestDemoteUI64ToFloat {

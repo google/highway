@@ -3306,7 +3306,7 @@ HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<float, D>> v) {
   // We also want to biased exponent of round_incr[i] to be less than or equal
   // to 255 (which is equal to MaxExponentField<float>())
 
-  // The biased F64 exponent of round_incr is equal to
+  // The biased F32 exponent of round_incr is equal to
   // HWY_MAX(HWY_MIN(((exp_bits[i] >> 23) & 255) + 13, 255), 126)
 
   // hi9_bits[i] is equal to the upper 9 bits of v[i]
@@ -3392,24 +3392,31 @@ HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<float, D>> v) {
   //         ((rounded_val_bits[i] >> 10) & 0xFF), 157) - 126
 
 #if HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128
+  const auto k157Shl10 = Set(du32, static_cast<uint32_t>(uint32_t{157u} << 10));
   auto f16_exp_bits =
       Min(Add(ShiftLeft<10>(And(round_incr_hi9_bits, k255)),
               And(rounded_val_bits,
                   Set(du32, static_cast<uint32_t>(uint32_t{0xFFu} << 10)))),
-          Set(du32, static_cast<uint32_t>(uint32_t{157u} << 10)));
+          k157Shl10);
+  const auto f16_result_is_inf_mask =
+      RebindMask(df32, Eq(f16_exp_bits, k157Shl10));
 #else
-  auto f16_exp_bits = ShiftLeft<10>(BitCast(
+  const auto k157 = Set(du32, uint32_t{157});
+  auto f16_exp_bits = BitCast(
       du32,
       Min(SaturatedAdd(BitCast(du32_as_u8, round_incr_hi9_bits),
                        BitCast(du32_as_u8, ShiftRight<10>(rounded_val_bits))),
-          BitCast(du32_as_u8, Set(du32, uint32_t{157})))));
+          BitCast(du32_as_u8, k157)));
+  const auto f16_result_is_inf_mask = RebindMask(df32, Eq(f16_exp_bits, k157));
+  f16_exp_bits = ShiftLeft<10>(f16_exp_bits);
 #endif
 
   f16_exp_bits =
       Sub(f16_exp_bits, Set(du32, static_cast<uint32_t>(uint32_t{126u} << 10)));
 
   const auto f16_unmasked_mant_bits =
-      BitCast(di32, Or(rounded_val, VecFromMask(df32, IsNaN(rounded_val))));
+      BitCast(di32, Or(IfThenZeroElse(f16_result_is_inf_mask, rounded_val),
+                       VecFromMask(df32, IsNaN(rounded_val))));
 
   const auto f16_exp_mant_bits =
       OrAnd(BitCast(di32, f16_exp_bits), f16_unmasked_mant_bits,
