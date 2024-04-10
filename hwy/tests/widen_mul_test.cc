@@ -504,9 +504,8 @@ struct TestWidenMulAccumulate {
     const size_t NN = Lanes(dn);
 
     VW f0 = Zero(dw);
-    const VW f1 = Set(dw, TW{5});
     const VN bf0 = Zero(dn);
-    const VN bf1 = Set(dn, ExtractLane(f1, 0));
+    const VN bf1 = Set(dn, TW{5});
 
     // Any input zero => both outputs zero
     VW sum1 = f0;
