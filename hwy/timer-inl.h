@@ -139,7 +139,7 @@ inline Ticks Start() {
       // "memory" avoids reordering. rdx = TSC >> 32.
       // "cc" = flags modified by SHL.
       : "rdx", "memory", "cc");
-#elif HWY_ARCH_RVV
+#elif HWY_ARCH_RISCV
   asm volatile("fence; rdtime %0" : "=r"(t));
 #elif defined(_WIN32) || defined(_WIN64)
   LARGE_INTEGER counter;

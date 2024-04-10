@@ -60,7 +60,7 @@ HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
   fflush(stderr);
 
 // Now terminate the program:
-#if HWY_ARCH_RVV
+#if HWY_ARCH_RISCV
   exit(1);  // trap/abort just freeze Spike.
 #elif HWY_IS_DEBUG_BUILD && !HWY_COMPILER_MSVC
   // Facilitates breaking into a debugger, but don't use this in non-debug

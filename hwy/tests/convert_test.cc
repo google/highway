@@ -1009,7 +1009,7 @@ class TestNonFiniteF2IConvertTo {
     // TODO(janwas): workaround for QEMU 7.2 crash on vfwcvt_rtz_x_f_v:
     // target/riscv/translate.c:213 in void decode_save_opc(DisasContext *):
     // ctx->insn_start != NULL.
-#if HWY_TARGET == HWY_RVV || (HWY_ARCH_RVV && HWY_TARGET == HWY_EMU128)
+#if HWY_TARGET == HWY_RVV || (HWY_ARCH_RISCV && HWY_TARGET == HWY_EMU128)
     if (sizeof(TTo) > sizeof(TF)) {
       return;
     }
@@ -1154,7 +1154,7 @@ struct TestF2IPromoteTo {
     // TODO(janwas): workaround for QEMU 7.2 crash on vfwcvt_rtz_x_f_v:
     // target/riscv/translate.c:213 in void decode_save_opc(DisasContext *):
     // ctx->insn_start != NULL.
-#if HWY_TARGET == HWY_RVV || (HWY_ARCH_RVV && HWY_TARGET == HWY_EMU128)
+#if HWY_TARGET == HWY_RVV || (HWY_ARCH_RISCV && HWY_TARGET == HWY_EMU128)
     return;
 #endif
 
@@ -1251,7 +1251,7 @@ struct TestF2IPromoteUpperLowerTo {
     // TODO(janwas): workaround for QEMU 7.2 crash on vfwcvt_rtz_x_f_v:
     // target/riscv/translate.c:213 in void decode_save_opc(DisasContext *):
     // ctx->insn_start != NULL.
-#if HWY_TARGET == HWY_RVV || (HWY_ARCH_RVV && HWY_TARGET == HWY_EMU128)
+#if HWY_TARGET == HWY_RVV || (HWY_ARCH_RISCV && HWY_TARGET == HWY_EMU128)
     return;
 #endif
 
@@ -1395,7 +1395,7 @@ class TestNonFiniteF2IPromoteUpperLowerTo {
     // TODO(janwas): workaround for QEMU 7.2 crash on vfwcvt_rtz_x_f_v:
     // target/riscv/translate.c:213 in void decode_save_opc(DisasContext *):
     // ctx->insn_start != NULL.
-#if HWY_TARGET == HWY_RVV || (HWY_ARCH_RVV && HWY_TARGET == HWY_EMU128)
+#if HWY_TARGET == HWY_RVV || (HWY_ARCH_RISCV && HWY_TARGET == HWY_EMU128)
     return;
 #endif
 

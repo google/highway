@@ -31,7 +31,7 @@
 #include <cpuid.h>
 #endif  // HWY_COMPILER_MSVC
 
-#elif (HWY_ARCH_ARM || HWY_ARCH_PPC || HWY_ARCH_S390X || HWY_ARCH_RVV) && \
+#elif (HWY_ARCH_ARM || HWY_ARCH_PPC || HWY_ARCH_S390X || HWY_ARCH_RISCV) && \
     HWY_OS_LINUX
 // sys/auxv.h does not always include asm/hwcap.h, or define HWCAP*, hence we
 // still include this directly. See #1199.
@@ -498,7 +498,7 @@ int64_t DetectTargets() {
   return bits;
 }
 }  // namespace s390x
-#elif HWY_ARCH_RVV && HWY_HAVE_RUNTIME_DISPATCH
+#elif HWY_ARCH_RISCV && HWY_HAVE_RUNTIME_DISPATCH
 namespace rvv {
 
 #ifndef HWCAP_RVV
@@ -537,7 +537,7 @@ int64_t DetectTargets() {
   bits |= ppc::DetectTargets();
 #elif HWY_ARCH_S390X && HWY_HAVE_RUNTIME_DISPATCH
   bits |= s390x::DetectTargets();
-#elif HWY_ARCH_RVV && HWY_HAVE_RUNTIME_DISPATCH
+#elif HWY_ARCH_RISCV && HWY_HAVE_RUNTIME_DISPATCH
   bits |= rvv::DetectTargets();
 
 #else
