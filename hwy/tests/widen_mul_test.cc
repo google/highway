@@ -506,7 +506,7 @@ struct TestWidenMulAccumulate {
     VW f0 = Zero(dw);
     const VW f1 = Set(dw, TW{5});
     const VN bf0 = Zero(dn);
-    const VN bf1 = ReorderDemote2To(dn, f1, f1);
+    const VN bf1 = Set(dn, ExtractLane(f1, 0));
 
     // Any input zero => both outputs zero
     VW sum1 = f0;
@@ -529,7 +529,7 @@ struct TestWidenMulAccumulate {
       }
       const VW delta0 = Load(dw, delta_w.get());
       const VW delta1 = Load(dw, delta_w.get() + NN / 2);
-      const VN delta = ReorderDemote2To(dn, delta0, delta1);
+      const VN delta = Combine(dn, DemoteTo(dnh, Add(delta0, delta1)), DemoteTo(dnh, Sub(delta0, delta1)));
       VW highSumBefore;
 
       f0 = Set(dw, 6);
@@ -588,6 +588,9 @@ HWY_NOINLINE void TestAllWidenMulAccumulate() {
   ForShrinkableVectors<TestWidenMulAccumulate>()(uint16_t());
   ForShrinkableVectors<TestWidenMulAccumulate>()(int8_t());
   ForShrinkableVectors<TestWidenMulAccumulate>()(uint8_t());
+#if HWY_HAVE_FLOAT16
+  ForShrinkableVectors<TestWidenMulAccumulate>()(float16_t());
+#endif
 }
 
 struct TestRearrangeToOddPlusEven {
