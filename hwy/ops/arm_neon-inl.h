@@ -6620,7 +6620,7 @@ HWY_API Vec32<uint16_t> WidenHighMulAdd(D d, Vec32<uint8_t> mul,
                                         Vec32<uint8_t> x, Vec32<uint16_t> add) {
   Vec128<uint16_t> widen = Vec128<uint16_t>(vmull_u8(mul.raw, x.raw));
   const RepartitionToWide<decltype(d)> d16;
-  Vec32<uint16_t> hi = UpperHalf(d16, Vec64<uint16_t>(vget_high_u8(widen.raw)));
+  Vec32<uint16_t> hi = UpperHalf(d16, Vec64<uint16_t>(vget_high_u16(widen.raw)));
   return hi + add;
 }
 
@@ -6629,7 +6629,7 @@ HWY_API Vec16<uint16_t> WidenHighMulAdd(D d, Vec16<uint8_t> mul,
                                         Vec16<uint8_t> x, Vec16<uint16_t> add) {
   Vec128<uint16_t> widen = Vec128<uint16_t>(vmull_u8(mul.raw, x.raw));
   const RepartitionToWide<decltype(d)> d16;
-  Vec16<uint16_t> hi = UpperHalf(d16, Vec32<uint16_t>(vget_high_u8(widen.raw)));
+  Vec16<uint16_t> hi = UpperHalf(d16, Vec32<uint16_t>(vget_high_u16(widen.raw)));
   return hi + add;
 }
 
@@ -6659,7 +6659,7 @@ HWY_API Vec32<int16_t> WidenHighMulAdd(D d, Vec32<int8_t> mul,
                                        Vec32<int8_t> x, Vec32<int16_t> add) {
   Vec128<int16_t> widen = Vec128<int16_t>(vmull_s8(mul.raw, x.raw));
   const RepartitionToWide<decltype(d)> d16;
-  Vec32<int16_t> hi = UpperHalf(d16, Vec64<int16_t>(vget_high_s8(widen.raw)));
+  Vec32<int16_t> hi = UpperHalf(d16, Vec64<int16_t>(vget_high_s16(widen.raw)));
   return hi + add;
 }
 
@@ -6668,7 +6668,7 @@ HWY_API Vec16<int16_t> WidenHighMulAdd(D d, Vec16<int8_t> mul,
                                        Vec16<int8_t> x, Vec16<int16_t> add) {
   Vec128<int16_t> widen = Vec128<int16_t>(vmull_s8(mul.raw, x.raw));
   const RepartitionToWide<decltype(d)> d16;
-  Vec16<int16_t> hi = UpperHalf(d16, Vec32<int16_t>(vget_high_u8(widen.raw)));
+  Vec16<int16_t> hi = UpperHalf(d16, Vec32<int16_t>(vget_high_u16(widen.raw)));
   return hi + add;
 }
 
