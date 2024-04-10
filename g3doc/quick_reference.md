@@ -1928,16 +1928,16 @@ their operands into independently processed 128-bit *blocks*.
 
 All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
 
-*   `V`: `{u,i}` \
+*   `V`, `VI`: `{u,i}` \
     <code>VI **TableLookupBytes**(V bytes, VI indices)</code>: returns
     `bytes[indices[i]]`. Uses byte lanes regardless of the actual vector types.
     Results are implementation-defined if `indices[i] < 0` or `indices[i] >=
     HWY_MIN(Lanes(DFromV<V>()), 16)`. `VI` are integers, possibly of a different
-    type than those in `V`. The number of lanes in `V` and `VI` may differ, e.g.
-    a full-length table vector loaded via `LoadDup128`, plus partial vector `VI`
-    of 4-bit indices.
+    type than those in `V` and are loaded uses the standard load instructions. 
+    The number of lanes in `V` and `VI` may differ, e.g. a full-length table vector
+    loaded via `LoadDup128`, plus partial vector `VI` of 4-bit indices.
 
-*   `V`: `{u,i}` \
+*   `V`, `VI`: `{u,i}` \
     <code>VI **TableLookupBytesOr0**(V bytes, VI indices)</code>: returns
     `bytes[indices[i]]`, or 0 if `indices[i] & 0x80`. Uses byte lanes regardless
     of the actual vector types. Results are implementation-defined for
