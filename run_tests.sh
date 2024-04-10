@@ -89,5 +89,12 @@ rm -rf build_z15 && mkdir build_z15 && cd build_z15
 CC=s390x-linux-gnu-gcc-11 CXX=s390x-linux-gnu-g++-11 cmake .. -DCMAKE_C_COMPILER_TARGET="s390x-linux-gnu" -DCMAKE_CXX_COMPILER_TARGET="s390x-linux-gnu" -DCMAKE_C_FLAGS='-march=z15 -mzvector' -DCMAKE_CXX_FLAGS='-march=z15 -mzvector -DHWY_DISABLED_TARGETS="(HWY_SCALAR|HWY_EMU128|HWY_Z14)" -DHWY_COMPILE_ONLY_STATIC=1' -DCMAKE_CROSSCOMPILING=true -DCMAKE_CROSSCOMPILING_EMULATOR="/usr/bin/qemu-s390x;-cpu;max,vxeh2=on;-L;/usr/s390x-linux-gnu"
 clear && make -j && ctest -j && cd .. && rm -rf build_z15
 
+#######################################
+echo RVV
+export QEMU_LD_PREFIX=/usr/riscv64-linux-gnu
+rm -rf build_rvv && mkdir build_rvv && cd build_rvv
+CC=riscv64-linux-gnu-gcc-13 CXX=riscv64-linux-gnu-g++-13 cmake .. -DCMAKE_C_COMPILER_TARGET="riscv64-linux-gnu" -DCMAKE_CXX_COMPILER_TARGET="riscv64-linux-gnu" -DCMAKE_CROSSCOMPILING=true -DCMAKE_CROSSCOMPILING_EMULATOR="/usr/bin/qemu-riscv64;-cpu;max;-L;/usr/riscv64-linux-gnu"
+clear && make -j && ctest -j && cd .. && rm -rf build_rvv
+
 
 echo Success

@@ -2924,8 +2924,8 @@ HWY_API VFromD<Simd<hwy::bfloat16_t, N, kPow2>> DemoteTo(
   HWY_API HWY_RVV_V(uint, SEW, LMUL) ConvertTo(                                \
       HWY_RVV_D(uint, SEW, N, SHIFT) d, HWY_RVV_V(BASE, SEW, LMUL) v) {        \
     return __riscv_vfcvt_rtz_xu_f_v_u##SEW##LMUL(v, Lanes(d));                 \
-  }                                                                            \
-// API only requires f32 but we provide f64 for internal use.
+  }
+
 HWY_RVV_FOREACH_F(HWY_RVV_CONVERT, _, _, _ALL_VIRT)
 #undef HWY_RVV_CONVERT
 

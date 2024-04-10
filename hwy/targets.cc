@@ -18,6 +18,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "hwy/base.h"
 #include "hwy/detect_targets.h"
 #include "hwy/highway.h"
 #include "hwy/per_target.h"  // VectorBytes
@@ -30,7 +31,8 @@
 #include <cpuid.h>
 #endif  // HWY_COMPILER_MSVC
 
-#elif (HWY_ARCH_ARM || HWY_ARCH_PPC || HWY_ARCH_S390X) && HWY_OS_LINUX
+#elif (HWY_ARCH_ARM || HWY_ARCH_PPC || HWY_ARCH_S390X || HWY_ARCH_RVV) && \
+    HWY_OS_LINUX
 // sys/auxv.h does not always include asm/hwcap.h, or define HWCAP*, hence we
 // still include this directly. See #1199.
 #ifndef TOOLCHAIN_MISS_ASM_HWCAP_H
@@ -260,9 +262,9 @@ constexpr uint64_t kGroupAVX3_SPR =
 
 int64_t DetectTargets() {
   int64_t bits = 0;  // return value of supported targets.
-#if HWY_ARCH_X86_64
-  bits |= HWY_SSE2;  // always present in x64
-#endif
+  HWY_IF_CONSTEXPR(HWY_ARCH_X86_64) {
+    bits |= HWY_SSE2;  // always present in x64
+  }
 
   const uint64_t flags = FlagsFromCPUID();
   // Set target bit(s) if all their group's flags are all set.
@@ -284,11 +286,11 @@ int64_t DetectTargets() {
   if ((flags & kGroupSSSE3) == kGroupSSSE3) {
     bits |= HWY_SSSE3;
   }
-#if HWY_ARCH_X86_32
-  if ((flags & kGroupSSE2) == kGroupSSE2) {
-    bits |= HWY_SSE2;
+  HWY_IF_CONSTEXPR(HWY_ARCH_X86_32) {
+    if ((flags & kGroupSSE2) == kGroupSSE2) {
+      bits |= HWY_SSE2;
+    }
   }
-#endif
 
   // Clear AVX2/AVX3 bits if the CPU or OS does not support XSAVE - otherwise,
   // YMM/ZMM registers are not preserved across context switches.
@@ -496,7 +498,28 @@ int64_t DetectTargets() {
   return bits;
 }
 }  // namespace s390x
-#endif  // HWY_ARCH_X86
+#elif HWY_ARCH_RVV && HWY_HAVE_RUNTIME_DISPATCH
+namespace rvv {
+
+#ifndef HWCAP_RVV
+#define COMPAT_HWCAP_ISA_V (1 << ('V' - 'A'))
+#endif
+
+using CapBits = unsigned long;  // NOLINT
+
+int64_t DetectTargets() {
+  int64_t bits = 0;
+
+  const CapBits hw = getauxval(AT_HWCAP);
+
+  if ((hw & COMPAT_HWCAP_ISA_V) == COMPAT_HWCAP_ISA_V) {
+    bits |= HWY_RVV;
+  }
+
+  return bits;
+}
+}  // namespace rvv
+#endif  // HWY_ARCH_*
 
 // Returns targets supported by the CPU, independently of DisableTargets.
 // Factored out of SupportedTargets to make its structure more obvious. Note
@@ -514,9 +537,11 @@ int64_t DetectTargets() {
   bits |= ppc::DetectTargets();
 #elif HWY_ARCH_S390X && HWY_HAVE_RUNTIME_DISPATCH
   bits |= s390x::DetectTargets();
+#elif HWY_ARCH_RVV && HWY_HAVE_RUNTIME_DISPATCH
+  bits |= rvv::DetectTargets();
 
 #else
-  // TODO(janwas): detect support for WASM/RVV.
+  // TODO(janwas): detect support for WASM.
   // This file is typically compiled without HWY_IS_TEST, but targets_test has
   // it set, and will expect all of its HWY_TARGETS (= all attainable) to be
   // supported.
