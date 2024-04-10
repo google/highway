@@ -7389,6 +7389,16 @@ HWY_API VFromD<DI16> SatWidenMulPairwiseAdd(
   return VFromD<DI16>{_mm512_maddubs_epi16(a.raw, b.raw)};
 }
 
+// ------------------------------ SatWidenMulPairwiseAccumulate
+#if HWY_TARGET <= HWY_AVX3_DL
+template <class DI32, HWY_IF_I32_D(DI32), HWY_IF_V_SIZE_D(DI32, 64)>
+HWY_API VFromD<DI32> SatWidenMulPairwiseAccumulate(
+    DI32 /* tag */, VFromD<Repartition<int16_t, DI32>> a,
+    VFromD<Repartition<int16_t, DI32>> b, VFromD<DI32> sum) {
+  return VFromD<DI32>{_mm512_dpwssds_epi32(sum.raw, a.raw, b.raw)};
+}
+#endif  // HWY_TARGET <= HWY_AVX3_DL
+
 // ------------------------------ ReorderWidenMulAccumulate
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_I32_D(D)>
 HWY_API VFromD<D> ReorderWidenMulAccumulate(D d, Vec512<int16_t> a,
