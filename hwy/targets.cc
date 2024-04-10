@@ -502,6 +502,17 @@ int64_t DetectTargets() {
   return bits;
 }
 }  // namespace s390x
+#elif HWY_ARCH_RVV && HWY_HAVE_RUNTIME_DISPATCH
+namespace riscv {
+int64_t DetectTargets() {
+  int64_t bits = 0;               // return value of supported targets.
+  int32_t misa;
+  //Read the ISA supported by the hart from misa CSR
+  __asm__ volatile("csrr %0, misa" : "=r" (misa));
+  if(misa & (0x1 << 21)) bits |= HWY_RVV;
+  return bits;
+}
+}  // namespace riscv
 #endif  // HWY_ARCH_X86
 
 // Returns targets supported by the CPU, independently of DisableTargets.
@@ -520,7 +531,8 @@ int64_t DetectTargets() {
   bits |= ppc::DetectTargets();
 #elif HWY_ARCH_S390X && HWY_HAVE_RUNTIME_DISPATCH
   bits |= s390x::DetectTargets();
-
+#elif HWY_ARCH_RVV && HWY_HAVE_RUNTIME_DISPATCH
+  bits |= riscv::DetectTargets();
 #else
   // TODO(janwas): detect support for WASM/RVV.
   // This file is typically compiled without HWY_IS_TEST, but targets_test has
