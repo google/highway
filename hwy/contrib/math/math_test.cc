@@ -119,7 +119,7 @@ HWY_NOINLINE void TestMath(const char* name, T (*fx1)(T),
       const auto ulp = hwy::detail::ComputeUlpDelta(actual, expected);
       max_ulp = HWY_MAX(max_ulp, ulp);
       if (ulp > max_error_ulp) {
-        fprintf(stderr, "%s: %s(%f) expected %f actual %f ulp %g max ulp %u\n",
+        fprintf(stderr, "%s: %s(%f) expected %E actual %E ulp %g max ulp %u\n",
                 hwy::TypeName(T(), Lanes(d)).c_str(), name, value, expected,
                 actual, static_cast<double>(ulp),
                 static_cast<uint32_t>(max_error_ulp));
@@ -181,14 +181,14 @@ constexpr uint64_t ACosh32ULP() {
 template <class D>
 static Vec<D> SinCosSin(const D d, VecArg<Vec<D>> x) {
   Vec<D> s, c;
-  SinCos(d, x, s, c);
+  CallSinCos(d, x, s, c);
   return s;
 }
 
 template <class D>
 static Vec<D> SinCosCos(const D d, VecArg<Vec<D>> x) {
   Vec<D> s, c;
-  SinCos(d, x, s, c);
+  CallSinCos(d, x, s, c);
   return c;
 }
 
@@ -390,7 +390,7 @@ struct TestAtan2 {
       if (!AllTrue(d, ok)) {
         const size_t mismatch =
             static_cast<size_t>(FindKnownFirstTrue(d, Not(ok)));
-        fprintf(stderr, "Mismatch for i=%d expected %f actual %f\n",
+        fprintf(stderr, "Mismatch for i=%d expected %E actual %E\n",
                 static_cast<int>(i + mismatch), expected[i + mismatch],
                 ExtractLane(actual, mismatch));
         HWY_ASSERT(0);

@@ -331,7 +331,8 @@ HWY_NOINLINE V CallTanh(const D d, VecArg<V> x) {
 template <class D, class V>
 HWY_INLINE void SinCos(D d, V x, V& s, V& c);
 template <class D, class V>
-HWY_NOINLINE V CallSinCos(const D d, VecArg<V> x, VecArg<V>& s, VecArg<V>& c) {
+HWY_NOINLINE void CallSinCos(const D d, VecArg<V> x, VecArg<V>& s,
+                             VecArg<V>& c) {
   SinCos(d, x, s, c);
 }
 
