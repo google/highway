@@ -6588,7 +6588,7 @@ HWY_API Vec32<uint32_t> WidenHighMulAdd(D d, Vec32<uint16_t> mul,
                                         Vec32<uint16_t> x, Vec32<uint32_t> add) {
   Vec128<uint32_t> widen = Vec128<uint32_t>(vmull_u16(mul.raw, x.raw));
   const RepartitionToWide<decltype(d)> d32;
-  Vec32<uint32_t> hi = UpperHalf(d32, Vec64<uint32_t>(vget_high_s32(widen.raw)));
+  Vec32<uint32_t> hi = UpperHalf(d32, Vec64<uint32_t>(vget_high_u32(widen.raw)));
   return hi + add;
 }
 
