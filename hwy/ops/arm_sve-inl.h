@@ -3257,15 +3257,13 @@ HWY_API TFromV<V> ExtractLane(V v, size_t i) {
 }
 
 // ------------------------------ InsertLane (IfThenElse)
-template <class V, typename T>
-HWY_API V InsertLane(const V v, size_t i, T t) {
-  static_assert(sizeof(TFromV<V>) == sizeof(T), "Lane size mismatch");
+template <class V>
+HWY_API V InsertLane(const V v, size_t i, TFromV<V> t) {
   const DFromV<V> d;
   const RebindToSigned<decltype(d)> di;
   using TI = TFromD<decltype(di)>;
   const svbool_t is_i = detail::EqN(Iota(di, 0), static_cast<TI>(i));
-  return IfThenElse(RebindMask(d, is_i),
-                    Set(d, hwy::ConvertScalarTo<TFromV<V>>(t)), v);
+  return IfThenElse(RebindMask(d, is_i), Set(d, t), v);
 }
 
 // ------------------------------ DupEven
