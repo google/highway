@@ -6666,7 +6666,7 @@ HWY_API Vec16<int16_t> WidenHighMulAdd(D d, Vec16<int8_t> mul,
                                        Vec16<int8_t> x, Vec16<int16_t> add) {
   Vec128<int16_t> widen = Vec128<int16_t>(vmull_s8(mul.raw, x.raw));
   const RepartitionToWide<decltype(d)> d16;
-  Vec16<int16_t> hi = UpperHalf(d16, Vec32<int16_t>(vget_high_u16(widen.raw)));
+  Vec16<int16_t> hi = UpperHalf(d16, Vec32<int16_t>(vget_high_s16(widen.raw)));
   return hi + add;
 }
 
@@ -6796,7 +6796,8 @@ HWY_API Vec64<uint64_t> WidenMulAdd(D /* tag */, Vec32<uint32_t> mul,
   Vec128<uint64_t> mulRs = Vec128<uint64_t>(vmull_u32(mul.raw, x.raw));
   const Vec64<uint64_t> mul10(LowerHalf(mulRs));
   return add + mul10;
-=======
+}
+
 // ------------------------------ SatWidenMulAccumFixedPoint
 
 #ifdef HWY_NATIVE_I16_SATWIDENMULACCUMFIXEDPOINT
