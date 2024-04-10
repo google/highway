@@ -5141,8 +5141,9 @@ HWY_API Vec512<T> operator%(Vec512<T> a, Vec512<T> b) {
 #define HWY_NATIVE_WIDEN_MUL_ACCUMULATE
 #endif
 
-template<class D, HWY_IF_INTEGER(TFromD<D>), HWY_IF_LANES_GT_D(D, 1),
-         class DW = RepartitionToWide<D>, typename VW = VFromD<DW>>
+template<class D, HWY_IF_INTEGER(TFromD<D>),
+         HWY_IF_LANES_GT_D(D, 1), class DW = RepartitionToWide<D>,
+         typename VW = VFromD<DW>>
 HWY_API VW WidenMulAccumulate(D /* tag */, VFromD<D> mul, VFromD<D> x, VW low, VW& high) {
   const DW dw;
   high = MulAdd(PromoteUpperTo(dw, mul), PromoteUpperTo(dw, x), high);
@@ -5151,7 +5152,7 @@ HWY_API VW WidenMulAccumulate(D /* tag */, VFromD<D> mul, VFromD<D> x, VW low, V
 
 #endif
 
-#if HWY_HAVE_FLOAT16
+#if HWY_HAVE_FLOAT16 && (HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_NEON_WITHOUT_AES)
 
 #if (defined(HWY_NATIVE_WIDEN_MUL_ACCUMULATE_F16) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_WIDEN_MUL_ACCUMULATE_F16
@@ -5161,7 +5162,7 @@ HWY_API VW WidenMulAccumulate(D /* tag */, VFromD<D> mul, VFromD<D> x, VW low, V
 #endif
 
 template<class D, HWY_IF_F16(TFromD<D>), HWY_IF_LANES_GT_D(D, 1),
-    class DW = RepartitionToWide<D>, typename VW = VFromD<DW>>
+         class DW = RepartitionToWide<D>, class VW = VFromD<DW>>
 HWY_API VW WidenMulAccumulate(D /* tag */, VFromD<D> mul, VFromD<D> x, VW low, VW& high) {
   const DW dw;
   high = MulAdd(PromoteUpperTo(dw, mul), PromoteUpperTo(dw, x), high);
