@@ -864,7 +864,7 @@ void ForUIF163264(const Func& func) {
 // For tests that involve loops, adjust the trip count so that emulated tests
 // finish quickly (but always at least 2 iterations to ensure some diversity).
 constexpr size_t AdjustedReps(size_t max_reps) {
-#if HWY_ARCH_RVV
+#if HWY_ARCH_RISCV
   return HWY_MAX(max_reps / 32, 2);
 #elif HWY_IS_DEBUG_BUILD
   return HWY_MAX(max_reps / 8, 2);
@@ -880,7 +880,7 @@ constexpr size_t AdjustedReps(size_t max_reps) {
 // Same as above, but the loop trip count will be 1 << max_pow2.
 constexpr size_t AdjustedLog2Reps(size_t max_pow2) {
   // If "negative" (unsigned wraparound), use original.
-#if HWY_ARCH_RVV
+#if HWY_ARCH_RISCV
   return HWY_MIN(max_pow2 - 4, max_pow2);
 #elif HWY_IS_DEBUG_BUILD
   return HWY_MIN(max_pow2 - 1, max_pow2);

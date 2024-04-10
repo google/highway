@@ -295,7 +295,7 @@
 #endif
 #endif
 
-// ------------------------------ HWY_ARCH_RVV
+// ------------------------------ HWY_ARCH_RISCV
 
 #if (HWY_TARGETS & HWY_RVV) && (HWY_STATIC_TARGET != HWY_RVV)
 #undef HWY_TARGET

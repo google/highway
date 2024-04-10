@@ -29,7 +29,7 @@
 #include "hwy/detect_targets.h"
 #include "hwy/highway_export.h"
 
-#if !HWY_ARCH_RVV && !defined(HWY_NO_LIBCXX)
+#if !HWY_ARCH_RISCV && !defined(HWY_NO_LIBCXX)
 #include <atomic>
 #endif
 
@@ -141,7 +141,7 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(int64_t target) {
       return "WASM_EMU256";
 #endif
 
-#if HWY_ARCH_RVV
+#if HWY_ARCH_RISCV
     case HWY_RVV:
       return "RVV";
 #endif
@@ -237,7 +237,7 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(int64_t target) {
       HWY_CHOOSE_NEON(func_name),            /* NEON */         \
       HWY_CHOOSE_NEON_WITHOUT_AES(func_name) /* NEON without AES */
 
-#elif HWY_ARCH_RVV
+#elif HWY_ARCH_RISCV
 // See HWY_ARCH_X86 above for details.
 #define HWY_MAX_DYNAMIC_TARGETS 9
 #define HWY_HIGHEST_TARGET_BIT HWY_HIGHEST_TARGET_BIT_RVV
@@ -324,7 +324,7 @@ struct ChosenTarget {
 
  private:
   // TODO(janwas): remove RVV once <atomic> is available
-#if HWY_ARCH_RVV || defined(HWY_NO_LIBCXX)
+#if HWY_ARCH_RISCV || defined(HWY_NO_LIBCXX)
   int64_t LoadMask() const { return mask_; }
   void StoreMask(int64_t mask) { mask_ = mask; }
 
@@ -334,7 +334,7 @@ struct ChosenTarget {
   void StoreMask(int64_t mask) { mask_.store(mask); }
 
   std::atomic<int64_t> mask_{1};  // Initialized to 1 so GetIndex() returns 0.
-#endif  // HWY_ARCH_RVV
+#endif  // HWY_ARCH_RISCV
 };
 
 // For internal use (e.g. by FunctionCache and DisableTargets).

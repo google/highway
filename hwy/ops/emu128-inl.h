@@ -2081,7 +2081,7 @@ HWY_API VFromD<D> ConcatEven(D d, VFromD<D> hi, VFromD<D> lo) {
 
 // 2023-11-23: workaround for incorrect codegen (reduction_test fails for
 // SumsOf2 because PromoteOddTo, which uses ConcatOdd, returns zero).
-#if HWY_ARCH_RVV && HWY_TARGET == HWY_EMU128 && HWY_COMPILER_CLANG
+#if HWY_ARCH_RISCV && HWY_TARGET == HWY_EMU128 && HWY_COMPILER_CLANG
 #define HWY_EMU128_CONCAT_INLINE HWY_NOINLINE
 #else
 #define HWY_EMU128_CONCAT_INLINE HWY_API
