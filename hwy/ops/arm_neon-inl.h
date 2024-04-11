@@ -6550,7 +6550,7 @@ HWY_API VFromD<D> WidenHighMulAdd(D /* tag */, VFromD<DN> mul,
 }
 
 template<class D, HWY_IF_I32_D(D), class DN = RepartitionToNarrow<D>,
-         HWY_IF_LANES_LE_D(DN, 4), HWY_IF_LANES_GT_D(DN, 2)>
+         HWY_IF_LANES_D(DN, 4)>
 HWY_API VFromD<D> WidenHighMulAdd(D d, VFromD<DN> mul,
                                   VFromD<DN> x, VFromD<D> add) {
   Vec128<int32_t> widen = Vec128<int32_t>(vmull_s16(mul.raw, x.raw));
@@ -6581,7 +6581,7 @@ HWY_API VFromD<D> WidenHighMulAdd(D /* tag */, VFromD<DN> mul,
 }
 
 template<class D, HWY_IF_U32_D(D), class DN = RepartitionToNarrow<D>,
-         HWY_IF_LANES_LE_D(DN, 4), HWY_IF_LANES_GT_D(DN, 2)>
+         HWY_IF_LANES_D(DN, 4)>
 HWY_API VFromD<D> WidenHighMulAdd(D d, VFromD<DN> mul,
                                    VFromD<DN> x, VFromD<D> add) {
   Vec128<uint32_t> widen = Vec128<uint32_t>(vmull_u16(mul.raw, x.raw));
@@ -6612,7 +6612,7 @@ HWY_API VFromD<D> WidenHighMulAdd(D /* tag */, VFromD<DN> mul,
 }
 
 template<class D, HWY_IF_U16_D(D), class DN = RepartitionToNarrow<D>,
-         HWY_IF_LANES_LE_D(DN, 8), HWY_IF_LANES_GT_D(DN, 4)>
+         HWY_IF_LANES_D(DN, 8)>
 HWY_API VFromD<D> WidenHighMulAdd(D d, VFromD<DN> mul,
                                   VFromD<DN> x, VFromD<D> add) {
   Vec128<uint16_t> widen = Vec128<uint16_t>(vmull_u8(mul.raw, x.raw));
@@ -6644,7 +6644,7 @@ HWY_API VFromD<D> WidenHighMulAdd(D /* tag */, VFromD<DN> mul,
 }
 
 template<class D, HWY_IF_I16_D(D), class DN = RepartitionToNarrow<D>,
-         HWY_IF_LANES_LE_D(DN, 8), HWY_IF_LANES_GT_D(DN, 4)>
+         HWY_IF_LANES_D(DN, 8)>
 HWY_API VFromD<D> WidenHighMulAdd(D d, VFromD<DN> mul,
                                   VFromD<DN> x, VFromD<D> add) {
   Vec128<int16_t> widen = Vec128<int16_t>(vmull_s8(mul.raw, x.raw));
@@ -6670,8 +6670,7 @@ HWY_API VFromD<D> WidenHighMulAdd(D /* tag */, VFromD<DN> mul,
   return VFromD<D>(vfmlalq_high_f16(add.raw, mul.raw, x.raw));
 }
 
-template<class D, HWY_IF_F32_D(D),
-         HWY_IF_LANES_LE_D(D, 3), HWY_IF_LANES_GT_D(D, 1),
+template<class D, HWY_IF_F32_D(D), HWY_IF_LANES_D(D, 2),
          class DN = RepartitionToNarrow<D>>
 HWY_API VFromD<D> WidenHighMulAdd(D /* tag */, VFromD<DN> mul,
                                   VFromD<DN> x, VFromD<D> add) {
@@ -6744,7 +6743,7 @@ HWY_API VFromD<D> WidenMulAdd(D /* tag */, VFromD<DN> mul,
 
 template<class D, HWY_IF_I32_D(D),
          class DN = Rebind<MakeNarrow<TFromD<D>>, D>,
-         HWY_IF_LANES_D(DN, 1)>
+         HWY_IF_LANES_D(D, 1)>
 HWY_API VFromD<D> WidenMulAdd(D /* tag */, VFromD<DN> mul,
                                VFromD<DN> x, VFromD<D> add) {
   Vec64<int32_t> mulRs = LowerHalf(Vec128<int32_t>(vmull_s16(mul.raw, x.raw)));
@@ -6784,7 +6783,7 @@ HWY_API VFromD<D> WidenMulAdd(D /* tag */, VFromD<DN> mul,
   return VFromD<D>(vmlal_s32(add.raw, mul.raw, x.raw));
 }
 
-template<class D, HWY_IF_I64_D(D), HWY_IF_LANES_D(D, 1),
+template<class D, HWY_IF_I64_D(D), HWY_IF_LANES_D(D, 2),
          class DN = Rebind<MakeNarrow<TFromD<D>>, D>>
 HWY_API VFromD<D> WidenMulAdd(D /* tag */, VFromD<DN> mul,
                               VFromD<DN> x, VFromD<D> add) {
@@ -6818,7 +6817,7 @@ HWY_API VFromD<D> WidenLowMulAdd(D /* tag */, VFromD<DN> mul,
 }
 
 template<class D, HWY_IF_F32_D(D), class DN = RepartitionToNarrow<D>,
-         HWY_IF_LANES_LE_D(DN, 4), HWY_IF_LANES_GT_D(DN, 2)>
+         HWY_IF_LANES_D(DN, 4)>
 HWY_API VFromD<D> WidenLowMulAdd(D /* tag */, VFromD<DN> mul,
                                   VFromD<DN> x, VFromD<D> add) {
   return Vec64<float32_t>(vfmlal_low_f16(add.raw, mul.raw, x.raw));
