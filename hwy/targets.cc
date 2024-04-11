@@ -44,6 +44,11 @@
 
 #endif  // HWY_ARCH_*
 
+#ifdef __APPLE__
+#include <sys/sysctl.h>
+#include <sys/utsname.h>
+#endif  // __APPLE__
+
 namespace hwy {
 namespace {
 
@@ -53,6 +58,71 @@ int64_t supported_targets_for_test_ = 0;
 
 // Mask of targets disabled at runtime with DisableTargets.
 int64_t supported_mask_ = LimitsMax<int64_t>();
+
+#ifdef __APPLE__
+static HWY_INLINE HWY_MAYBE_UNUSED bool HasCpuFeature(
+    const char* feature_name) {
+  int result = 0;
+  size_t len = sizeof(int);
+  return (sysctlbyname(feature_name, &result, &len, nullptr, 0) == 0 &&
+          result != 0);
+}
+
+static HWY_INLINE HWY_MAYBE_UNUSED bool ParseU32(const char*& ptr,
+                                                 uint32_t& parsed_val) {
+  uint64_t parsed_u64 = 0;
+
+  const char* start_ptr = ptr;
+  for (char ch; (ch = (*ptr)) != '\0'; ++ptr) {
+    unsigned digit = static_cast<unsigned>(static_cast<unsigned char>(ch)) -
+                     static_cast<unsigned>(static_cast<unsigned char>('0'));
+    if (digit > 9u) {
+      break;
+    }
+
+    parsed_u64 = (parsed_u64 * 10u) + digit;
+    if (parsed_u64 > 0xFFFFFFFFu) {
+      return false;
+    }
+  }
+
+  parsed_val = static_cast<uint32_t>(parsed_u64);
+  return (ptr != start_ptr);
+}
+
+static HWY_INLINE HWY_MAYBE_UNUSED bool IsMacOs12_2OrLater() {
+  utsname uname_buf;
+  ZeroBytes(&uname_buf, sizeof(utsname));
+
+  if ((uname(&uname_buf)) != 0) {
+    return false;
+  }
+
+  const char* ptr = uname_buf.release;
+  if (!ptr) {
+    return false;
+  }
+
+  uint32_t major;
+  uint32_t minor;
+  if (!ParseU32(ptr, major)) {
+    return false;
+  }
+
+  if (*ptr != '.') {
+    return false;
+  }
+
+  ++ptr;
+  if (!ParseU32(ptr, minor)) {
+    return false;
+  }
+
+  // We are running on macOS 12.2 or later if the Darwin kernel version is 21.3
+  // or later
+  return (major > 21 || (major == 21 && minor >= 3));
+}
+#endif  // __APPLE__
 
 #if HWY_ARCH_X86 && HWY_HAVE_RUNTIME_DISPATCH
 namespace x86 {
@@ -317,6 +387,34 @@ int64_t DetectTargets() {
   constexpr int64_t min_avx2 = HWY_AVX2 | (HWY_AVX2 - 1);
 
   if (has_xsave && has_osxsave) {
+#ifdef __APPLE__
+    // On macOS, check for AVX3 XSAVE support by checking that we are running on
+    // macOS 12.2 or later and HasCpuFeature("hw.optional.avx512f") returns true
+
+    // There is a bug in macOS 12.1 or earlier that can cause ZMM16-ZMM31, the
+    // upper 256 bits of the ZMM registers, and K0-K7 (the AVX512 mask
+    // registers) to not be properly preserved across a context switch on
+    // macOS 12.1 or earlier.
+
+    // This bug on macOS 12.1 or earlier on x86_64 CPU's with AVX3 support is
+    // described at
+    // https://community.intel.com/t5/Software-Tuning-Performance/MacOS-Darwin-kernel-bug-clobbers-AVX-512-opmask-register-state/m-p/1327259,
+    // https://github.com/golang/go/issues/49233, and
+    // https://github.com/simdutf/simdutf/pull/236.
+
+    // In addition to the bug that is there on macOS 12.1 or earlier, bits 5, 6,
+    // and 7 can be set to 0 on x86_64 CPU's with AVX3 support on macOS until
+    // the first AVX512 instruction is executed as macOS only preserves
+    // ZMM16-ZMM31, the upper 256 bits of the ZMM registers, and K0-K7 across a
+    // context switch on threads that have executed an AVX512 instruction.
+
+    // Checking for AVX3 XSAVE support on macOS using
+    // HasCpuFeature("hw.optional.avx512f") avoids false negative results
+    // on x86_64 CPU's that have AVX3 support.
+    const bool have_avx3_xsave_support =
+        IsMacOs12_2OrLater() && HasCpuFeature("hw.optional.avx512f");
+#endif
+
     const uint32_t xcr0 = ReadXCR0();
     constexpr int64_t min_avx3 = HWY_AVX3 | HWY_AVX3_DL | HWY_AVX3_SPR;
     // XMM/YMM
@@ -324,8 +422,16 @@ int64_t DetectTargets() {
       // Clear the AVX2/AVX3 bits if XMM/YMM XSAVE is not enabled
       bits &= ~min_avx2;
     }
+
+#ifndef __APPLE__
+    // On OS's other than macOS, check for AVX3 XSAVE support by checking that
+    // bits 5, 6, and 7 of XCR0 are set.
+    const bool have_avx3_xsave_support =
+        IsBitSet(xcr0, 5) && IsBitSet(xcr0, 6) && IsBitSet(xcr0, 7);
+#endif
+
     // opmask, ZMM lo/hi
-    if (!IsBitSet(xcr0, 5) || !IsBitSet(xcr0, 6) || !IsBitSet(xcr0, 7)) {
+    if (!have_avx3_xsave_support) {
       bits &= ~min_avx3;
     }
   } else {  // !has_xsave || !has_osxsave
