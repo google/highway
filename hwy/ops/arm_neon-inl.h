@@ -6783,7 +6783,7 @@ HWY_API VFromD<D> WidenMulAdd(D /* tag */, VFromD<DN> mul,
   return VFromD<D>(vmlal_s32(add.raw, mul.raw, x.raw));
 }
 
-template<class D, HWY_IF_I64_D(D), HWY_IF_LANES_D(D, 2),
+template<class D, HWY_IF_I64_D(D), HWY_IF_LANES_D(D, 1),
          class DN = Rebind<MakeNarrow<TFromD<D>>, D>>
 HWY_API VFromD<D> WidenMulAdd(D /* tag */, VFromD<DN> mul,
                               VFromD<DN> x, VFromD<D> add) {
