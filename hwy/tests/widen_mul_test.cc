@@ -510,12 +510,12 @@ struct TestWidenMulAccumulate {
     // Any input zero => both outputs zero
     VW sum1 = f0;
     HWY_ASSERT_VEC_EQ(dw, f0,
-                      WidenMulAccumulate(dn, bf0, bf0, f0, sum1));
+                      WidenMulAccumulate(dw, bf0, bf0, f0, sum1));
     HWY_ASSERT_VEC_EQ(dw, f0, sum1);
     HWY_ASSERT_VEC_EQ(dw, f0,
-                      WidenMulAccumulate(dn, bf0, bf1, f0, sum1));
+                      WidenMulAccumulate(dw, bf0, bf1, f0, sum1));
     HWY_ASSERT_VEC_EQ(dw, f0, sum1);
-    HWY_ASSERT_VEC_EQ(dw, f0, WidenMulAccumulate(dn, bf1, bf0, f0, sum1));
+    HWY_ASSERT_VEC_EQ(dw, f0, WidenMulAccumulate(dw, bf1, bf0, f0, sum1));
     HWY_ASSERT_VEC_EQ(dw, f0, sum1);
 
     // delta[p] := 1, all others zero.
@@ -536,7 +536,7 @@ struct TestWidenMulAccumulate {
       {
         sum1 = f0;
         highSumBefore = sum1;
-        const VW sum0 = WidenMulAccumulate(dn, delta, bf1, f0, sum1);
+        const VW sum0 = WidenMulAccumulate(dw, delta, bf1, f0, sum1);
         const VW expectedLow = MulAdd(PromoteLowerTo(dw, delta), PromoteLowerTo(dw, bf1), f0);
         HWY_ASSERT_VEC_EQ(dw, expectedLow, sum0);
         const VW expectedHigh = MulAdd(PromoteUpperTo(dw, delta), PromoteUpperTo(dw, bf1), highSumBefore);
@@ -546,7 +546,7 @@ struct TestWidenMulAccumulate {
       {
         sum1 = f0;
         highSumBefore = sum1;
-        const VW sum0 = WidenMulAccumulate(dn, bf1, delta, f0, sum1);
+        const VW sum0 = WidenMulAccumulate(dw, bf1, delta, f0, sum1);
         const VW expectedLow = MulAdd(PromoteLowerTo(dw, bf1), PromoteLowerTo(dw, delta), f0);
         HWY_ASSERT_VEC_EQ(dw, expectedLow, sum0);
         const VW expectedHigh = MulAdd(PromoteUpperTo(dw, bf1), PromoteUpperTo(dw, delta), highSumBefore);
@@ -558,7 +558,7 @@ struct TestWidenMulAccumulate {
         VW lowSumBefore = sum0;
         sum1 = PromoteTo(dw, UpperHalf(dnh, delta));
         highSumBefore = sum1;
-        sum0 = WidenMulAccumulate(dn, delta, bf1, sum0, sum1);
+        sum0 = WidenMulAccumulate(dw, delta, bf1, sum0, sum1);
         const VW expectedLow = MulAdd(PromoteLowerTo(dw, delta), PromoteLowerTo(dw, bf1), lowSumBefore);
         HWY_ASSERT_VEC_EQ(dw, expectedLow, sum0);
         const VW expectedHigh = MulAdd(PromoteUpperTo(dw, delta), PromoteUpperTo(dw, bf1), highSumBefore);
@@ -570,7 +570,7 @@ struct TestWidenMulAccumulate {
         VW lowSumBefore = sum0;
         sum1 = PromoteTo(dw, UpperHalf(dnh, delta));
         highSumBefore = sum1;
-        sum0 = WidenMulAccumulate(dn, bf1, delta, sum0, sum1);
+        sum0 = WidenMulAccumulate(dw, bf1, delta, sum0, sum1);
         const VW expectedLow = MulAdd(PromoteLowerTo(dw, bf1), PromoteLowerTo(dw, delta), lowSumBefore);
         HWY_ASSERT_VEC_EQ(dw, expectedLow, sum0);
         const VW expectedHigh = MulAdd(PromoteUpperTo(dw, bf1), PromoteUpperTo(dw, delta), highSumBefore);

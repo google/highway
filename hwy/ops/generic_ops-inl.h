@@ -5142,12 +5142,11 @@ HWY_API Vec512<T> operator%(Vec512<T> a, Vec512<T> b) {
 #endif
 
 template<class D, HWY_IF_INTEGER(TFromD<D>),
-         HWY_IF_LANES_GT_D(D, 1), class DW = RepartitionToWide<D>,
-         typename VW = VFromD<DW>>
-HWY_API VW WidenMulAccumulate(D /* tag */, VFromD<D> mul, VFromD<D> x, VW low, VW& high) {
-  const DW dw;
-  high = MulAdd(PromoteUpperTo(dw, mul), PromoteUpperTo(dw, x), high);
-  return MulAdd(PromoteLowerTo(dw, mul), PromoteLowerTo(dw, x), low);
+         class DN = RepartitionToNarrow<D>>
+HWY_API VFromD<D> WidenMulAccumulate(D d, VFromD<DN> mul, VFromD<DN> x,
+                                     VFromD<D> low, VFromD<D>& high) {
+  high = MulAdd(PromoteUpperTo(d, mul), PromoteUpperTo(d, x), high);
+  return MulAdd(PromoteLowerTo(d, mul), PromoteLowerTo(d, x), low);
 }
 
 #endif
@@ -5161,12 +5160,11 @@ HWY_API VW WidenMulAccumulate(D /* tag */, VFromD<D> mul, VFromD<D> x, VW low, V
 #define HWY_NATIVE_WIDEN_MUL_ACCUMULATE_F16
 #endif
 
-template<class D, HWY_IF_F16(TFromD<D>), HWY_IF_LANES_GT_D(D, 1),
-         class DW = RepartitionToWide<D>, class VW = VFromD<DW>>
-HWY_API VW WidenMulAccumulate(D /* tag */, VFromD<D> mul, VFromD<D> x, VW low, VW& high) {
-  const DW dw;
-  high = MulAdd(PromoteUpperTo(dw, mul), PromoteUpperTo(dw, x), high);
-  return MulAdd(PromoteLowerTo(dw, mul), PromoteLowerTo(dw, x), low);
+template<class D, HWY_IF_F32_D(D), class DN = RepartitionToNarrow<D>>
+HWY_API VFromD<D> WidenMulAccumulate(D d, VFromD<DN> mul, VFromD<DN> x,
+                                     VFromD<D> low, VFromD<D>& high) {
+  high = MulAdd(PromoteUpperTo(d, mul), PromoteUpperTo(d, x), high);
+  return MulAdd(PromoteLowerTo(d, mul), PromoteLowerTo(d, x), low);
 }
 #endif
 
