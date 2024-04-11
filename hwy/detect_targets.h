@@ -505,7 +505,8 @@
 #endif
 
 // RVV requires intrinsics 0.11 or later, see #1156.
-#if HWY_ARCH_RISCV && defined(__riscv_v_intrinsic) && __riscv_v_intrinsic >= 11000
+#if HWY_ARCH_RISCV && defined(__riscv_v_intrinsic) && \
+    __riscv_v_intrinsic >= 11000
 #define HWY_BASELINE_RVV HWY_RVV
 #else
 #define HWY_BASELINE_RVV 0
