@@ -274,6 +274,11 @@ be prefixed with `HWY_ATTR`, OR reside between `HWY_BEFORE_NAMESPACE()` and
 `HWY_AFTER_NAMESPACE()`. Lambda functions currently require `HWY_ATTR` before
 their opening brace.
 
+Do not use namespace-scope nor `static` initializers for SIMD vectors because
+this can cause SIGILL when using runtime dispatch and the compiler chooses an
+initializer compiled for a target not supported by the current CPU. Instead,
+constants initialized via `Set` should generally be local (const) variables.
+
 The entry points into code using Highway differ slightly depending on whether
 they use static or dynamic dispatch. In both cases, we recommend that the
 top-level function receives one or more pointers to arrays, rather than
