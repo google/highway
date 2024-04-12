@@ -6662,6 +6662,7 @@ HWY_API VFromD<D> WidenHighMulAdd(D d, VFromD<DN> mul,
   return hi + add;
 }
 
+#if 0
 #if HWY_HAVE_FLOAT16
 template<class D, HWY_IF_F32_D(D), HWY_IF_LANES_D(D, 4),
          class DN = RepartitionToNarrow<D>>
@@ -6683,6 +6684,7 @@ HWY_API VFromD<D> WidenHighMulAdd(D d, VFromD<DN> mul,
                                   VFromD<DN> x, VFromD<D> add) {
   return MulAdd(add, PromoteUpperTo(d, mul), PromoteUpperTo(d, x));
 }
+#endif
 #endif
 
 }
@@ -6808,6 +6810,7 @@ HWY_API VFromD<D> WidenMulAdd(D /* tag */, VFromD<DN> mul,
   return add + mul10;
 }
 
+#if 0
 #if HWY_HAVE_FLOAT16
 template<class D, HWY_IF_F32_D(D), class DN = RepartitionToNarrow<D>,
          HWY_IF_LANES_D(D, 4)>
@@ -6830,6 +6833,7 @@ HWY_API VFromD<D> WidenLowMulAdd(D d, VFromD<DN> mul,
   return MulAdd(add, PromoteLowerTo(d, mul), PromoteLowerTo(d, x));
 }
 #endif
+#endif
 
 }
 
@@ -6848,6 +6852,7 @@ HWY_API VFromD<D> WidenMulAccumulate(D d, VFromD<DN> mul, VFromD<DN> x,
   return detail::WidenMulAdd(d, LowerHalf(mul), LowerHalf(x), low);
 }
 
+#if 0
 #ifdef HWY_NATIVE_WIDEN_MUL_ACCUMULATE_F16
 #undef HWY_NATIVE_WIDEN_MUL_ACCUMULATE_F16
 #else
@@ -6863,6 +6868,7 @@ HWY_API VFromD<D> WidenMulAccumulate(D d, VFromD<DN> mul, VFromD<DN> x,
   return detail::WidenLowMulAdd(d, mul, x, low);
 }
 
+#endif
 #endif
 
 // ------------------------------ SatWidenMulAccumFixedPoint

@@ -5151,6 +5151,7 @@ HWY_API VFromD<D> WidenMulAccumulate(D d, VFromD<DN> mul, VFromD<DN> x,
 
 #endif
 
+#if 0
 #if (defined(HWY_NATIVE_WIDEN_MUL_ACCUMULATE_F16) == defined(HWY_TARGET_TOGGLE))
 
 #ifdef HWY_NATIVE_WIDEN_MUL_ACCUMULATE_F16
@@ -5170,6 +5171,7 @@ HWY_API VFromD<D> WidenMulAccumulate(D d, VFromD<DN> mul, VFromD<DN> x,
 
 #endif
 
+#endif
 #endif
 
 // ------------------------------ SatWidenMulPairwiseAdd
