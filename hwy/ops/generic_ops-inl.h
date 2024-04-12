@@ -5151,6 +5151,27 @@ HWY_API VFromD<D> WidenMulAccumulate(D d, VFromD<DN> mul, VFromD<DN> x,
 
 #endif
 
+#if (defined(HWY_NATIVE_WIDEN_MUL_ACCUMULATE_F16) == defined(HWY_TARGET_TOGGLE))
+
+#ifdef HWY_NATIVE_WIDEN_MUL_ACCUMULATE_F16
+#undef HWY_NATIVE_WIDEN_MUL_ACCUMULATE_F16
+#else
+#define HWY_NATIVE_WIDEN_MUL_ACCUMULATE_F16
+#endif
+
+#if HWY_HAVE_FLOAT16
+
+template<class D, HWY_IF_F32_D(D), class DN = RepartitionToNarrow<D>>
+HWY_API VFromD<D> WidenMulAccumulate(D d, VFromD<DN> mul, VFromD<DN> x,
+                                     VFromD<D> low, VFromD<D>& high) {
+  high = MulAdd(PromoteUpperTo(d, mul), PromoteUpperTo(d, x), high);
+  return MulAdd(PromoteLowerTo(d, mul), PromoteLowerTo(d, x), low);
+}
+
+#endif
+
+#endif
+
 // ------------------------------ SatWidenMulPairwiseAdd
 
 #if (defined(HWY_NATIVE_U8_I8_SATWIDENMULPAIRWISEADD) == \

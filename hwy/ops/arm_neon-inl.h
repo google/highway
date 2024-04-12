@@ -6848,13 +6848,13 @@ HWY_API VFromD<D> WidenMulAccumulate(D d, VFromD<DN> mul, VFromD<DN> x,
   return detail::WidenMulAdd(d, LowerHalf(mul), LowerHalf(x), low);
 }
 
-#if HWY_HAVE_FLOAT16
-
 #ifdef HWY_NATIVE_WIDEN_MUL_ACCUMULATE_F16
 #undef HWY_NATIVE_WIDEN_MUL_ACCUMULATE_F16
 #else
 #define HWY_NATIVE_WIDEN_MUL_ACCUMULATE_F16
 #endif
+
+#if HWY_HAVE_FLOAT16
 
 template<class D, HWY_IF_F32_D(D), class DN = RepartitionToNarrow<D>>
 HWY_API VFromD<D> WidenMulAccumulate(D d, VFromD<DN> mul, VFromD<DN> x,
