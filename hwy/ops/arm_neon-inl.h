@@ -6856,7 +6856,7 @@ HWY_API VFromD<D> WidenMulAccumulate(D d, VFromD<DN> mul, VFromD<DN> x,
 #define HWY_NATIVE_WIDEN_MUL_ACCUMULATE_F16
 #endif
 
-template<class D, HWY_IF_F32(TFromD<D>), class DN = RepartitionToNarrow<D>>
+template<class D, HWY_IF_F32_D(D), class DN = RepartitionToNarrow<D>>
 HWY_API VFromD<D> WidenMulAccumulate(D d, VFromD<DN> mul, VFromD<DN> x,
                                      VFromD<D> low, VFromD<D>& high) {
   high = detail::WidenHighMulAdd(d, mul, x, high);
