@@ -1,5 +1,5 @@
 // Copyright 2021 Google LLC
-// Copyright 2023 Arm Limited and/or its affiliates <open-source-office@arm.com>
+// Copyright 2023,2024 Arm Limited and/or its affiliates <open-source-office@arm.com> 
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: BSD-3-Clause
 //
@@ -2679,6 +2679,25 @@ HWY_API void MaskedScatterIndex(VFromD<D> v, MFromD<D> m, D d,
   }
 }
 
+template <class D, typename T = TFromD<D>>
+HWY_API void ScatterIndexN(VFromD<D> v, D d, T* HWY_RESTRICT base,
+                           VFromD<RebindToSigned<D>> index,
+                           const size_t max_lanes_to_store) {
+  const RebindToSigned<decltype(d)> di;
+  using TI = TFromD<decltype(di)>;
+  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
+
+  for (size_t i = 0; i < MaxLanes(d); ++i) {
+    if (i < max_lanes_to_store) base[ExtractLane(index, i)] = ExtractLane(v, i);
+  }
+}
+#else
+template <class D, typename T = TFromD<D>>
+HWY_API void ScatterIndexN(VFromD<D> v, D d, T* HWY_RESTRICT base,
+                           VFromD<RebindToSigned<D>> index,
+                           const size_t max_lanes_to_store) {
+  MaskedScatterIndex(v, FirstN(d, max_lanes_to_store), d, base, index);
+}
 #endif  // (defined(HWY_NATIVE_SCATTER) == defined(HWY_TARGET_TOGGLE))
 
 // ------------------------------ Gather
@@ -2774,23 +2793,29 @@ HWY_API VFromD<D> MaskedGatherIndexOr(VFromD<D> no, MFromD<D> m, D d,
   return Load(d, lanes);
 }
 
-#endif  // (defined(HWY_NATIVE_GATHER) == defined(HWY_TARGET_TOGGLE))
-
-// ------------------------------ ScatterN/GatherN
-
 template <class D, typename T = TFromD<D>>
-HWY_API void ScatterIndexN(VFromD<D> v, D d, T* HWY_RESTRICT base,
-                           VFromD<RebindToSigned<D>> index,
-                           const size_t max_lanes_to_store) {
-  MaskedScatterIndex(v, FirstN(d, max_lanes_to_store), d, base, index);
-}
+HWY_API VFromD<D> GatherIndexN(D d, const T* HWY_RESTRICT base,
+                               VFromD<RebindToSigned<D>> index,
+                               const size_t max_lanes_to_load) {
+  const RebindToSigned<D> di;
+  using TI = TFromD<decltype(di)>;
+  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
 
+  VFromD<D> v = Zero(d);
+  for (size_t i = 0; i < MaxLanes(d); ++i) {
+    if (i < max_lanes_to_load)
+      v = InsertLane(v, i, base[ExtractLane(index, i)]);
+  }
+  return v;
+}
+#else
 template <class D, typename T = TFromD<D>>
 HWY_API VFromD<D> GatherIndexN(D d, const T* HWY_RESTRICT base,
                                VFromD<RebindToSigned<D>> index,
                                const size_t max_lanes_to_load) {
   return MaskedGatherIndex(FirstN(d, max_lanes_to_load), d, base, index);
 }
+#endif  // (defined(HWY_NATIVE_GATHER) == defined(HWY_TARGET_TOGGLE))
 
 // ------------------------------ Integer AbsDiff and SumsOf8AbsDiff
 
