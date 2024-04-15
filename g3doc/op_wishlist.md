@@ -11,6 +11,8 @@ freshness: { owner: 'janwas' reviewed: '2024-04-09' }
 
 ### NEON dot product
 
+### F16 WidenMulAccumulate on non-NEON
+
 ### numpy
 
 NeUnordered

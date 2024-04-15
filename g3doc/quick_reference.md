@@ -786,6 +786,13 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     `sum[i] + a[4*i+3]*b[4*i+3] + a[4*i+2]*b[4*i+2] + a[4*i+1]*b[4*i+1] +
     a[4*i+0]*b[4*i+0]`
 
+*   `V`: `{u,i}{8,16,32},{f}16`,\
+    `VW`: `Vec<RepartitionToWide<DFromV<V>>`:\
+    `VW WidenMulAccumulate(D, V a, V b, VW low, VW& high)`: widens `a` and `b`, \
+    multiplies them together, then adds them to the concatenated \
+    vectors high:low. Returns the lower half of the result, and sets high to the \
+    upper half.
+
 #### Fused multiply-add
 
 When implemented using special instructions, these functions are more precise
