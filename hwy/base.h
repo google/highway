@@ -1394,8 +1394,22 @@ HWY_API HWY_F16_CONSTEXPR float16_t F16FromF32(float f32) {
   // 1[01] + 10 =  1[11]
   // 1[10] + 10 = C0[00]  (round up toward even with C=1 carry out)
   // 1[11] + 10 = C0[01]  (round up toward even with C=1 carry out)
-  const uint32_t odd_bit = (mantissa32 >> 13) & 1;
-  const uint32_t rounded = mantissa32 + odd_bit + 0xFFF;
+
+  // If |f32| >= 2^-24, f16_ulp_bit_idx is the index of the F32 mantissa bit
+  // that will be shifted down into the ULP bit of the rounded down F16 result
+
+  // The biased F32 exponent of 2^-14 (the smallest positive normal F16 value)
+  // is 113, and bit 13 of the F32 mantissa will be shifted down to into the ULP
+  // bit of the rounded down F16 result if |f32| >= 2^14
+
+  // If |f32| < 2^-24, f16_ulp_bit_idx is equal to 24 as there are 24 mantissa
+  // bits (including the implied 1 bit) in the mantissa of a normal F32 value
+  // and as we want to round up the mantissa if |f32| > 2^-25 && |f32| < 2^-24
+  const int32_t f16_ulp_bit_idx =
+      HWY_MIN(HWY_MAX(126 - static_cast<int32_t>(biased_exp32), 13), 24);
+  const uint32_t odd_bit = ((mantissa32 | 0x800000u) >> f16_ulp_bit_idx) & 1;
+  const uint32_t rounded =
+      mantissa32 + odd_bit + (uint32_t{1} << (f16_ulp_bit_idx - 1)) - 1u;
   const bool carry = rounded >= (1u << 23);
 
   const int32_t exp = static_cast<int32_t>(biased_exp32) - 127 + carry;
