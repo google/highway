@@ -29,7 +29,7 @@
 #include "hwy/detect_targets.h"
 #include "hwy/highway_export.h"
 
-#if !HWY_ARCH_RISCV && !defined(HWY_NO_LIBCXX)
+#if !defined(HWY_NO_LIBCXX)
 #include <atomic>
 #endif
 
@@ -323,8 +323,7 @@ struct ChosenTarget {
   }
 
  private:
-  // TODO(janwas): remove RVV once <atomic> is available
-#if HWY_ARCH_RISCV || defined(HWY_NO_LIBCXX)
+#if defined(HWY_NO_LIBCXX)
   int64_t LoadMask() const { return mask_; }
   void StoreMask(int64_t mask) { mask_ = mask; }
 
