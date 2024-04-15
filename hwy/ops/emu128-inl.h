@@ -17,6 +17,7 @@
 // External include guard in highway.h - see comment there.
 
 #include "hwy/base.h"
+
 #ifndef HWY_NO_LIBCXX
 #include <math.h>  // sqrtf
 #endif
@@ -102,9 +103,6 @@ HWY_API Vec128<TFromD<D>, HWY_MAX_LANES_D(D)> Zero(D /* tag */) {
 
 template <class D>
 using VFromD = decltype(Zero(D()));
-
-// ------------------------------ Tuple (VFromD)
-#include "hwy/ops/tuple-inl.h"
 
 // ------------------------------ BitCast
 
@@ -1402,6 +1400,183 @@ HWY_API void StoreN(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT p,
   CopyBytes(v.raw, p, num_of_lanes_to_store * sizeof(TFromD<D>));
 }
 
+// ================================================== COMBINE
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N / 2> LowerHalf(Vec128<T, N> v) {
+  Vec128<T, N / 2> ret;
+  CopyBytes<N / 2 * sizeof(T)>(v.raw, ret.raw);
+  return ret;
+}
+
+template <class D>
+HWY_API VFromD<D> LowerHalf(D /* tag */, VFromD<Twice<D>> v) {
+  return LowerHalf(v);
+}
+
+template <class D>
+HWY_API VFromD<D> UpperHalf(D d, VFromD<Twice<D>> v) {
+  VFromD<D> ret;
+  CopyBytes<d.MaxBytes()>(&v.raw[MaxLanes(d)], ret.raw);
+  return ret;
+}
+
+template <class D>
+HWY_API VFromD<D> ZeroExtendVector(D d, VFromD<Half<D>> v) {
+  const Half<decltype(d)> dh;
+  VFromD<D> ret;  // zero-initialized
+  CopyBytes<dh.MaxBytes()>(v.raw, ret.raw);
+  return ret;
+}
+
+template <class D, class VH = VFromD<Half<D>>>
+HWY_API VFromD<D> Combine(D d, VH hi_half, VH lo_half) {
+  const Half<decltype(d)> dh;
+  VFromD<D> ret;
+  CopyBytes<dh.MaxBytes()>(lo_half.raw, &ret.raw[0]);
+  CopyBytes<dh.MaxBytes()>(hi_half.raw, &ret.raw[MaxLanes(dh)]);
+  return ret;
+}
+
+template <class D>
+HWY_API VFromD<D> ConcatLowerLower(D d, VFromD<D> hi, VFromD<D> lo) {
+  const Half<decltype(d)> dh;
+  VFromD<D> ret;
+  CopyBytes<dh.MaxBytes()>(lo.raw, &ret.raw[0]);
+  CopyBytes<dh.MaxBytes()>(hi.raw, &ret.raw[MaxLanes(dh)]);
+  return ret;
+}
+
+template <class D>
+HWY_API VFromD<D> ConcatUpperUpper(D d, VFromD<D> hi, VFromD<D> lo) {
+  const Half<decltype(d)> dh;
+  VFromD<D> ret;
+  CopyBytes<dh.MaxBytes()>(&lo.raw[MaxLanes(dh)], &ret.raw[0]);
+  CopyBytes<dh.MaxBytes()>(&hi.raw[MaxLanes(dh)], &ret.raw[MaxLanes(dh)]);
+  return ret;
+}
+
+template <class D>
+HWY_API VFromD<D> ConcatLowerUpper(D d, VFromD<D> hi, VFromD<D> lo) {
+  const Half<decltype(d)> dh;
+  VFromD<D> ret;
+  CopyBytes<dh.MaxBytes()>(&lo.raw[MaxLanes(dh)], &ret.raw[0]);
+  CopyBytes<dh.MaxBytes()>(hi.raw, &ret.raw[MaxLanes(dh)]);
+  return ret;
+}
+
+template <class D>
+HWY_API VFromD<D> ConcatUpperLower(D d, VFromD<D> hi, VFromD<D> lo) {
+  const Half<decltype(d)> dh;
+  VFromD<D> ret;
+  CopyBytes<dh.MaxBytes()>(lo.raw, &ret.raw[0]);
+  CopyBytes<dh.MaxBytes()>(&hi.raw[MaxLanes(dh)], &ret.raw[MaxLanes(dh)]);
+  return ret;
+}
+
+template <class D>
+HWY_API VFromD<D> ConcatEven(D d, VFromD<D> hi, VFromD<D> lo) {
+  const Half<decltype(d)> dh;
+  VFromD<D> ret;
+  for (size_t i = 0; i < MaxLanes(dh); ++i) {
+    ret.raw[i] = lo.raw[2 * i];
+  }
+  for (size_t i = 0; i < MaxLanes(dh); ++i) {
+    ret.raw[MaxLanes(dh) + i] = hi.raw[2 * i];
+  }
+  return ret;
+}
+
+// 2023-11-23: workaround for incorrect codegen (reduction_test fails for
+// SumsOf2 because PromoteOddTo, which uses ConcatOdd, returns zero).
+#if HWY_ARCH_RISCV && HWY_TARGET == HWY_EMU128 && HWY_COMPILER_CLANG
+#define HWY_EMU128_CONCAT_INLINE HWY_NOINLINE
+#else
+#define HWY_EMU128_CONCAT_INLINE HWY_API
+#endif
+
+template <class D>
+HWY_EMU128_CONCAT_INLINE VFromD<D> ConcatOdd(D d, VFromD<D> hi, VFromD<D> lo) {
+  const Half<decltype(d)> dh;
+  VFromD<D> ret;
+  for (size_t i = 0; i < MaxLanes(dh); ++i) {
+    ret.raw[i] = lo.raw[2 * i + 1];
+  }
+  for (size_t i = 0; i < MaxLanes(dh); ++i) {
+    ret.raw[MaxLanes(dh) + i] = hi.raw[2 * i + 1];
+  }
+  return ret;
+}
+
+// ------------------------------ CombineShiftRightBytes
+template <int kBytes, class D>
+HWY_API VFromD<D> CombineShiftRightBytes(D d, VFromD<D> hi, VFromD<D> lo) {
+  VFromD<D> ret;
+  const uint8_t* HWY_RESTRICT lo8 =
+      reinterpret_cast<const uint8_t * HWY_RESTRICT>(lo.raw);
+  uint8_t* HWY_RESTRICT ret8 =
+      reinterpret_cast<uint8_t * HWY_RESTRICT>(ret.raw);
+  CopyBytes<d.MaxBytes() - kBytes>(lo8 + kBytes, ret8);
+  CopyBytes<kBytes>(hi.raw, ret8 + d.MaxBytes() - kBytes);
+  return ret;
+}
+
+// ------------------------------ ShiftLeftBytes
+
+template <int kBytes, class D>
+HWY_API VFromD<D> ShiftLeftBytes(D d, VFromD<D> v) {
+  static_assert(0 <= kBytes && kBytes <= 16, "Invalid kBytes");
+  VFromD<D> ret;
+  uint8_t* HWY_RESTRICT ret8 =
+      reinterpret_cast<uint8_t * HWY_RESTRICT>(ret.raw);
+  ZeroBytes<kBytes>(ret8);
+  CopyBytes<d.MaxBytes() - kBytes>(v.raw, ret8 + kBytes);
+  return ret;
+}
+
+template <int kBytes, typename T, size_t N>
+HWY_API Vec128<T, N> ShiftLeftBytes(Vec128<T, N> v) {
+  return ShiftLeftBytes<kBytes>(DFromV<decltype(v)>(), v);
+}
+
+// ------------------------------ ShiftLeftLanes
+
+template <int kLanes, class D, typename T = TFromD<D>>
+HWY_API VFromD<D> ShiftLeftLanes(D d, VFromD<D> v) {
+  const Repartition<uint8_t, decltype(d)> d8;
+  return BitCast(d, ShiftLeftBytes<kLanes * sizeof(T)>(BitCast(d8, v)));
+}
+
+template <int kLanes, typename T, size_t N>
+HWY_API Vec128<T, N> ShiftLeftLanes(Vec128<T, N> v) {
+  return ShiftLeftLanes<kLanes>(DFromV<decltype(v)>(), v);
+}
+
+// ------------------------------ ShiftRightBytes
+template <int kBytes, class D>
+HWY_API VFromD<D> ShiftRightBytes(D d, VFromD<D> v) {
+  static_assert(0 <= kBytes && kBytes <= 16, "Invalid kBytes");
+  VFromD<D> ret;
+  const uint8_t* HWY_RESTRICT v8 =
+      reinterpret_cast<const uint8_t * HWY_RESTRICT>(v.raw);
+  uint8_t* HWY_RESTRICT ret8 =
+      reinterpret_cast<uint8_t * HWY_RESTRICT>(ret.raw);
+  CopyBytes<d.MaxBytes() - kBytes>(v8 + kBytes, ret8);
+  ZeroBytes<kBytes>(ret8 + d.MaxBytes() - kBytes);
+  return ret;
+}
+
+// ------------------------------ ShiftRightLanes
+template <int kLanes, class D>
+HWY_API VFromD<D> ShiftRightLanes(D d, VFromD<D> v) {
+  const Repartition<uint8_t, decltype(d)> d8;
+  constexpr size_t kBytes = kLanes * sizeof(TFromD<D>);
+  return BitCast(d, ShiftRightBytes<kBytes>(d8, BitCast(d8, v)));
+}
+
+// ------------------------------ Tuples, PromoteEvenTo/PromoteOddTo
+#include "hwy/ops/inside-inl.h"
+
 // ------------------------------ LoadInterleaved2/3/4
 
 // Per-target flag to prevent generic_ops-inl.h from defining LoadInterleaved2.
@@ -1990,180 +2165,6 @@ HWY_API VFromD<DN> OrderedTruncate2To(DN dn, V a, V b) {
     ret.raw[NW + i] = static_cast<TN>(b.raw[i] & max_val);
   }
   return ret;
-}
-
-// ================================================== COMBINE
-
-template <typename T, size_t N>
-HWY_API Vec128<T, N / 2> LowerHalf(Vec128<T, N> v) {
-  Vec128<T, N / 2> ret;
-  CopyBytes<N / 2 * sizeof(T)>(v.raw, ret.raw);
-  return ret;
-}
-
-template <class D>
-HWY_API VFromD<D> LowerHalf(D /* tag */, VFromD<Twice<D>> v) {
-  return LowerHalf(v);
-}
-
-template <class D>
-HWY_API VFromD<D> UpperHalf(D d, VFromD<Twice<D>> v) {
-  VFromD<D> ret;
-  CopyBytes<d.MaxBytes()>(&v.raw[MaxLanes(d)], ret.raw);
-  return ret;
-}
-
-template <class D>
-HWY_API VFromD<D> ZeroExtendVector(D d, VFromD<Half<D>> v) {
-  const Half<decltype(d)> dh;
-  VFromD<D> ret;  // zero-initialized
-  CopyBytes<dh.MaxBytes()>(v.raw, ret.raw);
-  return ret;
-}
-
-template <class D, class VH = VFromD<Half<D>>>
-HWY_API VFromD<D> Combine(D d, VH hi_half, VH lo_half) {
-  const Half<decltype(d)> dh;
-  VFromD<D> ret;
-  CopyBytes<dh.MaxBytes()>(lo_half.raw, &ret.raw[0]);
-  CopyBytes<dh.MaxBytes()>(hi_half.raw, &ret.raw[MaxLanes(dh)]);
-  return ret;
-}
-
-template <class D>
-HWY_API VFromD<D> ConcatLowerLower(D d, VFromD<D> hi, VFromD<D> lo) {
-  const Half<decltype(d)> dh;
-  VFromD<D> ret;
-  CopyBytes<dh.MaxBytes()>(lo.raw, &ret.raw[0]);
-  CopyBytes<dh.MaxBytes()>(hi.raw, &ret.raw[MaxLanes(dh)]);
-  return ret;
-}
-
-template <class D>
-HWY_API VFromD<D> ConcatUpperUpper(D d, VFromD<D> hi, VFromD<D> lo) {
-  const Half<decltype(d)> dh;
-  VFromD<D> ret;
-  CopyBytes<dh.MaxBytes()>(&lo.raw[MaxLanes(dh)], &ret.raw[0]);
-  CopyBytes<dh.MaxBytes()>(&hi.raw[MaxLanes(dh)], &ret.raw[MaxLanes(dh)]);
-  return ret;
-}
-
-template <class D>
-HWY_API VFromD<D> ConcatLowerUpper(D d, VFromD<D> hi, VFromD<D> lo) {
-  const Half<decltype(d)> dh;
-  VFromD<D> ret;
-  CopyBytes<dh.MaxBytes()>(&lo.raw[MaxLanes(dh)], &ret.raw[0]);
-  CopyBytes<dh.MaxBytes()>(hi.raw, &ret.raw[MaxLanes(dh)]);
-  return ret;
-}
-
-template <class D>
-HWY_API VFromD<D> ConcatUpperLower(D d, VFromD<D> hi, VFromD<D> lo) {
-  const Half<decltype(d)> dh;
-  VFromD<D> ret;
-  CopyBytes<dh.MaxBytes()>(lo.raw, &ret.raw[0]);
-  CopyBytes<dh.MaxBytes()>(&hi.raw[MaxLanes(dh)], &ret.raw[MaxLanes(dh)]);
-  return ret;
-}
-
-template <class D>
-HWY_API VFromD<D> ConcatEven(D d, VFromD<D> hi, VFromD<D> lo) {
-  const Half<decltype(d)> dh;
-  VFromD<D> ret;
-  for (size_t i = 0; i < MaxLanes(dh); ++i) {
-    ret.raw[i] = lo.raw[2 * i];
-  }
-  for (size_t i = 0; i < MaxLanes(dh); ++i) {
-    ret.raw[MaxLanes(dh) + i] = hi.raw[2 * i];
-  }
-  return ret;
-}
-
-// 2023-11-23: workaround for incorrect codegen (reduction_test fails for
-// SumsOf2 because PromoteOddTo, which uses ConcatOdd, returns zero).
-#if HWY_ARCH_RISCV && HWY_TARGET == HWY_EMU128 && HWY_COMPILER_CLANG
-#define HWY_EMU128_CONCAT_INLINE HWY_NOINLINE
-#else
-#define HWY_EMU128_CONCAT_INLINE HWY_API
-#endif
-
-template <class D>
-HWY_EMU128_CONCAT_INLINE VFromD<D> ConcatOdd(D d, VFromD<D> hi, VFromD<D> lo) {
-  const Half<decltype(d)> dh;
-  VFromD<D> ret;
-  for (size_t i = 0; i < MaxLanes(dh); ++i) {
-    ret.raw[i] = lo.raw[2 * i + 1];
-  }
-  for (size_t i = 0; i < MaxLanes(dh); ++i) {
-    ret.raw[MaxLanes(dh) + i] = hi.raw[2 * i + 1];
-  }
-  return ret;
-}
-
-// ------------------------------ CombineShiftRightBytes
-template <int kBytes, class D>
-HWY_API VFromD<D> CombineShiftRightBytes(D d, VFromD<D> hi, VFromD<D> lo) {
-  VFromD<D> ret;
-  const uint8_t* HWY_RESTRICT lo8 =
-      reinterpret_cast<const uint8_t * HWY_RESTRICT>(lo.raw);
-  uint8_t* HWY_RESTRICT ret8 =
-      reinterpret_cast<uint8_t * HWY_RESTRICT>(ret.raw);
-  CopyBytes<d.MaxBytes() - kBytes>(lo8 + kBytes, ret8);
-  CopyBytes<kBytes>(hi.raw, ret8 + d.MaxBytes() - kBytes);
-  return ret;
-}
-
-// ------------------------------ ShiftLeftBytes
-
-template <int kBytes, class D>
-HWY_API VFromD<D> ShiftLeftBytes(D d, VFromD<D> v) {
-  static_assert(0 <= kBytes && kBytes <= 16, "Invalid kBytes");
-  VFromD<D> ret;
-  uint8_t* HWY_RESTRICT ret8 =
-      reinterpret_cast<uint8_t * HWY_RESTRICT>(ret.raw);
-  ZeroBytes<kBytes>(ret8);
-  CopyBytes<d.MaxBytes() - kBytes>(v.raw, ret8 + kBytes);
-  return ret;
-}
-
-template <int kBytes, typename T, size_t N>
-HWY_API Vec128<T, N> ShiftLeftBytes(Vec128<T, N> v) {
-  return ShiftLeftBytes<kBytes>(DFromV<decltype(v)>(), v);
-}
-
-// ------------------------------ ShiftLeftLanes
-
-template <int kLanes, class D, typename T = TFromD<D>>
-HWY_API VFromD<D> ShiftLeftLanes(D d, VFromD<D> v) {
-  const Repartition<uint8_t, decltype(d)> d8;
-  return BitCast(d, ShiftLeftBytes<kLanes * sizeof(T)>(BitCast(d8, v)));
-}
-
-template <int kLanes, typename T, size_t N>
-HWY_API Vec128<T, N> ShiftLeftLanes(Vec128<T, N> v) {
-  return ShiftLeftLanes<kLanes>(DFromV<decltype(v)>(), v);
-}
-
-// ------------------------------ ShiftRightBytes
-template <int kBytes, class D>
-HWY_API VFromD<D> ShiftRightBytes(D d, VFromD<D> v) {
-  static_assert(0 <= kBytes && kBytes <= 16, "Invalid kBytes");
-  VFromD<D> ret;
-  const uint8_t* HWY_RESTRICT v8 =
-      reinterpret_cast<const uint8_t * HWY_RESTRICT>(v.raw);
-  uint8_t* HWY_RESTRICT ret8 =
-      reinterpret_cast<uint8_t * HWY_RESTRICT>(ret.raw);
-  CopyBytes<d.MaxBytes() - kBytes>(v8 + kBytes, ret8);
-  ZeroBytes<kBytes>(ret8 + d.MaxBytes() - kBytes);
-  return ret;
-}
-
-// ------------------------------ ShiftRightLanes
-template <int kLanes, class D>
-HWY_API VFromD<D> ShiftRightLanes(D d, VFromD<D> v) {
-  const Repartition<uint8_t, decltype(d)> d8;
-  constexpr size_t kBytes = kLanes * sizeof(TFromD<D>);
-  return BitCast(d, ShiftRightBytes<kBytes>(d8, BitCast(d8, v)));
 }
 
 // ================================================== SWIZZLE
@@ -2796,88 +2797,36 @@ HWY_API Mask128<T, N> SetAtOrBeforeFirst(Mask128<T, N> mask) {
 
 // ------------------------------ WidenMulPairwiseAdd
 
-template <class D, HWY_IF_F32_D(D), class VBF16>
-HWY_API VFromD<D> WidenMulPairwiseAdd(D df32, VBF16 a, VBF16 b) {
-  const Rebind<uint32_t, decltype(df32)> du32;
-  using VU32 = VFromD<decltype(du32)>;
-  const VU32 odd = Set(du32, 0xFFFF0000u);  // bfloat16 is the upper half of f32
-  // Avoid ZipLower/Upper so this also works on big-endian systems.
-  const VU32 ae = ShiftLeft<16>(BitCast(du32, a));
-  const VU32 ao = And(BitCast(du32, a), odd);
-  const VU32 be = ShiftLeft<16>(BitCast(du32, b));
-  const VU32 bo = And(BitCast(du32, b), odd);
-  return Mul(BitCast(df32, ae), BitCast(df32, be)) +
-         Mul(BitCast(df32, ao), BitCast(df32, bo));
+template <class DF, HWY_IF_F32_D(DF), class VBF>
+HWY_API VFromD<DF> WidenMulPairwiseAdd(DF df, VBF a, VBF b) {
+  return MulAdd(PromoteEvenTo(df, a), PromoteEvenTo(df, b),
+                Mul(PromoteOddTo(df, a), PromoteOddTo(df, b)));
 }
 
-template <class D, HWY_IF_I32_D(D), class VI16>
-HWY_API VFromD<D> WidenMulPairwiseAdd(D d32, VI16 a, VI16 b) {
-  using VI32 = VFromD<decltype(d32)>;
-  // Manual sign extension requires two shifts for even lanes.
-  const VI32 ae = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, a)));
-  const VI32 be = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, b)));
-  const VI32 ao = ShiftRight<16>(BitCast(d32, a));
-  const VI32 bo = ShiftRight<16>(BitCast(d32, b));
-  return Add(Mul(ae, be), Mul(ao, bo));
-}
-
-template <class D, HWY_IF_U32_D(D), class VU16>
-HWY_API VFromD<D> WidenMulPairwiseAdd(D du32, VU16 a, VU16 b) {
-  const auto lo16_mask = Set(du32, 0x0000FFFFu);
-
-  const auto a0 = And(BitCast(du32, a), lo16_mask);
-  const auto b0 = And(BitCast(du32, b), lo16_mask);
-
-  const auto a1 = ShiftRight<16>(BitCast(du32, a));
-  const auto b1 = ShiftRight<16>(BitCast(du32, b));
-
-  return Add(Mul(a0, b0), Mul(a1, b1));
+template <class D, HWY_IF_UI32_D(D), class V16>
+HWY_API VFromD<D> WidenMulPairwiseAdd(D d32, V16 a, V16 b) {
+  return MulAdd(PromoteEvenTo(d32, a), PromoteEvenTo(d32, b),
+                Mul(PromoteOddTo(d32, a), PromoteOddTo(d32, b)));
 }
 
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
 
-template <class D, HWY_IF_F32_D(D), size_t N, class VBF16>
-HWY_API VFromD<D> ReorderWidenMulAccumulate(D df32, VBF16 a, VBF16 b,
-                                            const Vec128<float, N> sum0,
-                                            Vec128<float, N>& sum1) {
-  const Rebind<uint32_t, decltype(df32)> du32;
-  using VU32 = VFromD<decltype(du32)>;
-  const VU32 odd = Set(du32, 0xFFFF0000u);  // bfloat16 is the upper half of f32
-  // Avoid ZipLower/Upper so this also works on big-endian systems.
-  const VU32 ae = ShiftLeft<16>(BitCast(du32, a));
-  const VU32 ao = And(BitCast(du32, a), odd);
-  const VU32 be = ShiftLeft<16>(BitCast(du32, b));
-  const VU32 bo = And(BitCast(du32, b), odd);
-  sum1 = MulAdd(BitCast(df32, ao), BitCast(df32, bo), sum1);
-  return MulAdd(BitCast(df32, ae), BitCast(df32, be), sum0);
+template <class DF, HWY_IF_F32_D(DF), class VBF>
+HWY_API VFromD<DF> ReorderWidenMulAccumulate(DF df, VBF a, VBF b,
+                                             const VFromD<DF> sum0,
+                                             VFromD<DF>& sum1) {
+  // Lane order within sum0/1 is undefined, hence we can avoid the
+  // longer-latency lane-crossing PromoteTo by using PromoteEvenTo.
+  sum1 = MulAdd(PromoteOddTo(df, a), PromoteOddTo(df, b), sum1);
+  return MulAdd(PromoteEvenTo(df, a), PromoteEvenTo(df, b), sum0);
 }
 
-template <class D, HWY_IF_I32_D(D), size_t N, class VI16>
-HWY_API VFromD<D> ReorderWidenMulAccumulate(D d32, VI16 a, VI16 b,
-                                            const Vec128<int32_t, N> sum0,
-                                            Vec128<int32_t, N>& sum1) {
-  using VI32 = VFromD<decltype(d32)>;
-  // Manual sign extension requires two shifts for even lanes.
-  const VI32 ae = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, a)));
-  const VI32 be = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, b)));
-  const VI32 ao = ShiftRight<16>(BitCast(d32, a));
-  const VI32 bo = ShiftRight<16>(BitCast(d32, b));
-  sum1 = Add(Mul(ao, bo), sum1);
-  return Add(Mul(ae, be), sum0);
-}
-
-template <class D, HWY_IF_U32_D(D), size_t N, class VU16>
-HWY_API VFromD<D> ReorderWidenMulAccumulate(D du32, VU16 a, VU16 b,
-                                            const Vec128<uint32_t, N> sum0,
-                                            Vec128<uint32_t, N>& sum1) {
-  using VU32 = VFromD<decltype(du32)>;
-  const VU32 lo16_mask = Set(du32, uint32_t{0x0000FFFFu});
-  const VU32 ae = And(BitCast(du32, a), lo16_mask);
-  const VU32 be = And(BitCast(du32, b), lo16_mask);
-  const VU32 ao = ShiftRight<16>(BitCast(du32, a));
-  const VU32 bo = ShiftRight<16>(BitCast(du32, b));
-  sum1 = Add(Mul(ao, bo), sum1);
-  return Add(Mul(ae, be), sum0);
+template <class D, HWY_IF_UI32_D(D), class V16>
+HWY_API VFromD<D> ReorderWidenMulAccumulate(D d32, V16 a, V16 b,
+                                            const VFromD<D> sum0,
+                                            VFromD<D>& sum1) {
+  sum1 = MulAdd(PromoteOddTo(d32, a), PromoteOddTo(d32, b), sum1);
+  return MulAdd(PromoteEvenTo(d32, a), PromoteEvenTo(d32, b), sum0);
 }
 
 // ------------------------------ RearrangeToOddPlusEven

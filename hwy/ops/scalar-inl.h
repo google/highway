@@ -111,9 +111,6 @@ HWY_API Vec1<T> Zero(D /* tag */) {
 template <class D>
 using VFromD = decltype(Zero(D()));
 
-// ------------------------------ Tuple (VFromD)
-#include "hwy/ops/tuple-inl.h"
-
 // ------------------------------ Set
 template <class D, HWY_IF_LANES_D(D, 1), typename T = TFromD<D>, typename T2>
 HWY_API Vec1<T> Set(D /* tag */, const T2 t) {
@@ -1111,6 +1108,9 @@ HWY_API void StoreN(VFromD<D> v, D d, T* HWY_RESTRICT p,
     Store(v, d, p);
   }
 }
+
+// ------------------------------ Tuples
+#include "hwy/ops/inside-inl.h"
 
 // ------------------------------ LoadInterleaved2/3/4
 

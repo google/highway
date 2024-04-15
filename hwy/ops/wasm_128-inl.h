@@ -154,9 +154,6 @@ HWY_API Vec128<TFromD<D>, HWY_MAX_LANES_D(D)> Zero(D /* tag */) {
 template <class D>
 using VFromD = decltype(Zero(D()));
 
-// ------------------------------ Tuple (VFromD)
-#include "hwy/ops/tuple-inl.h"
-
 // ------------------------------ BitCast
 
 namespace detail {
@@ -4157,6 +4154,9 @@ HWY_API VFromD<D> PromoteUpperTo(D d, V v) {
   return PromoteTo(d, UpperHalf(dh, v));
 }
 
+// ------------------------------ PromoteEvenTo/PromoteOddTo
+#include "hwy/ops/inside-inl.h"
+
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U16_D(D)>
@@ -5807,41 +5807,14 @@ HWY_API Vec128<T> MulHigh(Vec128<T> a, Vec128<T> b) {
   return Dup128VecFromValues(Full128<T>(), hi_0, hi_1);
 }
 
-// ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
+// ------------------------------ WidenMulPairwiseAdd (MulAdd, PromoteEvenTo)
 
 // Generic for all vector lengths.
-template <class D32, HWY_IF_F32_D(D32),
-          class V16 = VFromD<Repartition<bfloat16_t, D32>>>
-HWY_API VFromD<D32> WidenMulPairwiseAdd(D32 df32, V16 a, V16 b) {
-  const Rebind<uint32_t, decltype(df32)> du32;
-  using VU32 = VFromD<decltype(du32)>;
-  const VU32 odd = Set(du32, 0xFFFF0000u);  // bfloat16 is the upper half of f32
-  // Using shift/and instead of Zip leads to the odd/even order that
-  // RearrangeToOddPlusEven prefers.
-  const VU32 ae = ShiftLeft<16>(BitCast(du32, a));
-  const VU32 ao = And(BitCast(du32, a), odd);
-  const VU32 be = ShiftLeft<16>(BitCast(du32, b));
-  const VU32 bo = And(BitCast(du32, b), odd);
-  return Mul(BitCast(df32, ae), BitCast(df32, be)) +
-         Mul(BitCast(df32, ao), BitCast(df32, bo));
-}
-
-template <class D32, HWY_IF_F32_D(D32),
-          class V16 = VFromD<Repartition<bfloat16_t, D32>>>
-HWY_API VFromD<D32> ReorderWidenMulAccumulate(D32 df32, V16 a, V16 b,
-                                              const VFromD<D32> sum0,
-                                              VFromD<D32>& sum1) {
-  const Rebind<uint32_t, decltype(df32)> du32;
-  using VU32 = VFromD<decltype(du32)>;
-  const VU32 odd = Set(du32, 0xFFFF0000u);  // bfloat16 is the upper half of f32
-  // Using shift/and instead of Zip leads to the odd/even order that
-  // RearrangeToOddPlusEven prefers.
-  const VU32 ae = ShiftLeft<16>(BitCast(du32, a));
-  const VU32 ao = And(BitCast(du32, a), odd);
-  const VU32 be = ShiftLeft<16>(BitCast(du32, b));
-  const VU32 bo = And(BitCast(du32, b), odd);
-  sum1 = MulAdd(BitCast(df32, ao), BitCast(df32, bo), sum1);
-  return MulAdd(BitCast(df32, ae), BitCast(df32, be), sum0);
+template <class DF, HWY_IF_F32_D(DF),
+          class VBF = VFromD<Repartition<bfloat16_t, DF>>>
+HWY_API VFromD<DF> WidenMulPairwiseAdd(DF df, VBF a, VBF b) {
+  return MulAdd(PromoteEvenTo(df, a), PromoteEvenTo(df, b),
+                Mul(PromoteOddTo(df, a), PromoteOddTo(df, b)));
 }
 
 // Even if N=1, the input is always at least 2 lanes, hence i32x4_dot_i16x8 is
@@ -5855,35 +5828,29 @@ HWY_API VFromD<D32> WidenMulPairwiseAdd(D32 /* tag */, V16 a, V16 b) {
 template <class DU32, HWY_IF_U32_D(DU32), HWY_IF_V_SIZE_LE_D(DU32, 16),
           class VU16 = VFromD<RepartitionToNarrow<DU32>>>
 HWY_API VFromD<DU32> WidenMulPairwiseAdd(DU32 du32, VU16 a, VU16 b) {
-  const auto lo16_mask = Set(du32, 0x0000FFFFu);
-
-  const auto a0 = And(BitCast(du32, a), lo16_mask);
-  const auto b0 = And(BitCast(du32, b), lo16_mask);
-
-  const auto a1 = ShiftRight<16>(BitCast(du32, a));
-  const auto b1 = ShiftRight<16>(BitCast(du32, b));
-
-  return MulAdd(a1, b1, a0 * b0);
+  return MulAdd(PromoteEvenTo(du32, a), PromoteEvenTo(du32, b),
+                Mul(PromoteOddTo(du32, a), PromoteOddTo(du32, b)));
 }
 
-// Even if N=1, the input is always at least 2 lanes, hence i32x4_dot_i16x8 is
-// safe.
-template <class D32, HWY_IF_I32_D(D32), HWY_IF_V_SIZE_LE_D(D32, 16),
+// ------------------------------ ReorderWidenMulAccumulate
+
+template <class DF, HWY_IF_F32_D(DF),
+          class VBF = VFromD<Repartition<bfloat16_t, DF>>>
+HWY_API VFromD<DF> ReorderWidenMulAccumulate(DF df, VBF a, VBF b,
+                                             const VFromD<DF> sum0,
+                                             VFromD<DF>& sum1) {
+  // Lane order within sum0/1 is undefined, hence we can avoid the
+  // longer-latency lane-crossing PromoteTo by using PromoteEvenTo.
+  sum1 = MulAdd(PromoteOddTo(df, a), PromoteOddTo(df, b), sum1);
+  return MulAdd(PromoteEvenTo(df, a), PromoteEvenTo(df, b), sum0);
+}
+
+template <class D32, HWY_IF_UI32_D(D32), HWY_IF_V_SIZE_LE_D(D32, 16),
           class V16 = VFromD<RepartitionToNarrow<D32>>>
-HWY_API VFromD<D32> ReorderWidenMulAccumulate(D32 d, V16 a, V16 b,
+HWY_API VFromD<D32> ReorderWidenMulAccumulate(D32 d32, V16 a, V16 b,
                                               const VFromD<D32> sum0,
                                               VFromD<D32>& /*sum1*/) {
-  return sum0 + WidenMulPairwiseAdd(d, a, b);
-}
-
-// Even if N=1, the input is always at least 2 lanes, hence i32x4_dot_i16x8 is
-// safe.
-template <class DU32, HWY_IF_U32_D(DU32), HWY_IF_V_SIZE_LE_D(DU32, 16),
-          class VU16 = VFromD<RepartitionToNarrow<DU32>>>
-HWY_API VFromD<DU32> ReorderWidenMulAccumulate(DU32 d, VU16 a, VU16 b,
-                                               const VFromD<DU32> sum0,
-                                               VFromD<DU32>& /*sum1*/) {
-  return sum0 + WidenMulPairwiseAdd(d, a, b);
+  return sum0 + WidenMulPairwiseAdd(d32, a, b);
 }
 
 // ------------------------------ RearrangeToOddPlusEven

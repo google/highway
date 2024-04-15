@@ -3742,6 +3742,9 @@ HWY_API VFromD<D> ConcatEven(D d, VFromD<D> hi, VFromD<D> lo) {
   return Combine(d, LowerHalf(dh, hi_even), LowerHalf(dh, lo_even));
 }
 
+// ------------------------------ PromoteEvenTo/PromoteOddTo
+#include "hwy/ops/inside-inl.h"
+
 // ================================================== BLOCKWISE
 
 // ------------------------------ CombineShiftRightBytes
@@ -5553,66 +5556,34 @@ HWY_API VFromD<DN> OrderedDemote2To(DN dn, V a, V b) {
 
 // ------------------------------ WidenMulPairwiseAdd
 
-template <class D32, HWY_IF_F32_D(D32),
-          class V16 = VFromD<Repartition<hwy::bfloat16_t, D32>>>
-HWY_API VFromD<D32> WidenMulPairwiseAdd(D32 df32, V16 a, V16 b) {
-  const RebindToUnsigned<decltype(df32)> du32;
-  using VU32 = VFromD<decltype(du32)>;
-  const VU32 odd = Set(du32, 0xFFFF0000u);  // bfloat16 is the upper half of f32
-  // Using shift/and instead of Zip leads to the odd/even order that
-  // RearrangeToOddPlusEven prefers.
-  const VU32 ae = ShiftLeft<16>(BitCast(du32, a));
-  const VU32 ao = And(BitCast(du32, a), odd);
-  const VU32 be = ShiftLeft<16>(BitCast(du32, b));
-  const VU32 bo = And(BitCast(du32, b), odd);
-  return MulAdd(BitCast(df32, ae), BitCast(df32, be),
-                Mul(BitCast(df32, ao), BitCast(df32, bo)));
+template <class DF, HWY_IF_F32_D(DF),
+          class VBF = VFromD<Repartition<hwy::bfloat16_t, DF>>>
+HWY_API VFromD<DF> WidenMulPairwiseAdd(DF df, VBF a, VBF b) {
+  return MulAdd(PromoteEvenTo(df, a), PromoteEvenTo(df, b),
+                Mul(PromoteOddTo(df, a), PromoteOddTo(df, b)));
 }
 
-template <class D, HWY_IF_I32_D(D), class VI16>
-HWY_API VFromD<D> WidenMulPairwiseAdd(D d32, VI16 a, VI16 b) {
-  using VI32 = VFromD<decltype(d32)>;
-  // Manual sign extension requires two shifts for even lanes.
-  const VI32 ae = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, a)));
-  const VI32 be = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, b)));
-  const VI32 ao = ShiftRight<16>(BitCast(d32, a));
-  const VI32 bo = ShiftRight<16>(BitCast(d32, b));
-  return Add(Mul(ae, be), Mul(ao, bo));
-}
-
-template <class D, HWY_IF_U32_D(D), class VI16>
-HWY_API VFromD<D> WidenMulPairwiseAdd(D du32, VI16 a, VI16 b) {
-  using VU32 = VFromD<decltype(du32)>;
-  // Manual sign extension requires two shifts for even lanes.
-  const VU32 ae = detail::AndS(BitCast(du32, a), uint32_t{0x0000FFFFu});
-  const VU32 be = detail::AndS(BitCast(du32, b), uint32_t{0x0000FFFFu});
-  const VU32 ao = ShiftRight<16>(BitCast(du32, a));
-  const VU32 bo = ShiftRight<16>(BitCast(du32, b));
-  return Add(Mul(ae, be), Mul(ao, bo));
+template <class D, HWY_IF_UI32_D(D), class V16 = VFromD<RepartitionToNarrow<D>>>
+HWY_API VFromD<D> WidenMulPairwiseAdd(D d32, V16 a, V16 b) {
+  return MulAdd(PromoteEvenTo(d32, a), PromoteEvenTo(d32, b),
+                Mul(PromoteOddTo(d32, a), PromoteOddTo(d32, b)));
 }
 
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
 
 namespace detail {
 
-// Non-overloaded wrapper function so we can define DF32 in template args.
-template <size_t N, int kPow2, class DF32 = Simd<float, N, kPow2>,
-          class VF32 = VFromD<DF32>,
+// Non-overloaded wrapper function so we can define DF in template args.
+template <size_t N, int kPow2, class DF = Simd<float, N, kPow2>,
+          class VF = VFromD<DF>,
           class DBF16 = Repartition<hwy::bfloat16_t, Simd<float, N, kPow2>>>
-HWY_API VF32 ReorderWidenMulAccumulateBF16(Simd<float, N, kPow2> df32,
-                                           VFromD<DBF16> a, VFromD<DBF16> b,
-                                           const VF32 sum0, VF32& sum1) {
-  const RebindToUnsigned<DF32> du32;
-  using VU32 = VFromD<decltype(du32)>;
-  const VU32 odd = Set(du32, 0xFFFF0000u);  // bfloat16 is the upper half of f32
-  // Using shift/and instead of Zip leads to the odd/even order that
-  // RearrangeToOddPlusEven prefers.
-  const VU32 ae = ShiftLeft<16>(BitCast(du32, a));
-  const VU32 ao = And(BitCast(du32, a), odd);
-  const VU32 be = ShiftLeft<16>(BitCast(du32, b));
-  const VU32 bo = And(BitCast(du32, b), odd);
-  sum1 = MulAdd(BitCast(df32, ao), BitCast(df32, bo), sum1);
-  return MulAdd(BitCast(df32, ae), BitCast(df32, be), sum0);
+HWY_API VF ReorderWidenMulAccumulateBF16(Simd<float, N, kPow2> df,
+                                         VFromD<DBF16> a, VFromD<DBF16> b,
+                                         const VF sum0, VF& sum1) {
+  // Lane order within sum0/1 is undefined, hence we can avoid the
+  // longer-latency lane-crossing PromoteTo by using PromoteEvenTo.
+  sum1 = MulAdd(PromoteOddTo(df, a), PromoteOddTo(df, b), sum1);
+  return MulAdd(PromoteEvenTo(df, a), PromoteEvenTo(df, b), sum0);
 }
 
 #define HWY_RVV_WIDEN_MACC(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,    \

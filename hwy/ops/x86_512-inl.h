@@ -7381,7 +7381,6 @@ HWY_API VFromD<D> WidenMulPairwiseAdd(D /*d32*/, Vec512<int16_t> a,
 }
 
 // ------------------------------ SatWidenMulPairwiseAdd
-
 template <class DI16, HWY_IF_V_SIZE_D(DI16, 64), HWY_IF_I16_D(DI16)>
 HWY_API VFromD<DI16> SatWidenMulPairwiseAdd(
     DI16 /* tag */, VFromD<Repartition<uint8_t, DI16>> a,

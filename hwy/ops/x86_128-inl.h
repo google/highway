@@ -237,9 +237,6 @@ HWY_API Vec128<TFromD<D>, HWY_MAX_LANES_D(D)> Zero(D /* tag */) {
 template <class D>
 using VFromD = decltype(Zero(D()));
 
-// ------------------------------ Tuple (VFromD)
-#include "hwy/ops/tuple-inl.h"
-
 // ------------------------------ BitCast
 
 namespace detail {
@@ -9155,214 +9152,6 @@ HWY_API Vec64<T> MulHigh(Vec64<T> a, Vec64<T> b) {
 
 #endif  // HWY_ARCH_X86_64
 
-// ------------------------------ WidenMulPairwiseAdd
-
-// Generic for all vector lengths.
-template <class D32, HWY_IF_F32_D(D32),
-          class V16 = VFromD<Repartition<bfloat16_t, D32>>>
-HWY_API VFromD<D32> WidenMulPairwiseAdd(D32 df32, V16 a, V16 b) {
-  // TODO(janwas): _mm_dpbf16_ps when available
-  const RebindToUnsigned<decltype(df32)> du32;
-  // Lane order within sum0/1 is undefined, hence we can avoid the
-  // longer-latency lane-crossing PromoteTo. Using shift/and instead of Zip
-  // leads to the odd/even order that RearrangeToOddPlusEven prefers.
-  using VU32 = VFromD<decltype(du32)>;
-  const VU32 odd = Set(du32, 0xFFFF0000u);
-  const VU32 ae = ShiftLeft<16>(BitCast(du32, a));
-  const VU32 ao = And(BitCast(du32, a), odd);
-  const VU32 be = ShiftLeft<16>(BitCast(du32, b));
-  const VU32 bo = And(BitCast(du32, b), odd);
-  return MulAdd(BitCast(df32, ae), BitCast(df32, be),
-                Mul(BitCast(df32, ao), BitCast(df32, bo)));
-}
-
-// Even if N=1, the input is always at least 2 lanes, hence madd_epi16 is safe.
-template <class D32, HWY_IF_I32_D(D32), HWY_IF_V_SIZE_LE_D(D32, 16),
-          class V16 = VFromD<RepartitionToNarrow<D32>>>
-HWY_API VFromD<D32> WidenMulPairwiseAdd(D32 /* tag */, V16 a, V16 b) {
-  return VFromD<D32>{_mm_madd_epi16(a.raw, b.raw)};
-}
-
-// Generic for all vector lengths.
-template <class DU32, HWY_IF_U32_D(DU32),
-          class VU16 = VFromD<RepartitionToNarrow<DU32>>>
-HWY_API VFromD<DU32> WidenMulPairwiseAdd(DU32 du32, VU16 a, VU16 b) {
-  const auto p_lo = a * b;
-  const auto p_hi = MulHigh(a, b);
-
-  const auto p_hi1_lo0 = BitCast(du32, OddEven(p_hi, p_lo));
-  const auto p_hi0_lo1 = Or(ShiftLeft<16>(BitCast(du32, p_hi)),
-                            ShiftRight<16>(BitCast(du32, p_lo)));
-  return Add(BitCast(du32, p_hi1_lo0), BitCast(du32, p_hi0_lo1));
-}
-
-// ------------------------------ SatWidenMulPairwiseAdd
-
-#if HWY_TARGET <= HWY_SSSE3
-
-#ifdef HWY_NATIVE_U8_I8_SATWIDENMULPAIRWISEADD
-#undef HWY_NATIVE_U8_I8_SATWIDENMULPAIRWISEADD
-#else
-#define HWY_NATIVE_U8_I8_SATWIDENMULPAIRWISEADD
-#endif
-
-// Even if N=1, the input is always at least 2 lanes, hence _mm_maddubs_epi16
-// is safe.
-template <class DI16, HWY_IF_I16_D(DI16), HWY_IF_V_SIZE_LE_D(DI16, 16)>
-HWY_API VFromD<DI16> SatWidenMulPairwiseAdd(
-    DI16 /* tag */, VFromD<Repartition<uint8_t, DI16>> a,
-    VFromD<Repartition<int8_t, DI16>> b) {
-  return VFromD<DI16>{_mm_maddubs_epi16(a.raw, b.raw)};
-}
-
-#endif
-
-// ------------------------------ SatWidenMulPairwiseAccumulate
-
-#if HWY_TARGET <= HWY_AVX3_DL
-
-#ifdef HWY_NATIVE_I16_I16_SATWIDENMULPAIRWISEACCUM
-#undef HWY_NATIVE_I16_I16_SATWIDENMULPAIRWISEACCUM
-#else
-#define HWY_NATIVE_I16_I16_SATWIDENMULPAIRWISEACCUM
-#endif
-
-// Even if N=1, the I16 vectors have at least 2 lanes, hence _mm_dpwssds_epi32
-// is safe.
-template <class DI32, HWY_IF_I32_D(DI32), HWY_IF_V_SIZE_LE_D(DI32, 16)>
-HWY_API VFromD<DI32> SatWidenMulPairwiseAccumulate(
-    DI32 /* tag */, VFromD<Repartition<int16_t, DI32>> a,
-    VFromD<Repartition<int16_t, DI32>> b, VFromD<DI32> sum) {
-  return VFromD<DI32>{_mm_dpwssds_epi32(sum.raw, a.raw, b.raw)};
-}
-
-#endif  // HWY_TARGET <= HWY_AVX3_DL
-
-// ------------------------------ ReorderWidenMulAccumulate (MulAdd, ShiftLeft)
-
-// Generic for all vector lengths.
-template <class D32, HWY_IF_F32_D(D32),
-          class V16 = VFromD<Repartition<bfloat16_t, D32>>>
-HWY_API VFromD<D32> ReorderWidenMulAccumulate(D32 df32, V16 a, V16 b,
-                                              const VFromD<D32> sum0,
-                                              VFromD<D32>& sum1) {
-  // TODO(janwas): _mm_dpbf16_ps when available
-  const RebindToUnsigned<decltype(df32)> du32;
-  // Lane order within sum0/1 is undefined, hence we can avoid the
-  // longer-latency lane-crossing PromoteTo. Using shift/and instead of Zip
-  // leads to the odd/even order that RearrangeToOddPlusEven prefers.
-  using VU32 = VFromD<decltype(du32)>;
-  const VU32 odd = Set(du32, 0xFFFF0000u);
-  const VU32 ae = ShiftLeft<16>(BitCast(du32, a));
-  const VU32 ao = And(BitCast(du32, a), odd);
-  const VU32 be = ShiftLeft<16>(BitCast(du32, b));
-  const VU32 bo = And(BitCast(du32, b), odd);
-  sum1 = MulAdd(BitCast(df32, ao), BitCast(df32, bo), sum1);
-  return MulAdd(BitCast(df32, ae), BitCast(df32, be), sum0);
-}
-
-// Even if N=1, the input is always at least 2 lanes, hence madd_epi16 is safe.
-template <class D32, HWY_IF_I32_D(D32), HWY_IF_V_SIZE_LE_D(D32, 16),
-          class V16 = VFromD<RepartitionToNarrow<D32>>>
-HWY_API VFromD<D32> ReorderWidenMulAccumulate(D32 d, V16 a, V16 b,
-                                              const VFromD<D32> sum0,
-                                              VFromD<D32>& /*sum1*/) {
-  (void)d;
-#if HWY_TARGET <= HWY_AVX3_DL
-  return VFromD<D32>{_mm_dpwssd_epi32(sum0.raw, a.raw, b.raw)};
-#else
-  return sum0 + WidenMulPairwiseAdd(d, a, b);
-#endif
-}
-
-template <class DU32, HWY_IF_U32_D(DU32),
-          class VU16 = VFromD<RepartitionToNarrow<DU32>>>
-HWY_API VFromD<DU32> ReorderWidenMulAccumulate(DU32 d, VU16 a, VU16 b,
-                                               const VFromD<DU32> sum0,
-                                               VFromD<DU32>& /*sum1*/) {
-  (void)d;
-  return sum0 + WidenMulPairwiseAdd(d, a, b);
-}
-
-// ------------------------------ RearrangeToOddPlusEven
-template <size_t N>
-HWY_API Vec128<int32_t, N> RearrangeToOddPlusEven(const Vec128<int32_t, N> sum0,
-                                                  Vec128<int32_t, N> /*sum1*/) {
-  return sum0;  // invariant already holds
-}
-
-template <size_t N>
-HWY_API Vec128<uint32_t, N> RearrangeToOddPlusEven(
-    const Vec128<uint32_t, N> sum0, Vec128<uint32_t, N> /*sum1*/) {
-  return sum0;  // invariant already holds
-}
-
-template <class VW>
-HWY_API VW RearrangeToOddPlusEven(const VW sum0, const VW sum1) {
-  return Add(sum0, sum1);
-}
-
-// ------------------------------ SumOfMulQuadAccumulate
-#if HWY_TARGET <= HWY_AVX3_DL
-
-#ifdef HWY_NATIVE_U8_I8_SUMOFMULQUADACCUMULATE
-#undef HWY_NATIVE_U8_I8_SUMOFMULQUADACCUMULATE
-#else
-#define HWY_NATIVE_U8_I8_SUMOFMULQUADACCUMULATE
-#endif
-
-template <class DI32, HWY_IF_I32_D(DI32), HWY_IF_V_SIZE_LE_D(DI32, 16)>
-HWY_API VFromD<DI32> SumOfMulQuadAccumulate(
-    DI32 /*di32*/, VFromD<Repartition<uint8_t, DI32>> a_u,
-    VFromD<Repartition<int8_t, DI32>> b_i, VFromD<DI32> sum) {
-  return VFromD<DI32>{_mm_dpbusd_epi32(sum.raw, a_u.raw, b_i.raw)};
-}
-
-#ifdef HWY_NATIVE_I8_I8_SUMOFMULQUADACCUMULATE
-#undef HWY_NATIVE_I8_I8_SUMOFMULQUADACCUMULATE
-#else
-#define HWY_NATIVE_I8_I8_SUMOFMULQUADACCUMULATE
-#endif
-template <class DI32, HWY_IF_I32_D(DI32)>
-HWY_API VFromD<DI32> SumOfMulQuadAccumulate(DI32 di32,
-                                            VFromD<Repartition<int8_t, DI32>> a,
-                                            VFromD<Repartition<int8_t, DI32>> b,
-                                            VFromD<DI32> sum) {
-  // TODO(janwas): AVX-VNNI-INT8 has dpbssd.
-  const Repartition<uint8_t, decltype(di32)> du8;
-
-  const auto a_u = BitCast(du8, a);
-  const auto result_sum_0 = SumOfMulQuadAccumulate(di32, a_u, b, sum);
-  const auto result_sum_1 = ShiftLeft<8>(
-      SumOfMulQuadAccumulate(di32, ShiftRight<7>(a_u), b, Zero(di32)));
-  return result_sum_0 - result_sum_1;
-}
-
-#ifdef HWY_NATIVE_U8_U8_SUMOFMULQUADACCUMULATE
-#undef HWY_NATIVE_U8_U8_SUMOFMULQUADACCUMULATE
-#else
-#define HWY_NATIVE_U8_U8_SUMOFMULQUADACCUMULATE
-#endif
-template <class DU32, HWY_IF_U32_D(DU32)>
-HWY_API VFromD<DU32> SumOfMulQuadAccumulate(
-    DU32 du32, VFromD<Repartition<uint8_t, DU32>> a,
-    VFromD<Repartition<uint8_t, DU32>> b, VFromD<DU32> sum) {
-  // TODO(janwas): AVX-VNNI-INT8 has dpbuud.
-  const Repartition<uint8_t, decltype(du32)> du8;
-  const RebindToSigned<decltype(du8)> di8;
-  const RebindToSigned<decltype(du32)> di32;
-
-  const auto b_i = BitCast(di8, b);
-  const auto result_sum_0 =
-      SumOfMulQuadAccumulate(di32, a, b_i, BitCast(di32, sum));
-  const auto result_sum_1 = ShiftLeft<8>(
-      SumOfMulQuadAccumulate(di32, a, BroadcastSignBit(b_i), Zero(di32)));
-
-  return BitCast(du32, result_sum_0 - result_sum_1);
-}
-
-#endif  // HWY_TARGET <= HWY_AVX3_DL
-
 // ================================================== CONVERT
 
 // ------------------------------ Promotions (part w/ narrow lanes -> full)
@@ -9619,6 +9408,199 @@ HWY_INLINE VFromD<D> PromoteOddTo(hwy::SignedTag /*to_type_tag*/,
 
 }  // namespace detail
 #endif
+
+// ------------------------------ PromoteEvenTo/PromoteOddTo
+#include "hwy/ops/inside-inl.h"
+
+// ------------------------------ WidenMulPairwiseAdd (PromoteEvenTo)
+
+// Generic for all vector lengths.
+template <class DF, HWY_IF_F32_D(DF),
+          class VBF = VFromD<Repartition<bfloat16_t, DF>>>
+HWY_API VFromD<DF> WidenMulPairwiseAdd(DF df, VBF a, VBF b) {
+  // TODO(janwas): _mm_dpbf16_ps when available
+  return MulAdd(PromoteEvenTo(df, a), PromoteEvenTo(df, b),
+                Mul(PromoteOddTo(df, a), PromoteOddTo(df, b)));
+}
+
+// Even if N=1, the input is always at least 2 lanes, hence madd_epi16 is safe.
+template <class D32, HWY_IF_I32_D(D32), HWY_IF_V_SIZE_LE_D(D32, 16),
+          class V16 = VFromD<RepartitionToNarrow<D32>>>
+HWY_API VFromD<D32> WidenMulPairwiseAdd(D32 /* tag */, V16 a, V16 b) {
+  return VFromD<D32>{_mm_madd_epi16(a.raw, b.raw)};
+}
+
+// Generic for all vector lengths.
+template <class DU32, HWY_IF_U32_D(DU32),
+          class VU16 = VFromD<RepartitionToNarrow<DU32>>>
+HWY_API VFromD<DU32> WidenMulPairwiseAdd(DU32 du32, VU16 a, VU16 b) {
+  const auto p_lo = a * b;
+  const auto p_hi = MulHigh(a, b);
+
+  const auto p_hi1_lo0 = BitCast(du32, OddEven(p_hi, p_lo));
+  const auto p_hi0_lo1 = Or(ShiftLeft<16>(BitCast(du32, p_hi)),
+                            ShiftRight<16>(BitCast(du32, p_lo)));
+  return Add(BitCast(du32, p_hi1_lo0), BitCast(du32, p_hi0_lo1));
+}
+
+// ------------------------------ SatWidenMulPairwiseAdd
+
+#if HWY_TARGET <= HWY_SSSE3
+
+#ifdef HWY_NATIVE_U8_I8_SATWIDENMULPAIRWISEADD
+#undef HWY_NATIVE_U8_I8_SATWIDENMULPAIRWISEADD
+#else
+#define HWY_NATIVE_U8_I8_SATWIDENMULPAIRWISEADD
+#endif
+
+// Even if N=1, the input is always at least 2 lanes, hence _mm_maddubs_epi16
+// is safe.
+template <class DI16, HWY_IF_I16_D(DI16), HWY_IF_V_SIZE_LE_D(DI16, 16)>
+HWY_API VFromD<DI16> SatWidenMulPairwiseAdd(
+    DI16 /* tag */, VFromD<Repartition<uint8_t, DI16>> a,
+    VFromD<Repartition<int8_t, DI16>> b) {
+  return VFromD<DI16>{_mm_maddubs_epi16(a.raw, b.raw)};
+}
+
+#endif
+
+// ------------------------------ SatWidenMulPairwiseAccumulate
+
+#if HWY_TARGET <= HWY_AVX3_DL
+
+#ifdef HWY_NATIVE_I16_I16_SATWIDENMULPAIRWISEACCUM
+#undef HWY_NATIVE_I16_I16_SATWIDENMULPAIRWISEACCUM
+#else
+#define HWY_NATIVE_I16_I16_SATWIDENMULPAIRWISEACCUM
+#endif
+
+// Even if N=1, the I16 vectors have at least 2 lanes, hence _mm_dpwssds_epi32
+// is safe.
+template <class DI32, HWY_IF_I32_D(DI32), HWY_IF_V_SIZE_LE_D(DI32, 16)>
+HWY_API VFromD<DI32> SatWidenMulPairwiseAccumulate(
+    DI32 /* tag */, VFromD<Repartition<int16_t, DI32>> a,
+    VFromD<Repartition<int16_t, DI32>> b, VFromD<DI32> sum) {
+  return VFromD<DI32>{_mm_dpwssds_epi32(sum.raw, a.raw, b.raw)};
+}
+
+#endif  // HWY_TARGET <= HWY_AVX3_DL
+
+// ------------------------------ ReorderWidenMulAccumulate (PromoteEvenTo)
+
+// Generic for all vector lengths.
+template <class DF, HWY_IF_F32_D(DF),
+          class VBF = VFromD<Repartition<bfloat16_t, DF>>>
+HWY_API VFromD<DF> ReorderWidenMulAccumulate(DF df, VBF a, VBF b,
+                                             const VFromD<DF> sum0,
+                                             VFromD<DF>& sum1) {
+  // TODO(janwas): _mm_dpbf16_ps when available
+  // Lane order within sum0/1 is undefined, hence we can avoid the
+  // longer-latency lane-crossing PromoteTo by using PromoteEvenTo.
+  sum1 = MulAdd(PromoteOddTo(df, a), PromoteOddTo(df, b), sum1);
+  return MulAdd(PromoteEvenTo(df, a), PromoteEvenTo(df, b), sum0);
+}
+
+// Even if N=1, the input is always at least 2 lanes, hence madd_epi16 is safe.
+template <class D32, HWY_IF_I32_D(D32), HWY_IF_V_SIZE_LE_D(D32, 16),
+          class V16 = VFromD<RepartitionToNarrow<D32>>>
+HWY_API VFromD<D32> ReorderWidenMulAccumulate(D32 d, V16 a, V16 b,
+                                              const VFromD<D32> sum0,
+                                              VFromD<D32>& /*sum1*/) {
+  (void)d;
+#if HWY_TARGET <= HWY_AVX3_DL
+  return VFromD<D32>{_mm_dpwssd_epi32(sum0.raw, a.raw, b.raw)};
+#else
+  return sum0 + WidenMulPairwiseAdd(d, a, b);
+#endif
+}
+
+template <class DU32, HWY_IF_U32_D(DU32),
+          class VU16 = VFromD<RepartitionToNarrow<DU32>>>
+HWY_API VFromD<DU32> ReorderWidenMulAccumulate(DU32 d, VU16 a, VU16 b,
+                                               const VFromD<DU32> sum0,
+                                               VFromD<DU32>& /*sum1*/) {
+  (void)d;
+  return sum0 + WidenMulPairwiseAdd(d, a, b);
+}
+
+// ------------------------------ RearrangeToOddPlusEven
+template <size_t N>
+HWY_API Vec128<int32_t, N> RearrangeToOddPlusEven(const Vec128<int32_t, N> sum0,
+                                                  Vec128<int32_t, N> /*sum1*/) {
+  return sum0;  // invariant already holds
+}
+
+template <size_t N>
+HWY_API Vec128<uint32_t, N> RearrangeToOddPlusEven(
+    const Vec128<uint32_t, N> sum0, Vec128<uint32_t, N> /*sum1*/) {
+  return sum0;  // invariant already holds
+}
+
+template <class VW>
+HWY_API VW RearrangeToOddPlusEven(const VW sum0, const VW sum1) {
+  return Add(sum0, sum1);
+}
+
+// ------------------------------ SumOfMulQuadAccumulate
+#if HWY_TARGET <= HWY_AVX3_DL
+
+#ifdef HWY_NATIVE_U8_I8_SUMOFMULQUADACCUMULATE
+#undef HWY_NATIVE_U8_I8_SUMOFMULQUADACCUMULATE
+#else
+#define HWY_NATIVE_U8_I8_SUMOFMULQUADACCUMULATE
+#endif
+
+template <class DI32, HWY_IF_I32_D(DI32), HWY_IF_V_SIZE_LE_D(DI32, 16)>
+HWY_API VFromD<DI32> SumOfMulQuadAccumulate(
+    DI32 /*di32*/, VFromD<Repartition<uint8_t, DI32>> a_u,
+    VFromD<Repartition<int8_t, DI32>> b_i, VFromD<DI32> sum) {
+  return VFromD<DI32>{_mm_dpbusd_epi32(sum.raw, a_u.raw, b_i.raw)};
+}
+
+#ifdef HWY_NATIVE_I8_I8_SUMOFMULQUADACCUMULATE
+#undef HWY_NATIVE_I8_I8_SUMOFMULQUADACCUMULATE
+#else
+#define HWY_NATIVE_I8_I8_SUMOFMULQUADACCUMULATE
+#endif
+template <class DI32, HWY_IF_I32_D(DI32)>
+HWY_API VFromD<DI32> SumOfMulQuadAccumulate(DI32 di32,
+                                            VFromD<Repartition<int8_t, DI32>> a,
+                                            VFromD<Repartition<int8_t, DI32>> b,
+                                            VFromD<DI32> sum) {
+  // TODO(janwas): AVX-VNNI-INT8 has dpbssd.
+  const Repartition<uint8_t, decltype(di32)> du8;
+
+  const auto a_u = BitCast(du8, a);
+  const auto result_sum_0 = SumOfMulQuadAccumulate(di32, a_u, b, sum);
+  const auto result_sum_1 = ShiftLeft<8>(
+      SumOfMulQuadAccumulate(di32, ShiftRight<7>(a_u), b, Zero(di32)));
+  return result_sum_0 - result_sum_1;
+}
+
+#ifdef HWY_NATIVE_U8_U8_SUMOFMULQUADACCUMULATE
+#undef HWY_NATIVE_U8_U8_SUMOFMULQUADACCUMULATE
+#else
+#define HWY_NATIVE_U8_U8_SUMOFMULQUADACCUMULATE
+#endif
+template <class DU32, HWY_IF_U32_D(DU32)>
+HWY_API VFromD<DU32> SumOfMulQuadAccumulate(
+    DU32 du32, VFromD<Repartition<uint8_t, DU32>> a,
+    VFromD<Repartition<uint8_t, DU32>> b, VFromD<DU32> sum) {
+  // TODO(janwas): AVX-VNNI-INT8 has dpbuud.
+  const Repartition<uint8_t, decltype(du32)> du8;
+  const RebindToSigned<decltype(du8)> di8;
+  const RebindToSigned<decltype(du32)> di32;
+
+  const auto b_i = BitCast(di8, b);
+  const auto result_sum_0 =
+      SumOfMulQuadAccumulate(di32, a, b_i, BitCast(di32, sum));
+  const auto result_sum_1 = ShiftLeft<8>(
+      SumOfMulQuadAccumulate(di32, a, BroadcastSignBit(b_i), Zero(di32)));
+
+  return BitCast(du32, result_sum_0 - result_sum_1);
+}
+
+#endif  // HWY_TARGET <= HWY_AVX3_DL
 
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
 

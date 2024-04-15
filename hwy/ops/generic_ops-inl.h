@@ -59,7 +59,7 @@ HWY_API V Clamp(const V v, const V lo, const V hi) {
 
 // CombineShiftRightBytes (and -Lanes) are not available for the scalar target,
 // and RVV has its own implementation of -Lanes.
-#if HWY_TARGET != HWY_SCALAR && HWY_TARGET != HWY_RVV
+#if (HWY_TARGET != HWY_SCALAR && HWY_TARGET != HWY_RVV) || HWY_IDE
 
 template <size_t kLanes, class D>
 HWY_API VFromD<D> CombineShiftRightLanes(D d, VFromD<D> hi, VFromD<D> lo) {
@@ -344,7 +344,7 @@ HWY_API Mask<DTo> DemoteMaskTo(DTo d_to, DFrom d_from, Mask<DFrom> m) {
 #define HWY_NATIVE_COMBINE_MASKS
 #endif
 
-#if HWY_TARGET != HWY_SCALAR
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
 template <class D>
 HWY_API Mask<D> CombineMasks(D d, Mask<Half<D>> hi, Mask<Half<D>> lo) {
   const Half<decltype(d)> dh;
@@ -380,7 +380,7 @@ HWY_API Mask<D> LowerHalfOfMask(D d, Mask<Twice<D>> m) {
 #define HWY_NATIVE_UPPER_HALF_OF_MASK
 #endif
 
-#if HWY_TARGET != HWY_SCALAR
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
 template <class D>
 HWY_API Mask<D> UpperHalfOfMask(D d, Mask<Twice<D>> m) {
   const Twice<decltype(d)> dt;
@@ -400,7 +400,7 @@ HWY_API Mask<D> UpperHalfOfMask(D d, Mask<Twice<D>> m) {
 #define HWY_NATIVE_ORDERED_DEMOTE_2_MASKS_TO
 #endif
 
-#if HWY_TARGET != HWY_SCALAR
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
 template <class DTo, class DFrom>
 HWY_API Mask<DTo> OrderedDemote2MasksTo(DTo d_to, DFrom d_from, Mask<DFrom> a,
                                         Mask<DFrom> b) {
@@ -723,7 +723,7 @@ HWY_API V RotateRightSame(V v, int bits) {
 #define HWY_NATIVE_INTERLEAVE_WHOLE
 #endif
 
-#if HWY_TARGET != HWY_SCALAR
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API VFromD<D> InterleaveWholeLower(D d, VFromD<D> a, VFromD<D> b) {
   // InterleaveWholeLower(d, a, b) is equivalent to InterleaveLower(a, b) if
@@ -749,7 +749,7 @@ HWY_API VFromD<D> InterleaveWholeUpper(D d, VFromD<D> a, VFromD<D> b) {
 
 #endif  // HWY_NATIVE_INTERLEAVE_WHOLE
 
-#if HWY_TARGET != HWY_SCALAR
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
 // The InterleaveWholeLower without the optional D parameter is generic for all
 // vector lengths.
 template <class V>
@@ -760,7 +760,7 @@ HWY_API V InterleaveWholeLower(V a, V b) {
 
 // ------------------------------ InterleaveEven
 
-#if HWY_TARGET != HWY_SCALAR
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
 // InterleaveEven without the optional D parameter is generic for all vector
 // lengths
 template <class V>
@@ -3011,248 +3011,6 @@ HWY_API VFromD<D> PromoteUpperTo(D d, V v) {
 #endif  // HWY_TARGET != HWY_SCALAR
 #endif  // HWY_NATIVE_PROMOTE_UPPER_TO
 
-// ------------------------------ PromoteEvenTo/PromoteOddTo
-
-#if HWY_TARGET != HWY_SCALAR
-namespace detail {
-
-// Tag dispatch is used in detail::PromoteEvenTo and detail::PromoteOddTo as
-// there are target-specific specializations for some of the
-// detail::PromoteEvenTo and detail::PromoteOddTo cases on
-// SVE/PPC/SSE2/SSSE3/SSE4/AVX2.
-
-// All targets except HWY_SCALAR use the implementations of
-// detail::PromoteEvenTo and detail::PromoteOddTo in generic_ops-inl.h for at
-// least some of the PromoteEvenTo and PromoteOddTo cases.
-
-// Signed to signed PromoteEvenTo/PromoteOddTo
-template <size_t kToLaneSize, class D, class V>
-HWY_INLINE VFromD<D> PromoteEvenTo(
-    hwy::SignedTag /*to_type_tag*/,
-    hwy::SizeTag<kToLaneSize> /*to_lane_size_tag*/,
-    hwy::SignedTag /*from_type_tag*/, D d_to, V v) {
-#if HWY_IS_LITTLE_ENDIAN
-  // On little-endian targets, need to shift each lane of the bitcasted vector
-  // left by kToLaneSize * 4 bits to get the bits of the even source lanes into
-  // the upper kToLaneSize * 4 bits of even_in_hi.
-  const auto even_in_hi = ShiftLeft<kToLaneSize * 4>(BitCast(d_to, v));
-#else
-  // On big-endian targets, the bits of the even source lanes are already in
-  // the upper kToLaneSize * 4 bits of the lanes of the bitcasted vector.
-  const auto even_in_hi = BitCast(d_to, v);
-#endif
-
-  // Right-shift even_in_hi by kToLaneSize * 4 bits
-  return ShiftRight<kToLaneSize * 4>(even_in_hi);
-}
-
-template <size_t kToLaneSize, class D, class V>
-HWY_INLINE VFromD<D> PromoteOddTo(
-    hwy::SignedTag /*to_type_tag*/,
-    hwy::SizeTag<kToLaneSize> /*to_lane_size_tag*/,
-    hwy::SignedTag /*from_type_tag*/, D d_to, V v) {
-#if HWY_IS_LITTLE_ENDIAN
-  // On little-endian targets, the bits of the odd source lanes are already in
-  // the upper kToLaneSize * 4 bits of the lanes of the bitcasted vector.
-  const auto odd_in_hi = BitCast(d_to, v);
-#else
-  // On big-endian targets, need to shift each lane of the bitcasted vector left
-  // by kToLaneSize * 4 bits to get the bits of the odd source lanes into the
-  // upper kToLaneSize * 4 bits of odd_in_hi.
-  const auto odd_in_hi = ShiftLeft<kToLaneSize * 4>(BitCast(d_to, v));
-#endif
-
-  // Right-shift odd_in_hi by kToLaneSize * 4 bits
-  return ShiftRight<kToLaneSize * 4>(odd_in_hi);
-}
-
-// Unsigned to unsigned PromoteEvenTo/PromoteOddTo
-template <size_t kToLaneSize, class D, class V>
-HWY_INLINE VFromD<D> PromoteEvenTo(
-    hwy::UnsignedTag /*to_type_tag*/,
-    hwy::SizeTag<kToLaneSize> /*to_lane_size_tag*/,
-    hwy::UnsignedTag /*from_type_tag*/, D d_to, V v) {
-#if HWY_IS_LITTLE_ENDIAN
-  // On little-endian targets, the bits of the even source lanes are already
-  // in the lower kToLaneSize * 4 bits of the lanes of the bitcasted vector.
-
-  // Simply need to zero out the upper bits of each lane of the bitcasted
-  // vector.
-  return And(BitCast(d_to, v),
-             Set(d_to, static_cast<TFromD<D>>(LimitsMax<TFromV<V>>())));
-#else
-  // On big-endian targets, need to shift each lane of the bitcasted vector
-  // right by kToLaneSize * 4 bits to get the bits of the even source lanes into
-  // the lower kToLaneSize * 4 bits of the result.
-
-  // The right shift below will zero out the upper kToLaneSize * 4 bits of the
-  // result.
-  return ShiftRight<kToLaneSize * 4>(BitCast(d_to, v));
-#endif
-}
-
-template <size_t kToLaneSize, class D, class V>
-HWY_INLINE VFromD<D> PromoteOddTo(
-    hwy::UnsignedTag /*to_type_tag*/,
-    hwy::SizeTag<kToLaneSize> /*to_lane_size_tag*/,
-    hwy::UnsignedTag /*from_type_tag*/, D d_to, V v) {
-#if HWY_IS_LITTLE_ENDIAN
-  // On little-endian targets, need to shift each lane of the bitcasted vector
-  // right by kToLaneSize * 4 bits to get the bits of the odd source lanes into
-  // the lower kToLaneSize * 4 bits of the result.
-
-  // The right shift below will zero out the upper kToLaneSize * 4 bits of the
-  // result.
-  return ShiftRight<kToLaneSize * 4>(BitCast(d_to, v));
-#else
-  // On big-endian targets, the bits of the even source lanes are already
-  // in the lower kToLaneSize * 4 bits of the lanes of the bitcasted vector.
-
-  // Simply need to zero out the upper bits of each lane of the bitcasted
-  // vector.
-  return And(BitCast(d_to, v),
-             Set(d_to, static_cast<TFromD<D>>(LimitsMax<TFromV<V>>())));
-#endif
-}
-
-// Unsigned to signed: Same as unsigned->unsigned PromoteEvenTo/PromoteOddTo
-// followed by BitCast to signed
-template <size_t kToLaneSize, class D, class V>
-HWY_INLINE VFromD<D> PromoteEvenTo(
-    hwy::SignedTag /*to_type_tag*/,
-    hwy::SizeTag<kToLaneSize> /*to_lane_size_tag*/,
-    hwy::UnsignedTag /*from_type_tag*/, D d_to, V v) {
-  const RebindToUnsigned<decltype(d_to)> du_to;
-  return BitCast(d_to,
-                 PromoteEvenTo(hwy::UnsignedTag(), hwy::SizeTag<kToLaneSize>(),
-                               hwy::UnsignedTag(), du_to, v));
-}
-
-template <size_t kToLaneSize, class D, class V>
-HWY_INLINE VFromD<D> PromoteOddTo(
-    hwy::SignedTag /*to_type_tag*/,
-    hwy::SizeTag<kToLaneSize> /*to_lane_size_tag*/,
-    hwy::UnsignedTag /*from_type_tag*/, D d_to, V v) {
-  const RebindToUnsigned<decltype(d_to)> du_to;
-  return BitCast(d_to,
-                 PromoteOddTo(hwy::UnsignedTag(), hwy::SizeTag<kToLaneSize>(),
-                              hwy::UnsignedTag(), du_to, v));
-}
-
-// BF16->F32 PromoteEvenTo
-
-// NOTE: It is possible for FromTypeTag to be hwy::SignedTag or hwy::UnsignedTag
-// instead of hwy::FloatTag on targets that use scalable vectors.
-
-// VBF16 is considered to be a bfloat16_t vector if TFromV<VBF16> is the same
-// type as TFromV<VFromD<Repartition<bfloat16_t, DF32>>>
-
-// The BF16->F32 PromoteEvenTo overload is only enabled if VBF16 is considered
-// to be a bfloat16_t vector.
-template <class FromTypeTag, class DF32, class VBF16,
-          class VBF16_2 = VFromD<Repartition<bfloat16_t, DF32>>,
-          hwy::EnableIf<IsSame<TFromV<VBF16>, TFromV<VBF16_2>>()>* = nullptr>
-HWY_INLINE VFromD<DF32> PromoteEvenTo(hwy::FloatTag /*to_type_tag*/,
-                                      hwy::SizeTag<4> /*to_lane_size_tag*/,
-                                      FromTypeTag /*from_type_tag*/, DF32 d_to,
-                                      VBF16 v) {
-  const RebindToUnsigned<decltype(d_to)> du_to;
-#if HWY_IS_LITTLE_ENDIAN
-  // On little-endian platforms, need to shift left each lane of the bitcasted
-  // vector by 16 bits.
-  return BitCast(d_to, ShiftLeft<16>(BitCast(du_to, v)));
-#else
-  // On big-endian platforms, the even lanes of the source vector are already
-  // in the upper 16 bits of the lanes of the bitcasted vector.
-
-  // Need to simply zero out the lower 16 bits of each lane of the bitcasted
-  // vector.
-  return BitCast(d_to,
-                 And(BitCast(du_to, v), Set(du_to, uint32_t{0xFFFF0000u})));
-#endif
-}
-
-// BF16->F32 PromoteOddTo
-
-// NOTE: It is possible for FromTypeTag to be hwy::SignedTag or hwy::UnsignedTag
-// instead of hwy::FloatTag on targets that use scalable vectors.
-
-// VBF16 is considered to be a bfloat16_t vector if TFromV<VBF16> is the same
-// type as TFromV<VFromD<Repartition<bfloat16_t, DF32>>>
-
-// The BF16->F32 PromoteEvenTo overload is only enabled if VBF16 is considered
-// to be a bfloat16_t vector.
-template <class FromTypeTag, class DF32, class VBF16,
-          class VBF16_2 = VFromD<Repartition<bfloat16_t, DF32>>,
-          hwy::EnableIf<IsSame<TFromV<VBF16>, TFromV<VBF16_2>>()>* = nullptr>
-HWY_INLINE VFromD<DF32> PromoteOddTo(hwy::FloatTag /*to_type_tag*/,
-                                     hwy::SizeTag<4> /*to_lane_size_tag*/,
-                                     FromTypeTag /*from_type_tag*/, DF32 d_to,
-                                     VBF16 v) {
-  const RebindToUnsigned<decltype(d_to)> du_to;
-#if HWY_IS_LITTLE_ENDIAN
-  // On little-endian platforms, the odd lanes of the source vector are already
-  // in the upper 16 bits of the lanes of the bitcasted vector.
-
-  // Need to simply zero out the lower 16 bits of each lane of the bitcasted
-  // vector.
-  return BitCast(d_to,
-                 And(BitCast(du_to, v), Set(du_to, uint32_t{0xFFFF0000u})));
-#else
-  // On big-endian platforms, need to shift left each lane of the bitcasted
-  // vector by 16 bits.
-  return BitCast(d_to, ShiftLeft<16>(BitCast(du_to, v)));
-#endif
-}
-
-// Default PromoteEvenTo/PromoteOddTo implementations
-template <class ToTypeTag, size_t kToLaneSize, class FromTypeTag, class D,
-          class V, HWY_IF_LANES_D(D, 1)>
-HWY_INLINE VFromD<D> PromoteEvenTo(
-    ToTypeTag /*to_type_tag*/, hwy::SizeTag<kToLaneSize> /*to_lane_size_tag*/,
-    FromTypeTag /*from_type_tag*/, D d_to, V v) {
-  return PromoteLowerTo(d_to, v);
-}
-
-template <class ToTypeTag, size_t kToLaneSize, class FromTypeTag, class D,
-          class V, HWY_IF_LANES_GT_D(D, 1)>
-HWY_INLINE VFromD<D> PromoteEvenTo(
-    ToTypeTag /*to_type_tag*/, hwy::SizeTag<kToLaneSize> /*to_lane_size_tag*/,
-    FromTypeTag /*from_type_tag*/, D d_to, V v) {
-  const DFromV<decltype(v)> d;
-  return PromoteLowerTo(d_to, ConcatEven(d, v, v));
-}
-
-template <class ToTypeTag, size_t kToLaneSize, class FromTypeTag, class D,
-          class V>
-HWY_INLINE VFromD<D> PromoteOddTo(
-    ToTypeTag /*to_type_tag*/, hwy::SizeTag<kToLaneSize> /*to_lane_size_tag*/,
-    FromTypeTag /*from_type_tag*/, D d_to, V v) {
-  const DFromV<decltype(v)> d;
-  return PromoteLowerTo(d_to, ConcatOdd(d, v, v));
-}
-
-}  // namespace detail
-
-template <class D, class V, HWY_IF_T_SIZE_D(D, 2 * sizeof(TFromV<V>)),
-          class V2 = VFromD<Repartition<TFromV<V>, D>>,
-          HWY_IF_LANES_D(DFromV<V>, HWY_MAX_LANES_V(V2))>
-HWY_API VFromD<D> PromoteEvenTo(D d, V v) {
-  return detail::PromoteEvenTo(hwy::TypeTag<TFromD<D>>(),
-                               hwy::SizeTag<sizeof(TFromD<D>)>(),
-                               hwy::TypeTag<TFromV<V>>(), d, v);
-}
-
-template <class D, class V, HWY_IF_T_SIZE_D(D, 2 * sizeof(TFromV<V>)),
-          class V2 = VFromD<Repartition<TFromV<V>, D>>,
-          HWY_IF_LANES_D(DFromV<V>, HWY_MAX_LANES_V(V2))>
-HWY_API VFromD<D> PromoteOddTo(D d, V v) {
-  return detail::PromoteOddTo(hwy::TypeTag<TFromD<D>>(),
-                              hwy::SizeTag<sizeof(TFromD<D>)>(),
-                              hwy::TypeTag<TFromV<V>>(), d, v);
-}
-#endif  // HWY_TARGET != HWY_SCALAR
-
 // ------------------------------ float16_t <-> float
 
 #if (defined(HWY_NATIVE_F16C) == defined(HWY_TARGET_TOGGLE))
@@ -3624,7 +3382,7 @@ HWY_API VFromD<D> PromoteInRangeLowerTo(D d, V v) {
   return PromoteInRangeTo(d, LowerHalf(dh, v));
 }
 
-#if HWY_TARGET != HWY_SCALAR
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
 template <class D, HWY_IF_UI64_D(D), class V, HWY_IF_F32(TFromV<V>)>
 HWY_API VFromD<D> PromoteInRangeUpperTo(D d, V v) {
 #if (HWY_TARGET <= HWY_SSE2 || HWY_TARGET == HWY_EMU128 ||              \
@@ -3671,7 +3429,7 @@ HWY_API VFromD<D> PromoteInRangeEvenTo(D d, V v) {
 #endif  // HWY_TARGET == HWY_SCALAR
 }
 
-#if HWY_TARGET != HWY_SCALAR
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
 template <class D, HWY_IF_UI64_D(D), class V, HWY_IF_F32(TFromV<V>)>
 HWY_API VFromD<D> PromoteInRangeOddTo(D d, V v) {
 #if (HWY_TARGET <= HWY_SSE2 || HWY_TARGET == HWY_EMU128 ||              \
@@ -3696,7 +3454,7 @@ HWY_API VFromD<D> PromoteInRangeOddTo(D d, V v) {
 
 // ------------------------------ SumsOf2
 
-#if HWY_TARGET != HWY_SCALAR
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
 namespace detail {
 
 template <class TypeTag, size_t kLaneSize, class V>
@@ -3820,7 +3578,7 @@ HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
   return TruncateTo(d, f32_biased_exp_as_u32);
 }
 
-#if HWY_TARGET != HWY_SCALAR
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
 template <class D, HWY_IF_U16_D(D), HWY_IF_LANES_GT_D(D, HWY_MAX_BYTES / 4)>
 HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
   const Half<decltype(d)> dh;
@@ -3852,7 +3610,7 @@ HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
   return U8FromU32(f32_biased_exp_as_u32);
 }
 
-#if HWY_TARGET != HWY_SCALAR
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
 template <class D, HWY_IF_U8_D(D), HWY_IF_LANES_GT_D(D, HWY_MAX_BYTES / 4),
           HWY_IF_LANES_LE_D(D, HWY_MAX_BYTES / 2)>
 HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
@@ -4149,7 +3907,7 @@ HWY_INLINE V InvSubBytes(V state) {
 #endif
 
 // (Must come after HWY_TARGET_TOGGLE, else we don't reset it for scalar)
-#if HWY_TARGET != HWY_SCALAR
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
 
 namespace detail {
 
@@ -6303,9 +6061,7 @@ using IndicesFromD = decltype(IndicesFromVec(D(), Zero(RebindToUnsigned<D>())));
 
 // RVV/SVE have their own implementations of
 // TwoTablesLookupLanes(D d, VFromD<D> a, VFromD<D> b, IndicesFromD<D> idx)
-#if HWY_TARGET != HWY_RVV && HWY_TARGET != HWY_SVE &&      \
-    HWY_TARGET != HWY_SVE2 && HWY_TARGET != HWY_SVE_256 && \
-    HWY_TARGET != HWY_SVE2_128
+#if HWY_TARGET != HWY_RVV && !HWY_TARGET_IS_SVE
 template <class D>
 HWY_API VFromD<D> TwoTablesLookupLanes(D /*d*/, VFromD<D> a, VFromD<D> b,
                                        IndicesFromD<D> idx) {
@@ -6495,7 +6251,7 @@ HWY_API V ReverseBits(V v) {
 #define HWY_NATIVE_PER4LANEBLKSHUF_DUP32
 #endif
 
-#if HWY_TARGET != HWY_SCALAR
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
 namespace detail {
 
 template <class D>
@@ -6526,7 +6282,7 @@ HWY_INLINE Vec<D> Per4LaneBlkShufDupSet4xU32(D d, const uint32_t x3,
 
 #endif  // HWY_NATIVE_PER4LANEBLKSHUF_DUP32
 
-#if HWY_TARGET != HWY_SCALAR
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
 namespace detail {
 
 template <class V>
@@ -6910,7 +6666,7 @@ HWY_API V Per4LaneBlockShuffle(V v) {
   return v;
 }
 
-#if HWY_TARGET != HWY_SCALAR
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
 template <size_t kIdx3, size_t kIdx2, size_t kIdx1, size_t kIdx0, class V,
           HWY_IF_LANES_D(DFromV<V>, 2)>
 HWY_API V Per4LaneBlockShuffle(V v) {
@@ -7009,7 +6765,7 @@ HWY_API VFromD<D> Slide1Down(D d, VFromD<D> /*v*/) {
   return Zero(d);
 }
 
-#if HWY_TARGET != HWY_SCALAR
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_GT_D(D, 1)>
 HWY_API VFromD<D> Slide1Up(D d, VFromD<D> v) {
   return ShiftLeftLanes<1>(d, v);
@@ -7099,7 +6855,7 @@ HWY_API Mask<D> SlideMaskDownLanes(D d, Mask<D> m, size_t amt) {
 #define HWY_NATIVE_SUMS_OF_ADJ_QUAD_ABS_DIFF
 #endif
 
-#if HWY_TARGET != HWY_SCALAR
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
 template <int kAOffset, int kBOffset, class V8, HWY_IF_UI8_D(DFromV<V8>)>
 HWY_API Vec<RepartitionToWide<DFromV<V8>>> SumsOfAdjQuadAbsDiff(V8 a, V8 b) {
   static_assert(0 <= kAOffset && kAOffset <= 1,
@@ -7203,7 +6959,7 @@ HWY_API Vec<RepartitionToWide<DFromV<V8>>> SumsOfAdjQuadAbsDiff(V8 a, V8 b) {
 #define HWY_NATIVE_SUMS_OF_SHUFFLED_QUAD_ABS_DIFF
 #endif
 
-#if HWY_TARGET != HWY_SCALAR
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
 template <int kIdx3, int kIdx2, int kIdx1, int kIdx0, class V8,
           HWY_IF_UI8_D(DFromV<V8>)>
 HWY_API Vec<RepartitionToWide<DFromV<V8>>> SumsOfShuffledQuadAbsDiff(V8 a,

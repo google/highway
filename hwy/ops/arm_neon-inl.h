@@ -1304,9 +1304,6 @@ HWY_API VFromD<D> Iota(D d, const T2 first) {
 #endif
 }
 
-// ------------------------------ Tuple (VFromD)
-#include "hwy/ops/tuple-inl.h"
-
 // ------------------------------ Combine
 
 // Full result
@@ -4514,6 +4511,9 @@ HWY_API VFromD<D> PromoteInRangeTo(D d64, VFromD<Rebind<float, D>> v) {
 
 #endif  // HWY_HAVE_FLOAT64
 
+// ------------------------------ PromoteEvenTo/PromoteOddTo
+#include "hwy/ops/inside-inl.h"
+
 // ------------------------------ PromoteUpperTo
 
 #if HWY_ARCH_ARM_A64
@@ -6566,20 +6566,15 @@ HWY_API VFromD<D> ReorderWidenMulAccumulate(
 
 #else
 
-template <class D32, HWY_IF_F32_D(D32),
-          class V16 = VFromD<Repartition<bfloat16_t, D32>>>
-HWY_API VFromD<D32> ReorderWidenMulAccumulate(D32 df32, V16 a, V16 b,
-                                              const VFromD<D32> sum0,
-                                              VFromD<D32>& sum1) {
-  const RebindToUnsigned<decltype(df32)> du32;
-  using VU32 = VFromD<decltype(du32)>;
-  const VU32 odd = Set(du32, 0xFFFF0000u);
-  const VU32 ae = ShiftLeft<16>(BitCast(du32, a));
-  const VU32 ao = And(BitCast(du32, a), odd);
-  const VU32 be = ShiftLeft<16>(BitCast(du32, b));
-  const VU32 bo = And(BitCast(du32, b), odd);
-  sum1 = MulAdd(BitCast(df32, ao), BitCast(df32, bo), sum1);
-  return MulAdd(BitCast(df32, ae), BitCast(df32, be), sum0);
+template <class DF, HWY_IF_F32_D(DF),
+          class VBF = VFromD<Repartition<bfloat16_t, DF>>>
+HWY_API VFromD<DF> ReorderWidenMulAccumulate(DF df, VBF a, VBF b,
+                                             const VFromD<DF> sum0,
+                                             VFromD<DF>& sum1) {
+  // Lane order within sum0/1 is undefined, hence we can avoid the
+  // longer-latency lane-crossing PromoteTo by using PromoteEvenTo.
+  sum1 = MulAdd(PromoteOddTo(df, a), PromoteOddTo(df, b), sum1);
+  return MulAdd(PromoteEvenTo(df, a), PromoteEvenTo(df, b), sum0);
 }
 
 #endif  // HWY_NEON_HAVE_F32_TO_BF16C
@@ -6754,37 +6749,30 @@ HWY_API Vec32<uint32_t> RearrangeToOddPlusEven(Vec32<uint32_t> sum0,
 
 #if HWY_NEON_HAVE_F32_TO_BF16C
 
-template <class D, HWY_IF_V_SIZE_D(D, 16)>
-HWY_API Vec128<float> WidenMulPairwiseAdd(D d32, Vec128<bfloat16_t> a,
+template <class DF, HWY_IF_V_SIZE_D(DF, 16)>
+HWY_API Vec128<float> WidenMulPairwiseAdd(DF df, Vec128<bfloat16_t> a,
                                           Vec128<bfloat16_t> b) {
-  return Vec128<float>(vbfdotq_f32(Zero(d32).raw,
+  return Vec128<float>(vbfdotq_f32(Zero(df).raw,
                                    detail::BitCastToRawNeonBF16(a.raw),
                                    detail::BitCastToRawNeonBF16(b.raw)));
 }
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 8)>
-HWY_API VFromD<D> WidenMulPairwiseAdd(D d32,
-                                      VFromD<Repartition<bfloat16_t, D>> a,
-                                      VFromD<Repartition<bfloat16_t, D>> b) {
-  return VFromD<D>(vbfdot_f32(Zero(d32).raw,
-                              detail::BitCastToRawNeonBF16(a.raw),
-                              detail::BitCastToRawNeonBF16(b.raw)));
+template <class DF, HWY_IF_V_SIZE_LE_D(DF, 8)>
+HWY_API VFromD<DF> WidenMulPairwiseAdd(DF df,
+                                       VFromD<Repartition<bfloat16_t, DF>> a,
+                                       VFromD<Repartition<bfloat16_t, DF>> b) {
+  return VFromD<DF>(vbfdot_f32(Zero(df).raw,
+                               detail::BitCastToRawNeonBF16(a.raw),
+                               detail::BitCastToRawNeonBF16(b.raw)));
 }
 
 #else
-template <class D32, HWY_IF_F32_D(D32)>
-HWY_API VFromD<D32> WidenMulPairwiseAdd(
-    D32 df32, VFromD<Repartition<bfloat16_t, D32>> a,
-    VFromD<Repartition<bfloat16_t, D32>> b) {
-  const RebindToUnsigned<decltype(df32)> du32;
-  using VU32 = VFromD<decltype(du32)>;
-  const VU32 odd = Set(du32, 0xFFFF0000u);
-  const VU32 ae = ShiftLeft<16>(BitCast(du32, a));
-  const VU32 ao = And(BitCast(du32, a), odd);
-  const VU32 be = ShiftLeft<16>(BitCast(du32, b));
-  const VU32 bo = And(BitCast(du32, b), odd);
-  return MulAdd(BitCast(df32, ae), BitCast(df32, be),
-                Mul(BitCast(df32, ao), BitCast(df32, bo)));
+template <class DF, HWY_IF_F32_D(DF)>
+HWY_API VFromD<DF> WidenMulPairwiseAdd(DF df,
+                                       VFromD<Repartition<bfloat16_t, DF>> a,
+                                       VFromD<Repartition<bfloat16_t, DF>> b) {
+  return MulAdd(PromoteEvenTo(df, a), PromoteEvenTo(df, b),
+                Mul(PromoteOddTo(df, a), PromoteOddTo(df, b)));
 }
 #endif  // HWY_NEON_HAVE_F32_TO_BF16C
 

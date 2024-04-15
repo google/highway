@@ -144,22 +144,21 @@ set(HWY_SOURCES
     hwy/detect_compiler_arch.h  # private
     hwy/detect_targets.h  # private
     hwy/foreach_target.h
-    hwy/highway.h
     hwy/highway_export.h
+    hwy/highway.h
     hwy/nanobenchmark.cc
     hwy/nanobenchmark.h
-    hwy/profiler.h
     hwy/ops/arm_neon-inl.h
     hwy/ops/arm_sve-inl.h
     hwy/ops/emu128-inl.h
     hwy/ops/generic_ops-inl.h
+    hwy/ops/inside-inl.h
     hwy/ops/ppc_vsx-inl.h
     hwy/ops/rvv-inl.h
     hwy/ops/scalar-inl.h
     hwy/ops/set_macros-inl.h
     hwy/ops/shared-inl.h
     hwy/ops/wasm_128-inl.h
-    hwy/ops/tuple-inl.h
     hwy/ops/x86_128-inl.h
     hwy/ops/x86_256-inl.h
     hwy/ops/x86_512-inl.h
@@ -168,12 +167,13 @@ set(HWY_SOURCES
     hwy/print-inl.h
     hwy/print.cc
     hwy/print.h
+    hwy/profiler.h
     hwy/robust_statistics.h
     hwy/targets.cc
     hwy/targets.h
+    hwy/timer-inl.h
     hwy/timer.cc
     hwy/timer.h
-    hwy/timer-inl.h
 )
 
 set(HWY_TEST_SOURCES
