@@ -241,19 +241,29 @@ HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
     }                                     \
   } while (0)
 
-#if HWY_HAS_FEATURE(memory_sanitizer) || defined(MEMORY_SANITIZER)
+#if HWY_HAS_FEATURE(memory_sanitizer) || defined(MEMORY_SANITIZER) || \
+    defined(__SANITIZE_MEMORY__)
 #define HWY_IS_MSAN 1
 #else
 #define HWY_IS_MSAN 0
 #endif
 
-#if HWY_HAS_FEATURE(address_sanitizer) || defined(ADDRESS_SANITIZER)
+#if HWY_HAS_FEATURE(address_sanitizer) || defined(ADDRESS_SANITIZER) || \
+    defined(__SANITIZE_ADDRESS__)
 #define HWY_IS_ASAN 1
 #else
 #define HWY_IS_ASAN 0
 #endif
 
-#if HWY_HAS_FEATURE(thread_sanitizer) || defined(THREAD_SANITIZER)
+#if HWY_HAS_FEATURE(hwaddress_sanitizer) || defined(HWADDRESS_SANITIZER) || \
+    defined(__SANITIZE_HWADDRESS__)
+#define HWY_IS_HWASAN 1
+#else
+#define HWY_IS_HWASAN 0
+#endif
+
+#if HWY_HAS_FEATURE(thread_sanitizer) || defined(THREAD_SANITIZER) || \
+    defined(__SANITIZE_THREAD__)
 #define HWY_IS_TSAN 1
 #else
 #define HWY_IS_TSAN 0
@@ -279,7 +289,8 @@ HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
 // Clang does not define NDEBUG, but it and GCC define __OPTIMIZE__, and recent
 // MSVC defines NDEBUG (if not, could instead check _DEBUG).
 #if (!defined(__OPTIMIZE__) && !defined(NDEBUG)) || HWY_IS_ASAN || \
-    HWY_IS_MSAN || HWY_IS_TSAN || HWY_IS_UBSAN || defined(__clang_analyzer__)
+    HWY_IS_HWASAN || HWY_IS_MSAN || HWY_IS_TSAN || HWY_IS_UBSAN || \
+    defined(__clang_analyzer__)
 #define HWY_IS_DEBUG_BUILD 1
 #else
 #define HWY_IS_DEBUG_BUILD 0

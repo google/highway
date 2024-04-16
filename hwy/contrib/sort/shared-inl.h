@@ -125,12 +125,15 @@ static_assert(SortConstants::MaxBufBytes<2>(64) <= 1664, "Unexpectedly high");
 
 // vqsort isn't available on HWY_SCALAR, and builds time out on MSVC opt and
 // Armv7 debug, and Armv8 GCC 11 asan hits an internal compiler error likely
-// due to https://gcc.gnu.org/bugzilla/show_bug.cgi?id=97696.
+// due to https://gcc.gnu.org/bugzilla/show_bug.cgi?id=97696. Armv8 Clang
+// hwasan/msan/tsan also fail to build SVE (b/335157772).
 #undef VQSORT_ENABLED
-#if (HWY_TARGET == HWY_SCALAR) ||                 \
-    (HWY_COMPILER_MSVC && !HWY_IS_DEBUG_BUILD) || \
-    (HWY_ARCH_ARM_V7 && HWY_IS_DEBUG_BUILD) ||    \
-    (HWY_ARCH_ARM_A64 && HWY_COMPILER_GCC_ACTUAL && HWY_IS_ASAN)
+#if (HWY_TARGET == HWY_SCALAR) ||                                   \
+    (HWY_COMPILER_MSVC && !HWY_IS_DEBUG_BUILD) ||                   \
+    (HWY_ARCH_ARM_V7 && HWY_IS_DEBUG_BUILD) ||                      \
+    (HWY_ARCH_ARM_A64 && HWY_COMPILER_GCC_ACTUAL && HWY_IS_ASAN) || \
+    (HWY_ARCH_ARM_A64 && HWY_COMPILER_CLANG &&                      \
+     (HWY_IS_HWASAN || HWY_IS_MSAN || HWY_IS_TSAN))
 #define VQSORT_ENABLED 0
 #else
 #define VQSORT_ENABLED 1
