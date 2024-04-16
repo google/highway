@@ -3460,7 +3460,7 @@ HWY_API VFromD<D32> WidenMulPairwiseAdd(D32 d32, V16 a, V16 b) {
 
 template <class DF, HWY_IF_F32_D(DF),
           class VBF = VFromD<Repartition<bfloat16_t, DF>>>
-HWY_API VFromD<DF> ReorderWidenMulAccumulate(DF df32, VBF a, VBF b,
+HWY_API VFromD<DF> ReorderWidenMulAccumulate(DF df, VBF a, VBF b,
                                              VFromD<DF> sum0,
                                              VFromD<DF>& sum1) {
   // Lane order within sum0/1 is undefined, hence we can avoid the
