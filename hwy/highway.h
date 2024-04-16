@@ -342,6 +342,27 @@ FunctionCache<RetType, Args...> DeduceFunctionCache(RetType (*)(Args...)) {
 //   }
 //   }  // namespace skeleton
 //
+// For templated code with a single type parameter, instead use HWY_EXPORT_T and
+// its HWY_DYNAMIC_DISPATCH_T counterpart:
+//
+//   template <typename T>
+//   void MyFunctionCaller(T ...) {
+//     // First argument to both HWY_EXPORT_T and HWY_DYNAMIC_DISPATCH_T is an
+//     // arbitrary table name; you must provide the same name for each call.
+//     HWY_EXPORT_T(MyFunctionT, MyFunction<T>)
+//     HWY_DYNAMIC_DISPATCH_T(MyFunctionT)(a, b, c);
+//   }
+//
+// Note that HWY_EXPORT_T must be invoked within the caller's scope (e.g.
+// MyFunctionCaller). For convenience, we also provide a macro that combines
+// both steps and avoids the need to pick a table name:
+//
+//   template <typename T>
+//   void MyFunctionCaller(T ...) {
+//     // Table name is automatically chosen. Note that this variant must be
+//     // called in statement context; it is not a valid expression.
+//     HWY_EXPORT_AND_DYNAMIC_DISPATCH_T(MyFunction<T>)(a, b, c);
+//   }
 
 #if HWY_IDE || ((HWY_TARGETS & (HWY_TARGETS - 1)) == 0)
 
@@ -355,6 +376,11 @@ FunctionCache<RetType, Args...> DeduceFunctionCache(RetType (*)(Args...)) {
 #define HWY_DYNAMIC_DISPATCH(FUNC_NAME) HWY_STATIC_DISPATCH(FUNC_NAME)
 #define HWY_DYNAMIC_POINTER(FUNC_NAME) &HWY_STATIC_DISPATCH(FUNC_NAME)
 
+#define HWY_EXPORT_T(TABLE_NAME, FUNC_NAME)                               \
+  HWY_MAYBE_UNUSED static decltype(&HWY_STATIC_DISPATCH(FUNC_NAME)) const \
+  HWY_DISPATCH_TABLE(TABLE_NAME)[1] = {&HWY_STATIC_DISPATCH(FUNC_NAME)}
+#define HWY_DYNAMIC_DISPATCH_T(TABLE_NAME) HWY_DISPATCH_TABLE(TABLE_NAME)[0]
+
 #else
 
 // Simplified version for MSVC 2017: function pointer instead of table.
@@ -363,6 +389,17 @@ FunctionCache<RetType, Args...> DeduceFunctionCache(RetType (*)(Args...)) {
 #define HWY_EXPORT(FUNC_NAME)                                                \
   static decltype(&HWY_STATIC_DISPATCH(FUNC_NAME)) const HWY_DISPATCH_TABLE( \
       FUNC_NAME)[HWY_MAX_DYNAMIC_TARGETS + 2] = {                            \
+      /* The first entry in the table initializes the global cache and       \
+       * calls the function from HWY_STATIC_TARGET. */                       \
+      &decltype(hwy::DeduceFunctionCache(&HWY_STATIC_DISPATCH(               \
+          FUNC_NAME)))::ChooseAndCall<&HWY_STATIC_DISPATCH(FUNC_NAME)>,      \
+      HWY_CHOOSE_TARGET_LIST(FUNC_NAME),                                     \
+      HWY_CHOOSE_FALLBACK(FUNC_NAME),                                        \
+  }
+
+#define HWY_EXPORT_T(TABLE_NAME, FUNC_NAME)                                  \
+  static decltype(&HWY_STATIC_DISPATCH(FUNC_NAME)) const HWY_DISPATCH_TABLE( \
+      TABLE_NAME)[HWY_MAX_DYNAMIC_TARGETS + 2] = {                           \
       /* The first entry in the table initializes the global cache and       \
        * calls the function from HWY_STATIC_TARGET. */                       \
       &decltype(hwy::DeduceFunctionCache(&HWY_STATIC_DISPATCH(               \
@@ -386,14 +423,38 @@ FunctionCache<RetType, Args...> DeduceFunctionCache(RetType (*)(Args...)) {
       HWY_CHOOSE_FALLBACK(FUNC_NAME),                                        \
   }
 
+#define HWY_EXPORT_T(TABLE_NAME, FUNC_NAME)                                  \
+  static decltype(&HWY_STATIC_DISPATCH(FUNC_NAME)) const HWY_DISPATCH_TABLE( \
+      TABLE_NAME)[HWY_MAX_DYNAMIC_TARGETS + 2] = {                           \
+      /* The first entry in the table initializes the global cache and       \
+       * calls the appropriate function. */                                  \
+      &decltype(hwy::DeduceFunctionCache(&HWY_STATIC_DISPATCH(FUNC_NAME))):: \
+          template ChooseAndCall<HWY_DISPATCH_TABLE(TABLE_NAME)>,            \
+      HWY_CHOOSE_TARGET_LIST(FUNC_NAME),                                     \
+      HWY_CHOOSE_FALLBACK(FUNC_NAME),                                        \
+  }
+
 #endif  // HWY_DISPATCH_WORKAROUND
 
+#define HWY_DYNAMIC_POINTER_INTERNAL(TABLE_NAME) \
+  TABLE_NAME[hwy::GetChosenTarget().GetIndex()]
 #define HWY_DYNAMIC_DISPATCH(FUNC_NAME) \
-  (*(HWY_DISPATCH_TABLE(FUNC_NAME)[hwy::GetChosenTarget().GetIndex()]))
+  (*(HWY_DYNAMIC_POINTER_INTERNAL(HWY_DISPATCH_TABLE(FUNC_NAME))))
 #define HWY_DYNAMIC_POINTER(FUNC_NAME) \
-  (HWY_DISPATCH_TABLE(FUNC_NAME)[hwy::GetChosenTarget().GetIndex()])
+  (HWY_DYNAMIC_POINTER_INTERNAL(HWY_DISPATCH_TABLE(FUNC_NAME)))
+#define HWY_DYNAMIC_DISPATCH_T(TABLE_NAME) \
+  (*(HWY_DYNAMIC_POINTER_INTERNAL(HWY_DISPATCH_TABLE(TABLE_NAME))))
 
 #endif  // HWY_IDE || ((HWY_TARGETS & (HWY_TARGETS - 1)) == 0)
+
+// Returns the name of an anonymous dispatch table that is only shared with
+// macro invocations coming from the same source line.
+#define HWY_DISPATCH_TABLE_T() HWY_CONCAT(HighwayDispatchTableT, __LINE__)
+
+// For templated code, combines export and dispatch using an anonymous table.
+#define HWY_EXPORT_AND_DYNAMIC_DISPATCH_T(FUNC_NAME) \
+  HWY_EXPORT_T(HWY_DISPATCH_TABLE_T(), FUNC_NAME);   \
+  HWY_DYNAMIC_DISPATCH_T(HWY_DISPATCH_TABLE_T())
 
 // DEPRECATED names; please use HWY_HAVE_* instead.
 #define HWY_CAP_INTEGER64 HWY_HAVE_INTEGER64

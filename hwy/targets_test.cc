@@ -27,6 +27,10 @@ namespace fake {
   namespace N_##TGT {                                                        \
     /* Function argument is just to ensure/demonstrate they are possible. */ \
     int64_t FakeFunction(int) { return HWY_##TGT; }                          \
+    template <typename T>                                                    \
+    int64_t FakeFunctionT(T) {                                               \
+      return HWY_##TGT;                                                      \
+    }                                                                        \
   }
 
 DECLARE_FUNCTION(AVX3_SPR)
@@ -72,6 +76,10 @@ void CallFunctionForTarget(int64_t target, int /*line*/) {
 
   HWY_ASSERT_EQ(target, HWY_DYNAMIC_DISPATCH(FakeFunction)(42));
 
+  // Test calling templated functions.
+  HWY_EXPORT_T(FakeFunctionT, FakeFunctionT<bool>);
+  HWY_ASSERT_EQ(target, HWY_DYNAMIC_DISPATCH_T(FakeFunctionT)(true));
+
   // Calling DeInit() will test that the initializer function
   // also calls the right function.
   hwy::GetChosenTarget().DeInit();
@@ -82,9 +90,11 @@ void CallFunctionForTarget(int64_t target, int /*line*/) {
   const int64_t expected = target;
 #endif
   HWY_ASSERT_EQ(expected, HWY_DYNAMIC_DISPATCH(FakeFunction)(42));
+  HWY_ASSERT_EQ(expected, HWY_DYNAMIC_DISPATCH_T(FakeFunctionT)(true));
 
   // Second call uses the cached value from the previous call.
   HWY_ASSERT_EQ(target, HWY_DYNAMIC_DISPATCH(FakeFunction)(42));
+  HWY_ASSERT_EQ(target, HWY_DYNAMIC_DISPATCH_T(FakeFunctionT)(true));
 }
 
 void CheckFakeFunction() {
