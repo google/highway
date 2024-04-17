@@ -76,9 +76,11 @@ void CallFunctionForTarget(int64_t target, int /*line*/) {
 
   HWY_ASSERT_EQ(target, HWY_DYNAMIC_DISPATCH(FakeFunction)(42));
 
+#if HWY_CXX_LANG >= 201703L
   // Test calling templated functions.
   HWY_EXPORT_T(FakeFunctionT, FakeFunctionT<bool>);
   HWY_ASSERT_EQ(target, HWY_DYNAMIC_DISPATCH_T(FakeFunctionT)(true));
+#endif
 
   // Calling DeInit() will test that the initializer function
   // also calls the right function.
@@ -90,11 +92,15 @@ void CallFunctionForTarget(int64_t target, int /*line*/) {
   const int64_t expected = target;
 #endif
   HWY_ASSERT_EQ(expected, HWY_DYNAMIC_DISPATCH(FakeFunction)(42));
+#if HWY_CXX_LANG >= 201703L
   HWY_ASSERT_EQ(expected, HWY_DYNAMIC_DISPATCH_T(FakeFunctionT)(true));
+#endif
 
   // Second call uses the cached value from the previous call.
   HWY_ASSERT_EQ(target, HWY_DYNAMIC_DISPATCH(FakeFunction)(42));
+#if HWY_CXX_LANG >= 201703L
   HWY_ASSERT_EQ(target, HWY_DYNAMIC_DISPATCH_T(FakeFunctionT)(true));
+#endif
 }
 
 void CheckFakeFunction() {
