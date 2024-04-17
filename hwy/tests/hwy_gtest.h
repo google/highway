@@ -38,7 +38,8 @@
 #if !HWY_TEST_STANDALONE
 #include "gtest/gtest.h"  // IWYU pragma: export
 #endif
-#include "hwy/highway.h"
+#include "hwy/detect_targets.h"
+#include "hwy/targets.h"
 
 namespace hwy {
 
