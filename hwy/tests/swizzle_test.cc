@@ -262,7 +262,7 @@ struct TestInsertLane {
 #endif
 
 // TODO(janwas): file compiler bug report
-#if HWY_COMPILER_CLANG && (HWY_COMPILER_CLANG < 1800) && HWY_ARCH_ARM
+#if HWY_COMPILER_CLANG && (HWY_COMPILER_CLANG < 1900) && HWY_ARCH_ARM
     if (IsSpecialFloat<T>()) return;
 #endif
 
