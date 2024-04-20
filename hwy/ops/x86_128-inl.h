@@ -4302,8 +4302,12 @@ template <int kBits, size_t N>
 HWY_API Vec128<uint16_t, N> RotateRight(const Vec128<uint16_t, N> v) {
   static_assert(0 <= kBits && kBits < 16, "Invalid shift count");
   if (kBits == 0) return v;
+#if HWY_TARGET <= HWY_AVX3_DL
+  return Vec128<uint16_t, N>{_mm_shrdi_epi16(v.raw, v.raw, kBits)};
+#else
   // AVX3 does not support 16-bit.
   return Or(ShiftRight<kBits>(v), ShiftLeft<HWY_MIN(15, 16 - kBits)>(v));
+#endif
 }
 
 template <int kBits, size_t N>
@@ -4337,6 +4341,28 @@ HWY_API V RotateRight(V v) {
 }
 
 // ------------------------------ Rol/Ror
+#if HWY_TARGET <= HWY_AVX3_DL
+#ifdef HWY_NATIVE_ROL_ROR_16
+#undef HWY_NATIVE_ROL_ROR_16
+#else
+#define HWY_NATIVE_ROL_ROR_16
+#endif
+
+template <class T, size_t N, HWY_IF_UI16(T)>
+HWY_API Vec128<T, N> Ror(Vec128<T, N> a, Vec128<T, N> b) {
+  return Vec128<T, N>{_mm_shrdv_epi16(a.raw, a.raw, b.raw)};
+}
+
+// U16/I16 Rol is generic for all vector lengths on AVX3_DL
+template <class V, HWY_IF_UI16(TFromV<V>)>
+HWY_API V Rol(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const RebindToSigned<decltype(d)> di;
+  return Ror(a, BitCast(d, Neg(BitCast(di, b))));
+}
+
+#endif  // HWY_TARGET <= HWY_AVX3_DL
+
 #if HWY_TARGET <= HWY_AVX3
 
 #ifdef HWY_NATIVE_ROL_ROR_32_64
@@ -4368,6 +4394,29 @@ HWY_API Vec128<T, N> Ror(Vec128<T, N> a, Vec128<T, N> b) {
 #endif
 
 // ------------------------------ RotateLeftSame/RotateRightSame
+
+#if HWY_TARGET <= HWY_AVX3_DL
+
+#ifdef HWY_NATIVE_ROL_ROR_SAME_16
+#undef HWY_NATIVE_ROL_ROR_SAME_16
+#else
+#define HWY_NATIVE_ROL_ROR_SAME_16
+#endif
+
+// Generic for all vector lengths
+template <class V, HWY_IF_UI16(TFromV<V>)>
+HWY_API V RotateLeftSame(V v, int bits) {
+  const DFromV<decltype(v)> d;
+  return Ror(v,
+             Set(d, static_cast<TFromV<V>>(0u - static_cast<unsigned>(bits))));
+}
+
+template <class V, HWY_IF_UI16(TFromV<V>)>
+HWY_API V RotateRightSame(V v, int bits) {
+  const DFromV<decltype(v)> d;
+  return Ror(v, Set(d, static_cast<TFromV<V>>(bits)));
+}
+#endif  // HWY_TARGET <= HWY_AVX3_DL
 
 #if HWY_TARGET <= HWY_AVX3
 
