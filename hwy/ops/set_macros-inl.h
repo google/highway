@@ -423,6 +423,11 @@
 
 #if HWY_TARGET == HWY_NEON_WITHOUT_AES
 // Do not define HWY_TARGET_STR (no pragma).
+#elif (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1300) || \
+    (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1300)
+// GCC 12 or earlier and Clang 12 or earlier require +crypto be added to the
+// target string to enable AArch64 AES intrinsics
+#define HWY_TARGET_STR "+crypto"
 #else
 #define HWY_TARGET_STR "+aes"
 #endif  // HWY_TARGET == HWY_NEON_WITHOUT_AES
