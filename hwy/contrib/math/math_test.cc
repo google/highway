@@ -502,6 +502,17 @@ void HypotTestCases(T /*unused*/, D d, size_t& padded,
   for (; i < kNumTestCases; ++i) {
     const T a = test_cases[i].a;
     const T b = test_cases[i].b;
+
+#if HWY_TARGET <= HWY_NEON_WITHOUT_AES && HWY_ARCH_ARM_V7
+    // Ignore test cases that have infinite or NaN inputs on Armv7 NEON
+    if (!ScalarIsFinite(a) || !ScalarIsFinite(b)) {
+      out_a[i] = p0;
+      out_b[i] = p0;
+      out_expected[i] = p0;
+      continue;
+    }
+#endif
+
     out_a[i] = a;
     out_b[i] = b;
 
