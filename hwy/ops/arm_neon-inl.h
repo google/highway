@@ -6706,9 +6706,10 @@ HWY_API VFromD<D> WidenMulAdd(D /* tag */, VFromD<DN> mul,
   return Vec128<uint16_t>(vmlal_u8(add.raw, mul.raw, x.raw));
 }
 
-template<class D, HWY_IF_U16_D(D), HWY_IF_LANES_LE_D(D, 4),
-         class DN = Rebind<MakeNarrow<TFromD<D>>, D>>
-HWY_API VFromD<D> WidenMulAdd(D d, VFromD<DN> mul, VFromD<DN> x, VFromD<D> add) {
+template <class D, HWY_IF_U16_D(D), HWY_IF_LANES_LE_D(D, 4),
+          class DN = Rebind<MakeNarrow<TFromD<D>>, D>>
+HWY_API VFromD<D> WidenMulAdd(D d, VFromD<DN> mul, VFromD<DN> x,
+                              VFromD<D> add) {
   return MulAdd(add, PromoteTo(d, mul), PromoteTo(d, x));
 }
 
@@ -6773,7 +6774,8 @@ template<class D, HWY_IF_U32_D(D), HWY_IF_LANES_D(D, 1),
          class DN = Rebind<MakeNarrow<TFromD<D>>, D>>
 HWY_API VFromD<D> WidenMulAdd(D /* tag */, VFromD<DN> mul,
                               VFromD<DN> x, VFromD<D> add) {
-  Vec64<uint32_t> mulRs = LowerHalf(Vec128<uint32_t>(vmull_u16(mul.raw, x.raw)));
+  Vec64<uint32_t> mulRs =
+      LowerHalf(Vec128<uint32_t>(vmull_u16(mul.raw, x.raw)));
   const Vec32<uint32_t> mul10(LowerHalf(mulRs));
   return add + mul10;
 }
