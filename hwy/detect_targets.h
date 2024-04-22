@@ -581,15 +581,19 @@
 #define HWY_ATTAINABLE_NEON 0
 #endif
 
-#if HWY_ARCH_ARM_A64 && (HWY_HAVE_RUNTIME_DISPATCH || \
-                         (HWY_ENABLED_BASELINE & (HWY_SVE | HWY_SVE_256)))
+#if HWY_ARCH_ARM_A64 &&                                                \
+    (HWY_COMPILER_CLANG >= 1400 || HWY_COMPILER_GCC_ACTUAL >= 1200) && \
+    (HWY_HAVE_RUNTIME_DISPATCH ||                                      \
+     (HWY_ENABLED_BASELINE & (HWY_SVE | HWY_SVE_256)))
 #define HWY_ATTAINABLE_SVE (HWY_SVE | HWY_SVE_256)
 #else
 #define HWY_ATTAINABLE_SVE 0
 #endif
 
-#if HWY_ARCH_ARM_A64 && (HWY_HAVE_RUNTIME_DISPATCH || \
-                         (HWY_ENABLED_BASELINE & (HWY_SVE2 | HWY_SVE2_128)))
+#if HWY_ARCH_ARM_A64 &&                                                \
+    (HWY_COMPILER_CLANG >= 1400 || HWY_COMPILER_GCC_ACTUAL >= 1200) && \
+    (HWY_HAVE_RUNTIME_DISPATCH ||                                      \
+     (HWY_ENABLED_BASELINE & (HWY_SVE2 | HWY_SVE2_128)))
 #define HWY_ATTAINABLE_SVE2 (HWY_SVE2 | HWY_SVE2_128)
 #else
 #define HWY_ATTAINABLE_SVE2 0
