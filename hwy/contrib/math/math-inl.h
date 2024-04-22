@@ -335,6 +335,21 @@ HWY_NOINLINE void CallSinCos(const D d, VecArg<V> x, V& s, V& c) {
   SinCos(d, x, s, c);
 }
 
+/**
+ * Highway SIMD version of Hypot
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 4
+ *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
+ * @return hypotenuse of a and b
+ */
+template <class D, class V>
+HWY_INLINE V Hypot(D d, V a, V b);
+template <class D, class V>
+HWY_NOINLINE V CallHypot(const D d, VecArg<V> a, VecArg<V> b) {
+  return Hypot(d, a, b);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Implementation
 ////////////////////////////////////////////////////////////////////////////////
@@ -1542,6 +1557,128 @@ HWY_INLINE void SinCos(const D d, V x, V& s, V& c) {
   using T = TFromD<D>;
   impl::SinCosImpl<T> impl;
   impl.SinCos(d, x, s, c);
+}
+
+template <class D, class V>
+HWY_INLINE V Hypot(const D d, V a, V b) {
+  using T = TFromD<D>;
+  using TI = MakeSigned<T>;
+  const RebindToUnsigned<decltype(d)> du;
+  const RebindToSigned<decltype(d)> di;
+
+  constexpr int kMaxBiasedExp = static_cast<int>(MaxExponentField<T>());
+  static_assert(kMaxBiasedExp > 0, "kMaxBiasedExp > 0 must be true");
+
+  constexpr int kNumOfMantBits = MantissaBits<T>();
+  static_assert(kNumOfMantBits > 0, "kNumOfMantBits > 0 must be true");
+
+  constexpr int kExpBias = kMaxBiasedExp / 2;
+
+  static_assert(
+      static_cast<unsigned>(kExpBias) + static_cast<unsigned>(kNumOfMantBits) <
+          static_cast<unsigned>(kMaxBiasedExp),
+      "kExpBias + kNumOfMantBits < kMaxBiasedExp must be true");
+
+  // kMinValToSquareBiasedExp is the smallest biased exponent such that
+  // pow(pow(2, kMinValToSquareBiasedExp - kExpBias) * x, 2) is either a normal
+  // floating-point value or infinity if x is a non-zero, non-NaN value
+  constexpr int kMinValToSquareBiasedExp = (kExpBias / 2) + kNumOfMantBits;
+  static_assert(kMinValToSquareBiasedExp < kExpBias,
+                "kMinValToSquareBiasedExp < kExpBias must be true");
+
+  // kMaxValToSquareBiasedExp is the largest biased exponent such that
+  // pow(pow(2, kMaxValToSquareBiasedExp - kExpBias) * x, 2) * 2 is guaranteed
+  // to be a finite value if x is a finite value
+  constexpr int kMaxValToSquareBiasedExp = kExpBias + ((kExpBias / 2) - 1);
+  static_assert(kMaxValToSquareBiasedExp > kExpBias,
+                "kMaxValToSquareBiasedExp > kExpBias must be true");
+  static_assert(kMaxValToSquareBiasedExp < kMaxBiasedExp,
+                "kMaxValToSquareBiasedExp < kMaxBiasedExp must be true");
+
+#if HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128 || \
+    HWY_TARGET == HWY_Z14 || HWY_TARGET == HWY_Z15
+  using TExpSatSub = MakeUnsigned<T>;
+  using TExpMinMax = TI;
+#else
+  using TExpSatSub = uint16_t;
+  using TExpMinMax = int16_t;
+#endif
+
+  const Repartition<TExpSatSub, decltype(d)> d_exp_sat_sub;
+  const Repartition<TExpMinMax, decltype(d)> d_exp_min_max;
+
+  const V abs_a = Abs(a);
+  const V abs_b = Abs(b);
+
+  const auto zero = Zero(di);
+
+  // exp_a[i] is the biased exponent of abs_a[i]
+  const auto exp_a =
+      BitCast(di, ShiftRight<kNumOfMantBits>(BitCast(du, abs_a)));
+
+  // exp_b[i] is the biased exponent of abs_b[i]
+  const auto exp_b =
+      BitCast(di, ShiftRight<kNumOfMantBits>(BitCast(du, abs_b)));
+
+  // max_exp[i] is equal to HWY_MAX(exp_a[i], exp_b[i])
+
+  // If abs_a[i] and abs_b[i] are both NaN values, max_exp[i] will be equal to
+  // the biased exponent of the larger value. Otherwise, if either abs_a[i] or
+  // abs_b[i] is NaN, max_exp[i] will be equal to kMaxBiasedExp.
+  const auto max_exp = BitCast(
+      di, Max(BitCast(d_exp_min_max, exp_a), BitCast(d_exp_min_max, exp_b)));
+
+  // If either abs_a[i] or abs_b[i] is zero, min_exp[i] is equal to max_exp[i].
+  // Otherwise, if abs_a[i] and abs_b[i] are both nonzero, min_exp[i] is equal
+  // to HWY_MIN(exp_a[i], exp_b[i]).
+  const auto min_exp = IfThenElse(
+      Or(Eq(BitCast(di, abs_a), zero), Eq(BitCast(di, abs_b), zero)), max_exp,
+      BitCast(di, Min(BitCast(d_exp_min_max, exp_a),
+                      BitCast(d_exp_min_max, exp_b))));
+
+  // scl_pow2[i] is the power of 2 to scale abs_a[i] and abs_b[i] by
+
+  // abs_a[i] and abs_b[i] should be scaled by a factor that is greater than
+  // zero but less than or equal to
+  // pow(2, kMaxValToSquareBiasedExp - max_exp[i]) to ensure that that the
+  // multiplications or addition operations do not overflow if
+  // std::hypot(abs_a[i], abs_b[i]) is finite
+
+  // If either abs_a[i] or abs_b[i] is a a positive value that is less than
+  // pow(2, kMinValToSquareBiasedExp - kExpBias), then scaling up abs_a[i] and
+  // abs_b[i] by pow(2, kMinValToSquareBiasedExp - min_exp[i]) will ensure that
+  // the multiplications and additions result in normal floating point values,
+  // infinities, or NaNs.
+
+  // If HWY_MAX(kMinValToSquareBiasedExp - min_exp[i], 0) is greater than
+  // kMaxValToSquareBiasedExp - max_exp[i], scale abs_a[i] and abs_b[i] up by
+  // pow(2, kMaxValToSquareBiasedExp - max_exp[i]) to ensure that the
+  // multiplication and addition operations result in a finite result if
+  // std::hypot(abs_a[i], abs_b[i]) is finite.
+
+  const auto scl_pow2 = BitCast(
+      di,
+      Min(BitCast(d_exp_min_max,
+                  SaturatedSub(BitCast(d_exp_sat_sub,
+                                       Set(di, static_cast<TI>(
+                                                   kMinValToSquareBiasedExp))),
+                               BitCast(d_exp_sat_sub, min_exp))),
+          BitCast(d_exp_min_max,
+                  Sub(Set(di, static_cast<TI>(kMaxValToSquareBiasedExp)),
+                      max_exp))));
+
+  const auto exp_bias = Set(di, static_cast<TI>(kExpBias));
+
+  const auto ab_scl_factor =
+      BitCast(d, ShiftLeft<kNumOfMantBits>(Add(exp_bias, scl_pow2)));
+  const auto hypot_scl_factor =
+      BitCast(d, ShiftLeft<kNumOfMantBits>(Sub(exp_bias, scl_pow2)));
+
+  const auto scl_a = Mul(abs_a, ab_scl_factor);
+  const auto scl_b = Mul(abs_b, ab_scl_factor);
+
+  const auto scl_hypot = Sqrt(MulAdd(scl_a, scl_a, Mul(scl_b, scl_b)));
+  return Mul(scl_hypot, hypot_scl_factor);
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
