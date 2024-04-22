@@ -1479,8 +1479,12 @@ template <int kBits>
 HWY_API Vec512<uint16_t> RotateRight(const Vec512<uint16_t> v) {
   static_assert(0 <= kBits && kBits < 16, "Invalid shift count");
   if (kBits == 0) return v;
+#if HWY_TARGET <= HWY_AVX3_DL
+  return Vec512<uint16_t>{_mm512_shrdi_epi16(v.raw, v.raw, kBits)};
+#else
   // AVX3 does not support 16-bit.
   return Or(ShiftRight<kBits>(v), ShiftLeft<HWY_MIN(15, 16 - kBits)>(v));
+#endif
 }
 
 template <int kBits>
@@ -1498,8 +1502,12 @@ HWY_API Vec512<uint64_t> RotateRight(const Vec512<uint64_t> v) {
 }
 
 // ------------------------------ Rol/Ror
-
-#if HWY_TARGET <= HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3_DL
+template <class T, HWY_IF_UI16(T)>
+HWY_API Vec512<T> Ror(Vec512<T> a, Vec512<T> b) {
+  return Vec512<T>{_mm512_shrdv_epi16(a.raw, a.raw, b.raw)};
+}
+#endif  // HWY_TARGET <= HWY_AVX3_DL
 
 template <class T, HWY_IF_UI32(T)>
 HWY_API Vec512<T> Rol(Vec512<T> a, Vec512<T> b) {
@@ -1520,8 +1528,6 @@ template <class T, HWY_IF_UI64(T)>
 HWY_API Vec512<T> Ror(Vec512<T> a, Vec512<T> b) {
   return Vec512<T>{_mm512_rorv_epi64(a.raw, b.raw)};
 }
-
-#endif
 
 // ------------------------------ ShiftLeftSame
 
