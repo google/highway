@@ -476,6 +476,10 @@ class TestConvertInRangeFloatToInt {
 };
 
 HWY_NOINLINE void TestAllConvertInRangeFloatToInt() {
+  // Fails due to vfcvt_rtz rounding instead of truncating. This is likely a
+  // continuation of the QEMU issue partially fixed by
+  // https://lists.gnu.org/archive/html/qemu-riscv/2022-12/msg00377.html.
+#if HWY_TARGET != HWY_RVV
 #if HWY_HAVE_FLOAT16
   ForPartialVectors<TestConvertInRangeFloatToInt<int16_t>>()(hwy::float16_t());
   ForPartialVectors<TestConvertInRangeFloatToInt<uint16_t>>()(hwy::float16_t());
@@ -495,6 +499,7 @@ HWY_NOINLINE void TestAllConvertInRangeFloatToInt() {
   ForPartialVectors<TestConvertInRangeFloatToInt<int64_t>>()(double());
   ForPartialVectors<TestConvertInRangeFloatToInt<uint64_t>>()(double());
 #endif
+#endif  // HWY_TARGET != HWY_RVV
 }
 
 template <class TTo>
