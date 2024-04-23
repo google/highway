@@ -6720,9 +6720,10 @@ HWY_API VFromD<D> WidenMulAdd(D /* tag */, VFromD<DN> mul,
   return VFromD<D>(vmlal_s8(add.raw, mul.raw, x.raw));
 }
 
-template<class D, HWY_IF_I16_D(D), HWY_IF_LANES_LE_D(D, 4),
-         class DN = Rebind<MakeNarrow<TFromD<D>>, D>>
-HWY_API VFromD<D> WidenMulAdd(D d, VFromD<DN> mul, VFromD<DN> x, VFromD<D> add) {
+template <class D, HWY_IF_I16_D(D), HWY_IF_LANES_LE_D(D, 4),
+          class DN = Rebind<MakeNarrow<TFromD<D>>, D>>
+HWY_API VFromD<D> WidenMulAdd(D d, VFromD<DN> mul, VFromD<DN> x,
+                              VFromD<D> add) {
   return MulAdd(add, PromoteTo(d, mul), PromoteTo(d, x));
 }
 
