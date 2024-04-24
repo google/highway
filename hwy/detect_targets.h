@@ -85,11 +85,13 @@
 #define HWY_HIGHEST_TARGET_BIT_X86 14
 
 // --------------------------- Arm: 15 targets (+ one fallback)
-// Bits 15..23 reserved (9 targets)
-#define HWY_SVE2_128 (1LL << 24)  // specialized target (e.g. Arm N2)
-#define HWY_SVE_256 (1LL << 25)   // specialized target (e.g. Arm V1)
-#define HWY_SVE2 (1LL << 26)
-#define HWY_SVE (1LL << 27)
+// Bits 15..17 reserved (3 targets)
+#define HWY_SVE2_128 (1LL << 18)  // specialized target (e.g. Arm N2)
+#define HWY_SVE_256 (1LL << 19)   // specialized target (e.g. Arm V1)
+// Bits 20-22 reserved for later SVE (3 targets)
+#define HWY_SVE2 (1LL << 23)
+#define HWY_SVE (1LL << 24)
+// Bits 25..27 reserved for NEON (3 targets)
 #define HWY_NEON (1LL << 28)  // Implies support for AES
 #define HWY_NEON_WITHOUT_AES (1LL << 29)
 #define HWY_HIGHEST_TARGET_BIT_ARM 29

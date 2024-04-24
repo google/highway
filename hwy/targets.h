@@ -224,16 +224,16 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(int64_t target) {
   nullptr,                                   /* reserved */     \
       nullptr,                               /* reserved */     \
       nullptr,                               /* reserved */     \
-      nullptr,                               /* reserved */     \
-      nullptr,                               /* reserved */     \
-      nullptr,                               /* reserved */     \
-      nullptr,                               /* reserved */     \
-      nullptr,                               /* reserved */     \
-      nullptr,                               /* reserved */     \
       HWY_CHOOSE_SVE2_128(func_name),        /* SVE2 128-bit */ \
       HWY_CHOOSE_SVE_256(func_name),         /* SVE 256-bit */  \
+      nullptr,                               /* reserved */     \
+      nullptr,                               /* reserved */     \
+      nullptr,                               /* reserved */     \
       HWY_CHOOSE_SVE2(func_name),            /* SVE2 */         \
       HWY_CHOOSE_SVE(func_name),             /* SVE */          \
+      nullptr,                               /* reserved */     \
+      nullptr,                               /* reserved */     \
+      nullptr,                               /* reserved */     \
       HWY_CHOOSE_NEON(func_name),            /* NEON */         \
       HWY_CHOOSE_NEON_WITHOUT_AES(func_name) /* NEON without AES */
 
