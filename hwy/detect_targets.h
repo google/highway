@@ -621,6 +621,10 @@
 #define HWY_ATTAINABLE_S390X 0
 #endif
 
+#if HWY_ARCH_RISCV && HWY_HAVE_RUNTIME_DISPATCH
+#define HWY_ATTAINABLE_RISCV (HWY_RVV)
+#endif
+
 // Attainable means enabled and the compiler allows intrinsics (even when not
 // allowed to autovectorize). Used in 3 and 4.
 #if HWY_ARCH_X86
@@ -644,6 +648,9 @@
 #elif HWY_ARCH_S390X
 #define HWY_ATTAINABLE_TARGETS \
   HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_ATTAINABLE_S390X)
+#elif HWY_ARCH_RVV
+#define HWY_ATTAINABLE_TARGETS \
+  HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_ATTAINABLE_RISCV)
 #else
 #define HWY_ATTAINABLE_TARGETS (HWY_ENABLED_BASELINE)
 #endif  // HWY_ARCH_*
