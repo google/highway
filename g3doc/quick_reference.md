@@ -413,7 +413,7 @@ example `Lt` instead of `operator<`.
     index `i` has the given value of type `T2` (the op converts it to T) + `i`.
     The least significant lane has index 0. This is useful in tests for
     detecting lane-crossing bugs.
-*   <code>V **SignBit**(D, T)</code>: returns N-lane vector with all lanes set
+*   <code>V **SignBit**(D)</code>: returns N-lane vector with all lanes set
     to a value whose representation has only the most-significant bit set.
 *   <code>V **Dup128VecFromValues**(D d, T t0, .., T tK)</code>: Creates a
     vector from `K+1` values, broadcasted to each 128-bit block if `Lanes(d) >=
