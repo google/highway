@@ -199,6 +199,21 @@ HWY_NOINLINE V CallExp(const D d, VecArg<V> x) {
 }
 
 /**
+ * Highway SIMD version of std::exp2(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 2
+ *      Valid Range: float32[-FLT_MAX, +128], float64[-DBL_MAX, +1024]
+ * @return e^x
+ */
+template <class D, class V>
+HWY_INLINE V Exp2(D d, V x);
+template <class D, class V>
+HWY_NOINLINE V CallExp2(const D d, VecArg<V> x) {
+  return Exp2(d, x);
+}
+
+/**
  * Highway SIMD version of std::expm1(x).
  *
  * Valid Lane Types: float32, float64
@@ -846,6 +861,13 @@ struct ExpImpl<float> {
     x = MulAdd(qf, kLn2Part1f, x);
     return x;
   }
+
+  template <class D, class V, class VI32>
+  HWY_INLINE V Exp2Reduce(D d, V x, VI32 q) {
+    const V x_frac = Sub(x, ConvertTo(d, q));
+    return MulAdd(x_frac, Set(d, 0.193147182464599609375f),
+                  Mul(x_frac, Set(d, 0.5f)));
+  }
 };
 
 template <>
@@ -926,6 +948,13 @@ struct ExpImpl<double> {
     x = MulAdd(qf, kLn2Part0d, x);
     x = MulAdd(qf, kLn2Part1d, x);
     return x;
+  }
+
+  template <class D, class V, class VI32>
+  HWY_INLINE V Exp2Reduce(D d, V x, VI32 q) {
+    const V x_frac = Sub(x, PromoteTo(d, q));
+    return MulAdd(x_frac, Set(d, 0.1931471805599453139823396),
+                  Mul(x_frac, Set(d, 0.5)));
   }
 };
 
@@ -1441,6 +1470,26 @@ HWY_INLINE V Exp(const D d, V x) {
   // Reduce, approximate, and then reconstruct.
   const V y = impl.LoadExpShortRange(
       d, Add(impl.ExpPoly(d, impl.ExpReduce(d, x, q)), kOne), q);
+  return IfThenElseZero(Ge(x, kLowerBound), y);
+}
+
+template <class D, class V>
+HWY_INLINE V Exp2(const D d, V x) {
+  using T = TFromD<D>;
+
+  const V kHalf = Set(d, static_cast<T>(+0.5));
+  const V kLowerBound =
+      Set(d, static_cast<T>((sizeof(T) == 4 ? -150.0 : -1075.0)));
+  const V kOne = Set(d, static_cast<T>(+1.0));
+
+  impl::ExpImpl<T> impl;
+
+  // q = static_cast<int32>(x + ((x < 0) ? -0.5 : +0.5))
+  const auto q = impl.ToInt32(d, Add(x, CopySign(kHalf, x)));
+
+  // Reduce, approximate, and then reconstruct.
+  const V y = impl.LoadExpShortRange(
+      d, Add(impl.ExpPoly(d, impl.Exp2Reduce(d, x, q)), kOne), q);
   return IfThenElseZero(Ge(x, kLowerBound), y);
 }
 
