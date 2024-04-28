@@ -2802,9 +2802,23 @@ HWY_API VFromD<D> GatherIndexN(D d, const T* HWY_RESTRICT base,
   static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
 
   VFromD<D> v = Zero(d);
-  for (size_t i = 0; i < MaxLanes(d); ++i) {
-    if (i < max_lanes_to_load)
-      v = InsertLane(v, i, base[ExtractLane(index, i)]);
+  for (size_t i = 0; i < HWY_MIN(MaxLanes(d), max_lanes_to_load); ++i) {
+    v = InsertLane(v, i, base[ExtractLane(index, i)]);
+  }
+  return v;
+}
+
+template <class D, typename T = TFromD<D>>
+HWY_API VFromD<D> GatherIndexNOr(VFromD<D> no, D d, const T* HWY_RESTRICT base,
+                               VFromD<RebindToSigned<D>> index,
+                               const size_t max_lanes_to_load) {
+  const RebindToSigned<D> di;
+  using TI = TFromD<decltype(di)>;
+  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
+
+  VFromD<D> v = no;
+  for (size_t i = 0; i < HWY_MIN(MaxLanes(d), max_lanes_to_load); ++i) {
+    v = InsertLane(v, i, base[ExtractLane(index, i)]);
   }
   return v;
 }
@@ -2814,6 +2828,12 @@ HWY_API VFromD<D> GatherIndexN(D d, const T* HWY_RESTRICT base,
                                VFromD<RebindToSigned<D>> index,
                                const size_t max_lanes_to_load) {
   return MaskedGatherIndex(FirstN(d, max_lanes_to_load), d, base, index);
+}
+template <class D, typename T = TFromD<D>>
+HWY_API VFromD<D> GatherIndexNOr(VFromD<D> no, D d, const T* HWY_RESTRICT base,
+                               VFromD<RebindToSigned<D>> index,
+                               const size_t max_lanes_to_load) {
+  return MaskedGatherIndexOr(no, FirstN(d, max_lanes_to_load), d, base, index);
 }
 #endif  // (defined(HWY_NATIVE_GATHER) == defined(HWY_TARGET_TOGGLE))
 
