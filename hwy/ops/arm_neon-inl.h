@@ -147,8 +147,9 @@ namespace detail {  // for code folding and Raw128
 #define HWY_NEON_HAVE_BFLOAT16 0
 #endif
 
-// HWY_NEON_HAVE_F32_TO_BF16C is defined if the NEON vcvt_bf16_f32 intrinsic
-// is available, even if the __bf16 type is disabled due to GCC/Clang bugs
+// HWY_NEON_HAVE_F32_TO_BF16C is defined if NEON vcvt_bf16_f32 and
+// vbfdot_f32 are available, even if the __bf16 type is disabled due to
+// GCC/Clang bugs.
 #if HWY_NEON_HAVE_BFLOAT16 ||                         \
     (defined(__ARM_FEATURE_BF16_VECTOR_ARITHMETIC) && \
      (HWY_COMPILER_GCC_ACTUAL >= 1000 || HWY_COMPILER_CLANG >= 1100))
@@ -6687,7 +6688,7 @@ HWY_API VFromD<D> WidenHighMulAdd(D d, VFromD<DN> mul,
 #endif
 #endif
 
-}
+}  // namespace detail
 
 // ------------------------------- WidenMulAdd
 
@@ -6838,7 +6839,7 @@ HWY_API VFromD<D> WidenLowMulAdd(D d, VFromD<DN> mul,
 #endif
 #endif
 
-}
+}  // namespace detail
 
 // ------------------------------ WidenMulAccumulate
 

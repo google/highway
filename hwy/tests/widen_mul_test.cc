@@ -417,6 +417,10 @@ HWY_NOINLINE void TestAllSatWidenMulAccumFixedPoint() {
   ForPromoteVectors<TestSatWidenMulAccumFixedPoint>()(int16_t());
 }
 
+#ifndef HWY_NATIVE_DOT_BF16
+#error "Update set_macros-inl to set this required macro"
+#endif
+
 struct TestReorderWidenMulAccumulate {
   // Must be inlined on aarch64 for bf16, else clang crashes.
   template <typename TN, class DN>
@@ -528,7 +532,8 @@ struct TestWidenMulAccumulate {
       }
       const VW delta0 = Load(dw, delta_w.get());
       const VW delta1 = Load(dw, delta_w.get() + NN / 2);
-      const VN delta = Combine(dn, DemoteTo(dnh, Add(delta0, delta1)), DemoteTo(dnh, Sub(delta0, delta1)));
+      const VN delta = Combine(dn, DemoteTo(dnh, Add(delta0, delta1)),
+                               DemoteTo(dnh, Sub(delta0, delta1)));
       VW highSumBefore;
 
       f0 = Set(dw, 6);
@@ -537,9 +542,11 @@ struct TestWidenMulAccumulate {
         sum1 = f0;
         highSumBefore = sum1;
         const VW sum0 = WidenMulAccumulate(dw, delta, bf1, f0, sum1);
-        const VW expectedLow = MulAdd(PromoteLowerTo(dw, delta), PromoteLowerTo(dw, bf1), f0);
+        const VW expectedLow =
+            MulAdd(PromoteLowerTo(dw, delta), PromoteLowerTo(dw, bf1), f0);
         HWY_ASSERT_VEC_EQ(dw, expectedLow, sum0);
-        const VW expectedHigh = MulAdd(PromoteUpperTo(dw, delta), PromoteUpperTo(dw, bf1), highSumBefore);
+        const VW expectedHigh = MulAdd(PromoteUpperTo(dw, delta),
+                                       PromoteUpperTo(dw, bf1), highSumBefore);
         HWY_ASSERT_VEC_EQ(dw, expectedHigh, sum1);
       }
       // Swapped arg order
@@ -547,9 +554,11 @@ struct TestWidenMulAccumulate {
         sum1 = f0;
         highSumBefore = sum1;
         const VW sum0 = WidenMulAccumulate(dw, bf1, delta, f0, sum1);
-        const VW expectedLow = MulAdd(PromoteLowerTo(dw, bf1), PromoteLowerTo(dw, delta), f0);
+        const VW expectedLow =
+            MulAdd(PromoteLowerTo(dw, bf1), PromoteLowerTo(dw, delta), f0);
         HWY_ASSERT_VEC_EQ(dw, expectedLow, sum0);
-        const VW expectedHigh = MulAdd(PromoteUpperTo(dw, bf1), PromoteUpperTo(dw, delta), highSumBefore);
+        const VW expectedHigh = MulAdd(
+            PromoteUpperTo(dw, bf1), PromoteUpperTo(dw, delta), highSumBefore);
         HWY_ASSERT_VEC_EQ(dw, expectedHigh, sum1);
       }
       // Start with nonzero sum0 or sum1
@@ -559,9 +568,11 @@ struct TestWidenMulAccumulate {
         sum1 = PromoteTo(dw, UpperHalf(dnh, delta));
         highSumBefore = sum1;
         sum0 = WidenMulAccumulate(dw, delta, bf1, sum0, sum1);
-        const VW expectedLow = MulAdd(PromoteLowerTo(dw, delta), PromoteLowerTo(dw, bf1), lowSumBefore);
+        const VW expectedLow = MulAdd(PromoteLowerTo(dw, delta),
+                                      PromoteLowerTo(dw, bf1), lowSumBefore);
         HWY_ASSERT_VEC_EQ(dw, expectedLow, sum0);
-        const VW expectedHigh = MulAdd(PromoteUpperTo(dw, delta), PromoteUpperTo(dw, bf1), highSumBefore);
+        const VW expectedHigh = MulAdd(PromoteUpperTo(dw, delta),
+                                       PromoteUpperTo(dw, bf1), highSumBefore);
         HWY_ASSERT_VEC_EQ(dw, expectedHigh, sum1);
       }
       // Start with nonzero sum0 or sum1, and swap arg order
@@ -571,9 +582,11 @@ struct TestWidenMulAccumulate {
         sum1 = PromoteTo(dw, UpperHalf(dnh, delta));
         highSumBefore = sum1;
         sum0 = WidenMulAccumulate(dw, bf1, delta, sum0, sum1);
-        const VW expectedLow = MulAdd(PromoteLowerTo(dw, bf1), PromoteLowerTo(dw, delta), lowSumBefore);
+        const VW expectedLow = MulAdd(PromoteLowerTo(dw, bf1),
+                                      PromoteLowerTo(dw, delta), lowSumBefore);
         HWY_ASSERT_VEC_EQ(dw, expectedLow, sum0);
-        const VW expectedHigh = MulAdd(PromoteUpperTo(dw, bf1), PromoteUpperTo(dw, delta), highSumBefore);
+        const VW expectedHigh = MulAdd(
+            PromoteUpperTo(dw, bf1), PromoteUpperTo(dw, delta), highSumBefore);
         HWY_ASSERT_VEC_EQ(dw, expectedHigh, sum1);
       }
     }
@@ -587,8 +600,9 @@ HWY_NOINLINE void TestAllWidenMulAccumulate() {
   ForShrinkableVectors<TestWidenMulAccumulate>()(uint16_t());
   ForShrinkableVectors<TestWidenMulAccumulate>()(int8_t());
   ForShrinkableVectors<TestWidenMulAccumulate>()(uint8_t());
-#if 0
-#if HWY_HAVE_FLOAT16 && (HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_NEON_WITHOUT_AES)
+#if 0  // not yet implemented
+#if HWY_HAVE_FLOAT16 && \
+    (HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_NEON_WITHOUT_AES)
   ForShrinkableVectors<TestWidenMulAccumulate>()(float16_t());
 #endif
 #endif

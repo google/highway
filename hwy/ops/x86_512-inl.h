@@ -7405,6 +7405,19 @@ HWY_API VFromD<DI32> SatWidenMulPairwiseAccumulate(
 #endif  // HWY_TARGET <= HWY_AVX3_DL
 
 // ------------------------------ ReorderWidenMulAccumulate
+
+#if HWY_NATIVE_DOT_BF16
+template <class DF, HWY_IF_F32_D(DF), HWY_IF_V_SIZE_D(DF, 64),
+          class VBF = VFromD<Repartition<bfloat16_t, DF>>>
+HWY_API VFromD<DF> ReorderWidenMulAccumulate(DF /*df*/, VBF a, VBF b,
+                                             const VFromD<DF> sum0,
+                                             VFromD<DF>& /*sum1*/) {
+  return VFromD<DF>{_mm512_dpbf16_ps(sum0.raw,
+                                     reinterpret_cast<__m512bh>(a.raw),
+                                     reinterpret_cast<__m512bh>(b.raw))};
+}
+#endif  // HWY_NATIVE_DOT_BF16
+
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_I32_D(D)>
 HWY_API VFromD<D> ReorderWidenMulAccumulate(D d, Vec512<int16_t> a,
                                             Vec512<int16_t> b,

@@ -43,6 +43,7 @@
 #undef HWY_HAVE_FLOAT64
 #undef HWY_MEM_OPS_MIGHT_FAULT
 #undef HWY_NATIVE_FMA
+#undef HWY_NATIVE_DOT_BF16
 #undef HWY_CAP_GE256
 #undef HWY_CAP_GE512
 
@@ -126,9 +127,15 @@
   ",vpclmulqdq,avx512vbmi,avx512vbmi2,vaes,avx512vnni,avx512bitalg," \
   "avx512vpopcntdq,gfni"
 
-#if !HWY_COMPILER_CLANGCL &&                                          \
-    (HWY_COMPILER_GCC_ACTUAL >= 1000 || HWY_COMPILER_CLANG >= 900) && \
-    !defined(HWY_AVX3_DISABLE_AVX512BF16)
+// Force-disable for compilers that do not properly support avx512bf16.
+#if !defined(HWY_AVX3_DISABLE_AVX512BF16) &&                        \
+    (HWY_COMPILER_CLANGCL ||                                        \
+     (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1000) || \
+     (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 900))
+#define HWY_AVX3_DISABLE_AVX512BF16
+#endif
+
+#if !defined(HWY_AVX3_DISABLE_AVX512BF16)
 #define HWY_TARGET_STR_AVX3_ZEN4 HWY_TARGET_STR_AVX3_DL ",avx512bf16"
 #else
 #define HWY_TARGET_STR_AVX3_ZEN4 HWY_TARGET_STR_AVX3_DL
@@ -182,6 +189,7 @@
 #define HWY_HAVE_FLOAT64 1
 #define HWY_MEM_OPS_MIGHT_FAULT 1
 #define HWY_NATIVE_FMA 0
+#define HWY_NATIVE_DOT_BF16 0
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -201,6 +209,7 @@
 #define HWY_HAVE_FLOAT64 1
 #define HWY_MEM_OPS_MIGHT_FAULT 1
 #define HWY_NATIVE_FMA 0
+#define HWY_NATIVE_DOT_BF16 0
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -221,6 +230,7 @@
 #define HWY_HAVE_FLOAT64 1
 #define HWY_MEM_OPS_MIGHT_FAULT 1
 #define HWY_NATIVE_FMA 0
+#define HWY_NATIVE_DOT_BF16 0
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -246,6 +256,7 @@
 #else
 #define HWY_NATIVE_FMA 1
 #endif
+#define HWY_NATIVE_DOT_BF16 0
 
 #define HWY_CAP_GE256 1
 #define HWY_CAP_GE512 0
@@ -274,6 +285,11 @@
 #define HWY_HAVE_FLOAT64 1
 #define HWY_MEM_OPS_MIGHT_FAULT 0
 #define HWY_NATIVE_FMA 1
+#if (HWY_TARGET <= HWY_AVX3_ZEN4) && !defined(HWY_AVX3_DISABLE_AVX512BF16)
+#define HWY_NATIVE_DOT_BF16 1
+#else
+#define HWY_NATIVE_DOT_BF16 0
+#endif
 #define HWY_CAP_GE256 1
 #define HWY_CAP_GE512 1
 
@@ -316,6 +332,7 @@
 #define HWY_HAVE_FLOAT64 1
 #define HWY_MEM_OPS_MIGHT_FAULT 1
 #define HWY_NATIVE_FMA 1
+#define HWY_NATIVE_DOT_BF16 0
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -352,6 +369,7 @@
 #define HWY_HAVE_FLOAT64 1
 #define HWY_MEM_OPS_MIGHT_FAULT 1
 #define HWY_NATIVE_FMA 1
+#define HWY_NATIVE_DOT_BF16 0
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -397,6 +415,11 @@
 #define HWY_NATIVE_FMA 1
 #else
 #define HWY_NATIVE_FMA 0
+#endif
+#if HWY_NEON_HAVE_F32_TO_BF16C
+#define HWY_NATIVE_DOT_BF16 1
+#else
+#define HWY_NATIVE_DOT_BF16 0
 #endif
 
 #define HWY_CAP_GE256 0
@@ -453,6 +476,11 @@
 #define HWY_HAVE_FLOAT64 1
 #define HWY_MEM_OPS_MIGHT_FAULT 0
 #define HWY_NATIVE_FMA 1
+#if HWY_SVE_HAVE_BF16_FEATURE
+#define HWY_NATIVE_DOT_BF16 1
+#else
+#define HWY_NATIVE_DOT_BF16 0
+#endif
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -505,6 +533,7 @@
 #define HWY_HAVE_FLOAT64 1
 #define HWY_MEM_OPS_MIGHT_FAULT 1
 #define HWY_NATIVE_FMA 0
+#define HWY_NATIVE_DOT_BF16 0
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -526,6 +555,7 @@
 #define HWY_HAVE_FLOAT64 0
 #define HWY_MEM_OPS_MIGHT_FAULT 1
 #define HWY_NATIVE_FMA 0
+#define HWY_NATIVE_DOT_BF16 0
 #define HWY_CAP_GE256 1
 #define HWY_CAP_GE512 0
 
@@ -553,6 +583,7 @@
 #define HWY_HAVE_FLOAT64 1
 #define HWY_MEM_OPS_MIGHT_FAULT 0
 #define HWY_NATIVE_FMA 1
+#define HWY_NATIVE_DOT_BF16 0
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -581,6 +612,7 @@
 #define HWY_HAVE_FLOAT64 1
 #define HWY_MEM_OPS_MIGHT_FAULT 1
 #define HWY_NATIVE_FMA 0
+#define HWY_NATIVE_DOT_BF16 0
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -602,6 +634,7 @@
 #define HWY_HAVE_FLOAT64 1
 #define HWY_MEM_OPS_MIGHT_FAULT 0
 #define HWY_NATIVE_FMA 0
+#define HWY_NATIVE_DOT_BF16 0
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 

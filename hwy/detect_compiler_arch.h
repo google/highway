@@ -240,7 +240,7 @@
 #define HWY_ARCH_RISCV 0
 #endif
 // DEPRECATED names; please use HWY_ARCH_RISCV instead.
-#define HWY_ARCH_RVV HWY_ARCH_RISCV 
+#define HWY_ARCH_RVV HWY_ARCH_RISCV
 
 #if defined(__s390x__)
 #define HWY_ARCH_S390X 1

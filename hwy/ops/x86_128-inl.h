@@ -9536,18 +9536,29 @@ HWY_API VFromD<DI32> SatWidenMulPairwiseAccumulate(
 
 // ------------------------------ ReorderWidenMulAccumulate (PromoteEvenTo)
 
+#if HWY_NATIVE_DOT_BF16
+template <class DF, HWY_IF_F32_D(DF), HWY_IF_V_SIZE_LE_D(DF, 16),
+          class VBF = VFromD<Repartition<bfloat16_t, DF>>>
+HWY_API VFromD<DF> ReorderWidenMulAccumulate(DF /*df*/, VBF a, VBF b,
+                                             const VFromD<DF> sum0,
+                                             VFromD<DF>& /*sum1*/) {
+  return VFromD<DF>{_mm_dpbf16_ps(sum0.raw, reinterpret_cast<__m128bh>(a.raw), reinterpret_cast<__m128bh>(b.raw))};
+}
+#else
+
 // Generic for all vector lengths.
 template <class DF, HWY_IF_F32_D(DF),
           class VBF = VFromD<Repartition<bfloat16_t, DF>>>
 HWY_API VFromD<DF> ReorderWidenMulAccumulate(DF df, VBF a, VBF b,
                                              const VFromD<DF> sum0,
                                              VFromD<DF>& sum1) {
-  // TODO(janwas): _mm_dpbf16_ps when available
   // Lane order within sum0/1 is undefined, hence we can avoid the
   // longer-latency lane-crossing PromoteTo by using PromoteEvenTo.
   sum1 = MulAdd(PromoteOddTo(df, a), PromoteOddTo(df, b), sum1);
   return MulAdd(PromoteEvenTo(df, a), PromoteEvenTo(df, b), sum0);
 }
+
+#endif  // HWY_NATIVE_DOT_BF16
 
 // Even if N=1, the input is always at least 2 lanes, hence madd_epi16 is safe.
 template <class D32, HWY_IF_I32_D(D32), HWY_IF_V_SIZE_LE_D(D32, 16),
