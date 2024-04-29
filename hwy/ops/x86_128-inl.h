@@ -11170,7 +11170,7 @@ HWY_API Vec128<T, N> Trunc(const Vec128<T, N> v) {
   const DFromV<decltype(v)> df;
   const RebindToSigned<decltype(df)> di;
 
-  const auto integer = ConvertTo(di, v);  // round toward 0
+  const auto integer = ConvertInRangeTo(di, v);  // round toward 0
   const auto int_f = ConvertTo(df, integer);
 
   return IfThenElse(detail::UseInt(v), CopySign(int_f, v), v);
@@ -11183,7 +11183,7 @@ HWY_API Vec128<T, N> Ceil(const Vec128<T, N> v) {
   const DFromV<decltype(v)> df;
   const RebindToSigned<decltype(df)> di;
 
-  const auto integer = ConvertTo(di, v);  // round toward 0
+  const auto integer = ConvertInRangeTo(di, v);  // round toward 0
   const auto int_f = ConvertTo(df, integer);
 
   // Truncating a positive non-integer ends up smaller; if so, add 1.
@@ -11199,7 +11199,7 @@ HWY_API Vec128<T, N> Floor(const Vec128<T, N> v) {
   const DFromV<decltype(v)> df;
   const RebindToSigned<decltype(df)> di;
 
-  const auto integer = ConvertTo(di, v);  // round toward 0
+  const auto integer = ConvertInRangeTo(di, v);  // round toward 0
   const auto int_f = ConvertTo(df, integer);
 
   // Truncating a negative non-integer ends up larger; if so, subtract 1.
