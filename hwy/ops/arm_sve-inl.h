@@ -5805,7 +5805,7 @@ HWY_API svfloat32_t ReorderWidenMulAccumulate(Simd<float, N, kPow2> df, VBF16 a,
                                               VBF16 b, const svfloat32_t sum0,
                                               svfloat32_t& sum1) {
 #if HWY_SVE_HAVE_BF16_FEATURE
-  (void)df32;
+  (void)df;
   sum1 = svbfmlalt_f32(sum1, a, b);
   return svbfmlalb_f32(sum0, a, b);
 #else
