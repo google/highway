@@ -242,6 +242,29 @@
 // DEPRECATED names; please use HWY_ARCH_RISCV instead.
 #define HWY_ARCH_RVV HWY_ARCH_RISCV
 
+#if HWY_ARCH_RISCV && defined(__riscv_xlen)
+
+#if __riscv_xlen == 32
+#define HWY_ARCH_RISCV_32 1
+#else
+#define HWY_ARCH_RISCV_32 0
+#endif
+
+#if __riscv_xlen == 64
+#define HWY_ARCH_RISCV_64 1
+#else
+#define HWY_ARCH_RISCV_64 0
+#endif
+
+#else  // !HWY_ARCH_RISCV || !defined(__riscv_xlen)
+#define HWY_ARCH_RISCV_32 0
+#define HWY_ARCH_RISCV_64 0
+#endif  // HWY_ARCH_RISCV && defined(__riscv_xlen)
+
+#if HWY_ARCH_RISCV_32 && HWY_ARCH_RISCV_64
+#error "Cannot have both RISCV_32 and RISCV_64"
+#endif
+
 #if defined(__s390x__)
 #define HWY_ARCH_S390X 1
 #else
