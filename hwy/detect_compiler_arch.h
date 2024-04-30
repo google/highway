@@ -274,6 +274,18 @@
 #define HWY_OS_APPLE 0
 #endif
 
+#if defined(__FreeBSD__)
+#define HWY_OS_FREEBSD 1
+#else
+#define HWY_OS_FREEBSD 0
+#endif
+
+// It is an error to detect multiple OSes at the same time, but OK to
+// detect none of the above.
+#if (HWY_OS_WIN + HWY_OS_LINUX + HWY_OS_APPLE + HWY_OS_FREEBSD) > 1
+#error "Must not detect more than one OS"
+#endif
+
 //------------------------------------------------------------------------------
 // Endianness
 

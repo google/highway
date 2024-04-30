@@ -37,7 +37,7 @@ namespace hwy {
 // Minimum alignment of allocated memory for use in HWY_ASSUME_ALIGNED, which
 // requires a literal. To prevent false sharing, this should be at least the
 // L1 cache line size, usually 64 bytes. However, Intel's L2 prefetchers may
-// access pairs of lines, and POWER8 also has 128.
+// access pairs of lines, and M1 L2 and POWER8 lines are also 128 bytes.
 #define HWY_ALIGNMENT 128
 
 template <typename T>

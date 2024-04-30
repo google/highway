@@ -308,6 +308,19 @@ cc_library(
 )
 
 cc_library(
+    name = "topology",
+    srcs = ["hwy/contrib/thread_pool/topology.cc"],
+    hdrs = ["hwy/contrib/thread_pool/topology.h"],
+    compatible_with = [],
+    copts = COPTS,
+    deps = [
+        ":hwy",  # HWY_ASSERT
+        ":nanobenchmark",
+        ":stats",
+    ],
+)
+
+cc_library(
     name = "thread_pool",
     hdrs = [
         "hwy/contrib/thread_pool/futex.h",
@@ -449,6 +462,7 @@ HWY_TESTS = [
     ("hwy/contrib/random/", "random_test"),
     ("hwy/contrib/matvec/", "matvec_test"),
     ("hwy/contrib/thread_pool/", "thread_pool_test"),
+    ("hwy/contrib/thread_pool/", "topology_test"),
     ("hwy/contrib/unroller/", "unroller_test"),
     # contrib/sort has its own BUILD, we also add sort_test to GUITAR_TESTS.
     # To run bench_sort, specify --test=hwy/contrib/sort:bench_sort.
@@ -527,6 +541,7 @@ HWY_TEST_DEPS = [
     ":nanobenchmark",
     ":skeleton",
     ":thread_pool",
+    ":topology",
     ":unroller",
     "//hwy/contrib/sort:vqsort",
 ] + select({

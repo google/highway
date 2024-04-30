@@ -27,8 +27,8 @@
 #include <atomic>
 #include <vector>
 
-#include "hwy/base.h"                  // PopCount
-#include "hwy/detect_compiler_arch.h"  // HWY_ARCH_WASM
+#include "hwy/base.h"  // PopCount
+#include "hwy/contrib/thread_pool/topology.h"
 #include "hwy/tests/hwy_gtest.h"
 #include "hwy/tests/test_util-inl.h"  // AdjustedReps
 
@@ -248,7 +248,7 @@ TEST(ThreadPoolTest, TestDeprecated) {
 // pool can be reused (multiple consecutive Run calls), pool can be destroyed
 // (joining with its threads), num_threads=0 works (runs on current thread).
 TEST(ThreadPoolTest, TestPool) {
-  if (HWY_ARCH_WASM) return;  // WASM threading is unreliable
+  if (!HaveThreadingSupport()) return;
 
   ThreadPool inner(0);
 
@@ -306,7 +306,7 @@ struct SmallAssignmentState {
 
 // Verify "thread" parameter when processing few tasks.
 TEST(ThreadPoolTest, TestSmallAssignments) {
-  if (HWY_ARCH_WASM) return;  // WASM threading is unreliable
+  if (!HaveThreadingSupport()) return;
 
   static SmallAssignmentState state;
 
@@ -356,7 +356,7 @@ struct Counter {
 
 // Can switch between any wait mode, and multiple times.
 TEST(ThreadPoolTest, TestWaitMode) {
-  if (HWY_ARCH_WASM) return;  // WASM threading is unreliable
+  if (!HaveThreadingSupport()) return;
 
   const size_t kNumThreads = 9;
   ThreadPool pool(kNumThreads);
@@ -368,7 +368,7 @@ TEST(ThreadPoolTest, TestWaitMode) {
 }
 
 TEST(ThreadPoolTest, TestCounter) {
-  if (HWY_ARCH_WASM) return;  // WASM threading is unreliable
+  if (!HaveThreadingSupport()) return;
 
   const size_t kNumThreads = 12;
   ThreadPool pool(kNumThreads);
