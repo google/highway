@@ -508,9 +508,9 @@
 // Static dispatch with -march=armv8-a+sve2+aes, or no baseline, hence dynamic
 // dispatch, which checks for AES support at runtime.
 #if defined(__ARM_FEATURE_SVE2_AES) || (HWY_BASELINE_SVE2 == 0)
-#define HWY_TARGET_STR "+sve2-aes"
+#define HWY_TARGET_STR "+sve2-aes,+sve"
 #else  // SVE2 without AES
-#define HWY_TARGET_STR "+sve2"
+#define HWY_TARGET_STR "+sve2,+sve"
 #endif
 #else  // not SVE2 target
 #define HWY_TARGET_STR "+sve"
