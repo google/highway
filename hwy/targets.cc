@@ -619,7 +619,26 @@ int64_t DetectTargets() {
   const CapBits hw = getauxval(AT_HWCAP);
 
   if ((hw & COMPAT_HWCAP_ISA_V) == COMPAT_HWCAP_ISA_V) {
-    bits |= HWY_RVV;
+    size_t e8m1_vec_len;
+#if HWY_ARCH_RISCV_64
+    int64_t vtype_reg_val;
+#else
+    int32_t vtype_reg_val;
+#endif
+
+    // Check that a vuint8m1_t vector is at least 16 bytes and that tail
+    // agnostic and mask agnostic mode are supported
+    asm volatile(
+        "vsetvli %0, zero, e8, m1, ta, ma\n\t"
+        "csrr %1, vtype"
+        : "=r"(e8m1_vec_len), "=r"(vtype_reg_val));
+
+    // The RVV target is supported if the VILL bit of VTYPE (the MSB bit of
+    // VTYPE) is not set and the length of a vuint8m1_t vector is at least 16
+    // bytes
+    if (vtype_reg_val >= 0 && e8m1_vec_len >= 16) {
+      bits |= HWY_RVV;
+    }
   }
 
   return bits;
