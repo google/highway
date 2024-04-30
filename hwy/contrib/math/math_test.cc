@@ -235,6 +235,9 @@ DEFINE_MATH_TEST(Cos,
 DEFINE_MATH_TEST(Exp,
   std::exp,   CallExp,   -FLT_MAX,   +104.0f,     1,
   std::exp,   CallExp,   -DBL_MAX,   +104.0,      1)
+DEFINE_MATH_TEST(Exp2,
+  std::exp2,  CallExp2,  -FLT_MAX,   +128.0f,     2,
+  std::exp2,  CallExp2,  -DBL_MAX,   +128.0,      2)
 DEFINE_MATH_TEST(Expm1,
   std::expm1, CallExpm1, -FLT_MAX,   +104.0f,     4,
   std::expm1, CallExpm1, -DBL_MAX,   +104.0,      4)
@@ -621,6 +624,7 @@ HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAtan);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAtanh);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllCos);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExp);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExp2);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExpm1);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog10);
