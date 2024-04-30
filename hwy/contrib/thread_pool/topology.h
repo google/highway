@@ -37,8 +37,54 @@ static constexpr size_t kMaxLogicalProcessors = 1024;
 // via GetThreadAffinity().
 HWY_DLLEXPORT size_t TotalLogicalProcessors();
 
-// Custom two-level bitset because std::bitset does not include an iterator.
-// Used by Get/SetThreadAffinity.
+// 64-bit specialization of std::bitset, which lacks Foreach.
+class BitSet64 {
+ public:
+  // No harm if `i` is already set.
+  void Set(size_t i) {
+    HWY_DASSERT(i < 64);
+    bits_ |= (1ULL << i);
+    HWY_DASSERT(Get(i));
+  }
+
+  // Equivalent to Set(i) for i in [0, 64) where (bits >> i) & 1. This does
+  // not clear any existing bits.
+  void SetNonzeroBitsFrom64(uint64_t bits) { bits_ |= bits; }
+
+  void Clear(size_t i) {
+    HWY_DASSERT(i < 64);
+    bits_ &= ~(1ULL << i);
+  }
+
+  bool Get(size_t i) const {
+    HWY_DASSERT(i < 64);
+    return (bits_ & (1ULL << i)) != 0;
+  }
+
+  // Returns true if any Get(i) would return true for i in [0, 64).
+  bool Any() const { return bits_ != 0; }
+
+  // Returns uint64_t(Get(i)) << i for i in [0, 64).
+  uint64_t Get64() const { return bits_; }
+
+  // Calls func(i) for each i in the set.
+  template <class Func>
+  void Foreach(const Func& func) const {
+    uint64_t remaining_bits = bits_;
+    while (remaining_bits != 0) {
+      const size_t i = Num0BitsBelowLS1Bit_Nonzero64(remaining_bits);
+      remaining_bits &= remaining_bits - 1;  // clear LSB
+      func(i);
+    }
+  }
+
+  size_t Count() const { return PopCount(bits_); }
+
+ private:
+  uint64_t bits_ = 0;
+};
+
+// Two-level bitset for Get/SetThreadAffinity.
 class LogicalProcessorSet {
  public:
   // No harm if `lp` is already set.
@@ -46,70 +92,58 @@ class LogicalProcessorSet {
     HWY_DASSERT(lp < TotalLogicalProcessors());
     const size_t idx = lp / 64;
     const size_t mod = lp % 64;
-    bits_[idx] |= (1ULL << mod);
-    nonzero_ |= (1ULL << idx);
+    bits_[idx].Set(mod);
+    nonzero_.Set(idx);
     HWY_DASSERT(Get(lp));
   }
 
   // Equivalent to Set(i) for i in [0, 64) where (bits >> i) & 1. This does
   // not clear any existing bits.
   void SetNonzeroBitsFrom64(uint64_t bits) {
-    bits_[0] |= bits;
-    nonzero_ |= bits_[0] ? 1 : 0;
+    bits_[0].SetNonzeroBitsFrom64(bits);
+    if (bits) nonzero_.Set(0);
   }
 
   void Clear(size_t lp) {
     HWY_DASSERT(lp < TotalLogicalProcessors());
     const size_t idx = lp / 64;
     const size_t mod = lp % 64;
-    bits_[idx] &= ~(1ULL << mod);
-    if (bits_[idx] == 0) {
-      nonzero_ &= ~(1ULL << idx);
+    bits_[idx].Clear(mod);
+    if (!bits_[idx].Any()) {
+      nonzero_.Clear(idx);
     }
+    HWY_DASSERT(!Get(lp));
   }
 
   bool Get(size_t lp) const {
     HWY_DASSERT(lp < TotalLogicalProcessors());
     const size_t idx = lp / 64;
     const size_t mod = lp % 64;
-    return (bits_[idx] & (1ULL << mod)) != 0;
+    return bits_[idx].Get(mod);
   }
 
   // Returns uint64_t(Get(lp)) << lp for lp in [0, 64).
-  uint64_t Get64() const { return bits_[0]; }
+  uint64_t Get64() const { return bits_[0].Get64(); }
 
   // Calls func(lp) for each lp in the set.
   template <class Func>
   void Foreach(const Func& func) const {
-    uint64_t remaining_idx = nonzero_;
-    while (remaining_idx != 0) {
-      const size_t idx = Num0BitsBelowLS1Bit_Nonzero64(remaining_idx);
-      remaining_idx &= remaining_idx - 1;  // clear LSB
-
-      uint64_t remaining_bits = bits_[idx];
-      while (remaining_bits != 0) {
-        const size_t mod = Num0BitsBelowLS1Bit_Nonzero64(remaining_bits);
-        remaining_bits &= remaining_bits - 1;  // clear LSB
-        func(idx * 64 + mod);
-      }
-    }
+    nonzero_.Foreach([&func, this](size_t idx) {
+      bits_[idx].Foreach([idx, &func](size_t mod) { func(idx * 64 + mod); });
+    });
   }
 
   size_t Count() const {
     size_t total = 0;
-    uint64_t remaining_idx = nonzero_;
-    while (remaining_idx != 0) {
-      const size_t idx = Num0BitsBelowLS1Bit_Nonzero64(remaining_idx);
-      remaining_idx &= remaining_idx - 1;  // clear LSB
-      total += PopCount(bits_[idx]);
-    }
+    nonzero_.Foreach(
+        [&total, this](size_t idx) { total += bits_[idx].Count(); });
     return total;
   }
 
  private:
-  static_assert(kMaxLogicalProcessors <= 64 * 64, "Single u64 insufficient");
-  uint64_t nonzero_ = 0;
-  uint64_t bits_[kMaxLogicalProcessors / 64] = {0};
+  static_assert(kMaxLogicalProcessors <= 64 * 64, "One BitSet64 insufficient");
+  BitSet64 nonzero_;
+  BitSet64 bits_[kMaxLogicalProcessors / 64];
 };
 
 // Returns false, or sets `lps` to all logical processors which are online and

@@ -38,8 +38,8 @@ _mm512_getmant, _mm512_scalef, _mm512_getexp (f32/f64)
 
 High-precision! Consider copying from SLEEF. See #1650.
 
-cbrt, cosh, erf, exp2, fmod, ilogb, lgamma, logb, modf, nextafter, nexttoward,
-pow, scalbn, tan, tgamma
+cbrt, cosh, erf, fmod, ilogb, lgamma, logb, modf, nextafter, nexttoward, pow,
+scalbn, tan, tgamma
 
 ### Remaining STL functions for hwy/contrib/algo
 
@@ -184,3 +184,4 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~Div (integer division) and Mod~~ - by johnplatts
 *   ~~AddSub and MulAddSub~~ - by johnplatts
 *   ~~hypot~~ - by johnplatts
+*   ~~exp2~~ - by johnplatts

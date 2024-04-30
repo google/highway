@@ -15,35 +15,22 @@
 
 #include "hwy/contrib/thread_pool/topology.h"
 
-#undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE \
-  "third_party/highway/hwy/contrib/thread_pool/topology.cc"  // NOLINT
-#include "hwy/foreach_target.h"  // IWYU pragma: keep
-// Must come after foreach_target.h to avoid redefinition errors.
-#include "hwy/highway.h"
-#include "hwy/timer-inl.h"
-
-// Non-SIMD includes and types. Note that HWY_ONCE is only true on the last
-// compile pass, whereas we want this defined in the first.
-#ifndef TOPOLOGY_ONCE
-#define TOPOLOGY_ONCE
-
-#include <stddef.h>
-#include <stdio.h>
-
-#include <thread>  // NOLINT
+#include "hwy/detect_compiler_arch.h"  // HWY_OS_WIN
 
 #if HWY_OS_WIN
 #ifndef NOMINMAX
 #define NOMINMAX
-#endif  // NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
 #include <windows.h>
 #endif  // HWY_OS_WIN
 
 #if HWY_OS_LINUX || HWY_OS_FREEBSD
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
-#endif  // _GNU_SOURCE
+#endif
 #include <pthread.h>
 #include <sched.h>
 #include <sys/types.h>
@@ -58,6 +45,13 @@
 #if HWY_ARCH_WASM
 #include <emscripten/threading.h>
 #endif
+
+#include <stddef.h>
+#include <stdio.h>
+
+#include <thread>  // NOLINT
+
+#include "hwy/base.h"
 
 namespace hwy {
 
@@ -92,6 +86,10 @@ HWY_DLLEXPORT size_t TotalLogicalProcessors() {
   return 1;
 }
 
+#ifdef __ANDROID__
+#include <sys/syscall.h>
+#endif
+
 HWY_DLLEXPORT bool GetThreadAffinity(LogicalProcessorSet& lps) {
 #if HWY_OS_WIN
   // Only support the first 64 because WINE does not support processor groups.
@@ -106,7 +104,11 @@ HWY_DLLEXPORT bool GetThreadAffinity(LogicalProcessorSet& lps) {
   cpu_set_t set;
   CPU_ZERO(&set);
   const pid_t pid = 0;  // current thread
+#ifdef __ANDROID__
+  const int err = syscall(__NR_sched_getaffinity, pid, sizeof(cpu_set_t), &set);
+#else
   const int err = sched_getaffinity(pid, sizeof(cpu_set_t), &set);
+#endif  // __ANDROID__
   if (err != 0) return false;
   for (size_t lp = 0; lp < kMaxLogicalProcessors; ++lp) {
     if (CPU_ISSET(static_cast<int>(lp), &set)) {
@@ -143,7 +145,12 @@ HWY_DLLEXPORT bool SetThreadAffinity(const LogicalProcessorSet& lps) {
   cpu_set_t set;
   CPU_ZERO(&set);
   lps.Foreach([&set](size_t lp) { CPU_SET(static_cast<int>(lp), &set); });
-  const int err = sched_setaffinity(0, sizeof(cpu_set_t), &set);
+  const pid_t pid = 0;  // current thread
+#ifdef __ANDROID__
+  const int err = syscall(__NR_sched_setaffinity, pid, sizeof(cpu_set_t), &set);
+#else
+  const int err = sched_setaffinity(pid, sizeof(cpu_set_t), &set);
+#endif  // __ANDROID__
   if (err != 0) return false;
   return true;
 #elif HWY_OS_FREEBSD
@@ -163,4 +170,3 @@ HWY_DLLEXPORT bool SetThreadAffinity(const LogicalProcessorSet& lps) {
 }
 
 }  // namespace hwy
-#endif  // TOPOLOGY_ONCE
