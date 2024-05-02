@@ -79,6 +79,9 @@ set(HWY_CMAKE_RVV ON CACHE BOOL "Set copts for RISCV with RVV?")
 # arise due to compiler/platform changes. Enable this in CI/tests.
 set(HWY_WARNINGS_ARE_ERRORS OFF CACHE BOOL "Add -Werror flag?")
 
+# Experimental support for header-only builds
+set(HWY_CMAKE_HEADER_ONLY OFF CACHE BOOL "Change to header-only?")
+
 set(HWY_ENABLE_CONTRIB ON CACHE BOOL "Include contrib/")
 set(HWY_ENABLE_EXAMPLES ON CACHE BOOL "Build examples")
 set(HWY_ENABLE_INSTALL ON CACHE BOOL "Install library")
@@ -137,9 +140,7 @@ list(APPEND HWY_CONTRIB_SOURCES
 endif()  # HWY_ENABLE_CONTRIB
 
 set(HWY_SOURCES
-    hwy/abort.cc
     hwy/abort.h
-    hwy/aligned_allocator.cc
     hwy/aligned_allocator.h
     hwy/base.h
     hwy/cache_control.h
@@ -148,7 +149,6 @@ set(HWY_SOURCES
     hwy/foreach_target.h
     hwy/highway_export.h
     hwy/highway.h
-    hwy/nanobenchmark.cc
     hwy/nanobenchmark.h
     hwy/ops/arm_neon-inl.h
     hwy/ops/arm_sve-inl.h
@@ -164,19 +164,27 @@ set(HWY_SOURCES
     hwy/ops/x86_128-inl.h
     hwy/ops/x86_256-inl.h
     hwy/ops/x86_512-inl.h
-    hwy/per_target.cc
     hwy/per_target.h
     hwy/print-inl.h
-    hwy/print.cc
     hwy/print.h
     hwy/profiler.h
     hwy/robust_statistics.h
-    hwy/targets.cc
     hwy/targets.h
     hwy/timer-inl.h
-    hwy/timer.cc
     hwy/timer.h
 )
+
+if (HWY_CMAKE_HEADER_ONLY)
+  list(APPEND HWY_SOURCES
+    hwy/abort.cc
+    hwy/aligned_allocator.cc
+    hwy/nanobenchmark.cc
+    hwy/per_target.cc
+    hwy/print.cc
+    hwy/targets.cc
+    hwy/timer.cc
+  )
+endif()
 
 set(HWY_TEST_SOURCES
     hwy/tests/hwy_gtest.h
@@ -366,6 +374,10 @@ else()
   endif()
 
 endif()  # !MSVC
+
+if (HWY_CMAKE_HEADER_ONLY)
+  list(APPEND HWY_FLAGS -DHWY_HEADER_ONLY)
+endif()
 
 include(CheckIncludeFile)
 check_include_file(sys/auxv.h  HAVE_SYS_AUXV_H)
