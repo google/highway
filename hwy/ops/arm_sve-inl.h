@@ -5800,21 +5800,30 @@ HWY_API VFromD<DI32> SatWidenMulAccumFixedPoint(DI32 /*di32*/,
 
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
 
-template <size_t N, int kPow2>
-HWY_API svfloat32_t ReorderWidenMulAccumulate(Simd<float, N, kPow2> df, VBF16 a,
-                                              VBF16 b, const svfloat32_t sum0,
-                                              svfloat32_t& sum1) {
 #if HWY_SVE_HAVE_BF16_FEATURE
-  (void)df;
-  sum1 = svbfmlalt_f32(sum1, a, b);
-  return svbfmlalb_f32(sum0, a, b);
+
+// NOTE: we currently do not use SVE BFDOT for bf16 ReorderWidenMulAccumulate
+// because, apparently unlike NEON, it uses round to odd unless the additional
+// FEAT_EBF16 feature is available and enabled.
+#ifdef HWY_NATIVE_MUL_EVEN_BF16
+#undef HWY_NATIVE_MUL_EVEN_BF16
 #else
-  // Lane order within sum0/1 is undefined, hence we can avoid the
-  // longer-latency lane-crossing PromoteTo by using PromoteEvenTo.
-  sum1 = MulAdd(PromoteOddTo(df, a), PromoteOddTo(df, b), sum1);
-  return MulAdd(PromoteEvenTo(df, a), PromoteEvenTo(df, b), sum0);
-#endif  // HWY_SVE_HAVE_BF16_FEATURE
+#define HWY_NATIVE_MUL_EVEN_BF16
+#endif
+
+template <size_t N, int kPow2>
+HWY_API svfloat32_t MulEvenAdd(Simd<float, N, kPow2> df, VBF16 a, VBF16 b,
+                               const svfloat32_t c) {
+  return svbfmlalb_f32(c, a, b);
 }
+
+template <size_t N, int kPow2>
+HWY_API svfloat32_t MulOddAdd(Simd<float, N, kPow2> df, VBF16 a, VBF16 b,
+                              const svfloat32_t c) {
+  return svbfmlalt_f32(c, a, b);
+}
+
+#endif  // HWY_SVE_HAVE_BF16_FEATURE
 
 template <size_t N, int kPow2>
 HWY_API svint32_t ReorderWidenMulAccumulate(Simd<int32_t, N, kPow2> d32,

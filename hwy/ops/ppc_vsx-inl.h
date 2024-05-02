@@ -3458,17 +3458,6 @@ HWY_API VFromD<D32> WidenMulPairwiseAdd(D32 d32, V16 a, V16 b) {
 
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
 
-template <class DF, HWY_IF_F32_D(DF),
-          class VBF = VFromD<Repartition<bfloat16_t, DF>>>
-HWY_API VFromD<DF> ReorderWidenMulAccumulate(DF df, VBF a, VBF b,
-                                             VFromD<DF> sum0,
-                                             VFromD<DF>& sum1) {
-  // Lane order within sum0/1 is undefined, hence we can avoid the
-  // longer-latency lane-crossing PromoteTo by using PromoteEvenTo.
-  sum1 = MulAdd(PromoteOddTo(df, a), PromoteOddTo(df, b), sum1);
-  return MulAdd(PromoteEvenTo(df, a), PromoteEvenTo(df, b), sum0);
-}
-
 // Even if N=1, the input is always at least 2 lanes, hence vec_msum is safe.
 template <class D32, HWY_IF_UI32_D(D32),
           class V16 = VFromD<RepartitionToNarrow<D32>>>

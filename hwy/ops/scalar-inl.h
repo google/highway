@@ -2067,6 +2067,12 @@ HWY_API Vec1<int16_t> SatWidenMulPairwiseAdd(DI16 /* tag */, Vec1<uint8_t> a,
 
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
 
+#ifdef HWY_NATIVE_REORDER_WIDEN_MUL_ACC_BF16
+#undef HWY_NATIVE_REORDER_WIDEN_MUL_ACC_BF16
+#else
+#define HWY_NATIVE_REORDER_WIDEN_MUL_ACC_BF16
+#endif
+
 template <class D32, HWY_IF_F32_D(D32)>
 HWY_API Vec1<float> ReorderWidenMulAccumulate(D32 /* tag */, Vec1<bfloat16_t> a,
                                               Vec1<bfloat16_t> b,

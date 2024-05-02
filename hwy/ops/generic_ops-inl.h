@@ -1,5 +1,6 @@
 // Copyright 2021 Google LLC
-// Copyright 2023,2024 Arm Limited and/or its affiliates <open-source-office@arm.com> 
+// Copyright 2023,2024 Arm Limited and/or
+// its affiliates <open-source-office@arm.com>
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: BSD-3-Clause
 //
@@ -4924,6 +4925,56 @@ HWY_API Vec512<T> operator%(Vec512<T> a, Vec512<T> b) {
 
 #endif  // HWY_NATIVE_INT_DIV
 
+// ------------------------------ MulEvenAdd (PromoteEvenTo)
+
+// SVE with bf16 and NEON with bf16 override this.
+#if (defined(HWY_NATIVE_MUL_EVEN_BF16) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MUL_EVEN_BF16
+#undef HWY_NATIVE_MUL_EVEN_BF16
+#else
+#define HWY_NATIVE_MUL_EVEN_BF16
+#endif
+
+template <class DF, HWY_IF_F32_D(DF),
+          class VBF = VFromD<Repartition<bfloat16_t, DF>>>
+HWY_API VFromD<DF> MulEvenAdd(DF df, VBF a, VBF b, VFromD<DF> c) {
+  return MulAdd(PromoteEvenTo(df, a), PromoteEvenTo(df, b), c);
+}
+
+template <class DF, HWY_IF_F32_D(DF),
+          class VBF = VFromD<Repartition<bfloat16_t, DF>>>
+HWY_API VFromD<DF> MulOddAdd(DF df, VBF a, VBF b, VFromD<DF> c) {
+  return MulAdd(PromoteOddTo(df, a), PromoteOddTo(df, b), c);
+}
+
+#endif  // HWY_NATIVE_MUL_EVEN_BF16
+
+// ------------------------------ ReorderWidenMulAccumulate (MulEvenAdd)
+
+// AVX3_SPR/ZEN4, and NEON with bf16 but not(!) SVE override this.
+#if (defined(HWY_NATIVE_REORDER_WIDEN_MUL_ACC_BF16) == \
+     defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_REORDER_WIDEN_MUL_ACC_BF16
+#undef HWY_NATIVE_REORDER_WIDEN_MUL_ACC_BF16
+#else
+#define HWY_NATIVE_REORDER_WIDEN_MUL_ACC_BF16
+#endif
+
+template <class DF, HWY_IF_F32_D(DF),
+          class VBF = VFromD<Repartition<bfloat16_t, DF>>>
+HWY_API VFromD<DF> ReorderWidenMulAccumulate(DF df, VBF a, VBF b,
+                                             VFromD<DF> sum0,
+                                             VFromD<DF>& sum1) {
+  // Lane order within sum0/1 is undefined, hence we can avoid the
+  // longer-latency lane-crossing PromoteTo by using PromoteEvenTo.
+  sum1 = MulOddAdd(df, a, b, sum1);
+  return MulEvenAdd(df, a, b, sum0);
+}
+
+#endif  // HWY_NATIVE_REORDER_WIDEN_MUL_ACC_BF16
+
+// ------------------------------ WidenMulAccumulate
+
 #if (defined(HWY_NATIVE_WIDEN_MUL_ACCUMULATE) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_WIDEN_MUL_ACCUMULATE
 #undef HWY_NATIVE_WIDEN_MUL_ACCUMULATE
@@ -4939,7 +4990,7 @@ HWY_API VFromD<D> WidenMulAccumulate(D d, VFromD<DN> mul, VFromD<DN> x,
   return MulAdd(PromoteLowerTo(d, mul), PromoteLowerTo(d, x), low);
 }
 
-#endif
+#endif  // HWY_NATIVE_WIDEN_MUL_ACCUMULATE
 
 #if 0
 #if (defined(HWY_NATIVE_WIDEN_MUL_ACCUMULATE_F16) == defined(HWY_TARGET_TOGGLE))
@@ -4959,10 +5010,10 @@ HWY_API VFromD<D> WidenMulAccumulate(D d, VFromD<DN> mul, VFromD<DN> x,
   return MulAdd(PromoteLowerTo(d, mul), PromoteLowerTo(d, x), low);
 }
 
-#endif
+#endif  // HWY_HAVE_FLOAT16
 
-#endif
-#endif
+#endif  // HWY_NATIVE_WIDEN_MUL_ACCUMULATE_F16
+#endif  // #if 0
 
 // ------------------------------ SatWidenMulPairwiseAdd
 

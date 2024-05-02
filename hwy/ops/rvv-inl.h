@@ -5573,19 +5573,6 @@ HWY_API VFromD<D> WidenMulPairwiseAdd(D d32, V16 a, V16 b) {
 
 namespace detail {
 
-// Non-overloaded wrapper function so we can define DF in template args.
-template <size_t N, int kPow2, class DF = Simd<float, N, kPow2>,
-          class VF = VFromD<DF>,
-          class DBF16 = Repartition<hwy::bfloat16_t, Simd<float, N, kPow2>>>
-HWY_API VF ReorderWidenMulAccumulateBF16(Simd<float, N, kPow2> df,
-                                         VFromD<DBF16> a, VFromD<DBF16> b,
-                                         const VF sum0, VF& sum1) {
-  // Lane order within sum0/1 is undefined, hence we can avoid the
-  // longer-latency lane-crossing PromoteTo by using PromoteEvenTo.
-  sum1 = MulAdd(PromoteOddTo(df, a), PromoteOddTo(df, b), sum1);
-  return MulAdd(PromoteEvenTo(df, a), PromoteEvenTo(df, b), sum0);
-}
-
 #define HWY_RVV_WIDEN_MACC(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,    \
                            SHIFT, MLEN, NAME, OP)                              \
   template <size_t N>                                                          \
@@ -5660,12 +5647,6 @@ HWY_API VFromD<D32> ReorderWidenMulAccumulateU16(D32 d32, VFromD<D16> a,
 }
 
 }  // namespace detail
-
-template <size_t N, int kPow2, class VN, class VW>
-HWY_API VW ReorderWidenMulAccumulate(Simd<float, N, kPow2> d32, VN a, VN b,
-                                     const VW sum0, VW& sum1) {
-  return detail::ReorderWidenMulAccumulateBF16(d32, a, b, sum0, sum1);
-}
 
 template <size_t N, int kPow2, class VN, class VW>
 HWY_API VW ReorderWidenMulAccumulate(Simd<int32_t, N, kPow2> d32, VN a, VN b,

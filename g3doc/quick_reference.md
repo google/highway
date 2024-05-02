@@ -808,13 +808,22 @@ variants are somewhat slower on Arm, and unavailable for integer inputs; if the
 
 *   <code>V **NegMulSub**(V a, V b, V c)</code>: returns `-a[i] * b[i] - c[i]`.
 
-*   <code>V **MulAddSub**(V a, V b, V c)</code>: returns `a[i] * b[i] - c[i]`
-    in the even lanes and `a[i] * b[i] + c[i]` in the odd lanes.
+*   <code>V **MulAddSub**(V a, V b, V c)</code>: returns `a[i] * b[i] - c[i]` in
+    the even lanes and `a[i] * b[i] + c[i]` in the odd lanes.
 
-    `MulAddSub(a, b, c)` is equivalent to
-    `OddEven(MulAdd(a, b, c), MulSub(a, b, c))` or
-    `MulAddSub(a, b, OddEven(c, Neg(c))`, but `MulSub(a, b, c)` is more
+    `MulAddSub(a, b, c)` is equivalent to `OddEven(MulAdd(a, b, c), MulSub(a, b,
+    c))` or `MulAddSub(a, b, OddEven(c, Neg(c))`, but `MulSub(a, b, c)` is more
     efficient on some targets (including AVX2/AVX3).
+
+*   `V`: `bf16`, `D`: `RepartitionToWide<DFromV<V>>`, `VW`: `Vec<D>` \
+    <code>VW **MulEvenAdd**(D d, V a, V b, VW c)</code>: equivalent to and
+    potentially more efficient than `MulAdd(PromoteEvenTo(d, a),
+    PromoteEvenTo(d, b), c)`.
+
+*   `V`: `bf16`, `D`: `RepartitionToWide<DFromV<V>>`, `VW`: `Vec<D>` \
+    <code>VW **MulOddAdd**(D d, V a, V b, VW c)</code>: equivalent to and
+    potentially more efficient than `MulAdd(PromoteOddTo(d, a), PromoteOddTo(d,
+    b), c)`.
 
 #### Masked arithmetic
 

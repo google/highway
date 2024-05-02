@@ -20,6 +20,7 @@
 #define HWY_TARGET_INCLUDE "tests/widen_mul_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
+#include "hwy/nanobenchmark.h"  // Unpredictable1
 #include "hwy/tests/test_util-inl.h"
 
 HWY_BEFORE_NAMESPACE();
@@ -49,6 +50,7 @@ struct TestWidenMulPairwiseAdd {
 
     // delta[p] := p all others zero.
     auto delta_w = AllocateAligned<TW>(NN);
+    HWY_ASSERT(delta_w);
     for (size_t p = 0; p < NN; ++p) {
       // Workaround for incorrect Clang wasm codegen: re-initialize the entire
       // array rather than zero-initialize once and then set lane p to p.
@@ -418,8 +420,79 @@ HWY_NOINLINE void TestAllSatWidenMulAccumFixedPoint() {
 }
 
 #ifndef HWY_NATIVE_DOT_BF16
-#error "Update set_macros-inl to set this required macro"
+#error "Update set_macros-inl.h to set this required macro"
 #endif
+
+struct TestMulEvenAdd {
+  // Must be inlined on aarch64 for bf16, else clang crashes.
+  template <typename TN, class DN>
+  HWY_INLINE void operator()(TN /*unused*/, DN dn) {
+    using TW = MakeWide<TN>;
+    const RepartitionToWide<DN> dw;
+    using VW = Vec<decltype(dw)>;
+    using VN = Vec<decltype(dn)>;
+    const size_t NN = Lanes(dn);
+
+    const VW f0 = Zero(dw);
+    const VW f1 = Set(dw, TW{1});
+    const VN bf0 = Zero(dn);
+    // Cannot Set() bfloat16_t directly.
+    const VN bf1 = ReorderDemote2To(dn, f1, f1);
+
+    // Any input zero => both outputs zero
+    HWY_ASSERT_VEC_EQ(dw, f0, MulEvenAdd(dw, bf0, bf0, f0));
+    HWY_ASSERT_VEC_EQ(dw, f0, MulEvenAdd(dw, bf0, bf1, f0));
+    HWY_ASSERT_VEC_EQ(dw, f0, MulEvenAdd(dw, bf1, bf0, f0));
+    HWY_ASSERT_VEC_EQ(dw, f0, MulOddAdd(dw, bf0, bf0, f0));
+    HWY_ASSERT_VEC_EQ(dw, f0, MulOddAdd(dw, bf0, bf1, f0));
+    HWY_ASSERT_VEC_EQ(dw, f0, MulOddAdd(dw, bf1, bf0, f0));
+
+    // delta[p] := 1, all others zero. For each p: Mul(delta, 1, 0) == 1.
+    auto delta_w = AllocateAligned<TW>(NN);
+    HWY_ASSERT(delta_w);
+    for (size_t p = 0; p < NN; ++p) {
+      // Workaround for incorrect Clang wasm codegen: re-initialize the entire
+      // array rather than zero-initialize once and then toggle lane p.
+      for (size_t i = 0; i < NN; ++i) {
+        delta_w[i] = static_cast<TW>(i == p ? Unpredictable1() : 0);
+      }
+      const VW delta0 = Load(dw, delta_w.get());
+      const VW delta1 = Load(dw, delta_w.get() + NN / 2);
+      const VN delta = OrderedDemote2To(dn, delta0, delta1);
+
+      {
+        const VW sum_e = MulEvenAdd(dw, delta, bf1, f0);
+        const VW sum_o = MulOddAdd(dw, delta, bf1, f0);
+        HWY_ASSERT_VEC_EQ(dw, p & 1 ? f0 : f1, SumOfLanes(dw, sum_e));
+        HWY_ASSERT_VEC_EQ(dw, p & 1 ? f1 : f0, SumOfLanes(dw, sum_o));
+      }
+      // Swapped arg order
+      {
+        const VW sum_e = MulEvenAdd(dw, bf1, delta, f0);
+        const VW sum_o = MulOddAdd(dw, bf1, delta, f0);
+        HWY_ASSERT_VEC_EQ(dw, p & 1 ? f0 : f1, SumOfLanes(dw, sum_e));
+        HWY_ASSERT_VEC_EQ(dw, p & 1 ? f1 : f0, SumOfLanes(dw, sum_o));
+      }
+      // Start with nonzero sum
+      {
+        const VW sum_e = MulEvenAdd(dw, delta, bf1, Add(delta0, delta1));
+        const VW sum_o = MulOddAdd(dw, delta, bf1, Add(delta0, delta1));
+        HWY_ASSERT_EQ(TW{3}, ReduceSum(dw, Add(sum_e, sum_o)));
+      }
+
+      // Start with nonzero sum and swap arg order
+      {
+        const VW sum_e = MulEvenAdd(dw, bf1, delta, Add(delta0, delta1));
+        const VW sum_o = MulOddAdd(dw, bf1, delta, Add(delta0, delta1));
+        HWY_ASSERT_EQ(TW{3}, ReduceSum(dw, Add(sum_e, sum_o)));
+      }
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllMulEvenAdd() {
+  ForShrinkableVectors<TestMulEvenAdd>()(bfloat16_t());
+}
 
 struct TestReorderWidenMulAccumulate {
   // Must be inlined on aarch64 for bf16, else clang crashes.
@@ -427,7 +500,6 @@ struct TestReorderWidenMulAccumulate {
   HWY_INLINE void operator()(TN /*unused*/, DN dn) {
     using TW = MakeWide<TN>;
     const RepartitionToWide<DN> dw;
-    const Half<DN> dnh;
     using VW = Vec<decltype(dw)>;
     using VN = Vec<decltype(dn)>;
     const size_t NN = Lanes(dn);
@@ -452,6 +524,7 @@ struct TestReorderWidenMulAccumulate {
 
     // delta[p] := 1, all others zero. For each p: Dot(delta, all-ones) == 1.
     auto delta_w = AllocateAligned<TW>(NN);
+    HWY_ASSERT(delta_w);
     for (size_t p = 0; p < NN; ++p) {
       // Workaround for incorrect Clang wasm codegen: re-initialize the entire
       // array rather than zero-initialize once and then toggle lane p.
@@ -475,15 +548,15 @@ struct TestReorderWidenMulAccumulate {
       }
       // Start with nonzero sum0 or sum1
       {
-        VW sum0 = PromoteTo(dw, LowerHalf(dnh, delta));
-        sum1 = PromoteTo(dw, UpperHalf(dnh, delta));
+        VW sum0 = delta0;
+        sum1 = delta1;
         sum0 = ReorderWidenMulAccumulate(dw, delta, bf1, sum0, sum1);
         HWY_ASSERT_EQ(TW{2}, ReduceSum(dw, Add(sum0, sum1)));
       }
       // Start with nonzero sum0 or sum1, and swap arg order
       {
-        VW sum0 = PromoteTo(dw, LowerHalf(dnh, delta));
-        sum1 = PromoteTo(dw, UpperHalf(dnh, delta));
+        VW sum0 = delta0;
+        sum1 = delta1;
         sum0 = ReorderWidenMulAccumulate(dw, bf1, delta, sum0, sum1);
         HWY_ASSERT_EQ(TW{2}, ReduceSum(dw, Add(sum0, sum1)));
       }
@@ -524,6 +597,7 @@ struct TestWidenMulAccumulate {
 
     // delta[p] := 1, all others zero.
     auto delta_w = AllocateAligned<TW>(NN);
+    HWY_ASSERT(delta_w);
     for (size_t p = 0; p < NN; ++p) {
       // Workaround for incorrect Clang wasm codegen: re-initialize the entire
       // array rather than zero-initialize once and then toggle lane p.
@@ -619,6 +693,7 @@ struct TestRearrangeToOddPlusEven {
     const size_t NW = Lanes(dw);
 
     const auto expected = AllocateAligned<TW>(NW);
+    HWY_ASSERT(expected);
     for (size_t iw = 0; iw < NW; ++iw) {
       const size_t in = iw * 2;  // even, odd is +1
       const size_t a0 = 1 + in;
@@ -757,6 +832,7 @@ HWY_EXPORT_AND_TEST_P(HwyWidenMulTest, TestAllWidenMulPairwiseAdd);
 HWY_EXPORT_AND_TEST_P(HwyWidenMulTest, TestAllSatWidenMulPairwiseAdd);
 HWY_EXPORT_AND_TEST_P(HwyWidenMulTest, TestAllSatWidenMulPairwiseAccumulate);
 HWY_EXPORT_AND_TEST_P(HwyWidenMulTest, TestAllSatWidenMulAccumFixedPoint);
+HWY_EXPORT_AND_TEST_P(HwyWidenMulTest, TestAllMulEvenAdd);
 HWY_EXPORT_AND_TEST_P(HwyWidenMulTest, TestAllReorderWidenMulAccumulate);
 HWY_EXPORT_AND_TEST_P(HwyWidenMulTest, TestAllRearrangeToOddPlusEven);
 HWY_EXPORT_AND_TEST_P(HwyWidenMulTest, TestAllSumOfMulQuadAccumulate);
