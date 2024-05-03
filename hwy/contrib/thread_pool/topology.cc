@@ -239,7 +239,7 @@ class File {
         }
         return 0;
       }
-      pos += bytes_read;
+      pos += static_cast<size_t>(bytes_read);
       HWY_ASSERT(pos <= 200);
     }
   }
@@ -255,7 +255,7 @@ bool SimpleAtoi(const char* str, size_t len, size_t* out) {
   for (size_t i = 0; i < HWY_MIN(len, 9); ++i) {
     if (str[i] < '0' || str[i] > '9') break;
     value *= 10;
-    value += str[i] - '0';
+    value += static_cast<size_t>(str[i] - '0');
     ++digits_seen;
   }
   if (digits_seen == 0) {
@@ -269,7 +269,8 @@ bool SimpleAtoi(const char* str, size_t len, size_t* out) {
 bool ReadSysfs(const char* format, size_t lp, size_t max, size_t* out) {
   char path[200];
   const int bytes_written = snprintf(path, sizeof(path), format, lp);
-  HWY_ASSERT(0 < bytes_written && bytes_written < sizeof(path) - 1);
+  HWY_ASSERT(0 < bytes_written &&
+             bytes_written < static_cast<int>(sizeof(path) - 1));
 
   const File file(path);
   char buf200[200];
@@ -324,7 +325,7 @@ size_t DetectPackages(std::vector<Topology::LP>& lps) {
   // Remap the per-lp package to their rank.
   std::map<size_t, size_t> ranks = RanksFromSet(package_set);
   for (size_t lp = 0; lp < lps.size(); ++lp) {
-    lps[lp].package = ranks[lps[lp].package];
+    lps[lp].package = static_cast<uint16_t>(ranks[lps[lp].package]);
   }
   return ranks.size();
 }
@@ -372,8 +373,8 @@ bool DetectClusterAndCore(std::vector<Topology::LP>& lps,
     // Remap *this packages'* per-lp cluster/core to their ranks.
     for (size_t lp = 0; lp < lps.size(); ++lp) {
       if (lps[lp].package != p) continue;
-      lps[lp].cluster = cluster_ranks[lps[lp].cluster];
-      lps[lp].core = core_ranks[lps[lp].core];
+      lps[lp].cluster = static_cast<uint16_t>(cluster_ranks[lps[lp].cluster]);
+      lps[lp].core = static_cast<uint16_t>(core_ranks[lps[lp].core]);
     }
     pp.num_clusters = cluster_ranks.size();
     pp.num_cores = core_ranks.size();
