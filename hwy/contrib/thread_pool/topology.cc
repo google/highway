@@ -132,9 +132,17 @@ HWY_DLLEXPORT bool GetThreadAffinity(LogicalProcessorSet& lps) {
 #endif  // __ANDROID__
   if (err != 0) return false;
   for (size_t lp = 0; lp < kMaxLogicalProcessors; ++lp) {
+#if HWY_COMPILER_GCC_ACTUAL
+    // Workaround for GCC compiler warning with CPU_ISSET macro
+    HWY_DIAGNOSTICS(push)
+    HWY_DIAGNOSTICS_OFF(disable : 4305 4309, ignored "-Wsign-conversion")
+#endif
     if (CPU_ISSET(static_cast<int>(lp), &set)) {
       lps.Set(lp);
     }
+#if HWY_COMPILER_GCC_ACTUAL
+    HWY_DIAGNOSTICS(pop)
+#endif
   }
   return true;
 #elif HWY_OS_FREEBSD
@@ -145,9 +153,17 @@ HWY_DLLEXPORT bool GetThreadAffinity(LogicalProcessorSet& lps) {
                                      sizeof(cpuset_t), &set);
   if (err != 0) return false;
   for (size_t lp = 0; lp < kMaxLogicalProcessors; ++lp) {
+#if HWY_COMPILER_GCC_ACTUAL
+    // Workaround for GCC compiler warning with CPU_ISSET macro
+    HWY_DIAGNOSTICS(push)
+    HWY_DIAGNOSTICS_OFF(disable : 4305 4309, ignored "-Wsign-conversion")
+#endif
     if (CPU_ISSET(static_cast<int>(lp), &set)) {
       lps.Set(lp);
     }
+#if HWY_COMPILER_GCC_ACTUAL
+    HWY_DIAGNOSTICS(pop)
+#endif
   }
   return true;
 #else
@@ -165,7 +181,15 @@ HWY_DLLEXPORT bool SetThreadAffinity(const LogicalProcessorSet& lps) {
 #elif HWY_OS_LINUX
   cpu_set_t set;
   CPU_ZERO(&set);
+#if HWY_COMPILER_GCC_ACTUAL
+  // Workaround for GCC compiler warning with CPU_SET macro
+  HWY_DIAGNOSTICS(push)
+  HWY_DIAGNOSTICS_OFF(disable : 4305 4309, ignored "-Wsign-conversion")
+#endif
   lps.Foreach([&set](size_t lp) { CPU_SET(static_cast<int>(lp), &set); });
+#if HWY_COMPILER_GCC_ACTUAL
+  HWY_DIAGNOSTICS(pop)
+#endif
   const pid_t pid = 0;  // current thread
 #ifdef __ANDROID__
   const int err = syscall(__NR_sched_setaffinity, pid, sizeof(cpu_set_t), &set);
@@ -177,7 +201,15 @@ HWY_DLLEXPORT bool SetThreadAffinity(const LogicalProcessorSet& lps) {
 #elif HWY_OS_FREEBSD
   cpuset_t set;
   CPU_ZERO(&set);
+#if HWY_COMPILER_GCC_ACTUAL
+  // Workaround for GCC compiler warning with CPU_SET macro
+  HWY_DIAGNOSTICS(push)
+  HWY_DIAGNOSTICS_OFF(disable : 4305 4309, ignored "-Wsign-conversion")
+#endif
   lps.Foreach([&set](size_t lp) { CPU_SET(static_cast<int>(lp), &set); });
+#if HWY_COMPILER_GCC_ACTUAL
+  HWY_DIAGNOSTICS(pop)
+#endif
   const pid_t pid = getpid();  // current thread
   const int err = cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, pid,
                                      sizeof(cpuset_t), &set);
