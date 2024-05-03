@@ -174,7 +174,7 @@ set(HWY_SOURCES
     hwy/timer.h
 )
 
-if (HWY_CMAKE_HEADER_ONLY)
+if (NOT HWY_CMAKE_HEADER_ONLY)
   list(APPEND HWY_SOURCES
     hwy/abort.cc
     hwy/aligned_allocator.cc
