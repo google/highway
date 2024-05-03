@@ -5990,20 +5990,14 @@ HWY_INLINE Vec128<double, N> NativeMaskedGatherOr128(
 }  // namespace detail
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
-HWY_API VFromD<D> GatherOffset(D d, const TFromD<D>* HWY_RESTRICT base,
+HWY_API VFromD<D> GatherOffset(D /*d*/, const TFromD<D>* HWY_RESTRICT base,
                                VFromD<RebindToSigned<D>> offsets) {
-  const RebindToSigned<decltype(d)> di;
-  (void)di;  // for HWY_DASSERT
-  HWY_DASSERT(AllFalse(di, Lt(offsets, Zero(di))));
   return detail::NativeGather128<1>(base, offsets);
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), typename T = TFromD<D>>
-HWY_API VFromD<D> GatherIndex(D d, const T* HWY_RESTRICT base,
+HWY_API VFromD<D> GatherIndex(D /*d*/, const T* HWY_RESTRICT base,
                               VFromD<RebindToSigned<D>> indices) {
-  const RebindToSigned<decltype(d)> di;
-  (void)di;  // for HWY_DASSERT
-  HWY_DASSERT(AllFalse(di, Lt(indices, Zero(di))));
   return detail::NativeGather128<sizeof(T)>(base, indices);
 }
 
@@ -6014,9 +6008,6 @@ HWY_API VFromD<D> MaskedGatherIndexOr(VFromD<D> no, MFromD<D> m, D d,
   // For partial vectors, ensure upper mask lanes are zero to prevent faults.
   if (!detail::IsFull(d)) m = And(m, FirstN(d, Lanes(d)));
 
-  const RebindToSigned<decltype(d)> di;
-  (void)di;  // for HWY_DASSERT
-  HWY_DASSERT(AllFalse(di, Lt(indices, Zero(di))));
   return detail::NativeMaskedGatherOr128<sizeof(T)>(no, m, base, indices);
 }
 

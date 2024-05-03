@@ -3484,30 +3484,21 @@ HWY_INLINE Vec512<double> NativeMaskedGatherOr512(
 }  // namespace detail
 
 template <class D, HWY_IF_V_SIZE_D(D, 64)>
-HWY_API VFromD<D> GatherOffset(D d, const TFromD<D>* HWY_RESTRICT base,
+HWY_API VFromD<D> GatherOffset(D  /*d*/, const TFromD<D>* HWY_RESTRICT base,
                                VFromD<RebindToSigned<D>> offsets) {
-  const RebindToSigned<decltype(d)> di;
-  (void)di;  // for HWY_DASSERT
-  HWY_DASSERT(AllFalse(di, Lt(offsets, Zero(di))));
   return detail::NativeGather512<1>(base, offsets);
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 64)>
-HWY_API VFromD<D> GatherIndex(D d, const TFromD<D>* HWY_RESTRICT base,
+HWY_API VFromD<D> GatherIndex(D  /*d*/, const TFromD<D>* HWY_RESTRICT base,
                               VFromD<RebindToSigned<D>> indices) {
-  const RebindToSigned<decltype(d)> di;
-  (void)di;  // for HWY_DASSERT
-  HWY_DASSERT(AllFalse(di, Lt(indices, Zero(di))));
   return detail::NativeGather512<sizeof(TFromD<D>)>(base, indices);
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 64)>
-HWY_API VFromD<D> MaskedGatherIndexOr(VFromD<D> no, MFromD<D> m, D d,
+HWY_API VFromD<D> MaskedGatherIndexOr(VFromD<D> no, MFromD<D> m, D  /*d*/,
                                       const TFromD<D>* HWY_RESTRICT base,
                                       VFromD<RebindToSigned<D>> indices) {
-  const RebindToSigned<decltype(d)> di;
-  (void)di;  // for HWY_DASSERT
-  HWY_DASSERT(AllFalse(di, Lt(indices, Zero(di))));
   return detail::NativeMaskedGatherOr512<sizeof(TFromD<D>)>(no, m, base,
                                                             indices);
 }
