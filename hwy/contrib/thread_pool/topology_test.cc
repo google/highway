@@ -25,6 +25,7 @@
 #include <utility>  // std::make_pair
 #include <vector>
 
+#include "hwy/base.h"
 #include "hwy/tests/hwy_gtest.h"
 #include "hwy/tests/test_util-inl.h"
 #include "hwy/tests/test_util.h"
@@ -188,11 +189,37 @@ TEST(TopologyTest, TestSetRandomGrow) { TestSetRandom(600); }
 TEST(TopologyTest, TestNum) {
   const size_t total = TotalLogicalProcessors();
   fprintf(stderr, "TotalLogical %zu\n", total);
+
   LogicalProcessorSet lps;
   if (GetThreadAffinity(lps)) {
-    HWY_ASSERT(lps.Count() <= total);
     fprintf(stderr, "Active %zu\n", lps.Count());
+    HWY_ASSERT(lps.Count() <= total);
   }
+}
+
+TEST(TopologyTest, TestTopology) {
+  Topology topology;
+  if (topology.packages.empty()) return;
+
+  HWY_ASSERT(!topology.lps.empty());
+
+  size_t lps_by_cluster = 0;
+  size_t lps_by_core = 0;
+  for (size_t p = 0; p < topology.packages.size(); ++p) {
+    const Topology::Package& pkg = topology.packages[p];
+    HWY_ASSERT(!pkg.clusters.empty());
+    HWY_ASSERT(!pkg.cores.empty());
+    HWY_ASSERT(pkg.clusters.size() <= pkg.cores.size());
+
+    for (const Topology::Cluster& c : pkg.clusters) {
+      lps_by_cluster += c.lps.Count();
+    }
+    for (const Topology::Core& c : pkg.cores) {
+      lps_by_core += c.lps.Count();
+    }
+  }
+  HWY_ASSERT(lps_by_cluster == topology.lps.size());
+  HWY_ASSERT(lps_by_core == topology.lps.size());
 }
 
 }  // namespace

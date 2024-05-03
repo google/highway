@@ -16,26 +16,15 @@
 #ifndef HIGHWAY_HWY_CONTRIB_THREAD_POOL_TOPOLOGY_H_
 #define HIGHWAY_HWY_CONTRIB_THREAD_POOL_TOPOLOGY_H_
 
-// OS-specific functions for thread affinity.
+// OS-specific functions for processor topology and thread affinity.
 
 #include <stddef.h>
+
+#include <vector>
 
 #include "hwy/base.h"
 
 namespace hwy {
-
-// Returns false if std::thread should not be used.
-HWY_DLLEXPORT bool HaveThreadingSupport();
-
-// Upper bound on logical processors, including hyperthreads, to enable
-// fixed-size arrays. This limit matches glibc.
-static constexpr size_t kMaxLogicalProcessors = 1024;
-
-// Returns 1 if unknown, otherwise the total number of logical processors
-// provided by the hardware. We assert this is at most `kMaxLogicalProcessors`.
-// These processors are not necessarily all usable; you can determine which are
-// via GetThreadAffinity().
-HWY_DLLEXPORT size_t TotalLogicalProcessors();
 
 // 64-bit specialization of std::bitset, which lacks Foreach.
 class BitSet64 {
@@ -84,17 +73,18 @@ class BitSet64 {
   uint64_t bits_ = 0;
 };
 
-// Two-level bitset for Get/SetThreadAffinity.
-class LogicalProcessorSet {
+// Two-level bitset for up to kMaxSize <= 4096 values.
+template <size_t kMaxSize = 4096>
+class BitSet4096 {
  public:
-  // No harm if `lp` is already set.
-  void Set(size_t lp) {
-    HWY_DASSERT(lp < TotalLogicalProcessors());
-    const size_t idx = lp / 64;
-    const size_t mod = lp % 64;
+  // No harm if `i` is already set.
+  void Set(size_t i) {
+    HWY_DASSERT(i < kMaxSize);
+    const size_t idx = i / 64;
+    const size_t mod = i % 64;
     bits_[idx].Set(mod);
     nonzero_.Set(idx);
-    HWY_DASSERT(Get(lp));
+    HWY_DASSERT(Get(i));
   }
 
   // Equivalent to Set(i) for i in [0, 64) where (bits >> i) & 1. This does
@@ -104,28 +94,28 @@ class LogicalProcessorSet {
     if (bits) nonzero_.Set(0);
   }
 
-  void Clear(size_t lp) {
-    HWY_DASSERT(lp < TotalLogicalProcessors());
-    const size_t idx = lp / 64;
-    const size_t mod = lp % 64;
+  void Clear(size_t i) {
+    HWY_DASSERT(i < kMaxSize);
+    const size_t idx = i / 64;
+    const size_t mod = i % 64;
     bits_[idx].Clear(mod);
     if (!bits_[idx].Any()) {
       nonzero_.Clear(idx);
     }
-    HWY_DASSERT(!Get(lp));
+    HWY_DASSERT(!Get(i));
   }
 
-  bool Get(size_t lp) const {
-    HWY_DASSERT(lp < TotalLogicalProcessors());
-    const size_t idx = lp / 64;
-    const size_t mod = lp % 64;
+  bool Get(size_t i) const {
+    HWY_DASSERT(i < kMaxSize);
+    const size_t idx = i / 64;
+    const size_t mod = i % 64;
     return bits_[idx].Get(mod);
   }
 
-  // Returns uint64_t(Get(lp)) << lp for lp in [0, 64).
+  // Returns uint64_t(Get(i)) << i for i in [0, 64).
   uint64_t Get64() const { return bits_[0].Get64(); }
 
-  // Calls func(lp) for each lp in the set.
+  // Calls func(i) for each i in the set.
   template <class Func>
   void Foreach(const Func& func) const {
     nonzero_.Foreach([&func, this](size_t idx) {
@@ -141,10 +131,19 @@ class LogicalProcessorSet {
   }
 
  private:
-  static_assert(kMaxLogicalProcessors <= 64 * 64, "One BitSet64 insufficient");
+  static_assert(kMaxSize <= 64 * 64, "One BitSet64 insufficient");
   BitSet64 nonzero_;
-  BitSet64 bits_[kMaxLogicalProcessors / 64];
+  BitSet64 bits_[kMaxSize / 64];
 };
+
+// Returns false if std::thread should not be used.
+HWY_DLLEXPORT bool HaveThreadingSupport();
+
+// Upper bound on logical processors, including hyperthreads.
+static constexpr size_t kMaxLogicalProcessors = 1024;  // matches glibc
+
+// Set used by Get/SetThreadAffinity.
+using LogicalProcessorSet = BitSet4096<kMaxLogicalProcessors>;
 
 // Returns false, or sets `lps` to all logical processors which are online and
 // available to the current thread.
@@ -163,6 +162,47 @@ static inline bool PinThreadToLogicalProcessor(size_t lp) {
   lps.Set(lp);
   return SetThreadAffinity(lps);
 }
+
+// Returns 1 if unknown, otherwise the total number of logical processors
+// provided by the hardware clamped to `kMaxLogicalProcessors`.
+// These processors are not necessarily all usable; you can determine which are
+// via GetThreadAffinity().
+HWY_DLLEXPORT size_t TotalLogicalProcessors();
+
+struct Topology {
+  // Caller must check packages.empty(); if so, do not use any fields.
+  HWY_DLLEXPORT Topology();
+
+  // Clique of cores with lower latency to each other. On Apple M1 these are
+  // four cores sharing an L2. On AMD these 'CCX' are up to eight cores sharing
+  // an L3 and a memory controller.
+  struct Cluster {
+    LogicalProcessorSet lps;
+  };
+
+  struct Core {
+    LogicalProcessorSet lps;
+  };
+
+  struct Package {
+    std::vector<Cluster> clusters;
+    std::vector<Core> cores;
+  };
+
+  std::vector<Package> packages;
+
+  // Several hundred instances, so prefer a compact representation.
+#pragma pack(push, 1)
+  struct LP {
+    uint16_t package = 0;
+    uint16_t cluster = 0;  // local to the package, not globally unique
+    uint16_t core = 0;     // local to the package, not globally unique
+    uint8_t smt = 0;       // local to the package and core
+    uint8_t reserved = 0;
+  };
+#pragma pack(pop)
+  std::vector<LP> lps;  // size() == TotalLogicalProcessors().
+};
 
 }  // namespace hwy
 
