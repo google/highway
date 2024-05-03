@@ -12771,6 +12771,31 @@ HWY_API Vec128<uint8_t> MaxOfLanes(D d, Vec128<uint8_t> v) {
 
 #endif  // HWY_TARGET <= HWY_SSE4
 
+// ------------------------------ BitShuffle
+#if HWY_TARGET <= HWY_AVX3_DL
+
+#ifdef HWY_NATIVE_BITSHUFFLE
+#undef HWY_NATIVE_BITSHUFFLE
+#else
+#define HWY_NATIVE_BITSHUFFLE
+#endif
+
+template <class V, class VI, HWY_IF_UI64(TFromV<V>), HWY_IF_UI8(TFromV<VI>),
+          HWY_IF_V_SIZE_LE_V(V, 16),
+          HWY_IF_V_SIZE_V(VI, HWY_MAX_LANES_V(V) * 8)>
+HWY_API V BitShuffle(V v, VI idx) {
+  const DFromV<decltype(v)> d64;
+  const RebindToUnsigned<decltype(d64)> du64;
+  const Rebind<uint8_t, decltype(d64)> du8;
+
+  int32_t i32_bit_shuf_result = static_cast<int32_t>(
+      static_cast<uint16_t>(_mm_bitshuffle_epi64_mask(v.raw, idx.raw)));
+
+  return BitCast(d64, PromoteTo(du64, VFromD<decltype(du8)>{_mm_cvtsi32_si128(
+                                          i32_bit_shuf_result)}));
+}
+#endif  // HWY_TARGET <= HWY_AVX3_DL
+
 // ------------------------------ Lt128
 
 namespace detail {

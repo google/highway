@@ -8263,6 +8263,23 @@ HWY_API Mask256<T> SetAtOrBeforeFirst(Mask256<T> mask) {
 
 // ------------------------------ Reductions in generic_ops
 
+// ------------------------------ BitShuffle
+#if HWY_TARGET <= HWY_AVX3_DL
+template <class V, class VI, HWY_IF_UI64(TFromV<V>), HWY_IF_UI8(TFromV<VI>),
+          HWY_IF_V_SIZE_V(V, 32), HWY_IF_V_SIZE_V(VI, 32)>
+HWY_API V BitShuffle(V v, VI idx) {
+  const DFromV<decltype(v)> d64;
+  const RebindToUnsigned<decltype(d64)> du64;
+  const Rebind<uint8_t, decltype(d64)> du8;
+
+  int32_t i32_bit_shuf_result =
+      static_cast<int32_t>(_mm256_bitshuffle_epi64_mask(v.raw, idx.raw));
+
+  return BitCast(d64, PromoteTo(du64, VFromD<decltype(du8)>{_mm_cvtsi32_si128(
+                                          i32_bit_shuf_result)}));
+}
+#endif  // HWY_TARGET <= HWY_AVX3_DL
+
 // ------------------------------ LeadingZeroCount
 
 #if HWY_TARGET <= HWY_AVX3

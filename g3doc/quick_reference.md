@@ -1963,6 +1963,31 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     to 0. `VI` are integers, possibly of a different type than those in `V`. The
     number of lanes in `V` and `VI` may differ.
 
+*   `V`: `{u,i}64`, `VI`: `{u,i}8` \
+    <code>V **BitShuffle**(V vals, VI indices)</code>: returns a
+    vector with `(vals[i] >> indices[i*8+j]) & 1` in bit `j` of `r[i]` for each
+    `j` between 0 and 7.
+
+    `BitShuffle(vals, indices)` zeroes out the upper 56 bits of `r[i]`.
+
+    If `indices[i*8+j]` is less than 0 or greater than 63, bit `j` of `r[i]` is
+    implementation-defined.
+
+    `VI` must be either `Vec<Repartition<int8_t, DFromV<V>>>` or
+    `Vec<Repartition<uint8_t, DFromV<V>>>`.
+
+    `BitShuffle(v, indices)` is equivalent to the following loop (where `N` is
+    equal to `Lanes(DFromV<V>())`):
+    ```
+    for(size_t i = 0; i < N; i++) {
+      uint64_t shuf_result = 0;
+      for(int j = 0; j < 7; j++) {
+        shuf_result |= ((v[i] >> indices[i*8+j]) & 1) << j;
+      }
+      r[i] = shuf_result;
+    }
+    ```
+
 #### Interleave
 
 Ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
