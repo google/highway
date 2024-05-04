@@ -420,4 +420,9 @@ class AlignedNDArray {
 };
 
 }  // namespace hwy
+
+#ifdef HWY_HEADER_ONLY
+#include "aligned_allocator.cc"
+#endif
+
 #endif  // HIGHWAY_HWY_ALIGNED_ALLOCATOR_H_

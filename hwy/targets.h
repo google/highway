@@ -341,4 +341,8 @@ HWY_DLLEXPORT ChosenTarget& GetChosenTarget();
 
 }  // namespace hwy
 
+#ifdef HWY_HEADER_ONLY
+#include "targets.cc"
+#endif
+
 #endif  // HIGHWAY_HWY_TARGETS_H_

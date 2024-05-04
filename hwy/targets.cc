@@ -698,6 +698,9 @@ int64_t DetectTargets() {
 
 }  // namespace
 
+#ifdef HWY_HEADER_ONLY
+inline
+#endif
 HWY_DLLEXPORT void DisableTargets(int64_t disabled_targets) {
   supported_mask_ = static_cast<int64_t>(~disabled_targets);
   // This will take effect on the next call to SupportedTargets, which is
@@ -708,11 +711,17 @@ HWY_DLLEXPORT void DisableTargets(int64_t disabled_targets) {
   GetChosenTarget().DeInit();
 }
 
+#ifdef HWY_HEADER_ONLY
+inline
+#endif
 HWY_DLLEXPORT void SetSupportedTargetsForTest(int64_t targets) {
   supported_targets_for_test_ = targets;
   GetChosenTarget().DeInit();  // see comment above
 }
 
+#ifdef HWY_HEADER_ONLY
+inline
+#endif
 HWY_DLLEXPORT int64_t SupportedTargets() {
   int64_t targets = supported_targets_for_test_;
   if (HWY_LIKELY(targets == 0)) {
@@ -747,6 +756,9 @@ HWY_DLLEXPORT int64_t SupportedTargets() {
   return targets == 0 ? HWY_STATIC_TARGET : targets;
 }
 
+#ifdef HWY_HEADER_ONLY
+inline
+#endif
 HWY_DLLEXPORT ChosenTarget& GetChosenTarget() {
   static ChosenTarget chosen_target;
   return chosen_target;

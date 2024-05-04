@@ -179,12 +179,13 @@ if (NOT HWY_CMAKE_HEADER_ONLY)
     hwy/abort.cc
     hwy/aligned_allocator.cc
     hwy/nanobenchmark.cc
-    hwy/per_target.cc
     hwy/print.cc
     hwy/targets.cc
     hwy/timer.cc
   )
 endif()
+
+list(APPEND HWY_SOURCES hwy/per_target.cc)
 
 set(HWY_TEST_SOURCES
     hwy/tests/hwy_gtest.h
