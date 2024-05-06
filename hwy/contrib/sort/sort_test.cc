@@ -119,6 +119,7 @@ struct TestFloatInf {
     const size_t N = Lanes(d);
     const size_t num = N * 3;
     auto in = hwy::AllocateAligned<T>(num);
+    HWY_ASSERT(in);
     Fill(d, GetLane(Inf(d)), num, in.get());
     VQSort(in.get(), num, SortAscending());
     for (size_t i = 0; i < num; i += N) {
@@ -368,6 +369,7 @@ static HWY_NOINLINE void TestPartition() {
   // left + len + align
   const size_t total = 32 + (base_case_num + 4 * HWY_MAX(N, 4)) + 2 * N;
   auto aligned_lanes = hwy::AllocateAligned<LaneType>(total);
+  HWY_ASSERT(aligned_lanes);
   HWY_ALIGN LaneType buf[SortConstants::BufBytes<LaneType, N1>(HWY_MAX_BYTES) /
                          sizeof(LaneType)];
 
@@ -544,6 +546,7 @@ class CompareResults {
   CompareResults(const LaneType* in, size_t num_lanes) {
     copy_lanes_ = num_lanes;
     copy_ = hwy::AllocateAligned<LaneType>(num_lanes);
+    HWY_ASSERT(copy_);
     CopyBytes(in, copy_.get(), num_lanes * sizeof(LaneType));
   }
 

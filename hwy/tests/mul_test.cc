@@ -77,6 +77,7 @@ struct TestSignedMul {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(expected);
 
     const Vec<D> v0 = Zero(d);
     const Vec<D> v1 = Set(d, static_cast<T>(1));
@@ -157,6 +158,7 @@ struct TestMulHigh {
     const size_t N = Lanes(d);
     auto in_lanes = AllocateAligned<T>(N);
     auto expected_lanes = AllocateAligned<T>(N);
+    HWY_ASSERT(in_lanes && expected_lanes);
 
     const Vec<D> vi = Iota(d, 1);
     const Vec<D> vni = Iota(d, static_cast<T>(0ULL - static_cast<uint64_t>(N)));
@@ -207,6 +209,7 @@ struct TestMulFixedPoint15 {
     auto in1 = AllocateAligned<T>(N);
     auto in2 = AllocateAligned<T>(N);
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(in1 && in2 && expected);
 
     // Random inputs in each lane
     RandomState rng;
@@ -276,6 +279,7 @@ struct TestMulEven {
     const size_t N = Lanes(d);
     auto in_lanes = AllocateAligned<T>(N);
     auto expected = AllocateAligned<Wide>(Lanes(d2));
+    HWY_ASSERT(in_lanes && expected);
     for (size_t i = 0; i < N; i += 2) {
       in_lanes[i + 0] =
           ConvertScalarTo<T>(LimitsMax<T>() >> (i & kShiftAmtMask));
@@ -327,6 +331,7 @@ struct TestMulOdd {
     constexpr size_t kShiftAmtMask = sizeof(T) * 8 - 1;
     auto in_lanes = AllocateAligned<T>(N);
     auto expected = AllocateAligned<Wide>(Lanes(d2));
+    HWY_ASSERT(in_lanes && expected);
     for (size_t i = 0; i < N; i += 2) {
       in_lanes[i + 0] = 1;  // unused
       in_lanes[i + 1] =
@@ -371,6 +376,7 @@ struct TestMulEvenOdd64 {
     auto in2 = AllocateAligned<T>(N);
     auto expected_even = AllocateAligned<T>(N);
     auto expected_odd = AllocateAligned<T>(N);
+    HWY_ASSERT(in1 && in2 && expected_even && expected_odd);
 
     // Random inputs in each lane
     RandomState rng;
@@ -435,6 +441,7 @@ struct TestMulAdd {
 
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(expected);
     HWY_ASSERT_VEC_EQ(d, k0, MulAdd(k0, k0, k0));
     HWY_ASSERT_VEC_EQ(d, v2, MulAdd(k0, v1, v2));
     HWY_ASSERT_VEC_EQ(d, v2, MulAdd(v1, k0, v2));
@@ -475,6 +482,7 @@ struct TestMulSub {
     const Vec<D> v2 = Iota(d, 2);
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(expected);
 
     // Unlike RebindToSigned, we want to leave floating-point unchanged.
     // This allows Neg for unsigned types.

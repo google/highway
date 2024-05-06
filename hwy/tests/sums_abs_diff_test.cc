@@ -39,6 +39,7 @@ struct TestSumsOf8AbsDiff {
     auto in_lanes_a = AllocateAligned<T>(N);
     auto in_lanes_b = AllocateAligned<T>(N);
     auto sum_lanes = AllocateAligned<TW>(N / 8);
+    HWY_ASSERT(in_lanes_a && in_lanes_b && sum_lanes);
 
     for (size_t rep = 0; rep < 100; ++rep) {
       for (size_t i = 0; i < N; ++i) {

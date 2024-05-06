@@ -233,6 +233,7 @@ TEST(AlignedAllocatorTest, TestAllocateAlignedObjectWithoutDestructor) {
   {
     // This doesn't call the constructor.
     auto obj = AllocateAligned<SampleObject<24>>(1);
+    HWY_ASSERT(obj);
     obj[0].counter_ = &counter;
   }
   // Destroying the unique_ptr shouldn't have called the destructor of the

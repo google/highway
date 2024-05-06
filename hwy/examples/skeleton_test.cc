@@ -89,6 +89,8 @@ struct TestSumMulAdd {
     auto mul = hwy::AllocateAligned<T>(count);
     auto x = hwy::AllocateAligned<T>(count);
     auto add = hwy::AllocateAligned<T>(count);
+    HWY_ASSERT(mul && x && add);
+
     for (size_t i = 0; i < count; ++i) {
       mul[i] = hwy::ConvertScalarTo<T>(Random32(&rng) & 0xF);
       x[i] = hwy::ConvertScalarTo<T>(Random32(&rng) & 0xFF);
