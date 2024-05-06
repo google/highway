@@ -206,6 +206,8 @@ class TestMatVec {
     ThreadPool pool(HWY_MIN(num_threads, ThreadPool::MaxThreads()));
 
     Test<AdjustedReps(192), AdjustedReps(256)>(d, pool);
+// Fewer tests due to compiler OOM
+#if HWY_TARGET != HWY_RVV
     Test<40, AdjustedReps(512)>(d, pool);
     Test<AdjustedReps(1024), 50>(d, pool);
 
@@ -213,13 +215,17 @@ class TestMatVec {
     if (sizeof(TFromD<D>) != 2 && sizeof(VecT) != 2) {
       Test<AdjustedReps(1536), AdjustedReps(1536)>(d, pool);
     }
+#endif  // HWY_TARGET != HWY_RVV
   }
 
  public:
   template <class T, class D>
   HWY_INLINE void operator()(T /*unused*/, D d) {
     CreatePoolAndTest(d, 13);
+// Fewer tests due to compiler OOM
+#if HWY_TARGET != HWY_RVV
     CreatePoolAndTest(d, 16);
+#endif
   }
 };
 
