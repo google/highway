@@ -1779,7 +1779,7 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
     MaybePrintVector(d, "pivot", pivot, 0, st.LanesPerKey());
     MaybePrintVector(d, "second", second, 0, st.LanesPerKey());
 
-    Vec<D> third;
+    Vec<D> third = Zero(d);
     // Not supported for key-value types because two 'keys' may be equivalent
     // but not interchangeable (their values may differ).
     if (HWY_UNLIKELY(!st.IsKV() &&
