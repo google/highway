@@ -622,7 +622,7 @@
 #endif
 
 #if HWY_ARCH_RISCV && HWY_HAVE_RUNTIME_DISPATCH
-#define HWY_ATTAINABLE_RISCV (HWY_BASELINE_RVV)
+#define HWY_ATTAINABLE_RISCV (HWY_RVV)
 #endif
 
 // Attainable means enabled and the compiler allows intrinsics (even when not
