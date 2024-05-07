@@ -2660,30 +2660,40 @@ struct Unroller {
   }
 };
 
+// Computes the highest power of two that divides `kBits`.
+template <size_t kBits>
+static constexpr size_t NumLoops() {
+  return (kBits & ~(kBits - 1));
+}
+
+template <size_t kBits>
+static constexpr size_t PackedIncr() {
+  return kBits / NumLoops<kBits>();
+}
+
+template <typename T, size_t kBits>
+static constexpr size_t UnpackedIncr() {
+  return (sizeof(T) * 8) / NumLoops<kBits>();
+}
+
+template <typename T, size_t kBits>
+static constexpr T MaskBits() {
+  return kBits == (sizeof(T) * 8) ? ~T{0} : (T{1} << kBits) - 1;
+}
+
 template <size_t kBits>  // <= 32
 struct Pack32 {
-  // Computes the highest power of two that divides `kBits`.
-  static constexpr size_t num_loops() { return (kBits & ~(kBits - 1)); }
-
-  static constexpr size_t packed_incr() { return kBits / num_loops(); }
-
-  static constexpr size_t unpacked_incr() { return 32 / num_loops(); }
-
-  static constexpr uint32_t mask_bits() {
-    return kBits == 32 ? ~uint32_t{0} : (uint32_t{1} << kBits) - 1;
-  }
-
   template <class D>
   HWY_INLINE void Pack(D d, const uint32_t* HWY_RESTRICT raw,
                        uint32_t* HWY_RESTRICT packed_out) const {
     using V = VFromD<D>;
-    const V mask = Set(d, mask_bits());
-    for (size_t i = 0; i < num_loops(); ++i) {
+    const V mask = Set(d, MaskBits<uint32_t, kBits>());
+    for (size_t i = 0; i < NumLoops<kBits>(); ++i) {
       V in = Zero(d), out = Zero(d);
       Unroller<uint32_t, kBits, 0, 0, 0>::pack(d, raw, packed_out, mask, in,
                                                out);
-      raw += unpacked_incr() * Lanes(d);
-      packed_out += packed_incr() * Lanes(d);
+      raw += UnpackedIncr<uint32_t, kBits>() * Lanes(d);
+      packed_out += PackedIncr<kBits>() * Lanes(d);
     }
   }
 
@@ -2691,14 +2701,46 @@ struct Pack32 {
   HWY_INLINE void Unpack(D d, const uint32_t* HWY_RESTRICT packed_in,
                          uint32_t* HWY_RESTRICT raw) const {
     using V = VFromD<D>;
-    const V mask = Set(d, mask_bits());
-    for (size_t i = 0; i < num_loops(); ++i) {
+    const V mask = Set(d, MaskBits<uint32_t, kBits>());
+    for (size_t i = 0; i < NumLoops<kBits>(); ++i) {
       V in = LoadU(d, packed_in + 0 * Lanes(d));
       V out = And(in, mask);
       Unroller<uint32_t, kBits, kBits, 1, 0>::unpack(d, packed_in, raw, mask,
                                                      in, out);
-      raw += unpacked_incr() * Lanes(d);
-      packed_in += packed_incr() * Lanes(d);
+      raw += UnpackedIncr<uint32_t, kBits>() * Lanes(d);
+      packed_in += PackedIncr<kBits>() * Lanes(d);
+    }
+  }
+};
+
+template <size_t kBits>  // <= 64
+struct Pack64 {
+  template <class D>
+  HWY_INLINE void Pack(D d, const uint64_t* HWY_RESTRICT raw,
+                       uint64_t* HWY_RESTRICT packed_out) const {
+    using V = VFromD<D>;
+    const V mask = Set(d, MaskBits<uint64_t, kBits>());
+    for (size_t i = 0; i < NumLoops<kBits>(); ++i) {
+      V in = Zero(d), out = Zero(d);
+      Unroller<uint64_t, kBits, 0, 0, 0>::pack(d, raw, packed_out, mask, in,
+                                               out);
+      raw += UnpackedIncr<uint64_t, kBits>() * Lanes(d);
+      packed_out += PackedIncr<kBits>() * Lanes(d);
+    }
+  }
+
+  template <class D>
+  HWY_INLINE void Unpack(D d, const uint64_t* HWY_RESTRICT packed_in,
+                         uint64_t* HWY_RESTRICT raw) const {
+    using V = VFromD<D>;
+    const V mask = Set(d, MaskBits<uint64_t, kBits>());
+    for (size_t i = 0; i < NumLoops<kBits>(); ++i) {
+      V in = LoadU(d, packed_in + 0 * Lanes(d));
+      V out = And(in, mask);
+      Unroller<uint64_t, kBits, kBits, 1, 0>::unpack(d, packed_in, raw, mask,
+                                                     in, out);
+      raw += UnpackedIncr<uint64_t, kBits>() * Lanes(d);
+      packed_in += PackedIncr<kBits>() * Lanes(d);
     }
   }
 };

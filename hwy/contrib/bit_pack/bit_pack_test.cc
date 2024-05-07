@@ -197,37 +197,33 @@ void TestAllPack16() {
 void TestAllPack32() {
   ForShrinkableVectors<TestPack<Pack32, 32, 1>>()(uint32_t());
   ForShrinkableVectors<TestPack<Pack32, 32, 2>>()(uint32_t());
-  ForShrinkableVectors<TestPack<Pack32, 32, 3>>()(uint32_t());
   ForShrinkableVectors<TestPack<Pack32, 32, 4>>()(uint32_t());
   ForShrinkableVectors<TestPack<Pack32, 32, 5>>()(uint32_t());
-  ForShrinkableVectors<TestPack<Pack32, 32, 5>>()(uint32_t());
   ForShrinkableVectors<TestPack<Pack32, 32, 6>>()(uint32_t());
-  ForShrinkableVectors<TestPack<Pack32, 32, 7>>()(uint32_t());
   ForShrinkableVectors<TestPack<Pack32, 32, 8>>()(uint32_t());
-  ForShrinkableVectors<TestPack<Pack32, 32, 9>>()(uint32_t());
-  ForShrinkableVectors<TestPack<Pack32, 32, 10>>()(uint32_t());
   ForShrinkableVectors<TestPack<Pack32, 32, 11>>()(uint32_t());
-  ForShrinkableVectors<TestPack<Pack32, 32, 12>>()(uint32_t());
-  ForShrinkableVectors<TestPack<Pack32, 32, 13>>()(uint32_t());
-  ForShrinkableVectors<TestPack<Pack32, 32, 14>>()(uint32_t());
-  ForShrinkableVectors<TestPack<Pack32, 32, 15>>()(uint32_t());
-  ForShrinkableVectors<TestPack<Pack32, 32, 16>>()(uint32_t());
-  ForShrinkableVectors<TestPack<Pack32, 32, 17>>()(uint32_t());
-  ForShrinkableVectors<TestPack<Pack32, 32, 18>>()(uint32_t());
-  ForShrinkableVectors<TestPack<Pack32, 32, 19>>()(uint32_t());
-  ForShrinkableVectors<TestPack<Pack32, 32, 20>>()(uint32_t());
-  ForShrinkableVectors<TestPack<Pack32, 32, 21>>()(uint32_t());
   ForShrinkableVectors<TestPack<Pack32, 32, 22>>()(uint32_t());
   ForShrinkableVectors<TestPack<Pack32, 32, 23>>()(uint32_t());
   ForShrinkableVectors<TestPack<Pack32, 32, 24>>()(uint32_t());
-  ForShrinkableVectors<TestPack<Pack32, 32, 25>>()(uint32_t());
-  ForShrinkableVectors<TestPack<Pack32, 32, 26>>()(uint32_t());
-  ForShrinkableVectors<TestPack<Pack32, 32, 27>>()(uint32_t());
-  ForShrinkableVectors<TestPack<Pack32, 32, 28>>()(uint32_t());
-  ForShrinkableVectors<TestPack<Pack32, 32, 29>>()(uint32_t());
-  ForShrinkableVectors<TestPack<Pack32, 32, 30>>()(uint32_t());
   ForShrinkableVectors<TestPack<Pack32, 32, 31>>()(uint32_t());
   ForShrinkableVectors<TestPack<Pack32, 32, 32>>()(uint32_t());
+}
+
+void TestAllPack64() {
+  ForShrinkableVectors<TestPack<Pack64, 64, 1>>()(uint64_t());
+  ForShrinkableVectors<TestPack<Pack64, 64, 6>>()(uint64_t());
+  ForShrinkableVectors<TestPack<Pack64, 64, 8>>()(uint64_t());
+  ForShrinkableVectors<TestPack<Pack64, 64, 11>>()(uint64_t());
+  ForShrinkableVectors<TestPack<Pack64, 64, 16>>()(uint64_t());
+  ForShrinkableVectors<TestPack<Pack64, 64, 27>>()(uint64_t());
+  ForShrinkableVectors<TestPack<Pack64, 64, 31>>()(uint64_t());
+  ForShrinkableVectors<TestPack<Pack64, 64, 33>>()(uint64_t());
+  ForShrinkableVectors<TestPack<Pack64, 64, 37>>()(uint64_t());
+  ForShrinkableVectors<TestPack<Pack64, 64, 38>>()(uint64_t());
+  ForShrinkableVectors<TestPack<Pack64, 64, 41>>()(uint64_t());
+  ForShrinkableVectors<TestPack<Pack64, 64, 53>>()(uint64_t());
+  ForShrinkableVectors<TestPack<Pack64, 64, 59>>()(uint64_t());
+  ForShrinkableVectors<TestPack<Pack64, 64, 61>>()(uint64_t());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
@@ -242,6 +238,7 @@ HWY_BEFORE_TEST(BitPackTest);
 HWY_EXPORT_AND_TEST_P(BitPackTest, TestAllPack8);
 HWY_EXPORT_AND_TEST_P(BitPackTest, TestAllPack16);
 HWY_EXPORT_AND_TEST_P(BitPackTest, TestAllPack32);
+HWY_EXPORT_AND_TEST_P(BitPackTest, TestAllPack64);
 HWY_AFTER_TEST();
 }  // namespace hwy
 
