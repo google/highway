@@ -338,7 +338,10 @@
 
 #if HWY_ARCH_ARM
 
-#if defined(__ARM_FEATURE_SVE2)
+// Also check compiler version as done for HWY_ATTAINABLE_SVE2 because the
+// static target (influenced here) must be one of the attainable targets.
+#if defined(__ARM_FEATURE_SVE2) && \
+    (HWY_COMPILER_CLANG >= 1400 || HWY_COMPILER_GCC_ACTUAL >= 1200)
 #undef HWY_BASELINE_SVE2  // was 0, will be re-defined
 // If user specified -msve-vector-bits=128, they assert the vector length is
 // 128 bits and we should use the HWY_SVE2_128 (more efficient for some ops).
@@ -353,7 +356,8 @@
 #endif  // __ARM_FEATURE_SVE_BITS
 #endif  // __ARM_FEATURE_SVE2
 
-#if defined(__ARM_FEATURE_SVE)
+#if defined(__ARM_FEATURE_SVE) && \
+    (HWY_COMPILER_CLANG >= 900 || HWY_COMPILER_GCC_ACTUAL >= 800)
 #undef HWY_BASELINE_SVE  // was 0, will be re-defined
 // See above. If user-specified vector length matches our optimization, use it.
 #if defined(__ARM_FEATURE_SVE_BITS) && __ARM_FEATURE_SVE_BITS == 256
@@ -583,9 +587,9 @@
 #define HWY_ATTAINABLE_NEON 0
 #endif
 
-#if HWY_ARCH_ARM_A64 &&                                                \
-    (HWY_COMPILER_CLANG >= 1400 || HWY_COMPILER_GCC_ACTUAL >= 1200) && \
-    (HWY_HAVE_RUNTIME_DISPATCH ||                                      \
+#if HWY_ARCH_ARM_A64 &&                                              \
+    (HWY_COMPILER_CLANG >= 900 || HWY_COMPILER_GCC_ACTUAL >= 800) && \
+    (HWY_HAVE_RUNTIME_DISPATCH ||                                    \
      (HWY_ENABLED_BASELINE & (HWY_SVE | HWY_SVE_256)))
 #define HWY_ATTAINABLE_SVE (HWY_SVE | HWY_SVE_256)
 #else
