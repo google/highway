@@ -13,8 +13,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stddef.h>
+#include <stdint.h>
+
 // Per-target include guard
-#if defined(HIGHWAY_HWY_CONTRIB_BIT_PACK_INL_H_) == defined(HWY_TARGET_TOGGLE)
+#if defined(HIGHWAY_HWY_CONTRIB_BIT_PACK_INL_H_) == \
+    defined(HWY_TARGET_TOGGLE)
 #ifdef HIGHWAY_HWY_CONTRIB_BIT_PACK_INL_H_
 #undef HIGHWAY_HWY_CONTRIB_BIT_PACK_INL_H_
 #else
@@ -31,7 +35,7 @@ namespace HWY_NAMESPACE {
 // bits. Each provides Pack and Unpack member functions which load (Pack) or
 // store (Unpack) B raw vectors, and store (Pack) or load (Unpack) a number of
 // packed vectors equal to kBits. B denotes the bits per lane: 8 for Pack8, 16
-// for Pack16, which is also the upper bound for kBits.
+// for Pack16, 32 for Pack32 which is also the upper bound for kBits.
 template <size_t kBits>  // <= 8
 struct Pack8 {};
 template <size_t kBits>  // <= 16
@@ -2589,6 +2593,115 @@ struct Pack16<16> {
     StoreU(rawF, d, raw + 0xF * N);
   }
 };  // Pack16<16>
+
+// Generates the implementation for bit-packing/un-packing `T` type numbers
+// where each number takes `kBits` bits.
+// `S` is the remainder bits left from the previous bit-packed block.
+// `kLoadPos` is the offset from which the next vector block should be loaded.
+// `kStorePos` is the offset into which the next vector block should be stored.
+template <typename T, size_t kBits, size_t S, size_t kLoadPos, size_t kStorePos>
+struct Unroller {
+  static constexpr size_t B = sizeof(T) * 8;
+  template <class D, typename V>
+  static inline void pack(D d, const T* HWY_RESTRICT raw,
+                          T* HWY_RESTRICT packed_out, const V& mask, V& in,
+                          V& out) {
+    const size_t N = Lanes(d);
+    HWY_IF_CONSTEXPR(S >= B) {
+      StoreU(out, d, packed_out + kStorePos * N);
+      HWY_IF_CONSTEXPR(S == B) { return; }
+      HWY_IF_CONSTEXPR(S != B) {
+        constexpr size_t shr_amount = (kBits - S % B);
+        out = ShiftRight<shr_amount>(in);
+        return Unroller<T, kBits, S % B, kLoadPos, kStorePos + 1>::pack(
+            d, raw, packed_out, mask, in, out);
+      }
+    }
+    HWY_IF_CONSTEXPR(S < B) {
+      in = And(LoadU(d, raw + kLoadPos * N), mask);
+      // Optimize for the case when `S` is zero.
+      // We can skip `Or` + ShiftLeft` to align `in`.
+      HWY_IF_CONSTEXPR(S == 0) { out = in; }
+      HWY_IF_CONSTEXPR(S != 0) { out = Or(out, ShiftLeft<S>(in)); }
+      return Unroller<T, kBits, S + kBits, kLoadPos + 1, kStorePos>::pack(
+          d, raw, packed_out, mask, in, out);
+    }
+  }
+
+  template <class D, typename V>
+  static inline void unpack(D d, const T* HWY_RESTRICT packed_in,
+                            T* HWY_RESTRICT raw, const V& mask, V& in, V& out) {
+    const size_t N = Lanes(d);
+    HWY_IF_CONSTEXPR(S >= B) {
+      HWY_IF_CONSTEXPR(S == B) {
+        StoreU(out, d, raw + kStorePos * N);
+        return;
+      }
+      HWY_IF_CONSTEXPR(S != B) {
+        in = LoadU(d, packed_in + kLoadPos * N);
+        constexpr size_t shl_amount = (kBits - S % B);
+        out = And(Or(out, ShiftLeft<shl_amount>(in)), mask);
+        return Unroller<T, kBits, S % B, kLoadPos + 1, kStorePos>::unpack(
+            d, packed_in, raw, mask, in, out);
+      }
+    }
+    HWY_IF_CONSTEXPR(S < B) {
+      StoreU(out, d, raw + kStorePos * N);
+      HWY_IF_CONSTEXPR(S + kBits < B) {
+        // Optimize for the case when `S` is zero.
+        // We can skip the `ShiftRight` to align `in`.
+        HWY_IF_CONSTEXPR(S == 0) { out = And(in, mask); }
+        HWY_IF_CONSTEXPR(S != 0) { out = And(ShiftRight<S>(in), mask); }
+      }
+      HWY_IF_CONSTEXPR(S + kBits >= B) { out = ShiftRight<S>(in); }
+      return Unroller<T, kBits, S + kBits, kLoadPos, kStorePos + 1>::unpack(
+          d, packed_in, raw, mask, in, out);
+    }
+  }
+};
+
+template <size_t kBits>  // <= 32
+struct Pack32 {
+  // Computes the highest power of two that divides `kBits`.
+  static constexpr size_t num_loops() { return (kBits & ~(kBits - 1)); }
+
+  static constexpr size_t packed_incr() { return kBits / num_loops(); }
+
+  static constexpr size_t unpacked_incr() { return 32 / num_loops(); }
+
+  static constexpr uint32_t mask_bits() {
+    return kBits == 32 ? ~uint32_t{0} : (uint32_t{1} << kBits) - 1;
+  }
+
+  template <class D>
+  HWY_INLINE void Pack(D d, const uint32_t* HWY_RESTRICT raw,
+                       uint32_t* HWY_RESTRICT packed_out) const {
+    using V = VFromD<D>;
+    const V mask = Set(d, mask_bits());
+    for (size_t i = 0; i < num_loops(); ++i) {
+      V in = Zero(d), out = Zero(d);
+      Unroller<uint32_t, kBits, 0, 0, 0>::pack(d, raw, packed_out, mask, in,
+                                               out);
+      raw += unpacked_incr() * Lanes(d);
+      packed_out += packed_incr() * Lanes(d);
+    }
+  }
+
+  template <class D>
+  HWY_INLINE void Unpack(D d, const uint32_t* HWY_RESTRICT packed_in,
+                         uint32_t* HWY_RESTRICT raw) const {
+    using V = VFromD<D>;
+    const V mask = Set(d, mask_bits());
+    for (size_t i = 0; i < num_loops(); ++i) {
+      V in = LoadU(d, packed_in + 0 * Lanes(d));
+      V out = And(in, mask);
+      Unroller<uint32_t, kBits, kBits, 1, 0>::unpack(d, packed_in, raw, mask,
+                                                     in, out);
+      raw += unpacked_incr() * Lanes(d);
+      packed_in += packed_incr() * Lanes(d);
+    }
+  }
+};
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE

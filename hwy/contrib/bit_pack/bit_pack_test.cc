@@ -137,7 +137,8 @@ struct TestPack {
       // Print throughput for pack+unpack round trip
       for (size_t i = 0; i < num_results; ++i) {
         const size_t bytes_per_element = (kBits + 7) / 8;
-        const double bytes = static_cast<double>(results[i].input * bytes_per_element);
+        const double bytes =
+            static_cast<double>(results[i].input * bytes_per_element);
         const double seconds =
             results[i].ticks / platform::InvariantTicksPerSecond();
         printf("Bits:%2d elements:%3d GB/s:%4.1f (+/-%3.1f%%)\n",
@@ -193,6 +194,42 @@ void TestAllPack16() {
   ForShrinkableVectors<TestPack<Pack16, 16, 16>>()(uint16_t());
 }
 
+void TestAllPack32() {
+  ForShrinkableVectors<TestPack<Pack32, 32, 1>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 2>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 3>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 4>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 5>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 5>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 6>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 7>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 8>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 9>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 10>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 11>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 12>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 13>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 14>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 15>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 16>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 17>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 18>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 19>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 20>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 21>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 22>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 23>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 24>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 25>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 26>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 27>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 28>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 29>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 30>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 31>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 32>>()(uint32_t());
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -204,6 +241,7 @@ namespace hwy {
 HWY_BEFORE_TEST(BitPackTest);
 HWY_EXPORT_AND_TEST_P(BitPackTest, TestAllPack8);
 HWY_EXPORT_AND_TEST_P(BitPackTest, TestAllPack16);
+HWY_EXPORT_AND_TEST_P(BitPackTest, TestAllPack32);
 HWY_AFTER_TEST();
 }  // namespace hwy
 
