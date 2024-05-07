@@ -2001,24 +2001,24 @@ Ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     alternating lanes from the upper halves of `a` and `b` (`a[N/2]` in the
     least-significant lane). `D` is `DFromV<V>`.
 
-*   <code>V **InterleaveEven**([D, ] V a, V b)</code>: returns *blocks* with
-    alternating lanes from the even lanes of `a` and `b` (`a[0]` in the
-    least-significant lane, followed by `b[0]`, followed by `a[2]`, followed by
-    `b[2]`, and so on). The optional `D` (provided for consistency with
-    `InterleaveOdd`) is `DFromV<V>`.
+*   <code>V **InterleaveEven**([D, ] V a, V b)</code>: returns alternating lanes
+    from the even lanes of `a` and `b` (`a[0]` in the least-significant lane,
+    followed by `b[0]`, followed by `a[2]`, followed by `b[2]`, and so on). The
+    optional `D` (provided for consistency with `InterleaveOdd`) is `DFromV<V>`.
+    Note that no lanes move across block boundaries.
 
     `InterleaveEven(a, b)` and `InterleaveEven(d, a, b)` are both equivalent to
     `OddEven(DupEven(b), a)`, but `InterleaveEven(a, b)` is usually more
     efficient than `OddEven(DupEven(b), a)`.
 
-*   <code>V **InterleaveOdd**(D, V a, V b)</code>: returns *blocks* with
-    alternating lanes from the odd lanes of `a` and `b` (`a[1]` in the
-    least-significant lane, followed by `b[1]`, followed by `a[3]`, followed by
-    `b[3]`, and so on). `D` is `DFromV<V>`.
+*   <code>V **InterleaveOdd**(D, V a, V b)</code>: returns alternating lanes
+    from the odd lanes of `a` and `b` (`a[1]` in the least-significant lane,
+    followed by `b[1]`, followed by `a[3]`, followed by `b[3]`, and so on). `D`
+    is `DFromV<V>`. Note that no lanes move across block boundaries.
 
     `InterleaveOdd(d, a, b)` is equivalent to `OddEven(b, DupOdd(a))`, but
-    `InterleaveOdd(d, a, b)` is usually more efficient than
-    `OddEven(b, DupOdd(a))`.
+    `InterleaveOdd(d, a, b)` is usually more efficient than `OddEven(b,
+    DupOdd(a))`.
 
 #### Zip
 
