@@ -386,14 +386,14 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 
 namespace hwy {
-HWY_BEFORE_TEST(HwyMaskTest);
-HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllMaskedLoad);
-HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllMaskedScatter);
-HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllScatterIndexN);
-HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllMaskedGather);
-HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllGatherIndexN);
-HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllBlendedStore);
-HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllStoreMaskBits);
+HWY_BEFORE_TEST(HwyMaskMemTest);
+HWY_EXPORT_AND_TEST_P(HwyMaskMemTest, TestAllMaskedLoad);
+HWY_EXPORT_AND_TEST_P(HwyMaskMemTest, TestAllMaskedScatter);
+HWY_EXPORT_AND_TEST_P(HwyMaskMemTest, TestAllScatterIndexN);
+HWY_EXPORT_AND_TEST_P(HwyMaskMemTest, TestAllMaskedGather);
+HWY_EXPORT_AND_TEST_P(HwyMaskMemTest, TestAllGatherIndexN);
+HWY_EXPORT_AND_TEST_P(HwyMaskMemTest, TestAllBlendedStore);
+HWY_EXPORT_AND_TEST_P(HwyMaskMemTest, TestAllStoreMaskBits);
 HWY_AFTER_TEST();
 }  // namespace hwy
 
