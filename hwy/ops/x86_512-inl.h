@@ -7458,6 +7458,37 @@ HWY_INLINE VFromD<D> ReduceAcrossBlocks(D d, Func f, VFromD<D> v) {
 
 }  // namespace detail
 
+// ------------------------------ BitShuffle
+#if HWY_TARGET <= HWY_AVX3_DL
+template <class V, class VI, HWY_IF_UI64(TFromV<V>), HWY_IF_UI8(TFromV<VI>),
+          HWY_IF_V_SIZE_V(V, 64), HWY_IF_V_SIZE_V(VI, 64)>
+HWY_API V BitShuffle(V v, VI idx) {
+  const DFromV<decltype(v)> d64;
+  const RebindToUnsigned<decltype(d64)> du64;
+  const Rebind<uint8_t, decltype(d64)> du8;
+
+  const __mmask64 mmask64_bit_shuf_result =
+      _mm512_bitshuffle_epi64_mask(v.raw, idx.raw);
+
+#if HWY_ARCH_X86_64
+  const VFromD<decltype(du8)> vu8_bit_shuf_result{
+      _mm_cvtsi64_si128(static_cast<int64_t>(mmask64_bit_shuf_result))};
+#else
+  const int32_t i32_lo_bit_shuf_result =
+      static_cast<int32_t>(mmask64_bit_shuf_result);
+  const int32_t i32_hi_bit_shuf_result =
+      static_cast<int32_t>(_kshiftri_mask64(mmask64_bit_shuf_result, 32));
+
+  const VFromD<decltype(du8)> vu8_bit_shuf_result = ResizeBitCast(
+      du8, InterleaveLower(
+               Vec128<uint32_t>{_mm_cvtsi32_si128(i32_lo_bit_shuf_result)},
+               Vec128<uint32_t>{_mm_cvtsi32_si128(i32_hi_bit_shuf_result)}));
+#endif
+
+  return BitCast(d64, PromoteTo(du64, vu8_bit_shuf_result));
+}
+#endif  // HWY_TARGET <= HWY_AVX3_DL
+
 // -------------------- LeadingZeroCount, TrailingZeroCount, HighestSetBitIndex
 
 template <class V, HWY_IF_UI32(TFromV<V>), HWY_IF_V_SIZE_V(V, 64)>

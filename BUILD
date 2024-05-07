@@ -474,6 +474,7 @@ HWY_TESTS = [
     ("hwy/", "highway_test"),
     ("hwy/", "targets_test"),
     ("hwy/tests/", "arithmetic_test"),
+    ("hwy/tests/", "bit_permute_test"),
     ("hwy/tests/", "blockwise_shift_test"),
     ("hwy/tests/", "blockwise_test"),
     ("hwy/tests/", "cast_test"),

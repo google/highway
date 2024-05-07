@@ -6968,6 +6968,75 @@ HWY_API TFromD<D> ReduceSum(D /*d*/, VFromD<D> v) {
   return static_cast<TFromD<D>>(GetLane(SumsOf4(v)));
 }
 
+// ------------------------------ BitShuffle
+
+#ifdef HWY_NATIVE_BITSHUFFLE
+#undef HWY_NATIVE_BITSHUFFLE
+#else
+#define HWY_NATIVE_BITSHUFFLE
+#endif
+
+template <class V, class VI, HWY_IF_UI64(TFromV<V>), HWY_IF_UI8(TFromV<VI>),
+          HWY_IF_V_SIZE_V(VI, HWY_MAX_LANES_V(V) * 8)>
+HWY_API V BitShuffle(V v, VI idx) {
+  const DFromV<decltype(v)> d64;
+  const RebindToUnsigned<decltype(d64)> du64;
+  const Repartition<uint8_t, decltype(d64)> du8;
+
+  const Full128<TFromD<decltype(du64)>> d_full_u64;
+  const Full128<TFromD<decltype(du8)>> d_full_u8;
+
+  using RawVU64 = __vector unsigned long long;
+
+#if HWY_PPC_HAVE_9
+
+#if HWY_IS_LITTLE_ENDIAN
+  (void)d_full_u64;
+  auto bit_idx = ResizeBitCast(d_full_u8, idx);
+#else
+  auto bit_idx =
+      BitCast(d_full_u8, ReverseLaneBytes(ResizeBitCast(d_full_u64, idx)));
+#endif
+
+  bit_idx = Xor(bit_idx, Set(d_full_u8, uint8_t{0x3F}));
+
+  return BitCast(d64, VFromD<decltype(du64)>{reinterpret_cast<RawVU64>(
+                          vec_bperm(BitCast(du64, v).raw, bit_idx.raw))});
+#else  // !HWY_PPC_HAVE_9
+
+#if HWY_IS_LITTLE_ENDIAN
+  const auto bit_idx_xor_mask = BitCast(
+      d_full_u8, Dup128VecFromValues(d_full_u64, uint64_t{0x7F7F7F7F7F7F7F7Fu},
+                                     uint64_t{0x3F3F3F3F3F3F3F3Fu}));
+  const auto bit_idx = Xor(ResizeBitCast(d_full_u8, idx), bit_idx_xor_mask);
+  constexpr int kBitShufResultByteShrAmt = 8;
+#else
+  const auto bit_idx_xor_mask = BitCast(
+      d_full_u8, Dup128VecFromValues(d_full_u64, uint64_t{0x3F3F3F3F3F3F3F3Fu},
+                                     uint64_t{0x7F7F7F7F7F7F7F7Fu}));
+  const auto bit_idx =
+      Xor(BitCast(d_full_u8, ReverseLaneBytes(ResizeBitCast(d_full_u64, idx))),
+          bit_idx_xor_mask);
+  constexpr int kBitShufResultByteShrAmt = 6;
+#endif
+
+#if HWY_S390X_HAVE_Z14
+  const VFromD<decltype(d_full_u64)> bit_shuf_result{reinterpret_cast<RawVU64>(
+      vec_bperm_u128(BitCast(du8, v).raw, bit_idx.raw))};
+#else
+  const VFromD<decltype(d_full_u64)> bit_shuf_result{
+      reinterpret_cast<RawVU64>(vec_vbpermq(v.raw, bit_idx.raw))};
+#endif
+
+  return ResizeBitCast(
+      d64, PromoteTo(d_full_u64,
+                     ResizeBitCast(
+                         Rebind<uint8_t, decltype(d_full_u64)>(),
+                         CombineShiftRightBytes<kBitShufResultByteShrAmt>(
+                             d_full_u64, bit_shuf_result, bit_shuf_result))));
+#endif  // HWY_PPC_HAVE_9
+}
+
 // ------------------------------ Lt128
 
 namespace detail {

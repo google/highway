@@ -634,6 +634,7 @@ set(HWY_TEST_FILES
   hwy/targets_test.cc
   hwy/examples/skeleton_test.cc
   hwy/tests/arithmetic_test.cc
+  hwy/tests/bit_permute_test.cc
   hwy/tests/blockwise_shift_test.cc
   hwy/tests/blockwise_test.cc
   hwy/tests/cast_test.cc

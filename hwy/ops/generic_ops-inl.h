@@ -7184,6 +7184,55 @@ HWY_API Vec<RepartitionToWide<DFromV<V8>>> SumsOfShuffledQuadAbsDiff(V8 a,
 
 #endif  // HWY_NATIVE_SUMS_OF_SHUFFLED_QUAD_ABS_DIFF
 
+// ------------------------------ BitShuffle
+#if (defined(HWY_NATIVE_BITSHUFFLE) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_BITSHUFFLE
+#undef HWY_NATIVE_BITSHUFFLE
+#else
+#define HWY_NATIVE_BITSHUFFLE
+#endif
+
+#if HWY_HAVE_INTEGER64 && HWY_TARGET != HWY_SCALAR
+template <class V, class VI, HWY_IF_UI64(TFromV<V>), HWY_IF_UI8(TFromV<VI>),
+          class VI_2 = VFromD<Repartition<uint8_t, DFromV<V>>>,
+          HWY_IF_LANES_D(DFromV<VI>, HWY_MAX_LANES_V(VI_2))>
+HWY_API V BitShuffle(V v, VI idx) {
+  const DFromV<decltype(v)> d64;
+  const RebindToUnsigned<decltype(d64)> du64;
+  const Repartition<uint8_t, decltype(d64)> du8;
+
+#if HWY_TARGET <= HWY_SSE2 || HWY_TARGET == HWY_WASM || \
+    HWY_TARGET == HWY_WASM_EMU256
+  const Repartition<uint16_t, decltype(d64)> d_idx_shr;
+#else
+  const Repartition<uint8_t, decltype(d64)> d_idx_shr;
+#endif
+
+#if HWY_IS_LITTLE_ENDIAN
+  constexpr uint64_t kExtractedBitsMask =
+      static_cast<uint64_t>(0x8040201008040201u);
+#else
+  constexpr uint64_t kExtractedBitsMask =
+      static_cast<uint64_t>(0x0102040810204080u);
+#endif
+
+  const auto byte_idx = BitwiseIfThenElse(
+      Set(du8, uint8_t{0x07}),
+      BitCast(du8, ShiftRight<3>(BitCast(d_idx_shr, idx))),
+      BitCast(du8, Dup128VecFromValues(du64, uint64_t{0},
+                                       uint64_t{0x0808080808080808u})));
+  const auto u8_rol_amt = Sub(Iota(du8, uint8_t{0}), BitCast(du8, idx));
+
+  const auto extracted_bits =
+      And(Rol(TableLookupBytes(v, byte_idx), u8_rol_amt),
+          BitCast(du8, Set(du64, kExtractedBitsMask)));
+
+  return BitCast(d64, SumsOf8(extracted_bits));
+}
+#endif  // HWY_HAVE_INTEGER64 && HWY_TARGET != HWY_SCALAR
+
+#endif  // HWY_NATIVE_BITSHUFFLE
+
 // ================================================== Operator wrapper
 
 // SVE* and RVV currently cannot define operators and have already defined
