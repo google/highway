@@ -123,7 +123,7 @@ class SlowSet {
   // Must not call if Count() == 0.
   size_t RandomChoice(RandomState& rng) const {
     HWY_ASSERT(Count() != 0);
-    const size_t idx = hwy::Random64(&rng) % vec_.size();
+    const size_t idx = static_cast<size_t>(hwy::Random32(&rng)) % vec_.size();
     return vec_[idx];
   }
 
