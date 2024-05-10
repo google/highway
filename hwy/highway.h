@@ -400,8 +400,8 @@ FunctionCache<RetType, Args...> DeduceFunctionCache(RetType (*)(Args...)) {
       FUNC_NAME)[HWY_MAX_DYNAMIC_TARGETS + 2] = {                            \
       /* The first entry in the table initializes the global cache and       \
        * calls the function from HWY_STATIC_TARGET. */                       \
-      &decltype(hwy::DeduceFunctionCache(&HWY_STATIC_DISPATCH(               \
-          FUNC_NAME)))::ChooseAndCall<&HWY_STATIC_DISPATCH(FUNC_NAME)>,      \
+      &decltype(hwy::DeduceFunctionCache(&HWY_STATIC_DISPATCH(FUNC_NAME))):: \
+          template ChooseAndCall<&HWY_STATIC_DISPATCH(FUNC_NAME)>,           \
       HWY_CHOOSE_TARGET_LIST(FUNC_NAME),                                     \
       HWY_CHOOSE_FALLBACK(FUNC_NAME),                                        \
   }
@@ -411,8 +411,8 @@ FunctionCache<RetType, Args...> DeduceFunctionCache(RetType (*)(Args...)) {
       TABLE_NAME)[HWY_MAX_DYNAMIC_TARGETS + 2] = {                           \
       /* The first entry in the table initializes the global cache and       \
        * calls the function from HWY_STATIC_TARGET. */                       \
-      &decltype(hwy::DeduceFunctionCache(&HWY_STATIC_DISPATCH(               \
-          FUNC_NAME)))::ChooseAndCall<&HWY_STATIC_DISPATCH(FUNC_NAME)>,      \
+      &decltype(hwy::DeduceFunctionCache(&HWY_STATIC_DISPATCH(FUNC_NAME))):: \
+          template ChooseAndCall<&HWY_STATIC_DISPATCH(FUNC_NAME)>,           \
       HWY_CHOOSE_TARGET_LIST(FUNC_NAME),                                     \
       HWY_CHOOSE_FALLBACK(FUNC_NAME),                                        \
   }
@@ -421,15 +421,15 @@ FunctionCache<RetType, Args...> DeduceFunctionCache(RetType (*)(Args...)) {
 
 // Dynamic dispatch case with one entry per dynamic target plus the fallback
 // target and the initialization wrapper.
-#define HWY_EXPORT(FUNC_NAME)                                                \
-  static decltype(&HWY_STATIC_DISPATCH(FUNC_NAME)) const HWY_DISPATCH_TABLE( \
-      FUNC_NAME)[HWY_MAX_DYNAMIC_TARGETS + 2] = {                            \
-      /* The first entry in the table initializes the global cache and       \
-       * calls the appropriate function. */                                  \
-      &decltype(hwy::DeduceFunctionCache(&HWY_STATIC_DISPATCH(               \
-          FUNC_NAME)))::ChooseAndCall<HWY_DISPATCH_TABLE(FUNC_NAME)>,        \
-      HWY_CHOOSE_TARGET_LIST(FUNC_NAME),                                     \
-      HWY_CHOOSE_FALLBACK(FUNC_NAME),                                        \
+#define HWY_EXPORT(FUNC_NAME)                                                  \
+  static decltype(&HWY_STATIC_DISPATCH(FUNC_NAME)) const HWY_DISPATCH_TABLE(   \
+      FUNC_NAME)[HWY_MAX_DYNAMIC_TARGETS + 2] = {                              \
+      /* The first entry in the table initializes the global cache and         \
+       * calls the appropriate function. */                                    \
+      &decltype(hwy::DeduceFunctionCache(&HWY_STATIC_DISPATCH(                 \
+          FUNC_NAME)))::template ChooseAndCall<HWY_DISPATCH_TABLE(FUNC_NAME)>, \
+      HWY_CHOOSE_TARGET_LIST(FUNC_NAME),                                       \
+      HWY_CHOOSE_FALLBACK(FUNC_NAME),                                          \
   }
 
 #define HWY_EXPORT_T(TABLE_NAME, FUNC_NAME)                                  \
