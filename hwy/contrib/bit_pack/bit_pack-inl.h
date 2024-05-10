@@ -17,8 +17,7 @@
 #include <stdint.h>
 
 // Per-target include guard
-#if defined(HIGHWAY_HWY_CONTRIB_BIT_PACK_INL_H_) == \
-    defined(HWY_TARGET_TOGGLE)
+#if defined(HIGHWAY_HWY_CONTRIB_BIT_PACK_INL_H_) == defined(HWY_TARGET_TOGGLE)
 #ifdef HIGHWAY_HWY_CONTRIB_BIT_PACK_INL_H_
 #undef HIGHWAY_HWY_CONTRIB_BIT_PACK_INL_H_
 #else
@@ -2606,15 +2605,27 @@ struct Unroller {
   static inline void pack(D d, const T* HWY_RESTRICT raw,
                           T* HWY_RESTRICT packed_out, const V& mask, V& in,
                           V& out) {
+    // Avoid compilation errors and unnecessary template instantiation if
+    // compiling in C++11 or C++14 mode
+    using NextUnroller =
+        Unroller<T, kBits, ((S <= B) ? (S + ((S < B) ? kBits : 0)) : (S % B)),
+                 kLoadPos + static_cast<size_t>(S < B),
+                 kStorePos + static_cast<size_t>(S > B)>;
+
+    (void)raw;
+    (void)mask;
+    (void)in;
+
     const size_t N = Lanes(d);
     HWY_IF_CONSTEXPR(S >= B) {
       StoreU(out, d, packed_out + kStorePos * N);
       HWY_IF_CONSTEXPR(S == B) { return; }
       HWY_IF_CONSTEXPR(S != B) {
-        constexpr size_t shr_amount = (kBits - S % B);
+        constexpr size_t shr_amount = (kBits - S % B) % B;
         out = ShiftRight<shr_amount>(in);
-        return Unroller<T, kBits, S % B, kLoadPos, kStorePos + 1>::pack(
-            d, raw, packed_out, mask, in, out);
+        // NextUnroller is a typedef for
+        // Unroller<T, kBits, S % B, kLoadPos, kStorePos + 1> if S > B is true
+        return NextUnroller::pack(d, raw, packed_out, mask, in, out);
       }
     }
     HWY_IF_CONSTEXPR(S < B) {
@@ -2622,15 +2633,27 @@ struct Unroller {
       // Optimize for the case when `S` is zero.
       // We can skip `Or` + ShiftLeft` to align `in`.
       HWY_IF_CONSTEXPR(S == 0) { out = in; }
-      HWY_IF_CONSTEXPR(S != 0) { out = Or(out, ShiftLeft<S>(in)); }
-      return Unroller<T, kBits, S + kBits, kLoadPos + 1, kStorePos>::pack(
-          d, raw, packed_out, mask, in, out);
+      HWY_IF_CONSTEXPR(S != 0) { out = Or(out, ShiftLeft<S % B>(in)); }
+      // NextUnroller is a typedef for
+      // Unroller<T, kBits, S + kBits, kLoadPos + 1, kStorePos> if S < B is true
+      return NextUnroller::pack(d, raw, packed_out, mask, in, out);
     }
   }
 
   template <class D, typename V>
   static inline void unpack(D d, const T* HWY_RESTRICT packed_in,
                             T* HWY_RESTRICT raw, const V& mask, V& in, V& out) {
+    // Avoid compilation errors and unnecessary template instantiation if
+    // compiling in C++11 or C++14 mode
+    using NextUnroller =
+        Unroller<T, kBits, ((S <= B) ? (S + ((S < B) ? kBits : 0)) : (S % B)),
+                 kLoadPos + static_cast<size_t>(S > B),
+                 kStorePos + static_cast<size_t>(S < B)>;
+
+    (void)packed_in;
+    (void)mask;
+    (void)in;
+
     const size_t N = Lanes(d);
     HWY_IF_CONSTEXPR(S >= B) {
       HWY_IF_CONSTEXPR(S == B) {
@@ -2639,10 +2662,11 @@ struct Unroller {
       }
       HWY_IF_CONSTEXPR(S != B) {
         in = LoadU(d, packed_in + kLoadPos * N);
-        constexpr size_t shl_amount = (kBits - S % B);
+        constexpr size_t shl_amount = (kBits - S % B) % B;
         out = And(Or(out, ShiftLeft<shl_amount>(in)), mask);
-        return Unroller<T, kBits, S % B, kLoadPos + 1, kStorePos>::unpack(
-            d, packed_in, raw, mask, in, out);
+        // NextUnroller is a typedef for
+        // Unroller<T, kBits, S % B, kLoadPos + 1, kStorePos> if S > B is true
+        return NextUnroller::unpack(d, packed_in, raw, mask, in, out);
       }
     }
     HWY_IF_CONSTEXPR(S < B) {
@@ -2651,11 +2675,12 @@ struct Unroller {
         // Optimize for the case when `S` is zero.
         // We can skip the `ShiftRight` to align `in`.
         HWY_IF_CONSTEXPR(S == 0) { out = And(in, mask); }
-        HWY_IF_CONSTEXPR(S != 0) { out = And(ShiftRight<S>(in), mask); }
+        HWY_IF_CONSTEXPR(S != 0) { out = And(ShiftRight<S % B>(in), mask); }
       }
-      HWY_IF_CONSTEXPR(S + kBits >= B) { out = ShiftRight<S>(in); }
-      return Unroller<T, kBits, S + kBits, kLoadPos, kStorePos + 1>::unpack(
-          d, packed_in, raw, mask, in, out);
+      HWY_IF_CONSTEXPR(S + kBits >= B) { out = ShiftRight<S % B>(in); }
+      // NextUnroller is a typedef for
+      // Unroller<T, kBits, S + kBits, kLoadPos, kStorePos + 1> if S < B is true
+      return NextUnroller::unpack(d, packed_in, raw, mask, in, out);
     }
   }
 };
