@@ -39,10 +39,7 @@ struct TestMaskFalse {
     // Other targets are strongly-typed, but we can safely ResizeBitCast to the
     // native vector. All targets have at least 128-bit vectors, but NEON also
     // supports 64-bit vectors.
-    constexpr size_t kMinD2Lanes =
-        ((HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_NEON_WITHOUT_AES) ? 8
-                                                                        : 16) /
-        sizeof(T);
+    constexpr size_t kMinD2Lanes = (HWY_TARGET_IS_NEON ? 8 : 16) / sizeof(T);
     const FixedTag<T, HWY_MAX(HWY_MAX_LANES_D(D), kMinD2Lanes)> d2;
 #endif
     static_assert(d2.MaxBytes() >= d.MaxBytes(),

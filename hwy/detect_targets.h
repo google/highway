@@ -86,15 +86,20 @@
 
 // --------------------------- Arm: 15 targets (+ one fallback)
 // Bits 15..17 reserved (3 targets)
-#define HWY_SVE2_128 (1LL << 18)  // specialized target (e.g. Arm N2)
-#define HWY_SVE_256 (1LL << 19)   // specialized target (e.g. Arm V1)
+#define HWY_SVE2_128 (1LL << 18)  // specialized (e.g. Neoverse V2/N2/N3)
+#define HWY_SVE_256 (1LL << 19)   // specialized (Neoverse V1)
 // Bits 20-22 reserved for later SVE (3 targets)
 #define HWY_SVE2 (1LL << 23)
 #define HWY_SVE (1LL << 24)
-// Bits 25..27 reserved for NEON (3 targets)
+// Bit 25 reserved for NEON
+#define HWY_NEON_BF16 (1LL << 26)  // fp16/dot/bf16 (e.g. Neoverse V2/N2/N3)
+// Bit 27 reserved for NEON
 #define HWY_NEON (1LL << 28)  // Implies support for AES
 #define HWY_NEON_WITHOUT_AES (1LL << 29)
 #define HWY_HIGHEST_TARGET_BIT_ARM 29
+
+#define HWY_ALL_NEON (HWY_NEON_WITHOUT_AES | HWY_NEON | HWY_NEON_BF16)
+#define HWY_ALL_SVE (HWY_SVE | HWY_SVE2 | HWY_SVE_256 | HWY_SVE2_128)
 
 // --------------------------- RISC-V: 9 targets (+ one fallback)
 // Bits 30..36 reserved (7 targets)
@@ -113,6 +118,8 @@
 #define HWY_Z15 (1LL << 50)    // Z15
 #define HWY_Z14 (1LL << 51)    // Z14
 #define HWY_HIGHEST_TARGET_BIT_PPC 51
+
+#define HWY_ALL_PPC (HWY_PPC8 | HWY_PPC9 | HWY_PPC10)
 
 // --------------------------- WebAssembly: 9 targets (+ one fallback)
 // Bits 52..57 reserved (6 targets)
@@ -191,7 +198,7 @@
 
 // armv7be has not been tested and is not yet supported.
 #if HWY_ARCH_ARM_V7 && HWY_IS_BIG_ENDIAN
-#define HWY_BROKEN_ARM7_BIG_ENDIAN (HWY_NEON | HWY_NEON_WITHOUT_AES)
+#define HWY_BROKEN_ARM7_BIG_ENDIAN HWY_ALL_NEON
 #else
 #define HWY_BROKEN_ARM7_BIG_ENDIAN 0
 #endif
@@ -202,7 +209,7 @@
 #if HWY_ARCH_ARM_V7 && (__ARM_ARCH_PROFILE == 'A') && \
     !defined(__ARM_VFPV4__) &&                        \
     !((__ARM_NEON_FP & 0x2 /* half-float */) && (__ARM_FEATURE_FMA == 1))
-#define HWY_BROKEN_ARM7_WITHOUT_VFP4 (HWY_NEON | HWY_NEON_WITHOUT_AES)
+#define HWY_BROKEN_ARM7_WITHOUT_VFP4 HWY_ALL_NEON
 #else
 #define HWY_BROKEN_ARM7_WITHOUT_VFP4 0
 #endif
@@ -370,12 +377,17 @@
 // GCC 4.5.4 only defines __ARM_NEON__; 5.4 defines both.
 #if defined(__ARM_NEON__) || defined(__ARM_NEON)
 #undef HWY_BASELINE_NEON
-#if defined(__ARM_FEATURE_AES)
-#define HWY_BASELINE_NEON (HWY_NEON | HWY_NEON_WITHOUT_AES)
+#if defined(__ARM_FEATURE_AES) &&                    \
+    defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC) && \
+    defined(__ARM_FEATURE_DOTPROD) &&                \
+    defined(__ARM_FEATURE_BF16_VECTOR_ARITHMETIC)
+#define HWY_BASELINE_NEON HWY_ALL_NEON
+#elif defined(__ARM_FEATURE_AES)
+#define HWY_BASELINE_NEON (HWY_NEON_WITHOUT_AES | HWY_NEON)
 #else
 #define HWY_BASELINE_NEON (HWY_NEON_WITHOUT_AES)
-#endif
-#endif
+#endif  // __ARM_FEATURE*
+#endif  // __ARM_NEON
 
 #endif  // HWY_ARCH_ARM
 
@@ -580,7 +592,12 @@
 #endif
 
 #if HWY_ARCH_ARM_A64 && HWY_HAVE_RUNTIME_DISPATCH
-#define HWY_ATTAINABLE_NEON (HWY_NEON | HWY_NEON_WITHOUT_AES)
+// HWY_NEON_BF16 requires recent compilers.
+#if (HWY_COMPILER_CLANG >= 1100 || HWY_COMPILER_GCC_ACTUAL >= 1000)
+#define HWY_ATTAINABLE_NEON HWY_ALL_NEON
+#else
+#define HWY_ATTAINABLE_NEON (HWY_NEON_WITHOUT_AES | HWY_NEON)
+#endif              // HWY_COMPILER
 #elif HWY_ARCH_ARM  // static dispatch, or HWY_ARCH_ARM_V7
 #define HWY_ATTAINABLE_NEON (HWY_BASELINE_NEON)
 #else

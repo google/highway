@@ -112,6 +112,8 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(int64_t target) {
       return "SVE2";
     case HWY_SVE:
       return "SVE";
+    case HWY_NEON_BF16:
+      return "NEON_BF16";
     case HWY_NEON:
       return "NEON";
     case HWY_NEON_WITHOUT_AES:
@@ -220,21 +222,21 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(int64_t target) {
 // See HWY_ARCH_X86 above for details.
 #define HWY_MAX_DYNAMIC_TARGETS 15
 #define HWY_HIGHEST_TARGET_BIT HWY_HIGHEST_TARGET_BIT_ARM
-#define HWY_CHOOSE_TARGET_LIST(func_name)                       \
-  nullptr,                                   /* reserved */     \
-      nullptr,                               /* reserved */     \
-      nullptr,                               /* reserved */     \
-      HWY_CHOOSE_SVE2_128(func_name),        /* SVE2 128-bit */ \
-      HWY_CHOOSE_SVE_256(func_name),         /* SVE 256-bit */  \
-      nullptr,                               /* reserved */     \
-      nullptr,                               /* reserved */     \
-      nullptr,                               /* reserved */     \
-      HWY_CHOOSE_SVE2(func_name),            /* SVE2 */         \
-      HWY_CHOOSE_SVE(func_name),             /* SVE */          \
-      nullptr,                               /* reserved */     \
-      nullptr,                               /* reserved */     \
-      nullptr,                               /* reserved */     \
-      HWY_CHOOSE_NEON(func_name),            /* NEON */         \
+#define HWY_CHOOSE_TARGET_LIST(func_name)                              \
+  nullptr,                                   /* reserved */            \
+      nullptr,                               /* reserved */            \
+      nullptr,                               /* reserved */            \
+      HWY_CHOOSE_SVE2_128(func_name),        /* SVE2 128-bit */        \
+      HWY_CHOOSE_SVE_256(func_name),         /* SVE 256-bit */         \
+      nullptr,                               /* reserved */            \
+      nullptr,                               /* reserved */            \
+      nullptr,                               /* reserved */            \
+      HWY_CHOOSE_SVE2(func_name),            /* SVE2 */                \
+      HWY_CHOOSE_SVE(func_name),             /* SVE */                 \
+      nullptr,                               /* reserved */            \
+      HWY_CHOOSE_NEON_BF16(func_name),       /* NEON + f16/dot/bf16 */ \
+      nullptr,                               /* reserved */            \
+      HWY_CHOOSE_NEON(func_name),            /* NEON */                \
       HWY_CHOOSE_NEON_WITHOUT_AES(func_name) /* NEON without AES */
 
 #elif HWY_ARCH_RISCV

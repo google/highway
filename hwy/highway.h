@@ -18,6 +18,7 @@
 // IWYU pragma: begin_exports
 #include "hwy/base.h"
 #include "hwy/detect_compiler_arch.h"
+#include "hwy/detect_targets.h"
 #include "hwy/highway_export.h"
 #include "hwy/targets.h"
 // IWYU pragma: end_exports
@@ -84,6 +85,8 @@ namespace hwy {
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_NEON_WITHOUT_AES::FUNC_NAME
 #elif HWY_STATIC_TARGET == HWY_NEON
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_NEON::FUNC_NAME
+#elif HWY_STATIC_TARGET == HWY_NEON_BF16
+#define HWY_STATIC_DISPATCH(FUNC_NAME) N_NEON_BF16::FUNC_NAME
 #elif HWY_STATIC_TARGET == HWY_SVE
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_SVE::FUNC_NAME
 #elif HWY_STATIC_TARGET == HWY_SVE2
@@ -160,6 +163,12 @@ namespace hwy {
 #define HWY_CHOOSE_NEON(FUNC_NAME) &N_NEON::FUNC_NAME
 #else
 #define HWY_CHOOSE_NEON(FUNC_NAME) nullptr
+#endif
+
+#if HWY_TARGETS & HWY_NEON_BF16
+#define HWY_CHOOSE_NEON_BF16(FUNC_NAME) &N_NEON_BF16::FUNC_NAME
+#else
+#define HWY_CHOOSE_NEON_BF16(FUNC_NAME) nullptr
 #endif
 
 #if HWY_TARGETS & HWY_SVE
@@ -486,13 +495,11 @@ FunctionCache<RetType, Args...> DeduceFunctionCache(RetType (*)(Args...)) {
     HWY_TARGET == HWY_AVX3_ZEN4 || HWY_TARGET == HWY_AVX3_SPR
 #include "hwy/ops/x86_512-inl.h"
 #elif HWY_TARGET == HWY_Z14 || HWY_TARGET == HWY_Z15 || \
-    HWY_TARGET == HWY_PPC8 || HWY_TARGET == HWY_PPC9 || \
-    HWY_TARGET == HWY_PPC10
+    (HWY_TARGET & HWY_ALL_PPC)
 #include "hwy/ops/ppc_vsx-inl.h"
-#elif HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_NEON_WITHOUT_AES
+#elif HWY_TARGET & HWY_ALL_NEON
 #include "hwy/ops/arm_neon-inl.h"
-#elif HWY_TARGET == HWY_SVE || HWY_TARGET == HWY_SVE2 || \
-    HWY_TARGET == HWY_SVE_256 || HWY_TARGET == HWY_SVE2_128
+#elif HWY_TARGET & HWY_ALL_SVE
 #include "hwy/ops/arm_sve-inl.h"
 #elif HWY_TARGET == HWY_WASM_EMU256
 #include "hwy/ops/wasm_256-inl.h"

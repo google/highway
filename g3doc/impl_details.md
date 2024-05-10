@@ -224,9 +224,9 @@ For x86 targets `HWY_SSE2`, `HWY_SSSE3`, `HWY_SSE4`, `HWY_AVX2`, `HWY_AVX3`,
 `HWY_AVX3_DL`, `HWY_AVX3_ZEN4`, `HWY_AVX3_SPR` Intel provides a
 [searchable reference](https://www.intel.com/content/www/us/en/docs/intrinsics-guide).
 
-For Arm targets `HWY_NEON`, `HWY_NEON_WITHOUT_AES`, `HWY_SVE` (plus its
-specialization for 256-bit vectors `HWY_SVE_256`), `HWY_SVE2` (plus its
-specialization for 128-bit vectors `HWY_SVE2_128`), Arm provides a
+For Arm targets `HWY_NEON`, `HWY_NEON_WITHOUT_AES`, `HWY_NEON_BF16`, `HWY_SVE`
+(plus its specialization for 256-bit vectors `HWY_SVE_256`), `HWY_SVE2` (plus
+its specialization for 128-bit vectors `HWY_SVE2_128`), Arm provides a
 [searchable reference](https://developer.arm.com/architectures/instruction-sets/intrinsics).
 
 For RISC-V target `HWY_RVV`, we refer to the assembly language

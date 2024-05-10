@@ -46,6 +46,7 @@ DECLARE_FUNCTION(SVE2_128)
 DECLARE_FUNCTION(SVE_256)
 DECLARE_FUNCTION(SVE2)
 DECLARE_FUNCTION(SVE)
+DECLARE_FUNCTION(NEON_BF16)
 DECLARE_FUNCTION(NEON)
 DECLARE_FUNCTION(NEON_WITHOUT_AES)
 
@@ -118,6 +119,7 @@ void CheckFakeFunction() {
   CallFunctionForTarget(HWY_SVE_256, __LINE__);
   CallFunctionForTarget(HWY_SVE2, __LINE__);
   CallFunctionForTarget(HWY_SVE, __LINE__);
+  CallFunctionForTarget(HWY_NEON_BF16, __LINE__);
   CallFunctionForTarget(HWY_NEON, __LINE__);
   CallFunctionForTarget(HWY_NEON_WITHOUT_AES, __LINE__);
 

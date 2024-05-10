@@ -141,7 +141,12 @@ namespace detail {  // for code folding and Raw128
   HWY_NEON_DEF_FUNCTION(int64, 2, name, prefix##q, infix, s64, args) \
   HWY_NEON_DEF_FUNCTION(int64, 1, name, prefix, infix, s64, args)
 
-#if defined(__ARM_FEATURE_BF16_VECTOR_ARITHMETIC) && HWY_HAVE_SCALAR_BF16_TYPE
+// Clang 17 crashes with bf16, see github.com/llvm/llvm-project/issues/64179.
+#undef HWY_NEON_HAVE_BFLOAT16
+#if HWY_HAVE_SCALAR_BF16_TYPE &&                              \
+    ((HWY_TARGET == HWY_NEON_BF16 &&                          \
+      (!HWY_COMPILER_CLANG || HWY_COMPILER_CLANG >= 1800)) || \
+     defined(__ARM_FEATURE_BF16_VECTOR_ARITHMETIC))
 #define HWY_NEON_HAVE_BFLOAT16 1
 #else
 #define HWY_NEON_HAVE_BFLOAT16 0
@@ -150,8 +155,9 @@ namespace detail {  // for code folding and Raw128
 // HWY_NEON_HAVE_F32_TO_BF16C is defined if NEON vcvt_bf16_f32 and
 // vbfdot_f32 are available, even if the __bf16 type is disabled due to
 // GCC/Clang bugs.
-#if HWY_NEON_HAVE_BFLOAT16 ||                         \
-    (defined(__ARM_FEATURE_BF16_VECTOR_ARITHMETIC) && \
+#undef HWY_NEON_HAVE_F32_TO_BF16C
+#if HWY_NEON_HAVE_BFLOAT16 || HWY_TARGET == HWY_NEON_BF16 || \
+    (defined(__ARM_FEATURE_BF16_VECTOR_ARITHMETIC) &&        \
      (HWY_COMPILER_GCC_ACTUAL >= 1000 || HWY_COMPILER_CLANG >= 1100))
 #define HWY_NEON_HAVE_F32_TO_BF16C 1
 #else
@@ -6972,20 +6978,27 @@ HWY_API Vec128<float> ReorderWidenMulAccumulate(D /*d32*/, Vec128<bfloat16_t> a,
                                    detail::BitCastToRawNeonBF16(b.raw)));
 }
 
+// There is no non-q version of these instructions.
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8)>
-HWY_API VFromD<D> MulEvenAdd(
-    D /*d32*/, VFromD<Repartition<bfloat16_t, D>> a,
-    VFromD<Repartition<bfloat16_t, D>> b, const VFromD<D> c) {
-  return VFromD<D>(vbfmlalb_f32(c.raw, detail::BitCastToRawNeonBF16(a.raw),
-                              detail::BitCastToRawNeonBF16(b.raw)));
+HWY_API VFromD<D> MulEvenAdd(D d32, VFromD<Repartition<bfloat16_t, D>> a,
+                             VFromD<Repartition<bfloat16_t, D>> b,
+                             const VFromD<D> c) {
+  const Full128<float> d32f;
+  const Full128<bfloat16_t> d16f;
+  return ResizeBitCast(
+      d32, MulEvenAdd(d32f, ResizeBitCast(d16f, a), ResizeBitCast(d16f, b),
+                      ResizeBitCast(d32f, c)));
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8)>
-HWY_API VFromD<D> MulOddAdd(
-    D /*d32*/, VFromD<Repartition<bfloat16_t, D>> a,
-    VFromD<Repartition<bfloat16_t, D>> b, const VFromD<D> c) {
-  return VFromD<D>(vbfmlalt_f32(c.raw, detail::BitCastToRawNeonBF16(a.raw),
-                              detail::BitCastToRawNeonBF16(b.raw)));
+HWY_API VFromD<D> MulOddAdd(D d32, VFromD<Repartition<bfloat16_t, D>> a,
+                            VFromD<Repartition<bfloat16_t, D>> b,
+                            const VFromD<D> c) {
+  const Full128<float> d32f;
+  const Full128<bfloat16_t> d16f;
+  return ResizeBitCast(
+      d32, MulOddAdd(d32f, ResizeBitCast(d16f, a), ResizeBitCast(d16f, b),
+                     ResizeBitCast(d32f, c)));
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8)>
@@ -7815,7 +7828,7 @@ HWY_API VFromD<D> OrderedDemote2To(D dbf16, VFromD<Repartition<float, D>> a,
 
 // (aarch64 or Arm7) and (__ARM_FEATURE_AES or HWY_HAVE_RUNTIME_DISPATCH).
 // Otherwise, rely on generic_ops-inl.h to emulate AESRound / CLMul*.
-#if HWY_TARGET == HWY_NEON
+#if HWY_TARGET != HWY_NEON_WITHOUT_AES
 
 #ifdef HWY_NATIVE_AES
 #undef HWY_NATIVE_AES
@@ -7866,7 +7879,7 @@ HWY_API Vec128<uint64_t> CLMulUpper(Vec128<uint64_t> a, Vec128<uint64_t> b) {
       (uint64x2_t)vmull_high_p64((poly64x2_t)a.raw, (poly64x2_t)b.raw));
 }
 
-#endif  // HWY_TARGET == HWY_NEON
+#endif  // HWY_TARGET != HWY_NEON_WITHOUT_AES
 
 // ================================================== MISC
 
@@ -8217,7 +8230,7 @@ HWY_API VI TableLookupBytesOr0(V bytes, VI from) {
 
 // ---------------------------- AESKeyGenAssist (AESLastRound, TableLookupBytes)
 
-#if HWY_TARGET == HWY_NEON
+#if HWY_TARGET != HWY_NEON_WITHOUT_AES
 template <uint8_t kRcon>
 HWY_API Vec128<uint8_t> AESKeyGenAssist(Vec128<uint8_t> v) {
   alignas(16) static constexpr uint8_t kRconXorMask[16] = {
@@ -8230,7 +8243,7 @@ HWY_API Vec128<uint8_t> AESKeyGenAssist(Vec128<uint8_t> v) {
   const auto sub_word_result = AESLastRound(w13, Load(d, kRconXorMask));
   return TableLookupBytes(sub_word_result, Load(d, kRotWordShuffle));
 }
-#endif  // HWY_TARGET == HWY_NEON
+#endif  // HWY_TARGET != HWY_NEON_WITHOUT_AES
 
 // ------------------------------ Scatter in generic_ops-inl.h
 // ------------------------------ Gather in generic_ops-inl.h

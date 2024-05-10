@@ -465,6 +465,13 @@ int64_t DetectTargets() {
 #if defined(HWCAP_AES)
   if (hw & HWCAP_AES) {
     bits |= HWY_NEON;
+
+#if defined(HWCAP_ASIMDHP) && defined(HWCAP_ASIMDDP) && defined(HWCAP_ASIMDBF16)
+    const int64_t kGroupBF16 = HWCAP_ASIMDHP | HWCAP_ASIMDDP | HWCAP_ASIMDBF16;
+    if ((hw & kGroupBF16) == kGroupBF16) {
+      bits |= HWY_NEON_BF16;
+    }
+#endif  // HWCAP_ASIMDHP && HWCAP_ASIMDDP && HWCAP_ASIMDBF16
   }
 #endif  // HWCAP_AES
 

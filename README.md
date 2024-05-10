@@ -108,13 +108,14 @@ https://repology.org/project/highway-simd-library/versions .
 
 ### Targets
 
-Highway supports 22 targets, listed in alphabetical order of platform:
+Highway supports 24 targets, listed in alphabetical order of platform:
 
 -   Any: `EMU128`, `SCALAR`;
--   Arm: `NEON` (Armv7+), `SVE`, `SVE2`, `SVE_256`, `SVE2_128`;
+-   Armv7+: `NEON_WITHOUT_AES`, `NEON`, `NEON_BF16`, `SVE`, `SVE2`, `SVE_256`,
+    `SVE2_128`;
 -   IBM Z: `Z14`, `Z15`;
--   POWER: `PPC8` (v2.07), `PPC9` (v3.0), `PPC10` (v3.1B, not yet supported
-    due to compiler bugs, see #1207; also requires QEMU 7.2);
+-   POWER: `PPC8` (v2.07), `PPC9` (v3.0), `PPC10` (v3.1B, not yet supported due
+    to compiler bugs, see #1207; also requires QEMU 7.2);
 -   RISC-V: `RVV` (1.0);
 -   WebAssembly: `WASM`, `WASM_EMU256` (a 2x unrolled version of wasm128,
     enabled if `HWY_WANT_WASM2` is defined. This will remain supported until it

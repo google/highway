@@ -675,8 +675,7 @@ HWY_NOINLINE void TestAllWidenMulAccumulate() {
   ForShrinkableVectors<TestWidenMulAccumulate>()(int8_t());
   ForShrinkableVectors<TestWidenMulAccumulate>()(uint8_t());
 #if 0  // not yet implemented
-#if HWY_HAVE_FLOAT16 && \
-    (HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_NEON_WITHOUT_AES)
+#if HWY_HAVE_FLOAT16 && HWY_TARGET_IS_NEON
   ForShrinkableVectors<TestWidenMulAccumulate>()(float16_t());
 #endif
 #endif

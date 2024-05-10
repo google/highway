@@ -904,10 +904,9 @@ template <class V, HWY_IF_I32(TFromV<V>)>
 HWY_API V SaturatedNeg(V v) {
   const DFromV<decltype(v)> d;
 
-#if HWY_TARGET == HWY_RVV ||                               \
-    (HWY_TARGET >= HWY_PPC10 && HWY_TARGET <= HWY_PPC8) || \
-    (HWY_TARGET >= HWY_SVE2_128 && HWY_TARGET <= HWY_NEON_WITHOUT_AES)
-  // RVV/NEON/SVE/PPC have native I32 SaturatedSub instructions
+#if HWY_TARGET == HWY_RVV || HWY_TARGET_IS_PPC || HWY_TARGET_IS_SVE || \
+    HWY_TARGET_IS_NEON
+  // RVV/PPC/SVE/NEON have native I32 SaturatedSub instructions
   return SaturatedSub(Zero(d), v);
 #else
   // ~v[i] - ((v[i] > LimitsMin<int32_t>()) ? -1 : 0) is equivalent to
@@ -928,9 +927,8 @@ HWY_API V SaturatedNeg(V v) {
 
 template <class V, HWY_IF_I64(TFromV<V>)>
 HWY_API V SaturatedNeg(V v) {
-#if HWY_TARGET == HWY_RVV || \
-    (HWY_TARGET >= HWY_SVE2_128 && HWY_TARGET <= HWY_NEON_WITHOUT_AES)
-  // RVV/NEON/SVE have native I64 SaturatedSub instructions
+#if HWY_TARGET == HWY_RVV || HWY_TARGET_IS_SVE || HWY_TARGET_IS_NEON
+  // RVV/SVE/NEON have native I64 SaturatedSub instructions
   const DFromV<decltype(v)> d;
   return SaturatedSub(Zero(d), v);
 #else
@@ -2470,8 +2468,7 @@ namespace detail {
 
 template <class DH, HWY_IF_V_SIZE_LE_D(DH, 4)>
 HWY_INLINE VFromD<DH> StoreNGetUpperHalf(DH dh, VFromD<Twice<DH>> v) {
-  constexpr size_t kMinShrVectBytes =
-      (HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_NEON_WITHOUT_AES) ? 8 : 16;
+  constexpr size_t kMinShrVectBytes = HWY_TARGET_IS_NEON ? 8 : 16;
   const FixedTag<uint8_t, kMinShrVectBytes> d_shift;
   return ResizeBitCast(
       dh, ShiftRightBytes<dh.MaxBytes()>(d_shift, ResizeBitCast(d_shift, v)));
@@ -3438,9 +3435,8 @@ HWY_API VFromD<D> PromoteInRangeLowerTo(D d, V v) {
 #if HWY_TARGET != HWY_SCALAR || HWY_IDE
 template <class D, HWY_IF_UI64_D(D), class V, HWY_IF_F32(TFromV<V>)>
 HWY_API VFromD<D> PromoteInRangeUpperTo(D d, V v) {
-#if (HWY_TARGET <= HWY_SSE2 || HWY_TARGET == HWY_EMU128 ||              \
-     ((HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_NEON_WITHOUT_AES) && \
-      !HWY_HAVE_FLOAT64))
+#if (HWY_TARGET <= HWY_SSE2 || HWY_TARGET == HWY_EMU128 || \
+     (HWY_TARGET_IS_NEON && !HWY_HAVE_FLOAT64))
   // On targets that provide target-specific implementations of F32->UI64
   // PromoteInRangeTo, promote the upper half of v using PromoteInRangeTo
 
@@ -3463,9 +3459,8 @@ template <class D, HWY_IF_UI64_D(D), class V, HWY_IF_F32(TFromV<V>)>
 HWY_API VFromD<D> PromoteInRangeEvenTo(D d, V v) {
 #if HWY_TARGET == HWY_SCALAR
   return PromoteInRangeTo(d, v);
-#elif (HWY_TARGET <= HWY_SSE2 || HWY_TARGET == HWY_EMU128 ||              \
-       ((HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_NEON_WITHOUT_AES) && \
-        !HWY_HAVE_FLOAT64))
+#elif (HWY_TARGET <= HWY_SSE2 || HWY_TARGET == HWY_EMU128 || \
+       (HWY_TARGET_IS_NEON && !HWY_HAVE_FLOAT64))
   // On targets that provide target-specific implementations of F32->UI64
   // PromoteInRangeTo, promote the even lanes of v using PromoteInRangeTo
 
@@ -3485,9 +3480,8 @@ HWY_API VFromD<D> PromoteInRangeEvenTo(D d, V v) {
 #if HWY_TARGET != HWY_SCALAR || HWY_IDE
 template <class D, HWY_IF_UI64_D(D), class V, HWY_IF_F32(TFromV<V>)>
 HWY_API VFromD<D> PromoteInRangeOddTo(D d, V v) {
-#if (HWY_TARGET <= HWY_SSE2 || HWY_TARGET == HWY_EMU128 ||              \
-     ((HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_NEON_WITHOUT_AES) && \
-      !HWY_HAVE_FLOAT64))
+#if (HWY_TARGET <= HWY_SSE2 || HWY_TARGET == HWY_EMU128 || \
+     (HWY_TARGET_IS_NEON && !HWY_HAVE_FLOAT64))
   // On targets that provide target-specific implementations of F32->UI64
   // PromoteInRangeTo, promote the odd lanes of v using PromoteInRangeTo
 
@@ -4509,8 +4503,7 @@ HWY_INLINE V IntDivUsingFloatDiv(V a, V b) {
   // less than LimitsMax<TFromV<V>>() if sizeof(TFromV<V>) > kOrigLaneSize and
   // b[i] != 0.
 
-#if (HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_NEON_WITHOUT_AES) && \
-    !HWY_HAVE_FLOAT64
+#if HWY_TARGET_IS_NEON && !HWY_HAVE_FLOAT64
   // On Armv7, do division by multiplying by the ApproximateReciprocal
   // to avoid unnecessary overhead as F32 Div refines the approximate
   // reciprocal using 4 Newton-Raphson iterations
@@ -4608,8 +4601,7 @@ HWY_INLINE V IntDivUsingFloatDiv(V a, V b) {
 
   const auto flt_b = IntDivConvIntToFloat(df, b);
 
-#if (HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_NEON_WITHOUT_AES) && \
-    !HWY_HAVE_FLOAT64
+#if HWY_TARGET_IS_NEON && !HWY_HAVE_FLOAT64
   auto flt_recip_b = ApproximateReciprocal(flt_b);
   flt_recip_b =
       Mul(flt_recip_b, ReciprocalNewtonRaphsonStep(flt_recip_b, flt_b));
@@ -6408,7 +6400,7 @@ HWY_INLINE Vec<D> Per4LaneBlkShufDupSet4xU32(D d, const uint32_t x3,
   const ScalableTag<uint32_t, kLoadPow2> d_load;
 #else
   constexpr size_t kMaxBytes = d.MaxBytes();
-#if HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_NEON_WITHOUT_AES
+#if HWY_TARGET_IS_NEON
   constexpr size_t kMinLanesToLoad = 2;
 #else
   constexpr size_t kMinLanesToLoad = 4;
@@ -6579,7 +6571,7 @@ HWY_INLINE VFromD<D> TblLookupPer4LaneBlkIdxInBlk(D d, const uint32_t idx3,
   const uint16_t u16_idx1 = static_cast<uint16_t>(idx1);
   const uint16_t u16_idx2 = static_cast<uint16_t>(idx2);
   const uint16_t u16_idx3 = static_cast<uint16_t>(idx3);
-#if HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_NEON_WITHOUT_AES
+#if HWY_TARGET_IS_NEON
   constexpr size_t kMinLanesToLoad = 4;
 #else
   constexpr size_t kMinLanesToLoad = 8;

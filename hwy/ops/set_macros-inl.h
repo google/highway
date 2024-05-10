@@ -48,11 +48,24 @@
 #undef HWY_CAP_GE512
 
 #undef HWY_TARGET_IS_SVE
-#if HWY_TARGET == HWY_SVE || HWY_TARGET == HWY_SVE2 || \
-    HWY_TARGET == HWY_SVE_256 || HWY_TARGET == HWY_SVE2_128
+#if HWY_TARGET & HWY_ALL_SVE
 #define HWY_TARGET_IS_SVE 1
 #else
 #define HWY_TARGET_IS_SVE 0
+#endif
+
+#undef HWY_TARGET_IS_NEON
+#if HWY_TARGET & HWY_ALL_NEON
+#define HWY_TARGET_IS_NEON 1
+#else
+#define HWY_TARGET_IS_NEON 0
+#endif
+
+#undef HWY_TARGET_IS_PPC
+#if HWY_TARGET & HWY_ALL_PPC
+#define HWY_TARGET_IS_PPC 1
+#else
+#define HWY_TARGET_IS_PPC 0
 #endif
 
 // Supported on all targets except RVV (requires GCC 14 or upcoming Clang)
@@ -319,8 +332,7 @@
 
 //-----------------------------------------------------------------------------
 // PPC8, PPC9, PPC10
-#elif HWY_TARGET == HWY_PPC8 || HWY_TARGET == HWY_PPC9 || \
-    HWY_TARGET == HWY_PPC10
+#elif HWY_TARGET_IS_PPC
 
 #define HWY_ALIGN alignas(16)
 #define HWY_MAX_BYTES 16
@@ -353,7 +365,7 @@
 
 #else
 #error "Logic error"
-#endif  // HWY_TARGET == HWY_PPC10
+#endif  // HWY_TARGET
 
 //-----------------------------------------------------------------------------
 // Z14, Z15
@@ -389,7 +401,7 @@
 
 //-----------------------------------------------------------------------------
 // NEON
-#elif HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_NEON_WITHOUT_AES
+#elif HWY_TARGET_IS_NEON
 
 #define HWY_ALIGN alignas(16)
 #define HWY_MAX_BYTES 16
@@ -397,7 +409,7 @@
 
 #define HWY_HAVE_SCALABLE 0
 #define HWY_HAVE_INTEGER64 1
-#if defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC)
+#if defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC) || HWY_TARGET == HWY_NEON_BF16
 #define HWY_HAVE_FLOAT16 1
 #else
 #define HWY_HAVE_FLOAT16 0
@@ -416,7 +428,7 @@
 #else
 #define HWY_NATIVE_FMA 0
 #endif
-#if HWY_NEON_HAVE_F32_TO_BF16C
+#if HWY_NEON_HAVE_F32_TO_BF16C || HWY_TARGET == HWY_NEON_BF16
 #define HWY_NATIVE_DOT_BF16 1
 #else
 #define HWY_NATIVE_DOT_BF16 0
@@ -427,9 +439,13 @@
 
 #if HWY_TARGET == HWY_NEON_WITHOUT_AES
 #define HWY_NAMESPACE N_NEON_WITHOUT_AES
-#else
+#elif HWY_TARGET == HWY_NEON
 #define HWY_NAMESPACE N_NEON
-#endif
+#elif HWY_TARGET == HWY_NEON_BF16
+#define HWY_NAMESPACE N_NEON_BF16
+#else
+#error "Logic error, missing case"
+#endif  // HWY_TARGET
 
 // Can use pragmas instead of -march compiler flag
 #if HWY_HAVE_RUNTIME_DISPATCH
@@ -444,18 +460,26 @@
 
 #else  // !HWY_ARCH_ARM_V7
 
-#if HWY_TARGET == HWY_NEON_WITHOUT_AES
-// Do not define HWY_TARGET_STR (no pragma).
-#elif (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1300) || \
+#if (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1300) || \
     (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1300)
 // GCC 12 or earlier and Clang 12 or earlier require +crypto be added to the
 // target string to enable AArch64 AES intrinsics
-#define HWY_TARGET_STR "+crypto"
+#define HWY_TARGET_STR_NEON "+crypto"
 #else
-#define HWY_TARGET_STR "+aes"
-#endif  // HWY_TARGET == HWY_NEON_WITHOUT_AES
+#define HWY_TARGET_STR_NEON "+aes"
+#endif
 
-#endif  // HWY_ARCH_ARM_V7
+#if HWY_TARGET == HWY_NEON_WITHOUT_AES
+// Do not define HWY_TARGET_STR (no pragma).
+#elif HWY_TARGET == HWY_NEON
+#define HWY_TARGET_STR HWY_TARGET_STR_NEON
+#elif HWY_TARGET == HWY_NEON_BF16
+#define HWY_TARGET_STR HWY_TARGET_STR_NEON "+bf16+dotprod+fp16"
+#else
+#error "Logic error, missing case"
+#endif  // HWY_TARGET
+
+#endif  // !HWY_ARCH_ARM_V7
 #else   // !HWY_HAVE_RUNTIME_DISPATCH
 // HWY_TARGET_STR remains undefined
 #endif
