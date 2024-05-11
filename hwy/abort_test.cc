@@ -12,12 +12,14 @@
 namespace hwy {
 
 #ifdef GTEST_HAS_DEATH_TEST
+#ifndef HWY_HEADER_ONLY
 namespace {
 std::string GetBaseName(std::string const& file_name) {
   auto last_slash = file_name.find_last_of("/\\");
   return file_name.substr(last_slash + 1);
 }
 }  // namespace
+#endif
 
 TEST(AbortDeathTest, AbortDefault) {
   std::string expected = std::string("Abort at ") + GetBaseName(__FILE__) +

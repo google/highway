@@ -23,4 +23,8 @@ AbortFunc SetAbortFunc(AbortFunc func);
 
 }  // namespace hwy
 
+#ifdef HWY_HEADER_ONLY
+#include "abort.cc"
+#endif
+
 #endif  // HIGHWAY_HWY_ABORT_H_

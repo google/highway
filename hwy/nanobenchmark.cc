@@ -27,6 +27,9 @@
 #include "hwy/robust_statistics.h"
 #include "hwy/timer-inl.h"
 #include "hwy/timer.h"
+#ifdef HWY_HEADER_ONLY
+#include "hwy/abort.h"
+#endif
 
 namespace hwy {
 namespace {

@@ -25,6 +25,9 @@
 #include <vector>
 
 #include "hwy/base.h"
+#ifdef HWY_HEADER_ONLY
+#include "hwy/abort.h"
+#endif
 #include "hwy/per_target.h"
 #include "hwy/tests/hwy_gtest.h"
 #include "hwy/tests/test_util-inl.h"  // HWY_ASSERT_EQ

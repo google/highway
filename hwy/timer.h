@@ -63,4 +63,10 @@ static inline double SecondsSince(const Timestamp& t0) {
 
 }  // namespace hwy
 
+#ifdef HWY_HEADER_ONLY
+#include "timer.cc"
+#endif
+
 #endif  // HIGHWAY_HWY_TIMER_H_
+
+

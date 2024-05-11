@@ -17,6 +17,9 @@
 #include "hwy/base.h"  // Abort
 #include "hwy/profiler.h"
 #include "hwy/timer.h"
+#ifdef HWY_HEADER_ONLY
+#include "hwy/abort.h"
+#endif
 
 namespace hwy {
 namespace {

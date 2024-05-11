@@ -20,6 +20,10 @@
 namespace hwy {
 
 namespace {
+
+#ifdef HWY_HEADER_ONLY
+inline
+#endif
 std::string GetBaseName(std::string const& file_name) {
   auto last_slash = file_name.find_last_of("/\\");
   return file_name.substr(last_slash + 1);

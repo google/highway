@@ -14,6 +14,9 @@
 // limitations under the License.
 
 #include "hwy/base.h"
+#ifdef HWY_HEADER_ONLY
+#include "hwy/abort.h"
+#endif
 
 #include <limits>
 

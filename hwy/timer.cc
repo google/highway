@@ -116,11 +116,17 @@ void GetBrandString(char* cpu100) {
 
 }  // namespace
 
+#ifdef HWY_HEADER_ONLY
+inline
+#endif
 HWY_DLLEXPORT double Now() {
   static const double mul = 1.0 / InvariantTicksPerSecond();
   return static_cast<double>(timer::Start()) * mul;
 }
 
+#ifdef HWY_HEADER_ONLY
+inline
+#endif
 HWY_DLLEXPORT bool HaveTimerStop(char* cpu100) {
 #if HWY_ARCH_X86
   if (!HasRDTSCP()) {
@@ -132,7 +138,9 @@ HWY_DLLEXPORT bool HaveTimerStop(char* cpu100) {
   cpu100[1] = '\0';
   return true;
 }
-
+#ifdef HWY_HEADER_ONLY
+inline
+#endif
 HWY_DLLEXPORT double InvariantTicksPerSecond() {
 #if HWY_ARCH_PPC && defined(__GLIBC__) && defined(__powerpc64__)
   return static_cast<double>(__ppc_get_timebase_freq());
@@ -154,6 +162,9 @@ HWY_DLLEXPORT double InvariantTicksPerSecond() {
 #endif
 }
 
+#ifdef HWY_HEADER_ONLY
+inline
+#endif
 HWY_DLLEXPORT uint64_t TimerResolution() {
   char cpu100[100];
   bool can_use_stop = HaveTimerStop(cpu100);
