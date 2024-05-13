@@ -308,15 +308,24 @@ cc_library(
 )
 
 cc_library(
+    name = "bit_set",
+    hdrs = ["hwy/contrib/thread_pool/bit_set.h"],
+    compatible_with = [],
+    copts = COPTS,
+    deps = [
+        ":hwy",  # HWY_ASSERT
+    ],
+)
+
+cc_library(
     name = "topology",
     srcs = ["hwy/contrib/thread_pool/topology.cc"],
     hdrs = ["hwy/contrib/thread_pool/topology.h"],
     compatible_with = [],
     copts = COPTS,
     deps = [
+        ":bit_set",
         ":hwy",  # HWY_ASSERT
-        ":nanobenchmark",
-        ":stats",
     ],
 )
 
@@ -461,6 +470,7 @@ HWY_TESTS = [
     ("hwy/contrib/math/", "math_test"),
     ("hwy/contrib/random/", "random_test"),
     ("hwy/contrib/matvec/", "matvec_test"),
+    ("hwy/contrib/thread_pool/", "bit_set_test"),
     ("hwy/contrib/thread_pool/", "thread_pool_test"),
     ("hwy/contrib/thread_pool/", "topology_test"),
     ("hwy/contrib/unroller/", "unroller_test"),
@@ -532,6 +542,7 @@ HWY_TEST_COPTS = select({
 HWY_TEST_DEPS = [
     ":algo",
     ":bit_pack",
+    ":bit_set",
     ":dot",
     ":hwy",
     ":hwy_test_util",
