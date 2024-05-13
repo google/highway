@@ -155,7 +155,7 @@ class SlowSet {
 };
 
 void TestSetRandom(uint64_t grow_prob) {
-  const size_t mod = 4096;
+  const uint32_t mod = 4096;
   RandomState rng;
 
   // Multiple independent random tests:
@@ -176,7 +176,7 @@ void TestSetRandom(uint64_t grow_prob) {
         HWY_ASSERT(count == set.Count());
       } else if (bits < grow_prob) {
         // Set random value; no harm if already set.
-        const size_t i = Random64(&rng) % mod;
+        const size_t i = static_cast<size_t>(Random32(&rng) % mod);
         slow_set.Set(i);
         set.Set(i);
         HWY_ASSERT(set.Get(i));
