@@ -637,17 +637,13 @@ int64_t DetectTargets() {
     // Check that a vuint8m1_t vector is at least 16 bytes and that tail
     // agnostic and mask agnostic mode are supported
     asm volatile(
-#if HWY_COMPILER_CLANG >= 1700
-        // Avoid compiler error on Clang if -march=rv64gcv1p0 or
+        // Avoid compiler error on GCC or Clang if -march=rv64gcv1p0 or
         // -march=rv32gcv1p0 option is not specified on the command line
         ".option push\n\t"
         ".option arch, +v\n\t"
-#endif
         "vsetvli %0, zero, e8, m1, ta, ma\n\t"
-        "csrr %1, vtype"
-#if HWY_COMPILER_CLANG >= 1700
-        "\n\t.option pop"
-#endif
+        "csrr %1, vtype\n\t"
+        ".option pop"
         : "=r"(e8m1_vec_len), "=r"(vtype_reg_val));
 
     // The RVV target is supported if the VILL bit of VTYPE (the MSB bit of
