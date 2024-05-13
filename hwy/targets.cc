@@ -38,7 +38,7 @@
 #ifndef TOOLCHAIN_MISS_ASM_HWCAP_H
 #include <asm/hwcap.h>
 #endif
-#ifndef TOOLCHAIN_MISS_SYS_AUXV_H
+#if HWY_HAVE_AUXV
 #include <sys/auxv.h>
 #endif
 
@@ -455,6 +455,7 @@ namespace arm {
 int64_t DetectTargets() {
   int64_t bits = 0;               // return value of supported targets.
   using CapBits = unsigned long;  // NOLINT
+  // For Android, this has been supported since API 20 (2014).
   const CapBits hw = getauxval(AT_HWCAP);
   (void)hw;
 

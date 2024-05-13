@@ -37,12 +37,6 @@
 #define HWY_VERSION_LT(major, minor) \
   (HWY_MAJOR < (major) || (HWY_MAJOR == (major) && HWY_MINOR < (minor)))
 
-#if HWY_COMPILER_MSVC && defined(_MSVC_LANG) && _MSVC_LANG > __cplusplus
-#define HWY_CXX_LANG _MSVC_LANG
-#else
-#define HWY_CXX_LANG __cplusplus
-#endif
-
 // "IWYU pragma: keep" does not work for these includes, so hide from the IDE.
 #if !HWY_IDE
 
@@ -59,14 +53,15 @@
 
 #endif  // !HWY_IDE
 
-#if !defined(HWY_NO_LIBCXX) && HWY_CXX_LANG > 201703L &&                    \
-    __cpp_impl_three_way_comparison >= 201907L && defined(__has_include) && \
-    !defined(HWY_DISABLE_CXX20_THREE_WAY_COMPARE)
-#if __has_include(<compare>)
+#ifndef HWY_HAVE_CXX20_THREE_WAY_COMPARE  // allow opt-out
+#if !defined(HWY_NO_LIBCXX) && defined(__cpp_impl_three_way_comparison) && \
+    __cpp_impl_three_way_comparison >= 201907L && HWY_HAS_INCLUDE(<compare>)
 #include <compare>
 #define HWY_HAVE_CXX20_THREE_WAY_COMPARE 1
+#else
+#define HWY_HAVE_CXX20_THREE_WAY_COMPARE 0
 #endif
-#endif
+#endif  // HWY_HAVE_CXX20_THREE_WAY_COMPARE
 
 // IWYU pragma: end_exports
 
@@ -315,26 +310,6 @@ HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
 #define HWY_DASSERT(condition) \
   do {                         \
   } while (0)
-#endif
-#if __cpp_constexpr >= 201603L
-#define HWY_CXX17_CONSTEXPR constexpr
-#else
-#define HWY_CXX17_CONSTEXPR
-#endif
-#if __cpp_constexpr >= 201304L
-#define HWY_CXX14_CONSTEXPR constexpr
-#else
-#define HWY_CXX14_CONSTEXPR
-#endif
-
-#if HWY_CXX_LANG >= 201703L
-#define HWY_IF_CONSTEXPR if constexpr
-#else
-#define HWY_IF_CONSTEXPR if
-#endif
-
-#ifndef HWY_HAVE_CXX20_THREE_WAY_COMPARE
-#define HWY_HAVE_CXX20_THREE_WAY_COMPARE 0
 #endif
 
 //------------------------------------------------------------------------------
