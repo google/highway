@@ -2760,9 +2760,15 @@ HWY_API VFromD<Simd<int16_t, N, kPow2>> DemoteTo(
   }
 
 #if HWY_HAVE_FLOAT16 || HWY_RVV_HAVE_F16C
-HWY_RVV_FOREACH_F32(HWY_RVV_DEMOTE_F, DemoteTo, fncvt_rod_f_f_w_f, _DEMOTE_VIRT)
+HWY_RVV_FOREACH_F32(HWY_RVV_DEMOTE_F, DemoteTo, fncvt_f_f_w_f, _DEMOTE_VIRT)
 #endif
-HWY_RVV_FOREACH_F64(HWY_RVV_DEMOTE_F, DemoteTo, fncvt_rod_f_f_w_f, _DEMOTE_VIRT)
+HWY_RVV_FOREACH_F64(HWY_RVV_DEMOTE_F, DemoteTo, fncvt_f_f_w_f, _DEMOTE_VIRT)
+
+namespace detail {
+HWY_RVV_FOREACH_F64(HWY_RVV_DEMOTE_F, DemoteToF32WithRoundToOdd,
+                    fncvt_rod_f_f_w_f, _DEMOTE_VIRT)
+}  // namespace detail
+
 #undef HWY_RVV_DEMOTE_F
 
 // TODO(janwas): add BASE2 arg to allow generating this via DEMOTE_F.
@@ -2898,6 +2904,18 @@ HWY_API VFromD<Simd<hwy::bfloat16_t, N, kPow2>> DemoteTo(
   const RebindToUnsigned<decltype(d)> du16;
   return BitCast(
       d, detail::DemoteToShr16(du16, detail::RoundF32ForDemoteToBF16(v)));
+}
+
+#ifdef HWY_NATIVE_DEMOTE_F64_TO_F16
+#undef HWY_NATIVE_DEMOTE_F64_TO_F16
+#else
+#define HWY_NATIVE_DEMOTE_F64_TO_F16
+#endif
+
+template <class D, HWY_IF_F16_D(D)>
+HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<double, D>> v) {
+  const Rebind<float, decltype(df16)> df32;
+  return DemoteTo(df16, detail::DemoteToF32WithRoundToOdd(df32, v));
 }
 
 // ------------------------------ ConvertTo F
@@ -5342,22 +5360,98 @@ HWY_API V Trunc(const V v) {
 }
 
 // ------------------------------ Ceil
+#if (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL >= 1400) || \
+    (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG >= 1700)
+namespace detail {
+#define HWY_RVV_CEIL_INT(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,   \
+                         SHIFT, MLEN, NAME, OP)                             \
+  HWY_API HWY_RVV_V(int, SEW, LMUL) CeilInt(HWY_RVV_V(BASE, SEW, LMUL) v) { \
+    return __riscv_vfcvt_x_f_v_i##SEW##LMUL##_rm(v, __RISCV_FRM_RUP,        \
+                                                 HWY_RVV_AVL(SEW, SHIFT));  \
+  }
+HWY_RVV_FOREACH_F(HWY_RVV_CEIL_INT, _, _, _ALL)
+#undef HWY_RVV_CEIL_INT
+
+}  // namespace detail
+
 template <class V>
 HWY_API V Ceil(const V v) {
-  asm volatile("fsrm %0" ::"r"(detail::kUp));
-  const auto ret = Round(v);
-  asm volatile("fsrm %0" ::"r"(detail::kNear));
-  return ret;
+  const DFromV<V> df;
+
+  const auto integer = detail::CeilInt(v);
+  const auto int_f = ConvertTo(df, integer);
+
+  return IfThenElse(detail::UseInt(v), CopySign(int_f, v), v);
 }
 
+#else  // GCC 13 or earlier or Clang 16 or earlier
+
+template <class V>
+HWY_API V Ceil(const V v) {
+  const DFromV<decltype(v)> df;
+  const RebindToSigned<decltype(df)> di;
+
+  using T = TFromD<decltype(df)>;
+
+  const auto integer = ConvertTo(di, v);  // round toward 0
+  const auto int_f = ConvertTo(df, integer);
+
+  // Truncating a positive non-integer ends up smaller; if so, add 1.
+  const auto pos1 =
+      IfThenElseZero(Lt(int_f, v), Set(df, ConvertScalarTo<T>(1.0)));
+
+  return IfThenElse(detail::UseInt(v), Add(int_f, pos1), v);
+}
+
+#endif  // (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL >= 1400) ||
+        // (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG >= 1700)
+
 // ------------------------------ Floor
+#if (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL >= 1400) || \
+    (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG >= 1700)
+namespace detail {
+#define HWY_RVV_FLOOR_INT(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,   \
+                          SHIFT, MLEN, NAME, OP)                             \
+  HWY_API HWY_RVV_V(int, SEW, LMUL) FloorInt(HWY_RVV_V(BASE, SEW, LMUL) v) { \
+    return __riscv_vfcvt_x_f_v_i##SEW##LMUL##_rm(v, __RISCV_FRM_RDN,         \
+                                                 HWY_RVV_AVL(SEW, SHIFT));   \
+  }
+HWY_RVV_FOREACH_F(HWY_RVV_FLOOR_INT, _, _, _ALL)
+#undef HWY_RVV_FLOOR_INT
+
+}  // namespace detail
+
 template <class V>
 HWY_API V Floor(const V v) {
-  asm volatile("fsrm %0" ::"r"(detail::kDown));
-  const auto ret = Round(v);
-  asm volatile("fsrm %0" ::"r"(detail::kNear));
-  return ret;
+  const DFromV<V> df;
+
+  const auto integer = detail::FloorInt(v);
+  const auto int_f = ConvertTo(df, integer);
+
+  return IfThenElse(detail::UseInt(v), CopySign(int_f, v), v);
 }
+
+#else  // GCC 13 or earlier or Clang 16 or earlier
+
+template <class V>
+HWY_API V Floor(const V v) {
+  const DFromV<decltype(v)> df;
+  const RebindToSigned<decltype(df)> di;
+
+  using T = TFromD<decltype(df)>;
+
+  const auto integer = ConvertTo(di, v);  // round toward 0
+  const auto int_f = ConvertTo(df, integer);
+
+  // Truncating a negative non-integer ends up larger; if so, subtract 1.
+  const auto neg1 =
+      IfThenElseZero(Gt(int_f, v), Set(df, ConvertScalarTo<T>(-1.0)));
+
+  return IfThenElse(detail::UseInt(v), Add(int_f, neg1), v);
+}
+
+#endif  // (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL >= 1400) ||
+        // (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG >= 1700)
 
 // ------------------------------ Floating-point classification (Ne)
 
