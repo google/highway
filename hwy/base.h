@@ -16,7 +16,7 @@
 #ifndef HIGHWAY_HWY_BASE_H_
 #define HIGHWAY_HWY_BASE_H_
 
-// For SIMD module implementations and their callers, target-independent.
+// Target-independent definitions.
 
 // IWYU pragma: begin_exports
 #include <stddef.h>
@@ -24,6 +24,18 @@
 
 #include "hwy/detect_compiler_arch.h"
 #include "hwy/highway_export.h"
+
+// API version (https://semver.org/); keep in sync with CMakeLists.txt.
+#define HWY_MAJOR 1
+#define HWY_MINOR 2
+#define HWY_PATCH 0
+
+// True if the Highway version >= major.minor.0. Added in 1.2.0.
+#define HWY_VERSION_GE(major, minor) \
+  (HWY_MAJOR > (major) || (HWY_MAJOR == (major) && HWY_MINOR >= (minor)))
+// True if the Highway version < major.minor.0. Added in 1.2.0.
+#define HWY_VERSION_LT(major, minor) \
+  (HWY_MAJOR < (major) || (HWY_MAJOR == (major) && HWY_MINOR < (minor)))
 
 #if HWY_COMPILER_MSVC && defined(_MSVC_LANG) && _MSVC_LANG > __cplusplus
 #define HWY_CXX_LANG _MSVC_LANG

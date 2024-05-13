@@ -53,10 +53,17 @@ class BitSet64 {
   // Returns true if any Get(i) would return true for i in [0, 64).
   bool Any() const { return bits_ != 0; }
 
+  // Returns lowest i such that Get(i). Caller must ensure Any() beforehand!
+  size_t First() const {
+    HWY_DASSERT(Any());
+    return Num0BitsBelowLS1Bit_Nonzero64(bits_);
+  }
+
   // Returns uint64_t(Get(i)) << i for i in [0, 64).
   uint64_t Get64() const { return bits_; }
 
-  // Calls func(i) for each i in the set.
+  // Calls `func(i)` for each `i` in the set. It is safe for `func` to modify
+  // the set, but the current Foreach call is unaffected.
   template <class Func>
   void Foreach(const Func& func) const {
     uint64_t remaining_bits = bits_;
@@ -112,10 +119,22 @@ class BitSet4096 {
     return bits_[idx].Get(mod);
   }
 
+  // Returns true if any Get(i) would return true for i in [0, 64).
+  bool Any() const { return nonzero_.Any(); }
+
+  // Returns lowest i such that Get(i). Caller must ensure Any() beforehand!
+  size_t First() const {
+    HWY_DASSERT(Any());
+    const size_t idx = nonzero_.First();
+    return idx * 64 + bits_[idx].First();
+  }
+
   // Returns uint64_t(Get(i)) << i for i in [0, 64).
   uint64_t Get64() const { return bits_[0].Get64(); }
 
-  // Calls func(i) for each i in the set.
+  // Calls `func(i)` for each `i` in the set. It is safe for `func` to modify
+  // the set, but the current Foreach call is only affected if changing one of
+  // the not yet visited BitSet64 for which Any() is true.
   template <class Func>
   void Foreach(const Func& func) const {
     nonzero_.Foreach([&func, this](size_t idx) {
@@ -174,14 +193,20 @@ struct Topology {
   HWY_DLLEXPORT Topology();
 
   // Clique of cores with lower latency to each other. On Apple M1 these are
-  // four cores sharing an L2. On AMD these 'CCX' are up to eight cores sharing
-  // an L3 and a memory controller.
+  // four cores sharing an L2. On Zen4 these 'CCX' are up to eight cores sharing
+  // an L3 and a memory controller, or for Zen4c up to 16 and half the L3 size.
   struct Cluster {
     LogicalProcessorSet lps;
+    uint64_t private_kib = 0;  // 0 if unknown
+    uint64_t shared_kib = 0;   // 0 if unknown
+    uint64_t reserved1 = 0;
+    uint64_t reserved2 = 0;
+    uint64_t reserved3 = 0;
   };
 
   struct Core {
     LogicalProcessorSet lps;
+    uint64_t reserved = 0;
   };
 
   struct Package {
@@ -194,11 +219,13 @@ struct Topology {
   // Several hundred instances, so prefer a compact representation.
 #pragma pack(push, 1)
   struct LP {
-    uint16_t package = 0;
-    uint16_t cluster = 0;  // local to the package, not globally unique
-    uint16_t core = 0;     // local to the package, not globally unique
-    uint8_t smt = 0;       // local to the package and core
-    uint8_t reserved = 0;
+    uint16_t cluster = 0;  // < packages[package].clusters.size()
+    uint16_t core = 0;     // < packages[package].cores.size()
+    uint8_t package = 0;   // < packages.size()
+    uint8_t smt = 0;       // < packages[package].cores[core].lps.Count()
+
+    uint8_t reserved1 = 0;
+    uint8_t reserved2 = 0;
   };
 #pragma pack(pop)
   std::vector<LP> lps;  // size() == TotalLogicalProcessors().

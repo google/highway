@@ -36,7 +36,7 @@ HWY_DLLEXPORT double Now();
 
 // Returns whether it is safe to call timer::Stop without executing an illegal
 // instruction; if false, fills cpu100 (a pointer to a 100 character buffer)
-// with the CPU brand string or an empty string if unknown.
+// via GetCpuString().
 HWY_DLLEXPORT bool HaveTimerStop(char* cpu100);
 
 // Returns tick rate, useful for converting timer::Ticks to seconds. Invariant
@@ -48,6 +48,10 @@ HWY_DLLEXPORT double InvariantTicksPerSecond();
 // timer resolution (minimum measurable difference) and overhead.
 // This call is expensive, callers should cache the result.
 HWY_DLLEXPORT uint64_t TimerResolution();
+
+// Returns false if no detailed description is available, otherwise fills
+// `cpu100` with up to 100 characters (including \0) identifying the CPU model.
+HWY_DLLEXPORT bool GetCpuString(char* cpu100);
 
 }  // namespace platform
 

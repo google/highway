@@ -29,6 +29,7 @@
 #include "hwy/tests/hwy_gtest.h"
 #include "hwy/tests/test_util-inl.h"
 #include "hwy/tests/test_util.h"
+#include "hwy/timer.h"
 
 namespace hwy {
 namespace {
@@ -39,6 +40,7 @@ TEST(TopologyTest, TestSetSimple) {
 
   LogicalProcessorSet set;
   // Defaults to empty.
+  HWY_ASSERT(!set.Any());
   HWY_ASSERT(set.Count() == 0);
   set.Foreach(
       [](size_t lp) { HWY_ABORT("Set should be empty but got %zu\n", lp); });
@@ -48,12 +50,16 @@ TEST(TopologyTest, TestSetSimple) {
   // After setting, we can retrieve it.
   set.Set(max);
   HWY_ASSERT(set.Get(max));
+  HWY_ASSERT(set.Any());
+  HWY_ASSERT(set.First() == max);
   HWY_ASSERT(set.Count() == 1);
   set.Foreach([max](size_t lp) { HWY_ASSERT(lp == max); });
 
   // SetNonzeroBitsFrom64 does not clear old bits.
   const size_t min = 0;
   set.SetNonzeroBitsFrom64(1ull << min);
+  HWY_ASSERT(set.Any());
+  HWY_ASSERT(set.First() == min);
   HWY_ASSERT(set.Get(min));
   HWY_ASSERT(set.Get(max));
   HWY_ASSERT(set.Count() == ((min == max) ? 1 : 2));
@@ -62,6 +68,7 @@ TEST(TopologyTest, TestSetSimple) {
   // After clearing, it is empty again.
   set.Clear(min);
   set.Clear(max);
+  HWY_ASSERT(!set.Any());
   HWY_ASSERT(set.Count() == 0);
   set.Foreach(
       [](size_t lp) { HWY_ABORT("Set should be empty but got %zu\n", lp); });
@@ -128,12 +135,17 @@ class SlowSet {
   }
 
   void CheckSame(const LogicalProcessorSet& lps) {
+    HWY_ASSERT(lps.Any() == (lps.Count() != 0));
     HWY_ASSERT(Count() == lps.Count());
     // Everything lps has, we also have.
     lps.Foreach([this](size_t lp) { HWY_ASSERT(Get(lp)); });
     // Everything we have, lps also has.
     std::for_each(vec_.begin(), vec_.end(),
                   [&lps](size_t lp) { HWY_ASSERT(lps.Get(lp)); });
+    // First matches first in the map
+    if (lps.Any()) {
+      HWY_ASSERT(lps.First() == idx_for_lp_.begin()->first);
+    }
   }
 
  private:
@@ -198,6 +210,11 @@ TEST(TopologyTest, TestNum) {
 }
 
 TEST(TopologyTest, TestTopology) {
+  char cpu100[100];
+  if (hwy::platform::GetCpuString(cpu100)) {
+    fprintf(stderr, "%s\n", cpu100);
+  }
+
   Topology topology;
   if (topology.packages.empty()) return;
 
@@ -205,6 +222,7 @@ TEST(TopologyTest, TestTopology) {
 
   size_t lps_by_cluster = 0;
   size_t lps_by_core = 0;
+  LogicalProcessorSet all_lps;
   for (size_t p = 0; p < topology.packages.size(); ++p) {
     const Topology::Package& pkg = topology.packages[p];
     HWY_ASSERT(!pkg.clusters.empty());
@@ -213,13 +231,18 @@ TEST(TopologyTest, TestTopology) {
 
     for (const Topology::Cluster& c : pkg.clusters) {
       lps_by_cluster += c.lps.Count();
+      c.lps.Foreach([&all_lps](size_t lp) { all_lps.Set(lp); });
     }
     for (const Topology::Core& c : pkg.cores) {
       lps_by_core += c.lps.Count();
+      c.lps.Foreach([&all_lps](size_t lp) { all_lps.Set(lp); });
     }
   }
+  // Ensure the per-cluster and per-core sets sum to the total.
   HWY_ASSERT(lps_by_cluster == topology.lps.size());
   HWY_ASSERT(lps_by_core == topology.lps.size());
+  // .. and are a partition of unity (all LPs are covered)
+  HWY_ASSERT(all_lps.Count() == topology.lps.size());
 }
 
 }  // namespace
