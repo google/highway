@@ -67,6 +67,14 @@ DECLARE_FUNCTION(EMU128)
 
 HWY_EXPORT(FakeFunction);
 
+template <typename T>
+int64_t FakeFunctionDispatcher(T value) {
+  // Note that when calling templated code on arbitrary types, the dispatch
+  // table must be defined inside another template function.
+  HWY_EXPORT_T(FakeFunctionT, FakeFunctionT<T>);
+  return HWY_DYNAMIC_DISPATCH_T(FakeFunctionT)(value);
+}
+
 void CallFunctionForTarget(int64_t target, int /*line*/) {
   if ((HWY_TARGETS & target) == 0) return;
   hwy::SetSupportedTargetsForTest(target);
@@ -81,6 +89,9 @@ void CallFunctionForTarget(int64_t target, int /*line*/) {
   // Test calling templated functions.
   HWY_EXPORT_T(FakeFunctionT, FakeFunctionT<bool>);
   HWY_ASSERT_EQ(target, HWY_DYNAMIC_DISPATCH_T(FakeFunctionT)(true));
+
+  HWY_ASSERT_EQ(target, FakeFunctionDispatcher<float>(1.0f));
+  HWY_ASSERT_EQ(target, FakeFunctionDispatcher<double>(1.0));
 #endif
 
   // Calling DeInit() will test that the initializer function
