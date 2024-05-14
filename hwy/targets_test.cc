@@ -71,8 +71,11 @@ template <typename T>
 int64_t FakeFunctionDispatcher(T value) {
   // Note that when calling templated code on arbitrary types, the dispatch
   // table must be defined inside another template function.
-  HWY_EXPORT_T(FakeFunctionT, FakeFunctionT<T>);
-  return HWY_DYNAMIC_DISPATCH_T(FakeFunctionT)(value);
+  HWY_EXPORT_T(FakeFunction1, FakeFunctionT<T>);
+  HWY_EXPORT_T(FakeFunction2, FakeFunctionT<bool>);
+  // Verify two EXPORT_T within a function are possible.
+  return HWY_DYNAMIC_DISPATCH_T(FakeFunction1)(value) +
+         HWY_DYNAMIC_DISPATCH_T(FakeFunction2)(true);
 }
 
 void CallFunctionForTarget(int64_t target, int /*line*/) {
@@ -85,34 +88,19 @@ void CallFunctionForTarget(int64_t target, int /*line*/) {
 
   HWY_ASSERT_EQ(target, HWY_DYNAMIC_DISPATCH(FakeFunction)(42));
 
-#if HWY_CXX_LANG >= 201703L
-  // Test calling templated functions.
-  HWY_EXPORT_T(FakeFunctionT, FakeFunctionT<bool>);
-  HWY_ASSERT_EQ(target, HWY_DYNAMIC_DISPATCH_T(FakeFunctionT)(true));
-
-  HWY_ASSERT_EQ(target, FakeFunctionDispatcher<float>(1.0f));
-  HWY_ASSERT_EQ(target, FakeFunctionDispatcher<double>(1.0));
-#endif
+  // * 2 because we call two functions and add their target result together.
+  HWY_ASSERT_EQ(target * 2, FakeFunctionDispatcher<float>(1.0f));
+  HWY_ASSERT_EQ(target * 2, FakeFunctionDispatcher<double>(1.0));
 
   // Calling DeInit() will test that the initializer function
   // also calls the right function.
   hwy::GetChosenTarget().DeInit();
 
-#if HWY_DISPATCH_WORKAROUND
-  const int64_t expected = HWY_STATIC_TARGET;
-#else
   const int64_t expected = target;
-#endif
   HWY_ASSERT_EQ(expected, HWY_DYNAMIC_DISPATCH(FakeFunction)(42));
-#if HWY_CXX_LANG >= 201703L
-  HWY_ASSERT_EQ(expected, HWY_DYNAMIC_DISPATCH_T(FakeFunctionT)(true));
-#endif
 
   // Second call uses the cached value from the previous call.
   HWY_ASSERT_EQ(target, HWY_DYNAMIC_DISPATCH(FakeFunction)(42));
-#if HWY_CXX_LANG >= 201703L
-  HWY_ASSERT_EQ(target, HWY_DYNAMIC_DISPATCH_T(FakeFunctionT)(true));
-#endif
 }
 
 void CheckFakeFunction() {

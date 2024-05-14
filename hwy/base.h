@@ -79,6 +79,7 @@
 
 #include <intrin.h>
 
+#define HWY_FUNCTION __FUNCSIG__  // function name + template args
 #define HWY_RESTRICT __restrict
 #define HWY_INLINE __forceinline
 #define HWY_NOINLINE __declspec(noinline)
@@ -99,6 +100,7 @@
 
 #else
 
+#define HWY_FUNCTION __PRETTY_FUNCTION__  // function name + template args
 #define HWY_RESTRICT __restrict__
 // force inlining without optimization enabled creates very inefficient code
 // that can cause compiler timeout
