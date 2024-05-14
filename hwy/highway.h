@@ -282,6 +282,15 @@ namespace hwy {
 #define HWY_CHOOSE_AVX3_SPR(FUNC_NAME) nullptr
 #endif
 
+#if HWY_DISPATCH_MAP
+struct AllExports {
+  static std::map<uint64_t, const void*>& Get() {
+    static std::map<uint64_t, const void*> s_exports;
+    return s_exports;
+  }
+};
+#endif
+
 // Provides a static member function which is what is called during the first
 // HWY_DYNAMIC_DISPATCH, where GetIndex is still zero, and instantiations of
 // this function are the first entry in the tables created by HWY_EXPORT[_T].
@@ -422,13 +431,6 @@ static constexpr uint64_t FNV(const char* name) {
                      (0x100000001b3ULL * FNV(name + 1))
                : 0xcbf29ce484222325ULL;
 }
-
-struct AllExports {
-  static std::map<uint64_t, const void*>& Get() {
-    static std::map<uint64_t, const void*> s_exports;
-    return s_exports;
-  }
-};
 
 struct AddExport {
   AddExport(const char* name, const char* name2, const void* table) {
