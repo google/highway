@@ -5812,13 +5812,13 @@ HWY_API VFromD<DI32> SatWidenMulAccumFixedPoint(DI32 /*di32*/,
 #endif
 
 template <size_t N, int kPow2>
-HWY_API svfloat32_t MulEvenAdd(Simd<float, N, kPow2> df, VBF16 a, VBF16 b,
+HWY_API svfloat32_t MulEvenAdd(Simd<float, N, kPow2> /* d */, VBF16 a, VBF16 b,
                                const svfloat32_t c) {
   return svbfmlalb_f32(c, a, b);
 }
 
 template <size_t N, int kPow2>
-HWY_API svfloat32_t MulOddAdd(Simd<float, N, kPow2> df, VBF16 a, VBF16 b,
+HWY_API svfloat32_t MulOddAdd(Simd<float, N, kPow2> /* d */, VBF16 a, VBF16 b,
                               const svfloat32_t c) {
   return svbfmlalt_f32(c, a, b);
 }
