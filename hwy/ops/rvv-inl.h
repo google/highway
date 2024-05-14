@@ -1057,6 +1057,35 @@ HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, SubS, sub_vx, _ALL)
 HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, Sub, sub, _ALL)
 HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Sub, fsub, _ALL)
 
+// ------------------------------ Neg (ReverseSubS, Xor)
+
+template <class V, HWY_IF_SIGNED_V(V)>
+HWY_API V Neg(const V v) {
+  return detail::ReverseSubS(v, 0);
+}
+
+// vector = f(vector), but argument is repeated
+#define HWY_RVV_RETV_ARGV2(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                           SHIFT, MLEN, NAME, OP)                           \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) {   \
+    return __riscv_v##OP##_vv_##CHAR##SEW##LMUL(v, v,                       \
+                                                HWY_RVV_AVL(SEW, SHIFT));   \
+  }
+
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGV2, Neg, fsgnjn, _ALL)
+
+#if !HWY_HAVE_FLOAT16
+
+template <class V, HWY_IF_U16_D(DFromV<V>)>  // hwy::float16_t
+HWY_API V Neg(V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  return BitCast(d, Xor(BitCast(du, v), Set(du, SignMask<TU>())));
+}
+
+#endif  // !HWY_HAVE_FLOAT16
+
 // ------------------------------ SaturatedAdd
 
 #ifdef HWY_NATIVE_I32_SATURATED_ADDSUB
@@ -5256,35 +5285,6 @@ HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
 #endif
 }
 
-// ------------------------------ Neg (Sub)
-
-template <class V, HWY_IF_SIGNED_V(V)>
-HWY_API V Neg(const V v) {
-  return detail::ReverseSubS(v, 0);
-}
-
-// vector = f(vector), but argument is repeated
-#define HWY_RVV_RETV_ARGV2(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
-                           SHIFT, MLEN, NAME, OP)                           \
-  HWY_API HWY_RVV_V(BASE, SEW, LMUL) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) {   \
-    return __riscv_v##OP##_vv_##CHAR##SEW##LMUL(v, v,                       \
-                                                HWY_RVV_AVL(SEW, SHIFT));   \
-  }
-
-HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGV2, Neg, fsgnjn, _ALL)
-
-#if !HWY_HAVE_FLOAT16
-
-template <class V, HWY_IF_U16_D(DFromV<V>)>  // hwy::float16_t
-HWY_API V Neg(V v) {
-  const DFromV<decltype(v)> d;
-  const RebindToUnsigned<decltype(d)> du;
-  using TU = TFromD<decltype(du)>;
-  return BitCast(d, Xor(BitCast(du, v), Set(du, SignMask<TU>())));
-}
-
-#endif  // !HWY_HAVE_FLOAT16
-
 // ------------------------------ Abs (Max, Neg)
 
 template <class V, HWY_IF_SIGNED_V(V)>
@@ -5423,6 +5423,58 @@ HWY_API VFromD<D> Iota(const D d, T2 first) {
   const RebindToSigned<D> di;
   return detail::AddS(ConvertTo(d, BitCast(di, detail::Iota0(du))),
                       ConvertScalarTo<TFromD<D>>(first));
+}
+
+// ------------------------------ BitShuffle (PromoteTo, Rol, SumsOf8)
+
+// Native implementation required to avoid 8-bit wraparound on long vectors.
+#ifdef HWY_NATIVE_BITSHUFFLE
+#undef HWY_NATIVE_BITSHUFFLE
+#else
+#define HWY_NATIVE_BITSHUFFLE
+#endif
+
+// Cannot handle LMUL=8 because we promote indices.
+template <class V64, class VI, HWY_IF_UI8(TFromV<VI>), class D64 = DFromV<V64>,
+          HWY_IF_UI64_D(D64), HWY_IF_POW2_LE_D(D64, 2)>
+HWY_API V64 BitShuffle(V64 values, VI idx) {
+  const RebindToUnsigned<D64> du64;
+  const Repartition<uint8_t, D64> du8;
+  const Rebind<uint16_t, decltype(du8)> du16;
+  using VU8 = VFromD<decltype(du8)>;
+  using VU16 = VFromD<decltype(du16)>;
+  // For each 16-bit (to avoid wraparound for long vectors) index of an output
+  // byte: offset of the u64 lane to which it belongs.
+  const VU16 byte_offsets =
+      detail::AndS(detail::Iota0(du16), static_cast<uint16_t>(~7u));
+  // idx is for a bit; shifting makes that bytes. Promote so we can add
+  // byte_offsets, then we have the u8 lane index within the whole vector.
+  const VU16 idx16 =
+      Add(byte_offsets, PromoteTo(du16, ShiftRight<3>(BitCast(du8, idx))));
+  const VU8 bytes = detail::TableLookupLanes16(BitCast(du8, values), idx16);
+
+  // We want to shift right by idx & 7 to extract the desired bit in `bytes`,
+  // and left by iota & 7 to put it in the correct output bit. To correctly
+  // handle shift counts from -7 to 7, we rotate (unfortunately not natively
+  // supported on RVV).
+  const VU8 rotate_left_bits = Sub(detail::Iota0(du8), BitCast(du8, idx));
+  const VU8 extracted_bits_mask =
+      BitCast(du8, Set(du64, static_cast<uint64_t>(0x8040201008040201u)));
+  const VU8 extracted_bits =
+      And(Rol(bytes, rotate_left_bits), extracted_bits_mask);
+  // Combine bit-sliced (one bit per byte) into one 64-bit sum.
+  return BitCast(D64(), SumsOf8(extracted_bits));
+}
+
+template <class V64, class VI, HWY_IF_UI8(TFromV<VI>), class D64 = DFromV<V64>,
+          HWY_IF_UI64_D(D64), HWY_IF_POW2_GT_D(D64, 2)>
+HWY_API V64 BitShuffle(V64 values, VI idx) {
+  const Half<D64> dh;
+  const Half<DFromV<VI>> dih;
+  using V64H = VFromD<decltype(dh)>;
+  const V64H r0 = BitShuffle(LowerHalf(dh, values), LowerHalf(dih, idx));
+  const V64H r1 = BitShuffle(UpperHalf(dh, values), UpperHalf(dih, idx));
+  return Combine(D64(), r1, r0);
 }
 
 // ------------------------------ MulEven/Odd (Mul, OddEven)
