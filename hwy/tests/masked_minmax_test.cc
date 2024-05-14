@@ -68,9 +68,6 @@ struct TestUnsignedMinMax {
       const VI mask_i = Load(di, bool_lanes.get());
       const Mask<D> mask = RebindMask(d, Gt(mask_i, Zero(di)));
 
-      Print(di, "mi", mask_i);
-      Print(d, "v2", v3);
-      Print(d, "v3", v4);
       HWY_ASSERT_VEC_EQ(d, expected_min.get(), MaskedMinOr(v2, mask, v3, v4));
       HWY_ASSERT_VEC_EQ(d, expected_min.get(), MaskedMinOr(v2, mask, v4, v3));
       HWY_ASSERT_VEC_EQ(d, expected_max.get(), MaskedMaxOr(v2, mask, v3, v4));

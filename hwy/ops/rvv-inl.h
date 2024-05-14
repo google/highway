@@ -1057,6 +1057,35 @@ HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, SubS, sub_vx, _ALL)
 HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, Sub, sub, _ALL)
 HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Sub, fsub, _ALL)
 
+// ------------------------------ Neg (ReverseSubS, Xor)
+
+template <class V, HWY_IF_SIGNED_V(V)>
+HWY_API V Neg(const V v) {
+  return detail::ReverseSubS(v, 0);
+}
+
+// vector = f(vector), but argument is repeated
+#define HWY_RVV_RETV_ARGV2(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                           SHIFT, MLEN, NAME, OP)                           \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) {   \
+    return __riscv_v##OP##_vv_##CHAR##SEW##LMUL(v, v,                       \
+                                                HWY_RVV_AVL(SEW, SHIFT));   \
+  }
+
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGV2, Neg, fsgnjn, _ALL)
+
+#if !HWY_HAVE_FLOAT16
+
+template <class V, HWY_IF_U16_D(DFromV<V>)>  // hwy::float16_t
+HWY_API V Neg(V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  return BitCast(d, Xor(BitCast(du, v), Set(du, SignMask<TU>())));
+}
+
+#endif  // !HWY_HAVE_FLOAT16
+
 // ------------------------------ SaturatedAdd
 
 #ifdef HWY_NATIVE_I32_SATURATED_ADDSUB
@@ -2760,9 +2789,15 @@ HWY_API VFromD<Simd<int16_t, N, kPow2>> DemoteTo(
   }
 
 #if HWY_HAVE_FLOAT16 || HWY_RVV_HAVE_F16C
-HWY_RVV_FOREACH_F32(HWY_RVV_DEMOTE_F, DemoteTo, fncvt_rod_f_f_w_f, _DEMOTE_VIRT)
+HWY_RVV_FOREACH_F32(HWY_RVV_DEMOTE_F, DemoteTo, fncvt_f_f_w_f, _DEMOTE_VIRT)
 #endif
-HWY_RVV_FOREACH_F64(HWY_RVV_DEMOTE_F, DemoteTo, fncvt_rod_f_f_w_f, _DEMOTE_VIRT)
+HWY_RVV_FOREACH_F64(HWY_RVV_DEMOTE_F, DemoteTo, fncvt_f_f_w_f, _DEMOTE_VIRT)
+
+namespace detail {
+HWY_RVV_FOREACH_F64(HWY_RVV_DEMOTE_F, DemoteToF32WithRoundToOdd,
+                    fncvt_rod_f_f_w_f, _DEMOTE_VIRT)
+}  // namespace detail
+
 #undef HWY_RVV_DEMOTE_F
 
 // TODO(janwas): add BASE2 arg to allow generating this via DEMOTE_F.
@@ -2898,6 +2933,18 @@ HWY_API VFromD<Simd<hwy::bfloat16_t, N, kPow2>> DemoteTo(
   const RebindToUnsigned<decltype(d)> du16;
   return BitCast(
       d, detail::DemoteToShr16(du16, detail::RoundF32ForDemoteToBF16(v)));
+}
+
+#ifdef HWY_NATIVE_DEMOTE_F64_TO_F16
+#undef HWY_NATIVE_DEMOTE_F64_TO_F16
+#else
+#define HWY_NATIVE_DEMOTE_F64_TO_F16
+#endif
+
+template <class D, HWY_IF_F16_D(D)>
+HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<double, D>> v) {
+  const Rebind<float, decltype(df16)> df32;
+  return DemoteTo(df16, detail::DemoteToF32WithRoundToOdd(df32, v));
 }
 
 // ------------------------------ ConvertTo F
@@ -5256,35 +5303,6 @@ HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
 #endif
 }
 
-// ------------------------------ Neg (Sub)
-
-template <class V, HWY_IF_SIGNED_V(V)>
-HWY_API V Neg(const V v) {
-  return detail::ReverseSubS(v, 0);
-}
-
-// vector = f(vector), but argument is repeated
-#define HWY_RVV_RETV_ARGV2(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
-                           SHIFT, MLEN, NAME, OP)                           \
-  HWY_API HWY_RVV_V(BASE, SEW, LMUL) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) {   \
-    return __riscv_v##OP##_vv_##CHAR##SEW##LMUL(v, v,                       \
-                                                HWY_RVV_AVL(SEW, SHIFT));   \
-  }
-
-HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGV2, Neg, fsgnjn, _ALL)
-
-#if !HWY_HAVE_FLOAT16
-
-template <class V, HWY_IF_U16_D(DFromV<V>)>  // hwy::float16_t
-HWY_API V Neg(V v) {
-  const DFromV<decltype(v)> d;
-  const RebindToUnsigned<decltype(d)> du;
-  using TU = TFromD<decltype(du)>;
-  return BitCast(d, Xor(BitCast(du, v), Set(du, SignMask<TU>())));
-}
-
-#endif  // !HWY_HAVE_FLOAT16
-
 // ------------------------------ Abs (Max, Neg)
 
 template <class V, HWY_IF_SIGNED_V(V)>
@@ -5342,22 +5360,98 @@ HWY_API V Trunc(const V v) {
 }
 
 // ------------------------------ Ceil
+#if (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL >= 1400) || \
+    (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG >= 1700)
+namespace detail {
+#define HWY_RVV_CEIL_INT(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,   \
+                         SHIFT, MLEN, NAME, OP)                             \
+  HWY_API HWY_RVV_V(int, SEW, LMUL) CeilInt(HWY_RVV_V(BASE, SEW, LMUL) v) { \
+    return __riscv_vfcvt_x_f_v_i##SEW##LMUL##_rm(v, __RISCV_FRM_RUP,        \
+                                                 HWY_RVV_AVL(SEW, SHIFT));  \
+  }
+HWY_RVV_FOREACH_F(HWY_RVV_CEIL_INT, _, _, _ALL)
+#undef HWY_RVV_CEIL_INT
+
+}  // namespace detail
+
 template <class V>
 HWY_API V Ceil(const V v) {
-  asm volatile("fsrm %0" ::"r"(detail::kUp));
-  const auto ret = Round(v);
-  asm volatile("fsrm %0" ::"r"(detail::kNear));
-  return ret;
+  const DFromV<V> df;
+
+  const auto integer = detail::CeilInt(v);
+  const auto int_f = ConvertTo(df, integer);
+
+  return IfThenElse(detail::UseInt(v), CopySign(int_f, v), v);
 }
 
+#else  // GCC 13 or earlier or Clang 16 or earlier
+
+template <class V>
+HWY_API V Ceil(const V v) {
+  const DFromV<decltype(v)> df;
+  const RebindToSigned<decltype(df)> di;
+
+  using T = TFromD<decltype(df)>;
+
+  const auto integer = ConvertTo(di, v);  // round toward 0
+  const auto int_f = ConvertTo(df, integer);
+
+  // Truncating a positive non-integer ends up smaller; if so, add 1.
+  const auto pos1 =
+      IfThenElseZero(Lt(int_f, v), Set(df, ConvertScalarTo<T>(1.0)));
+
+  return IfThenElse(detail::UseInt(v), Add(int_f, pos1), v);
+}
+
+#endif  // (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL >= 1400) ||
+        // (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG >= 1700)
+
 // ------------------------------ Floor
+#if (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL >= 1400) || \
+    (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG >= 1700)
+namespace detail {
+#define HWY_RVV_FLOOR_INT(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,   \
+                          SHIFT, MLEN, NAME, OP)                             \
+  HWY_API HWY_RVV_V(int, SEW, LMUL) FloorInt(HWY_RVV_V(BASE, SEW, LMUL) v) { \
+    return __riscv_vfcvt_x_f_v_i##SEW##LMUL##_rm(v, __RISCV_FRM_RDN,         \
+                                                 HWY_RVV_AVL(SEW, SHIFT));   \
+  }
+HWY_RVV_FOREACH_F(HWY_RVV_FLOOR_INT, _, _, _ALL)
+#undef HWY_RVV_FLOOR_INT
+
+}  // namespace detail
+
 template <class V>
 HWY_API V Floor(const V v) {
-  asm volatile("fsrm %0" ::"r"(detail::kDown));
-  const auto ret = Round(v);
-  asm volatile("fsrm %0" ::"r"(detail::kNear));
-  return ret;
+  const DFromV<V> df;
+
+  const auto integer = detail::FloorInt(v);
+  const auto int_f = ConvertTo(df, integer);
+
+  return IfThenElse(detail::UseInt(v), CopySign(int_f, v), v);
 }
+
+#else  // GCC 13 or earlier or Clang 16 or earlier
+
+template <class V>
+HWY_API V Floor(const V v) {
+  const DFromV<decltype(v)> df;
+  const RebindToSigned<decltype(df)> di;
+
+  using T = TFromD<decltype(df)>;
+
+  const auto integer = ConvertTo(di, v);  // round toward 0
+  const auto int_f = ConvertTo(df, integer);
+
+  // Truncating a negative non-integer ends up larger; if so, subtract 1.
+  const auto neg1 =
+      IfThenElseZero(Gt(int_f, v), Set(df, ConvertScalarTo<T>(-1.0)));
+
+  return IfThenElse(detail::UseInt(v), Add(int_f, neg1), v);
+}
+
+#endif  // (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL >= 1400) ||
+        // (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG >= 1700)
 
 // ------------------------------ Floating-point classification (Ne)
 
@@ -5423,6 +5517,58 @@ HWY_API VFromD<D> Iota(const D d, T2 first) {
   const RebindToSigned<D> di;
   return detail::AddS(ConvertTo(d, BitCast(di, detail::Iota0(du))),
                       ConvertScalarTo<TFromD<D>>(first));
+}
+
+// ------------------------------ BitShuffle (PromoteTo, Rol, SumsOf8)
+
+// Native implementation required to avoid 8-bit wraparound on long vectors.
+#ifdef HWY_NATIVE_BITSHUFFLE
+#undef HWY_NATIVE_BITSHUFFLE
+#else
+#define HWY_NATIVE_BITSHUFFLE
+#endif
+
+// Cannot handle LMUL=8 because we promote indices.
+template <class V64, class VI, HWY_IF_UI8(TFromV<VI>), class D64 = DFromV<V64>,
+          HWY_IF_UI64_D(D64), HWY_IF_POW2_LE_D(D64, 2)>
+HWY_API V64 BitShuffle(V64 values, VI idx) {
+  const RebindToUnsigned<D64> du64;
+  const Repartition<uint8_t, D64> du8;
+  const Rebind<uint16_t, decltype(du8)> du16;
+  using VU8 = VFromD<decltype(du8)>;
+  using VU16 = VFromD<decltype(du16)>;
+  // For each 16-bit (to avoid wraparound for long vectors) index of an output
+  // byte: offset of the u64 lane to which it belongs.
+  const VU16 byte_offsets =
+      detail::AndS(detail::Iota0(du16), static_cast<uint16_t>(~7u));
+  // idx is for a bit; shifting makes that bytes. Promote so we can add
+  // byte_offsets, then we have the u8 lane index within the whole vector.
+  const VU16 idx16 =
+      Add(byte_offsets, PromoteTo(du16, ShiftRight<3>(BitCast(du8, idx))));
+  const VU8 bytes = detail::TableLookupLanes16(BitCast(du8, values), idx16);
+
+  // We want to shift right by idx & 7 to extract the desired bit in `bytes`,
+  // and left by iota & 7 to put it in the correct output bit. To correctly
+  // handle shift counts from -7 to 7, we rotate (unfortunately not natively
+  // supported on RVV).
+  const VU8 rotate_left_bits = Sub(detail::Iota0(du8), BitCast(du8, idx));
+  const VU8 extracted_bits_mask =
+      BitCast(du8, Set(du64, static_cast<uint64_t>(0x8040201008040201u)));
+  const VU8 extracted_bits =
+      And(Rol(bytes, rotate_left_bits), extracted_bits_mask);
+  // Combine bit-sliced (one bit per byte) into one 64-bit sum.
+  return BitCast(D64(), SumsOf8(extracted_bits));
+}
+
+template <class V64, class VI, HWY_IF_UI8(TFromV<VI>), class D64 = DFromV<V64>,
+          HWY_IF_UI64_D(D64), HWY_IF_POW2_GT_D(D64, 2)>
+HWY_API V64 BitShuffle(V64 values, VI idx) {
+  const Half<D64> dh;
+  const Half<DFromV<VI>> dih;
+  using V64H = VFromD<decltype(dh)>;
+  const V64H r0 = BitShuffle(LowerHalf(dh, values), LowerHalf(dih, idx));
+  const V64H r1 = BitShuffle(UpperHalf(dh, values), UpperHalf(dih, idx));
+  return Combine(D64(), r1, r0);
 }
 
 // ------------------------------ MulEven/Odd (Mul, OddEven)

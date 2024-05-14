@@ -74,8 +74,8 @@ struct TestBitShuffle {
 
 HWY_NOINLINE void TestAllBitShuffle() {
 #if HWY_HAVE_INTEGER64
-  ForPartialVectors<TestBitShuffle>()(int64_t());
-  ForPartialVectors<TestBitShuffle>()(uint64_t());
+  ForPartialFixedOrFullScalableVectors<TestBitShuffle>()(int64_t());
+  ForPartialFixedOrFullScalableVectors<TestBitShuffle>()(uint64_t());
 #endif
 }
 

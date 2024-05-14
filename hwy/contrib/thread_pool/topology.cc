@@ -223,6 +223,7 @@ HWY_DLLEXPORT bool SetThreadAffinity(const LogicalProcessorSet& lps) {
 }
 
 #if HWY_OS_LINUX
+namespace {
 
 class File {
  public:
@@ -280,25 +281,28 @@ class File {
   int fd_;
 };
 
-bool SimpleAtoi(const char* str, size_t len, size_t* out) {
+// Interprets as base-10 ASCII, handling an K or M suffix if present.
+bool ParseSysfs(const char* str, size_t len, size_t* out) {
   size_t value = 0;
-  size_t digits_seen = 0;
   // 9 digits cannot overflow even 32-bit size_t.
-  for (size_t i = 0; i < HWY_MIN(len, 9); ++i) {
-    if (str[i] < '0' || str[i] > '9') break;
+  size_t pos = 0;
+  for (; pos < HWY_MIN(len, 9); ++pos) {
+    const int c = str[pos];
+    if (c < '0' || c > '9') break;
     value *= 10;
-    value += static_cast<size_t>(str[i] - '0');
-    ++digits_seen;
+    value += static_cast<size_t>(c - '0');
   }
-  if (digits_seen == 0) {
+  if (pos == 0) {  // No digits found
     *out = 0;
     return false;
   }
+  if (str[pos] == 'K') value <<= 10;
+  if (str[pos] == 'M') value <<= 20;
   *out = value;
   return true;
 }
 
-bool ReadSysfs(const char* format, size_t lp, size_t max, size_t* out) {
+bool ReadSysfs(const char* format, size_t lp, size_t* out) {
   char path[200];
   const int bytes_written = snprintf(path, sizeof(path), format, lp);
   HWY_ASSERT(0 < bytes_written &&
@@ -309,135 +313,113 @@ bool ReadSysfs(const char* format, size_t lp, size_t max, size_t* out) {
   const size_t pos = file.Read(buf200);
   if (pos == 0) return false;
 
-  if (!SimpleAtoi(buf200, pos, out)) return false;
-  if (*out > max) {
-    if (HWY_IS_DEBUG_BUILD) {
-      fprintf(stderr, "Value for %s = %zu > %zu\n", path, *out, max);
-    }
-    return false;
-  }
-  return true;
-}
-
-// Given a set of opaque values, returns a map of each value to the number of
-// values that precede it. Used to generate contiguous arrays in the same order.
-std::map<size_t, size_t> RanksFromSet(const BitSet4096<>& set) {
-  HWY_ASSERT(set.Count() != 0);
-  std::map<size_t, size_t> ranks;
-  size_t num = 0;
-  set.Foreach([&ranks, &num](size_t opaque) {
-    const bool inserted = ranks.insert({opaque, num++}).second;
-    HWY_ASSERT(inserted);
-  });
-  HWY_ASSERT(num == set.Count());
-  HWY_ASSERT(num == ranks.size());
-  return ranks;
+  return ParseSysfs(buf200, pos, out);
 }
 
 const char* kPackage =
     "/sys/devices/system/cpu/cpu%zu/topology/physical_package_id";
 const char* kCluster = "/sys/devices/system/cpu/cpu%zu/cache/index3/id";
 const char* kCore = "/sys/devices/system/cpu/cpu%zu/topology/core_id";
+const char* kL2Size = "/sys/devices/system/cpu/cpu%zu/cache/index2/size";
+const char* kL3Size = "/sys/devices/system/cpu/cpu%zu/cache/index3/size";
 
-// Returns 0 on error, or number of packages and initializes LP::package.
-size_t DetectPackages(std::vector<Topology::LP>& lps) {
-  // Packages are typically an index, but could actually be an arbitrary value.
-  // We assume they do not exceed kMaxLogicalProcessors and thus fit in a set.
-  BitSet4096<> package_set;
-  for (size_t lp = 0; lp < lps.size(); ++lp) {
-    size_t package;
-    if (!ReadSysfs(kPackage, lp, kMaxLogicalProcessors, &package)) return 0;
-    package_set.Set(package);
-    // Storing a set of lps belonging to each package requires more space/time
-    // than storing the package per lp and remapping below.
-    lps[lp].package = static_cast<uint16_t>(package);
-  }
-  HWY_ASSERT(package_set.Count() != 0);
+// sysfs values can be arbitrarily large, so store in a map and replace with
+// indices in order of appearance.
+class Remapper {
+ public:
+  // Returns false on error, or sets `out_index` to the index of the sysfs
+  // value selected by `format` and `lp`.
+  template <typename T>
+  bool operator()(const char* format, size_t lp, T* HWY_RESTRICT out_index) {
+    size_t opaque;
+    if (!ReadSysfs(format, lp, &opaque)) return false;
 
-  // Remap the per-lp package to their rank.
-  std::map<size_t, size_t> ranks = RanksFromSet(package_set);
-  for (size_t lp = 0; lp < lps.size(); ++lp) {
-    lps[lp].package = static_cast<uint16_t>(ranks[lps[lp].package]);
+    const auto ib = indices_.insert({opaque, num_});
+    num_ += ib.second;                      // increment if inserted
+    const size_t index = ib.first->second;  // new or existing
+    HWY_ASSERT(index < num_);
+    HWY_ASSERT(index < hwy::LimitsMax<T>());
+    *out_index = static_cast<T>(index);
+    return true;
   }
-  return ranks.size();
-}
+
+  size_t Num() const { return num_; }
+
+ private:
+  std::map<size_t, size_t> indices_;
+  size_t num_ = 0;
+};
 
 // Stores the global cluster/core values separately for each package so we can
 // return per-package arrays.
 struct PerPackage {
-  // Use maximum possible set size because Arm values can exceed 1k.
-  BitSet4096<> cluster_set;
-  BitSet4096<> core_set;
-
-  std::map<size_t, size_t> smt_per_core;
-
-  size_t num_clusters;
-  size_t num_cores;
+  Remapper clusters;
+  Remapper cores;
+  uint8_t smt_per_core[kMaxLogicalProcessors] = {0};
 };
 
-// Returns false, or fills per_package and initializes LP::cluster/core/smt.
-bool DetectClusterAndCore(std::vector<Topology::LP>& lps,
-                          std::vector<PerPackage>& per_package) {
+// Initializes `lps` and returns a PerPackage vector (empty on failure).
+std::vector<PerPackage> DetectPackages(std::vector<Topology::LP>& lps) {
+  std::vector<PerPackage> empty;
+
+  Remapper packages;
+  for (size_t lp = 0; lp < lps.size(); ++lp) {
+    if (!packages(kPackage, lp, &lps[lp].package)) return empty;
+  }
+  std::vector<PerPackage> per_package(packages.Num());
+
   for (size_t lp = 0; lp < lps.size(); ++lp) {
     PerPackage& pp = per_package[lps[lp].package];
-    size_t cluster, core;
-    if (!ReadSysfs(kCluster, lp, kMaxLogicalProcessors, &cluster)) return false;
-    if (!ReadSysfs(kCore, lp, kMaxLogicalProcessors, &core)) return false;
+    if (!pp.clusters(kCluster, lp, &lps[lp].cluster)) return empty;
+    if (!pp.cores(kCore, lp, &lps[lp].core)) return empty;
 
     // SMT ID is how many LP we have already seen assigned to the same core.
-    const size_t smt = pp.smt_per_core[core]++;
-    HWY_ASSERT(smt < 16);
-    lps[lp].smt = static_cast<uint8_t>(smt);  // already contiguous
-
-    // Certainly core, and likely also cluster, are HW-dependent opaque values.
-    // We assume they do not exceed kMaxLogicalProcessors and thus fit in a set.
-    pp.cluster_set.Set(cluster);
-    pp.core_set.Set(core);
-    // Temporary storage for remapping as in DetectPackages.
-    lps[lp].cluster = static_cast<uint16_t>(cluster);
-    lps[lp].core = static_cast<uint16_t>(core);
+    HWY_ASSERT(lps[lp].core < kMaxLogicalProcessors);
+    lps[lp].smt = pp.smt_per_core[lps[lp].core]++;
+    HWY_ASSERT(lps[lp].smt < 16);
   }
 
-  for (size_t p = 0; p < per_package.size(); ++p) {
-    PerPackage& pp = per_package[p];
-    std::map<size_t, size_t> cluster_ranks = RanksFromSet(pp.cluster_set);
-    std::map<size_t, size_t> core_ranks = RanksFromSet(pp.core_set);
-    // Remap *this packages'* per-lp cluster/core to their ranks.
-    for (size_t lp = 0; lp < lps.size(); ++lp) {
-      if (lps[lp].package != p) continue;
-      lps[lp].cluster = static_cast<uint16_t>(cluster_ranks[lps[lp].cluster]);
-      lps[lp].core = static_cast<uint16_t>(core_ranks[lps[lp].core]);
-    }
-    pp.num_clusters = cluster_ranks.size();
-    pp.num_cores = core_ranks.size();
-  }
-
-  return true;
+  return per_package;
 }
 
+}  // namespace
 #endif  // HWY_OS_LINUX
 
 HWY_DLLEXPORT Topology::Topology() {
 #if HWY_OS_LINUX
   lps.resize(TotalLogicalProcessors());
-
-  const size_t num_packages = DetectPackages(lps);
-  if (num_packages == 0) return;
-  std::vector<PerPackage> per_package(num_packages);
-  if (!DetectClusterAndCore(lps, per_package)) return;
+  const std::vector<PerPackage>& per_package = DetectPackages(lps);
+  if (per_package.empty()) return;
 
   // Allocate per-package/cluster/core vectors. This indicates to callers that
   // detection succeeded.
-  packages.resize(num_packages);
-  for (size_t p = 0; p < num_packages; ++p) {
-    packages[p].clusters.resize(per_package[p].num_clusters);
-    packages[p].cores.resize(per_package[p].num_cores);
+  packages.resize(per_package.size());
+  for (size_t p = 0; p < packages.size(); ++p) {
+    packages[p].clusters.resize(per_package[p].clusters.Num());
+    packages[p].cores.resize(per_package[p].cores.Num());
   }
 
   // Populate the per-cluster/core sets of LP.
   for (size_t lp = 0; lp < lps.size(); ++lp) {
-    packages[lps[lp].package].clusters[lps[lp].cluster].lps.Set(lp);
-    packages[lps[lp].package].cores[lps[lp].core].lps.Set(lp);
+    Package& p = packages[lps[lp].package];
+    p.clusters[lps[lp].cluster].lps.Set(lp);
+    p.cores[lps[lp].core].lps.Set(lp);
+  }
+
+  // Detect cache sizes (only once per cluster)
+  for (size_t ip = 0; ip < packages.size(); ++ip) {
+    Package& p = packages[ip];
+    for (size_t ic = 0; ic < p.clusters.size(); ++ic) {
+      Cluster& c = p.clusters[ic];
+      const size_t lp = c.lps.First();
+      size_t bytes;
+      if (ReadSysfs(kL2Size, lp, &bytes)) {
+        c.private_kib = bytes >> 10;
+      }
+      if (ReadSysfs(kL3Size, lp, &bytes)) {
+        c.shared_kib = bytes >> 10;
+      }
+    }
   }
 #endif
 }

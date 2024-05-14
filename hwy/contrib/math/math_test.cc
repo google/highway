@@ -558,8 +558,14 @@ struct TestHypot {
       const auto a = Load(d, in_a.get() + i);
       const auto b = Load(d, in_b.get() + i);
 
+#if HWY_ARCH_ARM_A64
+      // TODO(b/287462770): inline to work around incorrect SVE codegen
+      const auto actual1 = Hypot(d, a, b);
+      const auto actual2 = Hypot(d, b, a);
+#else
       const auto actual1 = CallHypot(d, a, b);
       const auto actual2 = CallHypot(d, b, a);
+#endif
 
       Store(actual1, d, actual1_lanes.get());
       Store(actual2, d, actual2_lanes.get());
@@ -575,9 +581,11 @@ struct TestHypot {
             hwy::detail::ComputeUlpDelta(actual1_val, expected_val);
         if (ulp1 > kMaxErrorUlp) {
           fprintf(stderr,
-                  "%s: Hypot(%f, %f) expected %E actual %E ulp %g max ulp %u\n",
+                  "%s: Hypot(%f, %f) lane %d expected %E actual %E ulp %g max "
+                  "ulp %u\n",
                   hwy::TypeName(T(), Lanes(d)).c_str(), val_a, val_b,
-                  expected_val, actual1_val, static_cast<double>(ulp1),
+                  static_cast<int>(j), expected_val, actual1_val,
+                  static_cast<double>(ulp1),
                   static_cast<uint32_t>(kMaxErrorUlp));
         }
 

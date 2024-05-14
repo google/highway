@@ -569,6 +569,24 @@
 #endif
 // Defining one of HWY_COMPILE_ONLY_* will trump HWY_COMPILE_ALL_ATTAINABLE.
 
+// Allow opting out, and without a guarantee of success, opting-in.
+#ifndef HWY_HAVE_AUXV
+#ifdef TOOLCHAIN_MISS_SYS_AUXV_H
+#define HWY_HAVE_AUXV 0  // CMake failed to find the header
+// glibc 2.16 added auxv, but checking for that requires features.h, and we do
+// not want to include system headers here. Instead check for the header
+// directly, which has been supported at least since GCC 5.4 and Clang 3.
+// clang-format off
+#elif HWY_HAS_INCLUDE(<sys/auxv.h>)
+// clang-format on
+#define HWY_HAVE_AUXV 1  // header present
+#else
+#define HWY_HAVE_AUXV 0  // header not present, or non Clang/GCC compiler
+#endif
+#endif  // HWY_HAVE_AUXV
+
+// Allow opting out, and without a guarantee of success, opting-in.
+#ifndef HWY_HAVE_RUNTIME_DISPATCH
 // Clang, GCC and MSVC allow runtime dispatch on x86.
 #if HWY_ARCH_X86
 #define HWY_HAVE_RUNTIME_DISPATCH 1
@@ -576,13 +594,14 @@
 // to detect CPU capabilities.
 #elif (HWY_ARCH_ARM || HWY_ARCH_PPC || HWY_ARCH_S390X || HWY_ARCH_RISCV) &&    \
     (HWY_COMPILER_GCC_ACTUAL || HWY_COMPILER_CLANG >= 1700) && HWY_OS_LINUX && \
-    !defined(TOOLCHAIN_MISS_SYS_AUXV_H)
+    HWY_HAVE_AUXV
 #define HWY_HAVE_RUNTIME_DISPATCH 1
 #elif HWY_ARCH_ARM_A64 && HWY_OS_APPLE
 #define HWY_HAVE_RUNTIME_DISPATCH 1
 #else
 #define HWY_HAVE_RUNTIME_DISPATCH 0
-#endif
+#endif  // HWY_ARCH_*
+#endif  // HWY_HAVE_RUNTIME_DISPATCH
 
 // AVX3_DL is not widely available yet. To reduce code size and compile time,
 // only include it in the set of attainable targets (for dynamic dispatch) if

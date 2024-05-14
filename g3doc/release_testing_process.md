@@ -20,7 +20,7 @@ Check libjxl build actions at https://github.com/libjxl/libjxl/pull/2269.
 
 Prepend to debian/changelog and update mentions of the current version in:
 
-*   highway.h
+*   base.h
 *   CMakeLists.txt
 *   MODULE.bazel
 *   g3doc/faq.md
@@ -28,7 +28,10 @@ Prepend to debian/changelog and update mentions of the current version in:
 ### Signing the release
 
 *   Download release source code archive
-*   `gpg --armor --detach-sign highway-1.0.4.tar.gz`
-*   Edit release and attach the resulting `highway-1.0.4.tar.gz.asc`
+*   `gpg --armor --detach-sign highway-X.Y.Z.tar.gz`
+*   Edit release and attach the resulting `highway-X.Y.Z.tar.gz.asc`
+
+*   `git archive --prefix=highway-X.Y.Z/ -o highway-X.Y.Z.tar.gz vX.Y.Z` and
+    also attach the result
 
 (See https://wiki.debian.org/Creating%20signed%20GitHub%20releases)

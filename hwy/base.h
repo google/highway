@@ -16,7 +16,7 @@
 #ifndef HIGHWAY_HWY_BASE_H_
 #define HIGHWAY_HWY_BASE_H_
 
-// For SIMD module implementations and their callers, target-independent.
+// Target-independent definitions.
 
 // IWYU pragma: begin_exports
 #include <stddef.h>
@@ -25,11 +25,17 @@
 #include "hwy/detect_compiler_arch.h"
 #include "hwy/highway_export.h"
 
-#if HWY_COMPILER_MSVC && defined(_MSVC_LANG) && _MSVC_LANG > __cplusplus
-#define HWY_CXX_LANG _MSVC_LANG
-#else
-#define HWY_CXX_LANG __cplusplus
-#endif
+// API version (https://semver.org/); keep in sync with CMakeLists.txt.
+#define HWY_MAJOR 1
+#define HWY_MINOR 2
+#define HWY_PATCH 0
+
+// True if the Highway version >= major.minor.0. Added in 1.2.0.
+#define HWY_VERSION_GE(major, minor) \
+  (HWY_MAJOR > (major) || (HWY_MAJOR == (major) && HWY_MINOR >= (minor)))
+// True if the Highway version < major.minor.0. Added in 1.2.0.
+#define HWY_VERSION_LT(major, minor) \
+  (HWY_MAJOR < (major) || (HWY_MAJOR == (major) && HWY_MINOR < (minor)))
 
 // "IWYU pragma: keep" does not work for these includes, so hide from the IDE.
 #if !HWY_IDE
@@ -47,14 +53,15 @@
 
 #endif  // !HWY_IDE
 
-#if !defined(HWY_NO_LIBCXX) && HWY_CXX_LANG > 201703L &&                    \
-    __cpp_impl_three_way_comparison >= 201907L && defined(__has_include) && \
-    !defined(HWY_DISABLE_CXX20_THREE_WAY_COMPARE)
-#if __has_include(<compare>)
+#ifndef HWY_HAVE_CXX20_THREE_WAY_COMPARE  // allow opt-out
+#if !defined(HWY_NO_LIBCXX) && defined(__cpp_impl_three_way_comparison) && \
+    __cpp_impl_three_way_comparison >= 201907L && HWY_HAS_INCLUDE(<compare>)
 #include <compare>
 #define HWY_HAVE_CXX20_THREE_WAY_COMPARE 1
+#else
+#define HWY_HAVE_CXX20_THREE_WAY_COMPARE 0
 #endif
-#endif
+#endif  // HWY_HAVE_CXX20_THREE_WAY_COMPARE
 
 // IWYU pragma: end_exports
 
@@ -72,6 +79,7 @@
 
 #include <intrin.h>
 
+#define HWY_FUNCTION __FUNCSIG__  // function name + template args
 #define HWY_RESTRICT __restrict
 #define HWY_INLINE __forceinline
 #define HWY_NOINLINE __declspec(noinline)
@@ -92,6 +100,7 @@
 
 #else
 
+#define HWY_FUNCTION __PRETTY_FUNCTION__  // function name + template args
 #define HWY_RESTRICT __restrict__
 // force inlining without optimization enabled creates very inefficient code
 // that can cause compiler timeout
@@ -303,26 +312,6 @@ HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
 #define HWY_DASSERT(condition) \
   do {                         \
   } while (0)
-#endif
-#if __cpp_constexpr >= 201603L
-#define HWY_CXX17_CONSTEXPR constexpr
-#else
-#define HWY_CXX17_CONSTEXPR
-#endif
-#if __cpp_constexpr >= 201304L
-#define HWY_CXX14_CONSTEXPR constexpr
-#else
-#define HWY_CXX14_CONSTEXPR
-#endif
-
-#if HWY_CXX_LANG >= 201703L
-#define HWY_IF_CONSTEXPR if constexpr
-#else
-#define HWY_IF_CONSTEXPR if
-#endif
-
-#ifndef HWY_HAVE_CXX20_THREE_WAY_COMPARE
-#define HWY_HAVE_CXX20_THREE_WAY_COMPARE 0
 #endif
 
 //------------------------------------------------------------------------------

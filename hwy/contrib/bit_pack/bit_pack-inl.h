@@ -16,9 +16,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "hwy/base.h"
+
 // Per-target include guard
-#if defined(HIGHWAY_HWY_CONTRIB_BIT_PACK_INL_H_) == \
-    defined(HWY_TARGET_TOGGLE)
+// clang-format off
+#if defined(HIGHWAY_HWY_CONTRIB_BIT_PACK_INL_H_) == defined(HWY_TARGET_TOGGLE)  // NOLINT
+// clang-format on
 #ifdef HIGHWAY_HWY_CONTRIB_BIT_PACK_INL_H_
 #undef HIGHWAY_HWY_CONTRIB_BIT_PACK_INL_H_
 #else
@@ -2594,27 +2597,42 @@ struct Pack16<16> {
   }
 };  // Pack16<16>
 
+namespace detail {
+
 // Generates the implementation for bit-packing/un-packing `T` type numbers
 // where each number takes `kBits` bits.
 // `S` is the remainder bits left from the previous bit-packed block.
 // `kLoadPos` is the offset from which the next vector block should be loaded.
 // `kStorePos` is the offset into which the next vector block should be stored.
 template <typename T, size_t kBits, size_t S, size_t kLoadPos, size_t kStorePos>
-struct Unroller {
+struct BitPackUnroller {
   static constexpr size_t B = sizeof(T) * 8;
   template <class D, typename V>
-  static inline void pack(D d, const T* HWY_RESTRICT raw,
+  static inline void Pack(D d, const T* HWY_RESTRICT raw,
                           T* HWY_RESTRICT packed_out, const V& mask, V& in,
                           V& out) {
+    // Avoid compilation errors and unnecessary template instantiation if
+    // compiling in C++11 or C++14 mode
+    using NextUnroller =
+        BitPackUnroller<T, kBits,
+                        ((S <= B) ? (S + ((S < B) ? kBits : 0)) : (S % B)),
+                        kLoadPos + static_cast<size_t>(S < B),
+                        kStorePos + static_cast<size_t>(S > B)>;
+
+    (void)raw;
+    (void)mask;
+    (void)in;
+
     const size_t N = Lanes(d);
     HWY_IF_CONSTEXPR(S >= B) {
       StoreU(out, d, packed_out + kStorePos * N);
       HWY_IF_CONSTEXPR(S == B) { return; }
       HWY_IF_CONSTEXPR(S != B) {
-        constexpr size_t shr_amount = (kBits - S % B);
+        constexpr size_t shr_amount = (kBits - S % B) % B;
         out = ShiftRight<shr_amount>(in);
-        return Unroller<T, kBits, S % B, kLoadPos, kStorePos + 1>::pack(
-            d, raw, packed_out, mask, in, out);
+        // NextUnroller is a typedef for
+        // Unroller<T, kBits, S % B, kLoadPos, kStorePos + 1> if S > B is true
+        return NextUnroller::Pack(d, raw, packed_out, mask, in, out);
       }
     }
     HWY_IF_CONSTEXPR(S < B) {
@@ -2622,15 +2640,28 @@ struct Unroller {
       // Optimize for the case when `S` is zero.
       // We can skip `Or` + ShiftLeft` to align `in`.
       HWY_IF_CONSTEXPR(S == 0) { out = in; }
-      HWY_IF_CONSTEXPR(S != 0) { out = Or(out, ShiftLeft<S>(in)); }
-      return Unroller<T, kBits, S + kBits, kLoadPos + 1, kStorePos>::pack(
-          d, raw, packed_out, mask, in, out);
+      HWY_IF_CONSTEXPR(S != 0) { out = Or(out, ShiftLeft<S % B>(in)); }
+      // NextUnroller is a typedef for
+      // Unroller<T, kBits, S + kBits, kLoadPos + 1, kStorePos> if S < B is true
+      return NextUnroller::Pack(d, raw, packed_out, mask, in, out);
     }
   }
 
   template <class D, typename V>
-  static inline void unpack(D d, const T* HWY_RESTRICT packed_in,
+  static inline void Unpack(D d, const T* HWY_RESTRICT packed_in,
                             T* HWY_RESTRICT raw, const V& mask, V& in, V& out) {
+    // Avoid compilation errors and unnecessary template instantiation if
+    // compiling in C++11 or C++14 mode
+    using NextUnroller =
+        BitPackUnroller<T, kBits,
+                        ((S <= B) ? (S + ((S < B) ? kBits : 0)) : (S % B)),
+                        kLoadPos + static_cast<size_t>(S > B),
+                        kStorePos + static_cast<size_t>(S < B)>;
+
+    (void)packed_in;
+    (void)mask;
+    (void)in;
+
     const size_t N = Lanes(d);
     HWY_IF_CONSTEXPR(S >= B) {
       HWY_IF_CONSTEXPR(S == B) {
@@ -2639,10 +2670,11 @@ struct Unroller {
       }
       HWY_IF_CONSTEXPR(S != B) {
         in = LoadU(d, packed_in + kLoadPos * N);
-        constexpr size_t shl_amount = (kBits - S % B);
+        constexpr size_t shl_amount = (kBits - S % B) % B;
         out = And(Or(out, ShiftLeft<shl_amount>(in)), mask);
-        return Unroller<T, kBits, S % B, kLoadPos + 1, kStorePos>::unpack(
-            d, packed_in, raw, mask, in, out);
+        // NextUnroller is a typedef for
+        // Unroller<T, kBits, S % B, kLoadPos + 1, kStorePos> if S > B is true
+        return NextUnroller::Unpack(d, packed_in, raw, mask, in, out);
       }
     }
     HWY_IF_CONSTEXPR(S < B) {
@@ -2651,35 +2683,47 @@ struct Unroller {
         // Optimize for the case when `S` is zero.
         // We can skip the `ShiftRight` to align `in`.
         HWY_IF_CONSTEXPR(S == 0) { out = And(in, mask); }
-        HWY_IF_CONSTEXPR(S != 0) { out = And(ShiftRight<S>(in), mask); }
+        HWY_IF_CONSTEXPR(S != 0) { out = And(ShiftRight<S % B>(in), mask); }
       }
-      HWY_IF_CONSTEXPR(S + kBits >= B) { out = ShiftRight<S>(in); }
-      return Unroller<T, kBits, S + kBits, kLoadPos, kStorePos + 1>::unpack(
-          d, packed_in, raw, mask, in, out);
+      HWY_IF_CONSTEXPR(S + kBits >= B) { out = ShiftRight<S % B>(in); }
+      // NextUnroller is a typedef for
+      // Unroller<T, kBits, S + kBits, kLoadPos, kStorePos + 1> if S < B is true
+      return NextUnroller::Unpack(d, packed_in, raw, mask, in, out);
     }
   }
 };
 
 // Computes the highest power of two that divides `kBits`.
 template <size_t kBits>
-static constexpr size_t NumLoops() {
+constexpr size_t NumLoops() {
   return (kBits & ~(kBits - 1));
 }
 
 template <size_t kBits>
-static constexpr size_t PackedIncr() {
+constexpr size_t PackedIncr() {
   return kBits / NumLoops<kBits>();
 }
 
 template <typename T, size_t kBits>
-static constexpr size_t UnpackedIncr() {
+constexpr size_t UnpackedIncr() {
   return (sizeof(T) * 8) / NumLoops<kBits>();
 }
 
-template <typename T, size_t kBits>
-static constexpr T MaskBits() {
-  return kBits == (sizeof(T) * 8) ? ~T{0} : (T{1} << kBits) - 1;
+template <size_t kBits>
+constexpr uint32_t MaskBits32() {
+  return static_cast<uint32_t>((1ull << kBits) - 1);
 }
+
+template <size_t kBits>
+constexpr uint64_t MaskBits64() {
+  return (uint64_t{1} << kBits) - 1;
+}
+template <>
+constexpr uint64_t MaskBits64<64>() {
+  return ~uint64_t{0};
+}
+
+}  // namespace detail
 
 template <size_t kBits>  // <= 32
 struct Pack32 {
@@ -2687,13 +2731,14 @@ struct Pack32 {
   HWY_INLINE void Pack(D d, const uint32_t* HWY_RESTRICT raw,
                        uint32_t* HWY_RESTRICT packed_out) const {
     using V = VFromD<D>;
-    const V mask = Set(d, MaskBits<uint32_t, kBits>());
-    for (size_t i = 0; i < NumLoops<kBits>(); ++i) {
-      V in = Zero(d), out = Zero(d);
-      Unroller<uint32_t, kBits, 0, 0, 0>::pack(d, raw, packed_out, mask, in,
-                                               out);
-      raw += UnpackedIncr<uint32_t, kBits>() * Lanes(d);
-      packed_out += PackedIncr<kBits>() * Lanes(d);
+    const V mask = Set(d, detail::MaskBits32<kBits>());
+    for (size_t i = 0; i < detail::NumLoops<kBits>(); ++i) {
+      V in = Zero(d);
+      V out = Zero(d);
+      detail::BitPackUnroller<uint32_t, kBits, 0, 0, 0>::Pack(
+          d, raw, packed_out, mask, in, out);
+      raw += detail::UnpackedIncr<uint32_t, kBits>() * Lanes(d);
+      packed_out += detail::PackedIncr<kBits>() * Lanes(d);
     }
   }
 
@@ -2701,14 +2746,14 @@ struct Pack32 {
   HWY_INLINE void Unpack(D d, const uint32_t* HWY_RESTRICT packed_in,
                          uint32_t* HWY_RESTRICT raw) const {
     using V = VFromD<D>;
-    const V mask = Set(d, MaskBits<uint32_t, kBits>());
-    for (size_t i = 0; i < NumLoops<kBits>(); ++i) {
+    const V mask = Set(d, detail::MaskBits32<kBits>());
+    for (size_t i = 0; i < detail::NumLoops<kBits>(); ++i) {
       V in = LoadU(d, packed_in + 0 * Lanes(d));
       V out = And(in, mask);
-      Unroller<uint32_t, kBits, kBits, 1, 0>::unpack(d, packed_in, raw, mask,
-                                                     in, out);
-      raw += UnpackedIncr<uint32_t, kBits>() * Lanes(d);
-      packed_in += PackedIncr<kBits>() * Lanes(d);
+      detail::BitPackUnroller<uint32_t, kBits, kBits, 1, 0>::Unpack(
+          d, packed_in, raw, mask, in, out);
+      raw += detail::UnpackedIncr<uint32_t, kBits>() * Lanes(d);
+      packed_in += detail::PackedIncr<kBits>() * Lanes(d);
     }
   }
 };
@@ -2719,13 +2764,14 @@ struct Pack64 {
   HWY_INLINE void Pack(D d, const uint64_t* HWY_RESTRICT raw,
                        uint64_t* HWY_RESTRICT packed_out) const {
     using V = VFromD<D>;
-    const V mask = Set(d, MaskBits<uint64_t, kBits>());
-    for (size_t i = 0; i < NumLoops<kBits>(); ++i) {
-      V in = Zero(d), out = Zero(d);
-      Unroller<uint64_t, kBits, 0, 0, 0>::pack(d, raw, packed_out, mask, in,
-                                               out);
-      raw += UnpackedIncr<uint64_t, kBits>() * Lanes(d);
-      packed_out += PackedIncr<kBits>() * Lanes(d);
+    const V mask = Set(d, detail::MaskBits64<kBits>());
+    for (size_t i = 0; i < detail::NumLoops<kBits>(); ++i) {
+      V in = Zero(d);
+      V out = Zero(d);
+      detail::BitPackUnroller<uint64_t, kBits, 0, 0, 0>::Pack(
+          d, raw, packed_out, mask, in, out);
+      raw += detail::UnpackedIncr<uint64_t, kBits>() * Lanes(d);
+      packed_out += detail::PackedIncr<kBits>() * Lanes(d);
     }
   }
 
@@ -2733,14 +2779,14 @@ struct Pack64 {
   HWY_INLINE void Unpack(D d, const uint64_t* HWY_RESTRICT packed_in,
                          uint64_t* HWY_RESTRICT raw) const {
     using V = VFromD<D>;
-    const V mask = Set(d, MaskBits<uint64_t, kBits>());
-    for (size_t i = 0; i < NumLoops<kBits>(); ++i) {
+    const V mask = Set(d, detail::MaskBits64<kBits>());
+    for (size_t i = 0; i < detail::NumLoops<kBits>(); ++i) {
       V in = LoadU(d, packed_in + 0 * Lanes(d));
       V out = And(in, mask);
-      Unroller<uint64_t, kBits, kBits, 1, 0>::unpack(d, packed_in, raw, mask,
-                                                     in, out);
-      raw += UnpackedIncr<uint64_t, kBits>() * Lanes(d);
-      packed_in += PackedIncr<kBits>() * Lanes(d);
+      detail::BitPackUnroller<uint64_t, kBits, kBits, 1, 0>::Unpack(
+          d, packed_in, raw, mask, in, out);
+      raw += detail::UnpackedIncr<uint64_t, kBits>() * Lanes(d);
+      packed_in += detail::PackedIncr<kBits>() * Lanes(d);
     }
   }
 };

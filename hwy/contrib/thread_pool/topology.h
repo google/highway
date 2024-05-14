@@ -23,118 +23,9 @@
 #include <vector>
 
 #include "hwy/base.h"
+#include "hwy/contrib/thread_pool/bit_set.h"
 
 namespace hwy {
-
-// 64-bit specialization of std::bitset, which lacks Foreach.
-class BitSet64 {
- public:
-  // No harm if `i` is already set.
-  void Set(size_t i) {
-    HWY_DASSERT(i < 64);
-    bits_ |= (1ULL << i);
-    HWY_DASSERT(Get(i));
-  }
-
-  // Equivalent to Set(i) for i in [0, 64) where (bits >> i) & 1. This does
-  // not clear any existing bits.
-  void SetNonzeroBitsFrom64(uint64_t bits) { bits_ |= bits; }
-
-  void Clear(size_t i) {
-    HWY_DASSERT(i < 64);
-    bits_ &= ~(1ULL << i);
-  }
-
-  bool Get(size_t i) const {
-    HWY_DASSERT(i < 64);
-    return (bits_ & (1ULL << i)) != 0;
-  }
-
-  // Returns true if any Get(i) would return true for i in [0, 64).
-  bool Any() const { return bits_ != 0; }
-
-  // Returns uint64_t(Get(i)) << i for i in [0, 64).
-  uint64_t Get64() const { return bits_; }
-
-  // Calls func(i) for each i in the set.
-  template <class Func>
-  void Foreach(const Func& func) const {
-    uint64_t remaining_bits = bits_;
-    while (remaining_bits != 0) {
-      const size_t i = Num0BitsBelowLS1Bit_Nonzero64(remaining_bits);
-      remaining_bits &= remaining_bits - 1;  // clear LSB
-      func(i);
-    }
-  }
-
-  size_t Count() const { return PopCount(bits_); }
-
- private:
-  uint64_t bits_ = 0;
-};
-
-// Two-level bitset for up to kMaxSize <= 4096 values.
-template <size_t kMaxSize = 4096>
-class BitSet4096 {
- public:
-  // No harm if `i` is already set.
-  void Set(size_t i) {
-    HWY_DASSERT(i < kMaxSize);
-    const size_t idx = i / 64;
-    const size_t mod = i % 64;
-    bits_[idx].Set(mod);
-    nonzero_.Set(idx);
-    HWY_DASSERT(Get(i));
-  }
-
-  // Equivalent to Set(i) for i in [0, 64) where (bits >> i) & 1. This does
-  // not clear any existing bits.
-  void SetNonzeroBitsFrom64(uint64_t bits) {
-    bits_[0].SetNonzeroBitsFrom64(bits);
-    if (bits) nonzero_.Set(0);
-  }
-
-  void Clear(size_t i) {
-    HWY_DASSERT(i < kMaxSize);
-    const size_t idx = i / 64;
-    const size_t mod = i % 64;
-    bits_[idx].Clear(mod);
-    if (!bits_[idx].Any()) {
-      nonzero_.Clear(idx);
-    }
-    HWY_DASSERT(!Get(i));
-  }
-
-  bool Get(size_t i) const {
-    HWY_DASSERT(i < kMaxSize);
-    const size_t idx = i / 64;
-    const size_t mod = i % 64;
-    return bits_[idx].Get(mod);
-  }
-
-  // Returns uint64_t(Get(i)) << i for i in [0, 64).
-  uint64_t Get64() const { return bits_[0].Get64(); }
-
-  // Calls func(i) for each i in the set.
-  template <class Func>
-  void Foreach(const Func& func) const {
-    nonzero_.Foreach([&func, this](size_t idx) {
-      bits_[idx].Foreach([idx, &func](size_t mod) { func(idx * 64 + mod); });
-    });
-  }
-
-  size_t Count() const {
-    size_t total = 0;
-    nonzero_.Foreach(
-        [&total, this](size_t idx) { total += bits_[idx].Count(); });
-    return total;
-  }
-
- private:
-  static_assert(kMaxSize <= 64 * 64, "One BitSet64 insufficient");
-  BitSet64 nonzero_;
-  BitSet64 bits_[kMaxSize / 64];
-};
 
 // Returns false if std::thread should not be used.
 HWY_DLLEXPORT bool HaveThreadingSupport();
@@ -174,14 +65,20 @@ struct Topology {
   HWY_DLLEXPORT Topology();
 
   // Clique of cores with lower latency to each other. On Apple M1 these are
-  // four cores sharing an L2. On AMD these 'CCX' are up to eight cores sharing
-  // an L3 and a memory controller.
+  // four cores sharing an L2. On Zen4 these 'CCX' are up to eight cores sharing
+  // an L3 and a memory controller, or for Zen4c up to 16 and half the L3 size.
   struct Cluster {
     LogicalProcessorSet lps;
+    uint64_t private_kib = 0;  // 0 if unknown
+    uint64_t shared_kib = 0;   // 0 if unknown
+    uint64_t reserved1 = 0;
+    uint64_t reserved2 = 0;
+    uint64_t reserved3 = 0;
   };
 
   struct Core {
     LogicalProcessorSet lps;
+    uint64_t reserved = 0;
   };
 
   struct Package {
@@ -194,11 +91,13 @@ struct Topology {
   // Several hundred instances, so prefer a compact representation.
 #pragma pack(push, 1)
   struct LP {
-    uint16_t package = 0;
-    uint16_t cluster = 0;  // local to the package, not globally unique
-    uint16_t core = 0;     // local to the package, not globally unique
-    uint8_t smt = 0;       // local to the package and core
-    uint8_t reserved = 0;
+    uint16_t cluster = 0;  // < packages[package].clusters.size()
+    uint16_t core = 0;     // < packages[package].cores.size()
+    uint8_t package = 0;   // < packages.size()
+    uint8_t smt = 0;       // < packages[package].cores[core].lps.Count()
+
+    uint8_t reserved1 = 0;
+    uint8_t reserved2 = 0;
   };
 #pragma pack(pop)
   std::vector<LP> lps;  // size() == TotalLogicalProcessors().

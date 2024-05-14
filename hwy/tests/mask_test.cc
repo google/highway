@@ -31,8 +31,7 @@ namespace HWY_NAMESPACE {
 struct TestMaskFalse {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-#if HWY_HAVE_SCALABLE || HWY_TARGET == HWY_SVE_256 || \
-    HWY_TARGET == HWY_SVE2_128 || HWY_TARGET == HWY_SCALAR
+#if HWY_HAVE_SCALABLE || HWY_TARGET_IS_SVE || HWY_TARGET == HWY_SCALAR
     // For RVV, SVE and SCALAR, use the underlying native vector.
     const DFromV<Vec<D>> d2;
 #else
@@ -51,7 +50,7 @@ struct TestMaskFalse {
     HWY_ASSERT_EQ(0, CountTrue(d, MaskFalse(d)));
     HWY_ASSERT_VEC_EQ(d, Zero(d), VecFromMask(d, MaskFalse(d)));
 
-#if HWY_HAVE_SCALABLE || HWY_TARGET == HWY_SVE_256 || HWY_TARGET == HWY_SVE2_128
+#if HWY_HAVE_SCALABLE || HWY_TARGET_IS_SVE
     // For these targets, we can treat the result as if it were a vector of type
     // `V2`. On SVE, vectors are always full (not fractional) and caps are only
     // enforced by Highway ops. On RVV, LMUL must match but caps can also be

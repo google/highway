@@ -36,7 +36,7 @@ if(POLICY CMP0128)
   cmake_policy(SET CMP0128 NEW)
 endif()
 
-project(hwy VERSION 1.2.0)  # Keep in sync with highway.h version
+project(hwy VERSION 1.2.0)  # Keep in sync with base.h version
 # `hwy` is lowercase to handle find_package() in Config mode:
 set(namespace "${PROJECT_NAME}::")
 
@@ -695,6 +695,7 @@ list(APPEND HWY_TEST_FILES
   hwy/contrib/random/random_test.cc
   hwy/contrib/sort/sort_test.cc
   hwy/contrib/sort/bench_sort.cc
+  hwy/contrib/thread_pool/bit_set_test.cc
   hwy/contrib/thread_pool/thread_pool_test.cc
   hwy/contrib/thread_pool/topology_test.cc
   hwy/contrib/unroller/unroller_test.cc

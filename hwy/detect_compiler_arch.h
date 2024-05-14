@@ -136,6 +136,9 @@
 #error "Detected multiple compilers"
 #endif
 
+//------------------------------------------------------------------------------
+// Compiler features and C++ version
+
 #ifdef __has_builtin
 #define HWY_HAS_BUILTIN(name) __has_builtin(name)
 #else
@@ -158,6 +161,36 @@
 #define HWY_HAS_FEATURE(name) __has_feature(name)
 #else
 #define HWY_HAS_FEATURE(name) 0
+#endif
+
+#ifdef __has_include
+#define HWY_HAS_INCLUDE(header) __has_include(header)
+#else
+#define HWY_HAS_INCLUDE(header) 0
+#endif
+
+#if HWY_COMPILER_MSVC && defined(_MSVC_LANG) && _MSVC_LANG > __cplusplus
+#define HWY_CXX_LANG _MSVC_LANG
+#else
+#define HWY_CXX_LANG __cplusplus
+#endif
+
+#if defined(__cpp_constexpr) && __cpp_constexpr >= 201603L
+#define HWY_CXX17_CONSTEXPR constexpr
+#else
+#define HWY_CXX17_CONSTEXPR
+#endif
+
+#if defined(__cpp_constexpr) && __cpp_constexpr >= 201304L
+#define HWY_CXX14_CONSTEXPR constexpr
+#else
+#define HWY_CXX14_CONSTEXPR
+#endif
+
+#if HWY_CXX_LANG >= 201703L
+#define HWY_IF_CONSTEXPR if constexpr
+#else
+#define HWY_IF_CONSTEXPR if
 #endif
 
 //------------------------------------------------------------------------------
@@ -277,6 +310,9 @@
      HWY_ARCH_WASM + HWY_ARCH_RISCV + HWY_ARCH_S390X) > 1
 #error "Must not detect more than one architecture"
 #endif
+
+//------------------------------------------------------------------------------
+// Operating system
 
 #if defined(_WIN32) || defined(_WIN64)
 #define HWY_OS_WIN 1

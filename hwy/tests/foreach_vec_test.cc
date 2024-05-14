@@ -606,8 +606,7 @@ HWY_NOINLINE void TestAllForPartialFixedOrFullVectors() {
 #if HWY_TARGET == HWY_RVV
     const size_t expected_lanes_mask =
         ((lanes * 16) - 1) & (size_t{0} - ((lanes_per_u8_vect + 7) / 8));
-#elif HWY_HAVE_SCALABLE || HWY_TARGET == HWY_SVE_256 || \
-    HWY_TARGET == HWY_SVE2_128
+#elif HWY_HAVE_SCALABLE || HWY_TARGET_IS_SVE
     const size_t expected_lanes_mask = lanes;
 #else
     const size_t expected_lanes_mask = (lanes << 1) - 1;

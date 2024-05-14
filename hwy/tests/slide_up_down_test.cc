@@ -43,8 +43,7 @@ class TestSlideUpLanes {
       HWY_ASSERT_VEC_EQ(d, expected, Slide1Up(d, v));
     }
   }
-#if !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 && \
-    HWY_TARGET != HWY_SVE2_128 && HWY_TARGET != HWY_SVE_256
+#if !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 && !HWY_TARGET_IS_SVE
   template <class D>
   static HWY_NOINLINE void DoTestSlideUpLanesWithConstAmt_0_7(
       D d, TFromD<D>* HWY_RESTRICT expected, const size_t N) {
@@ -144,8 +143,7 @@ class TestSlideUpLanes {
   }
 #endif  // HWY_TARGET <= HWY_AVX3
 #endif  // HWY_TARGET <= HWY_AVX2 || HWY_TARGET == HWY_WASM_EMU256
-#endif  // !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 &&
-        // HWY_TARGET != HWY_SVE2_128 && HWY_TARGET != HWY_SVE_256
+#endif  // !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 && !HWY_TARGET_IS_SVE
 
  public:
   template <class T, class D>
@@ -162,8 +160,7 @@ class TestSlideUpLanes {
       DoTestSlideUpLanes(d, expected.get(), N, slide_amt);
     }
 
-#if !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 && \
-    HWY_TARGET != HWY_SVE2_128 && HWY_TARGET != HWY_SVE_256
+#if !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 && !HWY_TARGET_IS_SVE
     DoTestSlideUpLanesWithConstAmt_0_7(d, expected.get(), N);
     DoTestSlideUpLanesWithConstAmt_8_15(d, expected.get(), N);
 #if HWY_TARGET <= HWY_AVX2 || HWY_TARGET == HWY_WASM_EMU256
@@ -172,8 +169,7 @@ class TestSlideUpLanes {
     DoTestSlideUpLanesWithConstAmt_32_63(d, expected.get(), N);
 #endif  // HWY_TARGET <= HWY_AVX3
 #endif  // HWY_TARGET <= HWY_AVX2 || HWY_TARGET == HWY_WASM_EMU256
-#endif  // !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 &&
-        // HWY_TARGET != HWY_SVE2_128 && HWY_TARGET != HWY_SVE_256
+#endif  // !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 && !HWY_TARGET_IS_SVE
   }
 };
 
@@ -181,8 +177,7 @@ HWY_NOINLINE void TestAllSlideUpLanes() {
   ForAllTypes(ForPartialVectors<TestSlideUpLanes>());
 }
 
-#if !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 && \
-    HWY_TARGET != HWY_SVE2_128 && HWY_TARGET != HWY_SVE_256
+#if !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 && !HWY_TARGET_IS_SVE
 // DoTestSlideDownLanes needs to be inlined on targets where
 // DoTestSlideDownLanesWithConstAmt_0_7, DoTestSlideDownLanesWithConstAmt_8_15,
 // DoTestSlideDownLanesWithConstAmt_16_31, and
@@ -225,8 +220,7 @@ class TestSlideDownLanes {
       HWY_ASSERT_VEC_EQ(d, expected, Slide1Down(d, v));
     }
   }
-#if !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 && \
-    HWY_TARGET != HWY_SVE2_128 && HWY_TARGET != HWY_SVE_256
+#if !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 && !HWY_TARGET_IS_SVE
   template <class D>
   static HWY_NOINLINE void DoTestSlideDownLanesWithConstAmt_0_7(
       D d, TFromD<D>* HWY_RESTRICT expected, const size_t N) {
@@ -326,8 +320,7 @@ class TestSlideDownLanes {
   }
 #endif  // HWY_TARGET <= HWY_AVX3
 #endif  // HWY_TARGET <= HWY_AVX2 || HWY_TARGET == HWY_WASM_EMU256
-#endif  // !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 &&
-        // HWY_TARGET != HWY_SVE2_128 && HWY_TARGET != HWY_SVE_256
+#endif  // !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 && !HWY_TARGET_IS_SVE
 
  public:
   template <class T, class D>
@@ -344,8 +337,7 @@ class TestSlideDownLanes {
       DoTestSlideDownLanes(d, expected.get(), N, slide_amt);
     }
 
-#if !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 && \
-    HWY_TARGET != HWY_SVE2_128 && HWY_TARGET != HWY_SVE_256
+#if !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 && !HWY_TARGET_IS_SVE
     DoTestSlideDownLanesWithConstAmt_0_7(d, expected.get(), N);
     DoTestSlideDownLanesWithConstAmt_8_15(d, expected.get(), N);
 #if HWY_TARGET <= HWY_AVX2 || HWY_TARGET == HWY_WASM_EMU256
@@ -354,8 +346,7 @@ class TestSlideDownLanes {
     DoTestSlideDownLanesWithConstAmt_32_63(d, expected.get(), N);
 #endif  // HWY_TARGET <= HWY_AVX3
 #endif  // HWY_TARGET <= HWY_AVX2 || HWY_TARGET == HWY_WASM_EMU256
-#endif  // !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 &&
-        // HWY_TARGET != HWY_SVE2_128 && HWY_TARGET != HWY_SVE_256
+#endif  // !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 && !HWY_TARGET_IS_SVE
   }
 };
 

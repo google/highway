@@ -35,7 +35,7 @@ namespace platform {
 namespace {
 
 // Measures the actual current frequency of Ticks. We cannot rely on the nominal
-// frequency encoded in x86 BrandString because it is misleading on M1 Rosetta,
+// frequency encoded in x86 GetCpuString because it is misleading on M1 Rosetta,
 // and not reported by AMD. CPUID 0x15 is also not yet widely supported. Also
 // used on RISC-V and aarch64.
 HWY_MAYBE_UNUSED double MeasureNominalClockRate() {
@@ -61,7 +61,7 @@ HWY_MAYBE_UNUSED double MeasureNominalClockRate() {
     const double dticks = static_cast<double>(ticks1 - ticks0);
     std::chrono::duration<double, std::ratio<1>> dtime = time1 - time0;
     const double ticks_per_sec = dticks / dtime.count();
-    max_ticks_per_sec = std::max(max_ticks_per_sec, ticks_per_sec);
+    max_ticks_per_sec = HWY_MAX(max_ticks_per_sec, ticks_per_sec);
   }
   return max_ticks_per_sec;
 }
@@ -95,14 +95,18 @@ bool HasRDTSCP() {
   return (abcd[3] & (1u << 27)) != 0;  // RDTSCP
 }
 
-void GetBrandString(char* cpu100) {
+#endif  // HWY_ARCH_X86
+}  // namespace
+
+HWY_DLLEXPORT bool GetCpuString(char* cpu100) {
+#if HWY_ARCH_X86
   uint32_t abcd[4];
 
   // Check if brand string is supported (it is on all reasonable Intel/AMD)
   Cpuid(0x80000000U, 0, abcd);
   if (abcd[0] < 0x80000004U) {
     cpu100[0] = '\0';
-    return;
+    return false;
   }
 
   for (size_t i = 0; i < 3; ++i) {
@@ -110,11 +114,13 @@ void GetBrandString(char* cpu100) {
     CopyBytes<sizeof(abcd)>(&abcd[0], cpu100 + i * 16);  // not same size
   }
   cpu100[48] = '\0';
+  return true;
+#else
+  cpu100[0] = '?';
+  cpu100[1] = '\0';
+  return false;
+#endif
 }
-
-#endif  // HWY_ARCH_X86
-
-}  // namespace
 
 HWY_DLLEXPORT double Now() {
   static const double mul = 1.0 / InvariantTicksPerSecond();
@@ -124,12 +130,11 @@ HWY_DLLEXPORT double Now() {
 HWY_DLLEXPORT bool HaveTimerStop(char* cpu100) {
 #if HWY_ARCH_X86
   if (!HasRDTSCP()) {
-    GetBrandString(cpu100);
+    (void)GetCpuString(cpu100);
     return false;
   }
 #endif
-  cpu100[0] = '?';
-  cpu100[1] = '\0';
+  *cpu100 = '\0';
   return true;
 }
 
