@@ -77,9 +77,11 @@ HWY_NOINLINE void TestAllLoadStoreInterleaved2() {
   ForAllTypes(ForMaxPow2<TestLoadStoreInterleaved2>());
 }
 
-// Workaround for build timeout on GCC 12 aarch64, see #776.
+// Workaround for build timeout on GCC 12 aarch64, see #776; also incorrect
+// codegen for AVX3 f64.
+#undef HWY_BROKEN_LOAD34
 #if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1300 && \
-    HWY_ARCH_ARM_A64
+    (HWY_ARCH_ARM_A64 || HWY_TARGET <= HWY_AVX3)
 #define HWY_BROKEN_LOAD34 1
 #else
 #define HWY_BROKEN_LOAD34 0
@@ -152,32 +154,33 @@ struct TestLoadStoreInterleaved4 {
     RandomState rng;
 
     // Data to be interleaved
-    auto bytes = AllocateAligned<T>(4 * N);
+    auto in = AllocateAligned<T>(4 * N);
     // Interleave here, ensure vector results match scalar
     auto expected = AllocateAligned<T>(5 * N);
     // Ensure unaligned; 4 stored vectors, one zero vector.
     auto actual_aligned = AllocateAligned<T>(5 * N + 1);
-    HWY_ASSERT(bytes && expected && actual_aligned);
+    HWY_ASSERT(in && expected && actual_aligned);
 
     for (size_t i = 0; i < 4 * N; ++i) {
-      bytes[i] = ConvertScalarTo<T>(Random32(&rng) & 0xFF);
+      in[i] = ConvertScalarTo<T>(Random32(&rng) & 0x7F);
     }
-    const auto in0 = Load(d, &bytes[0 * N]);
-    const auto in1 = Load(d, &bytes[1 * N]);
-    const auto in2 = Load(d, &bytes[2 * N]);
-    const auto in3 = Load(d, &bytes[3 * N]);
+    const auto in0 = Load(d, &in[0 * N]);
+    const auto in1 = Load(d, &in[1 * N]);
+    const auto in2 = Load(d, &in[2 * N]);
+    const auto in3 = Load(d, &in[3 * N]);
 
     T* actual = actual_aligned.get() + 1;
 
     for (size_t rep = 0; rep < 100; ++rep) {
       for (size_t i = 0; i < N; ++i) {
-        expected[4 * i + 0] = bytes[0 * N + i];
-        expected[4 * i + 1] = bytes[1 * N + i];
-        expected[4 * i + 2] = bytes[2 * N + i];
-        expected[4 * i + 3] = bytes[3 * N + i];
-        // Ensure we do not write more than 4*N bytes.
-        expected[4 * N + i] = actual[4 * N + i] = 0;
+        expected[4 * i + 0] = in[0 * N + i];
+        expected[4 * i + 1] = in[1 * N + i];
+        expected[4 * i + 2] = in[2 * N + i];
+        expected[4 * i + 3] = in[3 * N + i];
       }
+      // Ensure we do not write more than 4*N bytes.
+      hwy::ZeroBytes(expected.get() + 4 * N, N * sizeof(T));
+      hwy::ZeroBytes(actual + 4 * N, N * sizeof(T));
       StoreInterleaved4(in0, in1, in2, in3, d, actual);
       size_t pos = 0;
       if (!BytesEqual(expected.get(), actual, 5 * N * sizeof(T), &pos)) {

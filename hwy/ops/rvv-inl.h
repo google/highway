@@ -2894,8 +2894,8 @@ HWY_API vfloat32m4_t DemoteTo(Simd<float, N, 2> d, const vuint64m8_t v) {
     /* The default rounding mode appears to be RNU=0, which adds the LSB. */ \
     /* Prevent further rounding by clearing the bits we want to truncate. */ \
     v = detail::AndS(v, 0xFFFF0000u);                                        \
-    return __riscv_v##OP##CHAR##SEWH##LMULH(v, 16, Lanes(d));
-}
+    return __riscv_v##OP##CHAR##SEWH##LMULH(v, 16, Lanes(d));                \
+  }
 
 #else
 #define HWY_RVV_DEMOTE_16_NEAREST_EVEN(BASE, CHAR, SEW, SEWD, SEWH, LMUL,    \
