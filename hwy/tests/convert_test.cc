@@ -495,55 +495,58 @@ HWY_NOINLINE void TestAllF16FromF64() {
 }
 
 template <class D>
-AlignedFreeUniquePtr<float[]> BF16TestCases(D d, size_t& padded) {
+AlignedFreeUniquePtr<float[]> BF16TestCases(
+    D d, size_t& padded, AlignedFreeUniquePtr<float[]>& expected) {
   const float test_cases[] = {
       // +/- 1
-      1.0f,
-      -1.0f,
+      1.0f, -1.0f,
       // +/- 0
-      0.0f,
-      -0.0f,
+      0.0f, -0.0f,
       // near 0
-      0.25f,
-      -0.25f,
+      0.25f, -0.25f,
       // +/- integer
-      4.0f,
-      -32.0f,
+      4.0f, -32.0f,
       // positive near limit
-      3.389531389251535E38f,
-      1.99384199368e+38f,
+      3.389531389251535E38f, 1.99384199368e+38f,
       // negative near limit
-      -3.389531389251535E38f,
-      -1.99384199368e+38f,
+      -3.389531389251535E38f, -1.99384199368e+38f,
       // positive +/- delta
-      2.015625f,
-      3.984375f,
+      2.015625f, 3.984375f,
       // negative +/- delta
-      -2.015625f,
-      -3.984375f,
+      -2.015625f, -3.984375f,
+
+      // The above have all excess mantissa bits zero, such that
+      // PromoteTo(DemoteTo) matches the input. Also test round to nearest even:
+      1.0039063f,  // only below is set
+      1.0117188f,  // LSB and below are set
+      1.9921875f,  // all bits except below are set
+      1.9960938f,  // all bits and below are set
   };
   constexpr size_t kNumTestCases = sizeof(test_cases) / sizeof(test_cases[0]);
   const size_t N = Lanes(d);
   HWY_ASSERT(N != 0);
   padded = RoundUpTo(kNumTestCases, N);  // allow loading whole vectors
   auto in = AllocateAligned<float>(padded);
-  auto expected = AllocateAligned<float>(padded);
+  expected = AllocateAligned<float>(padded);
   HWY_ASSERT(in && expected);
   size_t i = 0;
   for (; i < kNumTestCases; ++i) {
-    in[i] = test_cases[i];
+    in[i] = test_cases[i] * static_cast<float>(hwy::Unpredictable1());
+    expected[i] = hwy::ConvertScalarTo<float>(
+        hwy::ConvertScalarTo<hwy::bfloat16_t>(in[i]));
   }
   for (; i < padded; ++i) {
-    in[i] = 0.0f;
+    in[i] = expected[i] = 0.0f;
   }
   return in;
 }
 
 struct TestBF16 {
   template <typename TF32, class DF32>
-  HWY_NOINLINE void operator()(TF32 /*t*/, DF32 d32) {
+  HWY_NOINLINE void operator()(TF32 /*t*/, DF32 df32) {
     size_t padded;
-    auto in = BF16TestCases(d32, padded);
+    AlignedFreeUniquePtr<float[]> expected;
+    const auto in = BF16TestCases(df32, padded, expected);
     using TBF16 = bfloat16_t;
 #if HWY_TARGET == HWY_SCALAR
     const Rebind<TBF16, DF32> dbf16;  // avoid 4/2 = 2 lanes
@@ -551,29 +554,33 @@ struct TestBF16 {
     const Repartition<TBF16, DF32> dbf16;
 #endif
     const Half<decltype(dbf16)> dbf16_half;
-    const size_t N = Lanes(d32);
+    using VF = Vec<decltype(df32)>;
+    using VBF16 = Vec<decltype(dbf16)>;
+    using VBF16H = Vec<decltype(dbf16_half)>;
+    const size_t N = Lanes(df32);
 
     HWY_ASSERT(Lanes(dbf16_half) == N);
     auto temp16 = AllocateAligned<TBF16>(N);
     HWY_ASSERT(temp16);
 
     for (size_t i = 0; i < padded; i += N) {
-      const auto loaded = Load(d32, &in[i]);
-      const auto v16 = DemoteTo(dbf16_half, loaded);
+      const VF vin = Load(df32, &in[i]);
+      const VF vexp = Load(df32, &expected[i]);
+      const VBF16H v16 = DemoteTo(dbf16_half, vin);
       Store(v16, dbf16_half, temp16.get());
-      const auto v16_loaded = Load(dbf16_half, temp16.get());
-      HWY_ASSERT_VEC_EQ(d32, loaded, PromoteTo(d32, v16_loaded));
+      const VBF16H v16_loaded = Load(dbf16_half, temp16.get());
+      HWY_ASSERT_VEC_EQ(df32, vexp, PromoteTo(df32, v16_loaded));
 
 #if HWY_TARGET == HWY_SCALAR
-      const auto v16L = v16_loaded;
+      const VBF16 v16L = v16_loaded;
 #else
-      const auto v16L = Combine(dbf16, Zero(dbf16_half), v16_loaded);
+      const VBF16 v16L = Combine(dbf16, Zero(dbf16_half), v16_loaded);
 #endif
-      HWY_ASSERT_VEC_EQ(d32, loaded, PromoteLowerTo(d32, v16L));
+      HWY_ASSERT_VEC_EQ(df32, vexp, PromoteLowerTo(df32, v16L));
 
 #if HWY_TARGET != HWY_SCALAR
-      const auto v16H = Combine(dbf16, v16_loaded, Zero(dbf16_half));
-      HWY_ASSERT_VEC_EQ(d32, loaded, PromoteUpperTo(d32, v16H));
+      const VBF16 v16H = Combine(dbf16, v16_loaded, Zero(dbf16_half));
+      HWY_ASSERT_VEC_EQ(df32, vexp, PromoteUpperTo(df32, v16H));
 #endif
     }
   }
