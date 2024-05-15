@@ -1362,17 +1362,8 @@ HWY_API void StoreN(VFromD<D> v, D d, T* HWY_RESTRICT p,
 template <class D>
 HWY_API void BlendedStore(VFromD<D> v, MFromD<D> m, D d,
                           TFromD<D>* HWY_RESTRICT p) {
-  const RebindToSigned<decltype(d)> di;  // for testing mask if T=bfloat16_t.
-  using TI = TFromD<decltype(di)>;
-  alignas(16) TI buf[MaxLanes(d)];
-  alignas(16) TI mask[MaxLanes(d)];
-  Store(BitCast(di, v), di, buf);
-  Store(BitCast(di, VecFromMask(d, m)), di, mask);
-  for (size_t i = 0; i < MaxLanes(d); ++i) {
-    if (mask[i]) {
-      CopySameSize(buf + i, p + i);
-    }
-  }
+  const VFromD<D> old = LoadU(d, p);
+  StoreU(IfThenElse(RebindMask(d, m), v, old), d, p);
 }
 
 // ================================================== ARITHMETIC
@@ -6983,8 +6974,9 @@ HWY_API V BitShuffle(V v, VI idx) {
   const VFromD<decltype(d_full_u64)> bit_shuf_result{reinterpret_cast<RawVU64>(
       vec_bperm_u128(BitCast(du8, v).raw, bit_idx.raw))};
 #else
-  const VFromD<decltype(d_full_u64)> bit_shuf_result{
-      reinterpret_cast<RawVU64>(vec_vbpermq(v.raw, bit_idx.raw))};
+  using RawVU128 = __vector unsigned __int128;
+  const VFromD<decltype(d_full_u64)> bit_shuf_result{reinterpret_cast<RawVU64>(
+      vec_vbpermq(reinterpret_cast<RawVU128>(v.raw), bit_idx.raw))};
 #endif
 
   return ResizeBitCast(
