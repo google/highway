@@ -469,12 +469,18 @@
 #define HWY_TARGET_STR_NEON "+aes"
 #endif
 
+#if HWY_COMPILER_CLANG >= 1600
+#define HWY_TARGET_STR_FP16 "+fullfp16"
+#else
+#define HWY_TARGET_STR_FP16 "+fp16"
+#endif
+
 #if HWY_TARGET == HWY_NEON_WITHOUT_AES
 // Do not define HWY_TARGET_STR (no pragma).
 #elif HWY_TARGET == HWY_NEON
 #define HWY_TARGET_STR HWY_TARGET_STR_NEON
 #elif HWY_TARGET == HWY_NEON_BF16
-#define HWY_TARGET_STR HWY_TARGET_STR_NEON "+bf16+dotprod+fp16"
+#define HWY_TARGET_STR HWY_TARGET_STR_NEON "+bf16+dotprod" HWY_TARGET_STR_FP16
 #else
 #error "Logic error, missing case"
 #endif  // HWY_TARGET
