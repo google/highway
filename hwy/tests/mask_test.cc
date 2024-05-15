@@ -526,7 +526,7 @@ struct TestDup128MaskFromMaskBits {
         HWY_MIN(HWY_MAX_LANES_D(D), HWY_MIN(kLanesPer16ByteBlock, 10));
     const size_t max_lanes = HWY_MIN(N, kMaxLanesToCheckPerBlk);
 
-    for (size_t code = 0; code < (1ull << max_lanes); ++code) {
+    for (unsigned code = 0; code < (1u << max_lanes); ++code) {
       for (size_t i = 0; i < N; i++) {
         expected[i] = static_cast<TI>(
             -static_cast<TI>((code >> (i & (kLanesPer16ByteBlock - 1))) & 1));
@@ -535,7 +535,7 @@ struct TestDup128MaskFromMaskBits {
       const auto expected_mask =
           MaskFromVec(BitCast(d, LoadDup128(di, expected.get())));
 
-      const auto m = Dup128MaskFromMaskBits(d, static_cast<unsigned>(code));
+      const auto m = Dup128MaskFromMaskBits(d, code);
       HWY_ASSERT_VEC_EQ(di, expected.get(), VecFromMask(di, RebindMask(di, m)));
       HWY_ASSERT_MASK_EQ(d, expected_mask, m);
     }

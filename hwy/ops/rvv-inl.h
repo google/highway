@@ -5263,7 +5263,7 @@ HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
   // Slow fallback for completeness; the above bits to mask cast is preferred.
   const RebindToUnsigned<D> du;
   const VFromD<decltype(du)> bits =
-      Shl(Set(du, uint16_t{1}), Iota(du, uint16_t{0}));
+      Shl(Set(du, uint16_t{1}), detail::AndS(detail::Iota0(du), 7));
   return TestBit(Set(du, static_cast<uint16_t>(mask_bits)), bits);
 #endif
 }
@@ -5280,8 +5280,7 @@ HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
 #else
   // Slow fallback for completeness; the above bits to mask cast is preferred.
   const RebindToUnsigned<D> du;
-  const VFromD<decltype(du)> bits =
-      Shl(Set(du, uint32_t{1}), Iota(du, uint32_t{0}));
+  const VFromD<decltype(du)> bits = Dup128VecFromValues(du, 1, 2, 4, 8);
   return TestBit(Set(du, static_cast<uint32_t>(mask_bits)), bits);
 #endif
 }
@@ -5298,7 +5297,7 @@ HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
 #else
   // Slow fallback for completeness; the above bits to mask cast is preferred.
   const RebindToUnsigned<D> du;
-  const VFromD<decltype(du)> bits = Dup128VecFromValues(du, 0, 1);
+  const VFromD<decltype(du)> bits = Dup128VecFromValues(du, 1, 2);
   return TestBit(Set(du, static_cast<uint64_t>(mask_bits)), bits);
 #endif
 }
