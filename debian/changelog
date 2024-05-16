@@ -1,4 +1,27 @@
 
+highway (1.2.0-1) UNRELEASED; urgency=medium
+
+  * Add InterleaveEven/InterleaveOdd, BitShuffle, GatherIndexNOr
+  * Add IsNegative, IfNegativeThenElseZero, IfNegativeThenZeroElse
+  * Add NEON_BF16 target, HWY_VERSION_GE/LT, HWY_EXPORT_T/HWY_DYNAMIC_DISPATCH_T
+  * Add PromoteInRangeTo/ConvertInRangeTo/DemoteInRangeTo
+  * Add Rol/Ror, RotateLeft/RotateLeftSame/RotateRightSame
+  * Add SatWidenMulPairwiseAccumulate, SatWidenMulAccumFixedPoint
+  * Add Stats, IsEitherNaN
+  * Add UI8/UI32/UI64 MulHigh, I64 MulEven/MulOdd/Mul128
+  * Add WidenMulAccumulate, MulEvenAdd, MulOddAdd
+  * contrib/bit_pack: support 32/64-bit lanes
+  * contrib/math: Add Exp2, Hypot
+  * contrib/matvec: Add MatVecAdd
+  * contrib/sort: Add VQ/HeapSelect, partial sort
+  * contrib/topology: add affinity, detect topology/cache size/CPU name
+  * Enable runtime dispatch for NEON/RVV, bazel modules, abort handler
+  * Remove DASSERT for negative Gather indices
+  * Support opting out of GUnit dependency
+  * Use SPR/ZEN4 bf16 dot product
+
+ -- Jan Wassenberg <janwas@google.com>  Mon, 13 May 2024 16:00:00 +0200
+
 highway (1.1.0-1) UNRELEASED; urgency=medium
 
   * Add BitCastScalar, DispatchedTarget, Foreach

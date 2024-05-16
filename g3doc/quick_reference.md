@@ -723,33 +723,33 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     <code>Vec&lt;D&gt; **WidenMulPairwiseAdd**(D d, V a, V b)</code>: widens `a`
     and `b` to `TFromD<D>` and computes `a[2*i+1]*b[2*i+1] + a[2*i+0]*b[2*i+0]`.
 
-*   `VI`: `i8`, `VU`: `Vec<RebindToUnsigned<DFromV<VI>>>`,
-    `DI`: `RepartitionToWide<DFromV<VI>>` \
+*   `VI`: `i8`, `VU`: `Vec<RebindToUnsigned<DFromV<VI>>>`, `DI`:
+    `RepartitionToWide<DFromV<VI>>` \
     <code>Vec&lt;DI&gt; **SatWidenMulPairwiseAdd**(DI di, VU a_u, VI b_i)
     </code>: widens `a_u` and `b_i` to `TFromD<DI>` and computes
     `a_u[2*i+1]*b_i[2*i+1] + a_u[2*i+0]*b_i[2*i+0]`, saturated to the range of
     `TFromD<D>`.
 
-*   `DW`: `i32`, `D`: `Rebind<MakeNarrow<TFromD<DW>>, DW>`,
-    `VW`: `Vec<DW>`, `V`: `Vec<D>` \
+*   `DW`: `i32`, `D`: `Rebind<MakeNarrow<TFromD<DW>>, DW>`, `VW`: `Vec<DW>`,
+    `V`: `Vec<D>` \
     <code>Vec&lt;D&gt; **SatWidenMulPairwiseAccumulate**(DW, V a, V b, VW sum)
     </code>: widens `a[i]` and `b[i]` to `TFromD<DI>` and computes
     `a[2*i]*b[2*i] + a[2*i+1]*b[2*i+1] + sum[i]`, saturated to the range of
     `TFromD<DW>`.
 
-*   `DW`: `i32`, `D`: `Rebind<MakeNarrow<TFromD<DW>>, DW>`,
-    `VW`: `Vec<DW>`, `V`: `Vec<D>` \
+*   `DW`: `i32`, `D`: `Rebind<MakeNarrow<TFromD<DW>>, DW>`, `VW`: `Vec<DW>`,
+    `V`: `Vec<D>` \
     <code>VW **SatWidenMulAccumFixedPoint**(DW, V a, V b, VW sum)**</code>:
     First, widens `a` and `b` to `TFromD<DW>`, then adds `a[i] * b[i] * 2` to
     `sum[i]`, saturated to the range of `TFromD<DW>`.
 
-    If `a[i] == LimitsMin<TFromD<D>>() && b[i] == LimitsMin<TFromD<D>>()`,
-    it is implementation-defined whether `a[i] * b[i] * 2` is first saturated
-    to `TFromD<DW>` prior to the addition of `a[i] * b[i] * 2` to `sum[i]`.
+    If `a[i] == LimitsMin<TFromD<D>>() && b[i] == LimitsMin<TFromD<D>>()`, it is
+    implementation-defined whether `a[i] * b[i] * 2` is first saturated to
+    `TFromD<DW>` prior to the addition of `a[i] * b[i] * 2` to `sum[i]`.
 
-*   `V`: `{bf,u,i}16`, `D`: `RepartitionToWide<DFromV<V>>`, `VW`: `Vec<D>` \
-    <code>VW **ReorderWidenMulAccumulate**(D d, V a, V b, VW sum0, VW&
-    sum1)</code>: widens `a` and `b` to `TFromD<D>`, then adds `a[i] * b[i]` to
+*   `V`: `{bf,u,i}16`, `DW`: `RepartitionToWide<DFromV<V>>`, `VW`: `Vec<DW>` \
+    <code>VW **ReorderWidenMulAccumulate**(DW d, V a, V b, VW sum0, VW&
+    sum1)</code>: widens `a` and `b` to `TFromD<DW>`, then adds `a[i] * b[i]` to
     either `sum1[j]` or lane `j` of the return value, where `j = P(i)` and `P`
     is a permutation. The only guarantee is that `SumOfLanes(d,
     Add(return_value, sum1))` is the sum of all `a[i] * b[i]`. This is useful
@@ -772,26 +772,25 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     Exception: if `HWY_TARGET == HWY_SCALAR`, returns `a[0]*b[0]`. Note that the
     initial value of `sum1` must be zero, see `ReorderWidenMulAccumulate`.
 
-*   `VN`: `{u,i}{8,16}`,
-    `D`: `RepartitionToWideX2<DFromV<VN>>` \
-    <code>Vec&lt;D&gt; **SumOfMulQuadAccumulate**(D d, VN a, VN b,
-    Vec&lt;D&gt; sum)</code>: widens `a` and `b` to `TFromD<D>` and computes
-    `sum[i] + a[4*i+3]*b[4*i+3] + a[4*i+2]*b[4*i+2] + a[4*i+1]*b[4*i+1] +
+*   `VN`: `{u,i}{8,16}`, `D`: `RepartitionToWideX2<DFromV<VN>>` \
+    <code>Vec&lt;D&gt; **SumOfMulQuadAccumulate**(D d, VN a, VN b, Vec&lt;D&gt;
+    sum)</code>: widens `a` and `b` to `TFromD<D>` and computes `sum[i] +
+    a[4*i+3]*b[4*i+3] + a[4*i+2]*b[4*i+2] + a[4*i+1]*b[4*i+1] +
     a[4*i+0]*b[4*i+0]`
 
-*   `VN_I`: `i8`, `VN_U`: `Vec<RebindToUnsigned<DFromV<VN_I>>>`,
-    `DI`: `Repartition<int32_t, DFromV<VN_I>>` \
+*   `VN_I`: `i8`, `VN_U`: `Vec<RebindToUnsigned<DFromV<VN_I>>>`, `DI`:
+    `Repartition<int32_t, DFromV<VN_I>>` \
     <code>Vec&lt;DI&gt; **SumOfMulQuadAccumulate**(DI di, VN_U a_u, VN_I b_i,
     Vec&lt;DI&gt; sum)</code>: widens `a` and `b` to `TFromD<DI>` and computes
     `sum[i] + a[4*i+3]*b[4*i+3] + a[4*i+2]*b[4*i+2] + a[4*i+1]*b[4*i+1] +
     a[4*i+0]*b[4*i+0]`
 
-*   `V`: `{u,i}{8,16,32},{f}16`,\
-    `VW`: `Vec<RepartitionToWide<DFromV<V>>`:\
-    `VW WidenMulAccumulate(D, V a, V b, VW low, VW& high)`: widens `a` and `b`, \
-    multiplies them together, then adds them to the concatenated \
-    vectors high:low. Returns the lower half of the result, and sets high to the \
-    upper half.
+*   `V`: `{u,i}{8,16,32},{f}16`, \
+    `VW`: `Vec<RepartitionToWide<DFromV<V>>`: \
+    `VW WidenMulAccumulate(D, V a, V b, VW low, VW& high)`: widens `a` and `b`,
+    multiplies them together, then adds them to the concatenated vectors
+    high:low. Returns the lower half of the result, and sets high to the upper
+    half.
 
 #### Fused multiply-add
 
