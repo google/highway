@@ -5618,7 +5618,11 @@ HWY_API VFromD<Simd<hwy::bfloat16_t, N, kPow2>> ReorderDemote2To(
       du32, detail::DemoteTo16NearestEven(du16_half, BitCast(du32, a)));
   const VFromD<decltype(du32)> b_in_even = PromoteTo(
       du32, detail::DemoteTo16NearestEven(du16_half, BitCast(du32, b)));
-  return BitCast(dbf16, Or(detail::Slide1Up(a_in_even), b_in_even));
+  // Equivalent to InterleaveEven, but because the upper 16 bits are zero, we
+  // can OR instead of OddEven.
+  const VFromD<decltype(du16)> a_in_odd =
+      detail::Slide1Up(BitCast(du16, a_in_even));
+  return BitCast(dbf16, Or(a_in_odd, BitCast(du16, b_in_even)));
 }
 
 // If LMUL is not the max, Combine first to avoid another DemoteTo.
@@ -5706,8 +5710,11 @@ HWY_API VFromD<DN> OrderedDemote2To(DN dn, V a, V b) {
 template <class DF, HWY_IF_F32_D(DF),
           class VBF = VFromD<Repartition<hwy::bfloat16_t, DF>>>
 HWY_API VFromD<DF> WidenMulPairwiseAdd(DF df, VBF a, VBF b) {
-  return MulAdd(PromoteEvenTo(df, a), PromoteEvenTo(df, b),
-                Mul(PromoteOddTo(df, a), PromoteOddTo(df, b)));
+  const VFromD<DF> ae = PromoteEvenTo(df, a);
+  const VFromD<DF> be = PromoteEvenTo(df, b);
+  const VFromD<DF> ao = PromoteOddTo(df, a);
+  const VFromD<DF> bo = PromoteOddTo(df, b);
+  return MulAdd(ae, be, Mul(ao, bo));
 }
 
 template <class D, HWY_IF_UI32_D(D), class V16 = VFromD<RepartitionToNarrow<D>>>

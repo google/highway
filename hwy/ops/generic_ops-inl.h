@@ -4563,11 +4563,11 @@ HWY_INLINE V IntDiv(V a, V b) {
   // will always be within the range of TFromV<V> if b[i] != 0 and
   // sizeof(TFromV<V>) <= 4.
 
-  return Combine(d,
-                 DemoteInRangeTo(
-                     dh, Div(PromoteUpperTo(df64, a), PromoteUpperTo(df64, b))),
-                 DemoteInRangeTo(dh, Div(PromoteLowerTo(df64, a),
-                                         PromoteLowerTo(df64, b))));
+  const VFromD<decltype(df64)> div1 =
+      Div(PromoteUpperTo(df64, a), PromoteUpperTo(df64, b));
+  const VFromD<decltype(df64)> div0 =
+      Div(PromoteLowerTo(df64, a), PromoteLowerTo(df64, b));
+  return Combine(d, DemoteInRangeTo(dh, div1), DemoteInRangeTo(dh, div0));
 }
 #endif  // HWY_HAVE_FLOAT64
 
