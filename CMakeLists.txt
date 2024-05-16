@@ -87,6 +87,28 @@ set(HWY_ENABLE_EXAMPLES ON CACHE BOOL "Build examples")
 set(HWY_ENABLE_INSTALL ON CACHE BOOL "Install library")
 set(HWY_ENABLE_TESTS ON CACHE BOOL "Enable HWY tests")
 
+if (NOT DEFINED CMAKE_CXX_STANDARD)
+  if ("cxx_std_17" IN_LIST CMAKE_CXX_COMPILE_FEATURES)
+    set(HWY_CXX_STD_TGT_COMPILE_FEATURE cxx_std_17)
+  else()
+    if ("cxx_std_14" IN_LIST CMAKE_CXX_COMPILE_FEATURES)
+      set(HWY_CXX_STD_TGT_COMPILE_FEATURE cxx_std_14)
+    else()
+      set(HWY_CXX_STD_TGT_COMPILE_FEATURE cxx_std_11)
+    endif()
+  endif()
+else()
+  if (CMAKE_CXX_STANDARD GREATER_EQUAL 14 AND CMAKE_CXX_STANDARD LESS 98)
+    if (CMAKE_CXX_STANDARD GREATER_EQUAL 17)
+      set(HWY_CXX_STD_TGT_COMPILE_FEATURE cxx_std_17)
+    else()
+      set(HWY_CXX_STD_TGT_COMPILE_FEATURE cxx_std_14)
+    endif()
+  else()
+    set(HWY_CXX_STD_TGT_COMPILE_FEATURE cxx_std_11)
+  endif()
+endif()
+
 include(CheckCXXSourceCompiles)
 check_cxx_source_compiles(
    "int main() {
@@ -421,6 +443,9 @@ target_include_directories(hwy PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_features(hwy PUBLIC cxx_std_11)
+if (NOT HWY_CXX_STD_TGT_COMPILE_FEATURE STREQUAL "cxx_std_11")
+  target_compile_features(hwy PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
+endif()
 set_target_properties(hwy PROPERTIES
   LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version)
 # For GCC __atomic_store_8, see #887
@@ -441,6 +466,9 @@ target_include_directories(hwy_contrib PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_features(hwy_contrib PUBLIC cxx_std_11)
+if (NOT HWY_CXX_STD_TGT_COMPILE_FEATURE STREQUAL "cxx_std_11")
+  target_compile_features(hwy_contrib PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
+endif()
 set_target_properties(hwy_contrib PROPERTIES
   LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version)
 # For GCC __atomic_store_8, see #887
@@ -461,6 +489,9 @@ target_include_directories(hwy_test PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_features(hwy_test PUBLIC cxx_std_11)
+if (NOT HWY_CXX_STD_TGT_COMPILE_FEATURE STREQUAL "cxx_std_11")
+  target_compile_features(hwy_test PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
+endif()
 set_target_properties(hwy_test PROPERTIES
   LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version)
 # not supported by MSVC/Clang, safe to skip (we use DLLEXPORT annotations)
@@ -474,6 +505,7 @@ endif()
 # flags. This tool will print to stderr at build time, after building hwy.
 add_executable(hwy_list_targets hwy/tests/list_targets.cc)
 target_compile_options(hwy_list_targets PRIVATE ${HWY_FLAGS})
+target_compile_features(hwy_list_targets PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
 target_link_libraries(hwy_list_targets PRIVATE hwy)
 target_include_directories(hwy_list_targets PRIVATE
   $<TARGET_PROPERTY:hwy,INCLUDE_DIRECTORIES>)
@@ -568,6 +600,7 @@ target_sources(hwy_benchmark PRIVATE
 # Try adding one of -DHWY_COMPILE_ONLY_SCALAR, -DHWY_COMPILE_ONLY_EMU128 or
 # -DHWY_COMPILE_ONLY_STATIC to observe the difference in targets printed.
 target_compile_options(hwy_benchmark PRIVATE ${HWY_FLAGS})
+target_compile_features(hwy_benchmark PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
 target_link_libraries(hwy_benchmark PRIVATE hwy)
 target_link_libraries(hwy_benchmark PRIVATE ${ATOMICS_LIBRARIES})
 set_target_properties(hwy_benchmark
@@ -578,6 +611,7 @@ add_executable(hwy_profiler_example hwy/examples/profiler_example.cc)
 target_sources(hwy_profiler_example PRIVATE
     hwy/profiler.h)
 target_compile_options(hwy_profiler_example PRIVATE ${HWY_FLAGS})
+target_compile_features(hwy_profiler_example PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
 target_link_libraries(hwy_profiler_example PRIVATE hwy)
 target_link_libraries(hwy_profiler_example PRIVATE ${ATOMICS_LIBRARIES})
 set_target_properties(hwy_profiler_example
@@ -723,6 +757,7 @@ foreach (TESTFILE IN LISTS HWY_TEST_FILES)
   # cause compile errors because only one may be set, and other CMakeLists.txt
   # that include us may set them.
   target_compile_options(${TESTNAME} PRIVATE -DHWY_IS_TEST=1)
+  target_compile_features(${TESTNAME} PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
 
   target_link_libraries(${TESTNAME} PRIVATE ${HWY_TEST_LIBS} ${HWY_GTEST_LIBS})
   # For GCC __atomic_store_8, see #887
