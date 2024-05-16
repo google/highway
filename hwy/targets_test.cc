@@ -74,8 +74,8 @@ int64_t FakeFunctionDispatcher(T value) {
   HWY_EXPORT_T(FakeFunction1, FakeFunctionT<T>);
   HWY_EXPORT_T(FakeFunction2, FakeFunctionT<bool>);
   // Verify two EXPORT_T within a function are possible.
-  return HWY_DYNAMIC_DISPATCH_T(FakeFunction1)(value) +
-         HWY_DYNAMIC_DISPATCH_T(FakeFunction2)(true);
+  return hwy::AddWithWraparound(HWY_DYNAMIC_DISPATCH_T(FakeFunction1)(value),
+                                HWY_DYNAMIC_DISPATCH_T(FakeFunction2)(true));
 }
 
 void CallFunctionForTarget(int64_t target, int /*line*/) {
@@ -89,8 +89,10 @@ void CallFunctionForTarget(int64_t target, int /*line*/) {
   HWY_ASSERT_EQ(target, HWY_DYNAMIC_DISPATCH(FakeFunction)(42));
 
   // * 2 because we call two functions and add their target result together.
-  HWY_ASSERT_EQ(target * 2, FakeFunctionDispatcher<float>(1.0f));
-  HWY_ASSERT_EQ(target * 2, FakeFunctionDispatcher<double>(1.0));
+  const int64_t target_times_2 =
+      static_cast<int64_t>(static_cast<uint64_t>(target) * 2ULL);
+  HWY_ASSERT_EQ(target_times_2, FakeFunctionDispatcher<float>(1.0f));
+  HWY_ASSERT_EQ(target_times_2, FakeFunctionDispatcher<double>(1.0));
 
   // Calling DeInit() will test that the initializer function
   // also calls the right function.
