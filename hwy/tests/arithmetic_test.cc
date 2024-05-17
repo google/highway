@@ -466,8 +466,8 @@ struct TestIntegerDiv {
 #endif
 
     const T k1 = static_cast<T>(Unpredictable1());
-    const T kMin = LimitsMin<T>() * k1;
-    const T kMax = LimitsMax<T>() * k1;
+    const T kMin = static_cast<T>(LimitsMin<T>() * k1);
+    const T kMax = static_cast<T>(LimitsMax<T>() * k1);
     const V vmin = Set(d, kMin);
     const V vmax = Set(d, kMax);
     const V v1 = Set(d, static_cast<T>(k1));

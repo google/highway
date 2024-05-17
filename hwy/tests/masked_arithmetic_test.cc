@@ -277,7 +277,7 @@ struct TestIntegerDivMod {
     const auto v1 = Set(d, static_cast<T>(1));
     const auto vmax = Set(d, LimitsMax<T>());
 
-    const auto vb = Max(And(Iota(d, static_cast<T>(hwy::Unpredictable1() + 1)),
+    const auto vb = Max(And(Iota(d, hwy::Unpredictable1() + 1),
                             Set(d, static_cast<T>(LimitsMax<T>() >> 1))),
                         Set(d, static_cast<T>(2)));
     const auto va =
