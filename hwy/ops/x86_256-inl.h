@@ -6289,16 +6289,6 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, Vec32<int8_t> v) {
 }
 
 #if HWY_TARGET <= HWY_AVX3
-template <class D, HWY_IF_V_SIZE_GT_D(D, 16), HWY_IF_I64_D(D)>
-HWY_API VFromD<D> PromoteTo(D di64, VFromD<Rebind<float, D>> v) {
-  const Rebind<float, decltype(di64)> df32;
-  const RebindToSigned<decltype(df32)> di32;
-  const RebindToFloat<decltype(di64)> df64;
-
-  return detail::FixConversionOverflow(
-      di64, BitCast(df64, PromoteTo(di64, BitCast(di32, v))),
-      PromoteInRangeTo(di64, v));
-}
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I64_D(D)>
 HWY_API VFromD<D> PromoteInRangeTo(D /*di64*/, VFromD<Rebind<float, D>> v) {
   return VFromD<D>{_mm256_cvttps_epi64(v.raw)};
@@ -6860,10 +6850,9 @@ HWY_API VFromD<DU> ConvertTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
 }
 #endif  // HWY_TARGET <= HWY_AVX3
 
-HWY_API Vec256<int32_t> NearestInt(const Vec256<float> v) {
-  const Full256<int32_t> di;
-  return detail::FixConversionOverflow(
-      di, v, Vec256<int32_t>{_mm256_cvtps_epi32(v.raw)});
+template <class DI, HWY_IF_V_SIZE_D(DI, 32), HWY_IF_I32_D(DI)>
+HWY_INLINE VFromD<DI> NearestIntInRange(DI, VFromD<RebindToFloat<DI>> v) {
+  return VFromD<DI>{_mm256_cvtps_epi32(v.raw)};
 }
 
 #ifndef HWY_DISABLE_F16C

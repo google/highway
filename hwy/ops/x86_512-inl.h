@@ -6018,10 +6018,9 @@ HWY_API VFromD<DU> ConvertTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
   return VFromD<DU>{_mm512_maskz_cvttpd_epu64(Not(MaskFromVec(v)).raw, v.raw)};
 }
 
-HWY_API Vec512<int32_t> NearestInt(const Vec512<float> v) {
-  const Full512<int32_t> di;
-  return detail::FixConversionOverflow(
-      di, v, Vec512<int32_t>{_mm512_cvtps_epi32(v.raw)});
+template <class DI, HWY_IF_V_SIZE_D(DI, 64), HWY_IF_I32_D(DI)>
+HWY_INLINE VFromD<DI> NearestIntInRange(DI, VFromD<RebindToFloat<DI>> v) {
+  return VFromD<DI>{_mm512_cvtps_epi32(v.raw)};
 }
 
 // ================================================== CRYPTO

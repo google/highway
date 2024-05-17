@@ -7126,6 +7126,227 @@ HWY_API VFromD<DW> ZipUpper(DW dw, V a, V b) {
   return BitCast(dw, InterleaveUpper(D(), a, b));
 }
 
+// ================================================== CONVERT (1)
+
+// ------------------------------ PromoteTo unsigned (TableLookupBytesOr0)
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U16_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<uint8_t, D>> v) {
+#if HWY_TARGET >= HWY_SSSE3
+  const __m128i zero = _mm_setzero_si128();
+  return VFromD<D>{_mm_unpacklo_epi8(v.raw, zero)};
+#else
+  return VFromD<D>{_mm_cvtepu8_epi16(v.raw)};
+#endif
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U32_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<uint16_t, D>> v) {
+#if HWY_TARGET >= HWY_SSSE3
+  return VFromD<D>{_mm_unpacklo_epi16(v.raw, _mm_setzero_si128())};
+#else
+  return VFromD<D>{_mm_cvtepu16_epi32(v.raw)};
+#endif
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U64_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<uint32_t, D>> v) {
+#if HWY_TARGET >= HWY_SSSE3
+  return VFromD<D>{_mm_unpacklo_epi32(v.raw, _mm_setzero_si128())};
+#else
+  return VFromD<D>{_mm_cvtepu32_epi64(v.raw)};
+#endif
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U32_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<uint8_t, D>> v) {
+#if HWY_TARGET >= HWY_SSSE3
+  const __m128i zero = _mm_setzero_si128();
+  const __m128i u16 = _mm_unpacklo_epi8(v.raw, zero);
+  return VFromD<D>{_mm_unpacklo_epi16(u16, zero)};
+#else
+  return VFromD<D>{_mm_cvtepu8_epi32(v.raw)};
+#endif
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U64_D(D)>
+HWY_API VFromD<D> PromoteTo(D d, VFromD<Rebind<uint8_t, D>> v) {
+#if HWY_TARGET > HWY_SSSE3
+  const Rebind<uint32_t, decltype(d)> du32;
+  return PromoteTo(d, PromoteTo(du32, v));
+#elif HWY_TARGET == HWY_SSSE3
+  alignas(16) static constexpr int8_t kShuffle[16] = {
+      0, -1, -1, -1, -1, -1, -1, -1, 1, -1, -1, -1, -1, -1, -1, -1};
+  const Repartition<int8_t, decltype(d)> di8;
+  return TableLookupBytesOr0(v, BitCast(d, Load(di8, kShuffle)));
+#else
+  (void)d;
+  return VFromD<D>{_mm_cvtepu8_epi64(v.raw)};
+#endif
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U64_D(D)>
+HWY_API VFromD<D> PromoteTo(D d, VFromD<Rebind<uint16_t, D>> v) {
+#if HWY_TARGET > HWY_SSSE3
+  const Rebind<uint32_t, decltype(d)> du32;
+  return PromoteTo(d, PromoteTo(du32, v));
+#elif HWY_TARGET == HWY_SSSE3
+  alignas(16) static constexpr int8_t kShuffle[16] = {
+      0, 1, -1, -1, -1, -1, -1, -1, 2, 3, -1, -1, -1, -1, -1, -1};
+  const Repartition<int8_t, decltype(d)> di8;
+  return TableLookupBytesOr0(v, BitCast(d, Load(di8, kShuffle)));
+#else
+  (void)d;
+  return VFromD<D>{_mm_cvtepu16_epi64(v.raw)};
+#endif
+}
+
+// Unsigned to signed: same plus cast.
+template <class D, class V, HWY_IF_SIGNED_D(D), HWY_IF_UNSIGNED_V(V),
+          HWY_IF_LANES_GT(sizeof(TFromD<D>), sizeof(TFromV<V>)),
+          HWY_IF_LANES_D(D, HWY_MAX_LANES_V(V))>
+HWY_API VFromD<D> PromoteTo(D di, V v) {
+  const RebindToUnsigned<decltype(di)> du;
+  return BitCast(di, PromoteTo(du, v));
+}
+
+// ------------------------------ PromoteTo signed (ShiftRight, ZipLower)
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I16_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<int8_t, D>> v) {
+#if HWY_TARGET >= HWY_SSSE3
+  return ShiftRight<8>(VFromD<D>{_mm_unpacklo_epi8(v.raw, v.raw)});
+#else
+  return VFromD<D>{_mm_cvtepi8_epi16(v.raw)};
+#endif
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I32_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<int16_t, D>> v) {
+#if HWY_TARGET >= HWY_SSSE3
+  return ShiftRight<16>(VFromD<D>{_mm_unpacklo_epi16(v.raw, v.raw)});
+#else
+  return VFromD<D>{_mm_cvtepi16_epi32(v.raw)};
+#endif
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I64_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<int32_t, D>> v) {
+#if HWY_TARGET >= HWY_SSSE3
+  return ShiftRight<32>(VFromD<D>{_mm_unpacklo_epi32(v.raw, v.raw)});
+#else
+  return VFromD<D>{_mm_cvtepi32_epi64(v.raw)};
+#endif
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I32_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<int8_t, D>> v) {
+#if HWY_TARGET >= HWY_SSSE3
+  const __m128i x2 = _mm_unpacklo_epi8(v.raw, v.raw);
+  const __m128i x4 = _mm_unpacklo_epi16(x2, x2);
+  return ShiftRight<24>(VFromD<D>{x4});
+#else
+  return VFromD<D>{_mm_cvtepi8_epi32(v.raw)};
+#endif
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I64_D(D)>
+HWY_API VFromD<D> PromoteTo(D d, VFromD<Rebind<int8_t, D>> v) {
+#if HWY_TARGET >= HWY_SSSE3
+  const Repartition<int32_t, decltype(d)> di32;
+  const Half<decltype(di32)> dh_i32;
+  const VFromD<decltype(di32)> x4{PromoteTo(dh_i32, v).raw};
+  const VFromD<decltype(di32)> s4{
+      _mm_shufflelo_epi16(x4.raw, _MM_SHUFFLE(3, 3, 1, 1))};
+  return ZipLower(d, x4, s4);
+#else
+  (void)d;
+  return VFromD<D>{_mm_cvtepi8_epi64(v.raw)};
+#endif
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I64_D(D)>
+HWY_API VFromD<D> PromoteTo(D d, VFromD<Rebind<int16_t, D>> v) {
+#if HWY_TARGET >= HWY_SSSE3
+  const Repartition<int32_t, decltype(d)> di32;
+  const Half<decltype(di32)> dh_i32;
+  const VFromD<decltype(di32)> x2{PromoteTo(dh_i32, v).raw};
+  const VFromD<decltype(di32)> s2{
+      _mm_shufflelo_epi16(x2.raw, _MM_SHUFFLE(3, 3, 1, 1))};
+  return ZipLower(d, x2, s2);
+#else
+  (void)d;
+  return VFromD<D>{_mm_cvtepi16_epi64(v.raw)};
+#endif
+}
+
+// -------------------- PromoteTo float (ShiftLeft, IfNegativeThenElse)
+#if HWY_TARGET < HWY_SSE4 && !defined(HWY_DISABLE_F16C)
+
+// Per-target flag to prevent generic_ops-inl.h from defining f16 conversions.
+#ifdef HWY_NATIVE_F16C
+#undef HWY_NATIVE_F16C
+#else
+#define HWY_NATIVE_F16C
+#endif
+
+// Workaround for origin tracking bug in Clang msan prior to 11.0
+// (spurious "uninitialized memory" for TestF16 with "ORIGIN: invalid")
+#if HWY_IS_MSAN && (HWY_COMPILER_CLANG != 0 && HWY_COMPILER_CLANG < 1100)
+#define HWY_INLINE_F16 HWY_NOINLINE
+#else
+#define HWY_INLINE_F16 HWY_INLINE
+#endif
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F32_D(D)>
+HWY_INLINE_F16 VFromD<D> PromoteTo(D /*tag*/, VFromD<Rebind<float16_t, D>> v) {
+#if HWY_HAVE_FLOAT16
+  const RebindToUnsigned<DFromV<decltype(v)>> du16;
+  return VFromD<D>{_mm_cvtph_ps(BitCast(du16, v).raw)};
+#else
+  return VFromD<D>{_mm_cvtph_ps(v.raw)};
+#endif
+}
+
+#endif  // HWY_NATIVE_F16C
+
+#if HWY_HAVE_FLOAT16
+
+#ifdef HWY_NATIVE_PROMOTE_F16_TO_F64
+#undef HWY_NATIVE_PROMOTE_F16_TO_F64
+#else
+#define HWY_NATIVE_PROMOTE_F16_TO_F64
+#endif
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F64_D(D)>
+HWY_INLINE VFromD<D> PromoteTo(D /*tag*/, VFromD<Rebind<float16_t, D>> v) {
+  return VFromD<D>{_mm_cvtph_pd(v.raw)};
+}
+
+#endif  // HWY_HAVE_FLOAT16
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> PromoteTo(D df32, VFromD<Rebind<bfloat16_t, D>> v) {
+  const Rebind<uint16_t, decltype(df32)> du16;
+  const RebindToSigned<decltype(df32)> di32;
+  return BitCast(df32, ShiftLeft<16>(PromoteTo(di32, BitCast(du16, v))));
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F64_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<float, D>> v) {
+  return VFromD<D>{_mm_cvtps_pd(v.raw)};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F64_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<int32_t, D>> v) {
+  return VFromD<D>{_mm_cvtepi32_pd(v.raw)};
+}
+
+#if HWY_TARGET <= HWY_AVX3
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F64_D(D)>
+HWY_API VFromD<D> PromoteTo(D /*df64*/, VFromD<Rebind<uint32_t, D>> v) {
+  return VFromD<D>{_mm_cvtepu32_pd(v.raw)};
+}
+#else
+// Generic for all vector lengths on SSE2/SSSE3/SSE4/AVX2
+template <class D, HWY_IF_F64_D(D)>
+HWY_API VFromD<D> PromoteTo(D df64, VFromD<Rebind<uint32_t, D>> v) {
+  const Rebind<int32_t, decltype(df64)> di32;
+  const auto i32_to_f64_result = PromoteTo(df64, BitCast(di32, v));
+  return i32_to_f64_result + IfNegativeThenElse(i32_to_f64_result,
+                                                Set(df64, 4294967296.0),
+                                                Zero(df64));
+}
+#endif  // HWY_TARGET <= HWY_AVX3
+
 // ------------------------------ Per4LaneBlockShuffle
 namespace detail {
 
@@ -9192,226 +9413,7 @@ HWY_API Vec64<T> MulHigh(Vec64<T> a, Vec64<T> b) {
 
 #endif  // HWY_ARCH_X86_64
 
-// ================================================== CONVERT
-
-// ------------------------------ Promotions (part w/ narrow lanes -> full)
-
-// Unsigned: zero-extend.
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U16_D(D)>
-HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<uint8_t, D>> v) {
-#if HWY_TARGET >= HWY_SSSE3
-  const __m128i zero = _mm_setzero_si128();
-  return VFromD<D>{_mm_unpacklo_epi8(v.raw, zero)};
-#else
-  return VFromD<D>{_mm_cvtepu8_epi16(v.raw)};
-#endif
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U32_D(D)>
-HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<uint16_t, D>> v) {
-#if HWY_TARGET >= HWY_SSSE3
-  return VFromD<D>{_mm_unpacklo_epi16(v.raw, _mm_setzero_si128())};
-#else
-  return VFromD<D>{_mm_cvtepu16_epi32(v.raw)};
-#endif
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U64_D(D)>
-HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<uint32_t, D>> v) {
-#if HWY_TARGET >= HWY_SSSE3
-  return VFromD<D>{_mm_unpacklo_epi32(v.raw, _mm_setzero_si128())};
-#else
-  return VFromD<D>{_mm_cvtepu32_epi64(v.raw)};
-#endif
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U32_D(D)>
-HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<uint8_t, D>> v) {
-#if HWY_TARGET >= HWY_SSSE3
-  const __m128i zero = _mm_setzero_si128();
-  const __m128i u16 = _mm_unpacklo_epi8(v.raw, zero);
-  return VFromD<D>{_mm_unpacklo_epi16(u16, zero)};
-#else
-  return VFromD<D>{_mm_cvtepu8_epi32(v.raw)};
-#endif
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U64_D(D)>
-HWY_API VFromD<D> PromoteTo(D d, VFromD<Rebind<uint8_t, D>> v) {
-#if HWY_TARGET > HWY_SSSE3
-  const Rebind<uint32_t, decltype(d)> du32;
-  return PromoteTo(d, PromoteTo(du32, v));
-#elif HWY_TARGET == HWY_SSSE3
-  alignas(16) static constexpr int8_t kShuffle[16] = {
-      0, -1, -1, -1, -1, -1, -1, -1, 1, -1, -1, -1, -1, -1, -1, -1};
-  const Repartition<int8_t, decltype(d)> di8;
-  return TableLookupBytesOr0(v, BitCast(d, Load(di8, kShuffle)));
-#else
-  (void)d;
-  return VFromD<D>{_mm_cvtepu8_epi64(v.raw)};
-#endif
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U64_D(D)>
-HWY_API VFromD<D> PromoteTo(D d, VFromD<Rebind<uint16_t, D>> v) {
-#if HWY_TARGET > HWY_SSSE3
-  const Rebind<uint32_t, decltype(d)> du32;
-  return PromoteTo(d, PromoteTo(du32, v));
-#elif HWY_TARGET == HWY_SSSE3
-  alignas(16) static constexpr int8_t kShuffle[16] = {
-      0, 1, -1, -1, -1, -1, -1, -1, 2, 3, -1, -1, -1, -1, -1, -1};
-  const Repartition<int8_t, decltype(d)> di8;
-  return TableLookupBytesOr0(v, BitCast(d, Load(di8, kShuffle)));
-#else
-  (void)d;
-  return VFromD<D>{_mm_cvtepu16_epi64(v.raw)};
-#endif
-}
-
-// Unsigned to signed: same plus cast.
-template <class D, class V, HWY_IF_SIGNED_D(D), HWY_IF_UNSIGNED_V(V),
-          HWY_IF_LANES_GT(sizeof(TFromD<D>), sizeof(TFromV<V>)),
-          HWY_IF_LANES_D(D, HWY_MAX_LANES_V(V))>
-HWY_API VFromD<D> PromoteTo(D di, V v) {
-  const RebindToUnsigned<decltype(di)> du;
-  return BitCast(di, PromoteTo(du, v));
-}
-
-// Signed: replicate sign bit.
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I16_D(D)>
-HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<int8_t, D>> v) {
-#if HWY_TARGET >= HWY_SSSE3
-  return ShiftRight<8>(VFromD<D>{_mm_unpacklo_epi8(v.raw, v.raw)});
-#else
-  return VFromD<D>{_mm_cvtepi8_epi16(v.raw)};
-#endif
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I32_D(D)>
-HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<int16_t, D>> v) {
-#if HWY_TARGET >= HWY_SSSE3
-  return ShiftRight<16>(VFromD<D>{_mm_unpacklo_epi16(v.raw, v.raw)});
-#else
-  return VFromD<D>{_mm_cvtepi16_epi32(v.raw)};
-#endif
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I64_D(D)>
-HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<int32_t, D>> v) {
-#if HWY_TARGET >= HWY_SSSE3
-  return ShiftRight<32>(VFromD<D>{_mm_unpacklo_epi32(v.raw, v.raw)});
-#else
-  return VFromD<D>{_mm_cvtepi32_epi64(v.raw)};
-#endif
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I32_D(D)>
-HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<int8_t, D>> v) {
-#if HWY_TARGET >= HWY_SSSE3
-  const __m128i x2 = _mm_unpacklo_epi8(v.raw, v.raw);
-  const __m128i x4 = _mm_unpacklo_epi16(x2, x2);
-  return ShiftRight<24>(VFromD<D>{x4});
-#else
-  return VFromD<D>{_mm_cvtepi8_epi32(v.raw)};
-#endif
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I64_D(D)>
-HWY_API VFromD<D> PromoteTo(D d, VFromD<Rebind<int8_t, D>> v) {
-#if HWY_TARGET >= HWY_SSSE3
-  const Repartition<int32_t, decltype(d)> di32;
-  const Half<decltype(di32)> dh_i32;
-  const VFromD<decltype(di32)> x4{PromoteTo(dh_i32, v).raw};
-  const VFromD<decltype(di32)> s4{
-      _mm_shufflelo_epi16(x4.raw, _MM_SHUFFLE(3, 3, 1, 1))};
-  return ZipLower(d, x4, s4);
-#else
-  (void)d;
-  return VFromD<D>{_mm_cvtepi8_epi64(v.raw)};
-#endif
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I64_D(D)>
-HWY_API VFromD<D> PromoteTo(D d, VFromD<Rebind<int16_t, D>> v) {
-#if HWY_TARGET >= HWY_SSSE3
-  const Repartition<int32_t, decltype(d)> di32;
-  const Half<decltype(di32)> dh_i32;
-  const VFromD<decltype(di32)> x2{PromoteTo(dh_i32, v).raw};
-  const VFromD<decltype(di32)> s2{
-      _mm_shufflelo_epi16(x2.raw, _MM_SHUFFLE(3, 3, 1, 1))};
-  return ZipLower(d, x2, s2);
-#else
-  (void)d;
-  return VFromD<D>{_mm_cvtepi16_epi64(v.raw)};
-#endif
-}
-
-#if HWY_TARGET < HWY_SSE4 && !defined(HWY_DISABLE_F16C)
-
-// Per-target flag to prevent generic_ops-inl.h from defining f16 conversions.
-#ifdef HWY_NATIVE_F16C
-#undef HWY_NATIVE_F16C
-#else
-#define HWY_NATIVE_F16C
-#endif
-
-// Workaround for origin tracking bug in Clang msan prior to 11.0
-// (spurious "uninitialized memory" for TestF16 with "ORIGIN: invalid")
-#if HWY_IS_MSAN && (HWY_COMPILER_CLANG != 0 && HWY_COMPILER_CLANG < 1100)
-#define HWY_INLINE_F16 HWY_NOINLINE
-#else
-#define HWY_INLINE_F16 HWY_INLINE
-#endif
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F32_D(D)>
-HWY_INLINE_F16 VFromD<D> PromoteTo(D /*tag*/, VFromD<Rebind<float16_t, D>> v) {
-#if HWY_HAVE_FLOAT16
-  const RebindToUnsigned<DFromV<decltype(v)>> du16;
-  return VFromD<D>{_mm_cvtph_ps(BitCast(du16, v).raw)};
-#else
-  return VFromD<D>{_mm_cvtph_ps(v.raw)};
-#endif
-}
-
-#endif  // HWY_NATIVE_F16C
-
-#if HWY_HAVE_FLOAT16
-
-#ifdef HWY_NATIVE_PROMOTE_F16_TO_F64
-#undef HWY_NATIVE_PROMOTE_F16_TO_F64
-#else
-#define HWY_NATIVE_PROMOTE_F16_TO_F64
-#endif
-
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F64_D(D)>
-HWY_INLINE VFromD<D> PromoteTo(D /*tag*/, VFromD<Rebind<float16_t, D>> v) {
-  return VFromD<D>{_mm_cvtph_pd(v.raw)};
-}
-
-#endif  // HWY_HAVE_FLOAT16
-
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F32_D(D)>
-HWY_API VFromD<D> PromoteTo(D df32, VFromD<Rebind<bfloat16_t, D>> v) {
-  const Rebind<uint16_t, decltype(df32)> du16;
-  const RebindToSigned<decltype(df32)> di32;
-  return BitCast(df32, ShiftLeft<16>(PromoteTo(di32, BitCast(du16, v))));
-}
-
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F64_D(D)>
-HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<float, D>> v) {
-  return VFromD<D>{_mm_cvtps_pd(v.raw)};
-}
-
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F64_D(D)>
-HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<int32_t, D>> v) {
-  return VFromD<D>{_mm_cvtepi32_pd(v.raw)};
-}
-
-#if HWY_TARGET <= HWY_AVX3
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F64_D(D)>
-HWY_API VFromD<D> PromoteTo(D /*df64*/, VFromD<Rebind<uint32_t, D>> v) {
-  return VFromD<D>{_mm_cvtepu32_pd(v.raw)};
-}
-#else
-// Generic for all vector lengths on SSE2/SSSE3/SSE4/AVX2
-template <class D, HWY_IF_F64_D(D)>
-HWY_API VFromD<D> PromoteTo(D df64, VFromD<Rebind<uint32_t, D>> v) {
-  const Rebind<int32_t, decltype(df64)> di32;
-  const auto i32_to_f64_result = PromoteTo(df64, BitCast(di32, v));
-  return i32_to_f64_result + IfNegativeThenElse(i32_to_f64_result,
-                                                Set(df64, 4294967296.0),
-                                                Zero(df64));
-}
-#endif
+// ================================================== CONVERT (2)
 
 // ------------------------------ PromoteEvenTo/PromoteOddTo
 
@@ -10081,32 +10083,6 @@ HWY_INLINE VFromD<D> ClampF64ToI32Max(D d, VFromD<D> v) {
   return Min(v, Set(d, 2147483647.0));
 }
 
-// For ConvertTo float->int of same size, clamping before conversion would
-// change the result because the max integer value is not exactly representable.
-// Instead detect the overflow result after conversion and fix it.
-// Generic for all vector lengths.
-template <class DI>
-HWY_INLINE VFromD<DI> FixConversionOverflow(DI di,
-                                            VFromD<RebindToFloat<DI>> original,
-                                            VFromD<DI> converted) {
-  // Combinations of original and output sign:
-  //   --: normal <0 or -huge_val to 80..00: OK
-  //   -+: -0 to 0                         : OK
-  //   +-: +huge_val to 80..00             : xor with FF..FF to get 7F..FF
-  //   ++: normal >0                       : OK
-  const VFromD<DI> sign_wrong = AndNot(BitCast(di, original), converted);
-#if HWY_COMPILER_GCC_ACTUAL
-  // Critical GCC 11 compiler bug (possibly also GCC 10): omits the Xor; also
-  // Add() if using that instead. Work around with one more instruction.
-  const RebindToUnsigned<DI> du;
-  const VFromD<DI> mask = BroadcastSignBit(sign_wrong);
-  const VFromD<DI> max = BitCast(di, ShiftRight<1>(BitCast(du, mask)));
-  return IfVecThenElse(mask, max, converted);
-#else
-  return Xor(converted, BroadcastSignBit(sign_wrong));
-#endif
-}
-
 }  // namespace detail
 
 #ifdef HWY_NATIVE_F64_TO_UI32_DEMOTE_IN_RANGE_TO
@@ -10264,20 +10240,24 @@ HWY_API Vec128<uint8_t, N> U8FromU32(const Vec128<uint32_t, N> v) {
 
 #if HWY_TARGET <= HWY_AVX3
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I64_D(D)>
+HWY_API VFromD<D> PromoteInRangeTo(D /*di64*/, VFromD<Rebind<float, D>> v) {
+  return VFromD<D>{_mm_cvttps_epi64(v.raw)};
+}
+
+// Generic for all vector lengths.
+template <class D, HWY_IF_I64_D(D)>
 HWY_API VFromD<D> PromoteTo(D di64, VFromD<Rebind<float, D>> v) {
   const Rebind<float, decltype(di64)> df32;
   const RebindToFloat<decltype(di64)> df64;
-  const Twice<decltype(df32)> dt_f32;
-
-  return detail::FixConversionOverflow(
-      di64,
-      BitCast(df64, InterleaveLower(ResizeBitCast(dt_f32, v),
-                                    ResizeBitCast(dt_f32, v))),
-      PromoteInRangeTo(di64, v));
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I64_D(D)>
-HWY_API VFromD<D> PromoteInRangeTo(D /*di64*/, VFromD<Rebind<float, D>> v) {
-  return VFromD<D>{_mm_cvttps_epi64(v.raw)};
+  // WARNING: PromoteInRangeTo(2^63) is UB on GCC, and differs from the x86
+  // semantics. See https://gcc.gnu.org/bugzilla/show_bug.cgi?id=115115.
+  // Thus we cannot fix up the result afterwards. Instead, if v >= 2^63, we
+  // replace the output with 2^63-1. Note that the previous representable f32
+  // is less than 2^63 and thus fits in i64.
+  const MFromD<D> overflow = RebindMask(
+      di64, PromoteMaskTo(df64, df32, Ge(v, Set(df32, 9.223372e18f))));
+  return IfThenElse(overflow, Set(di64, LimitsMax<int64_t>()),
+                    PromoteInRangeTo(di64, v));
 }
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U64_D(D)>
 HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<float, D>> v) {
@@ -10861,7 +10841,12 @@ HWY_API VFromD<D> ConvertInRangeTo(D /*di*/, VFromD<RebindToFloat<D>> v) {
 // F16 to I16 ConvertTo is generic for all vector lengths
 template <class D, HWY_IF_I16_D(D)>
 HWY_API VFromD<D> ConvertTo(D di, VFromD<RebindToFloat<D>> v) {
-  return detail::FixConversionOverflow(di, v, ConvertInRangeTo(di, v));
+  const RebindToFloat<decltype(di)> df;
+  // See comment at the first occurrence of "IfThenElse(overflow,".
+  const MFromD<D> overflow =
+      RebindMask(di, Ge(v, Set(df, ConvertScalarTo<hwy::float16_t>(32768.0f))));
+  return IfThenElse(overflow, Set(di, LimitsMax<int16_t>()),
+                    ConvertInRangeTo(di, v));
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U16_D(D)>
@@ -10884,7 +10869,11 @@ HWY_API VFromD<D> ConvertInRangeTo(D /*di*/, VFromD<RebindToFloat<D>> v) {
 // F32 to I32 ConvertTo is generic for all vector lengths
 template <class D, HWY_IF_I32_D(D)>
 HWY_API VFromD<D> ConvertTo(D di, VFromD<RebindToFloat<D>> v) {
-  return detail::FixConversionOverflow(di, v, ConvertInRangeTo(di, v));
+  const RebindToFloat<decltype(di)> df;
+  // See comment at the first occurrence of "IfThenElse(overflow,".
+  const MFromD<D> overflow = RebindMask(di, Ge(v, Set(df, 2147483648.0f)));
+  return IfThenElse(overflow, Set(di, LimitsMax<int32_t>()),
+                    ConvertInRangeTo(di, v));
 }
 
 #if HWY_TARGET <= HWY_AVX3
@@ -10896,7 +10885,12 @@ HWY_API VFromD<DI> ConvertInRangeTo(DI /*di*/, VFromD<RebindToFloat<DI>> v) {
 // F64 to I64 ConvertTo is generic for all vector lengths on AVX3
 template <class DI, HWY_IF_I64_D(DI)>
 HWY_API VFromD<DI> ConvertTo(DI di, VFromD<RebindToFloat<DI>> v) {
-  return detail::FixConversionOverflow(di, v, ConvertInRangeTo(di, v));
+  const RebindToFloat<decltype(di)> df;
+  // See comment at the first occurrence of "IfThenElse(overflow,".
+  const MFromD<DI> overflow =
+      RebindMask(di, Ge(v, Set(df, 9.223372036854776e18)));
+  return IfThenElse(overflow, Set(di, LimitsMax<int64_t>()),
+                    ConvertInRangeTo(di, v));
 }
 
 template <class DU, HWY_IF_V_SIZE_LE_D(DU, 16), HWY_IF_U32_D(DU)>
@@ -11041,7 +11035,12 @@ HWY_API VFromD<DI> ConvertInRangeTo(DI /*di*/, Vec128<double> v) {
 
 template <class DI, HWY_IF_V_SIZE_LE_D(DI, 16), HWY_IF_I64_D(DI)>
 HWY_API VFromD<DI> ConvertTo(DI di, VFromD<Rebind<double, DI>> v) {
-  return detail::FixConversionOverflow(di, v, ConvertInRangeTo(di, v));
+  const RebindToFloat<decltype(di)> df;
+  // See comment at the first occurrence of "IfThenElse(overflow,".
+  const MFromD<DI> overflow =
+      RebindMask(di, Ge(v, Set(df, 9.223372036854776e18)));
+  return IfThenElse(overflow, Set(di, LimitsMax<int64_t>()),
+                    ConvertInRangeTo(di, v));
 }
 #endif  // HWY_ARCH_X86_64
 
@@ -11119,11 +11118,23 @@ HWY_API VFromD<DU> ConvertTo(DU du, VFromD<Rebind<double, DU>> v) {
 }
 #endif  // HWY_TARGET <= HWY_AVX3
 
-template <size_t N>
-HWY_API Vec128<int32_t, N> NearestInt(const Vec128<float, N> v) {
-  const RebindToSigned<DFromV<decltype(v)>> di;
-  return detail::FixConversionOverflow(
-      di, v, VFromD<decltype(di)>{_mm_cvtps_epi32(v.raw)});
+// If these are in namespace detail, the x86_256/512 templates are not found.
+template <class DI, HWY_IF_V_SIZE_LE_D(DI, 16), HWY_IF_I32_D(DI)>
+HWY_INLINE VFromD<DI> NearestIntInRange(DI, VFromD<RebindToFloat<DI>> v) {
+  return VFromD<DI>{_mm_cvtps_epi32(v.raw)};
+}
+
+// Generic for all vector lengths.
+template <class VF, class DF = DFromV<VF>, class DI = RebindToSigned<DF>,
+          HWY_IF_F32_D(DF)>
+HWY_API VFromD<DI> NearestInt(const VF v) {
+  const DI di;
+  // See comment at the first occurrence of "IfThenElse(overflow,".
+  // Here we are rounding, whereas previous occurrences truncate, but there is
+  // no difference because the previous float value is well below the max i32.
+  const auto overflow = RebindMask(di, Ge(v, Set(DF(), 2147483648.0f)));
+  return IfThenElse(overflow, Set(di, LimitsMax<int32_t>()),
+                    NearestIntInRange(di, v));
 }
 
 // ------------------------------ Floating-point rounding (ConvertTo)
