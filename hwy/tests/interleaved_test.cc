@@ -87,11 +87,12 @@ HWY_NOINLINE void TestAllLoadStoreInterleaved2() {
 #define HWY_BROKEN_LOAD34 0
 #endif
 
-#if !HWY_BROKEN_LOAD34
-
 struct TestLoadStoreInterleaved3 {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+#if HWY_BROKEN_LOAD34
+    (void)d;
+#else   // !HWY_BROKEN_LOAD34
     const size_t N = Lanes(d);
 
     RandomState rng;
@@ -139,6 +140,7 @@ struct TestLoadStoreInterleaved3 {
       HWY_ASSERT_VEC_EQ(d, in1, out1);
       HWY_ASSERT_VEC_EQ(d, in2, out2);
     }
+#endif  // HWY_BROKEN_LOAD34
   }
 };
 
@@ -149,6 +151,9 @@ HWY_NOINLINE void TestAllLoadStoreInterleaved3() {
 struct TestLoadStoreInterleaved4 {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+#if HWY_BROKEN_LOAD34
+    (void)d;
+#else   // !HWY_BROKEN_LOAD34
     const size_t N = Lanes(d);
 
     RandomState rng;
@@ -203,14 +208,13 @@ struct TestLoadStoreInterleaved4 {
       HWY_ASSERT_VEC_EQ(d, in2, out2);
       HWY_ASSERT_VEC_EQ(d, in3, out3);
     }
+#endif  // HWY_BROKEN_LOAD34
   }
 };
 
 HWY_NOINLINE void TestAllLoadStoreInterleaved4() {
   ForAllTypes(ForMaxPow2<TestLoadStoreInterleaved4>());
 }
-
-#endif  // !HWY_BROKEN_LOAD34
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -222,10 +226,8 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 HWY_BEFORE_TEST(HwyInterleavedTest);
 HWY_EXPORT_AND_TEST_P(HwyInterleavedTest, TestAllLoadStoreInterleaved2);
-#if !HWY_BROKEN_LOAD34
 HWY_EXPORT_AND_TEST_P(HwyInterleavedTest, TestAllLoadStoreInterleaved3);
 HWY_EXPORT_AND_TEST_P(HwyInterleavedTest, TestAllLoadStoreInterleaved4);
-#endif
 HWY_AFTER_TEST();
 }  // namespace hwy
 
