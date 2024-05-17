@@ -287,4 +287,4 @@ HWY_EXPORT_AND_TEST_P(MatVecTest, TestAllMatVecBF16Both);
 HWY_AFTER_TEST();
 }  // namespace hwy
 
-#endif
+#endif  // HWY_ONCE
