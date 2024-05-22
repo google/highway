@@ -19,6 +19,9 @@
 #include <cfloat>  // FLT_MAX
 #include <cmath>   // std::abs
 
+#include "hwy/base.h"
+#include "hwy/nanobenchmark.h"
+
 // clang-format off
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/contrib/math/math_test.cc"
@@ -423,38 +426,41 @@ void HypotTestCases(T /*unused*/, D d, size_t& padded,
   constexpr int kNumOfMantBits = MantissaBits<T>();
   static_assert(kNumOfMantBits > 0, "kNumOfMantBits > 0 must be true");
 
-  const T pos = ConvertScalarTo<T>(1E5);
-  const T neg = ConvertScalarTo<T>(-1E7);
-  const T p0 = ConvertScalarTo<T>(0);
+  // Ensures inputs are not constexpr.
+  const TU u1 = static_cast<TU>(hwy::Unpredictable1());
+  const double k1 = static_cast<double>(u1);
+
+  const T pos = ConvertScalarTo<T>(1E5 * k1);
+  const T neg = ConvertScalarTo<T>(-1E7 * k1);
+  const T p0 = ConvertScalarTo<T>(k1 - 1.0);
   // -0 is not enough to get an actual negative zero.
-  const T n0 = ConvertScalarTo<T>(-0.0);
-  const T p1 = ConvertScalarTo<T>(1);
-  const T n1 = ConvertScalarTo<T>(-1);
-  const T p2 = ConvertScalarTo<T>(2);
-  const T n2 = ConvertScalarTo<T>(-2);
-  const T inf = BitCastScalar<T>(ExponentMask<T>());
+  const T n0 = ScalarCopySign<T>(p0, neg);
+  const T p1 = ConvertScalarTo<T>(k1);
+  const T n1 = ConvertScalarTo<T>(-k1);
+  const T p2 = ConvertScalarTo<T>(2 * k1);
+  const T n2 = ConvertScalarTo<T>(-2 * k1);
+  const T inf = BitCastScalar<T>(ExponentMask<T>() * u1);
   const T neg_inf = ScalarCopySign(inf, n1);
   const T nan = BitCastScalar<T>(
-      static_cast<TU>(ExponentMask<T>() | (TU{1} << (kNumOfMantBits - 1))));
+      static_cast<TU>(ExponentMask<T>() | (u1 << (kNumOfMantBits - 1))));
 
-  const T max = HighestValue<T>();
+  const double max_as_f64 = ConvertScalarTo<double>(HighestValue<T>()) * k1;
+  const T max = ConvertScalarTo<T>(max_as_f64);
 
-  const T huge =
-      ConvertScalarTo<T>(ConvertScalarTo<double>(HighestValue<T>()) * 0.25);
+  const T huge = ConvertScalarTo<T>(max_as_f64 * 0.25);
   const T neg_huge = ScalarCopySign(huge, n1);
 
-  const T huge2 = ConvertScalarTo<T>(
-      ConvertScalarTo<double>(HighestValue<T>()) * 0.039415044328304796);
+  const T huge2 = ConvertScalarTo<T>(max_as_f64 * 0.039415044328304796);
 
-  const T large = ConvertScalarTo<T>(3.512227595593985E18);
+  const T large = ConvertScalarTo<T>(3.512227595593985E18 * k1);
   const T neg_large = ScalarCopySign(large, n1);
-  const T large2 = ConvertScalarTo<T>(2.1190576943127544E16);
+  const T large2 = ConvertScalarTo<T>(2.1190576943127544E16 * k1);
 
-  const T small = ConvertScalarTo<T>(1.067033284841808E-11);
+  const T small = ConvertScalarTo<T>(1.067033284841808E-11 * k1);
   const T neg_small = ScalarCopySign(small, n1);
-  const T small2 = ConvertScalarTo<T>(1.9401409532292856E-12);
+  const T small2 = ConvertScalarTo<T>(1.9401409532292856E-12 * k1);
 
-  const T tiny = BitCastScalar<T>(static_cast<TU>(TU{1} << kNumOfMantBits));
+  const T tiny = BitCastScalar<T>(static_cast<TU>(u1 << kNumOfMantBits));
   const T neg_tiny = ScalarCopySign(tiny, n1);
 
   const T tiny2 =
@@ -503,7 +509,8 @@ void HypotTestCases(T /*unused*/, D d, size_t& padded,
 
   size_t i = 0;
   for (; i < kNumTestCases; ++i) {
-    const T a = test_cases[i].a;
+    const T a =
+        test_cases[i].a * hwy::ConvertScalarTo<T>(hwy::Unpredictable1());
     const T b = test_cases[i].b;
 
 #if HWY_TARGET <= HWY_NEON_WITHOUT_AES && HWY_ARCH_ARM_V7
@@ -519,10 +526,10 @@ void HypotTestCases(T /*unused*/, D d, size_t& padded,
     out_a[i] = a;
     out_b[i] = b;
 
-    if (ScalarIsNaN(a)) {
-      out_expected[i] = a;
-    } else if (ScalarIsNaN(b)) {
-      out_expected[i] = b;
+    if (ScalarIsInf(a) || ScalarIsInf(b)) {
+      out_expected[i] = inf;
+    } else if (ScalarIsNaN(a) || ScalarIsNaN(b)) {
+      out_expected[i] = nan;
     } else {
       out_expected[i] = std::hypot(a, b);
     }
@@ -581,7 +588,7 @@ struct TestHypot {
             hwy::detail::ComputeUlpDelta(actual1_val, expected_val);
         if (ulp1 > kMaxErrorUlp) {
           fprintf(stderr,
-                  "%s: Hypot(%f, %f) lane %d expected %E actual %E ulp %g max "
+                  "%s: Hypot(%e, %e) lane %d expected %E actual %E ulp %g max "
                   "ulp %u\n",
                   hwy::TypeName(T(), Lanes(d)).c_str(), val_a, val_b,
                   static_cast<int>(j), expected_val, actual1_val,
@@ -593,7 +600,7 @@ struct TestHypot {
             hwy::detail::ComputeUlpDelta(actual2_val, expected_val);
         if (ulp2 > kMaxErrorUlp) {
           fprintf(stderr,
-                  "%s: Hypot(%f, %f) expected %E actual %E ulp %g max ulp %u\n",
+                  "%s: Hypot(%e, %e) expected %E actual %E ulp %g max ulp %u\n",
                   hwy::TypeName(T(), Lanes(d)).c_str(), val_b, val_a,
                   expected_val, actual2_val, static_cast<double>(ulp2),
                   static_cast<uint32_t>(kMaxErrorUlp));
@@ -603,9 +610,12 @@ struct TestHypot {
       }
     }
 
-    fprintf(stderr, "%s: Hypot max_ulp %g\n",
-            hwy::TypeName(T(), Lanes(d)).c_str(), static_cast<double>(max_ulp));
-    HWY_ASSERT(max_ulp <= kMaxErrorUlp);
+    if (max_ulp != 0) {
+      fprintf(stderr, "%s: Hypot max_ulp %g\n",
+              hwy::TypeName(T(), Lanes(d)).c_str(),
+              static_cast<double>(max_ulp));
+      HWY_ASSERT(max_ulp <= kMaxErrorUlp);
+    }
   }
 };
 

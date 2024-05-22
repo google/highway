@@ -24,6 +24,7 @@
 #include <string>
 
 #include "hwy/base.h"
+#include "hwy/nanobenchmark.h"
 #include "hwy/print.h"
 
 namespace hwy {
@@ -35,7 +36,9 @@ HWY_MAYBE_UNUSED constexpr size_t kTestMaxVectorSize = 64;
 // which triggers a compiler bug.
 class RandomState {
  public:
-  explicit RandomState(const uint64_t seed = 0x123456789ull) {
+  explicit RandomState(
+      const uint64_t seed = uint64_t{0x123456789} *
+                            static_cast<uint64_t>(hwy::Unpredictable1())) {
     s0_ = SplitMix64(seed + 0x9E3779B97F4A7C15ull);
     s1_ = SplitMix64(s0_);
   }

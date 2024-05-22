@@ -322,9 +322,8 @@ HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
 #pragma intrinsic(memset)
 #endif
 
-// The source/destination must not overlap/alias.
 template <size_t kBytes, typename From, typename To>
-HWY_API void CopyBytes(const From* from, To* to) {
+HWY_API void CopyBytes(const From* HWY_RESTRICT from, To* HWY_RESTRICT to) {
 #if HWY_COMPILER_MSVC
   memcpy(to, from, kBytes);
 #else

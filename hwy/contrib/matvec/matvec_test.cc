@@ -13,8 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <vector>
-
 #include "hwy/base.h"
 
 // Reduce targets to avoid timeout under emulation.
@@ -37,6 +35,7 @@
 #include "hwy/contrib/matvec/matvec-inl.h"
 #include "hwy/highway.h"
 #include "hwy/contrib/thread_pool/thread_pool.h"
+#include "hwy/contrib/thread_pool/topology.h"
 #include "hwy/tests/test_util-inl.h"
 // clang-format on
 
@@ -45,51 +44,77 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 
 template <typename MatT, typename T>
-HWY_NOINLINE void SimpleMatVecAdd(const MatT* mat, const T* vec, const T* add,
-                                  size_t rows, size_t cols, T* out,
+HWY_NOINLINE void SimpleMatVecAdd(const MatT* HWY_RESTRICT mat,
+                                  const T* HWY_RESTRICT vec,
+                                  const T* HWY_RESTRICT add, size_t rows,
+                                  size_t cols, T* HWY_RESTRICT out,
                                   ThreadPool& pool) {
-  pool.Run(0, rows, [=](uint64_t r, size_t /*thread*/) {
-    T dot = ConvertScalarTo<T>(0);
-    for (size_t c = 0; c < cols; c++) {
-      // For reasons unknown, fp16 += does not compile on clang (Arm).
-      dot = ConvertScalarTo<T>(dot + mat[r * cols + c] * vec[c]);
-    }
-    out[r] = dot;
-    if (add) {
-      out[r] = out[r] + add[r];
-    }
-  });
+  if (add) {
+    pool.Run(0, rows, [=](uint64_t r, size_t /*thread*/) {
+      T dot = ConvertScalarTo<T>(0);
+      for (size_t c = 0; c < cols; c++) {
+        // For reasons unknown, fp16 += does not compile on clang (Arm).
+        dot = ConvertScalarTo<T>(dot + mat[r * cols + c] * vec[c]);
+      }
+      out[r] = dot + add[r];
+    });
+  } else {
+    pool.Run(0, rows, [=](uint64_t r, size_t /*thread*/) {
+      T dot = ConvertScalarTo<T>(0);
+      for (size_t c = 0; c < cols; c++) {
+        // For reasons unknown, fp16 += does not compile on clang (Arm).
+        dot = ConvertScalarTo<T>(dot + mat[r * cols + c] * vec[c]);
+      }
+      out[r] = dot;
+    });
+  }
 }
 
-HWY_NOINLINE void SimpleMatVecAdd(const hwy::bfloat16_t* mat, const float* vec,
+HWY_NOINLINE void SimpleMatVecAdd(const hwy::bfloat16_t* HWY_RESTRICT mat,
+                                  const float* HWY_RESTRICT vec,
                                   const float* add, size_t rows, size_t cols,
-                                  float* out, ThreadPool& pool) {
-  pool.Run(0, rows, [=](uint64_t r, size_t /*thread*/) {
-    float dot = 0.0f;
-    for (size_t c = 0; c < cols; c++) {
-      dot += F32FromBF16(mat[r * cols + c]) * vec[c];
-    }
-    out[r] = dot;
-    if (add) {
-      out[r] = out[r] + add[r];
-    }
-  });
+                                  float* HWY_RESTRICT out, ThreadPool& pool) {
+  if (add) {
+    pool.Run(0, rows, [=](uint64_t r, size_t /*thread*/) {
+      float dot = 0.0f;
+      for (size_t c = 0; c < cols; c++) {
+        dot += F32FromBF16(mat[r * cols + c]) * vec[c];
+      }
+      out[r] = dot + add[r];
+    });
+  } else {
+    pool.Run(0, rows, [=](uint64_t r, size_t /*thread*/) {
+      float dot = 0.0f;
+      for (size_t c = 0; c < cols; c++) {
+        dot += F32FromBF16(mat[r * cols + c]) * vec[c];
+      }
+      out[r] = dot;
+    });
+  }
 }
 
-HWY_NOINLINE void SimpleMatVecAdd(const hwy::bfloat16_t* mat,
-                                  const hwy::bfloat16_t* vec,
-                                  const hwy::bfloat16_t* add, size_t rows,
-                                  size_t cols, float* out, ThreadPool& pool) {
-  pool.Run(0, rows, [=](uint64_t r, size_t /*thread*/) {
-    float dot = 0.0f;
-    for (size_t c = 0; c < cols; c++) {
-      dot += F32FromBF16(mat[r * cols + c]) * F32FromBF16(vec[c]);
-    }
-    out[r] = dot;
-    if (add) {
-      out[r] = out[r] + F32FromBF16(add[r]);
-    }
-  });
+HWY_NOINLINE void SimpleMatVecAdd(const hwy::bfloat16_t* HWY_RESTRICT mat,
+                                  const hwy::bfloat16_t* HWY_RESTRICT vec,
+                                  const hwy::bfloat16_t* HWY_RESTRICT add,
+                                  size_t rows, size_t cols,
+                                  float* HWY_RESTRICT out, ThreadPool& pool) {
+  if (add) {
+    pool.Run(0, rows, [=](uint64_t r, size_t /*thread*/) {
+      float dot = 0.0f;
+      for (size_t c = 0; c < cols; c++) {
+        dot += F32FromBF16(mat[r * cols + c]) * F32FromBF16(vec[c]);
+      }
+      out[r] = dot + F32FromBF16(add[r]);
+    });
+  } else {
+    pool.Run(0, rows, [=](uint64_t r, size_t /*thread*/) {
+      float dot = 0.0f;
+      for (size_t c = 0; c < cols; c++) {
+        dot += F32FromBF16(mat[r * cols + c]) * F32FromBF16(vec[c]);
+      }
+      out[r] = dot;
+    });
+  }
 }
 
 struct GenerateMod {
@@ -128,9 +153,9 @@ struct GenerateMod {
 
 // MatT is usually the same as T, but can also be bfloat16_t when T = float.
 template <typename MatT, typename VecT>
-class TestMatVec {
+class TestMatVecAdd {
   template <size_t kRows, size_t kCols, class D, typename T = TFromD<D>>
-  void Test(D d, ThreadPool& pool) {
+  HWY_NOINLINE void Test(D d, ThreadPool& pool) {
 // This target lacks too many ops required in our implementation, use
 // HWY_EMU128 instead.
 #if HWY_TARGET != HWY_SCALAR
@@ -199,17 +224,15 @@ class TestMatVec {
   }
 
   template <class D>
-  void CreatePoolAndTest(D d, size_t num_threads) {
-#if HWY_ARCH_WASM
+  HWY_NOINLINE void CreatePoolAndTest(D d, size_t num_threads) {
     // Threads might not work on WASM; run only on main thread.
-    num_threads = 0;
-#endif
+    if (HaveThreadingSupport()) num_threads = 0;
 
     ThreadPool pool(HWY_MIN(num_threads, ThreadPool::MaxThreads()));
 
     Test<AdjustedReps(192), AdjustedReps(256)>(d, pool);
 // Fewer tests due to compiler OOM
-#if HWY_TARGET != HWY_RVV
+#if !HWY_ARCH_RISCV
     Test<40, AdjustedReps(512)>(d, pool);
     Test<AdjustedReps(1024), 50>(d, pool);
 
@@ -217,56 +240,36 @@ class TestMatVec {
     if (sizeof(TFromD<D>) != 2 && sizeof(VecT) != 2) {
       Test<AdjustedReps(1536), AdjustedReps(1536)>(d, pool);
     }
-#endif  // HWY_TARGET != HWY_RVV
+#endif  // !HWY_ARCH_RISCV
   }
 
  public:
   template <class T, class D>
-  HWY_INLINE void operator()(T /*unused*/, D d) {
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
     CreatePoolAndTest(d, 13);
 // Fewer tests due to compiler OOM
-#if HWY_TARGET != HWY_RVV
+#if !HWY_ARCH_RISCV
     CreatePoolAndTest(d, 16);
 #endif
   }
 };
 
-void TestMatVecAdd() {
-  ThreadPool pool(1);
-  auto mat = AllocateAligned<float>(8);
-  HWY_ASSERT(mat);
-  CopyBytes(std::vector<float>{1, 2, 3, 4, 5, 6, 7, 8}.data(), mat.get(),
-            8 * sizeof(float));
-  auto vec = AllocateAligned<float>(4);
-  HWY_ASSERT(vec);
-  CopyBytes(std::vector<float>{1, 2, 3, 4}.data(), vec.get(),
-            4 * sizeof(float));
-  auto add = AllocateAligned<float>(2);
-  HWY_ASSERT(add);
-  CopyBytes(std::vector<float>{1, 2}.data(), add.get(), 2 * sizeof(float));
-  auto out = AllocateAligned<float>(2);
-  HWY_ASSERT(out);
-  MatVecAdd<2, 4>(mat.get(), vec.get(), add.get(), out.get(), pool);
-  HWY_ASSERT_EQ(out[0], 1 * 1 + 2 * 2 + 3 * 3 + 4 * 4 + 1);
-  HWY_ASSERT_EQ(out[1], 5 * 1 + 6 * 2 + 7 * 3 + 8 * 4 + 2);
-}
-
-void TestAllMatVec() {
+void TestAllMatVecAdd() {
 #if HWY_HAVE_FLOAT16
-  ForPartialVectors<TestMatVec<float16_t, float16_t>>()(float16_t());
+  ForPartialVectors<TestMatVecAdd<float16_t, float16_t>>()(float16_t());
 #endif
-  ForPartialVectors<TestMatVec<float, float>>()(float());
+  ForPartialVectors<TestMatVecAdd<float, float>>()(float());
 #if HWY_HAVE_FLOAT64
-  ForPartialVectors<TestMatVec<double, double>>()(double());
+  ForPartialVectors<TestMatVecAdd<double, double>>()(double());
 #endif
 }
 
 void TestAllMatVecBF16() {
-  ForGEVectors<32, TestMatVec<bfloat16_t, float>>()(float());
+  ForGEVectors<32, TestMatVecAdd<bfloat16_t, float>>()(float());
 }
 
 void TestAllMatVecBF16Both() {
-  ForGEVectors<32, TestMatVec<bfloat16_t, bfloat16_t>>()(float());
+  ForGEVectors<32, TestMatVecAdd<bfloat16_t, bfloat16_t>>()(float());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
@@ -278,11 +281,10 @@ HWY_AFTER_NAMESPACE();
 
 namespace hwy {
 HWY_BEFORE_TEST(MatVecTest);
-HWY_EXPORT_AND_TEST_P(MatVecTest, TestAllMatVec);
+HWY_EXPORT_AND_TEST_P(MatVecTest, TestAllMatVecAdd);
 HWY_EXPORT_AND_TEST_P(MatVecTest, TestAllMatVecBF16);
 HWY_EXPORT_AND_TEST_P(MatVecTest, TestAllMatVecBF16Both);
-HWY_EXPORT_AND_TEST_P(MatVecTest, TestMatVecAdd);
 HWY_AFTER_TEST();
 }  // namespace hwy
 
-#endif
+#endif  // HWY_ONCE

@@ -964,11 +964,6 @@ HWY_API V And(const V a, const V b) {
 
 // ------------------------------ Or
 
-// Non-vector version (ideally immediate) for use with RoundF32ForDemoteToBF16
-namespace detail {
-HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, OrS, or_vx, _ALL)
-}  // namespace detail
-
 HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, Or, or, _ALL)
 
 template <class V, HWY_IF_FLOAT_V(V)>
@@ -1684,7 +1679,7 @@ HWY_API V IfVecThenElse(const V mask, const V yes, const V no) {
 }
 
 // ------------------------------ BroadcastSignBit
-template <class V>
+template <class V, HWY_IF_SIGNED_V(V)>
 HWY_API V BroadcastSignBit(const V v) {
   return ShiftRight<sizeof(TFromV<V>) * 8 - 1>(v);
 }
@@ -2885,41 +2880,38 @@ HWY_API vfloat32m4_t DemoteTo(Simd<float, N, 2> d, const vuint64m8_t v) {
   return __riscv_vfncvt_f_xu_w_f32m4(v, Lanes(d));
 }
 
+// Narrows f32 bits to bf16 using round to even.
 // SEW is for the source so we can use _DEMOTE_VIRT.
-#define HWY_RVV_DEMOTE_TO_SHR_16(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD,   \
-                                 LMULH, SHIFT, MLEN, NAME, OP)               \
+#ifdef HWY_RVV_AVOID_VXRM
+#define HWY_RVV_DEMOTE_16_NEAREST_EVEN(BASE, CHAR, SEW, SEWD, SEWH, LMUL,    \
+                                       LMULD, LMULH, SHIFT, MLEN, NAME, OP)  \
+  template <size_t N>                                                        \
+  HWY_API HWY_RVV_V(BASE, SEWH, LMULH) NAME(                                 \
+      HWY_RVV_D(BASE, SEWH, N, SHIFT - 1) d, HWY_RVV_V(BASE, SEW, LMUL) v) { \
+    const auto round =                                                       \
+        detail::AddS(detail::AndS(ShiftRight<16>(v), 1u), 0x7FFFu);          \
+    v = Add(v, round);                                                       \
+    /* The default rounding mode appears to be RNU=0, which adds the LSB. */ \
+    /* Prevent further rounding by clearing the bits we want to truncate. */ \
+    v = detail::AndS(v, 0xFFFF0000u);                                        \
+    return __riscv_v##OP##CHAR##SEWH##LMULH(v, 16, Lanes(d));                \
+  }
+
+#else
+#define HWY_RVV_DEMOTE_16_NEAREST_EVEN(BASE, CHAR, SEW, SEWD, SEWH, LMUL,    \
+                                       LMULD, LMULH, SHIFT, MLEN, NAME, OP)  \
   template <size_t N>                                                        \
   HWY_API HWY_RVV_V(BASE, SEWH, LMULH) NAME(                                 \
       HWY_RVV_D(BASE, SEWH, N, SHIFT - 1) d, HWY_RVV_V(BASE, SEW, LMUL) v) { \
     return __riscv_v##OP##CHAR##SEWH##LMULH(                                 \
-        v, 16, HWY_RVV_INSERT_VXRM(__RISCV_VXRM_RDN, Lanes(d)));             \
+        v, 16, HWY_RVV_INSERT_VXRM(__RISCV_VXRM_RNE, Lanes(d)));             \
   }
+#endif  // HWY_RVV_AVOID_VXRM
 namespace detail {
-HWY_RVV_FOREACH_U32(HWY_RVV_DEMOTE_TO_SHR_16, DemoteToShr16, nclipu_wx_,
-                    _DEMOTE_VIRT)
+HWY_RVV_FOREACH_U32(HWY_RVV_DEMOTE_16_NEAREST_EVEN, DemoteTo16NearestEven,
+                    nclipu_wx_, _DEMOTE_VIRT)
 }
-#undef HWY_RVV_DEMOTE_TO_SHR_16
-
-namespace detail {
-
-// Round a F32 value to the nearest BF16 value, with the result returned as the
-// rounded F32 value bitcasted to an U32
-
-// RoundF32ForDemoteToBF16 also converts NaN values to QNaN values to prevent
-// NaN F32 values from being converted to an infinity
-template <class V, HWY_IF_F32(TFromV<V>)>
-HWY_INLINE VFromD<RebindToUnsigned<DFromV<V>>> RoundF32ForDemoteToBF16(V v) {
-  const RebindToUnsigned<DFromV<V>> du32;
-  const auto is_non_nan = Eq(v, v);
-  const auto bits32 = BitCast(du32, v);
-
-  const auto round_incr =
-      detail::AddS(detail::AndS(ShiftRight<16>(bits32), 1u), 0x7FFFu);
-  return MaskedAddOr(detail::OrS(bits32, 0x00400000u), is_non_nan, bits32,
-                     round_incr);
-}
-
-}  // namespace detail
+#undef HWY_RVV_DEMOTE_16_NEAREST_EVEN
 
 #ifdef HWY_NATIVE_DEMOTE_F32_TO_BF16
 #undef HWY_NATIVE_DEMOTE_F32_TO_BF16
@@ -2927,12 +2919,21 @@ HWY_INLINE VFromD<RebindToUnsigned<DFromV<V>>> RoundF32ForDemoteToBF16(V v) {
 #define HWY_NATIVE_DEMOTE_F32_TO_BF16
 #endif
 
-template <size_t N, int kPow2>
-HWY_API VFromD<Simd<hwy::bfloat16_t, N, kPow2>> DemoteTo(
-    Simd<hwy::bfloat16_t, N, kPow2> d, VFromD<Simd<float, N, kPow2 + 1>> v) {
+template <class DBF16, HWY_IF_BF16_D(DBF16)>
+HWY_API VFromD<DBF16> DemoteTo(DBF16 d, VFromD<Rebind<float, DBF16>> v) {
+  const DFromV<decltype(v)> df;
+  const RebindToUnsigned<decltype(df)> du32;
   const RebindToUnsigned<decltype(d)> du16;
+  // Consider an f32 mantissa with the upper 7 bits set, followed by a 1-bit
+  // and at least one other bit set. This will round to 0 and increment the
+  // exponent. If the exponent was already 0xFF (NaN), then the result is -inf;
+  // there no wraparound because nclipu saturates. Note that in this case, the
+  // input cannot have been inf because its mantissa bits are zero. To avoid
+  // converting NaN to inf, we canonicalize the NaN to prevent the rounding.
+  const decltype(v) canonicalized =
+      IfThenElse(Eq(v, v), v, BitCast(df, Set(du32, 0x7F800000)));
   return BitCast(
-      d, detail::DemoteToShr16(du16, detail::RoundF32ForDemoteToBF16(v)));
+      d, detail::DemoteTo16NearestEven(du16, BitCast(du32, canonicalized)));
 }
 
 #ifdef HWY_NATIVE_DEMOTE_F64_TO_F16
@@ -5263,7 +5264,7 @@ HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
   // Slow fallback for completeness; the above bits to mask cast is preferred.
   const RebindToUnsigned<D> du;
   const VFromD<decltype(du)> bits =
-      Shl(Set(du, uint16_t{1}), Iota(du, uint16_t{0}));
+      Shl(Set(du, uint16_t{1}), detail::AndS(detail::Iota0(du), 7));
   return TestBit(Set(du, static_cast<uint16_t>(mask_bits)), bits);
 #endif
 }
@@ -5280,8 +5281,7 @@ HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
 #else
   // Slow fallback for completeness; the above bits to mask cast is preferred.
   const RebindToUnsigned<D> du;
-  const VFromD<decltype(du)> bits =
-      Shl(Set(du, uint32_t{1}), Iota(du, uint32_t{0}));
+  const VFromD<decltype(du)> bits = Dup128VecFromValues(du, 1, 2, 4, 8);
   return TestBit(Set(du, static_cast<uint32_t>(mask_bits)), bits);
 #endif
 }
@@ -5298,7 +5298,7 @@ HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
 #else
   // Slow fallback for completeness; the above bits to mask cast is preferred.
   const RebindToUnsigned<D> du;
-  const VFromD<decltype(du)> bits = Dup128VecFromValues(du, 0, 1);
+  const VFromD<decltype(du)> bits = Dup128VecFromValues(du, 1, 2);
   return TestBit(Set(du, static_cast<uint64_t>(mask_bits)), bits);
 #endif
 }
@@ -5612,12 +5612,17 @@ HWY_API VFromD<Simd<hwy::bfloat16_t, N, kPow2>> ReorderDemote2To(
     VFromD<RepartitionToWide<decltype(dbf16)>> a,
     VFromD<RepartitionToWide<decltype(dbf16)>> b) {
   const RebindToUnsigned<decltype(dbf16)> du16;
+  const Half<decltype(du16)> du16_half;
   const RebindToUnsigned<DFromV<decltype(a)>> du32;
-  const VFromD<decltype(du32)> b_in_even =
-      ShiftRight<16>(detail::RoundF32ForDemoteToBF16(b));
-  return BitCast(dbf16,
-                 OddEven(BitCast(du16, detail::RoundF32ForDemoteToBF16(a)),
-                         BitCast(du16, b_in_even)));
+  const VFromD<decltype(du32)> a_in_even = PromoteTo(
+      du32, detail::DemoteTo16NearestEven(du16_half, BitCast(du32, a)));
+  const VFromD<decltype(du32)> b_in_even = PromoteTo(
+      du32, detail::DemoteTo16NearestEven(du16_half, BitCast(du32, b)));
+  // Equivalent to InterleaveEven, but because the upper 16 bits are zero, we
+  // can OR instead of OddEven.
+  const VFromD<decltype(du16)> a_in_odd =
+      detail::Slide1Up(BitCast(du16, a_in_even));
+  return BitCast(dbf16, Or(a_in_odd, BitCast(du16, b_in_even)));
 }
 
 // If LMUL is not the max, Combine first to avoid another DemoteTo.
@@ -5705,8 +5710,11 @@ HWY_API VFromD<DN> OrderedDemote2To(DN dn, V a, V b) {
 template <class DF, HWY_IF_F32_D(DF),
           class VBF = VFromD<Repartition<hwy::bfloat16_t, DF>>>
 HWY_API VFromD<DF> WidenMulPairwiseAdd(DF df, VBF a, VBF b) {
-  return MulAdd(PromoteEvenTo(df, a), PromoteEvenTo(df, b),
-                Mul(PromoteOddTo(df, a), PromoteOddTo(df, b)));
+  const VFromD<DF> ae = PromoteEvenTo(df, a);
+  const VFromD<DF> be = PromoteEvenTo(df, b);
+  const VFromD<DF> ao = PromoteOddTo(df, a);
+  const VFromD<DF> bo = PromoteOddTo(df, b);
+  return MulAdd(ae, be, Mul(ao, bo));
 }
 
 template <class D, HWY_IF_UI32_D(D), class V16 = VFromD<RepartitionToNarrow<D>>>

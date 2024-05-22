@@ -23,6 +23,7 @@
 #endif
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include "hwy/highway.h"
 
@@ -1614,6 +1615,7 @@ HWY_INLINE V Hypot(const D d, V a, V b) {
   using TI = MakeSigned<T>;
   const RebindToUnsigned<decltype(d)> du;
   const RebindToSigned<decltype(d)> di;
+  using VI = VFromD<decltype(di)>;
 
   constexpr int kMaxBiasedExp = static_cast<int>(MaxExponentField<T>());
   static_assert(kMaxBiasedExp > 0, "kMaxBiasedExp > 0 must be true");
@@ -1659,28 +1661,28 @@ HWY_INLINE V Hypot(const D d, V a, V b) {
   const V abs_a = Abs(a);
   const V abs_b = Abs(b);
 
-  const auto zero = Zero(di);
+  const MFromD<D> either_inf = Or(IsInf(a), IsInf(b));
+
+  const VI zero = Zero(di);
 
   // exp_a[i] is the biased exponent of abs_a[i]
-  const auto exp_a =
-      BitCast(di, ShiftRight<kNumOfMantBits>(BitCast(du, abs_a)));
+  const VI exp_a = BitCast(di, ShiftRight<kNumOfMantBits>(BitCast(du, abs_a)));
 
   // exp_b[i] is the biased exponent of abs_b[i]
-  const auto exp_b =
-      BitCast(di, ShiftRight<kNumOfMantBits>(BitCast(du, abs_b)));
+  const VI exp_b = BitCast(di, ShiftRight<kNumOfMantBits>(BitCast(du, abs_b)));
 
   // max_exp[i] is equal to HWY_MAX(exp_a[i], exp_b[i])
 
   // If abs_a[i] and abs_b[i] are both NaN values, max_exp[i] will be equal to
   // the biased exponent of the larger value. Otherwise, if either abs_a[i] or
   // abs_b[i] is NaN, max_exp[i] will be equal to kMaxBiasedExp.
-  const auto max_exp = BitCast(
+  const VI max_exp = BitCast(
       di, Max(BitCast(d_exp_min_max, exp_a), BitCast(d_exp_min_max, exp_b)));
 
   // If either abs_a[i] or abs_b[i] is zero, min_exp[i] is equal to max_exp[i].
   // Otherwise, if abs_a[i] and abs_b[i] are both nonzero, min_exp[i] is equal
   // to HWY_MIN(exp_a[i], exp_b[i]).
-  const auto min_exp = IfThenElse(
+  const VI min_exp = IfThenElse(
       Or(Eq(BitCast(di, abs_a), zero), Eq(BitCast(di, abs_b), zero)), max_exp,
       BitCast(di, Min(BitCast(d_exp_min_max, exp_a),
                       BitCast(d_exp_min_max, exp_b))));
@@ -1705,7 +1707,7 @@ HWY_INLINE V Hypot(const D d, V a, V b) {
   // multiplication and addition operations result in a finite result if
   // std::hypot(abs_a[i], abs_b[i]) is finite.
 
-  const auto scl_pow2 = BitCast(
+  const VI scl_pow2 = BitCast(
       di,
       Min(BitCast(d_exp_min_max,
                   SaturatedSub(BitCast(d_exp_sat_sub,
@@ -1716,18 +1718,19 @@ HWY_INLINE V Hypot(const D d, V a, V b) {
                   Sub(Set(di, static_cast<TI>(kMaxValToSquareBiasedExp)),
                       max_exp))));
 
-  const auto exp_bias = Set(di, static_cast<TI>(kExpBias));
+  const VI exp_bias = Set(di, static_cast<TI>(kExpBias));
 
-  const auto ab_scl_factor =
+  const V ab_scl_factor =
       BitCast(d, ShiftLeft<kNumOfMantBits>(Add(exp_bias, scl_pow2)));
-  const auto hypot_scl_factor =
+  const V hypot_scl_factor =
       BitCast(d, ShiftLeft<kNumOfMantBits>(Sub(exp_bias, scl_pow2)));
 
-  const auto scl_a = Mul(abs_a, ab_scl_factor);
-  const auto scl_b = Mul(abs_b, ab_scl_factor);
+  const V scl_a = Mul(abs_a, ab_scl_factor);
+  const V scl_b = Mul(abs_b, ab_scl_factor);
 
-  const auto scl_hypot = Sqrt(MulAdd(scl_a, scl_a, Mul(scl_b, scl_b)));
-  return Mul(scl_hypot, hypot_scl_factor);
+  const V scl_hypot = Sqrt(MulAdd(scl_a, scl_a, Mul(scl_b, scl_b)));
+  // std::hypot returns inf if one input is +/- inf, even if the other is NaN.
+  return IfThenElse(either_inf, Inf(d), Mul(scl_hypot, hypot_scl_factor));
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
