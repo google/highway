@@ -2597,6 +2597,14 @@ struct Pack16<16> {
   }
 };  // Pack16<16>
 
+// The supported packing types for 32/64 bits.
+enum BlockPackingType {
+  // Simple fixed bit-packing.
+  kBitPacked,
+  // Bit packing after subtracting a `frame of reference` value from input.
+  kFoRBitPacked,
+};
+
 namespace detail {
 
 // Generates the implementation for bit-packing/un-packing `T` type numbers
@@ -2604,20 +2612,22 @@ namespace detail {
 // `S` is the remainder bits left from the previous bit-packed block.
 // `kLoadPos` is the offset from which the next vector block should be loaded.
 // `kStorePos` is the offset into which the next vector block should be stored.
-template <typename T, size_t kBits, size_t S, size_t kLoadPos, size_t kStorePos>
+// `BlockPackingType` is the type of packing/unpacking for this block.
+template <typename T, size_t kBits, size_t S, size_t kLoadPos, size_t kStorePos,
+          BlockPackingType block_packing_type>
 struct BitPackUnroller {
   static constexpr size_t B = sizeof(T) * 8;
+
   template <class D, typename V>
   static inline void Pack(D d, const T* HWY_RESTRICT raw,
-                          T* HWY_RESTRICT packed_out, const V& mask, V& in,
-                          V& out) {
+                          T* HWY_RESTRICT packed_out, const V& mask,
+                          const V& frame_of_reference, V& in, V& out) {
     // Avoid compilation errors and unnecessary template instantiation if
     // compiling in C++11 or C++14 mode
-    using NextUnroller =
-        BitPackUnroller<T, kBits,
-                        ((S <= B) ? (S + ((S < B) ? kBits : 0)) : (S % B)),
-                        kLoadPos + static_cast<size_t>(S < B),
-                        kStorePos + static_cast<size_t>(S > B)>;
+    using NextUnroller = BitPackUnroller<
+        T, kBits, ((S <= B) ? (S + ((S < B) ? kBits : 0)) : (S % B)),
+        kLoadPos + static_cast<size_t>(S < B),
+        kStorePos + static_cast<size_t>(S > B), block_packing_type>;
 
     (void)raw;
     (void)mask;
@@ -2632,31 +2642,38 @@ struct BitPackUnroller {
         out = ShiftRight<shr_amount>(in);
         // NextUnroller is a typedef for
         // Unroller<T, kBits, S % B, kLoadPos, kStorePos + 1> if S > B is true
-        return NextUnroller::Pack(d, raw, packed_out, mask, in, out);
+        return NextUnroller::Pack(d, raw, packed_out, mask, frame_of_reference,
+                                  in, out);
       }
     }
     HWY_IF_CONSTEXPR(S < B) {
-      in = And(LoadU(d, raw + kLoadPos * N), mask);
+      HWY_IF_CONSTEXPR(block_packing_type == BlockPackingType::kBitPacked) {
+        in = LoadU(d, raw + kLoadPos * N);
+      }
+      HWY_IF_CONSTEXPR(block_packing_type == BlockPackingType::kFoRBitPacked) {
+        in = Sub(LoadU(d, raw + kLoadPos * N), frame_of_reference);
+      }
       // Optimize for the case when `S` is zero.
       // We can skip `Or` + ShiftLeft` to align `in`.
       HWY_IF_CONSTEXPR(S == 0) { out = in; }
       HWY_IF_CONSTEXPR(S != 0) { out = Or(out, ShiftLeft<S % B>(in)); }
       // NextUnroller is a typedef for
       // Unroller<T, kBits, S + kBits, kLoadPos + 1, kStorePos> if S < B is true
-      return NextUnroller::Pack(d, raw, packed_out, mask, in, out);
+      return NextUnroller::Pack(d, raw, packed_out, mask, frame_of_reference,
+                                in, out);
     }
   }
 
   template <class D, typename V>
   static inline void Unpack(D d, const T* HWY_RESTRICT packed_in,
-                            T* HWY_RESTRICT raw, const V& mask, V& in, V& out) {
+                            T* HWY_RESTRICT raw, const V& mask,
+                            const V& frame_of_reference, V& in, V& out) {
     // Avoid compilation errors and unnecessary template instantiation if
     // compiling in C++11 or C++14 mode
-    using NextUnroller =
-        BitPackUnroller<T, kBits,
-                        ((S <= B) ? (S + ((S < B) ? kBits : 0)) : (S % B)),
-                        kLoadPos + static_cast<size_t>(S > B),
-                        kStorePos + static_cast<size_t>(S < B)>;
+    using NextUnroller = BitPackUnroller<
+        T, kBits, ((S <= B) ? (S + ((S < B) ? kBits : 0)) : (S % B)),
+        kLoadPos + static_cast<size_t>(S > B),
+        kStorePos + static_cast<size_t>(S < B), block_packing_type>;
 
     (void)packed_in;
     (void)mask;
@@ -2665,7 +2682,12 @@ struct BitPackUnroller {
     const size_t N = Lanes(d);
     HWY_IF_CONSTEXPR(S >= B) {
       HWY_IF_CONSTEXPR(S == B) {
-        StoreU(out, d, raw + kStorePos * N);
+        V bitpacked_output = out;
+        HWY_IF_CONSTEXPR(block_packing_type ==
+                         BlockPackingType::kFoRBitPacked) {
+          bitpacked_output = Add(bitpacked_output, frame_of_reference);
+        }
+        StoreU(bitpacked_output, d, raw + kStorePos * N);
         return;
       }
       HWY_IF_CONSTEXPR(S != B) {
@@ -2674,11 +2696,16 @@ struct BitPackUnroller {
         out = And(Or(out, ShiftLeft<shl_amount>(in)), mask);
         // NextUnroller is a typedef for
         // Unroller<T, kBits, S % B, kLoadPos + 1, kStorePos> if S > B is true
-        return NextUnroller::Unpack(d, packed_in, raw, mask, in, out);
+        return NextUnroller::Unpack(d, packed_in, raw, mask, frame_of_reference,
+                                    in, out);
       }
     }
     HWY_IF_CONSTEXPR(S < B) {
-      StoreU(out, d, raw + kStorePos * N);
+      V bitpacked_output = out;
+      HWY_IF_CONSTEXPR(block_packing_type == BlockPackingType::kFoRBitPacked) {
+        bitpacked_output = Add(bitpacked_output, frame_of_reference);
+      }
+      StoreU(bitpacked_output, d, raw + kStorePos * N);
       HWY_IF_CONSTEXPR(S + kBits < B) {
         // Optimize for the case when `S` is zero.
         // We can skip the `ShiftRight` to align `in`.
@@ -2688,7 +2715,8 @@ struct BitPackUnroller {
       HWY_IF_CONSTEXPR(S + kBits >= B) { out = ShiftRight<S % B>(in); }
       // NextUnroller is a typedef for
       // Unroller<T, kBits, S + kBits, kLoadPos, kStorePos + 1> if S < B is true
-      return NextUnroller::Unpack(d, packed_in, raw, mask, in, out);
+      return NextUnroller::Unpack(d, packed_in, raw, mask, frame_of_reference,
+                                  in, out);
     }
   }
 };
@@ -2727,31 +2755,43 @@ constexpr uint64_t MaskBits64<64>() {
 
 template <size_t kBits>  // <= 32
 struct Pack32 {
-  template <class D>
+  template <class D,
+            BlockPackingType block_packing_type = BlockPackingType::kBitPacked>
   HWY_INLINE void Pack(D d, const uint32_t* HWY_RESTRICT raw,
-                       uint32_t* HWY_RESTRICT packed_out) const {
+                       uint32_t* HWY_RESTRICT packed_out,
+                       const uint32_t frame_of_reference_value = 0) const {
     using V = VFromD<D>;
     const V mask = Set(d, detail::MaskBits32<kBits>());
+    const V frame_of_reference = Set(d, frame_of_reference_value);
     for (size_t i = 0; i < detail::NumLoops<kBits>(); ++i) {
       V in = Zero(d);
       V out = Zero(d);
-      detail::BitPackUnroller<uint32_t, kBits, 0, 0, 0>::Pack(
-          d, raw, packed_out, mask, in, out);
+      detail::BitPackUnroller<uint32_t, kBits, 0, 0, 0,
+                              block_packing_type>::Pack(d, raw, packed_out,
+                                                        mask,
+                                                        frame_of_reference, in,
+                                                        out);
       raw += detail::UnpackedIncr<uint32_t, kBits>() * Lanes(d);
       packed_out += detail::PackedIncr<kBits>() * Lanes(d);
     }
   }
 
-  template <class D>
+  template <class D,
+            BlockPackingType block_packing_type = BlockPackingType::kBitPacked>
   HWY_INLINE void Unpack(D d, const uint32_t* HWY_RESTRICT packed_in,
-                         uint32_t* HWY_RESTRICT raw) const {
+                         uint32_t* HWY_RESTRICT raw,
+                         const uint32_t frame_of_reference_value = 0) const {
     using V = VFromD<D>;
     const V mask = Set(d, detail::MaskBits32<kBits>());
+    const V frame_of_reference = Set(d, frame_of_reference_value);
     for (size_t i = 0; i < detail::NumLoops<kBits>(); ++i) {
       V in = LoadU(d, packed_in + 0 * Lanes(d));
       V out = And(in, mask);
-      detail::BitPackUnroller<uint32_t, kBits, kBits, 1, 0>::Unpack(
-          d, packed_in, raw, mask, in, out);
+      detail::BitPackUnroller<uint32_t, kBits, kBits, 1, 0,
+                              block_packing_type>::Unpack(d, packed_in, raw,
+                                                          mask,
+                                                          frame_of_reference,
+                                                          in, out);
       raw += detail::UnpackedIncr<uint32_t, kBits>() * Lanes(d);
       packed_in += detail::PackedIncr<kBits>() * Lanes(d);
     }
@@ -2760,31 +2800,43 @@ struct Pack32 {
 
 template <size_t kBits>  // <= 64
 struct Pack64 {
-  template <class D>
+  template <class D,
+            BlockPackingType block_packing_type = BlockPackingType::kBitPacked>
   HWY_INLINE void Pack(D d, const uint64_t* HWY_RESTRICT raw,
-                       uint64_t* HWY_RESTRICT packed_out) const {
+                       uint64_t* HWY_RESTRICT packed_out,
+                       const uint64_t frame_of_reference_value = 0) const {
     using V = VFromD<D>;
     const V mask = Set(d, detail::MaskBits64<kBits>());
+    const V frame_of_reference = Set(d, frame_of_reference_value);
     for (size_t i = 0; i < detail::NumLoops<kBits>(); ++i) {
       V in = Zero(d);
       V out = Zero(d);
-      detail::BitPackUnroller<uint64_t, kBits, 0, 0, 0>::Pack(
-          d, raw, packed_out, mask, in, out);
+      detail::BitPackUnroller<uint64_t, kBits, 0, 0, 0,
+                              block_packing_type>::Pack(d, raw, packed_out,
+                                                        mask,
+                                                        frame_of_reference, in,
+                                                        out);
       raw += detail::UnpackedIncr<uint64_t, kBits>() * Lanes(d);
       packed_out += detail::PackedIncr<kBits>() * Lanes(d);
     }
   }
 
-  template <class D>
+  template <class D,
+            BlockPackingType block_packing_type = BlockPackingType::kBitPacked>
   HWY_INLINE void Unpack(D d, const uint64_t* HWY_RESTRICT packed_in,
-                         uint64_t* HWY_RESTRICT raw) const {
+                         uint64_t* HWY_RESTRICT raw,
+                         const uint64_t frame_of_reference_value = 0) const {
     using V = VFromD<D>;
     const V mask = Set(d, detail::MaskBits64<kBits>());
+    const V frame_of_reference = Set(d, frame_of_reference_value);
     for (size_t i = 0; i < detail::NumLoops<kBits>(); ++i) {
       V in = LoadU(d, packed_in + 0 * Lanes(d));
       V out = And(in, mask);
-      detail::BitPackUnroller<uint64_t, kBits, kBits, 1, 0>::Unpack(
-          d, packed_in, raw, mask, in, out);
+      detail::BitPackUnroller<uint64_t, kBits, kBits, 1, 0,
+                              block_packing_type>::Unpack(d, packed_in, raw,
+                                                          mask,
+                                                          frame_of_reference,
+                                                          in, out);
       raw += detail::UnpackedIncr<uint64_t, kBits>() * Lanes(d);
       packed_in += detail::PackedIncr<kBits>() * Lanes(d);
     }
