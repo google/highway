@@ -6291,16 +6291,62 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, Vec32<int8_t> v) {
 #if HWY_TARGET <= HWY_AVX3
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I64_D(D)>
 HWY_API VFromD<D> PromoteInRangeTo(D /*di64*/, VFromD<Rebind<float, D>> v) {
+#if HWY_COMPILER_GCC_ACTUAL
+  // Workaround for undefined behavior with GCC if any values of v[i] are not
+  // within the range of an int64_t
+
+#if HWY_COMPILER_GCC_ACTUAL >= 700 && !HWY_IS_DEBUG_BUILD
+  if (detail::IsConstantX86VecForF2IConv<int64_t>(v)) {
+    typedef float GccF32RawVectType __attribute__((__vector_size__(16)));
+    const auto raw_v = reinterpret_cast<GccF32RawVectType>(v.raw);
+    return VFromD<D>{_mm256_setr_epi64x(
+        detail::X86ConvertScalarFromFloat<int64_t>(raw_v[0]),
+        detail::X86ConvertScalarFromFloat<int64_t>(raw_v[1]),
+        detail::X86ConvertScalarFromFloat<int64_t>(raw_v[2]),
+        detail::X86ConvertScalarFromFloat<int64_t>(raw_v[3]))};
+  }
+#endif
+
+  __m256i raw_result;
+  __asm__("vcvttps2qq {%1, %0|%0, %1}"
+          : "=" HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(raw_result)
+          : HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(v.raw)
+          :);
+  return VFromD<D>{raw_result};
+#else   // !HWY_COMPILER_GCC_ACTUAL
   return VFromD<D>{_mm256_cvttps_epi64(v.raw)};
+#endif  // HWY_COMPILER_GCC_ACTUAL
 }
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U64_D(D)>
 HWY_API VFromD<D> PromoteInRangeTo(D /* tag */, VFromD<Rebind<float, D>> v) {
+#if HWY_COMPILER_GCC_ACTUAL
+  // Workaround for undefined behavior with GCC if any values of v[i] are not
+  // within the range of an uint64_t
+#if HWY_COMPILER_GCC_ACTUAL >= 700 && !HWY_IS_DEBUG_BUILD
+  if (detail::IsConstantX86VecForF2IConv<uint64_t>(v)) {
+    typedef float GccF32RawVectType __attribute__((__vector_size__(16)));
+    const auto raw_v = reinterpret_cast<GccF32RawVectType>(v.raw);
+    return VFromD<D>{_mm256_setr_epi64x(
+        static_cast<int64_t>(
+            detail::X86ConvertScalarFromFloat<uint64_t>(raw_v[0])),
+        static_cast<int64_t>(
+            detail::X86ConvertScalarFromFloat<uint64_t>(raw_v[1])),
+        static_cast<int64_t>(
+            detail::X86ConvertScalarFromFloat<uint64_t>(raw_v[2])),
+        static_cast<int64_t>(
+            detail::X86ConvertScalarFromFloat<uint64_t>(raw_v[3])))};
+  }
+#endif
+
+  __m256i raw_result;
+  __asm__("vcvttps2uqq {%1, %0|%0, %1}"
+          : "=" HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(raw_result)
+          : HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(v.raw)
+          :);
+  return VFromD<D>{raw_result};
+#else   // !HWY_COMPILER_GCC_ACTUAL
   return VFromD<D>{_mm256_cvttps_epu64(v.raw)};
-}
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U64_D(D)>
-HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<float, D>> v) {
-  return VFromD<D>{_mm256_maskz_cvttps_epu64(
-      detail::UnmaskedNot(MaskFromVec(v)).raw, v.raw)};
+#endif  // HWY_COMPILER_GCC_ACTUAL
 }
 #endif  // HWY_TARGET <= HWY_AVX3
 
@@ -6627,18 +6673,61 @@ HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<double> v) {
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_I32_D(D)>
 HWY_API VFromD<D> DemoteInRangeTo(D /* tag */, Vec256<double> v) {
+#if HWY_COMPILER_GCC_ACTUAL
+  // Workaround for undefined behavior in _mm256_cvttpd_epi32 with GCC if any
+  // values of v[i] are not within the range of an int32_t
+
+#if HWY_COMPILER_GCC_ACTUAL >= 700 && !HWY_IS_DEBUG_BUILD
+  if (detail::IsConstantX86VecForF2IConv<int32_t>(v)) {
+    typedef double GccF64RawVectType __attribute__((__vector_size__(32)));
+    const auto raw_v = reinterpret_cast<GccF64RawVectType>(v.raw);
+    return Dup128VecFromValues(
+        D(), detail::X86ConvertScalarFromFloat<int32_t>(raw_v[0]),
+        detail::X86ConvertScalarFromFloat<int32_t>(raw_v[1]),
+        detail::X86ConvertScalarFromFloat<int32_t>(raw_v[2]),
+        detail::X86ConvertScalarFromFloat<int32_t>(raw_v[3]));
+  }
+#endif
+
+  __m128i raw_result;
+  __asm__("vcvttpd2dq {%1, %0|%0, %1}"
+          : "=" HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(raw_result)
+          : HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(v.raw)
+          :);
+  return VFromD<D>{raw_result};
+#else
   return VFromD<D>{_mm256_cvttpd_epi32(v.raw)};
+#endif
 }
 
 #if HWY_TARGET <= HWY_AVX3
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U32_D(D)>
 HWY_API VFromD<D> DemoteInRangeTo(D /* tag */, Vec256<double> v) {
+#if HWY_COMPILER_GCC_ACTUAL
+  // Workaround for undefined behavior in _mm256_cvttpd_epu32 with GCC if any
+  // values of v[i] are not within the range of an uint32_t
+
+#if HWY_COMPILER_GCC_ACTUAL >= 700 && !HWY_IS_DEBUG_BUILD
+  if (detail::IsConstantX86VecForF2IConv<uint32_t>(v)) {
+    typedef double GccF64RawVectType __attribute__((__vector_size__(32)));
+    const auto raw_v = reinterpret_cast<GccF64RawVectType>(v.raw);
+    return Dup128VecFromValues(
+        D(), detail::X86ConvertScalarFromFloat<uint32_t>(raw_v[0]),
+        detail::X86ConvertScalarFromFloat<uint32_t>(raw_v[1]),
+        detail::X86ConvertScalarFromFloat<uint32_t>(raw_v[2]),
+        detail::X86ConvertScalarFromFloat<uint32_t>(raw_v[3]));
+  }
+#endif
+
+  __m128i raw_result;
+  __asm__("vcvttpd2udq {%1, %0|%0, %1}"
+          : "=" HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(raw_result)
+          : HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(v.raw)
+          :);
+  return VFromD<D>{raw_result};
+#else
   return VFromD<D>{_mm256_cvttpd_epu32(v.raw)};
-}
-template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U32_D(D)>
-HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<double> v) {
-  return VFromD<D>{_mm256_maskz_cvttpd_epu32(
-      detail::UnmaskedNot(MaskFromVec(v)).raw, v.raw)};
+#endif
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F32_D(D)>
@@ -6807,52 +6896,273 @@ HWY_API VFromD<D> ConvertTo(D /*dd*/, Vec256<uint64_t> v) {
 #if HWY_HAVE_FLOAT16
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I16_D(D)>
 HWY_API VFromD<D> ConvertInRangeTo(D /*d*/, Vec256<float16_t> v) {
+#if HWY_COMPILER_GCC_ACTUAL
+  // Workaround for undefined behavior in _mm256_cvttph_epi16 with GCC if any
+  // values of v[i] are not within the range of an int16_t
+
+#if HWY_COMPILER_GCC_ACTUAL >= 1200 && !HWY_IS_DEBUG_BUILD && \
+    HWY_HAVE_SCALAR_F16_TYPE
+  if (detail::IsConstantX86VecForF2IConv<int16_t>(v)) {
+    typedef hwy::float16_t::Native GccF16RawVectType
+        __attribute__((__vector_size__(32)));
+    const auto raw_v = reinterpret_cast<GccF16RawVectType>(v.raw);
+    return VFromD<D>{_mm256_setr_epi16(
+        detail::X86ConvertScalarFromFloat<int16_t>(raw_v[0]),
+        detail::X86ConvertScalarFromFloat<int16_t>(raw_v[1]),
+        detail::X86ConvertScalarFromFloat<int16_t>(raw_v[2]),
+        detail::X86ConvertScalarFromFloat<int16_t>(raw_v[3]),
+        detail::X86ConvertScalarFromFloat<int16_t>(raw_v[4]),
+        detail::X86ConvertScalarFromFloat<int16_t>(raw_v[5]),
+        detail::X86ConvertScalarFromFloat<int16_t>(raw_v[6]),
+        detail::X86ConvertScalarFromFloat<int16_t>(raw_v[7]),
+        detail::X86ConvertScalarFromFloat<int16_t>(raw_v[8]),
+        detail::X86ConvertScalarFromFloat<int16_t>(raw_v[9]),
+        detail::X86ConvertScalarFromFloat<int16_t>(raw_v[10]),
+        detail::X86ConvertScalarFromFloat<int16_t>(raw_v[11]),
+        detail::X86ConvertScalarFromFloat<int16_t>(raw_v[12]),
+        detail::X86ConvertScalarFromFloat<int16_t>(raw_v[13]),
+        detail::X86ConvertScalarFromFloat<int16_t>(raw_v[14]),
+        detail::X86ConvertScalarFromFloat<int16_t>(raw_v[15]))};
+  }
+#endif
+
+  __m256i raw_result;
+  __asm__("vcvttph2w {%1, %0|%0, %1}"
+          : "=" HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(raw_result)
+          : HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(v.raw)
+          :);
+  return VFromD<D>{raw_result};
+#else  // HWY_COMPILER_GCC_ACTUAL < 1200
   return VFromD<D>{_mm256_cvttph_epi16(v.raw)};
+#endif
 }
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U16_D(D)>
 HWY_API VFromD<D> ConvertInRangeTo(D /* tag */, VFromD<RebindToFloat<D>> v) {
+#if HWY_COMPILER_GCC_ACTUAL
+  // Workaround for undefined behavior in _mm256_cvttph_epu16 with GCC if any
+  // values of v[i] are not within the range of an uint16_t
+
+#if HWY_COMPILER_GCC_ACTUAL >= 1200 && !HWY_IS_DEBUG_BUILD && \
+    HWY_HAVE_SCALAR_F16_TYPE
+  if (detail::IsConstantX86VecForF2IConv<uint16_t>(v)) {
+    typedef hwy::float16_t::Native GccF16RawVectType
+        __attribute__((__vector_size__(32)));
+    const auto raw_v = reinterpret_cast<GccF16RawVectType>(v.raw);
+    return VFromD<D>{_mm256_setr_epi16(
+        static_cast<int16_t>(
+            detail::X86ConvertScalarFromFloat<uint16_t>(raw_v[0])),
+        static_cast<int16_t>(
+            detail::X86ConvertScalarFromFloat<uint16_t>(raw_v[1])),
+        static_cast<int16_t>(
+            detail::X86ConvertScalarFromFloat<uint16_t>(raw_v[2])),
+        static_cast<int16_t>(
+            detail::X86ConvertScalarFromFloat<uint16_t>(raw_v[3])),
+        static_cast<int16_t>(
+            detail::X86ConvertScalarFromFloat<uint16_t>(raw_v[4])),
+        static_cast<int16_t>(
+            detail::X86ConvertScalarFromFloat<uint16_t>(raw_v[5])),
+        static_cast<int16_t>(
+            detail::X86ConvertScalarFromFloat<uint16_t>(raw_v[6])),
+        static_cast<int16_t>(
+            detail::X86ConvertScalarFromFloat<uint16_t>(raw_v[7])),
+        static_cast<int16_t>(
+            detail::X86ConvertScalarFromFloat<uint16_t>(raw_v[8])),
+        static_cast<int16_t>(
+            detail::X86ConvertScalarFromFloat<uint16_t>(raw_v[9])),
+        static_cast<int16_t>(
+            detail::X86ConvertScalarFromFloat<uint16_t>(raw_v[10])),
+        static_cast<int16_t>(
+            detail::X86ConvertScalarFromFloat<uint16_t>(raw_v[11])),
+        static_cast<int16_t>(
+            detail::X86ConvertScalarFromFloat<uint16_t>(raw_v[12])),
+        static_cast<int16_t>(
+            detail::X86ConvertScalarFromFloat<uint16_t>(raw_v[13])),
+        static_cast<int16_t>(
+            detail::X86ConvertScalarFromFloat<uint16_t>(raw_v[14])),
+        static_cast<int16_t>(
+            detail::X86ConvertScalarFromFloat<uint16_t>(raw_v[15])))};
+  }
+#endif
+
+  __m256i raw_result;
+  __asm__("vcvttph2uw {%1, %0|%0, %1}"
+          : "=" HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(raw_result)
+          : HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(v.raw)
+          :);
+  return VFromD<D>{raw_result};
+#else  // HWY_COMPILER_GCC_ACTUAL < 1200
   return VFromD<D>{_mm256_cvttph_epu16(v.raw)};
-}
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U16_D(D)>
-HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<RebindToFloat<D>> v) {
-  return VFromD<D>{_mm256_maskz_cvttph_epu16(
-      detail::UnmaskedNot(MaskFromVec(v)).raw, v.raw)};
+#endif
 }
 #endif  // HWY_HAVE_FLOAT16
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I32_D(D)>
 HWY_API VFromD<D> ConvertInRangeTo(D /*d*/, Vec256<float> v) {
+#if HWY_COMPILER_GCC_ACTUAL
+  // Workaround for undefined behavior in _mm256_cvttps_epi32 with GCC if any
+  // values of v[i] are not within the range of an int32_t
+
+#if HWY_COMPILER_GCC_ACTUAL >= 700 && !HWY_IS_DEBUG_BUILD
+  if (detail::IsConstantX86VecForF2IConv<int32_t>(v)) {
+    typedef float GccF32RawVectType __attribute__((__vector_size__(32)));
+    const auto raw_v = reinterpret_cast<GccF32RawVectType>(v.raw);
+    return VFromD<D>{_mm256_setr_epi32(
+        detail::X86ConvertScalarFromFloat<int32_t>(raw_v[0]),
+        detail::X86ConvertScalarFromFloat<int32_t>(raw_v[1]),
+        detail::X86ConvertScalarFromFloat<int32_t>(raw_v[2]),
+        detail::X86ConvertScalarFromFloat<int32_t>(raw_v[3]),
+        detail::X86ConvertScalarFromFloat<int32_t>(raw_v[4]),
+        detail::X86ConvertScalarFromFloat<int32_t>(raw_v[5]),
+        detail::X86ConvertScalarFromFloat<int32_t>(raw_v[6]),
+        detail::X86ConvertScalarFromFloat<int32_t>(raw_v[7]))};
+  }
+#endif
+
+  __m256i raw_result;
+  __asm__("vcvttps2dq {%1, %0|%0, %1}"
+          : "=" HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(raw_result)
+          : HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(v.raw)
+          :);
+  return VFromD<D>{raw_result};
+#else
   return VFromD<D>{_mm256_cvttps_epi32(v.raw)};
+#endif
 }
 
 #if HWY_TARGET <= HWY_AVX3
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I64_D(D)>
 HWY_API VFromD<D> ConvertInRangeTo(D /*di*/, Vec256<double> v) {
+#if HWY_COMPILER_GCC_ACTUAL
+  // Workaround for undefined behavior in _mm256_cvttpd_epi64 with GCC if any
+  // values of v[i] are not within the range of an int64_t
+
+#if HWY_COMPILER_GCC_ACTUAL >= 700 && !HWY_IS_DEBUG_BUILD
+  if (detail::IsConstantX86VecForF2IConv<int64_t>(v)) {
+    typedef double GccF64RawVectType __attribute__((__vector_size__(32)));
+    const auto raw_v = reinterpret_cast<GccF64RawVectType>(v.raw);
+    return VFromD<D>{_mm256_setr_epi64x(
+        detail::X86ConvertScalarFromFloat<int64_t>(raw_v[0]),
+        detail::X86ConvertScalarFromFloat<int64_t>(raw_v[1]),
+        detail::X86ConvertScalarFromFloat<int64_t>(raw_v[2]),
+        detail::X86ConvertScalarFromFloat<int64_t>(raw_v[3]))};
+  }
+#endif
+
+  __m256i raw_result;
+  __asm__("vcvttpd2qq {%1, %0|%0, %1}"
+          : "=" HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(raw_result)
+          : HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(v.raw)
+          :);
+  return VFromD<D>{raw_result};
+#else   // !HWY_COMPILER_GCC_ACTUAL
   return VFromD<D>{_mm256_cvttpd_epi64(v.raw)};
+#endif  // HWY_COMPILER_GCC_ACTUAL
 }
 template <class DU, HWY_IF_V_SIZE_D(DU, 32), HWY_IF_U32_D(DU)>
 HWY_API VFromD<DU> ConvertInRangeTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
+#if HWY_COMPILER_GCC_ACTUAL
+  // Workaround for undefined behavior in _mm256_cvttps_epu32 with GCC if any
+  // values of v[i] are not within the range of an uint32_t
+
+#if HWY_COMPILER_GCC_ACTUAL >= 700 && !HWY_IS_DEBUG_BUILD
+  if (detail::IsConstantX86VecForF2IConv<uint32_t>(v)) {
+    typedef float GccF32RawVectType __attribute__((__vector_size__(32)));
+    const auto raw_v = reinterpret_cast<GccF32RawVectType>(v.raw);
+    return VFromD<DU>{_mm256_setr_epi32(
+        static_cast<int32_t>(
+            detail::X86ConvertScalarFromFloat<uint32_t>(raw_v[0])),
+        static_cast<int32_t>(
+            detail::X86ConvertScalarFromFloat<uint32_t>(raw_v[1])),
+        static_cast<int32_t>(
+            detail::X86ConvertScalarFromFloat<uint32_t>(raw_v[2])),
+        static_cast<int32_t>(
+            detail::X86ConvertScalarFromFloat<uint32_t>(raw_v[3])),
+        static_cast<int32_t>(
+            detail::X86ConvertScalarFromFloat<uint32_t>(raw_v[4])),
+        static_cast<int32_t>(
+            detail::X86ConvertScalarFromFloat<uint32_t>(raw_v[5])),
+        static_cast<int32_t>(
+            detail::X86ConvertScalarFromFloat<uint32_t>(raw_v[6])),
+        static_cast<int32_t>(
+            detail::X86ConvertScalarFromFloat<uint32_t>(raw_v[7])))};
+  }
+#endif
+
+  __m256i raw_result;
+  __asm__("vcvttps2udq {%1, %0|%0, %1}"
+          : "=" HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(raw_result)
+          : HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(v.raw)
+          :);
+  return VFromD<DU>{raw_result};
+#else   // !HWY_COMPILER_GCC_ACTUAL
   return VFromD<DU>{_mm256_cvttps_epu32(v.raw)};
-}
-template <class DU, HWY_IF_V_SIZE_D(DU, 32), HWY_IF_U32_D(DU)>
-HWY_API VFromD<DU> ConvertTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
-  return VFromD<DU>{_mm256_maskz_cvttps_epu32(
-      detail::UnmaskedNot(MaskFromVec(v)).raw, v.raw)};
+#endif  // HWY_COMPILER_GCC_ACTUAL
 }
 template <class DU, HWY_IF_V_SIZE_D(DU, 32), HWY_IF_U64_D(DU)>
 HWY_API VFromD<DU> ConvertInRangeTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
+#if HWY_COMPILER_GCC_ACTUAL
+  // Workaround for undefined behavior in _mm256_cvttpd_epu64 with GCC if any
+  // values of v[i] are not within the range of an uint64_t
+
+#if HWY_COMPILER_GCC_ACTUAL >= 700 && !HWY_IS_DEBUG_BUILD
+  if (detail::IsConstantX86VecForF2IConv<uint64_t>(v)) {
+    typedef double GccF64RawVectType __attribute__((__vector_size__(32)));
+    const auto raw_v = reinterpret_cast<GccF64RawVectType>(v.raw);
+    return VFromD<DU>{_mm256_setr_epi64x(
+        static_cast<int64_t>(
+            detail::X86ConvertScalarFromFloat<uint64_t>(raw_v[0])),
+        static_cast<int64_t>(
+            detail::X86ConvertScalarFromFloat<uint64_t>(raw_v[1])),
+        static_cast<int64_t>(
+            detail::X86ConvertScalarFromFloat<uint64_t>(raw_v[2])),
+        static_cast<int64_t>(
+            detail::X86ConvertScalarFromFloat<uint64_t>(raw_v[3])))};
+  }
+#endif
+
+  __m256i raw_result;
+  __asm__("vcvttpd2uqq {%1, %0|%0, %1}"
+          : "=" HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(raw_result)
+          : HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(v.raw)
+          :);
+  return VFromD<DU>{raw_result};
+#else   // !HWY_COMPILER_GCC_ACTUAL
   return VFromD<DU>{_mm256_cvttpd_epu64(v.raw)};
-}
-template <class DU, HWY_IF_V_SIZE_D(DU, 32), HWY_IF_U64_D(DU)>
-HWY_API VFromD<DU> ConvertTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
-  return VFromD<DU>{_mm256_maskz_cvttpd_epu64(
-      detail::UnmaskedNot(MaskFromVec(v)).raw, v.raw)};
+#endif  // HWY_COMPILER_GCC_ACTUAL
 }
 #endif  // HWY_TARGET <= HWY_AVX3
 
 template <class DI, HWY_IF_V_SIZE_D(DI, 32), HWY_IF_I32_D(DI)>
 HWY_INLINE VFromD<DI> NearestIntInRange(DI, VFromD<RebindToFloat<DI>> v) {
+#if HWY_COMPILER_GCC_ACTUAL
+  // Workaround for undefined behavior in _mm256_cvtps_epi32 if any values of
+  // v[i] are not within the range of an int32_t
+
+#if HWY_COMPILER_GCC >= 700 && !HWY_IS_DEBUG_BUILD
+  if (detail::IsConstantX86VecForF2IConv<int32_t>(v)) {
+    typedef float GccF32RawVectType __attribute__((__vector_size__(32)));
+    const auto raw_v = reinterpret_cast<GccF32RawVectType>(v.raw);
+    return VFromD<DI>{
+        _mm256_setr_epi32(detail::X86ScalarNearestInt<int32_t>(raw_v[0]),
+                          detail::X86ScalarNearestInt<int32_t>(raw_v[1]),
+                          detail::X86ScalarNearestInt<int32_t>(raw_v[2]),
+                          detail::X86ScalarNearestInt<int32_t>(raw_v[3]),
+                          detail::X86ScalarNearestInt<int32_t>(raw_v[4]),
+                          detail::X86ScalarNearestInt<int32_t>(raw_v[5]),
+                          detail::X86ScalarNearestInt<int32_t>(raw_v[6]),
+                          detail::X86ScalarNearestInt<int32_t>(raw_v[7]))};
+  }
+#endif
+
+  __m256i raw_result;
+  __asm__("vcvtps2dq {%1, %0|%0, %1}"
+          : "=" HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(raw_result)
+          : HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(v.raw)
+          :);
+  return VFromD<DI>{raw_result};
+#else   // !HWY_COMPILER_GCC_ACTUAL
   return VFromD<DI>{_mm256_cvtps_epi32(v.raw)};
+#endif  // HWY_COMPILER_GCC_ACTUAL
 }
 
 #ifndef HWY_DISABLE_F16C
