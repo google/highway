@@ -603,39 +603,21 @@ HWY_NOINLINE void TestAllConvertU8() {
   ForDemoteVectors<TestConvertU8, 2>()(uint32_t());
 }
 
-// Separate function to attempt to work around a compiler bug on Arm: when this
-// is merged with TestIntFromFloat, outputs match a previous Iota(-(N+1)) input.
-struct TestIntFromFloatHuge {
+class TestIntFromFloat {
   template <typename TF, class DF>
-  HWY_NOINLINE void operator()(TF /*unused*/, const DF df) {
-    // The Armv7 manual says that float->int saturates, i.e. chooses the
-    // nearest representable value. This works correctly on armhf with GCC, but
-    // not with clang. For reasons unknown, MSVC also runs into an out-of-memory
-    // error here.
-#if HWY_COMPILER_CLANG || HWY_COMPILER_MSVC
-    (void)df;
-#else
+  static HWY_NOINLINE void TestHuge(TF /*unused*/, const DF df) {
     using TI = MakeSigned<TF>;
     const Rebind<TI, DF> di;
 
-    // Workaround for incorrect 32-bit GCC codegen for SSSE3 - Print-ing
-    // the expected lvalue also seems to prevent the issue.
-    const size_t N = Lanes(df);
-    auto expected = AllocateAligned<TI>(N);
-    HWY_ASSERT(expected);
-
     // Huge positive
-    Store(Set(di, LimitsMax<TI>()), di, expected.get());
-    HWY_ASSERT_VEC_EQ(di, expected.get(), ConvertTo(di, Set(df, TF(1E20))));
+    HWY_ASSERT_VEC_EQ(di, Set(di, LimitsMax<TI>()),
+                      ConvertTo(di, Set(df, HighestValue<TF>())));
 
     // Huge negative
-    Store(Set(di, LimitsMin<TI>()), di, expected.get());
-    HWY_ASSERT_VEC_EQ(di, expected.get(), ConvertTo(di, Set(df, TF(-1E20))));
-#endif
+    HWY_ASSERT_VEC_EQ(di, Set(di, LimitsMin<TI>()),
+                      ConvertTo(di, Set(df, LowestValue<TF>())));
   }
-};
 
-class TestIntFromFloat {
   template <typename TF, class DF>
   static HWY_NOINLINE void TestPowers(TF /*unused*/, const DF df) {
     using TI = MakeSigned<TF>;
@@ -649,8 +631,11 @@ class TestIntFromFloat {
         for (int64_t ofs : ofs_table) {
           const int64_t mag = (int64_t{1} << shift) + ofs;
           const int64_t val = sign ? mag : -mag;
-          HWY_ASSERT_VEC_EQ(di, Set(di, static_cast<TI>(val)),
-                            ConvertTo(di, Set(df, static_cast<TF>(val))));
+          const TF val_f = ConvertScalarTo<TF>(val);
+          // Convert expected value to account for loss of precision.
+          HWY_ASSERT_VEC_EQ(
+              di, Set(di, static_cast<TI>(ConvertScalarTo<double>(val_f))),
+              ConvertTo(di, Set(df, val_f)));
         }
       }
     }
@@ -676,7 +661,7 @@ class TestIntFromFloat {
         do {
           const uint64_t bits = rng();
           CopyBytes<sizeof(TF)>(&bits, &from[i]);  // not same size
-        } while (!std::isfinite(from[i]));
+        } while (!ScalarIsFinite(from[i]));
         if (from[i] >= max) {
           expected[i] = LimitsMax<TI>();
         } else if (from[i] <= min) {
@@ -706,31 +691,29 @@ class TestIntFromFloat {
                       ConvertTo(di, Iota(df, -ConvertScalarTo<TF>(N))));
 
     // Above positive
-    HWY_ASSERT_VEC_EQ(di, Iota(di, 2), ConvertTo(di, Iota(df, 2.001)));
+    HWY_ASSERT_VEC_EQ(di, Iota(di, 2), ConvertTo(di, Iota(df, 2.1)));
 
     // Below positive
-    HWY_ASSERT_VEC_EQ(di, Iota(di, 3), ConvertTo(di, Iota(df, 3.9999)));
+    HWY_ASSERT_VEC_EQ(di, Iota(di, 3), ConvertTo(di, Iota(df, 3.9)));
 
-    const TF eps = static_cast<TF>(0.0001);
+    const double neg = -static_cast<double>(N + 1);
+    const double eps = ConvertScalarTo<double>(Epsilon<TF>()) * N;
     // Above negative
-    HWY_ASSERT_VEC_EQ(
-        di, Iota(di, -static_cast<TI>(N)),
-        ConvertTo(di, Iota(df, -ConvertScalarTo<TF>(N + 1) + eps)));
+    HWY_ASSERT_VEC_EQ(di, Iota(di, -static_cast<TI>(N)),
+                      ConvertTo(di, Iota(df, ConvertScalarTo<TF>(neg + eps))));
 
     // Below negative
-    HWY_ASSERT_VEC_EQ(
-        di, Iota(di, -static_cast<TI>(N + 1)),
-        ConvertTo(di, Iota(df, -ConvertScalarTo<TF>(N + 1) - eps)));
+    HWY_ASSERT_VEC_EQ(di, Iota(di, -static_cast<TI>(N + 1)),
+                      ConvertTo(di, Iota(df, ConvertScalarTo<TF>(neg - eps))));
 
+    TestHuge(tf, df);
     TestPowers(tf, df);
     TestRandom(tf, df);
   }
 };
 
 HWY_NOINLINE void TestAllIntFromFloat() {
-  // std::isfinite does not support float16_t.
-  ForFloat3264Types(ForPartialVectors<TestIntFromFloatHuge>());
-  ForFloat3264Types(ForPartialVectors<TestIntFromFloat>());
+  ForFloatTypes(ForPartialVectors<TestIntFromFloat>());
 }
 
 class TestUintFromFloat {
@@ -774,7 +757,7 @@ class TestUintFromFloat {
         (sizeof(TU) * 8 <= static_cast<size_t>(MantissaBits<TF>()) + 1)
             ? static_cast<TF>(LimitsMax<TU>())
             : static_cast<TF>(static_cast<TF>(TU{1} << (sizeof(TU) * 8 - 1)) *
-                              TF(2));
+                              ConvertScalarTo<TF>(2));
 
     constexpr uint64_t kRandBitsMask =
         static_cast<uint64_t>(LimitsMax<MakeSigned<TU>>());
@@ -1146,11 +1129,11 @@ struct TestI32F64 {
     HWY_ASSERT_VEC_EQ(df, Iota(df, -2.0), PromoteTo(df, Iota(di, -2)));
 
     // Max positive int
-    HWY_ASSERT_VEC_EQ(df, Set(df, TF(LimitsMax<TI>())),
+    HWY_ASSERT_VEC_EQ(df, Set(df, TF{LimitsMax<TI>()}),
                       PromoteTo(df, Set(di, LimitsMax<TI>())));
 
     // Min negative int
-    HWY_ASSERT_VEC_EQ(df, Set(df, TF(LimitsMin<TI>())),
+    HWY_ASSERT_VEC_EQ(df, Set(df, TF{LimitsMin<TI>()}),
                       PromoteTo(df, Set(di, LimitsMin<TI>())));
   }
 };
@@ -1174,10 +1157,10 @@ struct TestF2IPromoteTo {
     return;
 #endif
 
-    HWY_ASSERT_VEC_EQ(d_to, Set(d_to, ToT(1)), PromoteTo(d_to, Set(df, TF(1))));
+    HWY_ASSERT_VEC_EQ(d_to, Set(d_to, ToT(1)), PromoteTo(d_to, Set(df, TF{1})));
     HWY_ASSERT_VEC_EQ(d_to, Zero(d_to), PromoteTo(d_to, Zero(df)));
     HWY_ASSERT_VEC_EQ(d_to, Set(d_to, IsSigned<ToT>() ? ToT(-1) : ToT(0)),
-                      PromoteTo(d_to, Set(df, TF(-1))));
+                      PromoteTo(d_to, Set(df, TF{-1})));
 
     constexpr size_t kNumOfNonSignBitsInToT =
         sizeof(ToT) * 8 - static_cast<size_t>(IsSigned<ToT>());
@@ -1197,16 +1180,16 @@ struct TestF2IPromoteTo {
             ? static_cast<TF>(LimitsMax<ToT>())
             : static_cast<TF>(
                   static_cast<TF>(ToT{1} << (kNumOfNonSignBitsInToT - 1)) *
-                  TF(2));
+                  TF{2});
 
     HWY_ASSERT_VEC_EQ(d_to, Set(d_to, LimitsMax<ToT>()),
                       PromoteTo(d_to, Set(df, kSmallestOutOfToTRangePosVal)));
     HWY_ASSERT_VEC_EQ(
         d_to, Set(d_to, LimitsMax<ToT>()),
-        PromoteTo(d_to, Set(df, kSmallestOutOfToTRangePosVal * TF(2))));
+        PromoteTo(d_to, Set(df, kSmallestOutOfToTRangePosVal * TF{2})));
     HWY_ASSERT_VEC_EQ(
         d_to, Set(d_to, LimitsMin<ToT>()),
-        PromoteTo(d_to, Set(df, kSmallestOutOfToTRangePosVal * TF(-2))));
+        PromoteTo(d_to, Set(df, kSmallestOutOfToTRangePosVal * TF{-2})));
 
     const size_t N = Lanes(df);
     auto in_pos = AllocateAligned<TF>(N);

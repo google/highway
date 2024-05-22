@@ -10512,11 +10512,12 @@ template <class D, HWY_IF_I64_D(D)>
 HWY_API VFromD<D> PromoteTo(D di64, VFromD<Rebind<float, D>> v) {
   const Rebind<float, decltype(di64)> df32;
   const RebindToFloat<decltype(di64)> df64;
-  // WARNING: PromoteInRangeTo(2^63) is UB on GCC, and differs from the x86
-  // semantics. See https://gcc.gnu.org/bugzilla/show_bug.cgi?id=115115.
-  // Thus we cannot fix up the result afterwards. Instead, if v >= 2^63, we
-  // replace the output with 2^63-1. Note that the previous representable f32
-  // is less than 2^63 and thus fits in i64.
+  // We now avoid GCC UB in PromoteInRangeTo via assembly, see #2189 and
+  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=115115. Previously we fixed up
+  // the result afterwards using three instructions. Now we instead check if
+  // v >= 2^63, and if so replace the output with 2^63-1, which is likely more
+  // efficient. Note that the previous representable f32 is less than 2^63 and
+  // thus fits in i64.
   const MFromD<D> overflow = RebindMask(
       di64, PromoteMaskTo(df64, df32, Ge(v, Set(df32, 9.223372e18f))));
   return IfThenElse(overflow, Set(di64, LimitsMax<int64_t>()),
