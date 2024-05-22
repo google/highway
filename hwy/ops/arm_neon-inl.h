@@ -964,8 +964,12 @@ HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wmaybe-uninitialized")
 
 template <class D>
 HWY_API VFromD<D> Undefined(D /*tag*/) {
+#if HWY_HAS_BUILTIN(__builtin_nondeterministic_value)
+  return VFromD<D>{__builtin_nondeterministic_value(Zero(D()).raw)};
+#else
   VFromD<D> v;
   return v;
+#endif
 }
 
 HWY_DIAGNOSTICS(pop)
