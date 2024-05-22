@@ -457,9 +457,18 @@ static HWY_NOINLINE void TestPartition() {
   }          // asc
 }
 
+#undef HWY_BROKEN_U128
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1400 && \
+    HWY_TARGET == HWY_RVV
+#define HWY_BROKEN_U128 1
+#else
+#define HWY_BROKEN_U128 0
+#endif
+
 HWY_NOINLINE void TestAllPartition() {
   TestPartition<TraitsLane<OtherOrder<int32_t> > >();
-#if !HAVE_INTEL
+
+#if !HAVE_INTEL && !HWY_BROKEN_U128
   TestPartition<Traits128<OrderAscending128> >();
 #endif
 
@@ -471,7 +480,7 @@ HWY_NOINLINE void TestAllPartition() {
 #if HWY_HAVE_FLOAT64
   TestPartition<TraitsLane<OtherOrder<double> > >();
 #endif
-#if !HAVE_INTEL
+#if !HAVE_INTEL && !HWY_BROKEN_U128
   TestPartition<Traits128<OrderDescending128> >();
 #endif
 #endif
