@@ -244,6 +244,8 @@ HWY_API VFromD<D> Undefined(D d) {
   // Suppressing maybe-uninitialized both here and at the caller does not work,
   // so initialize.
   return Zero(d);
+#elif HWY_HAS_BUILTIN(__builtin_nondeterministic_value)
+  return VFromD<D>{__builtin_nondeterministic_value(Zero(d).raw)};
 #else
   HWY_DIAGNOSTICS(push)
   HWY_DIAGNOSTICS_OFF(disable : 4700, ignored "-Wuninitialized")
