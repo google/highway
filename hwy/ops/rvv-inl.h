@@ -5878,6 +5878,40 @@ HWY_API VW RearrangeToOddPlusEven(const VW sum0, const VW sum1) {
 }
 
 // ------------------------------ Lt128
+#if HWY_COMPILER_CLANG >= 1700 || HWY_COMPILER_GCC_ACTUAL >= 1400
+
+template <class D>
+HWY_INLINE MFromD<D> Lt128(D d, const VFromD<D> a, const VFromD<D> b) {
+  static_assert(IsSame<TFromD<D>, uint64_t>(), "D must be u64");
+  // The subsequent computations are performed using e8mf8 (8-bit elements with
+  // a fractional LMUL of 1/8) for the following reasons:
+  // 1. It is correct for the possible input vector types e64m<1,2,4,8>. This is
+  //    because the resulting mask can occupy at most 1/8 of a full vector when
+  //    using e64m8.
+  // 2. It can be more efficient than using a full vector or a vector group.
+  //
+  // The algorithm computes the result as follows:
+  // 1. Compute cH | (=H & cL) in the high bits, where cH and cL represent the
+  //    comparison results for the high and low 64-bit elements, respectively.
+  // 2. Shift the result right by 1 to duplicate the comparison results for the
+  //    low bits.
+  // 3. Obtain the final result by performing a bitwise OR on the high and low
+  //    bits.
+  auto du8mf8 = ScalableTag<uint8_t, -3>{};
+  const vuint8mf8_t ltHL0 =
+      detail::ChangeLMUL(du8mf8, detail::MaskToU8MaskBitsVec(Lt(a, b)));
+  const vuint8mf8_t eqHL0 =
+      detail::ChangeLMUL(du8mf8, detail::MaskToU8MaskBitsVec(Eq(a, b)));
+  const vuint8mf8_t ltLx0 = Add(ltHL0, ltHL0);
+  const vuint8mf8_t resultHx = detail::AndS(OrAnd(ltHL0, ltLx0, eqHL0), 0xaa);
+  const vuint8mf8_t resultxL = ShiftRight<1>(resultHx);
+  const vuint8mf8_t result = Or(resultHx, resultxL);
+  auto du8m1 = ScalableTag<uint8_t>{};
+  return detail::U8MaskBitsVecToMask(d, detail::ChangeLMUL(du8m1, result));
+}
+
+#else
+
 template <class D>
 HWY_INLINE MFromD<D> Lt128(D d, const VFromD<D> a, const VFromD<D> b) {
   static_assert(IsSame<TFromD<D>, uint64_t>(), "D must be u64");
@@ -5902,6 +5936,8 @@ HWY_INLINE MFromD<D> Lt128(D d, const VFromD<D> a, const VFromD<D> b) {
   // Replicate H to its neighbor.
   return MaskFromVec(OddEven(vecHx, detail::Slide1Down(vecHx)));
 }
+
+#endif  // HWY_COMPILER_CLANG >= 1700 || HWY_COMPILER_GCC_ACTUAL >= 1400
 
 // ------------------------------ Lt128Upper
 template <class D>
