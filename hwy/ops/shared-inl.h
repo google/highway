@@ -62,6 +62,10 @@ namespace HWY_NAMESPACE {
 // We therefore pass by const& only on GCC and (Windows or aarch64). This alias
 // must be used for all vector/mask parameters of functions marked HWY_NOINLINE,
 // and possibly also other functions that are not inlined.
+//
+// Even better is to avoid passing vector arguments to non-inlined functions,
+// because the SVE and RISC-V ABIs are still works in progress and may lead to
+// incorrect codegen.
 #if HWY_COMPILER_GCC_ACTUAL && (HWY_OS_WIN || HWY_ARCH_ARM_A64)
 template <class V>
 using VecArg = const V&;

@@ -117,7 +117,8 @@
 #define HWY_COMPILER3_CLANG 0
 #endif
 
-#if HWY_COMPILER_GCC && !HWY_COMPILER_CLANG && !HWY_COMPILER_ICC
+#if HWY_COMPILER_GCC && !HWY_COMPILER_CLANG && !HWY_COMPILER_ICC && \
+    !HWY_COMPILER_ICX
 #define HWY_COMPILER_GCC_ACTUAL HWY_COMPILER_GCC
 #else
 #define HWY_COMPILER_GCC_ACTUAL 0
@@ -125,14 +126,14 @@
 
 // More than one may be nonzero, but we want at least one.
 #if 0 == (HWY_COMPILER_MSVC + HWY_COMPILER_CLANGCL + HWY_COMPILER_ICC + \
-          HWY_COMPILER_GCC + HWY_COMPILER_CLANG)
+          HWY_COMPILER_ICX + HWY_COMPILER_GCC + HWY_COMPILER_CLANG)
 #error "Unsupported compiler"
 #endif
 
 // We should only detect one of these (only clang/clangcl overlap)
-#if 1 <                                                                     \
-    (!!HWY_COMPILER_MSVC + !!HWY_COMPILER_ICC + !!HWY_COMPILER_GCC_ACTUAL + \
-     !!(HWY_COMPILER_CLANGCL | HWY_COMPILER_CLANG))
+#if 1 < (!!HWY_COMPILER_MSVC + !!(HWY_COMPILER_ICC | HWY_COMPILER_ICX) + \
+         !!HWY_COMPILER_GCC_ACTUAL +                                     \
+         !!(HWY_COMPILER_CLANGCL | HWY_COMPILER_CLANG))
 #error "Detected multiple compilers"
 #endif
 

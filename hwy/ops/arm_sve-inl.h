@@ -2765,32 +2765,31 @@ HWY_API svfloat32_t DemoteTo(Simd<float, N, kPow2> d, const svuint64_t v) {
 // ------------------------------ ConvertTo F
 
 #define HWY_SVE_CONVERT(BASE, CHAR, BITS, HALF, NAME, OP)                      \
-  /* signed integers */                                                        \
+  /* Float from signed */                                                      \
   template <size_t N, int kPow2>                                               \
   HWY_API HWY_SVE_V(BASE, BITS)                                                \
       NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */, HWY_SVE_V(int, BITS) v) {  \
     return sv##OP##_##CHAR##BITS##_s##BITS##_x(HWY_SVE_PTRUE(BITS), v);        \
   }                                                                            \
-  /* unsigned integers */                                                      \
+  /* Float from unsigned */                                                    \
   template <size_t N, int kPow2>                                               \
   HWY_API HWY_SVE_V(BASE, BITS)                                                \
       NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */, HWY_SVE_V(uint, BITS) v) { \
     return sv##OP##_##CHAR##BITS##_u##BITS##_x(HWY_SVE_PTRUE(BITS), v);        \
   }                                                                            \
-  /* Truncates (rounds toward zero). */                                        \
+  /* Signed from float, rounding toward zero */                                \
   template <size_t N, int kPow2>                                               \
   HWY_API HWY_SVE_V(int, BITS)                                                 \
       NAME(HWY_SVE_D(int, BITS, N, kPow2) /* d */, HWY_SVE_V(BASE, BITS) v) {  \
     return sv##OP##_s##BITS##_##CHAR##BITS##_x(HWY_SVE_PTRUE(BITS), v);        \
   }                                                                            \
-  /* Truncates to unsigned (rounds toward zero). */                            \
+  /* Unsigned from float, rounding toward zero */                              \
   template <size_t N, int kPow2>                                               \
   HWY_API HWY_SVE_V(uint, BITS)                                                \
       NAME(HWY_SVE_D(uint, BITS, N, kPow2) /* d */, HWY_SVE_V(BASE, BITS) v) { \
     return sv##OP##_u##BITS##_##CHAR##BITS##_x(HWY_SVE_PTRUE(BITS), v);        \
   }
 
-// API only requires f32 but we provide f64 for use by Iota.
 HWY_SVE_FOREACH_F(HWY_SVE_CONVERT, ConvertTo, cvt)
 #undef HWY_SVE_CONVERT
 
