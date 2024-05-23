@@ -130,10 +130,10 @@
 #error "Unsupported compiler"
 #endif
 
-// We should only detect one of these (only clang/clangcl overlap)
-#if 1 < (!!HWY_COMPILER_MSVC + !!(HWY_COMPILER_ICC | HWY_COMPILER_ICX) + \
-         !!HWY_COMPILER_GCC_ACTUAL +                                     \
-         !!(HWY_COMPILER_CLANGCL | HWY_COMPILER_CLANG))
+// We should only detect one of these (only clang/clangcl/icx overlap)
+#if 1 < (!!HWY_COMPILER_MSVC + (!!HWY_COMPILER_ICC & !HWY_COMPILER_ICX) + \
+         !!HWY_COMPILER_GCC_ACTUAL +                                      \
+         !!(HWY_COMPILER_ICX | HWY_COMPILER_CLANGCL | HWY_COMPILER_CLANG))
 #error "Detected multiple compilers"
 #endif
 
