@@ -697,7 +697,8 @@ class TestIntFromFloat {
     HWY_ASSERT_VEC_EQ(di, Iota(di, 3), ConvertTo(di, Iota(df, 3.9)));
 
     const double neg = -static_cast<double>(N + 1);
-    const double eps = ConvertScalarTo<double>(Epsilon<TF>()) * N;
+    const double eps =
+        ConvertScalarTo<double>(Epsilon<TF>()) * static_cast<double>(N);
     // Above negative
     HWY_ASSERT_VEC_EQ(di, Iota(di, -static_cast<TI>(N)),
                       ConvertTo(di, Iota(df, ConvertScalarTo<TF>(neg + eps))));
