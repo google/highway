@@ -44,10 +44,10 @@
 
 #endif  // HWY_ARCH_*
 
-#ifdef __APPLE__
+#if HWY_OS_APPLE
 #include <sys/sysctl.h>
 #include <sys/utsname.h>
-#endif  // __APPLE__
+#endif  // HWY_OS_APPLE
 
 namespace hwy {
 namespace {
@@ -59,7 +59,7 @@ int64_t supported_targets_for_test_ = 0;
 // Mask of targets disabled at runtime with DisableTargets.
 int64_t supported_mask_ = LimitsMax<int64_t>();
 
-#ifdef __APPLE__
+#if HWY_OS_APPLE
 static HWY_INLINE HWY_MAYBE_UNUSED bool HasCpuFeature(
     const char* feature_name) {
   int result = 0;
@@ -122,7 +122,7 @@ static HWY_INLINE HWY_MAYBE_UNUSED bool IsMacOs12_2OrLater() {
   // or later
   return (major > 21 || (major == 21 && minor >= 3));
 }
-#endif  // __APPLE__
+#endif  // HWY_OS_APPLE
 
 #if HWY_ARCH_X86 && HWY_HAVE_RUNTIME_DISPATCH
 namespace x86 {
@@ -387,7 +387,7 @@ int64_t DetectTargets() {
   constexpr int64_t min_avx2 = HWY_AVX2 | (HWY_AVX2 - 1);
 
   if (has_xsave && has_osxsave) {
-#ifdef __APPLE__
+#if HWY_OS_APPLE
     // On macOS, check for AVX3 XSAVE support by checking that we are running on
     // macOS 12.2 or later and HasCpuFeature("hw.optional.avx512f") returns true
 
@@ -423,7 +423,7 @@ int64_t DetectTargets() {
       bits &= ~min_avx2;
     }
 
-#ifndef __APPLE__
+#if !HWY_OS_APPLE
     // On OS's other than macOS, check for AVX3 XSAVE support by checking that
     // bits 5, 6, and 7 of XCR0 are set.
     const bool have_avx3_xsave_support =
@@ -453,15 +453,31 @@ int64_t DetectTargets() {
 #elif HWY_ARCH_ARM && HWY_HAVE_RUNTIME_DISPATCH
 namespace arm {
 int64_t DetectTargets() {
-  int64_t bits = 0;               // return value of supported targets.
+  int64_t bits = 0;  // return value of supported targets.
+
   using CapBits = unsigned long;  // NOLINT
+#if HWY_OS_APPLE
+  const CapBits hw = 0UL;
+#else
   // For Android, this has been supported since API 20 (2014).
   const CapBits hw = getauxval(AT_HWCAP);
+#endif
   (void)hw;
 
 #if HWY_ARCH_ARM_A64
   bits |= HWY_NEON_WITHOUT_AES;  // aarch64 always has NEON and VFPv4..
 
+#if HWY_OS_APPLE
+  if (HasCpuFeature("hw.optional.arm.FEAT_AES")) {
+    bits |= HWY_NEON;
+
+    if (HasCpuFeature("hw.optional.AdvSIMD_HPFPCvt") &&
+        HasCpuFeature("hw.optional.arm.FEAT_DotProd") &&
+        HasCpuFeature("hw.optional.arm.FEAT_BF16")) {
+      bits |= HWY_NEON_BF16;
+    }
+  }
+#else  // !HWY_OS_APPLE
   // .. but not necessarily AES, which is required for HWY_NEON.
 #if defined(HWCAP_AES)
   if (hw & HWCAP_AES) {
@@ -492,6 +508,7 @@ int64_t DetectTargets() {
   if ((hw2 & HWCAP2_SVE2) && (hw2 & HWCAP2_SVEAES)) {
     bits |= HWY_SVE2;
   }
+#endif  // HWY_OS_APPLE
 
 #else  // !HWY_ARCH_ARM_A64
 

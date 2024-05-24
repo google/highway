@@ -75,7 +75,9 @@
 #if defined(__apple_build_version__) || __clang_major__ >= 999
 #if __has_warning("-Woverriding-option")
 #define HWY_COMPILER_CLANG 1801
-#elif __has_attribute(unsafe_buffer_usage)  // no new warnings in 17.0
+// No new warnings in 17.0, and Apple LLVM 15.3, which should be 1600, already
+// has the unsafe_buffer_usage attribute, so we instead check for new builtins.
+#elif __has_builtin(__builtin_nondeterministic_value)
 #define HWY_COMPILER_CLANG 1700
 #elif __has_attribute(nouwtable)  // no new warnings in 16.0
 #define HWY_COMPILER_CLANG 1600

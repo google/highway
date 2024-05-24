@@ -469,8 +469,12 @@
 #define HWY_TARGET_STR_NEON "+aes"
 #endif
 
-#if HWY_COMPILER_CLANG >= 1600
+// Clang >= 16 requires +fullfp16 instead of fp16, but Apple Clang 15 = 1600
+// fails to parse unless the string starts with armv8, whereas 1700 refuses it.
+#if HWY_COMPILER_CLANG >= 1700
 #define HWY_TARGET_STR_FP16 "+fullfp16"
+#elif HWY_COMPILER_CLANG >= 1600 && defined(__apple_build_version__)
+#define HWY_TARGET_STR_FP16 "armv8.4-a+fullfp16"
 #else
 #define HWY_TARGET_STR_FP16 "+fp16"
 #endif
@@ -480,7 +484,7 @@
 #elif HWY_TARGET == HWY_NEON
 #define HWY_TARGET_STR HWY_TARGET_STR_NEON
 #elif HWY_TARGET == HWY_NEON_BF16
-#define HWY_TARGET_STR HWY_TARGET_STR_NEON "+bf16+dotprod" HWY_TARGET_STR_FP16
+#define HWY_TARGET_STR HWY_TARGET_STR_FP16 "+bf16+dotprod" HWY_TARGET_STR_NEON
 #else
 #error "Logic error, missing case"
 #endif  // HWY_TARGET
