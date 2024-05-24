@@ -461,7 +461,7 @@ struct TestIntegerDiv {
 
 #if HWY_COMPILER_CLANG && HWY_ARCH_RISCV && HWY_TARGET == HWY_EMU128
     // Workaround for incorrect codegen. The implementation splits vectors
-    // into halves and then combines them; the top half is incorrect.
+    // into halves and then combines them; the upper half is incorrect.
     if (sizeof(T) == 4 && N == 4) return;
 #endif
 
@@ -530,6 +530,12 @@ struct TestIntegerMod {
     if (sizeof(T) <= 2 && N >= 16) {
       return;
     }
+#endif
+
+#if HWY_COMPILER_CLANG && HWY_ARCH_RISCV && HWY_TARGET == HWY_EMU128
+    // Workaround for incorrect codegen. The implementation splits vectors
+    // into halves and then combines them; the lower half is incorrect.
+    if (sizeof(T) == 4 && N == 4) return;
 #endif
 
     auto a_lanes = AllocateAligned<T>(N);

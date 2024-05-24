@@ -402,6 +402,11 @@ class TestConvertInRangeFloatToInt {
         expected[i] = ConvertScalarTo<TTo>(rand_in_range_val);
       }
 
+#if HWY_COMPILER_CLANG && HWY_ARCH_RISCV && HWY_TARGET == HWY_EMU128
+      // Workaround for incorrect codegen. Off by one in the upper lane.
+      if (sizeof(TTo) == 4 && N == 2) return;
+#endif
+
       const auto from = Load(d_from, from_lanes.get());
 
       HWY_ASSERT_VEC_EQ(d_to, expected.get(),

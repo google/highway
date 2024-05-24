@@ -297,6 +297,10 @@ struct TestIntegerDivMod {
       return;
     }
 #endif
+#if HWY_COMPILER_CLANG && HWY_ARCH_RISCV && HWY_TARGET == HWY_EMU128
+    // Workaround for incorrect codegen. Off by one in the lowest lane.
+    if (sizeof(T) == 4) return;
+#endif
 
     auto bool_lanes = AllocateAligned<TI>(N);
     auto expected_quot = AllocateAligned<T>(N);
