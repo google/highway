@@ -275,9 +275,11 @@
 
 // Opt-out for EMU128 (affected by a GCC bug on multiple arches, fixed in 12.3:
 // see https://gcc.gnu.org/bugzilla/show_bug.cgi?id=106322). An issue still
-// remains with 13.2, see #1683. This is separate from HWY_BROKEN_TARGETS
-// because it affects the fallback target, which must always be enabled. If 1,
-// we instead choose HWY_SCALAR even without HWY_COMPILE_ONLY_SCALAR being set.
+// remains with 13.2, see #1683
+// (https://gcc.gnu.org/bugzilla/show_bug.cgi?id=111231). This is separate from
+// HWY_BROKEN_TARGETS because it affects the fallback target, which must always
+// be enabled. If 1, we instead choose HWY_SCALAR even without
+// HWY_COMPILE_ONLY_SCALAR being set.
 #if !defined(HWY_BROKEN_EMU128)  // allow overriding
 #if (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1400) || \
     defined(HWY_NO_LIBCXX)
