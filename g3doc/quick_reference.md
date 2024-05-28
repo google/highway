@@ -139,6 +139,10 @@ omit this if your code will only ever use static dispatch.
 
 ## Notation in this doc
 
+By vector 'lanes', we mean the 'elements' of that vector. Analogous to the lanes
+of a highway or swimming pool, most operations act on each lane independently,
+but it is possible for lanes to interact and change order via 'swizzling' ops.
+
 *   `T` denotes the type of a vector lane (integer or floating-point);
 *   `N` is a size_t value that governs (but is not necessarily identical to) the
     number of lanes;
@@ -167,7 +171,7 @@ upper 16 bits of an IEEE binary32 float) only support load, store, and
 conversion to/from `float32_t`. The behavior of infinity and NaN in `float16_t`
 is implementation-defined due to Armv7. To ensure binary compatibility, these
 types are always wrapper structs and cannot be initialized with values directly.
-Instead, you can use `BitCastScalar` to set the representation.
+You can initialize them via `BitCastScalar` or `ConvertScalarTo`.
 
 On RVV/SVE, vectors are sizeless and cannot be wrapped inside a class. The
 Highway API allows using built-in types as vectors because operations are
@@ -300,9 +304,9 @@ Store(v, d2, ptr);  // Use d2, NOT DFromV<decltype(v)>()
 ## Targets
 
 Let `Target` denote an instruction set, one of `SCALAR/EMU128`, `RVV`,
-`SSE2/SSSE3/SSE4/AVX2/AVX3/AVX3_DL/AVX3_ZEN4/AVX3_SPR` (x86), `PPC8/PPC9/PPC10`
-(POWER), `NEON_WITHOUT_AES/NEON/SVE/SVE2/SVE_256/SVE2_128` (Arm),
-`WASM/WASM_EMU256` (WebAssembly).
+`SSE2/SSSE3/SSE4/AVX2/AVX3/AVX3_DL/AVX3_ZEN4/AVX3_SPR` (x86),
+`PPC8/PPC9/PPC10/Z14/Z15` (POWER), `WASM/WASM_EMU256` (WebAssembly),
+`NEON_WITHOUT_AES/NEON/NEON_BF16/SVE/SVE2/SVE_256/SVE2_128` (Arm).
 
 Note that x86 CPUs are segmented into dozens of feature flags and capabilities,
 which are often used together because they were introduced in the same CPU
@@ -388,8 +392,8 @@ functions reside in `project::[nested]::HWY_NAMESPACE`. Highway functions
 generally take either a `D` or vector/mask argument. For targets where vectors
 and masks are defined in namespace `hwy`, the functions will be found via
 Argument-Dependent Lookup. However, this does not work for function templates,
-and RVV and SVE both use builtin vectors. There are three options for portable
-code, in descending order of preference:
+and RVV and SVE both use built-in vectors. Thus portable code must use one of
+the three following options, in descending order of preference:
 
 -   `namespace hn = hwy::HWY_NAMESPACE;` alias used to prefix ops, e.g.
     `hn::LoadDup128(..)`;
