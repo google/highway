@@ -483,12 +483,13 @@ int64_t DetectTargets() {
   if (hw & HWCAP_AES) {
     bits |= HWY_NEON;
 
-#if defined(HWCAP_ASIMDHP) && defined(HWCAP_ASIMDDP) && defined(HWCAP_ASIMDBF16)
-    const int64_t kGroupBF16 = HWCAP_ASIMDHP | HWCAP_ASIMDDP | HWCAP_ASIMDBF16;
-    if ((hw & kGroupBF16) == kGroupBF16) {
+#if defined(HWCAP_ASIMDHP) && defined(HWCAP_ASIMDDP) && defined(HWCAP2_BF16)
+    const CapBits hw2 = getauxval(AT_HWCAP2);
+    const int64_t kGroupF16Dot = HWCAP_ASIMDHP | HWCAP_ASIMDDP;
+    if ((hw & kGroupF16Dot) == kGroupF16Dot && (hw2 & HWCAP2_BF16)) {
       bits |= HWY_NEON_BF16;
     }
-#endif  // HWCAP_ASIMDHP && HWCAP_ASIMDDP && HWCAP_ASIMDBF16
+#endif  // HWCAP_ASIMDHP && HWCAP_ASIMDDP && HWCAP2_BF16
   }
 #endif  // HWCAP_AES
 
