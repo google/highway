@@ -23,7 +23,7 @@
 #include <vector>
 
 #include "hwy/base.h"
-#include "hwy/contrib/thread_pool/bit_set.h"
+#include "hwy/bit_set.h"
 
 namespace hwy {
 

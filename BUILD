@@ -245,6 +245,28 @@ cc_library(
 )
 
 cc_library(
+    name = "bit_set",
+    hdrs = ["hwy/bit_set.h"],
+    compatible_with = [],
+    copts = COPTS,
+    deps = [
+        ":hwy",  # HWY_ASSERT
+    ],
+)
+
+cc_library(
+    name = "perf_counters",
+    srcs = ["hwy/perf_counters.cc"],
+    hdrs = ["hwy/perf_counters.h"],
+    compatible_with = [],
+    copts = COPTS,
+    deps = [
+        ":bit_set",
+        ":hwy",
+    ],
+)
+
+cc_library(
     name = "profiler",
     hdrs = [
         "hwy/profiler.h",
@@ -304,16 +326,6 @@ cc_library(
     ],
     deps = [
         ":hwy",
-    ],
-)
-
-cc_library(
-    name = "bit_set",
-    hdrs = ["hwy/contrib/thread_pool/bit_set.h"],
-    compatible_with = [],
-    copts = COPTS,
-    deps = [
-        ":hwy",  # HWY_ASSERT
     ],
 )
 
@@ -471,18 +483,19 @@ HWY_TESTS = [
     ("hwy/contrib/math/", "math_test"),
     ("hwy/contrib/random/", "random_test"),
     ("hwy/contrib/matvec/", "matvec_test"),
-    ("hwy/contrib/thread_pool/", "bit_set_test"),
     ("hwy/contrib/thread_pool/", "thread_pool_test"),
     ("hwy/contrib/thread_pool/", "topology_test"),
     ("hwy/contrib/unroller/", "unroller_test"),
     # contrib/sort has its own BUILD, we also add sort_test to GUITAR_TESTS.
     # To run bench_sort, specify --test=hwy/contrib/sort:bench_sort.
     ("hwy/examples/", "skeleton_test"),
-    ("hwy/", "nanobenchmark_test"),
     ("hwy/", "abort_test"),
     ("hwy/", "aligned_allocator_test"),
     ("hwy/", "base_test"),
+    ("hwy/", "bit_set_test"),
     ("hwy/", "highway_test"),
+    ("hwy/", "nanobenchmark_test"),
+    ("hwy/", "perf_counters_test"),
     ("hwy/", "targets_test"),
     ("hwy/tests/", "arithmetic_test"),
     ("hwy/tests/", "bit_permute_test"),
@@ -545,13 +558,14 @@ HWY_TEST_DEPS = [
     ":bit_pack",
     ":bit_set",
     ":dot",
-    ":hwy",
     ":hwy_test_util",
+    ":hwy",
     ":image",
     ":math",
-    ":random",
     ":matvec",
     ":nanobenchmark",
+    ":perf_counters",
+    ":random",
     ":skeleton",
     ":thread_pool",
     ":topology",

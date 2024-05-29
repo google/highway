@@ -202,6 +202,7 @@ if (NOT HWY_CMAKE_HEADER_ONLY)
     hwy/aligned_allocator.cc
     hwy/nanobenchmark.cc
     hwy/per_target.cc
+    hwy/perf_counters.cc
     hwy/print.cc
     hwy/targets.cc
     hwy/timer.cc
@@ -663,8 +664,10 @@ set(HWY_TEST_FILES
   hwy/abort_test.cc
   hwy/aligned_allocator_test.cc
   hwy/base_test.cc
+  hwy/bit_set_test.cc
   hwy/highway_test.cc
   hwy/nanobenchmark_test.cc
+  hwy/perf_counters_test.cc
   hwy/targets_test.cc
   hwy/examples/skeleton_test.cc
   hwy/tests/arithmetic_test.cc
@@ -729,7 +732,6 @@ list(APPEND HWY_TEST_FILES
   hwy/contrib/random/random_test.cc
   hwy/contrib/sort/sort_test.cc
   hwy/contrib/sort/bench_sort.cc
-  hwy/contrib/thread_pool/bit_set_test.cc
   hwy/contrib/thread_pool/thread_pool_test.cc
   hwy/contrib/thread_pool/topology_test.cc
   hwy/contrib/unroller/unroller_test.cc
