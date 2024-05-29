@@ -26,12 +26,12 @@ std::string GetBaseName(std::string const& file_name) {
 }
 }  // namespace
 
-AbortFunc& GetAbortFunc() {
+HWY_DLLEXPORT AbortFunc& GetAbortFunc() {
   static AbortFunc func;
   return func;
 }
 
-AbortFunc SetAbortFunc(AbortFunc func) {
+HWY_DLLEXPORT AbortFunc SetAbortFunc(AbortFunc func) {
   const AbortFunc prev = GetAbortFunc();
   GetAbortFunc() = func;
   return prev;
