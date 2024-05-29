@@ -185,7 +185,7 @@ static inline void WakeAll(std::atomic<uint32_t>& current) {
 
 #elif defined(HWY_FUTEX_SLEEP)
   // Sleep loop does not require wakeup.
-
+  (void)current;
 #elif HWY_CXX_LANG >= 202002L
   current.notify_all();
 
