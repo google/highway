@@ -7,7 +7,7 @@ highway (1.2.0-1) UNRELEASED; urgency=medium
   * Add PromoteInRangeTo/ConvertInRangeTo/DemoteInRangeTo
   * Add Rol/Ror, RotateLeft/RotateLeftSame/RotateRightSame
   * Add SatWidenMulPairwiseAccumulate, SatWidenMulAccumFixedPoint
-  * Add Stats, IsEitherNaN
+  * Add stats.h, bit_set.h, IsEitherNaN
   * Add UI8/UI32/UI64 MulHigh, I64 MulEven/MulOdd/Mul128
   * Add WidenMulAccumulate, MulEvenAdd, MulOddAdd
   * contrib/bit_pack: support 32/64-bit lanes

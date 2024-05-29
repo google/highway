@@ -13,8 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef HIGHWAY_HWY_CONTRIB_THREAD_POOL_BIT_SET_H_
-#define HIGHWAY_HWY_CONTRIB_THREAD_POOL_BIT_SET_H_
+#ifndef HIGHWAY_HWY_BIT_SET_H_
+#define HIGHWAY_HWY_BIT_SET_H_
 
 // BitSet with fast Foreach for up to 64 and 4096 members.
 
@@ -155,4 +155,4 @@ class BitSet4096 {
 
 }  // namespace hwy
 
-#endif  // HIGHWAY_HWY_CONTRIB_THREAD_POOL_BIT_SET_H_
+#endif  // HIGHWAY_HWY_BIT_SET_H_

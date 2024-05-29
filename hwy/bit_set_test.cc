@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "hwy/contrib/thread_pool/bit_set.h"
+#include "hwy/bit_set.h"
 
 #include <stddef.h>
 #include <stdint.h>
