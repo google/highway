@@ -680,6 +680,7 @@ set(HWY_TEST_FILES
   hwy/tests/count_test.cc
   hwy/tests/crypto_test.cc
   hwy/tests/demote_test.cc
+  hwy/tests/div_test.cc
   hwy/tests/dup128_vec_test.cc
   hwy/tests/expand_test.cc
   hwy/tests/float_test.cc
@@ -701,6 +702,7 @@ set(HWY_TEST_FILES
   hwy/tests/reduction_test.cc
   hwy/tests/resize_test.cc
   hwy/tests/reverse_test.cc
+  hwy/tests/saturated_test.cc
   hwy/tests/shift_test.cc
   hwy/tests/shuffle4_test.cc
   hwy/tests/slide_up_down_test.cc
