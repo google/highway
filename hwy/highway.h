@@ -413,7 +413,9 @@ FunctionCache<RetType, Args...> DeduceFunctionCache(RetType (*)(Args...)) {
 
 // Use the table, not just STATIC_DISPATCH as in DYNAMIC_DISPATCH, because
 // TABLE_NAME might not match the function name.
-#define HWY_DYNAMIC_DISPATCH_T(TABLE_NAME) (HWY_DISPATCH_TABLE(TABLE_NAME)[0])
+#define HWY_DYNAMIC_POINTER_T(TABLE_NAME) (HWY_DISPATCH_TABLE(TABLE_NAME)[0])
+#define HWY_DYNAMIC_DISPATCH_T(TABLE_NAME) \
+  (*(HWY_DYNAMIC_POINTER_T(TABLE_NAME)))
 
 #define HWY_EXPORT(FUNC_NAME) HWY_EXPORT_T(FUNC_NAME, FUNC_NAME)
 #define HWY_DYNAMIC_POINTER(FUNC_NAME) &HWY_STATIC_DISPATCH(FUNC_NAME)
@@ -537,6 +539,7 @@ struct AddExport {
 
 // Same as DISPATCH, but provide a different arg name to clarify usage.
 #define HWY_DYNAMIC_DISPATCH_T(TABLE_NAME) HWY_DYNAMIC_DISPATCH(TABLE_NAME)
+#define HWY_DYNAMIC_POINTER_T(TABLE_NAME) HWY_DYNAMIC_POINTER(TABLE_NAME)
 
 #endif  // HWY_IDE || ((HWY_TARGETS & (HWY_TARGETS - 1)) == 0)
 
