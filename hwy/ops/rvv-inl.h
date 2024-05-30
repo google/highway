@@ -669,18 +669,16 @@ HWY_RVV_FOREACH_F(HWY_RVV_SET, Set, fmv_v_f, _ALL_VIRT)
 
 // Treat bfloat16_t as int16_t (using the previously defined Set overloads);
 // required for Zero and VFromD.
-template <size_t N, int kPow2>
-decltype(Set(Simd<int16_t, N, kPow2>(), 0)) Set(
-    Simd<hwy::bfloat16_t, N, kPow2> d, hwy::bfloat16_t arg) {
+template <class D, HWY_IF_BF16_D(D)>
+decltype(Set(RebindToSigned<D>(), 0)) Set(D d, hwy::bfloat16_t arg) {
   return Set(RebindToSigned<decltype(d)>(), BitCastScalar<int16_t>(arg));
 }
 #if !HWY_HAVE_FLOAT16  // Otherwise already defined above.
 // WARNING: returns a different type than emulated bfloat16_t so that we can
 // implement PromoteTo overloads for both bfloat16_t and float16_t, and also
 // provide a Neg(hwy::float16_t) overload that coexists with Neg(int16_t).
-template <size_t N, int kPow2>
-decltype(Set(Simd<uint16_t, N, kPow2>(), 0)) Set(
-    Simd<hwy::float16_t, N, kPow2> d, hwy::float16_t arg) {
+template <class D, HWY_IF_F16_D(D)>
+decltype(Set(RebindToUnsigned<D>(), 0)) Set(D d, hwy::float16_t arg) {
   return Set(RebindToUnsigned<decltype(d)>(), BitCastScalar<uint16_t>(arg));
 }
 #endif
@@ -876,10 +874,10 @@ HWY_RVV_FOREACH_F(HWY_RVV_CAST_VIRT_IF, _, reinterpret, _VIRT)
 HWY_RVV_FOREACH_F16_UNCONDITIONAL(HWY_RVV_CAST_IF, _, reinterpret, _ALL)
 HWY_RVV_FOREACH_F16_UNCONDITIONAL(HWY_RVV_CAST_VIRT_IF, _, reinterpret, _VIRT)
 #else
-template <size_t N, int kPow2>
-HWY_INLINE VFromD<Simd<uint16_t, N, kPow2>> BitCastFromByte(
-    Simd<hwy::float16_t, N, kPow2> /* d */, VFromD<Simd<uint8_t, N, kPow2>> v) {
-  return BitCastFromByte(Simd<uint16_t, N, kPow2>(), v);
+template <class D, HWY_IF_F16_D(D)>
+HWY_INLINE VFromD<RebindToUnsigned<D>> BitCastFromByte(
+    D /* d */, VFromD<Repartition<uint8_t, D>> v) {
+  return BitCastFromByte(RebindToUnsigned<D>(), v);
 }
 #endif
 
@@ -890,11 +888,10 @@ HWY_INLINE VFromD<Simd<uint16_t, N, kPow2>> BitCastFromByte(
 #undef HWY_RVV_CAST_VIRT_U
 #undef HWY_RVV_CAST_VIRT_IF
 
-template <size_t N, int kPow2>
-HWY_INLINE VFromD<Simd<int16_t, N, kPow2>> BitCastFromByte(
-    Simd<hwy::bfloat16_t, N, kPow2> /* d */,
-    VFromD<Simd<uint8_t, N, kPow2>> v) {
-  return BitCastFromByte(Simd<int16_t, N, kPow2>(), v);
+template <class D, HWY_IF_BF16_D(D)>
+HWY_INLINE VFromD<RebindToSigned<D>> BitCastFromByte(
+    D d, VFromD<Repartition<uint8_t, D>> v) {
+  return BitCastFromByte(RebindToSigned<decltype(d)>(), v);
 }
 
 }  // namespace detail
@@ -2209,52 +2206,38 @@ HWY_API auto PromoteTo(Simd<uint64_t, N, -1> d,
 }
 
 // Unsigned to signed: cast for unsigned promote.
-template <size_t N, int kPow2>
-HWY_API auto PromoteTo(Simd<int16_t, N, kPow2> d,
-                       VFromD<Rebind<uint8_t, decltype(d)>> v)
-    -> VFromD<decltype(d)> {
+template <class D, HWY_IF_I16_D(D)>
+HWY_API VFromD<D> PromoteTo(D d, VFromD<Rebind<uint8_t, D>> v) {
   return BitCast(d, PromoteTo(RebindToUnsigned<decltype(d)>(), v));
 }
 
-template <size_t N, int kPow2>
-HWY_API auto PromoteTo(Simd<int32_t, N, kPow2> d,
-                       VFromD<Rebind<uint8_t, decltype(d)>> v)
-    -> VFromD<decltype(d)> {
+template <class D, HWY_IF_I32_D(D)>
+HWY_API VFromD<D> PromoteTo(D d, VFromD<Rebind<uint8_t, D>> v) {
   return BitCast(d, PromoteTo(RebindToUnsigned<decltype(d)>(), v));
 }
 
-template <size_t N, int kPow2>
-HWY_API auto PromoteTo(Simd<int32_t, N, kPow2> d,
-                       VFromD<Rebind<uint16_t, decltype(d)>> v)
-    -> VFromD<decltype(d)> {
+template <class D, HWY_IF_I32_D(D)>
+HWY_API VFromD<D> PromoteTo(D d, VFromD<Rebind<uint16_t, D>> v) {
   return BitCast(d, PromoteTo(RebindToUnsigned<decltype(d)>(), v));
 }
 
-template <size_t N, int kPow2>
-HWY_API auto PromoteTo(Simd<int64_t, N, kPow2> d,
-                       VFromD<Rebind<uint32_t, decltype(d)>> v)
-    -> VFromD<decltype(d)> {
+template <class D, HWY_IF_I64_D(D)>
+HWY_API VFromD<D> PromoteTo(D d, VFromD<Rebind<uint32_t, D>> v) {
   return BitCast(d, PromoteTo(RebindToUnsigned<decltype(d)>(), v));
 }
 
-template <size_t N, int kPow2>
-HWY_API auto PromoteTo(Simd<int64_t, N, kPow2> d,
-                       VFromD<Rebind<uint16_t, decltype(d)>> v)
-    -> VFromD<decltype(d)> {
+template <class D, HWY_IF_I64_D(D)>
+HWY_API VFromD<D> PromoteTo(D d, VFromD<Rebind<uint16_t, D>> v) {
   return BitCast(d, PromoteTo(RebindToUnsigned<decltype(d)>(), v));
 }
 
-template <size_t N, int kPow2>
-HWY_API auto PromoteTo(Simd<int64_t, N, kPow2> d,
-                       VFromD<Rebind<uint8_t, decltype(d)>> v)
-    -> VFromD<decltype(d)> {
+template <class D, HWY_IF_I64_D(D)>
+HWY_API VFromD<D> PromoteTo(D d, VFromD<Rebind<uint8_t, D>> v) {
   return BitCast(d, PromoteTo(RebindToUnsigned<decltype(d)>(), v));
 }
 
-template <size_t N, int kPow2>
-HWY_API auto PromoteTo(Simd<float32_t, N, kPow2> d,
-                       VFromD<Rebind<hwy::bfloat16_t, decltype(d)>> v)
-    -> VFromD<decltype(d)> {
+template <class D, HWY_IF_F32_D(D)>
+HWY_API VFromD<D> PromoteTo(D d, VFromD<Rebind<hwy::bfloat16_t, D>> v) {
   const RebindToSigned<decltype(d)> di32;
   const Rebind<uint16_t, decltype(d)> du16;
   return BitCast(d, ShiftLeft<16>(PromoteTo(di32, BitCast(du16, v))));
@@ -2354,28 +2337,24 @@ HWY_API vuint8m2_t DemoteTo(Simd<uint8_t, N, 1> d, const vuint32m8_t v) {
       HWY_RVV_INSERT_VXRM(__RISCV_VXRM_RDN, Lanes(d)));
 }
 
-template <size_t N, int kPow2>
-HWY_API VFromD<Simd<uint8_t, N, kPow2>> DemoteTo(
-    Simd<uint8_t, N, kPow2> d, VFromD<Simd<int64_t, N, kPow2 + 3>> v) {
-  return DemoteTo(d, DemoteTo(Simd<uint32_t, N, kPow2 + 2>(), v));
+template <class D, HWY_IF_U8_D(D)>
+HWY_API VFromD<D> DemoteTo(D d, VFromD<Rebind<int64_t, D>> v) {
+  return DemoteTo(d, DemoteTo(Rebind<uint32_t, D>(), v));
 }
 
-template <size_t N, int kPow2>
-HWY_API VFromD<Simd<uint8_t, N, kPow2>> DemoteTo(
-    Simd<uint8_t, N, kPow2> d, VFromD<Simd<uint64_t, N, kPow2 + 3>> v) {
-  return DemoteTo(d, DemoteTo(Simd<uint32_t, N, kPow2 + 2>(), v));
+template <class D, HWY_IF_U8_D(D)>
+HWY_API VFromD<D> DemoteTo(D d, VFromD<Rebind<uint64_t, D>> v) {
+  return DemoteTo(d, DemoteTo(Rebind<uint32_t, D>(), v));
 }
 
-template <size_t N, int kPow2>
-HWY_API VFromD<Simd<uint16_t, N, kPow2>> DemoteTo(
-    Simd<uint16_t, N, kPow2> d, VFromD<Simd<int64_t, N, kPow2 + 2>> v) {
-  return DemoteTo(d, DemoteTo(Simd<uint32_t, N, kPow2 + 1>(), v));
+template <class D, HWY_IF_U16_D(D)>
+HWY_API VFromD<D> DemoteTo(D d, VFromD<Rebind<int64_t, D>> v) {
+  return DemoteTo(d, DemoteTo(Rebind<uint32_t, D>(), v));
 }
 
-template <size_t N, int kPow2>
-HWY_API VFromD<Simd<uint16_t, N, kPow2>> DemoteTo(
-    Simd<uint16_t, N, kPow2> d, VFromD<Simd<uint64_t, N, kPow2 + 2>> v) {
-  return DemoteTo(d, DemoteTo(Simd<uint32_t, N, kPow2 + 1>(), v));
+template <class D, HWY_IF_U16_D(D)>
+HWY_API VFromD<D> DemoteTo(D d, VFromD<Rebind<uint64_t, D>> v) {
+  return DemoteTo(d, DemoteTo(Rebind<uint32_t, D>(), v));
 }
 
 HWY_API vuint8mf8_t U8FromU32(const vuint32mf2_t v) {
@@ -2758,16 +2737,14 @@ HWY_API vint8m2_t DemoteTo(Simd<int8_t, N, 1> d, const vint32m8_t v) {
   return DemoteTo(d, DemoteTo(Simd<int16_t, N, 2>(), v));
 }
 
-template <size_t N, int kPow2>
-HWY_API VFromD<Simd<int8_t, N, kPow2>> DemoteTo(
-    Simd<int8_t, N, kPow2> d, VFromD<Simd<int64_t, N, kPow2 + 3>> v) {
-  return DemoteTo(d, DemoteTo(Simd<int32_t, N, kPow2 + 2>(), v));
+template <class D, HWY_IF_I8_D(D)>
+HWY_API VFromD<D> DemoteTo(D d, VFromD<Rebind<int64_t, D>> v) {
+  return DemoteTo(d, DemoteTo(Rebind<int32_t, D>(), v));
 }
 
-template <size_t N, int kPow2>
-HWY_API VFromD<Simd<int16_t, N, kPow2>> DemoteTo(
-    Simd<int16_t, N, kPow2> d, VFromD<Simd<int64_t, N, kPow2 + 2>> v) {
-  return DemoteTo(d, DemoteTo(Simd<int32_t, N, kPow2 + 1>(), v));
+template <class D, HWY_IF_I16_D(D)>
+HWY_API VFromD<D> DemoteTo(D d, VFromD<Rebind<int64_t, D>> v) {
+  return DemoteTo(d, DemoteTo(Rebind<int32_t, D>(), v));
 }
 
 #undef HWY_RVV_DEMOTE
@@ -5606,11 +5583,9 @@ HWY_INLINE V MulOdd(const V a, const V b) {
 
 // ------------------------------ ReorderDemote2To (OddEven, Combine)
 
-template <size_t N, int kPow2>
-HWY_API VFromD<Simd<hwy::bfloat16_t, N, kPow2>> ReorderDemote2To(
-    Simd<hwy::bfloat16_t, N, kPow2> dbf16,
-    VFromD<RepartitionToWide<decltype(dbf16)>> a,
-    VFromD<RepartitionToWide<decltype(dbf16)>> b) {
+template <class D, HWY_IF_BF16_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D dbf16, VFromD<RepartitionToWide<D>> a,
+                                   VFromD<RepartitionToWide<D>> b) {
   const RebindToUnsigned<decltype(dbf16)> du16;
   const Half<decltype(du16)> du16_half;
   const RebindToUnsigned<DFromV<decltype(a)>> du32;
@@ -5802,15 +5777,15 @@ HWY_API VFromD<D32> ReorderWidenMulAccumulateU16(D32 d32, VFromD<D16> a,
 
 }  // namespace detail
 
-template <size_t N, int kPow2, class VN, class VW>
-HWY_API VW ReorderWidenMulAccumulate(Simd<int32_t, N, kPow2> d32, VN a, VN b,
-                                     const VW sum0, VW& sum1) {
+template <class D, HWY_IF_I32_D(D), class VN, class VW>
+HWY_API VW ReorderWidenMulAccumulate(D d32, VN a, VN b, const VW sum0,
+                                     VW& sum1) {
   return detail::ReorderWidenMulAccumulateI16(d32, a, b, sum0, sum1);
 }
 
-template <size_t N, int kPow2, class VN, class VW>
-HWY_API VW ReorderWidenMulAccumulate(Simd<uint32_t, N, kPow2> d32, VN a, VN b,
-                                     const VW sum0, VW& sum1) {
+template <class D, HWY_IF_U32_D(D), class VN, class VW>
+HWY_API VW ReorderWidenMulAccumulate(D d32, VN a, VN b, const VW sum0,
+                                     VW& sum1) {
   return detail::ReorderWidenMulAccumulateU16(d32, a, b, sum0, sum1);
 }
 
