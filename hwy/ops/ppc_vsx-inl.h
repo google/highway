@@ -6975,8 +6975,12 @@ HWY_API V BitShuffle(V v, VI idx) {
 #if HWY_S390X_HAVE_Z14
   const VFromD<decltype(d_full_u64)> bit_shuf_result{reinterpret_cast<RawVU64>(
       vec_bperm_u128(BitCast(du8, v).raw, bit_idx.raw))};
-#else
+#elif defined(__SIZEOF_INT128__)
   using RawVU128 = __vector unsigned __int128;
+  const VFromD<decltype(d_full_u64)> bit_shuf_result{reinterpret_cast<RawVU64>(
+      vec_vbpermq(reinterpret_cast<RawVU128>(v.raw), bit_idx.raw))};
+#else
+  using RawVU128 = __vector unsigned char;
   const VFromD<decltype(d_full_u64)> bit_shuf_result{reinterpret_cast<RawVU64>(
       vec_vbpermq(reinterpret_cast<RawVU128>(v.raw), bit_idx.raw))};
 #endif
