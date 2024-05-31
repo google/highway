@@ -6418,7 +6418,8 @@ HWY_API VFromD<DU> ConvertInRangeTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
 }
 
 template <class DI, HWY_IF_V_SIZE_D(DI, 64), HWY_IF_I32_D(DI)>
-HWY_INLINE VFromD<DI> NearestIntInRange(DI, VFromD<RebindToFloat<DI>> v) {
+static HWY_INLINE VFromD<DI> NearestIntInRange(DI,
+                                               VFromD<RebindToFloat<DI>> v) {
 #if HWY_COMPILER_GCC_ACTUAL
   // Workaround for undefined behavior in _mm512_cvtps_epi32 with GCC if any
   // values of v[i] are not within the range of an int32_t
@@ -6455,6 +6456,134 @@ HWY_INLINE VFromD<DI> NearestIntInRange(DI, VFromD<RebindToFloat<DI>> v) {
   return VFromD<DI>{raw_result};
 #else
   return VFromD<DI>{_mm512_cvtps_epi32(v.raw)};
+#endif
+}
+
+#if HWY_HAVE_FLOAT16
+template <class DI, HWY_IF_V_SIZE_D(DI, 64), HWY_IF_I16_D(DI)>
+static HWY_INLINE VFromD<DI> NearestIntInRange(DI /*d*/, Vec512<float16_t> v) {
+#if HWY_COMPILER_GCC_ACTUAL
+  // Workaround for undefined behavior in _mm512_cvtph_epi16 with GCC if any
+  // values of v[i] are not within the range of an int16_t
+
+#if HWY_COMPILER_GCC_ACTUAL >= 1200 && !HWY_IS_DEBUG_BUILD && \
+    HWY_HAVE_SCALAR_F16_TYPE
+  if (detail::IsConstantX86VecForF2IConv<int16_t>(v)) {
+    typedef hwy::float16_t::Native GccF16RawVectType
+        __attribute__((__vector_size__(64)));
+    const auto raw_v = reinterpret_cast<GccF16RawVectType>(v.raw);
+    return VFromD<DI>{
+        _mm512_set_epi16(detail::X86ScalarNearestInt<int16_t>(raw_v[31]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[30]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[29]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[28]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[27]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[26]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[25]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[24]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[23]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[22]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[21]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[20]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[19]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[18]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[17]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[16]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[15]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[14]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[13]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[12]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[11]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[10]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[9]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[8]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[7]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[6]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[5]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[4]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[3]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[2]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[1]),
+                         detail::X86ScalarNearestInt<int16_t>(raw_v[0]))};
+  }
+#endif
+
+  __m512i raw_result;
+  __asm__("vcvtph2w {%1, %0|%0, %1}"
+          : "=" HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(raw_result)
+          : HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(v.raw)
+          :);
+  return VFromD<DI>{raw_result};
+#else
+  return VFromD<DI>{_mm512_cvtph_epi16(v.raw)};
+#endif
+}
+#endif  // HWY_HAVE_FLOAT16
+
+template <class DI, HWY_IF_V_SIZE_D(DI, 64), HWY_IF_I64_D(DI)>
+static HWY_INLINE VFromD<DI> NearestIntInRange(DI /*di*/, Vec512<double> v) {
+#if HWY_COMPILER_GCC_ACTUAL
+  // Workaround for undefined behavior in _mm512_cvtpd_epi64 with GCC if any
+  // values of v[i] are not within the range of an int64_t
+
+#if HWY_COMPILER_GCC_ACTUAL >= 700 && !HWY_IS_DEBUG_BUILD
+  if (detail::IsConstantX86VecForF2IConv<int64_t>(v)) {
+    typedef double GccF64RawVectType __attribute__((__vector_size__(64)));
+    const auto raw_v = reinterpret_cast<GccF64RawVectType>(v.raw);
+    return VFromD<DI>{
+        _mm512_setr_epi64(detail::X86ScalarNearestInt<int64_t>(raw_v[0]),
+                          detail::X86ScalarNearestInt<int64_t>(raw_v[1]),
+                          detail::X86ScalarNearestInt<int64_t>(raw_v[2]),
+                          detail::X86ScalarNearestInt<int64_t>(raw_v[3]),
+                          detail::X86ScalarNearestInt<int64_t>(raw_v[4]),
+                          detail::X86ScalarNearestInt<int64_t>(raw_v[5]),
+                          detail::X86ScalarNearestInt<int64_t>(raw_v[6]),
+                          detail::X86ScalarNearestInt<int64_t>(raw_v[7]))};
+  }
+#endif
+
+  __m512i raw_result;
+  __asm__("vcvtpd2qq {%1, %0|%0, %1}"
+          : "=" HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(raw_result)
+          : HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(v.raw)
+          :);
+  return VFromD<DI>{raw_result};
+#else
+  return VFromD<DI>{_mm512_cvtpd_epi64(v.raw)};
+#endif
+}
+
+template <class DI, HWY_IF_V_SIZE_D(DI, 32), HWY_IF_I32_D(DI)>
+static HWY_INLINE VFromD<DI> DemoteToNearestIntInRange(DI /* tag */,
+                                                       Vec512<double> v) {
+#if HWY_COMPILER_GCC_ACTUAL
+  // Workaround for undefined behavior in _mm512_cvtpd_epi32 with GCC if any
+  // values of v[i] are not within the range of an int32_t
+
+#if HWY_COMPILER_GCC_ACTUAL >= 700 && !HWY_IS_DEBUG_BUILD
+  if (detail::IsConstantX86VecForF2IConv<int32_t>(v)) {
+    typedef double GccF64RawVectType __attribute__((__vector_size__(64)));
+    const auto raw_v = reinterpret_cast<GccF64RawVectType>(v.raw);
+    return VFromD<DI>{
+        _mm256_setr_epi32(detail::X86ScalarNearestInt<int32_t>(raw_v[0]),
+                          detail::X86ScalarNearestInt<int32_t>(raw_v[1]),
+                          detail::X86ScalarNearestInt<int32_t>(raw_v[2]),
+                          detail::X86ScalarNearestInt<int32_t>(raw_v[3]),
+                          detail::X86ScalarNearestInt<int32_t>(raw_v[4]),
+                          detail::X86ScalarNearestInt<int32_t>(raw_v[5]),
+                          detail::X86ScalarNearestInt<int32_t>(raw_v[6]),
+                          detail::X86ScalarNearestInt<int32_t>(raw_v[7]))};
+  }
+#endif
+
+  __m256i raw_result;
+  __asm__("vcvtpd2dq {%1, %0|%0, %1}"
+          : "=" HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(raw_result)
+          : HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(v.raw)
+          :);
+  return VFromD<DI>{raw_result};
+#else
+  return VFromD<DI>{_mm512_cvtpd_epi32(v.raw)};
 #endif
 }
 

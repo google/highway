@@ -5079,6 +5079,16 @@ HWY_API Vec128<float, N> Floor(const Vec128<float, N> v) {
 
 // ------------------------------ NearestInt (Round)
 
+#if HWY_HAVE_FLOAT16
+HWY_API Vec128<int16_t> NearestInt(const Vec128<float16_t> v) {
+  return Vec128<int16_t>(vcvtnq_s16_f16(v.raw));
+}
+template <size_t N, HWY_IF_V_SIZE_LE(float16_t, N, 8)>
+HWY_API Vec128<int16_t, N> NearestInt(const Vec128<float16_t, N> v) {
+  return Vec128<int16_t, N>(vcvtn_s16_f16(v.raw));
+}
+#endif
+
 #if HWY_ARCH_ARM_A64
 
 HWY_API Vec128<int32_t> NearestInt(const Vec128<float> v) {
@@ -5087,6 +5097,29 @@ HWY_API Vec128<int32_t> NearestInt(const Vec128<float> v) {
 template <size_t N, HWY_IF_V_SIZE_LE(float, N, 8)>
 HWY_API Vec128<int32_t, N> NearestInt(const Vec128<float, N> v) {
   return Vec128<int32_t, N>(vcvtn_s32_f32(v.raw));
+}
+
+HWY_API Vec128<int64_t> NearestInt(const Vec128<double> v) {
+  return Vec128<int64_t>(vcvtnq_s64_f64(v.raw));
+}
+
+template <size_t N, HWY_IF_V_SIZE_LE(double, N, 8)>
+HWY_API Vec128<int64_t, N> NearestInt(const Vec128<double, N> v) {
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 610
+  // Workaround for missing vcvtn_s64_f64 intrinsic
+  const DFromV<decltype(v)> d;
+  const RebindToSigned<decltype(d)> di;
+  const Twice<decltype(d)> dt;
+  return LowerHalf(di, NearestInt(Combine(dt, v, v)));
+#else
+  return Vec128<int64_t, N>(vcvtn_s64_f64(v.raw));
+#endif
+}
+
+template <class DI32, HWY_IF_I32_D(DI32)>
+HWY_API VFromD<DI32> DemoteToNearestInt(DI32 di32,
+                                        VFromD<Rebind<double, DI32>> v) {
+  return DemoteTo(di32, NearestInt(v));
 }
 
 #else
