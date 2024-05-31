@@ -359,13 +359,16 @@ static HWY_NOINLINE void VerifyPartition(
 template <class Traits>
 static HWY_NOINLINE void TestPartition() {
   using LaneType = typename Traits::LaneType;
-  const SortTag<LaneType> d;
+  // See HandleSpecialCases and HWY_ASSERT below.
+  const CappedTag<LaneType, 64 / sizeof(LaneType)> d;
   SharedTraits<Traits> st;
   const bool asc = typename Traits::Order().IsAscending();
   const size_t N = Lanes(d);
   constexpr int kDebug = 0;
   constexpr size_t N1 = st.LanesPerKey();
   const size_t base_case_num = SortConstants::BaseCaseNumLanes<N1>(N);
+  HWY_ASSERT(2 * N <= base_case_num);  // See HandleSpecialCases
+
   // left + len + align
   const size_t total = 32 + (base_case_num + 4 * HWY_MAX(N, 4)) + 2 * N;
   auto aligned_lanes = hwy::AllocateAligned<LaneType>(total);

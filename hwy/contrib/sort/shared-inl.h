@@ -142,7 +142,7 @@ namespace HWY_NAMESPACE {
 
 // Default tag / vector width selector.
 #if HWY_TARGET == HWY_RVV
-// Use LMUL = 1/2; for SEW=64 this ends up emulated via vsetvl.
+// Use LMUL = 1/2; for SEW=64 this ends up emulated via VSETVLI.
 template <typename T>
 using SortTag = ScalableTag<T, -1>;
 #else
