@@ -166,11 +166,7 @@
 #define HWY_HAS_FEATURE(name) 0
 #endif
 
-#ifdef __has_include
-#define HWY_HAS_INCLUDE(header) __has_include(header)
-#else
-#define HWY_HAS_INCLUDE(header) 0
-#endif
+// NOTE: clang ~17 does not correctly handle wrapping __has_include in a macro.
 
 #if HWY_COMPILER_MSVC && defined(_MSVC_LANG) && _MSVC_LANG > __cplusplus
 #define HWY_CXX_LANG _MSVC_LANG

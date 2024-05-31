@@ -53,9 +53,19 @@
 
 #endif  // !HWY_IDE
 
-#ifndef HWY_HAVE_CXX20_THREE_WAY_COMPARE  // allow opt-out
+#ifndef HWY_HAVE_COMPARE_HEADER  // allow override
+#define HWY_HAVE_COMPARE_HEADER 0
+#if defined(__has_include)  // note: wrapper macro fails on Clang ~17
+#if __has_include(<compare>)
+#undef HWY_HAVE_COMPARE_HEADER
+#define HWY_HAVE_COMPARE_HEADER 1
+#endif  // __has_include
+#endif  // defined(__has_include)
+#endif  // HWY_HAVE_COMPARE_HEADER
+
+#ifndef HWY_HAVE_CXX20_THREE_WAY_COMPARE  // allow override
 #if !defined(HWY_NO_LIBCXX) && defined(__cpp_impl_three_way_comparison) && \
-    __cpp_impl_three_way_comparison >= 201907L && HWY_HAS_INCLUDE(<compare>)
+    __cpp_impl_three_way_comparison >= 201907L && HWY_HAVE_COMPARE_HEADER
 #include <compare>
 #define HWY_HAVE_CXX20_THREE_WAY_COMPARE 1
 #else

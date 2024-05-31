@@ -577,19 +577,22 @@
 #endif
 // Defining one of HWY_COMPILE_ONLY_* will trump HWY_COMPILE_ALL_ATTAINABLE.
 
-// Allow opting out, and without a guarantee of success, opting-in.
-#ifndef HWY_HAVE_AUXV
+#ifndef HWY_HAVE_AUXV  // allow override
 #ifdef TOOLCHAIN_MISS_SYS_AUXV_H
 #define HWY_HAVE_AUXV 0  // CMake failed to find the header
 // glibc 2.16 added auxv, but checking for that requires features.h, and we do
 // not want to include system headers here. Instead check for the header
 // directly, which has been supported at least since GCC 5.4 and Clang 3.
+#elif defined(__has_include)  // note: wrapper macro fails on Clang ~17
 // clang-format off
-#elif HWY_HAS_INCLUDE(<sys/auxv.h>)
+#if __has_include(<sys/auxv.h>)
 // clang-format on
 #define HWY_HAVE_AUXV 1  // header present
 #else
-#define HWY_HAVE_AUXV 0  // header not present, or non Clang/GCC compiler
+#define HWY_HAVE_AUXV 0  // header not present
+#endif                   // __has_include
+#else                    // compiler lacks __has_include
+#define HWY_HAVE_AUXV 0
 #endif
 #endif  // HWY_HAVE_AUXV
 
