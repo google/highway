@@ -34,4 +34,5 @@ Prepend to debian/changelog and update mentions of the current version in:
 *   `git archive --prefix=highway-X.Y.Z/ -o highway-X.Y.Z.tar.gz vX.Y.Z` and
     also attach the result
 
-(See https://wiki.debian.org/Creating%20signed%20GitHub%20releases)
+(See https://wiki.debian.org/Creating%20signed%20GitHub%20releases and search
+hkps://keys.openpgp.org for janwas@google.com to obtain the key)
