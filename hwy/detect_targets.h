@@ -703,19 +703,23 @@
 #define HWY_ATTAINABLE_RISCV HWY_BASELINE_RVV
 #endif
 
-// Attainable means enabled and the compiler allows intrinsics (even when not
-// allowed to autovectorize). Used in 3 and 4.
-#if HWY_ARCH_X86
-#if HWY_COMPILER_MSVC
+#ifndef HWY_ATTAINABLE_TARGETS_X86  // allow override
+#if HWY_COMPILER_MSVC && defined(HWY_SLOW_MSVC)
 // Fewer targets for faster builds.
-#define HWY_ATTAINABLE_TARGETS \
+#define HWY_ATTAINABLE_TARGETS_X86 \
   HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_STATIC_TARGET | HWY_AVX2)
 #else  // !HWY_COMPILER_MSVC
-#define HWY_ATTAINABLE_TARGETS                                               \
+#define HWY_ATTAINABLE_TARGETS_X86                                           \
   HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_SSE2 | HWY_SSSE3 | HWY_SSE4 |        \
               HWY_AVX2 | HWY_AVX3 | HWY_ATTAINABLE_AVX3_DL | HWY_AVX3_ZEN4 | \
               HWY_AVX3_SPR)
 #endif  // !HWY_COMPILER_MSVC
+#endif  // HWY_ATTAINABLE_TARGETS_X86
+
+// Attainable means enabled and the compiler allows intrinsics (even when not
+// allowed to autovectorize). Used in 3 and 4.
+#if HWY_ARCH_X86
+#define HWY_ATTAINABLE_TARGETS HWY_ATTAINABLE_TARGETS_X86
 #elif HWY_ARCH_ARM
 #define HWY_ATTAINABLE_TARGETS                                                 \
   HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_ATTAINABLE_NEON | HWY_ATTAINABLE_SVE | \
