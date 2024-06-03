@@ -596,23 +596,46 @@
 #endif
 #endif  // HWY_HAVE_AUXV
 
+#ifndef HWY_HAVE_RUNTIME_DISPATCH_RVV  // allow override
+// The riscv_vector.h in (at least) Clang 16-18 requires compiler flags, see
+// https://github.com/llvm/llvm-project/issues/56592. GCC 13.3 also has an
+// #error check, whereas 14.1 fails with "argument type 'vuint16m8_t' requires
+// the V ISA extension": https://gcc.gnu.org/bugzilla/show_bug.cgi?id=115325.
+// Hence disable runtime dispatch for now.
+#if HWY_ARCH_RISCV && 0
+#define HWY_HAVE_RUNTIME_DISPATCH_RVV 1
+#else
+#define HWY_HAVE_RUNTIME_DISPATCH_RVV 0
+#endif
+#endif  // HWY_HAVE_RUNTIME_DISPATCH_RVV
+
+#ifndef HWY_HAVE_RUNTIME_DISPATCH_APPLE  // allow override
+#if HWY_ARCH_ARM_A64 && HWY_OS_APPLE && \
+    (HWY_COMPILER_GCC_ACTUAL || HWY_COMPILER_CLANG >= 1700)
+#define HWY_HAVE_RUNTIME_DISPATCH_APPLE 1
+#else
+#define HWY_HAVE_RUNTIME_DISPATCH_APPLE 0
+#endif
+#endif  // HWY_HAVE_RUNTIME_DISPATCH_APPLE
+
+#ifndef HWY_HAVE_RUNTIME_DISPATCH_LINUX  // allow override
+#if (HWY_ARCH_ARM || HWY_ARCH_PPC || HWY_ARCH_S390X) && HWY_OS_LINUX && \
+    (HWY_COMPILER_GCC_ACTUAL || HWY_COMPILER_CLANG >= 1700) && HWY_HAVE_AUXV
+#define HWY_HAVE_RUNTIME_DISPATCH_LINUX 1
+#else
+#define HWY_HAVE_RUNTIME_DISPATCH_LINUX 0
+#endif
+#endif  // HWY_HAVE_RUNTIME_DISPATCH_LINUX
+
 // Allow opting out, and without a guarantee of success, opting-in.
 #ifndef HWY_HAVE_RUNTIME_DISPATCH
-// Clang, GCC and MSVC allow runtime dispatch on x86.
-#if HWY_ARCH_X86
-#define HWY_HAVE_RUNTIME_DISPATCH 1
-// On Arm, PPC, S390X, and RISC-V: GCC and Clang 17+ do, and we require Linux
-// to detect CPU capabilities.
-#elif (HWY_ARCH_ARM || HWY_ARCH_PPC || HWY_ARCH_S390X || HWY_ARCH_RISCV) &&    \
-    (HWY_COMPILER_GCC_ACTUAL || HWY_COMPILER_CLANG >= 1700) && HWY_OS_LINUX && \
-    HWY_HAVE_AUXV
-#define HWY_HAVE_RUNTIME_DISPATCH 1
-#elif HWY_ARCH_ARM_A64 && HWY_OS_APPLE && \
-    (HWY_COMPILER_GCC_ACTUAL || HWY_COMPILER_CLANG >= 1700)
+// Clang, GCC and MSVC allow OS-independent runtime dispatch on x86.
+#if HWY_ARCH_X86 || HWY_HAVE_RUNTIME_DISPATCH_RVV || \
+    HWY_HAVE_RUNTIME_DISPATCH_APPLE || HWY_HAVE_RUNTIME_DISPATCH_LINUX
 #define HWY_HAVE_RUNTIME_DISPATCH 1
 #else
 #define HWY_HAVE_RUNTIME_DISPATCH 0
-#endif  // HWY_ARCH_*
+#endif
 #endif  // HWY_HAVE_RUNTIME_DISPATCH
 
 // AVX3_DL is not widely available yet. To reduce code size and compile time,
@@ -675,9 +698,9 @@
 #endif
 
 #if HWY_ARCH_RISCV && HWY_HAVE_RUNTIME_DISPATCH
-#define HWY_ATTAINABLE_RISCV (HWY_RVV)
+#define HWY_ATTAINABLE_RISCV HWY_RVV
 #else
-#define HWY_ATTAINABLE_RISCV 0
+#define HWY_ATTAINABLE_RISCV HWY_BASELINE_RVV
 #endif
 
 // Attainable means enabled and the compiler allows intrinsics (even when not
