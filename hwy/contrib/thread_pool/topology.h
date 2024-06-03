@@ -28,7 +28,7 @@
 namespace hwy {
 
 // Returns false if std::thread should not be used.
-HWY_DLLEXPORT bool HaveThreadingSupport();
+HWY_CONTRIB_DLLEXPORT bool HaveThreadingSupport();
 
 // Upper bound on logical processors, including hyperthreads.
 static constexpr size_t kMaxLogicalProcessors = 1024;  // matches glibc
@@ -38,12 +38,12 @@ using LogicalProcessorSet = BitSet4096<kMaxLogicalProcessors>;
 
 // Returns false, or sets `lps` to all logical processors which are online and
 // available to the current thread.
-HWY_DLLEXPORT bool GetThreadAffinity(LogicalProcessorSet& lps);
+HWY_CONTRIB_DLLEXPORT bool GetThreadAffinity(LogicalProcessorSet& lps);
 
 // Ensures the current thread can only run on the logical processors in `lps`.
 // Returns false if not supported (in particular on Apple), or if the
 // intersection between `lps` and `GetThreadAffinity` is the empty set.
-HWY_DLLEXPORT bool SetThreadAffinity(const LogicalProcessorSet& lps);
+HWY_CONTRIB_DLLEXPORT bool SetThreadAffinity(const LogicalProcessorSet& lps);
 
 // Returns false, or ensures the current thread will only run on `lp`, which
 // must not exceed `TotalLogicalProcessors`. Note that this merely calls
@@ -58,11 +58,11 @@ static inline bool PinThreadToLogicalProcessor(size_t lp) {
 // provided by the hardware clamped to `kMaxLogicalProcessors`.
 // These processors are not necessarily all usable; you can determine which are
 // via GetThreadAffinity().
-HWY_DLLEXPORT size_t TotalLogicalProcessors();
+HWY_CONTRIB_DLLEXPORT size_t TotalLogicalProcessors();
 
 struct Topology {
   // Caller must check packages.empty(); if so, do not use any fields.
-  HWY_DLLEXPORT Topology();
+  HWY_CONTRIB_DLLEXPORT Topology();
 
   // Clique of cores with lower latency to each other. On Apple M1 these are
   // four cores sharing an L2. On Zen4 these 'CCX' are up to eight cores sharing

@@ -64,7 +64,7 @@
 
 namespace hwy {
 
-HWY_DLLEXPORT bool HaveThreadingSupport() {
+HWY_CONTRIB_DLLEXPORT bool HaveThreadingSupport() {
 #if HWY_ARCH_WASM
   return emscripten_has_threading_support() != 0;
 #else
@@ -72,7 +72,7 @@ HWY_DLLEXPORT bool HaveThreadingSupport() {
 #endif
 }
 
-HWY_DLLEXPORT size_t TotalLogicalProcessors() {
+HWY_CONTRIB_DLLEXPORT size_t TotalLogicalProcessors() {
   size_t lp = 0;
 #if HWY_ARCH_WASM
   const int num_cores = emscripten_num_logical_cores();
@@ -111,7 +111,7 @@ HWY_DLLEXPORT size_t TotalLogicalProcessors() {
 #include <sys/syscall.h>
 #endif
 
-HWY_DLLEXPORT bool GetThreadAffinity(LogicalProcessorSet& lps) {
+HWY_CONTRIB_DLLEXPORT bool GetThreadAffinity(LogicalProcessorSet& lps) {
 #if HWY_OS_WIN
   // Only support the first 64 because WINE does not support processor groups.
   const HANDLE hThread = GetCurrentThread();
@@ -173,7 +173,7 @@ HWY_DLLEXPORT bool GetThreadAffinity(LogicalProcessorSet& lps) {
 #endif
 }
 
-HWY_DLLEXPORT bool SetThreadAffinity(const LogicalProcessorSet& lps) {
+HWY_CONTRIB_DLLEXPORT bool SetThreadAffinity(const LogicalProcessorSet& lps) {
 #if HWY_OS_WIN
   const HANDLE hThread = GetCurrentThread();
   const DWORD_PTR prev = SetThreadAffinityMask(hThread, lps.Get64());
@@ -385,7 +385,7 @@ std::vector<PerPackage> DetectPackages(std::vector<Topology::LP>& lps) {
 }  // namespace
 #endif  // HWY_OS_LINUX
 
-HWY_DLLEXPORT Topology::Topology() {
+HWY_CONTRIB_DLLEXPORT Topology::Topology() {
 #if HWY_OS_LINUX
   lps.resize(TotalLogicalProcessors());
   const std::vector<PerPackage>& per_package = DetectPackages(lps);
