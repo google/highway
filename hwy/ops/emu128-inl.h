@@ -1023,14 +1023,13 @@ HWY_API Vec128<T, N> Round(Vec128<T, N> v) {
 }
 
 // Round-to-nearest even.
-template <size_t N>
-HWY_API Vec128<int32_t, N> NearestInt(Vec128<float, N> v) {
-  using T = float;
-  using TI = int32_t;
+template <class T, size_t N, HWY_IF_FLOAT3264(T)>
+HWY_API Vec128<MakeSigned<T>, N> NearestInt(Vec128<T, N> v) {
+  using TI = MakeSigned<T>;
   const T k0 = ConvertScalarTo<T>(0);
 
-  const Vec128<float, N> abs = Abs(v);
-  Vec128<int32_t, N> ret;
+  const Vec128<T, N> abs = Abs(v);
+  Vec128<TI, N> ret;
   for (size_t i = 0; i < N; ++i) {
     const bool signbit = ScalarSignBit(v.raw[i]);
 
@@ -1043,6 +1042,44 @@ HWY_API Vec128<int32_t, N> NearestInt(Vec128<float, N> v) {
       ret.raw[i] = static_cast<TI>(v.raw[i]);
       continue;
     }
+    const T bias = ConvertScalarTo<T>(v.raw[i] < k0 ? -0.5 : 0.5);
+    const TI rounded = ConvertScalarTo<TI>(v.raw[i] + bias);
+    if (rounded == 0) {
+      ret.raw[i] = 0;
+      continue;
+    }
+    const T rounded_f = ConvertScalarTo<T>(rounded);
+    // Round to even
+    if ((rounded & 1) &&
+        ScalarAbs(rounded_f - v.raw[i]) == ConvertScalarTo<T>(0.5)) {
+      ret.raw[i] = rounded - (signbit ? -1 : 1);
+      continue;
+    }
+    ret.raw[i] = rounded;
+  }
+  return ret;
+}
+
+template <class DI32, HWY_IF_I32_D(DI32)>
+HWY_API VFromD<DI32> DemoteToNearestInt(DI32 /*di32*/,
+                                        VFromD<Rebind<double, DI32>> v) {
+  using T = double;
+  using TI = int32_t;
+  const T k0 = ConvertScalarTo<T>(0);
+
+  constexpr size_t N = HWY_MAX_LANES_D(DI32);
+
+  const VFromD<Rebind<double, DI32>> abs = Abs(v);
+  VFromD<DI32> ret;
+  for (size_t i = 0; i < N; ++i) {
+    const bool signbit = ScalarSignBit(v.raw[i]);
+
+    // Check if too large to cast or NaN
+    if (!(abs.raw[i] <= ConvertScalarTo<T>(LimitsMax<TI>()))) {
+      ret.raw[i] = signbit ? LimitsMin<TI>() : LimitsMax<TI>();
+      continue;
+    }
+
     const T bias = ConvertScalarTo<T>(v.raw[i] < k0 ? -0.5 : 0.5);
     const TI rounded = ConvertScalarTo<TI>(v.raw[i] + bias);
     if (rounded == 0) {

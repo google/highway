@@ -1971,8 +1971,9 @@ HWY_API Vec256<TTo> ConvertTo(DTo d, const Vec256<TFrom> v) {
   return ret;
 }
 
-HWY_API Vec256<int32_t> NearestInt(const Vec256<float> v) {
-  return ConvertTo(Full256<int32_t>(), Round(v));
+template <typename T, HWY_IF_FLOAT3264(T)>
+HWY_API Vec256<MakeSigned<T>> NearestInt(const Vec256<T> v) {
+  return ConvertTo(Full256<MakeSigned<T>>(), Round(v));
 }
 
 // ================================================== MISC

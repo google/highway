@@ -1694,9 +1694,17 @@ All functions except `Stream` are defined in cache_control.h.
     Returns an implementation-defined value if the input exceeds the destination
     range.
 
-*   `V`: `f32`; `Ret`: `i32` \
+*   `V`: `f`; `Ret`: `Vec<RebindToSigned<DFromV<V>>>` \
     <code>Ret **NearestInt**(V a)</code>: returns the integer nearest to `a[i]`;
     results are undefined for NaN.
+
+*   `D`: `i32`, `V`: `f64`
+    <code>Vec&lt;D&gt; **DemoteToNearestInt**(D d, V v)</code>: converts `v[i]`
+    to `TFromD<D>`, rounding to nearest (with ties to even).
+
+    `DemoteToNearestInt(d, v)` is equivalent to `DemoteTo(d, Round(v))`, but
+    `DemoteToNearestInt(d, v)` is more efficient on some targets, including x86
+    and RVV.
 
 #### Single vector demotion
 

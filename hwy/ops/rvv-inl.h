@@ -2963,6 +2963,32 @@ HWY_RVV_FOREACH_F(HWY_RVV_CONVERT, _, _, _ALL_VIRT)
 HWY_RVV_FOREACH_F(HWY_RVV_NEAREST, _, _, _ALL)
 #undef HWY_RVV_NEAREST
 
+template <size_t N>
+HWY_API vint32mf2_t DemoteToNearestInt(Simd<int32_t, N, -2> d,
+                                       const vfloat64m1_t v) {
+  return __riscv_vfncvt_x_f_w_i32mf2(v, Lanes(d));
+}
+template <size_t N>
+HWY_API vint32mf2_t DemoteToNearestInt(Simd<int32_t, N, -1> d,
+                                       const vfloat64m1_t v) {
+  return __riscv_vfncvt_x_f_w_i32mf2(v, Lanes(d));
+}
+template <size_t N>
+HWY_API vint32m1_t DemoteToNearestInt(Simd<int32_t, N, 0> d,
+                                      const vfloat64m2_t v) {
+  return __riscv_vfncvt_x_f_w_i32m1(v, Lanes(d));
+}
+template <size_t N>
+HWY_API vint32m2_t DemoteToNearestInt(Simd<int32_t, N, 1> d,
+                                      const vfloat64m4_t v) {
+  return __riscv_vfncvt_x_f_w_i32m2(v, Lanes(d));
+}
+template <size_t N>
+HWY_API vint32m4_t DemoteToNearestInt(Simd<int32_t, N, 2> d,
+                                      const vfloat64m8_t v) {
+  return __riscv_vfncvt_x_f_w_i32m4(v, Lanes(d));
+}
+
 // ================================================== COMBINE
 
 namespace detail {

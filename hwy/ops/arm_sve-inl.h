@@ -2800,6 +2800,13 @@ HWY_API VFromD<DI> NearestInt(VF v) {
   return ConvertTo(DI(), Round(v));
 }
 
+template <class DI32, HWY_IF_I32_D(DI32)>
+HWY_API VFromD<DI32> DemoteToNearestInt(DI32 di32,
+                                        VFromD<Rebind<double, DI32>> v) {
+  // No single instruction, round then demote.
+  return DemoteTo(di32, Round(v));
+}
+
 // ------------------------------ Iota (Add, ConvertTo)
 
 #define HWY_SVE_IOTA(BASE, CHAR, BITS, HALF, NAME, OP)          \

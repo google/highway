@@ -282,6 +282,18 @@ HWY_NOINLINE void TestAllRound() {
 }
 
 struct TestNearestInt {
+  static HWY_INLINE int16_t RoundScalarFloatToInt(float16_t f) {
+    return static_cast<int16_t>(std::lrintf(ConvertScalarTo<float>(f)));
+  }
+
+  static HWY_INLINE int32_t RoundScalarFloatToInt(float f) {
+    return static_cast<int32_t>(std::lrintf(f));
+  }
+
+  static HWY_INLINE int64_t RoundScalarFloatToInt(double f) {
+    return static_cast<int64_t>(std::llrint(f));
+  }
+
   template <typename TF, class DF>
   HWY_NOINLINE void operator()(TF tf, const DF df) {
     using TI = MakeSigned<TF>;
@@ -298,11 +310,11 @@ struct TestNearestInt {
         // We replace NaN with 0 below (no_nan)
         expected[i] = 0;
       } else if (ScalarIsInf(in[i]) ||
-                 static_cast<double>(ScalarAbs(in[i])) >= kMax) {
-        // Avoid undefined result for lrintf
-        expected[i] = std::signbit(in[i]) ? LimitsMin<TI>() : LimitsMax<TI>();
+                 ConvertScalarTo<double>(ScalarAbs(in[i])) >= kMax) {
+        // Avoid undefined result for std::lrintf or std::llrint
+        expected[i] = ScalarSignBit(in[i]) ? LimitsMin<TI>() : LimitsMax<TI>();
       } else {
-        expected[i] = static_cast<TI>(lrintf(ConvertScalarTo<float>(in[i])));
+        expected[i] = RoundScalarFloatToInt(in[i]);
       }
     }
     for (size_t i = 0; i < padded; i += Lanes(df)) {
@@ -314,7 +326,46 @@ struct TestNearestInt {
 };
 
 HWY_NOINLINE void TestAllNearestInt() {
-  ForPartialVectors<TestNearestInt>()(float());
+  ForFloatTypes(ForPartialVectors<TestNearestInt>());
+}
+
+struct TestDemoteToNearestInt {
+  template <typename TF, class DF>
+  HWY_NOINLINE void operator()(TF tf, const DF df) {
+    using TI = MakeNarrow<MakeSigned<TF>>;
+    const Rebind<TI, DF> di;
+
+    size_t padded;
+    auto in = RoundTestCases(tf, df, padded);
+    auto expected = AllocateAligned<TI>(padded);
+    HWY_ASSERT(expected);
+
+    constexpr double kMax = static_cast<double>(LimitsMax<TI>());
+    for (size_t i = 0; i < padded; ++i) {
+      if (ScalarIsNaN(in[i])) {
+        // We replace NaN with 0 below (no_nan)
+        expected[i] = 0;
+      } else if (ScalarIsInf(in[i]) ||
+                 static_cast<double>(ScalarAbs(in[i])) >= kMax) {
+        // Avoid undefined result for std::lrint
+        expected[i] = ScalarSignBit(in[i]) ? LimitsMin<TI>() : LimitsMax<TI>();
+      } else {
+        expected[i] =
+            static_cast<TI>(std::lrint(ConvertScalarTo<double>(in[i])));
+      }
+    }
+    for (size_t i = 0; i < padded; i += Lanes(df)) {
+      const auto v = Load(df, &in[i]);
+      const auto no_nan = IfThenElse(Eq(v, v), v, Zero(df));
+      HWY_ASSERT_VEC_EQ(di, &expected[i], DemoteToNearestInt(di, no_nan));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllDemoteToNearestInt() {
+#if HWY_HAVE_FLOAT64
+  ForDemoteVectors<TestDemoteToNearestInt>()(double());
+#endif
 }
 
 struct TestTrunc {
@@ -430,6 +481,7 @@ HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllSquareRoot);
 HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllReciprocalSquareRoot);
 HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllRound);
 HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllNearestInt);
+HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllDemoteToNearestInt);
 HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllTrunc);
 HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllCeil);
 HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllFloor);

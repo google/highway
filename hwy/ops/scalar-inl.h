@@ -831,9 +831,9 @@ HWY_API Vec1<T> Round(const Vec1<T> v) {
 }
 
 // Round-to-nearest even.
-HWY_API Vec1<int32_t> NearestInt(const Vec1<float> v) {
-  using T = float;
-  using TI = int32_t;
+template <class T, HWY_IF_FLOAT3264(T)>
+HWY_API Vec1<MakeSigned<T>> NearestInt(const Vec1<T> v) {
+  using TI = MakeSigned<T>;
 
   const T abs = Abs(v).raw;
   const bool is_sign = ScalarSignBit(v.raw);
@@ -843,12 +843,39 @@ HWY_API Vec1<int32_t> NearestInt(const Vec1<float> v) {
     if (!(abs <= ConvertScalarTo<T>(LimitsMax<TI>()))) {
       return Vec1<TI>(is_sign ? LimitsMin<TI>() : LimitsMax<TI>());
     }
-    return Vec1<int32_t>(ConvertScalarTo<TI>(v.raw));
+    return Vec1<TI>(ConvertScalarTo<TI>(v.raw));
   }
   const T bias =
       ConvertScalarTo<T>(v.raw < ConvertScalarTo<T>(0.0) ? -0.5 : 0.5);
   const TI rounded = ConvertScalarTo<TI>(v.raw + bias);
-  if (rounded == 0) return Vec1<int32_t>(0);
+  if (rounded == 0) return Vec1<TI>(0);
+  TI offset = 0;
+  // Round to even
+  if ((rounded & 1) && ScalarAbs(ConvertScalarTo<T>(rounded) - v.raw) ==
+                           ConvertScalarTo<T>(0.5)) {
+    offset = is_sign ? -1 : 1;
+  }
+  return Vec1<TI>(rounded - offset);
+}
+
+// Round-to-nearest even.
+template <class DI32, HWY_IF_I32_D(DI32)>
+HWY_API VFromD<DI32> DemoteToNearestInt(DI32 /*di32*/, const Vec1<double> v) {
+  using T = double;
+  using TI = int32_t;
+
+  const T abs = Abs(v).raw;
+  const bool is_sign = ScalarSignBit(v.raw);
+
+  // Check if too large to cast or NaN
+  if (!(abs <= ConvertScalarTo<T>(LimitsMax<TI>()))) {
+    return Vec1<TI>(is_sign ? LimitsMin<TI>() : LimitsMax<TI>());
+  }
+
+  const T bias =
+      ConvertScalarTo<T>(v.raw < ConvertScalarTo<T>(0.0) ? -0.5 : 0.5);
+  const TI rounded = ConvertScalarTo<TI>(v.raw + bias);
+  if (rounded == 0) return Vec1<TI>(0);
   TI offset = 0;
   // Round to even
   if ((rounded & 1) && ScalarAbs(ConvertScalarTo<T>(rounded) - v.raw) ==

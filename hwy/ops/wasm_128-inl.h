@@ -4791,9 +4791,17 @@ HWY_API VFromD<DU> ConvertTo(DU du, VFromD<Rebind<double, DU>> v) {
 }
 
 // ------------------------------ NearestInt (Round)
-template <size_t N>
-HWY_API Vec128<int32_t, N> NearestInt(const Vec128<float, N> v) {
+template <typename T, size_t N, HWY_IF_FLOAT3264(T)>
+HWY_API Vec128<MakeSigned<T>, N> NearestInt(const Vec128<T, N> v) {
   return ConvertTo(RebindToSigned<DFromV<decltype(v)>>(), Round(v));
+}
+
+// ------------------------------ DemoteToNearestInt (Round)
+template <class DI32, HWY_IF_I32_D(DI32)>
+HWY_API VFromD<DI32> DemoteToNearestInt(DI32 di32,
+                                        VFromD<Rebind<double, DI32>> v) {
+  // No single instruction, round then demote.
+  return DemoteTo(di32, Round(v));
 }
 
 // ================================================== MISC
