@@ -6922,9 +6922,17 @@ HWY_API V BitShuffle(V v, VI idx) {
       static_cast<uint64_t>(0x0102040810204080u);
 #endif
 
+  const auto k7 = Set(du8, uint8_t{0x07});
+
+  auto unmasked_byte_idx = BitCast(du8, ShiftRight<3>(BitCast(d_idx_shr, idx)));
+#if HWY_IS_BIG_ENDIAN
+  // Need to invert the lower 3 bits of unmasked_byte_idx[i] on big-endian
+  // targets
+  unmasked_byte_idx = Xor(unmasked_byte_idx, k7);
+#endif  // HWY_IS_BIG_ENDIAN
+
   const auto byte_idx = BitwiseIfThenElse(
-      Set(du8, uint8_t{0x07}),
-      BitCast(du8, ShiftRight<3>(BitCast(d_idx_shr, idx))),
+      k7, unmasked_byte_idx,
       BitCast(du8, Dup128VecFromValues(du64, uint64_t{0},
                                        uint64_t{0x0808080808080808u})));
   // We want to shift right by idx & 7 to extract the desired bit in `bytes`,
