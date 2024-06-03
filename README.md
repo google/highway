@@ -130,7 +130,8 @@ Highway supports 24 targets, listed in alphabetical order of platform:
         VBMI2 + VNNI + VPOPCNT; requires opt-in by defining `HWY_WANT_AVX3_DL`
         unless compiling for static dispatch),
     -   `AVX3_ZEN4` (like AVX3_DL but optimized for AMD Zen4; requires opt-in by
-        defining `HWY_WANT_AVX3_ZEN4` if compiling for static dispatch)
+        defining `HWY_WANT_AVX3_ZEN4` if compiling for static dispatch, but
+        enabled by default for runtime dispatch),
     -   `AVX3_SPR` (~Sapphire Rapids, includes AVX-512FP16)
 
 Our policy is that unless otherwise specified, targets will remain supported as
