@@ -27,12 +27,9 @@ Prepend to debian/changelog and update mentions of the current version in:
 
 ### Signing the release
 
-*   Download release source code archive
+*   `git archive --prefix=highway-X.Y.Z/ -o highway-X.Y.Z.tar.gz X.Y.Z`
 *   `gpg --armor --detach-sign highway-X.Y.Z.tar.gz`
-*   Edit release and attach the resulting `highway-X.Y.Z.tar.gz.asc`
-
-*   `git archive --prefix=highway-X.Y.Z/ -o highway-X.Y.Z.tar.gz vX.Y.Z` and
-    also attach the result
+*   Edit release and attach the resulting `highway-X.Y.Z.tar.gz.asc` and .gz.
 
 (See https://wiki.debian.org/Creating%20signed%20GitHub%20releases and search
 hkps://keys.openpgp.org for janwas@google.com to obtain the key)
