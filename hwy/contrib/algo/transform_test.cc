@@ -135,6 +135,24 @@ struct ForeachCountAndMisalign {
   }
 };
 
+// Fills an array with random values, placing a given sentinel value both before
+// (when misalignment space is available) and after. Requires an allocation of
+// at least count + misalign + 1 elements.
+template <typename T>
+T* FillRandom(AlignedFreeUniquePtr<T[]>& pa, size_t count, size_t misalign,
+              T sentinel, RandomState& rng) {
+  for (size_t i = 0; i < misalign; ++i) {
+    pa[i] = sentinel;
+  }
+
+  T* a = pa.get() + misalign;
+  for (size_t i = 0; i < count; ++i) {
+    a[i] = Random<T>(rng);
+  }
+  a[count] = sentinel;
+  return a;
+}
+
 // Output-only, no loads
 struct TestGenerate {
   template <class D>
@@ -173,8 +191,9 @@ struct TestGenerate {
 // Input-only, no stores
 struct TestForeach {
   template <class D>
-  void operator()(D d, size_t count, size_t misalign_a, size_t /*misalign_b*/,
+  void operator()(D d, size_t count, size_t misalign_a, size_t misalign_b,
                   RandomState& /*rng*/) {
+    if (misalign_b != 0) return;
     using T = TFromD<D>;
     AlignedFreeUniquePtr<T[]> pa = AllocateAligned<T>(misalign_a + count + 1);
     HWY_ASSERT(pa);
@@ -186,15 +205,19 @@ struct TestForeach {
       max = HWY_MAX(max, actual[i]);
     }
 
+    // Place sentinel values in the misalignment area and at the input's end.
+    for (size_t i = 0; i < misalign_a; ++i) {
+      pa[i] = 2 * count;
+    }
+    actual[count] = ConvertScalarTo<T>(2 * count);
+
     const Vec<D> vmin = Set(d, hwy::LowestValue<T>());
     // TODO(janwas): can we update the apply_to in HWY_PUSH_ATTRIBUTES so that
     // the attribute also applies to lambdas? If so, remove HWY_ATTR.
     Vec<D> vmax = vmin;
     const auto func = [&vmax](const D, const Vec<D> v)
                           HWY_ATTR { vmax = Max(vmax, v); };
-    actual[count] = ConvertScalarTo<T>(0);  // sentinel
     Foreach(d, actual, count, vmin, func);
-    HWY_ASSERT_EQ(ConvertScalarTo<T>(0), actual[count]);  // no write past end
 
     const char* target_name = hwy::TargetName(HWY_TARGET);
     AssertEqual(max, ReduceMax(d, vmax), target_name, __FILE__, __LINE__);
@@ -210,15 +233,12 @@ struct TestTransform {
     using T = TFromD<D>;
     // Prevents error if size to allocate is zero.
     AlignedFreeUniquePtr<T[]> pa =
-        AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
+        AllocateAligned<T>(HWY_MAX(1, misalign_a + count + 1));
     AlignedFreeUniquePtr<T[]> expected = AllocateAligned<T>(HWY_MAX(1, count));
     HWY_ASSERT(pa && expected);
 
-    T* a = pa.get() + misalign_a;
-    for (size_t i = 0; i < count; ++i) {
-      a[i] = Random<T>(rng);
-    }
-
+    const T sentinel = ConvertScalarTo<T>(-42);
+    T* a = FillRandom(pa, count, misalign_a, sentinel, rng);
     SimpleSCAL(a, expected.get(), count);
 
     // TODO(janwas): can we update the apply_to in HWY_PUSH_ATTRIBUTES so that
@@ -236,6 +256,12 @@ struct TestTransform {
     const char* target_name = hwy::TargetName(HWY_TARGET);
     hwy::detail::AssertArrayEqual(info, expected.get(), a, count, target_name,
                                   __FILE__, __LINE__);
+
+    // Ensure no out-of-bound writes.
+    for (size_t i = 0; i < misalign_a; ++i) {
+      HWY_ASSERT_EQ(sentinel, pa[i]);
+    }
+    HWY_ASSERT_EQ(sentinel, a[count]);
   }
 };
 
@@ -247,15 +273,16 @@ struct TestTransform1 {
     using T = TFromD<D>;
     // Prevents error if size to allocate is zero.
     AlignedFreeUniquePtr<T[]> pa =
-        AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
+        AllocateAligned<T>(HWY_MAX(1, misalign_a + count + 1));
     AlignedFreeUniquePtr<T[]> pb =
         AllocateAligned<T>(HWY_MAX(1, misalign_b + count));
     AlignedFreeUniquePtr<T[]> expected = AllocateAligned<T>(HWY_MAX(1, count));
     HWY_ASSERT(pa && pb && expected);
-    T* a = pa.get() + misalign_a;
+
+    const T sentinel = ConvertScalarTo<T>(-42);
+    T* a = FillRandom(pa, count, misalign_a, sentinel, rng);
     T* b = pb.get() + misalign_b;
     for (size_t i = 0; i < count; ++i) {
-      a[i] = Random<T>(rng);
       b[i] = Random<T>(rng);
     }
 
@@ -272,6 +299,11 @@ struct TestTransform1 {
 
     AssertArraySimilar(expected.get(), a, count, hwy::TargetName(HWY_TARGET),
                        __FILE__, __LINE__);
+    // Ensure no out-of-bound writes.
+    for (size_t i = 0; i < misalign_a; ++i) {
+      HWY_ASSERT_EQ(sentinel, pa[i]);
+    }
+    HWY_ASSERT_EQ(sentinel, a[count]);
   }
 };
 
@@ -283,18 +315,19 @@ struct TestTransform2 {
     using T = TFromD<D>;
     // Prevents error if size to allocate is zero.
     AlignedFreeUniquePtr<T[]> pa =
-        AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
+        AllocateAligned<T>(HWY_MAX(1, misalign_a + count + 1));
     AlignedFreeUniquePtr<T[]> pb =
         AllocateAligned<T>(HWY_MAX(1, misalign_b + count));
     AlignedFreeUniquePtr<T[]> pc =
         AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
     AlignedFreeUniquePtr<T[]> expected = AllocateAligned<T>(HWY_MAX(1, count));
     HWY_ASSERT(pa && pb && pc && expected);
-    T* a = pa.get() + misalign_a;
+
+    const T sentinel = ConvertScalarTo<T>(-42);
+    T* a = FillRandom(pa, count, misalign_a, sentinel, rng);
     T* b = pb.get() + misalign_b;
     T* c = pc.get() + misalign_a;
     for (size_t i = 0; i < count; ++i) {
-      a[i] = Random<T>(rng);
       b[i] = Random<T>(rng);
       c[i] = Random<T>(rng);
     }
@@ -311,6 +344,11 @@ struct TestTransform2 {
 
     AssertArraySimilar(expected.get(), a, count, hwy::TargetName(HWY_TARGET),
                        __FILE__, __LINE__);
+    // Ensure no out-of-bound writes.
+    for (size_t i = 0; i < misalign_a; ++i) {
+      HWY_ASSERT_EQ(sentinel, pa[i]);
+    }
+    HWY_ASSERT_EQ(sentinel, a[count]);
   }
 };
 
@@ -335,15 +373,13 @@ struct TestReplace {
     if (misalign_b != 0) return;
     if (count == 0) return;
     using T = TFromD<D>;
-    AlignedFreeUniquePtr<T[]> pa = AllocateAligned<T>(misalign_a + count);
+    AlignedFreeUniquePtr<T[]> pa = AllocateAligned<T>(misalign_a + count + 1);
     AlignedFreeUniquePtr<T[]> pb = AllocateAligned<T>(count);
     AlignedFreeUniquePtr<T[]> expected = AllocateAligned<T>(count);
     HWY_ASSERT(pa && pb && expected);
 
-    T* a = pa.get() + misalign_a;
-    for (size_t i = 0; i < count; ++i) {
-      a[i] = Random<T>(rng);
-    }
+    const T sentinel = ConvertScalarTo<T>(-42);
+    T* a = FillRandom(pa, count, misalign_a, sentinel, rng);
 
     std::vector<size_t> positions(AdjustedReps(count));
     for (size_t& pos : positions) {
@@ -362,9 +398,19 @@ struct TestReplace {
 
       Replace(d, a, count, new_t, old_t);
       HWY_ASSERT_ARRAY_EQ(expected.get(), a, count);
+      // Ensure no out-of-bound writes.
+      for (size_t i = 0; i < misalign_a; ++i) {
+        HWY_ASSERT_EQ(sentinel, pa[i]);
+      }
+      HWY_ASSERT_EQ(sentinel, a[count]);
 
       ReplaceIf(d, pb.get(), count, new_t, IfEq<T>(old_t));
       HWY_ASSERT_ARRAY_EQ(expected.get(), pb.get(), count);
+      // Ensure no out-of-bound writes.
+      for (size_t i = 0; i < misalign_a; ++i) {
+        HWY_ASSERT_EQ(sentinel, pa[i]);
+      }
+      HWY_ASSERT_EQ(sentinel, a[count]);
     }
   }
 };
