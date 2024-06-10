@@ -205,7 +205,7 @@ HWY_NOINLINE V CallExp(const D d, VecArg<V> x) {
  * Valid Lane Types: float32, float64
  *        Max Error: ULP = 2
  *      Valid Range: float32[-FLT_MAX, +128], float64[-DBL_MAX, +1024]
- * @return e^x
+ * @return 2^x
  */
 template <class D, class V>
 HWY_INLINE V Exp2(D d, V x);
@@ -823,6 +823,12 @@ struct ExpImpl<float> {
     return ConvertTo(Rebind<int32_t, D>(), x);
   }
 
+  // Rounds float to nearest int32_t
+  template <class D, class V>
+  HWY_INLINE Vec<Rebind<int32_t, D>> ToNearestInt32(D /*unused*/, V x) {
+    return NearestInt(x);
+  }
+
   template <class D, class V>
   HWY_INLINE V ExpPoly(D d, V x) {
     const auto k0 = Set(d, +0.5f);
@@ -902,6 +908,12 @@ struct ExpImpl<double> {
   template <class D, class V>
   HWY_INLINE Vec<Rebind<int32_t, D>> ToInt32(D /*unused*/, V x) {
     return DemoteTo(Rebind<int32_t, D>(), x);
+  }
+
+  // Rounds double to nearest int32_t
+  template <class D, class V>
+  HWY_INLINE Vec<Rebind<int32_t, D>> ToNearestInt32(D /*unused*/, V x) {
+    return DemoteToNearestInt(Rebind<int32_t, D>(), x);
   }
 
   template <class D, class V>
@@ -1478,15 +1490,14 @@ template <class D, class V>
 HWY_INLINE V Exp2(const D d, V x) {
   using T = TFromD<D>;
 
-  const V kHalf = Set(d, static_cast<T>(+0.5));
   const V kLowerBound =
       Set(d, static_cast<T>((sizeof(T) == 4 ? -150.0 : -1075.0)));
   const V kOne = Set(d, static_cast<T>(+1.0));
 
   impl::ExpImpl<T> impl;
 
-  // q = static_cast<int32>(x + ((x < 0) ? -0.5 : +0.5))
-  const auto q = impl.ToInt32(d, Add(x, CopySign(kHalf, x)));
+  // q = static_cast<int32_t>(std::lrint(x))
+  const auto q = impl.ToNearestInt32(d, x);
 
   // Reduce, approximate, and then reconstruct.
   const V y = impl.LoadExpShortRange(
