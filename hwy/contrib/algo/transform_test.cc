@@ -207,7 +207,7 @@ struct TestForeach {
 
     // Place sentinel values in the misalignment area and at the input's end.
     for (size_t i = 0; i < misalign_a; ++i) {
-      pa[i] = 2 * count;
+      pa[i] = ConvertScalarTo<T>(2 * count);
     }
     actual[count] = ConvertScalarTo<T>(2 * count);
 
