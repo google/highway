@@ -229,6 +229,89 @@ jobs:
           cmake --build out
           ctest --test-dir out
 
+  cmake_ubuntu_2404:
+    name: Build and test ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include:
+          - name: Clang-16
+            extra_deps: clang-16
+            c_compiler: clang-16
+            cxx_compiler: clang++-16
+            # Disable AVX3_SPR/AVX3_ZEN4 targets in GitHub workflow build with
+            # Clang 16 or later to work around crashes that occur with Clang 16
+            # or later when some of the Google Highway tests are compiled with
+            # all x86 targets enabled
+            cxx_flags: -DHWY_DISABLED_TARGETS=0x50
+            cxx_standard: 17
+
+          - name: Clang-17
+            extra_deps: clang-17
+            c_compiler: clang-17
+            cxx_compiler: clang++-17
+            # Disable AVX3_SPR/AVX3_ZEN4 targets in GitHub workflow build with
+            # Clang 16 or later to work around crashes that occur with Clang 16
+            # or later when some of the Google Highway tests are compiled with
+            # all x86 targets enabled
+            cxx_flags: -DHWY_DISABLED_TARGETS=0x50
+            cxx_standard: 17
+
+          - name: Clang-18
+            extra_deps: clang-18
+            c_compiler: clang-18
+            cxx_compiler: clang++-18
+            # Disable AVX3_SPR/AVX3_ZEN4 targets in GitHub workflow build with
+            # Clang 16 or later to work around crashes that occur with Clang 16
+            # or later when some of the Google Highway tests are compiled with
+            # all x86 targets enabled
+            cxx_flags: -DHWY_DISABLED_TARGETS=0x50
+            cxx_standard: 17
+
+          - name: Clang-18 (C++23)
+            extra_deps: clang-18
+            c_compiler: clang-18
+            cxx_compiler: clang++-18
+            # Disable AVX3_SPR/AVX3_ZEN4 targets in GitHub workflow build with
+            # Clang 16 or later to work around crashes that occur with Clang 16
+            # or later when some of the Google Highway tests are compiled with
+            # all x86 targets enabled
+            cxx_flags: -DHWY_DISABLED_TARGETS=0x50
+            cxx_standard: 23
+
+          - name: GCC-13
+            extra_deps: g++-13
+            c_compiler: gcc-13
+            cxx_compiler: g++-13
+            cxx_flags: -ftrapv
+            cxx_standard: 17
+
+          - name: GCC-13 (C++23)
+            extra_deps: g++-13
+            c_compiler: gcc-13
+            cxx_compiler: g++-13
+            cxx_flags: -ftrapv
+            cxx_standard: 23
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
+        with:
+          egress-policy: audit  # cannot be block - runner does git checkout
+
+      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.0.0
+
+      - name: Install deps
+        run: sudo apt-get install ${{ matrix.extra_deps }}
+
+      - name: Build and test
+        run: |
+          export CMAKE_BUILD_PARALLEL_LEVEL=2
+          export CTEST_PARALLEL_LEVEL=2
+          CXXFLAGS="${{ matrix.cxx_flags }}" CC=${{ matrix.c_compiler }} CXX=${{ matrix.cxx_compiler }} cmake -DHWY_WARNINGS_ARE_ERRORS=ON -DCMAKE_CXX_STANDARD=${{ matrix.cxx_standard }} ${{ matrix.extra_cmake_flags }} -B out .
+          cmake --build out
+          ctest --test-dir out
+
   bazel:
     runs-on: ubuntu-latest
     steps:
