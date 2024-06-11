@@ -182,6 +182,15 @@ jobs:
             cxx_compiler: clang++-15
             cxx_standard: 20
 
+          - name: Clang-15 (x86_32)
+            extra_deps: clang-15 g++-i686-linux-gnu
+            c_compiler: clang-15
+            cxx_compiler: clang++-15
+            # Disable AVX3 targets on x86_32
+            cxx_flags: -m32 -DHWY_DISABLED_TARGETS=0x1FF -DHWY_BROKEN_TARGETS=0x1FF
+            extra_cmake_flags: -DCMAKE_C_COMPILER_TARGET=i686-linux-gnu -DCMAKE_CXX_COMPILER_TARGET=i686-linux-gnu -DHWY_CMAKE_SSE2=ON
+            cxx_standard: 17
+
           - name: GCC-11
             extra_deps: g++-11
             c_compiler: gcc-11
@@ -210,6 +219,15 @@ jobs:
             cxx_flags: -ftrapv
             cxx_standard: 20
 
+          - name: GCC-12 (x86_32)
+            extra_deps: g++-12-i686-linux-gnu
+            c_compiler: i686-linux-gnu-gcc-12
+            cxx_compiler: i686-linux-gnu-g++-12
+            # Disable AVX3 targets on x86_32
+            cxx_flags: -m32 -ftrapv -DHWY_DISABLED_TARGETS=0x1FF -DHWY_BROKEN_TARGETS=0x1FF
+            extra_cmake_flags: -DCMAKE_C_COMPILER_TARGET=i686-linux-gnu -DCMAKE_CXX_COMPILER_TARGET=i686-linux-gnu -DHWY_CMAKE_SSE2=ON
+            cxx_standard: 17
+
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
@@ -225,7 +243,7 @@ jobs:
         run: |
           export CMAKE_BUILD_PARALLEL_LEVEL=2
           export CTEST_PARALLEL_LEVEL=2
-          CXXFLAGS=${{ matrix.cxx_flags }} CC=${{ matrix.c_compiler }} CXX=${{ matrix.cxx_compiler }} cmake -DHWY_WARNINGS_ARE_ERRORS=ON -DCMAKE_CXX_STANDARD=${{ matrix.cxx_standard }} -B out .
+          CXXFLAGS="${{ matrix.cxx_flags }}" CC=${{ matrix.c_compiler }} CXX=${{ matrix.cxx_compiler }} cmake -DHWY_WARNINGS_ARE_ERRORS=ON -DCMAKE_CXX_STANDARD=${{ matrix.cxx_standard }} ${{ matrix.extra_cmake_flags }} -B out .
           cmake --build out
           ctest --test-dir out
 
