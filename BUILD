@@ -521,6 +521,7 @@ HWY_TESTS = [
     ("hwy/tests/", "saturated_test"),
     ("hwy/tests/", "shift_test"),
     ("hwy/tests/", "shuffle4_test"),
+    ("hwy/tests/", "sign_test"),
     ("hwy/tests/", "slide_up_down_test"),
     ("hwy/tests/", "sums_abs_diff_test"),
     ("hwy/tests/", "swizzle_block_test"),

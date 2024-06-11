@@ -705,6 +705,7 @@ set(HWY_TEST_FILES
   hwy/tests/saturated_test.cc
   hwy/tests/shift_test.cc
   hwy/tests/shuffle4_test.cc
+  hwy/tests/sign_test.cc
   hwy/tests/slide_up_down_test.cc
   hwy/tests/sums_abs_diff_test.cc
   hwy/tests/swizzle_block_test.cc

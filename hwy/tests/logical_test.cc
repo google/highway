@@ -14,7 +14,6 @@
 // limitations under the License.
 
 #include <stddef.h>
-#include <stdint.h>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/logical_test.cc"
@@ -116,62 +115,6 @@ HWY_NOINLINE void TestAllLogical() {
   ForAllTypes(ForPartialVectors<TestLogical>());
 }
 
-struct TestCopySign {
-  template <class T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto v0 = Zero(d);
-    const auto vp = Iota(d, 1);
-    const auto vn = Iota(d, -1E5);  // assumes N < 10^5
-
-    // Zero remains zero regardless of sign
-    HWY_ASSERT_VEC_EQ(d, v0, CopySign(v0, v0));
-    HWY_ASSERT_VEC_EQ(d, v0, CopySign(v0, vp));
-    HWY_ASSERT_VEC_EQ(d, v0, CopySign(v0, vn));
-    HWY_ASSERT_VEC_EQ(d, v0, CopySignToAbs(v0, v0));
-    HWY_ASSERT_VEC_EQ(d, v0, CopySignToAbs(v0, vp));
-    HWY_ASSERT_VEC_EQ(d, v0, CopySignToAbs(v0, vn));
-
-    // Positive input, positive sign => unchanged
-    HWY_ASSERT_VEC_EQ(d, vp, CopySign(vp, vp));
-    HWY_ASSERT_VEC_EQ(d, vp, CopySignToAbs(vp, vp));
-
-    // Positive input, negative sign => negated
-    HWY_ASSERT_VEC_EQ(d, Neg(vp), CopySign(vp, vn));
-    HWY_ASSERT_VEC_EQ(d, Neg(vp), CopySignToAbs(vp, vn));
-
-    // Negative input, negative sign => unchanged
-    HWY_ASSERT_VEC_EQ(d, vn, CopySign(vn, vn));
-
-    // Negative input, positive sign => negated
-    HWY_ASSERT_VEC_EQ(d, Neg(vn), CopySign(vn, vp));
-  }
-};
-
-HWY_NOINLINE void TestAllCopySign() {
-  ForFloatTypes(ForPartialVectors<TestCopySign>());
-}
-
-struct TestBroadcastSignBit {
-  template <class T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto s0 = Zero(d);
-    const auto s1 = Set(d, -1);  // all bit set
-    const auto vpos = And(Iota(d, 0), Set(d, LimitsMax<T>()));
-    const auto vneg = Sub(s1, vpos);
-
-    HWY_ASSERT_VEC_EQ(d, s0, BroadcastSignBit(vpos));
-    HWY_ASSERT_VEC_EQ(d, s0, BroadcastSignBit(Set(d, LimitsMax<T>())));
-
-    HWY_ASSERT_VEC_EQ(d, s1, BroadcastSignBit(vneg));
-    HWY_ASSERT_VEC_EQ(d, s1, BroadcastSignBit(Set(d, LimitsMin<T>())));
-    HWY_ASSERT_VEC_EQ(d, s1, BroadcastSignBit(Set(d, LimitsMin<T>() / 2)));
-  }
-};
-
-HWY_NOINLINE void TestAllBroadcastSignBit() {
-  ForSignedTypes(ForPartialVectors<TestBroadcastSignBit>());
-}
-
 struct TestTestBit {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -202,81 +145,6 @@ HWY_NOINLINE void TestAllTestBit() {
   ForIntegerTypes(ForPartialVectors<TestTestBit>());
 }
 
-class TestBitwiseIfThenElse {
- private:
-  template <class T>
-  static T ValueFromBitPattern(hwy::FloatTag /* type_tag */, T /* unused */,
-                               uint64_t bits) {
-    using TI = MakeSigned<T>;
-    return ConvertScalarTo<T>(
-        ConvertScalarTo<T>(static_cast<TI>(bits & MantissaMask<T>())) +
-        MantissaEnd<T>());
-  }
-  template <class T>
-  static MakeUnsigned<T> ValueFromBitPattern(hwy::NonFloatTag /* type_tag */,
-                                             T /* unused */, uint64_t bits) {
-    return static_cast<MakeUnsigned<T>>(bits);
-  }
-
- public:
-  template <class T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    using TU = MakeUnsigned<T>;
-    using TVal = RemoveConst<decltype(ValueFromBitPattern(IsFloatTag<T>(), T(),
-                                                          uint64_t{0}))>;
-    static_assert(!IsFloat<T>() || IsSame<TVal, T>(),
-                  "TVal should be the same as T if T is a floating-point type");
-    static_assert(IsFloat<T>() || IsSame<TVal, TU>(),
-                  "TVal should be the same as TU if T is a integer type");
-
-    static TVal a0 = ValueFromBitPattern(IsFloatTag<T>(), T(),
-                                         uint64_t{0x0FF00FF00FF00FF0u});
-    static TVal b0 = ValueFromBitPattern(IsFloatTag<T>(), T(),
-                                         uint64_t{0x33CC33CC33CC33CCu});
-    static TVal c0 = ValueFromBitPattern(IsFloatTag<T>(), T(),
-                                         uint64_t{0x55AA55AA55AA55AAu});
-    static TVal a1 = ValueFromBitPattern(IsFloatTag<T>(), T(),
-                                         uint64_t{0xF00FF00FF00FF00Fu});
-    static TVal b1 = ValueFromBitPattern(IsFloatTag<T>(), T(),
-                                         uint64_t{0xCC33CC33CC33CC33u});
-    static TVal c1 = ValueFromBitPattern(IsFloatTag<T>(), T(),
-                                         uint64_t{0xAA55AA55AA55AA55u});
-
-    const RebindToUnsigned<decltype(d)> du;
-    const Rebind<TVal, decltype(d)> d_val;
-    const auto v_a0 = BitCast(d, Set(d_val, a0));
-    const auto v_b0 = BitCast(d, Set(d_val, b0));
-    const auto v_c0 = BitCast(d, Set(d_val, c0));
-
-    const auto v_a1 = BitCast(d, Set(d_val, a1));
-    const auto v_b1 = BitCast(d, Set(d_val, b1));
-    const auto v_c1 = BitCast(d, Set(d_val, c1));
-
-    static TVal expected_1 = ValueFromBitPattern(IsFloatTag<T>(), T(),
-                                                 uint64_t{0x53CA53CA53CA53CAu});
-    HWY_ASSERT_VEC_EQ(d, BitCast(d, Set(d_val, expected_1)),
-                      BitwiseIfThenElse(v_a0, v_b0, v_c0));
-
-    static TVal expected_2 = ValueFromBitPattern(IsFloatTag<T>(), T(),
-                                                 uint64_t{0xCA53CA53CA53CA53u});
-    HWY_ASSERT_VEC_EQ(d, BitCast(d, Set(d_val, expected_2)),
-                      BitwiseIfThenElse(v_a1, v_b1, v_c1));
-
-    static TVal expected_3 = ValueFromBitPattern(IsFloatTag<T>(), T(),
-                                                 uint64_t{0x1DB81DB81DB81DB8u});
-    HWY_ASSERT_VEC_EQ(d, BitCast(d, Set(d_val, expected_3)),
-                      BitwiseIfThenElse(v_b1, v_a0, v_c0));
-
-    const auto v_all_ones = BitCast(d, Set(du, static_cast<TU>(-1)));
-    HWY_ASSERT_VEC_EQ(d, v_a0, BitwiseIfThenElse(v_all_ones, v_a0, v_b0));
-    HWY_ASSERT_VEC_EQ(d, v_b0, BitwiseIfThenElse(Zero(d), v_a0, v_b0));
-  }
-};
-
-HWY_NOINLINE void TestAllBitwiseIfThenElse() {
-  ForAllTypes(ForPartialVectors<TestBitwiseIfThenElse>());
-}
-
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -288,10 +156,7 @@ namespace hwy {
 HWY_BEFORE_TEST(HwyLogicalTest);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllNot);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogical);
-HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCopySign);
-HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllBroadcastSignBit);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllTestBit);
-HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllBitwiseIfThenElse);
 HWY_AFTER_TEST();
 }  // namespace hwy
 
