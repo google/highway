@@ -342,6 +342,7 @@ cc_library(
         ":nanobenchmark",
         ":profiler",
         ":stats",
+        ":topology",
     ],
 )
 

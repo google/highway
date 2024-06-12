@@ -36,6 +36,7 @@
 #include "hwy/base.h"
 #include "hwy/cache_control.h"  // Pause
 #include "hwy/contrib/thread_pool/futex.h"
+#include "hwy/contrib/thread_pool/topology.h"
 
 // Temporary NOINLINE for profiling.
 #define HWY_POOL_INLINE HWY_NOINLINE
@@ -555,6 +556,12 @@ class ThreadPool {
   // This typically includes hyperthreads, hence it is a loose upper bound.
   // -1 because these are in addition to the main thread.
   static size_t MaxThreads() {
+    LogicalProcessorSet lps;
+    // This is OS dependent, but more accurate if available because it takes
+    // into account restrictions set by cgroups or numactl/taskset.
+    if (GetThreadAffinity(lps)) {
+      return lps.Count() - 1;
+    }
     return static_cast<size_t>(std::thread::hardware_concurrency() - 1);
   }
 
