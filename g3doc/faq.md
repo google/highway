@@ -210,6 +210,19 @@ example `HWY_RESTRICT` in public headers. This avoids the expense of including
 the full `highway.h`, which can be large because some platform headers declare
 thousands of intrinsics.
 
+Q3.6: What are **restrict pointers** and when to use `HWY_RESTRICT`?
+
+This relates to aliasing. If a function has two pointer arguments of the same
+type, and perhaps also extern/static variables of that type, the compiler might
+have to be very conservative about caching the variables or pointer accesses
+because their value could change after writes to the pointer.
+
+`float* HWY_RESTRICT p` means a pointer to float, and this pointer is the only
+way to access the pointed-to object/array. In particular, this promises that `p`
+does not alias other pointers. This usually improves codegen when there are
+multiple pointers, at least one of which is const. Beware that the generated
+code might not behave as expected if you break the promise.
+
 ## Portability
 
 Q4.1: How do I **only generate code for a single instruction set** (static
