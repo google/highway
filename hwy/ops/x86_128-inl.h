@@ -4226,6 +4226,18 @@ HWY_API Vec128<uint16_t, N> AverageRound(const Vec128<uint16_t, N> a,
   return Vec128<uint16_t, N>{_mm_avg_epu16(a.raw, b.raw)};
 }
 
+// I8/I16 AverageRound is generic for all vector lengths
+template <class V, HWY_IF_SIGNED_V(V),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2))>
+HWY_API V AverageRound(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const V sign_bit = SignBit(d);
+  return Xor(BitCast(d, AverageRound(BitCast(du, Xor(a, sign_bit)),
+                                     BitCast(du, Xor(b, sign_bit)))),
+             sign_bit);
+}
+
 // ------------------------------ Integer multiplication
 
 template <size_t N>

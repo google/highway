@@ -4655,6 +4655,44 @@ HWY_API Vec512<T> operator%(Vec512<T> a, Vec512<T> b) {
 
 #endif  // HWY_NATIVE_INT_DIV
 
+// ------------------------------ AverageRound
+
+#if (defined(HWY_NATIVE_AVERAGE_ROUND_UI32) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_AVERAGE_ROUND_UI32
+#undef HWY_NATIVE_AVERAGE_ROUND_UI32
+#else
+#define HWY_NATIVE_AVERAGE_ROUND_UI32
+#endif
+
+template <class V, HWY_IF_UI32(TFromV<V>)>
+HWY_API V AverageRound(V a, V b) {
+  using T = TFromV<V>;
+  const DFromV<decltype(a)> d;
+  return Add(Add(ShiftRight<1>(a), ShiftRight<1>(b)),
+             And(Or(a, b), Set(d, T{1})));
+}
+
+#endif  // HWY_NATIVE_AVERAGE_ROUND_UI64
+
+#if (defined(HWY_NATIVE_AVERAGE_ROUND_UI64) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_AVERAGE_ROUND_UI64
+#undef HWY_NATIVE_AVERAGE_ROUND_UI64
+#else
+#define HWY_NATIVE_AVERAGE_ROUND_UI64
+#endif
+
+#if HWY_HAVE_INTEGER64
+template <class V, HWY_IF_UI64(TFromV<V>)>
+HWY_API V AverageRound(V a, V b) {
+  using T = TFromV<V>;
+  const DFromV<decltype(a)> d;
+  return Add(Add(ShiftRight<1>(a), ShiftRight<1>(b)),
+             And(Or(a, b), Set(d, T{1})));
+}
+#endif
+
+#endif  // HWY_NATIVE_AVERAGE_ROUND_UI64
+
 // ------------------------------ MulEvenAdd (PromoteEvenTo)
 
 // SVE with bf16 and NEON with bf16 override this.

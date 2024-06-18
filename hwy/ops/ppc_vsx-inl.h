@@ -1554,11 +1554,32 @@ HWY_API V SaturatedSub(V a, V b) {
 
 // Returns (a + b + 1) / 2
 
-template <typename T, size_t N, HWY_IF_UNSIGNED(T),
-          HWY_IF_T_SIZE_ONE_OF(T, 0x6)>
+#ifdef HWY_NATIVE_AVERAGE_ROUND_UI32
+#undef HWY_NATIVE_AVERAGE_ROUND_UI32
+#else
+#define HWY_NATIVE_AVERAGE_ROUND_UI32
+#endif
+
+#if HWY_S390X_HAVE_Z14
+#ifdef HWY_NATIVE_AVERAGE_ROUND_UI64
+#undef HWY_NATIVE_AVERAGE_ROUND_UI64
+#else
+#define HWY_NATIVE_AVERAGE_ROUND_UI64
+#endif
+
+#define HWY_PPC_IF_AVERAGE_ROUND_T(T) void* = nullptr
+#else  // !HWY_S390X_HAVE_Z14
+#define HWY_PPC_IF_AVERAGE_ROUND_T(T) \
+  HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2) | (1 << 4))
+#endif  // HWY_S390X_HAVE_Z14
+
+template <typename T, size_t N, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T),
+          HWY_PPC_IF_AVERAGE_ROUND_T(T)>
 HWY_API Vec128<T, N> AverageRound(Vec128<T, N> a, Vec128<T, N> b) {
   return Vec128<T, N>{vec_avg(a.raw, b.raw)};
 }
+
+#undef HWY_PPC_IF_AVERAGE_ROUND_T
 
 // ------------------------------ Multiplication
 

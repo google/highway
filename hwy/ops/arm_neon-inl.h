@@ -2074,8 +2074,14 @@ HWY_NEON_DEF_FUNCTION_INTS_UINTS(SaturatedSub, vqsub, _, 2)
 // ------------------------------ Average
 
 // Returns (a + b + 1) / 2
-HWY_NEON_DEF_FUNCTION_UINT_8(AverageRound, vrhadd, _, 2)
-HWY_NEON_DEF_FUNCTION_UINT_16(AverageRound, vrhadd, _, 2)
+
+#ifdef HWY_NATIVE_AVERAGE_ROUND_UI32
+#undef HWY_NATIVE_AVERAGE_ROUND_UI32
+#else
+#define HWY_NATIVE_AVERAGE_ROUND_UI32
+#endif
+
+HWY_NEON_DEF_FUNCTION_UI_8_16_32(AverageRound, vrhadd, _, 2)
 
 // ------------------------------ Neg
 
