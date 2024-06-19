@@ -607,13 +607,24 @@ HWY_API Vec1<int16_t> SaturatedSub(const Vec1<int16_t> a,
 
 // Returns (a + b + 1) / 2
 
-HWY_API Vec1<uint8_t> AverageRound(const Vec1<uint8_t> a,
-                                   const Vec1<uint8_t> b) {
-  return Vec1<uint8_t>(static_cast<uint8_t>((a.raw + b.raw + 1) / 2));
-}
-HWY_API Vec1<uint16_t> AverageRound(const Vec1<uint16_t> a,
-                                    const Vec1<uint16_t> b) {
-  return Vec1<uint16_t>(static_cast<uint16_t>((a.raw + b.raw + 1) / 2));
+#ifdef HWY_NATIVE_AVERAGE_ROUND_UI32
+#undef HWY_NATIVE_AVERAGE_ROUND_UI32
+#else
+#define HWY_NATIVE_AVERAGE_ROUND_UI32
+#endif
+
+#ifdef HWY_NATIVE_AVERAGE_ROUND_UI64
+#undef HWY_NATIVE_AVERAGE_ROUND_UI64
+#else
+#define HWY_NATIVE_AVERAGE_ROUND_UI64
+#endif
+
+template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+HWY_API Vec1<T> AverageRound(const Vec1<T> a, const Vec1<T> b) {
+  const T a_val = a.raw;
+  const T b_val = b.raw;
+  return Vec1<T>(static_cast<T>(ScalarShr(a_val, 1) + ScalarShr(b_val, 1) +
+                                ((a_val | b_val) & 1)));
 }
 
 // ------------------------------ Absolute value

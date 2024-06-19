@@ -214,7 +214,8 @@ HWY_API Vec256<T> SaturatedSub(Vec256<T> a, const Vec256<T> b) {
   return a;
 }
 
-template <typename T>
+template <typename T, HWY_IF_UNSIGNED(T),
+          HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2))>
 HWY_API Vec256<T> AverageRound(Vec256<T> a, const Vec256<T> b) {
   a.v0 = AverageRound(a.v0, b.v0);
   a.v1 = AverageRound(a.v1, b.v1);

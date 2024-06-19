@@ -106,22 +106,56 @@ HWY_NOINLINE void TestAllAddSub() {
 struct TestAverage {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    using TI = MakeSigned<T>;
+
+    const RebindToSigned<decltype(d)> di;
+    const RebindToUnsigned<decltype(d)> du;
+
     const Vec<D> v0 = Zero(d);
     const Vec<D> v1 = Set(d, static_cast<T>(1));
     const Vec<D> v2 = Set(d, static_cast<T>(2));
+
+    const Vec<D> vn1 = Set(d, static_cast<T>(-1));
+    const Vec<D> vn2 = Set(d, static_cast<T>(-2));
+    const Vec<D> vn3 = Set(d, static_cast<T>(-3));
+    const Vec<D> vn4 = Set(d, static_cast<T>(-4));
 
     HWY_ASSERT_VEC_EQ(d, v0, AverageRound(v0, v0));
     HWY_ASSERT_VEC_EQ(d, v1, AverageRound(v0, v1));
     HWY_ASSERT_VEC_EQ(d, v1, AverageRound(v1, v1));
     HWY_ASSERT_VEC_EQ(d, v2, AverageRound(v1, v2));
     HWY_ASSERT_VEC_EQ(d, v2, AverageRound(v2, v2));
+
+    HWY_ASSERT_VEC_EQ(d, vn1, AverageRound(vn1, vn1));
+    HWY_ASSERT_VEC_EQ(d, vn1, AverageRound(vn1, vn2));
+    HWY_ASSERT_VEC_EQ(d, vn2, AverageRound(vn1, vn3));
+    HWY_ASSERT_VEC_EQ(d, vn2, AverageRound(vn1, vn4));
+    HWY_ASSERT_VEC_EQ(d, vn2, AverageRound(vn2, vn2));
+    HWY_ASSERT_VEC_EQ(d, vn3, AverageRound(vn2, vn4));
+
+    const T kSignedMax = static_cast<T>(LimitsMax<TI>());
+
+    const Vec<D> v_iota1 = Iota(d, static_cast<T>(1));
+    Vec<D> v_neg_even = BitCast(d, Neg(BitCast(di, Add(v_iota1, v_iota1))));
+    HWY_IF_CONSTEXPR(HWY_MAX_LANES_D(D) > static_cast<size_t>(kSignedMax)) {
+      v_neg_even = Or(v_neg_even, SignBit(d));
+    }
+
+    const Vec<D> v_pos_even = And(v_neg_even, Set(d, kSignedMax));
+    const Vec<D> v_pos_odd = Or(v_pos_even, v1);
+
+    const Vec<D> expected_even =
+        Add(ShiftRight<1>(v_neg_even),
+            BitCast(d, ShiftRight<1>(BitCast(du, v_pos_even))));
+
+    HWY_ASSERT_VEC_EQ(d, expected_even, AverageRound(v_neg_even, v_pos_even));
+    HWY_ASSERT_VEC_EQ(d, Add(expected_even, v1),
+                      AverageRound(v_neg_even, v_pos_odd));
   }
 };
 
 HWY_NOINLINE void TestAllAverage() {
-  const ForPartialVectors<TestAverage> test;
-  test(uint8_t());
-  test(uint16_t());
+  ForIntegerTypes(ForPartialVectors<TestAverage>());
 }
 
 struct TestAbs {

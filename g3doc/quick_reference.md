@@ -627,8 +627,8 @@ from left to right, of the arguments passed to `Create{2-4}`.
     <code>V **SaturatedSub**(V a, V b)</code> returns `a[i] - b[i]` saturated to
     the minimum/maximum representable value.
 
-*   `V`: `{u}{8,16}` \
-    <code>V **AverageRound**(V a, V b)</code> returns `(a[i] + b[i] + 1) / 2`.
+*   `V`: `{u,i}` \
+    <code>V **AverageRound**(V a, V b)</code> returns `(a[i] + b[i] + 1) >> 1`.
 
 *   <code>V **Clamp**(V a, V lo, V hi)</code>: returns `a[i]` clamped to
     `[lo[i], hi[i]]`.
