@@ -1113,6 +1113,50 @@ HWY_SVE_FOREACH_I(HWY_SVE_SHIFT, Shr, asr)
 
 #undef HWY_SVE_SHIFT
 
+// ------------------------------ RoundingShiftLeft[Same]/RoundingShr
+
+#if HWY_SVE_HAVE_2
+
+#ifdef HWY_NATIVE_ROUNDING_SHR
+#undef HWY_NATIVE_ROUNDING_SHR
+#else
+#define HWY_NATIVE_ROUNDING_SHR
+#endif
+
+#define HWY_SVE_ROUNDING_SHR_N(BASE, CHAR, BITS, HALF, NAME, OP)           \
+  template <int kBits>                                                     \
+  HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_V(BASE, BITS) v) {            \
+    HWY_IF_CONSTEXPR(kBits == 0) { return v; }                             \
+                                                                           \
+    return sv##OP##_##CHAR##BITS##_x(                                      \
+        HWY_SVE_PTRUE(BITS), v, static_cast<uint64_t>(HWY_MAX(kBits, 1))); \
+  }
+
+HWY_SVE_FOREACH_UI(HWY_SVE_ROUNDING_SHR_N, RoundingShiftRight, rshr_n)
+
+#undef HWY_SVE_ROUNDING_SHR_N
+
+#define HWY_SVE_ROUNDING_SHR(BASE, CHAR, BITS, HALF, NAME, OP)    \
+  HWY_API HWY_SVE_V(BASE, BITS)                                   \
+      NAME(HWY_SVE_V(BASE, BITS) v, HWY_SVE_V(BASE, BITS) bits) { \
+    const RebindToSigned<DFromV<decltype(v)>> di;                 \
+    return sv##OP##_##CHAR##BITS##_x(HWY_SVE_PTRUE(BITS), v,      \
+                                     Neg(BitCast(di, bits)));     \
+  }
+
+HWY_SVE_FOREACH_UI(HWY_SVE_ROUNDING_SHR, RoundingShr, rshl)
+
+#undef HWY_SVE_ROUNDING_SHR
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V RoundingShiftRightSame(V v, int bits) {
+  const DFromV<V> d;
+  using T = TFromD<decltype(d)>;
+  return RoundingShr(v, Set(d, static_cast<T>(bits)));
+}
+
+#endif  // HWY_SVE_HAVE_2
+
 // ------------------------------ Min/Max
 
 HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGPVV, Min, min)
