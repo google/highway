@@ -501,6 +501,7 @@ HWY_TESTS = [
     ("hwy/tests/", "dup128_vec_test"),
     ("hwy/tests/", "expand_test"),
     ("hwy/tests/", "float_test"),
+    ("hwy/tests/", "fma_test"),
     ("hwy/tests/", "foreach_vec_test"),
     ("hwy/tests/", "if_test"),
     ("hwy/tests/", "in_range_float_to_int_conv_test"),
