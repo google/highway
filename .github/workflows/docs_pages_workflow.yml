@@ -4,7 +4,8 @@ name: docs_pages_workflow
 on:
   push:
 permissions:
-  contents: read
+  contents: write
+  pages: write
 
 jobs:
 

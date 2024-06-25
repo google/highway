@@ -78,12 +78,7 @@ for current_version in ${versions}; do
   
       # HTML #
       sphinx-build -b html docs/ docs/_build/html/${current_language}/${current_version} -D language="${current_language}"
-  
-      # EPUB #
-      sphinx-build -b epub docs/ docs/_build/epub -D language="${current_language}"
-      mkdir -p "${docroot}/${current_language}/${current_version}"
-      cp "docs/_build/epub/target.epub" "${docroot}/${current_language}/${current_version}/${REPO_NAME}_${current_language}_${current_version}.epub"
-  
+    
       # copy the static assets produced by the above build into our docroot
       rsync -av "docs/_build/html/" "${docroot}/"
   
