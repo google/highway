@@ -877,6 +877,10 @@ lane sizes, and `RotateRight` is often emulated with shifts:
     <code>V **ShiftRight**&lt;int&gt;(V a)</code> returns `a[i] >> int`.
 
 *   `V`: `{u,i}` \
+    <code>V **RoundingShiftRight**&lt;int&gt;(V a)</code> returns
+    `((int == 0) ? a[i] : (((a[i] >> (int - 1)) + 1) >> 1)`.
+
+*   `V`: `{u,i}` \
     <code>V **RotateLeft**&lt;int&gt;(V a)</code> returns `(a[i] << int) |
     (static_cast<TU>(a[i]) >> (sizeof(T)*8 - int))`.
 
@@ -891,6 +895,10 @@ Shift all lanes by the same (not necessarily compile-time constant) amount:
 
 *   `V`: `{u,i}` \
     <code>V **ShiftRightSame**(V a, int bits)</code> returns `a[i] >> bits`.
+
+*   `V`: `{u,i}` \
+    <code>V **RoundingShiftRightSame**&lt;int kShiftAmt&gt;(V a, int bits)
+    </code> returns `((bits == 0) ? a[i] : (((a[i] >> (bits - 1)) + 1) >> 1)`.
 
 *   `V`: `{u,i}` \
     <code>V **RotateLeftSame**(V a, int bits)</code> returns
@@ -913,6 +921,10 @@ Per-lane variable shifts (slow if SSSE3/SSE4, or 16-bit, or Shr i64 on AVX2):
 *   `V`: `{u,i}` \
     <code>V **operator>>**(V a, V b)</code> returns `a[i] >> b[i]`. Currently
     unavailable on SVE/RVV; use the equivalent `Shr` instead.
+
+*   `V`: `{u,i}` \
+    <code>V **RoundingShr**(V a, V b)</code> returns
+    `((b[i] == 0) ? a[i] : (((a[i] >> (b[i] - 1)) + 1) >> 1)`.
 
 *   `V`: `{u,i}` \
     <code>V **Rol**(V a, V b)</code> returns

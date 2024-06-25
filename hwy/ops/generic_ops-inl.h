@@ -4693,6 +4693,70 @@ HWY_API V AverageRound(V a, V b) {
 
 #endif  // HWY_NATIVE_AVERAGE_ROUND_UI64
 
+// ------------------------------ RoundingShiftRight (AverageRound)
+
+#if (defined(HWY_NATIVE_ROUNDING_SHR) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_ROUNDING_SHR
+#undef HWY_NATIVE_ROUNDING_SHR
+#else
+#define HWY_NATIVE_ROUNDING_SHR
+#endif
+
+template <int kShiftAmt, class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V RoundingShiftRight(V v) {
+  const DFromV<V> d;
+  using T = TFromD<decltype(d)>;
+
+  static_assert(
+      0 <= kShiftAmt && kShiftAmt <= static_cast<int>(sizeof(T) * 8 - 1),
+      "kShiftAmt is out of range");
+
+  constexpr int kScaleDownShrAmt = HWY_MAX(kShiftAmt - 1, 0);
+
+  auto scaled_down_v = v;
+  HWY_IF_CONSTEXPR(kScaleDownShrAmt > 0) {
+    scaled_down_v = ShiftRight<kScaleDownShrAmt>(v);
+  }
+
+  HWY_IF_CONSTEXPR(kShiftAmt == 0) { return scaled_down_v; }
+
+  return AverageRound(scaled_down_v, Zero(d));
+}
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V RoundingShiftRightSame(V v, int shift_amt) {
+  const DFromV<V> d;
+  using T = TFromD<decltype(d)>;
+
+  const int shift_amt_is_zero_mask = -static_cast<int>(shift_amt == 0);
+
+  const auto scaled_down_v = ShiftRightSame(
+      v, static_cast<int>(static_cast<unsigned>(shift_amt) +
+                          static_cast<unsigned>(~shift_amt_is_zero_mask)));
+
+  return AverageRound(
+      scaled_down_v,
+      And(scaled_down_v, Set(d, static_cast<T>(shift_amt_is_zero_mask))));
+}
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V RoundingShr(V v, V amt) {
+  const DFromV<V> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using T = TFromD<decltype(d)>;
+  using TU = MakeUnsigned<T>;
+
+  const auto unsigned_amt = BitCast(du, amt);
+  const auto scale_down_shr_amt =
+      BitCast(d, SaturatedSub(unsigned_amt, Set(du, TU{1})));
+
+  const auto scaled_down_v = Shr(v, scale_down_shr_amt);
+  return AverageRound(scaled_down_v,
+                      IfThenElseZero(Eq(amt, Zero(d)), scaled_down_v));
+}
+
+#endif  // HWY_NATIVE_ROUNDING_SHR
+
 // ------------------------------ MulEvenAdd (PromoteEvenTo)
 
 // SVE with bf16 and NEON with bf16 override this.

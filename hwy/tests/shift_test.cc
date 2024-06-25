@@ -617,6 +617,142 @@ HWY_NOINLINE void TestAllVariableRotations() {
   ForIntegerTypes(ForPartialVectors<TestVariableRotations>());
 }
 
+struct TestRoundingShiftRight {
+  template <int kShiftAmt, class D>
+  static HWY_INLINE void VerifyRoundingShiftRight(
+      D d, const TFromD<D>* HWY_RESTRICT expected, Vec<D> v,
+      const char* filename, const int line) {
+    AssertVecEqual(d, expected, RoundingShiftRight<kShiftAmt>(v), filename,
+                   line);
+    AssertVecEqual(d, expected, RoundingShiftRightSame(v, kShiftAmt), filename,
+                   line);
+  }
+
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    using TU = MakeUnsigned<T>;
+    const auto iota0 = Iota(d, T{0});
+
+    const size_t N = Lanes(d);
+    auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(expected);
+
+    Store(iota0, d, expected.get());
+    VerifyRoundingShiftRight<0>(d, expected.get(), iota0, __FILE__, __LINE__);
+
+    const auto v1 = Set(d, T{1});
+    const auto iota1 = Add(iota0, v1);
+    Store(iota1, d, expected.get());
+    VerifyRoundingShiftRight<0>(d, expected.get(), iota1, __FILE__, __LINE__);
+
+    const auto v2 = Set(d, T{2});
+    const auto iota2 = Add(iota0, v2);
+    Store(iota2, d, expected.get());
+    VerifyRoundingShiftRight<0>(d, expected.get(), iota2, __FILE__, __LINE__);
+
+    const auto iota3 = Add(iota0, Set(d, T{3}));
+    Store(iota3, d, expected.get());
+    VerifyRoundingShiftRight<0>(d, expected.get(), iota3, __FILE__, __LINE__);
+
+    const auto seq4 = Add(iota0, SignBit(d));
+    Store(seq4, d, expected.get());
+    VerifyRoundingShiftRight<0>(d, expected.get(), seq4, __FILE__, __LINE__);
+
+    const auto seq5 = Add(seq4, v1);
+    Store(seq5, d, expected.get());
+    VerifyRoundingShiftRight<0>(d, expected.get(), seq5, __FILE__, __LINE__);
+
+    const auto v0 = Zero(d);
+    Store(AverageRound(iota1, v0), d, expected.get());
+    VerifyRoundingShiftRight<1>(d, expected.get(), iota1, __FILE__, __LINE__);
+
+    Store(AverageRound(iota2, v0), d, expected.get());
+    VerifyRoundingShiftRight<1>(d, expected.get(), iota2, __FILE__, __LINE__);
+
+    Store(AverageRound(seq4, v0), d, expected.get());
+    VerifyRoundingShiftRight<1>(d, expected.get(), seq4, __FILE__, __LINE__);
+
+    Store(AverageRound(seq5, v0), d, expected.get());
+    VerifyRoundingShiftRight<1>(d, expected.get(), seq5, __FILE__, __LINE__);
+
+    const auto seq6 = And(
+        Xor(iota1,
+            Set(d, static_cast<T>(0x70FB991A05AC6B24ULL & LimitsMax<TU>()))),
+        Set(d, static_cast<T>(~static_cast<T>(0x10))));
+    Store(ShiftRight<5>(seq6), d, expected.get());
+    VerifyRoundingShiftRight<5>(d, expected.get(), seq6, __FILE__, __LINE__);
+
+    const auto seq7 =
+        Or(Xor(iota2,
+               Set(d, static_cast<T>(0x6ED498B16EC87C63ULL & LimitsMax<TU>()))),
+           Set(d, static_cast<T>(0x04)));
+    Store(Add(ShiftRight<3>(seq7), v1), d, expected.get());
+    VerifyRoundingShiftRight<3>(d, expected.get(), seq7, __FILE__, __LINE__);
+
+    const auto seq8 = And(
+        Xor(iota1,
+            Set(d, static_cast<T>(0x186958FE04C94D77ULL & LimitsMax<TU>()))),
+        Set(d, static_cast<T>(~static_cast<T>(0x08))));
+    Store(ShiftRight<4>(seq8), d, expected.get());
+    VerifyRoundingShiftRight<4>(d, expected.get(), seq8, __FILE__, __LINE__);
+
+    const auto seq9 =
+        Or(Xor(iota2,
+               Set(d, static_cast<T>(0x7FC4E62077CC7655ULL & LimitsMax<TU>()))),
+           v2);
+    Store(Add(ShiftRight<2>(seq9), v1), d, expected.get());
+    VerifyRoundingShiftRight<2>(d, expected.get(), seq9, __FILE__, __LINE__);
+  }
+};
+
+HWY_NOINLINE void TestAllRoundingShiftRight() {
+  ForIntegerTypes(ForPartialVectors<TestRoundingShiftRight>());
+}
+
+struct TestVariableRoundingShr {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    constexpr size_t kNumOfBits = sizeof(T) * 8;
+    const auto iota1 = Iota(d, T{1});
+
+    const auto v0 = Zero(d);
+    const auto v1 = Set(d, T{1});
+    const auto sign_bit = SignBit(d);
+
+    for (size_t i = 0; i < kNumOfBits; i += N) {
+      auto shift_amt = Iota(d, static_cast<T>(i & (kNumOfBits - 1)));
+
+      HWY_IF_CONSTEXPR(HWY_MAX_LANES_D(D) > kNumOfBits) {
+        shift_amt = And(shift_amt, Set(d, static_cast<T>(kNumOfBits - 1)));
+      }
+
+      const auto half_bit = ShiftRight<1>(Shl(v1, shift_amt));
+
+      const auto in_0 = AndNot(half_bit, Or(Shl(iota1, shift_amt), v1));
+      const auto in_1 = Or(in_0, half_bit);
+      const auto in_2 = Xor(in_0, sign_bit);
+      const auto in_3 = Xor(in_1, sign_bit);
+
+      const auto round_decr = VecFromMask(d, Ne(half_bit, v0));
+
+      const auto expected_0 = Shr(in_0, shift_amt);
+      const auto expected_1 = Sub(Shr(in_1, shift_amt), round_decr);
+      const auto expected_2 = Shr(in_2, shift_amt);
+      const auto expected_3 = Sub(Shr(in_3, shift_amt), round_decr);
+
+      HWY_ASSERT_VEC_EQ(d, expected_0, RoundingShr(in_0, shift_amt));
+      HWY_ASSERT_VEC_EQ(d, expected_1, RoundingShr(in_1, shift_amt));
+      HWY_ASSERT_VEC_EQ(d, expected_2, RoundingShr(in_2, shift_amt));
+      HWY_ASSERT_VEC_EQ(d, expected_3, RoundingShr(in_3, shift_amt));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllVariableRoundingShr() {
+  ForIntegerTypes(ForPartialVectors<TestVariableRoundingShr>());
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -631,6 +767,8 @@ HWY_EXPORT_AND_TEST_P(HwyShiftTest, TestAllVariableShifts);
 HWY_EXPORT_AND_TEST_P(HwyShiftTest, TestAllRotateLeft);
 HWY_EXPORT_AND_TEST_P(HwyShiftTest, TestAllRotateRight);
 HWY_EXPORT_AND_TEST_P(HwyShiftTest, TestAllVariableRotations);
+HWY_EXPORT_AND_TEST_P(HwyShiftTest, TestAllRoundingShiftRight);
+HWY_EXPORT_AND_TEST_P(HwyShiftTest, TestAllVariableRoundingShr);
 HWY_AFTER_TEST();
 }  // namespace hwy
 
