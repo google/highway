@@ -23,7 +23,8 @@
 // unavailable on Android and non-Linux RVV, we assume that those systems lack
 // getrandom. Note that the only supported sources of entropy are getrandom or
 // Windows, thus VQSORT_SECURE_SEED=0 when this is 0 and we are not on Windows.
-#if defined(ANDROID) || defined(__ANDROID__) || (HWY_ARCH_RISCV && !HWY_OS_LINUX)
+#if defined(ANDROID) || defined(__ANDROID__) || \
+    (HWY_ARCH_RISCV && !HWY_OS_LINUX)
 #define VQSORT_GETRANDOM 0
 #endif
 
