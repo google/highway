@@ -699,10 +699,12 @@ set(HWY_TEST_FILES
   hwy/tests/masked_minmax_test.cc
   hwy/tests/memory_test.cc
   hwy/tests/minmax_test.cc
+  hwy/tests/mul_pairwise_test.cc
   hwy/tests/mul_test.cc
   hwy/tests/reduction_test.cc
   hwy/tests/resize_test.cc
   hwy/tests/reverse_test.cc
+  hwy/tests/rotate_test.cc
   hwy/tests/saturated_test.cc
   hwy/tests/shift_test.cc
   hwy/tests/shuffle4_test.cc
