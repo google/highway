@@ -946,6 +946,21 @@ HWY_API MFromD<D> IsFinite(const V v) {
 
 #endif  // HWY_NATIVE_ISINF
 
+// ------------------------------ StreamLoad
+#if (defined(HWY_NATIVE_STREAM_LOAD) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_STREAM_LOAD
+#undef HWY_NATIVE_STREAM_LOAD
+#else
+#define HWY_NATIVE_STREAM_LOAD
+#endif
+
+template <class D>
+HWY_API VFromD<D> StreamLoad(D d, const TFromD<D>* HWY_RESTRICT aligned) {
+  return Load(d, aligned);
+}
+
+#endif  // HWY_NATIVE_STREAM_LOAD
+
 // ------------------------------ LoadInterleaved2
 
 #if HWY_IDE || \

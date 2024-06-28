@@ -1784,6 +1784,12 @@ HWY_API svbool_t IsFinite(const V v) {
 
 // ------------------------------ LoadU/MaskedLoad/LoadDup128/StoreU/Stream
 
+#ifdef HWY_NATIVE_STREAM_LOAD
+#undef HWY_NATIVE_STREAM_LOAD
+#else
+#define HWY_NATIVE_STREAM_LOAD
+#endif
+
 #define HWY_SVE_MEM(BASE, CHAR, BITS, HALF, NAME, OP)                         \
   template <size_t N, int kPow2>                                              \
   HWY_API HWY_SVE_V(BASE, BITS)                                               \
@@ -1810,6 +1816,13 @@ HWY_API svbool_t IsFinite(const V v) {
                       HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) {               \
     svstnt1_##CHAR##BITS(detail::MakeMask(d), detail::NativeLanePointer(p),   \
                          v);                                                  \
+  }                                                                           \
+  template <size_t N, int kPow2>                                              \
+  HWY_API HWY_SVE_V(BASE, BITS)                                               \
+      StreamLoad(HWY_SVE_D(BASE, BITS, N, kPow2) d,                           \
+                 const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) {              \
+    return svldnt1_##CHAR##BITS(detail::MakeMask(d),                          \
+                                detail::NativeLanePointer(p));                \
   }                                                                           \
   template <size_t N, int kPow2>                                              \
   HWY_API void BlendedStore(HWY_SVE_V(BASE, BITS) v, svbool_t m,              \
@@ -1839,6 +1852,12 @@ HWY_API VFromD<D> MaskedLoad(MFromD<D> m, D d,
   const RebindToUnsigned<decltype(d)> du;
   return BitCast(d,
                  MaskedLoad(RebindMask(du, m), du, detail::U16LanePointer(p)));
+}
+
+template <class D, HWY_SVE_IF_EMULATED_D(D)>
+HWY_API VFromD<D> StreamLoad(D d, const TFromD<D>* HWY_RESTRICT p) {
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, StreamLoad(du, detail::U16LanePointer(p)));
 }
 
 // MaskedLoadOr is generic and does not require emulation.
