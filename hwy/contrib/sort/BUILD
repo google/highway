@@ -199,6 +199,7 @@ TEST_MAIN = select({
 cc_test(
     name = "sort_test",
     size = "medium",
+    timeout = "long",
     srcs = ["sort_test.cc"],
     # Do not enable fully_static_link (pthread crash on bazel)
     local_defines = ["HWY_IS_TEST"],
@@ -240,5 +241,6 @@ cc_binary(
         ":vqsort",
         "//:hwy",
         "//:hwy_test_util",
+        "//:nanobenchmark",
     ] + TEST_MAIN,
 )

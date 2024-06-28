@@ -34,7 +34,8 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace detail {
 
-#if VQSORT_ENABLED || HWY_IDE
+// Also used by HeapSort, so do not require VQSORT_ENABLED.
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
 
 // Highway does not provide a lane type for 128-bit keys, so we use uint64_t
 // along with an abstraction layer for single-lane vs. lane-pair, which is
@@ -537,7 +538,7 @@ struct Traits128 : public Base {
   }
 };
 
-#endif  // VQSORT_ENABLED
+#endif  // HWY_TARGET != HWY_SCALAR
 
 }  // namespace detail
 // NOLINTNEXTLINE(google-readability-namespace-comments)

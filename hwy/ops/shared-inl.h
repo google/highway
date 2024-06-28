@@ -153,6 +153,16 @@ constexpr size_t ScaleByPower(size_t N, int pow2) {
 }
 
 template <typename T>
+HWY_INLINE void MaybePoison(T* HWY_RESTRICT unaligned, size_t count) {
+#if HWY_IS_MSAN
+  __msan_poison(unaligned, count * sizeof(T));
+#else
+  (void)unaligned;
+  (void)count;
+#endif
+}
+
+template <typename T>
 HWY_INLINE void MaybeUnpoison(T* HWY_RESTRICT unaligned, size_t count) {
   // Workaround for MSAN not marking compressstore as initialized (b/233326619)
 #if HWY_IS_MSAN

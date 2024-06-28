@@ -17,14 +17,15 @@
 #ifndef HIGHWAY_HWY_CONTRIB_SORT_ALGO_INL_H_
 #define HIGHWAY_HWY_CONTRIB_SORT_ALGO_INL_H_
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include <algorithm>   // std::sort, std::min, std::max
 #include <functional>  // std::less, std::greater
 #include <vector>
 
-#include "hwy/base.h"
 #include "hwy/contrib/sort/vqsort.h"
+#include "hwy/highway.h"
 #include "hwy/print.h"
 
 // Third-party algorithms
@@ -204,6 +205,48 @@ enum class Algo {
   kHeapSelect,
 };
 
+static inline bool IsVQ(Algo algo) {
+  switch (algo) {
+    case Algo::kVQSort:
+    case Algo::kVQPartialSort:
+    case Algo::kVQSelect:
+      return true;
+    default:
+      return false;
+  }
+}
+
+static inline bool IsSelect(Algo algo) {
+  switch (algo) {
+    case Algo::kStdSelect:
+    case Algo::kVQSelect:
+    case Algo::kHeapSelect:
+      return true;
+    default:
+      return false;
+  }
+}
+
+static inline bool IsPartialSort(Algo algo) {
+  switch (algo) {
+    case Algo::kStdPartialSort:
+    case Algo::kVQPartialSort:
+    case Algo::kHeapPartialSort:
+      return true;
+    default:
+      return false;
+  }
+}
+
+static inline Algo ReferenceAlgoFor(Algo algo) {
+  if (IsPartialSort(algo)) return Algo::kStdPartialSort;
+#if HAVE_PDQSORT
+  return Algo::kPDQ;
+#else
+  return Algo::kStdSort;
+#endif
+}
+
 static inline const char* AlgoName(Algo algo) {
   switch (algo) {
 #if HAVE_INTEL
@@ -235,18 +278,23 @@ static inline const char* AlgoName(Algo algo) {
       return "vxsort";
 #endif
     case Algo::kStdSort:
-    case Algo::kStdPartialSort:
-    case Algo::kStdSelect:
       return "std";
+    case Algo::kStdPartialSort:
+      return "std_partial";
+    case Algo::kStdSelect:
+      return "std_select";
     case Algo::kVQSort:
-    case Algo::kVQPartialSort:
-    case Algo::kVQSelect:
       return "vq";
+    case Algo::kVQPartialSort:
+      return "vq_partial";
+    case Algo::kVQSelect:
+      return "vq_select";
     case Algo::kHeapSort:
+      return "heap";
     case Algo::kHeapPartialSort:
-      return "heapsort";
+      return "heap_partial";
     case Algo::kHeapSelect:
-      return "heapselect";
+      return "heap_select";
   }
   return "unreachable";
 }
@@ -255,12 +303,14 @@ static inline const char* AlgoName(Algo algo) {
 #endif  // HIGHWAY_HWY_CONTRIB_SORT_ALGO_INL_H_
 
 // Per-target
-#if defined(HIGHWAY_HWY_CONTRIB_SORT_ALGO_TOGGLE) == defined(HWY_TARGET_TOGGLE)
+// clang-format off
+#if defined(HIGHWAY_HWY_CONTRIB_SORT_ALGO_TOGGLE) == defined(HWY_TARGET_TOGGLE)  // NOLINT
 #ifdef HIGHWAY_HWY_CONTRIB_SORT_ALGO_TOGGLE
 #undef HIGHWAY_HWY_CONTRIB_SORT_ALGO_TOGGLE
 #else
 #define HIGHWAY_HWY_CONTRIB_SORT_ALGO_TOGGLE
 #endif
+// clang-format on
 
 #include "hwy/aligned_allocator.h"
 #include "hwy/contrib/sort/traits-inl.h"
@@ -271,7 +321,7 @@ HWY_BEFORE_NAMESPACE();
 
 // Requires target pragma set by HWY_BEFORE_NAMESPACE
 #if HAVE_INTEL && HWY_TARGET <= HWY_AVX3
-// #include "avx512-16bit-qsort.hpp"  // requires vbmi2
+// #include "avx512-16bit-qsort.hpp"  // requires AVX512-VBMI2
 #include "avx512-32bit-qsort.hpp"
 #include "avx512-64bit-qsort.hpp"
 #endif
@@ -369,7 +419,7 @@ Vec<DU64> MaskForDist(DU64 du64, const Dist dist, size_t sizeof_t) {
 }
 
 template <typename T>
-InputStats<T> GenerateInput(const Dist dist, T* v, size_t num) {
+InputStats<T> GenerateInput(const Dist dist, T* v, size_t num_lanes) {
   SortTag<uint64_t> du64;
   using VU64 = Vec<decltype(du64)>;
   const size_t N64 = Lanes(du64);
@@ -389,18 +439,18 @@ InputStats<T> GenerateInput(const Dist dist, T* v, size_t num) {
   auto buf = hwy::AllocateAligned<T>(N);
 
   size_t i = 0;
-  for (; i + N <= num; i += N) {
+  for (; i + N <= num_lanes; i += N) {
     const V values = RandomValues(d, s0, s1, mask);
     StoreU(values, d, v + i);
   }
-  if (i < num) {
+  if (i < num_lanes) {
     const V values = RandomValues(d, s0, s1, mask);
     StoreU(values, d, buf.get());
-    CopyBytes(buf.get(), v + i, (num - i) * sizeof(T));
+    CopyBytes(buf.get(), v + i, (num_lanes - i) * sizeof(T));
   }
 
   InputStats<T> input_stats;
-  for (size_t i = 0; i < num; ++i) {
+  for (size_t i = 0; i < num_lanes; ++i) {
     input_stats.Notify(v[i]);
   }
   return input_stats;
@@ -414,208 +464,39 @@ struct SharedState {
 #endif
 };
 
-// Bridge from keys (passed to Run) to lanes as expected by HeapPartialSort. For
-// non-128-bit keys they are the same:
-template <class Order, typename KeyType, HWY_IF_NOT_T_SIZE(KeyType, 16)>
-void CallHeapPartialSort(KeyType* HWY_RESTRICT keys, const size_t num_keys,
-                         const size_t k) {
-  using detail::SharedTraits;
-  using detail::TraitsLane;
-  if (Order().IsAscending()) {
-    const SharedTraits<TraitsLane<detail::OrderAscending<KeyType>>> st;
-    return detail::HeapPartialSort(st, keys, num_keys, k);
-  } else {
-    const SharedTraits<TraitsLane<detail::OrderDescending<KeyType>>> st;
-    return detail::HeapPartialSort(st, keys, num_keys, k);
-  }
+// Adapters from Run's num_keys to vqsort-inl.h num_lanes.
+template <typename KeyType, class Order>
+void CallHeapSort(KeyType* keys, const size_t num_keys, Order) {
+  const detail::MakeTraits<KeyType, Order> st;
+  using LaneType = typename decltype(st)::LaneType;
+  return detail::HeapSort(st, reinterpret_cast<LaneType*>(keys),
+                          num_keys * st.LanesPerKey());
+}
+template <typename KeyType, class Order>
+void CallHeapPartialSort(KeyType* keys, const size_t num_keys,
+                         const size_t k_keys, Order) {
+  const detail::MakeTraits<KeyType, Order> st;
+  using LaneType = typename decltype(st)::LaneType;
+  detail::HeapPartialSort(st, reinterpret_cast<LaneType*>(keys),
+                          num_keys * st.LanesPerKey(),
+                          k_keys * st.LanesPerKey());
+}
+template <typename KeyType, class Order>
+void CallHeapSelect(KeyType* keys, const size_t num_keys, const size_t k_keys,
+                    Order) {
+  const detail::MakeTraits<KeyType, Order> st;
+  using LaneType = typename decltype(st)::LaneType;
+  detail::HeapSelect(st, reinterpret_cast<LaneType*>(keys),
+                     num_keys * st.LanesPerKey(), k_keys * st.LanesPerKey());
 }
 
-#if VQSORT_ENABLED
-template <class Order>
-void CallHeapPartialSort(hwy::uint128_t* HWY_RESTRICT keys,
-                         const size_t num_keys, const size_t k) {
-  using detail::SharedTraits;
-  using detail::Traits128;
-  uint64_t* lanes = reinterpret_cast<uint64_t*>(keys);
-  const size_t num_lanes = num_keys * 2;
-  if (Order().IsAscending()) {
-    const SharedTraits<Traits128<detail::OrderAscending128>> st;
-    return detail::HeapPartialSort(st, lanes, num_lanes, k);
-  } else {
-    const SharedTraits<Traits128<detail::OrderDescending128>> st;
-    return detail::HeapPartialSort(st, lanes, num_lanes, k);
-  }
-}
-
-template <class Order>
-void CallHeapPartialSort(K64V64* HWY_RESTRICT keys, const size_t num_keys,
-                         const size_t k) {
-  using detail::SharedTraits;
-  using detail::Traits128;
-  uint64_t* lanes = reinterpret_cast<uint64_t*>(keys);
-  const size_t num_lanes = num_keys * 2;
-  if (Order().IsAscending()) {
-    const SharedTraits<Traits128<detail::OrderAscendingKV128>> st;
-    return detail::HeapPartialSort(st, lanes, num_lanes, k);
-  } else {
-    const SharedTraits<Traits128<detail::OrderDescendingKV128>> st;
-    return detail::HeapPartialSort(st, lanes, num_lanes, k);
-  }
-}
-
-template <class Order>
-void CallHeapPartialSort(K32V32* HWY_RESTRICT keys, const size_t num_keys,
-                         const size_t k) {
-  using detail::SharedTraits;
-  using detail::TraitsLane;
-  uint64_t* lanes = reinterpret_cast<uint64_t*>(keys);
-  const size_t num_lanes = num_keys;
-  if (Order().IsAscending()) {
-    const SharedTraits<TraitsLane<detail::OrderAscendingKV64>> st;
-    return detail::HeapPartialSort(st, lanes, num_lanes, k);
-  } else {
-    const SharedTraits<TraitsLane<detail::OrderDescendingKV64>> st;
-    return detail::HeapPartialSort(st, lanes, num_lanes, k);
-  }
-}
-
-#endif  // VQSORT_ENABLED
-
-// Bridge from keys (passed to Run) to lanes as expected by HeapSelect. For
-// non-128-bit keys they are the same:
-template <class Order, typename KeyType, HWY_IF_NOT_T_SIZE(KeyType, 16)>
-void CallHeapSelect(KeyType* HWY_RESTRICT keys, const size_t num_keys,
-                    const size_t k) {
-  using detail::SharedTraits;
-  using detail::TraitsLane;
-  if (Order().IsAscending()) {
-    const SharedTraits<TraitsLane<detail::OrderAscending<KeyType>>> st;
-    return detail::HeapSelect(st, keys, num_keys, k);
-  } else {
-    const SharedTraits<TraitsLane<detail::OrderDescending<KeyType>>> st;
-    return detail::HeapSelect(st, keys, num_keys, k);
-  }
-}
-
-#if VQSORT_ENABLED
-template <class Order>
-void CallHeapSelect(hwy::uint128_t* HWY_RESTRICT keys, const size_t num_keys,
-                    const size_t k) {
-  using detail::SharedTraits;
-  using detail::Traits128;
-  uint64_t* lanes = reinterpret_cast<uint64_t*>(keys);
-  const size_t num_lanes = num_keys * 2;
-  if (Order().IsAscending()) {
-    const SharedTraits<Traits128<detail::OrderAscending128>> st;
-    return detail::HeapSelect(st, lanes, num_lanes, k);
-  } else {
-    const SharedTraits<Traits128<detail::OrderDescending128>> st;
-    return detail::HeapSelect(st, lanes, num_lanes, k);
-  }
-}
-
-template <class Order>
-void CallHeapSelect(K64V64* HWY_RESTRICT keys, const size_t num_keys,
-                    const size_t k) {
-  using detail::SharedTraits;
-  using detail::Traits128;
-  uint64_t* lanes = reinterpret_cast<uint64_t*>(keys);
-  const size_t num_lanes = num_keys * 2;
-  if (Order().IsAscending()) {
-    const SharedTraits<Traits128<detail::OrderAscendingKV128>> st;
-    return detail::HeapSelect(st, lanes, num_lanes, k);
-  } else {
-    const SharedTraits<Traits128<detail::OrderDescendingKV128>> st;
-    return detail::HeapSelect(st, lanes, num_lanes, k);
-  }
-}
-
-template <class Order>
-void CallHeapSelect(K32V32* HWY_RESTRICT keys, const size_t num_keys,
-                    const size_t k) {
-  using detail::SharedTraits;
-  using detail::TraitsLane;
-  uint64_t* lanes = reinterpret_cast<uint64_t*>(keys);
-  const size_t num_lanes = num_keys;
-  if (Order().IsAscending()) {
-    const SharedTraits<TraitsLane<detail::OrderAscendingKV64>> st;
-    return detail::HeapSelect(st, lanes, num_lanes, k);
-  } else {
-    const SharedTraits<TraitsLane<detail::OrderDescendingKV64>> st;
-    return detail::HeapSelect(st, lanes, num_lanes, k);
-  }
-}
-
-#endif  // VQSORT_ENABLED
-
-// Bridge from keys (passed to Run) to lanes as expected by HeapSort. For
-// non-128-bit keys they are the same:
-template <class Order, typename KeyType, HWY_IF_NOT_T_SIZE(KeyType, 16)>
-void CallHeapSort(KeyType* HWY_RESTRICT keys, const size_t num_keys) {
-  using detail::SharedTraits;
-  using detail::TraitsLane;
-  if (Order().IsAscending()) {
-    const SharedTraits<TraitsLane<detail::OrderAscending<KeyType>>> st;
-    return detail::HeapSort(st, keys, num_keys);
-  } else {
-    const SharedTraits<TraitsLane<detail::OrderDescending<KeyType>>> st;
-    return detail::HeapSort(st, keys, num_keys);
-  }
-}
-
-#if VQSORT_ENABLED
-template <class Order>
-void CallHeapSort(hwy::uint128_t* HWY_RESTRICT keys, const size_t num_keys) {
-  using detail::SharedTraits;
-  using detail::Traits128;
-  uint64_t* lanes = reinterpret_cast<uint64_t*>(keys);
-  const size_t num_lanes = num_keys * 2;
-  if (Order().IsAscending()) {
-    const SharedTraits<Traits128<detail::OrderAscending128>> st;
-    return detail::HeapSort(st, lanes, num_lanes);
-  } else {
-    const SharedTraits<Traits128<detail::OrderDescending128>> st;
-    return detail::HeapSort(st, lanes, num_lanes);
-  }
-}
-
-template <class Order>
-void CallHeapSort(K64V64* HWY_RESTRICT keys, const size_t num_keys) {
-  using detail::SharedTraits;
-  using detail::Traits128;
-  uint64_t* lanes = reinterpret_cast<uint64_t*>(keys);
-  const size_t num_lanes = num_keys * 2;
-  if (Order().IsAscending()) {
-    const SharedTraits<Traits128<detail::OrderAscendingKV128>> st;
-    return detail::HeapSort(st, lanes, num_lanes);
-  } else {
-    const SharedTraits<Traits128<detail::OrderDescendingKV128>> st;
-    return detail::HeapSort(st, lanes, num_lanes);
-  }
-}
-
-template <class Order>
-void CallHeapSort(K32V32* HWY_RESTRICT keys, const size_t num_keys) {
-  using detail::SharedTraits;
-  using detail::TraitsLane;
-  uint64_t* lanes = reinterpret_cast<uint64_t*>(keys);
-  const size_t num_lanes = num_keys;
-  if (Order().IsAscending()) {
-    const SharedTraits<TraitsLane<detail::OrderAscendingKV64>> st;
-    return detail::HeapSort(st, lanes, num_lanes);
-  } else {
-    const SharedTraits<TraitsLane<detail::OrderDescendingKV64>> st;
-    return detail::HeapSort(st, lanes, num_lanes);
-  }
-}
-
-#endif  // VQSORT_ENABLED
-
-template <class Order, typename KeyType>
-void Run(Algo algo, KeyType* HWY_RESTRICT inout, size_t num,
-         SharedState& shared, size_t /*thread*/, size_t k = 0) {
+template <typename KeyType, class Order>
+void Run(Algo algo, KeyType* inout, size_t num_keys, SharedState& shared,
+         size_t /*thread*/, size_t k_keys, Order) {
   const std::less<KeyType> less;
   const std::greater<KeyType> greater;
+
+  constexpr bool kAscending = Order::IsAscending();
 
 #if !HAVE_PARALLEL_IPS4O
   (void)shared;
@@ -624,44 +505,47 @@ void Run(Algo algo, KeyType* HWY_RESTRICT inout, size_t num,
   switch (algo) {
 #if HAVE_INTEL && HWY_TARGET <= HWY_AVX3
     case Algo::kIntel:
-      return avx512_qsort<KeyType>(inout, static_cast<int64_t>(num));
+      return avx512_qsort<KeyType>(inout, static_cast<int64_t>(num_keys));
 #endif
 
 #if HAVE_AVX2SORT
     case Algo::kSEA:
-      return avx2::quicksort(inout, static_cast<int>(num));
+      return avx2::quicksort(inout, static_cast<int>(num_keys));
 #endif
 
 #if HAVE_IPS4O
     case Algo::kIPS4O:
-      if (Order().IsAscending()) {
-        return ips4o::sort(inout, inout + num, less);
+      if (kAscending) {
+        return ips4o::sort(inout, inout + num_keys, less);
       } else {
-        return ips4o::sort(inout, inout + num, greater);
+        return ips4o::sort(inout, inout + num_keys, greater);
       }
 #endif
 
 #if HAVE_PARALLEL_IPS4O
     case Algo::kParallelIPS4O:
-      if (Order().IsAscending()) {
-        return ips4o::parallel::sort(inout, inout + num, less, shared.pool);
+      if (kAscending) {
+        return ips4o::parallel::sort(inout, inout + num_keys, less,
+                                     shared.pool);
       } else {
-        return ips4o::parallel::sort(inout, inout + num, greater, shared.pool);
+        return ips4o::parallel::sort(inout, inout + num_keys, greater,
+                                     shared.pool);
       }
 #endif
 
 #if HAVE_SORT512
     case Algo::kSort512:
       HWY_ABORT("not supported");
-      //    return Sort512::Sort(inout, num);
+      //    return Sort512::Sort(inout, num_keys);
 #endif
 
 #if HAVE_PDQSORT
     case Algo::kPDQ:
-      if (Order().IsAscending()) {
-        return boost::sort::pdqsort_branchless(inout, inout + num, less);
+      if (kAscending) {
+        return boost::sort::pdqsort_branchless(inout, inout + num_keys, less);
       } else {
-        return boost::sort::pdqsort_branchless(inout, inout + num, greater);
+        return boost::sort::pdqsort_branchless(inout, inout + num_keys,
+                                               greater);
       }
 #endif
 
@@ -678,8 +562,8 @@ void Run(Algo algo, KeyType* HWY_RESTRICT inout, size_t num,
 #else
       vxsort::vxsort<KeyType, vxsort::AVX2> vx;
 #endif
-      if (Order().IsAscending()) {
-        return vx.sort(inout, inout + num - 1);
+      if (kAscending) {
+        return vx.sort(inout, inout + num_keys - 1);
       } else {
         fprintf(stderr, "Skipping VX - does not support descending order\n");
         return;
@@ -689,43 +573,39 @@ void Run(Algo algo, KeyType* HWY_RESTRICT inout, size_t num,
 #endif  // HAVE_VXSORT
 
     case Algo::kStdSort:
-      if (Order().IsAscending()) {
-        return std::sort(inout, inout + num, less);
+      if (kAscending) {
+        return std::sort(inout, inout + num_keys, less);
       } else {
-        return std::sort(inout, inout + num, greater);
+        return std::sort(inout, inout + num_keys, greater);
       }
-
     case Algo::kStdPartialSort:
-      if (Order().IsAscending()) {
-        return std::partial_sort(inout, inout + k, inout + num, less);
+      if (kAscending) {
+        return std::partial_sort(inout, inout + k_keys, inout + num_keys, less);
       } else {
-        return std::partial_sort(inout, inout + k, inout + num, greater);
+        return std::partial_sort(inout, inout + k_keys, inout + num_keys,
+                                 greater);
       }
-
     case Algo::kStdSelect:
-      if (Order().IsAscending()) {
-        return std::nth_element(inout, inout + k, inout + num, less);
+      if (kAscending) {
+        return std::nth_element(inout, inout + k_keys, inout + num_keys, less);
       } else {
-        return std::nth_element(inout, inout + k, inout + num, greater);
+        return std::nth_element(inout, inout + k_keys, inout + num_keys,
+                                greater);
       }
 
     case Algo::kVQSort:
-      return VQSort(inout, num, Order());
-
+      return VQSort(inout, num_keys, Order());
     case Algo::kVQPartialSort:
-      return VQPartialSort(inout, num, k, Order());
-
+      return VQPartialSort(inout, num_keys, k_keys, Order());
     case Algo::kVQSelect:
-      return VQSelect(inout, num, k, Order());
+      return VQSelect(inout, num_keys, k_keys, Order());
 
     case Algo::kHeapSort:
-      return CallHeapSort<Order>(inout, num);
-
+      return CallHeapSort(inout, num_keys, Order());
     case Algo::kHeapPartialSort:
-      return CallHeapPartialSort<Order>(inout, num, k);
-
+      return CallHeapPartialSort(inout, num_keys, k_keys, Order());
     case Algo::kHeapSelect:
-      return CallHeapSelect<Order>(inout, num, k);
+      return CallHeapSelect(inout, num_keys, k_keys, Order());
 
     default:
       HWY_ABORT("Not implemented");

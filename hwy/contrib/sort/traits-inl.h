@@ -34,7 +34,7 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace detail {
 
-// Base class of both KeyLane (with or without VQSORT_ENABLED)
+// Base class of both KeyLane variants
 template <typename LaneTypeArg, typename KeyTypeArg>
 struct KeyLaneBase {
   static constexpr bool Is128() { return false; }
@@ -62,8 +62,7 @@ struct KeyLaneBase {
 
 // Wrapper functions so we can specialize for floats - infinity trumps
 // HighestValue (the normal value with the largest magnitude). Must be outside
-// Order* classes to enable SFINAE. LargestSortValue is used even if
-// !VQSORT_ENABLED.
+// Order* classes to enable SFINAE.
 
 template <class D, HWY_IF_FLOAT_OR_SPECIAL_D(D)>
 Vec<D> LargestSortValue(D d) {
@@ -146,8 +145,6 @@ template <class D, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 Vec<D> SmallerSortValue(D d, Vec<D> v) {
   return Sub(v, Set(d, TFromD<D>{1}));
 }
-
-#if VQSORT_ENABLED || HWY_IDE
 
 // Highway does not provide a lane type for 128-bit keys, so we use uint64_t
 // along with an abstraction layer for single-lane vs. lane-pair, which is
@@ -611,60 +608,6 @@ struct TraitsLane : public Base {
     return base->OddEvenQuads(d, swapped, v);
   }
 };
-
-#else
-
-template <typename T>
-struct OrderAscending : public KeyLaneBase<T, T> {
-  using Order = SortAscending;
-
-  HWY_INLINE bool Compare1(const T* a, const T* b) const { return *a < *b; }
-
-  template <class D>
-  HWY_INLINE Mask<D> Compare(D /* tag */, Vec<D> a, Vec<D> b) {
-    return Lt(a, b);
-  }
-
-  template <class D>
-  HWY_INLINE Vec<D> LastValue(D d) const {
-    return LargestSortValue(d);
-  }
-};
-
-template <typename T>
-struct OrderDescending : public KeyLaneBase<T, T> {
-  using Order = SortDescending;
-
-  HWY_INLINE bool Compare1(const T* a, const T* b) const { return *b < *a; }
-
-  template <class D>
-  HWY_INLINE Mask<D> Compare(D /* tag */, Vec<D> a, Vec<D> b) {
-    return Lt(b, a);
-  }
-
-  template <class D>
-  HWY_INLINE Vec<D> LastValue(D d) const {
-    return SmallestSortValue(d);
-  }
-};
-
-template <class Order>
-struct TraitsLane : public Order {
-  // For HeapSort
-  template <typename T>  // MSVC doesn't find typename Order::LaneType.
-  HWY_INLINE void Swap(T* a, T* b) const {
-    const T temp = *a;
-    *a = *b;
-    *b = temp;
-  }
-
-  template <class D>
-  HWY_INLINE Vec<D> SetKey(D d, const TFromD<D>* key) const {
-    return Set(d, *key);
-  }
-};
-
-#endif  // VQSORT_ENABLED
 
 }  // namespace detail
 // NOLINTNEXTLINE(google-readability-namespace-comments)

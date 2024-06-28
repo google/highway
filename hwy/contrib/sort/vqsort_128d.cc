@@ -59,12 +59,12 @@ void VQSort(uint128_t* HWY_RESTRICT keys, const size_t n, SortDescending) {
 
 void VQPartialSort(uint128_t* HWY_RESTRICT keys, const size_t n, const size_t k,
                    SortDescending) {
-  HWY_DYNAMIC_DISPATCH(PartialSort128Desc)(keys, k, n);
+  HWY_DYNAMIC_DISPATCH(PartialSort128Desc)(keys, n, k);
 }
 
 void VQSelect(uint128_t* HWY_RESTRICT keys, const size_t n, const size_t k,
               SortDescending) {
-  HWY_DYNAMIC_DISPATCH(Select128Desc)(keys, k, n);
+  HWY_DYNAMIC_DISPATCH(Select128Desc)(keys, n, k);
 }
 
 }  // namespace hwy

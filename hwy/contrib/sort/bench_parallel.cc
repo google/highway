@@ -21,11 +21,11 @@
 
 #include <condition_variable>  //NOLINT
 #include <functional>
-#include <memory>
 #include <mutex>   //NOLINT
 #include <thread>  //NOLINT
-#include <utility>
 #include <vector>
+
+#include "hwy/timer.h"
 
 // clang-format off
 #undef HWY_TARGET_INCLUDE
@@ -178,8 +178,8 @@ void RunWithoutVerify(Traits st, const Dist dist, const size_t num_keys,
   (void)GenerateInput(dist, aligned.get(), num_lanes);
 
   const Timestamp t0;
-  Run<Order>(algo, reinterpret_cast<KeyType*>(aligned.get()), num_keys, shared,
-             thread);
+  Run(algo, reinterpret_cast<KeyType*>(aligned.get()), num_keys, shared, thread,
+      /*k_keys=*/0, Order());
   HWY_ASSERT(aligned[0] < aligned[num_lanes - 1]);
 }
 
@@ -207,7 +207,7 @@ void BenchParallel() {
 
   SharedState shared;
 
-  std::vector<Result> results;
+  std::vector<SortResult> results;
   for (size_t nt = 1; nt < NT; nt += HWY_MAX(1, NT / 16)) {
     Timestamp t0;
     // Default capture because MSVC wants algo/dist but clang does not.

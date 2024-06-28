@@ -23,10 +23,10 @@
 namespace hwy {
 
 struct SortAscending {
-  constexpr bool IsAscending() const { return true; }
+  static constexpr bool IsAscending() { return true; }
 };
 struct SortDescending {
-  constexpr bool IsAscending() const { return false; }
+  static constexpr bool IsAscending() { return false; }
 };
 
 }  // namespace hwy
