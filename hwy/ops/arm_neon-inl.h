@@ -5187,6 +5187,89 @@ HWY_API Vec128<float, N> Floor(const Vec128<float, N> v) {
 
 #endif
 
+// ------------------------------ CeilInt/FloorInt
+#if HWY_ARCH_ARM_A64
+
+#ifdef HWY_NATIVE_CEIL_FLOOR_INT
+#undef HWY_NATIVE_CEIL_FLOOR_INT
+#else
+#define HWY_NATIVE_CEIL_FLOOR_INT
+#endif
+
+#if HWY_HAVE_FLOAT16
+HWY_API Vec128<int16_t> CeilInt(const Vec128<float16_t> v) {
+  return Vec128<int16_t>(vcvtpq_s16_f16(v.raw));
+}
+
+template <size_t N, HWY_IF_V_SIZE_LE(float16_t, N, 8)>
+HWY_API Vec128<int16_t, N> CeilInt(const Vec128<float16_t, N> v) {
+  return Vec128<int16_t, N>(vcvtp_s16_f16(v.raw));
+}
+
+HWY_API Vec128<int16_t> FloorInt(const Vec128<float16_t> v) {
+  return Vec128<int16_t>(vcvtmq_s16_f16(v.raw));
+}
+
+template <size_t N, HWY_IF_V_SIZE_LE(float16_t, N, 8)>
+HWY_API Vec128<int16_t, N> FloorInt(const Vec128<float16_t, N> v) {
+  return Vec128<int16_t, N>(vcvtm_s16_f16(v.raw));
+}
+#endif  // HWY_HAVE_FLOAT16
+
+HWY_API Vec128<int32_t> CeilInt(const Vec128<float> v) {
+  return Vec128<int32_t>(vcvtpq_s32_f32(v.raw));
+}
+
+template <size_t N, HWY_IF_V_SIZE_LE(float, N, 8)>
+HWY_API Vec128<int32_t, N> CeilInt(const Vec128<float, N> v) {
+  return Vec128<int32_t, N>(vcvtp_s32_f32(v.raw));
+}
+
+HWY_API Vec128<int64_t> CeilInt(const Vec128<double> v) {
+  return Vec128<int64_t>(vcvtpq_s64_f64(v.raw));
+}
+
+template <size_t N, HWY_IF_V_SIZE_LE(double, N, 8)>
+HWY_API Vec128<int64_t, N> CeilInt(const Vec128<double, N> v) {
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 610
+  // Workaround for missing vcvtp_s64_f64 intrinsic
+  const DFromV<decltype(v)> d;
+  const RebindToSigned<decltype(d)> di;
+  const Twice<decltype(d)> dt;
+  return LowerHalf(di, CeilInt(Combine(dt, v, v)));
+#else
+  return Vec128<int64_t, N>(vcvtp_s64_f64(v.raw));
+#endif
+}
+
+HWY_API Vec128<int32_t> FloorInt(const Vec128<float> v) {
+  return Vec128<int32_t>(vcvtmq_s32_f32(v.raw));
+}
+
+template <size_t N, HWY_IF_V_SIZE_LE(float, N, 8)>
+HWY_API Vec128<int32_t, N> FloorInt(const Vec128<float, N> v) {
+  return Vec128<int32_t, N>(vcvtm_s32_f32(v.raw));
+}
+
+HWY_API Vec128<int64_t> FloorInt(const Vec128<double> v) {
+  return Vec128<int64_t>(vcvtmq_s64_f64(v.raw));
+}
+
+template <size_t N, HWY_IF_V_SIZE_LE(double, N, 8)>
+HWY_API Vec128<int64_t, N> FloorInt(const Vec128<double, N> v) {
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 610
+  // Workaround for missing vcvtm_s64_f64 intrinsic
+  const DFromV<decltype(v)> d;
+  const RebindToSigned<decltype(d)> di;
+  const Twice<decltype(d)> dt;
+  return LowerHalf(di, FloorInt(Combine(dt, v, v)));
+#else
+  return Vec128<int64_t, N>(vcvtm_s64_f64(v.raw));
+#endif
+}
+
+#endif  // HWY_ARCH_ARM_A64
+
 // ------------------------------ NearestInt (Round)
 
 #if HWY_HAVE_FLOAT16

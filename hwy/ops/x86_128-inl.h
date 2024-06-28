@@ -11949,6 +11949,25 @@ HWY_API Vec128<T, N> Ceil(const Vec128<T, N> v) {
   return IfThenElse(detail::UseInt(v), int_f - neg1, v);
 }
 
+#ifdef HWY_NATIVE_CEIL_FLOOR_INT
+#undef HWY_NATIVE_CEIL_FLOOR_INT
+#else
+#define HWY_NATIVE_CEIL_FLOOR_INT
+#endif
+
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_API VFromD<RebindToSigned<DFromV<V>>> CeilInt(V v) {
+  const DFromV<decltype(v)> df;
+  const RebindToSigned<decltype(df)> di;
+
+  const auto integer = ConvertTo(di, v);  // round toward 0
+  const auto int_f = ConvertTo(df, integer);
+
+  // Truncating a positive non-integer ends up smaller; if so, add 1.
+  return integer -
+         VecFromMask(di, RebindMask(di, And(detail::UseInt(v), int_f < v)));
+}
+
 // Toward -infinity, aka floor
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Floor(const Vec128<T, N> v) {
@@ -11963,6 +11982,19 @@ HWY_API Vec128<T, N> Floor(const Vec128<T, N> v) {
   const auto neg1 = ConvertTo(df, VecFromMask(di, RebindMask(di, int_f > v)));
 
   return IfThenElse(detail::UseInt(v), int_f + neg1, v);
+}
+
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_API VFromD<RebindToSigned<DFromV<V>>> FloorInt(V v) {
+  const DFromV<decltype(v)> df;
+  const RebindToSigned<decltype(df)> di;
+
+  const auto integer = ConvertTo(di, v);  // round toward 0
+  const auto int_f = ConvertTo(df, integer);
+
+  // Truncating a negative non-integer ends up larger; if so, subtract 1.
+  return integer +
+         VecFromMask(di, RebindMask(di, And(detail::UseInt(v), int_f > v)));
 }
 
 #else

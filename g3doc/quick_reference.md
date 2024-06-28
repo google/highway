@@ -1710,6 +1710,16 @@ All functions except `Stream` are defined in cache_control.h.
     <code>Ret **NearestInt**(V a)</code>: returns the integer nearest to `a[i]`;
     results are undefined for NaN.
 
+*   `V`: `f`; `Ret`: `Vec<RebindToSigned<DFromV<V>>>` \
+    <code>Ret **CeilInt**(V a)</code>: equivalent to
+    `ConvertTo(RebindToSigned<DFromV<V>>(), Ceil(a))`, but `CeilInt(a)` is more
+    efficient on some targets, including SSE2, SSSE3, and AArch64 NEON.
+
+*   `V`: `f`; `Ret`: `Vec<RebindToSigned<DFromV<V>>>` \
+    <code>Ret **FloorInt**(V a)</code>: equivalent to
+    `ConvertTo(RebindToSigned<DFromV<V>>(), Floor(a))`, but `FloorInt(a)` is
+    more efficient on some targets, including SSE2, SSSE3, and AArch64 NEON.
+
 *   `D`: `i32`, `V`: `f64`
     <code>Vec&lt;D&gt; **DemoteToNearestInt**(D d, V v)</code>: converts `v[i]`
     to `TFromD<D>`, rounding to nearest (with ties to even).
