@@ -395,18 +395,38 @@ HWY_NOINLINE void TestAllTrunc() {
 struct TestCeil {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T t, D d) {
+    const RebindToSigned<decltype(d)> di;
+    using TI = MakeSigned<T>;
+
     size_t padded;
     auto in = RoundTestCases(t, d, padded);
     auto expected = AllocateAligned<T>(padded);
-    HWY_ASSERT(expected);
+    auto expected_int = AllocateAligned<TI>(padded);
+    HWY_ASSERT(expected && expected_int);
+
+    constexpr double kMinOutOfRangeVal = -static_cast<double>(LimitsMin<TI>());
+    static_assert(kMinOutOfRangeVal > 0.0,
+                  "kMinOutOfRangeVal > 0.0 must be true");
 
     for (size_t i = 0; i < padded; ++i) {
       // Cast to double because ceil does not support _Float16.
-      expected[i] =
-          ConvertScalarTo<T>(std::ceil(ConvertScalarTo<double>(in[i])));
+      const double ceil_val = std::ceil(ConvertScalarTo<double>(in[i]));
+      expected[i] = ConvertScalarTo<T>(ceil_val);
+      if (ScalarIsNaN(ceil_val)) {
+        expected_int[i] = 0;
+      } else if (ScalarIsInf(ceil_val) || static_cast<double>(ScalarAbs(
+                                              ceil_val)) >= kMinOutOfRangeVal) {
+        expected_int[i] =
+            ScalarSignBit(ceil_val) ? LimitsMin<TI>() : LimitsMax<TI>();
+      } else {
+        expected_int[i] = ConvertScalarTo<TI>(ceil_val);
+      }
     }
     for (size_t i = 0; i < padded; i += Lanes(d)) {
-      HWY_ASSERT_VEC_EQ(d, &expected[i], Ceil(Load(d, &in[i])));
+      const auto v = Load(d, &in[i]);
+      HWY_ASSERT_VEC_EQ(d, &expected[i], Ceil(v));
+      HWY_ASSERT_VEC_EQ(di, &expected_int[i],
+                        IfThenZeroElse(RebindMask(di, IsNaN(v)), CeilInt(v)));
     }
   }
 };
@@ -418,18 +438,39 @@ HWY_NOINLINE void TestAllCeil() {
 struct TestFloor {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T t, D d) {
+    const RebindToSigned<decltype(d)> di;
+    using TI = MakeSigned<T>;
+
     size_t padded;
     auto in = RoundTestCases(t, d, padded);
     auto expected = AllocateAligned<T>(padded);
-    HWY_ASSERT(expected);
+    auto expected_int = AllocateAligned<TI>(padded);
+    HWY_ASSERT(expected && expected_int);
+
+    constexpr double kMinOutOfRangeVal = -static_cast<double>(LimitsMin<TI>());
+    static_assert(kMinOutOfRangeVal > 0.0,
+                  "kMinOutOfRangeVal > 0.0 must be true");
 
     for (size_t i = 0; i < padded; ++i) {
       // Cast to double because floor does not support _Float16.
-      expected[i] =
-          ConvertScalarTo<T>(std::floor(ConvertScalarTo<double>(in[i])));
+      const double floor_val = std::floor(ConvertScalarTo<double>(in[i]));
+      expected[i] = ConvertScalarTo<T>(floor_val);
+      if (ScalarIsNaN(floor_val)) {
+        expected_int[i] = 0;
+      } else if (ScalarIsInf(floor_val) ||
+                 static_cast<double>(ScalarAbs(floor_val)) >=
+                     kMinOutOfRangeVal) {
+        expected_int[i] =
+            ScalarSignBit(floor_val) ? LimitsMin<TI>() : LimitsMax<TI>();
+      } else {
+        expected_int[i] = ConvertScalarTo<TI>(floor_val);
+      }
     }
     for (size_t i = 0; i < padded; i += Lanes(d)) {
-      HWY_ASSERT_VEC_EQ(d, &expected[i], Floor(Load(d, &in[i])));
+      const auto v = Load(d, &in[i]);
+      HWY_ASSERT_VEC_EQ(d, &expected[i], Floor(v));
+      HWY_ASSERT_VEC_EQ(di, &expected_int[i],
+                        IfThenZeroElse(RebindMask(di, IsNaN(v)), FloorInt(v)));
     }
   }
 };

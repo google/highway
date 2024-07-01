@@ -946,6 +946,30 @@ HWY_API MFromD<D> IsFinite(const V v) {
 
 #endif  // HWY_NATIVE_ISINF
 
+// ------------------------------ CeilInt/FloorInt
+#if (defined(HWY_NATIVE_CEIL_FLOOR_INT) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_CEIL_FLOOR_INT
+#undef HWY_NATIVE_CEIL_FLOOR_INT
+#else
+#define HWY_NATIVE_CEIL_FLOOR_INT
+#endif
+
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_API VFromD<RebindToSigned<DFromV<V>>> CeilInt(V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToSigned<decltype(d)> di;
+  return ConvertTo(di, Ceil(v));
+}
+
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_API VFromD<RebindToSigned<DFromV<V>>> FloorInt(V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToSigned<decltype(d)> di;
+  return ConvertTo(di, Floor(v));
+}
+
+#endif  // HWY_NATIVE_CEIL_FLOOR_INT
+
 // ------------------------------ LoadInterleaved2
 
 #if HWY_IDE || \
