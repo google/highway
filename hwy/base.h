@@ -1132,10 +1132,12 @@ struct alignas(2) float16_t {
 #else
 #error "Logic error: condition should be 'all but NEON_HAVE_F16C'"
 #endif
+#elif HWY_IDE
+  using Native = uint16_t;
 #endif  // HWY_HAVE_SCALAR_F16_TYPE
 
   union {
-#if HWY_HAVE_SCALAR_F16_TYPE
+#if HWY_HAVE_SCALAR_F16_TYPE || HWY_IDE
     // Accessed via NativeLaneType, and used directly if
     // HWY_HAVE_SCALAR_F16_OPERATORS.
     Native native;
@@ -1617,10 +1619,12 @@ HWY_F16_CONSTEXPR inline std::partial_ordering operator<=>(
 struct alignas(2) bfloat16_t {
 #if HWY_HAVE_SCALAR_BF16_TYPE
   using Native = __bf16;
+#elif HWY_IDE
+  using Native = uint16_t;
 #endif
 
   union {
-#if HWY_HAVE_SCALAR_BF16_TYPE
+#if HWY_HAVE_SCALAR_BF16_TYPE || HWY_IDE
     // Accessed via NativeLaneType, and used directly if
     // HWY_HAVE_SCALAR_BF16_OPERATORS.
     Native native;
@@ -1637,7 +1641,7 @@ struct alignas(2) bfloat16_t {
   bfloat16_t& operator=(const bfloat16_t& arg) noexcept = default;
 
 // Only enable implicit conversions if we have a native type.
-#if HWY_HAVE_SCALAR_BF16_TYPE
+#if HWY_HAVE_SCALAR_BF16_TYPE || HWY_IDE
   constexpr bfloat16_t(Native arg) noexcept : native(arg) {}
   constexpr operator Native() const noexcept { return native; }
 #endif
