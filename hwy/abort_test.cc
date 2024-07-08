@@ -4,9 +4,10 @@
 
 #include "hwy/abort.h"
 
-#include "hwy/tests/hwy_gtest.h"
-#include "hwy/base.h"
+#include <string>
 
+#include "hwy/base.h"
+#include "hwy/tests/hwy_gtest.h"
 #include "hwy/tests/test_util-inl.h"  // HWY_ASSERT_EQ
 
 namespace hwy {
