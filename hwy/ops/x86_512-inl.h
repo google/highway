@@ -7934,6 +7934,17 @@ HWY_API Vec512<int64_t> operator>>(const Vec512<int64_t> v,
 }
 
 // ------------------------------ WidenMulPairwiseAdd
+
+#if HWY_NATIVE_DOT_BF16
+template <class DF, HWY_IF_F32_D(DF), HWY_IF_V_SIZE_D(DF, 64),
+          class VBF = VFromD<Repartition<bfloat16_t, DF>>>
+HWY_API VFromD<DF> WidenMulPairwiseAdd(DF df, VBF a, VBF b) {
+  return VFromD<DF>{_mm512_dpbf16_ps(Zero(df).raw,
+                                     reinterpret_cast<__m512bh>(a.raw),
+                                     reinterpret_cast<__m512bh>(b.raw))};
+}
+#endif  // HWY_NATIVE_DOT_BF16
+
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_I32_D(D)>
 HWY_API VFromD<D> WidenMulPairwiseAdd(D /*d32*/, Vec512<int16_t> a,
                                       Vec512<int16_t> b) {

@@ -9600,6 +9600,18 @@ HWY_INLINE VFromD<D> PromoteOddTo(hwy::SignedTag /*to_type_tag*/,
 
 // ------------------------------ WidenMulPairwiseAdd (PromoteEvenTo)
 
+#if HWY_NATIVE_DOT_BF16
+
+template <class DF, HWY_IF_F32_D(DF), HWY_IF_V_SIZE_LE_D(DF, 16),
+          class VBF = VFromD<Repartition<bfloat16_t, DF>>>
+HWY_API VFromD<DF> WidenMulPairwiseAdd(DF df, VBF a, VBF b) {
+  return VFromD<DF>{_mm_dpbf16_ps(Zero(df).raw,
+                                  reinterpret_cast<__m128bh>(a.raw),
+                                  reinterpret_cast<__m128bh>(b.raw))};
+}
+
+#else
+
 // Generic for all vector lengths.
 template <class DF, HWY_IF_F32_D(DF),
           class VBF = VFromD<Repartition<bfloat16_t, DF>>>
@@ -9608,6 +9620,8 @@ HWY_API VFromD<DF> WidenMulPairwiseAdd(DF df, VBF a, VBF b) {
   return MulAdd(PromoteEvenTo(df, a), PromoteEvenTo(df, b),
                 Mul(PromoteOddTo(df, a), PromoteOddTo(df, b)));
 }
+
+#endif  // HWY_NATIVE_DOT_BF16
 
 // Even if N=1, the input is always at least 2 lanes, hence madd_epi16 is safe.
 template <class D32, HWY_IF_I32_D(D32), HWY_IF_V_SIZE_LE_D(D32, 16),

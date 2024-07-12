@@ -6133,6 +6133,19 @@ HWY_API Vec256<int64_t> operator>>(Vec256<int64_t> v, Vec256<int64_t> bits) {
 }
 
 // ------------------------------ WidenMulPairwiseAdd
+
+#if HWY_NATIVE_DOT_BF16
+
+template <class DF, HWY_IF_F32_D(DF), HWY_IF_V_SIZE_D(DF, 32),
+          class VBF = VFromD<Repartition<bfloat16_t, DF>>>
+HWY_API VFromD<DF> WidenMulPairwiseAdd(DF df, VBF a, VBF b) {
+  return VFromD<DF>{_mm256_dpbf16_ps(Zero(df).raw,
+                                     reinterpret_cast<__m256bh>(a.raw),
+                                     reinterpret_cast<__m256bh>(b.raw))};
+}
+
+#endif  // HWY_NATIVE_DOT_BF16
+
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I32_D(D)>
 HWY_API VFromD<D> WidenMulPairwiseAdd(D /*d32*/, Vec256<int16_t> a,
                                       Vec256<int16_t> b) {
