@@ -2651,6 +2651,25 @@ HWY_API Vec256<double> operator*(Vec256<double> a, Vec256<double> b) {
   return Vec256<double>{_mm256_mul_pd(a.raw, b.raw)};
 }
 
+#if HWY_TARGET <= HWY_AVX3
+
+#if HWY_HAVE_FLOAT16
+HWY_API Vec256<float16_t> MulByFloorPow2(Vec256<float16_t> a,
+                                         Vec256<float16_t> b) {
+  return Vec256<float16_t>{_mm256_scalef_ph(a.raw, b.raw)};
+}
+#endif
+
+HWY_API Vec256<float> MulByFloorPow2(Vec256<float> a, Vec256<float> b) {
+  return Vec256<float>{_mm256_scalef_ps(a.raw, b.raw)};
+}
+
+HWY_API Vec256<double> MulByFloorPow2(Vec256<double> a, Vec256<double> b) {
+  return Vec256<double>{_mm256_scalef_pd(a.raw, b.raw)};
+}
+
+#endif  // HWY_TARGET <= HWY_AVX3
+
 #if HWY_HAVE_FLOAT16
 HWY_API Vec256<float16_t> operator/(Vec256<float16_t> a, Vec256<float16_t> b) {
   return Vec256<float16_t>{_mm256_div_ph(a.raw, b.raw)};

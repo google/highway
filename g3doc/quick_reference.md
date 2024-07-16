@@ -702,6 +702,28 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     truncating it to the lower half for integer inputs. Currently unavailable on
     SVE/RVV; use the equivalent `Mul` instead.
 
+*   `V`: `f`, `VI`: `Vec<RebindToSigned<DFromV<V>>>` \
+    <code>V **MulByPow2**(V a, VI b)</code>: Multiplies `a[i]` by `2^b[i]`.
+
+    `MulByPow2(a, b)` is equivalent to
+    `std::ldexp(a[i], HWY_MIN(HWY_MAX(b[i], LimitsMin<int>()), LimitsMax<int>()))`.
+
+*   `V`: `f`
+    <code>V **MulByFloorPow2**(V a, V b)</code>: Multiplies `a[i]` by
+    `2^floor(b[i])`.
+
+    It is implementation-defined if `MulByFloorPow2(a, b)` returns zero or NaN
+    in any lanes where `a[i]` is NaN and `b[i]` is equal to negative infinity.
+
+    If `a[i]` is a non-NaN value and `b[i]` is equal to negative infinity,
+    `MulByFloorPow2(a, b)` is equivalent to `a[i] * 0.0`.
+
+    If `b[i]` is positive infinity or NaN, `MulByFloorPow2(a, b)` is equivalent
+    to `a[i] * b[i]`.
+
+    If `b[i]` is a finite value, `MulByFloorPow2(a, b)` is equivalent to
+    `MulByPow2(a, FloorInt(b))`.
+
 *   `V`: `{u,i}` \
     <code>V **MulHigh**(V a, V b)</code>: returns the upper half of `a[i] *
     b[i]` in each lane.

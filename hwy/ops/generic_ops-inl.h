@@ -970,6 +970,154 @@ HWY_API VFromD<RebindToSigned<DFromV<V>>> FloorInt(V v) {
 
 #endif  // HWY_NATIVE_CEIL_FLOOR_INT
 
+// ------------------------------ MulByPow2/MulByFloorPow2
+
+#if (defined(HWY_NATIVE_MUL_BY_POW2) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MUL_BY_POW2
+#undef HWY_NATIVE_MUL_BY_POW2
+#else
+#define HWY_NATIVE_MUL_BY_POW2
+#endif
+
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_API V MulByPow2(V v, VFromD<RebindToSigned<DFromV<V>>> exp) {
+  const DFromV<decltype(v)> df;
+  const RebindToUnsigned<decltype(df)> du;
+  const RebindToSigned<decltype(df)> di;
+
+  using TF = TFromD<decltype(df)>;
+  using TI = TFromD<decltype(di)>;
+  using TU = TFromD<decltype(du)>;
+
+  using VF = VFromD<decltype(df)>;
+  using VI = VFromD<decltype(di)>;
+
+  constexpr TI kMaxBiasedExp = MaxExponentField<TF>();
+  static_assert(kMaxBiasedExp > 0, "kMaxBiasedExp > 0 must be true");
+
+  constexpr TI kExpBias = static_cast<TI>(kMaxBiasedExp >> 1);
+  static_assert(kExpBias > 0, "kExpBias > 0 must be true");
+  static_assert(kExpBias <= LimitsMax<TI>() / 3,
+                "kExpBias <= LimitsMax<TI>() / 3 must be true");
+
+#if HWY_TARGET > HWY_AVX3 && HWY_TARGET <= HWY_SSE4
+  using TExpMinMax = If<(sizeof(TI) <= 4), TI, int32_t>;
+#elif (HWY_TARGET >= HWY_SSSE3 && HWY_TARGET <= HWY_SSE2) || \
+    HWY_TARGET == HWY_WASM || HWY_TARGET == HWY_WASM_EMU256
+  using TExpMinMax = int16_t;
+#else
+  using TExpMinMax = TI;
+#endif
+
+#if HWY_TARGET == HWY_EMU128 || HWY_TARGET == HWY_SCALAR
+  using TExpSatSub = TU;
+#elif HWY_TARGET <= HWY_SSE2 || HWY_TARGET == HWY_WASM || \
+    HWY_TARGET == HWY_WASM_EMU256
+  using TExpSatSub = If<(sizeof(TF) == 4), uint8_t, uint16_t>;
+#elif HWY_TARGET_IS_PPC
+  using TExpSatSub = If<(sizeof(TF) >= 4), uint32_t, TU>;
+#else
+  using TExpSatSub = If<(sizeof(TF) == 4), uint8_t, TU>;
+#endif
+
+  static_assert(kExpBias <= static_cast<TI>(LimitsMax<TExpMinMax>() / 3),
+                "kExpBias <= LimitsMax<TExpMinMax>() / 3 must be true");
+
+  const Repartition<TExpMinMax, decltype(df)> d_exp_min_max;
+  const Repartition<TExpSatSub, decltype(df)> d_sat_exp_sub;
+
+  constexpr int kNumOfExpBits = ExponentBits<TF>();
+  constexpr int kNumOfMantBits = MantissaBits<TF>();
+
+  // The sign bit of BitCastScalar<TU>(a[i]) >> kNumOfMantBits can be zeroed out
+  // using SaturatedSub if kZeroOutSignUsingSatSub is true.
+
+  // If kZeroOutSignUsingSatSub is true, then val_for_exp_sub will be bitcasted
+  // to a vector that has a smaller lane size than TU for the SaturatedSub
+  // operation below.
+  constexpr bool kZeroOutSignUsingSatSub =
+      ((sizeof(TExpSatSub) * 8) == static_cast<size_t>(kNumOfExpBits));
+
+  // If kZeroOutSignUsingSatSub is true, then the upper
+  // (sizeof(TU) - sizeof(TExpSatSub)) * 8 bits of kExpDecrBy1Bits will be all
+  // ones and the lower sizeof(TExpSatSub) * 8 bits of kExpDecrBy1Bits will be
+  // equal to 1.
+
+  // Otherwise, if kZeroOutSignUsingSatSub is false, kExpDecrBy1Bits will be
+  // equal to 1.
+  constexpr TU kExpDecrBy1Bits = static_cast<TU>(
+      TU{1} - (static_cast<TU>(kZeroOutSignUsingSatSub) << kNumOfExpBits));
+
+  VF val_for_exp_sub = v;
+  HWY_IF_CONSTEXPR(!kZeroOutSignUsingSatSub) {
+    // If kZeroOutSignUsingSatSub is not true, zero out the sign bit of
+    // val_for_exp_sub[i] using Abs
+    val_for_exp_sub = Abs(val_for_exp_sub);
+  }
+
+  // min_exp1_plus_min_exp2[i] is the smallest exponent such that
+  // min_exp1_plus_min_exp2[i] >= 2 - kExpBias * 2 and
+  // std::ldexp(v[i], min_exp1_plus_min_exp2[i]) is a normal floating-point
+  // number if v[i] is a normal number
+  const VI min_exp1_plus_min_exp2 = BitCast(
+      di,
+      Max(BitCast(
+              d_exp_min_max,
+              Neg(BitCast(
+                  di,
+                  SaturatedSub(
+                      BitCast(d_sat_exp_sub, ShiftRight<kNumOfMantBits>(
+                                                 BitCast(du, val_for_exp_sub))),
+                      BitCast(d_sat_exp_sub, Set(du, kExpDecrBy1Bits)))))),
+          BitCast(d_exp_min_max,
+                  Set(di, static_cast<TI>(2 - kExpBias - kExpBias)))));
+
+  const VI clamped_exp =
+      Max(Min(exp, Set(di, static_cast<TI>(kExpBias * 3))),
+          Add(min_exp1_plus_min_exp2, Set(di, static_cast<TI>(1 - kExpBias))));
+
+  const VI exp1_plus_exp2 = BitCast(
+      di, Max(Min(BitCast(d_exp_min_max,
+                          Sub(clamped_exp, ShiftRight<2>(clamped_exp))),
+                  BitCast(d_exp_min_max,
+                          Set(di, static_cast<TI>(kExpBias + kExpBias)))),
+              BitCast(d_exp_min_max, min_exp1_plus_min_exp2)));
+
+  const VI exp1 = ShiftRight<1>(exp1_plus_exp2);
+  const VI exp2 = Sub(exp1_plus_exp2, exp1);
+  const VI exp3 = Sub(clamped_exp, exp1_plus_exp2);
+
+  const VI exp_bias = Set(di, kExpBias);
+
+  const VF factor1 =
+      BitCast(df, ShiftLeft<kNumOfMantBits>(Add(exp1, exp_bias)));
+  const VF factor2 =
+      BitCast(df, ShiftLeft<kNumOfMantBits>(Add(exp2, exp_bias)));
+  const VF factor3 =
+      BitCast(df, ShiftLeft<kNumOfMantBits>(Add(exp3, exp_bias)));
+
+  return Mul(Mul(Mul(v, factor1), factor2), factor3);
+}
+
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_API V MulByFloorPow2(V v, V exp) {
+  const DFromV<decltype(v)> df;
+
+  // MulByFloorPow2 special cases:
+  // MulByFloorPow2(v, NaN) => NaN
+  // MulByFloorPow2(0, inf) => NaN
+  // MulByFloorPow2(inf, -inf) => NaN
+  // MulByFloorPow2(-inf, -inf) => NaN
+  const auto is_special_case_with_nan_result =
+      Or(IsNaN(exp),
+         And(Eq(Abs(v), IfNegativeThenElseZero(exp, Inf(df))), IsInf(exp)));
+
+  return IfThenElse(is_special_case_with_nan_result, NaN(df),
+                    MulByPow2(v, FloorInt(exp)));
+}
+
+#endif  // HWY_NATIVE_MUL_BY_POW2
+
 // ------------------------------ LoadInterleaved2
 
 #if HWY_IDE || \
