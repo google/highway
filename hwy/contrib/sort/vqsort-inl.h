@@ -167,8 +167,19 @@ void HeapSort(Traits st, T* HWY_RESTRICT lanes, const size_t num_lanes) {
   }
 
   for (size_t i = num_lanes - N1; i != 0; i -= N1) {
+// Workaround for -Waggressive-loop-optimizations warning that might be emitted
+// by GCC
+#if HWY_COMPILER_GCC_ACTUAL
+    HWY_DIAGNOSTICS(push)
+    HWY_DIAGNOSTICS_OFF(disable : 4756,
+                        ignored "-Waggressive-loop-optimizations")
+#endif
     // Swap root with last
     st.Swap(lanes + 0, lanes + i);
+
+#if HWY_COMPILER_GCC_ACTUAL
+    HWY_DIAGNOSTICS(pop)
+#endif
 
     // Sift down the new root.
     SiftDown(st, lanes, i, 0);
@@ -193,8 +204,20 @@ void HeapSelect(Traits st, T* HWY_RESTRICT lanes, const size_t num_lanes,
   for (size_t i = k; i <= num_lanes - N1; i += N1) {
     if (AllTrue(d, st.Compare(d, st.SetKey(d, lanes + i),
                               st.SetKey(d, lanes + 0)))) {
+// Workaround for -Waggressive-loop-optimizations warning that might be emitted
+// by GCC
+#if HWY_COMPILER_GCC_ACTUAL
+      HWY_DIAGNOSTICS(push)
+      HWY_DIAGNOSTICS_OFF(disable : 4756,
+                          ignored "-Waggressive-loop-optimizations")
+#endif
+
       // Swap root with last
       st.Swap(lanes + 0, lanes + i);
+
+#if HWY_COMPILER_GCC_ACTUAL
+      HWY_DIAGNOSTICS(pop)
+#endif
 
       // Sift down the new root.
       SiftDown(st, lanes, k, 0);
