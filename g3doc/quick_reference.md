@@ -715,11 +715,15 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     It is implementation-defined if `MulByFloorPow2(a, b)` returns zero or NaN
     in any lanes where `a[i]` is NaN and `b[i]` is equal to negative infinity.
 
+    It is implementation-defined if `MulByFloorPow2(a, b)` returns positive
+    infinity or NaN in any lanes where `a[i]` is NaN and `b[i]` is equal to
+    positive infinity.
+
     If `a[i]` is a non-NaN value and `b[i]` is equal to negative infinity,
     `MulByFloorPow2(a, b)` is equivalent to `a[i] * 0.0`.
 
-    If `b[i]` is positive infinity or NaN, `MulByFloorPow2(a, b)` is equivalent
-    to `a[i] * b[i]`.
+    If `b[i]` is NaN or if `a[i]` is non-NaN and `b[i]` is positive infinity,
+    `MulByFloorPow2(a, b)` is equivalent to `a[i] * b[i]`.
 
     If `b[i]` is a finite value, `MulByFloorPow2(a, b)` is equivalent to
     `MulByPow2(a, FloorInt(b))`.
