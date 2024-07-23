@@ -1878,6 +1878,21 @@ HWY_API Vec512<double> operator*(Vec512<double> a, Vec512<double> b) {
 }
 
 #if HWY_HAVE_FLOAT16
+HWY_API Vec512<float16_t> MulByFloorPow2(Vec512<float16_t> a,
+                                         Vec512<float16_t> b) {
+  return Vec512<float16_t>{_mm512_scalef_ph(a.raw, b.raw)};
+}
+#endif
+
+HWY_API Vec512<float> MulByFloorPow2(Vec512<float> a, Vec512<float> b) {
+  return Vec512<float>{_mm512_scalef_ps(a.raw, b.raw)};
+}
+
+HWY_API Vec512<double> MulByFloorPow2(Vec512<double> a, Vec512<double> b) {
+  return Vec512<double>{_mm512_scalef_pd(a.raw, b.raw)};
+}
+
+#if HWY_HAVE_FLOAT16
 HWY_API Vec512<float16_t> operator/(Vec512<float16_t> a, Vec512<float16_t> b) {
   return Vec512<float16_t>{_mm512_div_ph(a.raw, b.raw)};
 }

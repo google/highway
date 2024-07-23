@@ -5063,6 +5063,43 @@ HWY_API Vec64<double> operator*(const Vec64<double> a, const Vec64<double> b) {
   return Vec64<double>{_mm_mul_sd(a.raw, b.raw)};
 }
 
+#if HWY_TARGET <= HWY_AVX3
+
+#ifdef HWY_NATIVE_MUL_BY_POW2
+#undef HWY_NATIVE_MUL_BY_POW2
+#else
+#define HWY_NATIVE_MUL_BY_POW2
+#endif
+
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Vec128<float16_t, N> MulByFloorPow2(Vec128<float16_t, N> a,
+                                            Vec128<float16_t, N> b) {
+  return Vec128<float16_t, N>{_mm_scalef_ph(a.raw, b.raw)};
+}
+#endif
+
+template <size_t N>
+HWY_API Vec128<float, N> MulByFloorPow2(Vec128<float, N> a,
+                                        Vec128<float, N> b) {
+  return Vec128<float, N>{_mm_scalef_ps(a.raw, b.raw)};
+}
+
+template <size_t N>
+HWY_API Vec128<double, N> MulByFloorPow2(Vec128<double, N> a,
+                                         Vec128<double, N> b) {
+  return Vec128<double, N>{_mm_scalef_pd(a.raw, b.raw)};
+}
+
+// MulByPow2 is generic for all vector lengths on AVX3
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_API V MulByPow2(V v, VFromD<RebindToSigned<DFromV<V>>> exp) {
+  const DFromV<decltype(v)> d;
+  return MulByFloorPow2(v, ConvertTo(d, exp));
+}
+
+#endif  // HWY_TARGET <= HWY_AVX3
+
 #if HWY_HAVE_FLOAT16
 template <size_t N>
 HWY_API Vec128<float16_t, N> operator/(const Vec128<float16_t, N> a,

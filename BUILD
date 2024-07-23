@@ -516,6 +516,7 @@ HWY_TESTS = [
     ("hwy/tests/", "masked_minmax_test"),
     ("hwy/tests/", "memory_test"),
     ("hwy/tests/", "minmax_test"),
+    ("hwy/tests/", "mul_by_pow2_test"),
     ("hwy/tests/", "mul_pairwise_test"),
     ("hwy/tests/", "mul_test"),
     ("hwy/tests/", "reduction_test"),
