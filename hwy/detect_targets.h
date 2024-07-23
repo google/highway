@@ -258,6 +258,13 @@
 #define HWY_BROKEN_PPC10 0
 #endif
 
+// PPC8/PPC9/PPC10 targets may fail to compile on 32-bit PowerPC
+#if HWY_ARCH_PPC && !HWY_ARCH_PPC_64
+#define HWY_BROKEN_PPC_32BIT (HWY_PPC8 | HWY_PPC9 | HWY_PPC10)
+#else
+#define HWY_BROKEN_PPC_32BIT 0
+#endif
+
 // Allow the user to override this without any guarantee of success.
 #ifndef HWY_BROKEN_TARGETS
 
@@ -265,7 +272,8 @@
   (HWY_BROKEN_CLANG6 | HWY_BROKEN_32BIT | HWY_BROKEN_MSVC |    \
    HWY_BROKEN_AVX3_DL_ZEN4 | HWY_BROKEN_AVX3_SPR |             \
    HWY_BROKEN_ARM7_BIG_ENDIAN | HWY_BROKEN_ARM7_WITHOUT_VFP4 | \
-   HWY_BROKEN_NEON_BF16 | HWY_BROKEN_SVE | HWY_BROKEN_PPC10)
+   HWY_BROKEN_NEON_BF16 | HWY_BROKEN_SVE | HWY_BROKEN_PPC10 |  \
+   HWY_BROKEN_PPC_32BIT)
 
 #endif  // HWY_BROKEN_TARGETS
 
@@ -587,7 +595,7 @@
 // clang-format off
 #if __has_include(<sys/auxv.h>)
 // clang-format on
-#define HWY_HAVE_AUXV 1  // header present
+#define HWY_HAVE_AUXV 1       // header present
 #else
 #define HWY_HAVE_AUXV 0  // header not present
 #endif                   // __has_include
