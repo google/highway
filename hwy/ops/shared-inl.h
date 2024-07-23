@@ -643,7 +643,7 @@ HWY_API bool IsAligned(D d, T* ptr) {
 #define HWY_IF_T_SIZE_ONE_OF_V(V, bit_array) \
   HWY_IF_T_SIZE_ONE_OF(hwy::HWY_NAMESPACE::TFromV<V>, bit_array)
 
-#define HWY_MAX_LANES_V(V) HWY_MAX_LANES_D(DFromV<V>)
+#define HWY_MAX_LANES_V(V) HWY_MAX_LANES_D(hwy::HWY_NAMESPACE::DFromV<V>)
 #define HWY_IF_V_SIZE_V(V, bytes) \
   HWY_IF_V_SIZE(hwy::HWY_NAMESPACE::TFromV<V>, HWY_MAX_LANES_V(V), bytes)
 #define HWY_IF_V_SIZE_LE_V(V, bytes) \
@@ -666,10 +666,11 @@ HWY_API bool IsAligned(D d, T* ptr) {
 #define HWY_IF_MINMAX_OF_LANES_D(D) HWY_IF_LANES_GT_D(D, 1)
 
 #undef HWY_IF_ADDSUB_V
-#define HWY_IF_ADDSUB_V(V) HWY_IF_LANES_GT_D(DFromV<V>, 1)
+#define HWY_IF_ADDSUB_V(V) HWY_IF_LANES_GT_D(hwy::HWY_NAMESPACE::DFromV<V>, 1)
 
 #undef HWY_IF_MULADDSUB_V
-#define HWY_IF_MULADDSUB_V(V) HWY_IF_LANES_GT_D(DFromV<V>, 1)
+#define HWY_IF_MULADDSUB_V(V) \
+  HWY_IF_LANES_GT_D(hwy::HWY_NAMESPACE::DFromV<V>, 1)
 
 // HWY_IF_U2I_DEMOTE_FROM_LANE_SIZE_V is used to disable the default
 // implementation of unsigned to signed DemoteTo/ReorderDemote2To in
