@@ -1,5 +1,7 @@
 // Copyright 2021 Google LLC
+// Copyright 2024 Arm Limited and/or its affiliates <open-source-office@arm.com>
 // SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: BSD-3-Clause
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -965,7 +967,7 @@ HWY_NOINLINE bool MaybePartitionTwoValue(D d, Traits st, T* HWY_RESTRICT keys,
             StoreU(valueR, d, keys + writeL);
           }
         }
-        BlendedStore(valueR, FirstN(d, i - writeL), d, keys + writeL);
+        StoreN(valueR, d, keys + writeL, i - writeL);
         return false;
       }
       StoreU(valueL, d, keys + writeL);
@@ -996,7 +998,7 @@ HWY_NOINLINE bool MaybePartitionTwoValue(D d, Traits st, T* HWY_RESTRICT keys,
         StoreU(valueR, d, keys + writeL);
       }
     }
-    BlendedStore(valueR, FirstN(d, i - writeL), d, keys + writeL);
+    StoreN(valueR, d, keys + writeL, i - writeL);
     return false;
   }
   BlendedStore(valueL, valid, d, keys + writeL);
@@ -1009,7 +1011,7 @@ HWY_NOINLINE bool MaybePartitionTwoValue(D d, Traits st, T* HWY_RESTRICT keys,
       StoreU(valueR, d, keys + i);
     }
   }
-  BlendedStore(valueR, FirstN(d, num - i), d, keys + i);
+  StoreN(valueR, d, keys + i, num - i);
 
   if (VQSORT_PRINT >= 2) {
     fprintf(stderr, "Successful MaybePartitionTwoValue\n");
@@ -1060,7 +1062,7 @@ HWY_INLINE bool MaybePartitionTwoValueR(D d, Traits st, T* HWY_RESTRICT keys,
           StoreU(valueL, d, keys + pos);
         }
       }
-      BlendedStore(valueL, FirstN(d, endL - pos), d, keys + pos);
+      StoreN(valueL, d, keys + pos, endL - pos);
       return false;
     }
     StoreU(valueR, d, keys + pos);
@@ -1095,7 +1097,7 @@ HWY_INLINE bool MaybePartitionTwoValueR(D d, Traits st, T* HWY_RESTRICT keys,
         StoreU(valueL, d, keys + pos);
       }
     }
-    BlendedStore(valueL, FirstN(d, endL - pos), d, keys + pos);
+    StoreN(valueL, d, keys + pos, endL - pos);
     return false;
   }
   const size_t lastR = CountTrue(d, eqR);
