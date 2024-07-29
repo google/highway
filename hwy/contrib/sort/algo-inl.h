@@ -108,7 +108,8 @@ namespace hwy {
 enum class Dist { kUniform8, kUniform16, kUniform32 };
 
 static inline std::vector<Dist> AllDist() {
-  return {/*Dist::kUniform8, Dist::kUniform16,*/ Dist::kUniform32};
+  // Also include lower-entropy distributions to test MaybePartitionTwoValue.
+  return {Dist::kUniform8, /*Dist::kUniform16,*/ Dist::kUniform32};
 }
 
 static inline const char* DistName(Dist dist) {
