@@ -259,7 +259,7 @@ class File {
     if (fd_ < 0) return 0;
     size_t pos = 0;
     for (;;) {
-      // read instead of pread, which might not work for sysfs.
+      // read instead of `pread`, which might not work for sysfs.
       const auto bytes_read = read(fd_, buf200 + pos, 200 - pos);
       if (bytes_read == 0) {  // EOF: done
         buf200[pos++] = '\0';

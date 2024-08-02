@@ -401,10 +401,12 @@ the three following options, in descending order of preference:
 -   `using hwy::HWY_NAMESPACE;` directive. This is generally discouraged,
     especially for SIMD code residing in a header.
 
-Note that overloaded operators are not yet supported on RVV and SVE. Until that
-is resolved, code that wishes to run on all targets must use the corresponding
-equivalents mentioned in the description of each overloaded operator, for
-example `Lt` instead of `operator<`.
+Note that overloaded operators were not supported on `RVV` and `SVE` until
+recently. Unfortunately, clang's `SVE` comparison operators return integer
+vectors instead of the `svbool_t` type which exists for this purpose. To ensure
+your code works on all targets, we recommend instead using the corresponding
+equivalents mentioned in our description of each overloaded operator, especially
+for comparisons, for example `Lt` instead of `operator<`.
 
 ### Initialization
 
