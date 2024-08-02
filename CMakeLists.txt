@@ -735,8 +735,9 @@ list(APPEND HWY_TEST_FILES
   # not reproducible locally. Still tested via bazel build.
   hwy/contrib/math/math_test.cc
   hwy/contrib/random/random_test.cc
-  hwy/contrib/sort/sort_test.cc
   hwy/contrib/sort/bench_sort.cc
+  hwy/contrib/sort/sort_test.cc
+  hwy/contrib/sort/sort_unit_test.cc
   hwy/contrib/thread_pool/thread_pool_test.cc
   hwy/contrib/thread_pool/topology_test.cc
   hwy/contrib/unroller/unroller_test.cc
