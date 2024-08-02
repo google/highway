@@ -764,9 +764,10 @@ HWY_INLINE void StoreRightAndBuf(D d, Traits st, const Vec<D> v,
   const size_t N = Lanes(d);
   const Mask<D> comp = st.Compare(d, pivot, v);
   const size_t numL = CompressStore(v, Not(comp), d, buf + bufL);
+  const size_t numR = N - numL;
   bufL += numL;
-  writeR -= (N - numL);
-  (void)CompressBlendedStore(v, comp, d, keys + writeR);
+  writeR -= numR;
+  StoreN(Compress(v, comp), d, keys + writeR, numR);
 }
 
 // Moves "<= pivot" keys to the front, and others to the back. pivot is
@@ -1001,7 +1002,7 @@ HWY_NOINLINE bool MaybePartitionTwoValue(D d, Traits st, T* HWY_RESTRICT keys,
     StoreN(valueR, d, keys + writeL, i - writeL);
     return false;
   }
-  BlendedStore(valueL, valid, d, keys + writeL);
+  StoreN(valueL, d, keys + writeL, remaining);
   writeL += CountTrue(d, eqL);
 
   // Fill right side
