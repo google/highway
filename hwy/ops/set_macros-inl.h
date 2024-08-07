@@ -629,8 +629,12 @@
 
 #define HWY_NAMESPACE N_RVV
 
+#if HWY_COMPILER_CLANG >= 1900
+// https://github.com/riscv/riscv-v-spec/blob/master/v-spec.adoc#181-zvl-minimum-vector-length-standard-extensions
+#define HWY_TARGET_STR "Zvl128b,Zve64d"
+#else
 // HWY_TARGET_STR remains undefined so HWY_ATTR is a no-op.
-// (rv64gcv is not a valid target)
+#endif
 
 //-----------------------------------------------------------------------------
 // EMU128
