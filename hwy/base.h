@@ -882,76 +882,85 @@ HWY_INLINE constexpr bool IsIntegerLaneType<uint64_t>() {
   return true;
 }
 
+namespace detail {
+
 template <class T>
-HWY_API constexpr bool IsInteger() {
-  // NOTE: Do not add a IsInteger<wchar_t>() specialization below as it is
+static HWY_INLINE constexpr bool IsNonCvInteger() {
+  // NOTE: Do not add a IsNonCvInteger<wchar_t>() specialization below as it is
   // possible for IsSame<wchar_t, uint16_t>() to be true when compiled with MSVC
   // with the /Zc:wchar_t- option.
-  return IsIntegerLaneType<T>() || IsSame<RemoveCvRef<T>, wchar_t>() ||
-         IsSameEither<RemoveCvRef<T>, size_t, ptrdiff_t>() ||
-         IsSameEither<RemoveCvRef<T>, intptr_t, uintptr_t>();
+  return IsIntegerLaneType<T>() || IsSame<T, wchar_t>() ||
+         IsSameEither<T, size_t, ptrdiff_t>() ||
+         IsSameEither<T, intptr_t, uintptr_t>();
 }
 template <>
-HWY_INLINE constexpr bool IsInteger<bool>() {
+HWY_INLINE constexpr bool IsNonCvInteger<bool>() {
   return true;
 }
 template <>
-HWY_INLINE constexpr bool IsInteger<char>() {
+HWY_INLINE constexpr bool IsNonCvInteger<char>() {
   return true;
 }
 template <>
-HWY_INLINE constexpr bool IsInteger<signed char>() {
+HWY_INLINE constexpr bool IsNonCvInteger<signed char>() {
   return true;
 }
 template <>
-HWY_INLINE constexpr bool IsInteger<unsigned char>() {
+HWY_INLINE constexpr bool IsNonCvInteger<unsigned char>() {
   return true;
 }
 template <>
-HWY_INLINE constexpr bool IsInteger<short>() {  // NOLINT
+HWY_INLINE constexpr bool IsNonCvInteger<short>() {  // NOLINT
   return true;
 }
 template <>
-HWY_INLINE constexpr bool IsInteger<unsigned short>() {  // NOLINT
+HWY_INLINE constexpr bool IsNonCvInteger<unsigned short>() {  // NOLINT
   return true;
 }
 template <>
-HWY_INLINE constexpr bool IsInteger<int>() {
+HWY_INLINE constexpr bool IsNonCvInteger<int>() {
   return true;
 }
 template <>
-HWY_INLINE constexpr bool IsInteger<unsigned>() {
+HWY_INLINE constexpr bool IsNonCvInteger<unsigned>() {
   return true;
 }
 template <>
-HWY_INLINE constexpr bool IsInteger<long>() {  // NOLINT
+HWY_INLINE constexpr bool IsNonCvInteger<long>() {  // NOLINT
   return true;
 }
 template <>
-HWY_INLINE constexpr bool IsInteger<unsigned long>() {  // NOLINT
+HWY_INLINE constexpr bool IsNonCvInteger<unsigned long>() {  // NOLINT
   return true;
 }
 template <>
-HWY_INLINE constexpr bool IsInteger<long long>() {  // NOLINT
+HWY_INLINE constexpr bool IsNonCvInteger<long long>() {  // NOLINT
   return true;
 }
 template <>
-HWY_INLINE constexpr bool IsInteger<unsigned long long>() {  // NOLINT
+HWY_INLINE constexpr bool IsNonCvInteger<unsigned long long>() {  // NOLINT
   return true;
 }
 #if defined(__cpp_char8_t) && __cpp_char8_t >= 201811L
 template <>
-HWY_INLINE constexpr bool IsInteger<char8_t>() {
+HWY_INLINE constexpr bool IsNonCvInteger<char8_t>() {
   return true;
 }
 #endif
 template <>
-HWY_INLINE constexpr bool IsInteger<char16_t>() {
+HWY_INLINE constexpr bool IsNonCvInteger<char16_t>() {
   return true;
 }
 template <>
-HWY_INLINE constexpr bool IsInteger<char32_t>() {
+HWY_INLINE constexpr bool IsNonCvInteger<char32_t>() {
   return true;
+}
+
+}  // namespace detail
+
+template <class T>
+HWY_API constexpr bool IsInteger() {
+  return detail::IsNonCvInteger<RemoveCvRef<T>>();
 }
 
 // -----------------------------------------------------------------------------
