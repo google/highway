@@ -6932,6 +6932,15 @@ HWY_API intptr_t FindLastTrue(D d, MFromD<D> mask) {
 
 // ------------------------------ Compress
 
+#ifndef HWY_X86_SLOW_COMPRESS_STORE  // allow override
+// Slow on Zen4 and SPR, faster if we emulate via Compress().
+#if HWY_TARGET == HWY_AVX3_ZEN4 || HWY_TARGET == HWY_AVX3_SPR
+#define HWY_X86_SLOW_COMPRESS_STORE 1
+#else
+#define HWY_X86_SLOW_COMPRESS_STORE 0
+#endif
+#endif  // HWY_X86_SLOW_COMPRESS_STORE
+
 // Always implement 8-bit here even if we lack VBMI2 because we can do better
 // than generic_ops (8 at a time) via the native 32-bit compress (16 at a time).
 #ifdef HWY_NATIVE_COMPRESS8
@@ -6971,8 +6980,8 @@ HWY_INLINE Vec512<uint16_t> NativeCompress(const Vec512<uint16_t> v,
   return Vec512<uint16_t>{_mm512_maskz_compress_epi16(mask.raw, v.raw)};
 }
 
-// Slow on Zen4, do not even define these to prevent accidental usage.
-#if HWY_TARGET != HWY_AVX3_ZEN4
+// Do not even define these to prevent accidental usage.
+#if !HWY_X86_SLOW_COMPRESS_STORE
 
 template <size_t N>
 HWY_INLINE void NativeCompressStore(Vec128<uint8_t, N> v,
@@ -7004,7 +7013,7 @@ HWY_INLINE void NativeCompressStore(Vec512<uint16_t> v, Mask512<uint16_t> mask,
   _mm512_mask_compressstoreu_epi16(unaligned, mask.raw, v.raw);
 }
 
-#endif  // HWY_TARGET != HWY_AVX3_ZEN4
+#endif  // HWY_X86_SLOW_COMPRESS_STORE
 
 HWY_INLINE Vec512<uint8_t> NativeExpand(Vec512<uint8_t> v,
                                         Mask512<uint8_t> mask) {
@@ -7045,8 +7054,8 @@ HWY_INLINE Vec512<uint32_t> NativeCompress(Vec512<uint32_t> v,
 }
 // We use table-based compress for 64-bit lanes, see CompressIsPartition.
 
-// Slow on Zen4, do not even define these to prevent accidental usage.
-#if HWY_TARGET != HWY_AVX3_ZEN4
+// Do not even define these to prevent accidental usage.
+#if !HWY_X86_SLOW_COMPRESS_STORE
 
 template <size_t N>
 HWY_INLINE void NativeCompressStore(Vec128<uint32_t, N> v,
@@ -7107,7 +7116,7 @@ HWY_INLINE void NativeCompressStore(Vec512<double> v, Mask512<double> mask,
   _mm512_mask_compressstoreu_pd(unaligned, mask.raw, v.raw);
 }
 
-#endif  // HWY_TARGET != HWY_AVX3_ZEN4
+#endif  // HWY_X86_SLOW_COMPRESS_STORE
 
 HWY_INLINE Vec512<uint32_t> NativeExpand(Vec512<uint32_t> v,
                                          Mask512<uint32_t> mask) {
@@ -7567,7 +7576,7 @@ HWY_API V CompressBits(V v, const uint8_t* HWY_RESTRICT bits) {
 template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2))>
 HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> mask, D d,
                              TFromD<D>* HWY_RESTRICT unaligned) {
-#if HWY_TARGET == HWY_AVX3_ZEN4
+#if HWY_X86_SLOW_COMPRESS_STORE
   StoreU(Compress(v, mask), d, unaligned);
 #else
   const RebindToUnsigned<decltype(d)> du;
@@ -7579,7 +7588,7 @@ HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> mask, D d,
 #else
   detail::EmuCompressStore(BitCast(du, v), mu, du, pu);
 #endif
-#endif  // HWY_TARGET != HWY_AVX3_ZEN4
+#endif  // HWY_X86_SLOW_COMPRESS_STORE
   const size_t count = CountTrue(d, mask);
   detail::MaybeUnpoison(unaligned, count);
   return count;
@@ -7589,7 +7598,7 @@ template <class D, HWY_IF_NOT_FLOAT_D(D),
           HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 4) | (1 << 8))>
 HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> mask, D d,
                              TFromD<D>* HWY_RESTRICT unaligned) {
-#if HWY_TARGET == HWY_AVX3_ZEN4
+#if HWY_X86_SLOW_COMPRESS_STORE
   StoreU(Compress(v, mask), d, unaligned);
 #else
   const RebindToUnsigned<decltype(d)> du;
@@ -7597,7 +7606,7 @@ HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> mask, D d,
   using TU = TFromD<decltype(du)>;
   TU* HWY_RESTRICT pu = reinterpret_cast<TU*>(unaligned);
   detail::NativeCompressStore(BitCast(du, v), mu, pu);
-#endif  // HWY_TARGET != HWY_AVX3_ZEN4
+#endif  // HWY_X86_SLOW_COMPRESS_STORE
   const size_t count = CountTrue(d, mask);
   detail::MaybeUnpoison(unaligned, count);
   return count;
@@ -7607,12 +7616,12 @@ HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> mask, D d,
 template <class D, HWY_IF_FLOAT3264_D(D)>
 HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> mask, D d,
                              TFromD<D>* HWY_RESTRICT unaligned) {
-#if HWY_TARGET == HWY_AVX3_ZEN4
+#if HWY_X86_SLOW_COMPRESS_STORE
   StoreU(Compress(v, mask), d, unaligned);
 #else
   (void)d;
   detail::NativeCompressStore(v, mask, unaligned);
-#endif  // HWY_TARGET != HWY_AVX3_ZEN4
+#endif  // HWY_X86_SLOW_COMPRESS_STORE
   const size_t count = PopCount(uint64_t{mask.raw});
   detail::MaybeUnpoison(unaligned, count);
   return count;
@@ -7625,7 +7634,7 @@ HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> m, D d,
   // Native CompressStore already does the blending at no extra cost (latency
   // 11, rthroughput 2 - same as compress plus store).
   if (HWY_TARGET == HWY_AVX3_DL ||
-      (HWY_TARGET != HWY_AVX3_ZEN4 && sizeof(TFromD<D>) > 2)) {
+      (!HWY_X86_SLOW_COMPRESS_STORE && sizeof(TFromD<D>) > 2)) {
     return CompressStore(v, m, d, unaligned);
   } else {
     const size_t count = CountTrue(d, m);
