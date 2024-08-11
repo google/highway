@@ -287,10 +287,9 @@
 
 #define HWY_HAVE_SCALABLE 0
 #define HWY_HAVE_INTEGER64 1
-#if HWY_TARGET == HWY_AVX3_SPR && HWY_COMPILER_GCC_ACTUAL && \
+#if HWY_TARGET == HWY_AVX3_SPR &&                              \
+    (HWY_COMPILER_GCC_ACTUAL || HWY_COMPILER_CLANG >= 1901) && \
     HWY_HAVE_SCALAR_F16_TYPE
-// TODO: enable F16 for AVX3_SPR target with Clang once compilation issues are
-// fixed
 #define HWY_HAVE_FLOAT16 1
 #else
 #define HWY_HAVE_FLOAT16 0

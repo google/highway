@@ -376,7 +376,7 @@ struct TestDot {
       AccumulateUnit<T> accfn;
       T dot_via_mul_acc;
       Unroller(accfn, y, &dot_via_mul_acc, static_cast<ptrdiff_t>(num));
-      const double tolerance = 32.0 *
+      const double tolerance = 48.0 *
                                ConvertScalarTo<double>(hwy::Epsilon<T>()) *
                                ScalarAbs(expected_dot);
       HWY_ASSERT(ScalarAbs(expected_dot - dot_via_mul_acc) < tolerance);
