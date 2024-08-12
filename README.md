@@ -77,24 +77,32 @@ found via sourcegraph.com. Most are GitHub repositories. If you would like to
 add your project or link to it directly, feel free to raise an issue or contact
 us via the below email.
 
+*   Audio: [Zimtohrli perceptual metric](https://github.com/google/zimtohrli)
 *   Browsers: Chromium (+Vivaldi), Firefox (+floorp / foxhound / librewolf /
     Waterfox)
-*   Cryptography: google/distributed_point_functions
+*   Computational biology: [RNA analysis](https://github.com/bnprks/BPCells)
+*   Computer graphics: [Sparse voxel renderer](https://github.com/rools/voxl)
+*   Cryptography: google/distributed_point_functions, google/shell-encryption
 *   Data structures: bkille/BitLib
 *   Image codecs: eustas/2im,
     [Grok JPEG 2000](https://github.com/GrokImageCompression/grok),
-    [JPEG XL](https://github.com/libjxl/libjxl), OpenHTJ2K,
-    [JPEGenc](https://github.com/osamu620/JPEGenc)
+    [JPEG XL](https://github.com/libjxl/libjxl),
+    [JPEGenc](https://github.com/osamu620/JPEGenc),
+    [Jpegli](https://github.com/google/jpegli), OpenHTJ2K
 *   Image processing: cloudinary/ssimulacra2, m-ab-s/media-autobuild_suite,
     [libvips](https://github.com/libvips/libvips)
-*   Image viewers: AlienCowEatCake/ImageViewer, mirillis/jpegxl-wic,
+*   Image viewers: AlienCowEatCake/ImageViewer, diffractor/diffractor,
+    mirillis/jpegxl-wic,
     [Lux panorama/image viewer](https://bitbucket.org/kfj/pv/)
 *   Information retrieval:
-    [iresearch database index](https://github.com/iresearch-toolkit/iresearch/blob/e7638e7a4b99136ca41f82be6edccf01351a7223/core/utils/simd_utils.hpp),
-    michaeljclark/zvec
+    [iresearch database index](https://github.com/iresearch-toolkit/iresearch),
+    michaeljclark/zvec,
+    [nebula interactive analytics / OLAP](https://github.com/varchar-io/nebula),
+    [ScaNN Scalable Nearest Neighbors](https://github.com/google-research/google-research/tree/7a269cb2ce0ae1db591fe11b62cbc0be7d72532a/scann)
 *   Machine learning: [gemma.cpp](https://github.com/google/gemma.cpp),
     Tensorflow, Numpy, zpye/SimpleInfer
-*   Voxels: rools/voxl
+*   Robotics:
+    [MIT Model-Based Design and Verification](https://github.com/RobotLocomotion/drake)
 
 Other
 
@@ -107,10 +115,27 @@ Other
 
 If you'd like to get Highway, in addition to cloning from this GitHub repository
 or using it as a Git submodule, you can also find it in the following package
-managers or repositories: alpinelinux, conan-io, conda-forge, DragonFlyBSD,
-freebsd, ghostbsd, microsoft/vcpkg, MidnightBSD, MSYS2, NetBSD, openSUSE,
-opnsense, Xilinx/Vitis_Libraries. See also the list at
-https://repology.org/project/highway-simd-library/versions .
+managers or repositories:
+
+*   alpinelinux
+*   conan-io
+*   conda-forge
+*   DragonFlyBSD,
+*   fd00/yacp
+*   freebsd
+*   getsolus/packages
+*   ghostbsd
+*   microsoft/vcpkg
+*   MidnightBSD
+*   MSYS2
+*   NetBSD
+*   openSUSE
+*   opnsense
+*   Xilinx/Vitis_Libraries
+*   xmake-io/xmake-repo
+
+See also the list at https://repology.org/project/highway-simd-library/versions
+.
 
 ## Current status
 
