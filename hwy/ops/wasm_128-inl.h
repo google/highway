@@ -1104,9 +1104,9 @@ HWY_API Vec128<double, N> operator/(const Vec128<double, N> a,
   return Vec128<double, N>{wasm_f64x2_div(a.raw, b.raw)};
 }
 
-template <typename T, size_t N>
-HWY_API Vec128<T, N> ApproximateReciprocal(const Vec128<T, N> v) {
-  return Set(DFromV<decltype(v)>(), T{1.0}) / v;
+template <class V, HWY_IF_F32(TFromV<V>)>
+HWY_API V ApproximateReciprocal(const V v) {
+  return Set(DFromV<decltype(v)>(), 1.0f) / v;
 }
 
 // Integer overload defined in generic_ops-inl.h.
@@ -1154,10 +1154,10 @@ HWY_API Vec128<double, N> Sqrt(const Vec128<double, N> v) {
 }
 
 // Approximate reciprocal square root
-template <typename T, size_t N>
-HWY_API Vec128<T, N> ApproximateReciprocalSqrt(const Vec128<T, N> v) {
+template <class V, HWY_IF_F32(TFromV<V>)>
+HWY_API V ApproximateReciprocalSqrt(V v) {
   // TODO(eustas): find cheaper a way to calculate this.
-  return Set(DFromV<decltype(v)>(), T{1.0}) / Sqrt(v);
+  return Set(DFromV<decltype(v)>(), static_cast<TFromV<V>>(1.0)) / Sqrt(v);
 }
 
 // ------------------------------ Floating-point rounding
