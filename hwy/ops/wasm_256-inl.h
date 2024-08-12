@@ -370,37 +370,31 @@ HWY_API Vec256<T> operator/(Vec256<T> a, const Vec256<T> b) {
   return a;
 }
 
-// Approximate reciprocal
-HWY_API Vec256<float> ApproximateReciprocal(const Vec256<float> v) {
-  const Vec256<float> one = Set(Full256<float>(), 1.0f);
-  return one / v;
-}
-
 // ------------------------------ Floating-point multiply-add variants
 
-HWY_API Vec256<float> MulAdd(Vec256<float> mul, Vec256<float> x,
-                             Vec256<float> add) {
+template <class T, HWY_IF_FLOAT3264(T)>
+HWY_API Vec256<T> MulAdd(Vec256<T> mul, Vec256<T> x, Vec256<T> add) {
   mul.v0 = MulAdd(mul.v0, x.v0, add.v0);
   mul.v1 = MulAdd(mul.v1, x.v1, add.v1);
   return mul;
 }
 
-HWY_API Vec256<float> NegMulAdd(Vec256<float> mul, Vec256<float> x,
-                                Vec256<float> add) {
+template <class T, HWY_IF_FLOAT3264(T)>
+HWY_API Vec256<T> NegMulAdd(Vec256<T> mul, Vec256<T> x, Vec256<T> add) {
   mul.v0 = NegMulAdd(mul.v0, x.v0, add.v0);
   mul.v1 = NegMulAdd(mul.v1, x.v1, add.v1);
   return mul;
 }
 
-HWY_API Vec256<float> MulSub(Vec256<float> mul, Vec256<float> x,
-                             Vec256<float> sub) {
+template <class T, HWY_IF_FLOAT3264(T)>
+HWY_API Vec256<T> MulSub(Vec256<T> mul, Vec256<T> x, Vec256<T> sub) {
   mul.v0 = MulSub(mul.v0, x.v0, sub.v0);
   mul.v1 = MulSub(mul.v1, x.v1, sub.v1);
   return mul;
 }
 
-HWY_API Vec256<float> NegMulSub(Vec256<float> mul, Vec256<float> x,
-                                Vec256<float> sub) {
+template <class T, HWY_IF_FLOAT3264(T)>
+HWY_API Vec256<T> NegMulSub(Vec256<T> mul, Vec256<T> x, Vec256<T> sub) {
   mul.v0 = NegMulSub(mul.v0, x.v0, sub.v0);
   mul.v1 = NegMulSub(mul.v1, x.v1, sub.v1);
   return mul;
@@ -415,38 +409,35 @@ HWY_API Vec256<T> Sqrt(Vec256<T> v) {
   return v;
 }
 
-// Approximate reciprocal square root
-HWY_API Vec256<float> ApproximateReciprocalSqrt(const Vec256<float> v) {
-  // TODO(eustas): find cheaper a way to calculate this.
-  const Vec256<float> one = Set(Full256<float>(), 1.0f);
-  return one / Sqrt(v);
-}
-
 // ------------------------------ Floating-point rounding
 
 // Toward nearest integer, ties to even
-HWY_API Vec256<float> Round(Vec256<float> v) {
+template <class T, HWY_IF_FLOAT3264(T)>
+HWY_API Vec256<T> Round(Vec256<T> v) {
   v.v0 = Round(v.v0);
   v.v1 = Round(v.v1);
   return v;
 }
 
 // Toward zero, aka truncate
-HWY_API Vec256<float> Trunc(Vec256<float> v) {
+template <class T, HWY_IF_FLOAT3264(T)>
+HWY_API Vec256<T> Trunc(Vec256<T> v) {
   v.v0 = Trunc(v.v0);
   v.v1 = Trunc(v.v1);
   return v;
 }
 
 // Toward +infinity, aka ceiling
-HWY_API Vec256<float> Ceil(Vec256<float> v) {
+template <class T, HWY_IF_FLOAT3264(T)>
+HWY_API Vec256<T> Ceil(Vec256<T> v) {
   v.v0 = Ceil(v.v0);
   v.v1 = Ceil(v.v1);
   return v;
 }
 
 // Toward -infinity, aka floor
-HWY_API Vec256<float> Floor(Vec256<float> v) {
+template <class T, HWY_IF_FLOAT3264(T)>
+HWY_API Vec256<T> Floor(Vec256<T> v) {
   v.v0 = Floor(v.v0);
   v.v1 = Floor(v.v1);
   return v;
@@ -1883,6 +1874,14 @@ HWY_API Vec128<float16_t> DemoteTo(D d16, Vec256<float> v) {
   const Vec64<float16_t> lo = DemoteTo(d16h, v.v0);
   const Vec64<float16_t> hi = DemoteTo(d16h, v.v1);
   return Combine(d16, hi, lo);
+}
+
+template <class D, HWY_IF_F32_D(D)>
+HWY_API Vec128<float> DemoteTo(D df32, Vec256<double> v) {
+  const Half<decltype(df32)> df32h;
+  const Vec64<float> lo = DemoteTo(df32h, v.v0);
+  const Vec64<float> hi = DemoteTo(df32h, v.v1);
+  return Combine(df32, hi, lo);
 }
 
 // For already range-limited input [0, 255].
