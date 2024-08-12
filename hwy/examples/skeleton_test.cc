@@ -106,7 +106,7 @@ struct TestSumMulAdd {
     MulAddLoop(d, mul.get(), add.get(), count, x.get());
     double vector_sum = 0.0;
     for (size_t i = 0; i < count; ++i) {
-      vector_sum += x[i];
+      vector_sum += hwy::ConvertScalarTo<double>(x[i]);
     }
 
     if (hwy::IsSame<T, hwy::float16_t>()) {

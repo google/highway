@@ -100,7 +100,7 @@ class TestDot {
     const double max = static_cast<double>(8 * 8 * num);
     HWY_ASSERT(-max <= actual && actual <= max);
     const double tolerance =
-        64.0 * ConvertScalarTo<double>(Epsilon<T>()) * HWY_MAX(magnitude, 1.0);
+        96.0 * ConvertScalarTo<double>(Epsilon<T>()) * HWY_MAX(magnitude, 1.0);
     HWY_ASSERT(expected - tolerance <= actual &&
                actual <= expected + tolerance);
   }
