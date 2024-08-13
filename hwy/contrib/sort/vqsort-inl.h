@@ -1855,7 +1855,9 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
   // of only one unique value. Note that for floating-point, PrevValue can
   // return the same value (for -inf inputs), but that would just mean the
   // pivot is again one of the keys.
-  HWY_DASSERT(bound != 0);
+  using Order = typename Traits::Order;
+  HWY_DASSERT_M(bound != 0,
+                (Order::IsAscending() ? "Ascending" : "Descending"));
   // ChoosePivot* ensure pivot != last, so the right partition is never empty
   // except in the rare case of the pivot matching the last-in-sort-order value,
   // which implies we anyway skip the right partition due to kWasLast.
