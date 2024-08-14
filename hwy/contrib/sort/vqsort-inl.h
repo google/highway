@@ -590,16 +590,17 @@ HWY_NOINLINE void BaseCase(D d, TraitsKV, T* HWY_RESTRICT keys,
 
   using FuncPtr = decltype(&Sort2To2<Traits, T>);
   const FuncPtr funcs[9] = {
-    /* <= 1 */ nullptr,  // We ensured num_keys > 1.
-    /* <= 2 */ &Sort2To2<Traits, T>,
-    /* <= 4 */ &Sort3To4<Traits, T>,
-    /* <= 8 */ &Sort8Rows<1, Traits, T>,  // 1 key per row
-    /* <= 16 */ kMaxKeysPerVector >= 2 ? &Sort8Rows<2, Traits, T> : nullptr,
-    /* <= 32 */ kMaxKeysPerVector >= 4 ? &Sort8Rows<4, Traits, T> : nullptr,
-    /* <= 64 */ kMaxKeysPerVector >= 4 ? &Sort16Rows<4, Traits, T> : nullptr,
-    /* <= 128 */ kMaxKeysPerVector >= 8 ? &Sort16Rows<8, Traits, T> : nullptr,
+      /* <= 1 */ nullptr,  // We ensured num_keys > 1.
+      /* <= 2 */ &Sort2To2<Traits, T>,
+      /* <= 4 */ &Sort3To4<Traits, T>,
+      /* <= 8 */ &Sort8Rows<1, Traits, T>,  // 1 key per row
+      /* <= 16 */ kMaxKeysPerVector >= 2 ? &Sort8Rows<2, Traits, T> : nullptr,
+      /* <= 32 */ kMaxKeysPerVector >= 4 ? &Sort8Rows<4, Traits, T> : nullptr,
+      /* <= 64 */ kMaxKeysPerVector >= 4 ? &Sort16Rows<4, Traits, T> : nullptr,
+      /* <= 128 */ kMaxKeysPerVector >= 8 ? &Sort16Rows<8, Traits, T> : nullptr,
 #if !HWY_COMPILER_MSVC && !HWY_IS_DEBUG_BUILD
-    /* <= 256 */ kMaxKeysPerVector >= 16 ? &Sort16Rows<16, Traits, T> : nullptr,
+      /* <= 256 */ kMaxKeysPerVector >= 16 ? &Sort16Rows<16, Traits, T>
+                                           : nullptr,
 #endif
   };
   funcs[ceil_log2](st, keys, num_lanes, buf);
@@ -1856,6 +1857,7 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
   // return the same value (for -inf inputs), but that would just mean the
   // pivot is again one of the keys.
   using Order = typename Traits::Order;
+  (void)Order::IsAscending();
   HWY_DASSERT_M(bound != 0,
                 (Order::IsAscending() ? "Ascending" : "Descending"));
   // ChoosePivot* ensure pivot != last, so the right partition is never empty

@@ -21,7 +21,10 @@
 // IWYU pragma: begin_exports
 #include <stddef.h>
 #include <stdint.h>
+
+#if !defined(HWY_NO_LIBCXX)
 #include <ostream>
+#endif
 
 #include "hwy/detect_compiler_arch.h"
 #include "hwy/highway_export.h"
@@ -254,11 +257,11 @@ HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
   ::hwy::Abort(__FILE__, __LINE__, format, ##__VA_ARGS__)
 
 // Always enabled.
-#define HWY_ASSERT_M(condition, msg)             \
-  do {                                    \
-    if (!(condition)) {                   \
+#define HWY_ASSERT_M(condition, msg)               \
+  do {                                             \
+    if (!(condition)) {                            \
       HWY_ABORT("Assert %s: %s", #condition, msg); \
-    }                                     \
+    }                                              \
   } while (0)
 #define HWY_ASSERT(condition) HWY_ASSERT_M(condition, "")
 
@@ -320,14 +323,15 @@ HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
 
 #if HWY_IS_DEBUG_BUILD
 #define HWY_DASSERT_M(condition, msg) HWY_ASSERT_M(condition, msg)
-#define HWY_DASSERT(condition)  HWY_ASSERT_M(condition, "")
+#define HWY_DASSERT(condition) HWY_ASSERT_M(condition, "")
 #else
 #define HWY_DASSERT_M(condition, msg) \
   do {                                \
   } while (0)
-#define HWY_DASSERT(condition) do {} while (0)
+#define HWY_DASSERT(condition) \
+  do {                         \
+  } while (0)
 #endif
-
 
 //------------------------------------------------------------------------------
 // CopyBytes / ZeroBytes
@@ -457,10 +461,13 @@ static inline HWY_MAYBE_UNUSED bool operator==(const uint128_t& a,
                                                const uint128_t& b) {
   return a.lo == b.lo && a.hi == b.hi;
 }
+
+#if !defined(HWY_NO_LIBCXX)
 static inline HWY_MAYBE_UNUSED std::ostream& operator<<(std::ostream& os,
-                                                        const uint128_t& n){
-return os << "[hi=" << n.hi << ",lo=" << n.lo << "]";
+                                                        const uint128_t& n) {
+  return os << "[hi=" << n.hi << ",lo=" << n.lo << "]";
 }
+#endif
 
 static inline HWY_MAYBE_UNUSED bool operator<(const K64V64& a,
                                               const K64V64& b) {
@@ -475,10 +482,13 @@ static inline HWY_MAYBE_UNUSED bool operator==(const K64V64& a,
                                                const K64V64& b) {
   return a.key == b.key;
 }
-static inline HWY_MAYBE_UNUSED std::ostream& operator<<(std::ostream& os, const K64V64& n){
-  return os << "[k=" << n.key << ",v=" << n.value<< "]";
-}
 
+#if !defined(HWY_NO_LIBCXX)
+static inline HWY_MAYBE_UNUSED std::ostream& operator<<(std::ostream& os,
+                                                        const K64V64& n) {
+  return os << "[k=" << n.key << ",v=" << n.value << "]";
+}
+#endif
 
 static inline HWY_MAYBE_UNUSED bool operator<(const K32V32& a,
                                               const K32V32& b) {
@@ -493,11 +503,13 @@ static inline HWY_MAYBE_UNUSED bool operator==(const K32V32& a,
                                                const K32V32& b) {
   return a.key == b.key;
 }
-static inline HWY_MAYBE_UNUSED std::ostream& operator<<(std::ostream& os, const K32V32& n){
-  return os << "[k=" << n.key << ",v=" << n.value<< "]";
+
+#if !defined(HWY_NO_LIBCXX)
+static inline HWY_MAYBE_UNUSED std::ostream& operator<<(std::ostream& os,
+                                                        const K32V32& n) {
+  return os << "[k=" << n.key << ",v=" << n.value << "]";
 }
-
-
+#endif
 
 //------------------------------------------------------------------------------
 // Controlling overload resolution (SFINAE)
