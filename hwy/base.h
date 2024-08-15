@@ -2424,6 +2424,17 @@ constexpr MakeSigned<T> MaxExponentField() {
     return static_cast<ResultT>(a op b.native);                               \
   }
 
+#define HWY_RHS_SPECIAL_FLOAT_ASSIGN_OP(op, assign_op, T2)                 \
+  template <typename T1,                                                   \
+            hwy::EnableIf<hwy::IsInteger<RemoveCvRef<T1>>() ||             \
+                          hwy::IsFloat3264<RemoveCvRef<T1>>()>* = nullptr, \
+            typename ResultT =                                             \
+                decltype(DeclVal<T1&>() assign_op DeclVal<T2::Native>())>  \
+  static HWY_INLINE constexpr ResultT operator assign_op(T1& a,            \
+                                                         T2 b) noexcept {  \
+    return (a assign_op b.native);                                         \
+  }
+
 #define HWY_SPECIAL_FLOAT_CMP_AGAINST_NON_SPECIAL_OP(op, op_func, T1)         \
   HWY_RHS_SPECIAL_FLOAT_ARITH_OP(op, op_func, T1)                             \
   template <                                                                  \
@@ -2442,6 +2453,10 @@ HWY_RHS_SPECIAL_FLOAT_ARITH_OP(+, operator+, float16_t)
 HWY_RHS_SPECIAL_FLOAT_ARITH_OP(-, operator-, float16_t)
 HWY_RHS_SPECIAL_FLOAT_ARITH_OP(*, operator*, float16_t)
 HWY_RHS_SPECIAL_FLOAT_ARITH_OP(/, operator/, float16_t)
+HWY_RHS_SPECIAL_FLOAT_ASSIGN_OP(+, +=, float16_t)
+HWY_RHS_SPECIAL_FLOAT_ASSIGN_OP(-, -=, float16_t)
+HWY_RHS_SPECIAL_FLOAT_ASSIGN_OP(*, *=, float16_t)
+HWY_RHS_SPECIAL_FLOAT_ASSIGN_OP(/, /=, float16_t)
 HWY_SPECIAL_FLOAT_CMP_AGAINST_NON_SPECIAL_OP(==, operator==, float16_t)
 HWY_SPECIAL_FLOAT_CMP_AGAINST_NON_SPECIAL_OP(!=, operator!=, float16_t)
 HWY_SPECIAL_FLOAT_CMP_AGAINST_NON_SPECIAL_OP(<, operator<, float16_t)
@@ -2458,6 +2473,10 @@ HWY_RHS_SPECIAL_FLOAT_ARITH_OP(+, operator+, bfloat16_t)
 HWY_RHS_SPECIAL_FLOAT_ARITH_OP(-, operator-, bfloat16_t)
 HWY_RHS_SPECIAL_FLOAT_ARITH_OP(*, operator*, bfloat16_t)
 HWY_RHS_SPECIAL_FLOAT_ARITH_OP(/, operator/, bfloat16_t)
+HWY_RHS_SPECIAL_FLOAT_ASSIGN_OP(+, +=, bfloat16_t)
+HWY_RHS_SPECIAL_FLOAT_ASSIGN_OP(-, -=, bfloat16_t)
+HWY_RHS_SPECIAL_FLOAT_ASSIGN_OP(*, *=, bfloat16_t)
+HWY_RHS_SPECIAL_FLOAT_ASSIGN_OP(/, /=, bfloat16_t)
 HWY_SPECIAL_FLOAT_CMP_AGAINST_NON_SPECIAL_OP(==, operator==, bfloat16_t)
 HWY_SPECIAL_FLOAT_CMP_AGAINST_NON_SPECIAL_OP(!=, operator!=, bfloat16_t)
 HWY_SPECIAL_FLOAT_CMP_AGAINST_NON_SPECIAL_OP(<, operator<, bfloat16_t)
@@ -2470,6 +2489,7 @@ HWY_SPECIAL_FLOAT_CMP_AGAINST_NON_SPECIAL_OP(<=>, operator<=>, bfloat16_t)
 #endif  // HWY_HAVE_SCALAR_BF16_OPERATORS
 
 #undef HWY_RHS_SPECIAL_FLOAT_ARITH_OP
+#undef HWY_RHS_SPECIAL_FLOAT_ASSIGN_OP
 #undef HWY_SPECIAL_FLOAT_CMP_AGAINST_NON_SPECIAL_OP
 
 #endif  // HWY_HAVE_SCALAR_F16_OPERATORS || HWY_HAVE_SCALAR_BF16_OPERATORS
