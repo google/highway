@@ -3197,6 +3197,19 @@ HWY_API Vec128<int64_t, N> InterleaveUpper(Vec128<int64_t, N> a,
 }
 
 template <size_t N>
+HWY_API Vec128<float16_t, N> InterleaveUpper(Vec128<float16_t, N> a,
+                                             Vec128<float16_t, N> b) {
+  return Vec128<float16_t, N>{
+      wasm_i16x8_shuffle(a.raw, b.raw, 4, 12, 5, 13, 6, 14, 7, 15)};
+}
+template <size_t N>
+HWY_API Vec128<bfloat16_t, N> InterleaveUpper(Vec128<bfloat16_t, N> a,
+                                              Vec128<bfloat16_t, N> b) {
+  return Vec128<bfloat16_t, N>{
+      wasm_i16x8_shuffle(a.raw, b.raw, 4, 12, 5, 13, 6, 14, 7, 15)};
+}
+
+template <size_t N>
 HWY_API Vec128<float, N> InterleaveUpper(Vec128<float, N> a,
                                          Vec128<float, N> b) {
   return Vec128<float, N>{wasm_i32x4_shuffle(a.raw, b.raw, 2, 6, 3, 7)};

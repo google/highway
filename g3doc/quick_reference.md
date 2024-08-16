@@ -2478,8 +2478,9 @@ and `bfloat16_t`:
 *   `Lanes`, `MaxLanes`
 *   `Zero`, `Set`, `Undefined`
 *   `BitCast`
-*   `Load`, `LoadU`, `LoadN`, `LoadNOr`, `MaskedLoad`, `MaskedLoadOr`
-*   `Store`, `StoreU`, `StoreN`, `BlendedStore`
+*   `Load`, `LoadU`, `LoadN`, `LoadNOr`, `LoadInterleaved[234]`, `MaskedLoad`,
+    `MaskedLoadOr`
+*   `Store`, `StoreU`, `StoreN`, `StoreInterleaved[234]`, `BlendedStore`
 *   `PromoteTo`, `DemoteTo`
 *   `PromoteUpperTo`, `PromoteLowerTo`
 *   `PromoteEvenTo`, `PromoteOddTo`

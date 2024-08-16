@@ -1640,6 +1640,13 @@ HWY_API VFromD<D> ShiftRightLanes(D d, VFromD<D> v) {
 #define HWY_NATIVE_LOAD_STORE_INTERLEAVED
 #endif
 
+// Same for Load/StoreInterleaved of special floats.
+#ifdef HWY_NATIVE_LOAD_STORE_SPECIAL_FLOAT_INTERLEAVED
+#undef HWY_NATIVE_LOAD_STORE_SPECIAL_FLOAT_INTERLEAVED
+#else
+#define HWY_NATIVE_LOAD_STORE_SPECIAL_FLOAT_INTERLEAVED
+#endif
+
 template <class D, typename T = TFromD<D>>
 HWY_API void LoadInterleaved2(D d, const T* HWY_RESTRICT unaligned,
                               VFromD<D>& v0, VFromD<D>& v1) {

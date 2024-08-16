@@ -194,10 +194,16 @@ namespace detail {  // for code folding and Raw128
 // Enable generic functions for whichever of (f16, bf16) are not supported.
 #if !HWY_HAVE_FLOAT16 && !HWY_NEON_HAVE_BFLOAT16
 #define HWY_NEON_IF_EMULATED_D(D) HWY_IF_SPECIAL_FLOAT_D(D)
+#define HWY_GENERIC_IF_EMULATED_D(D) HWY_IF_SPECIAL_FLOAT_D(D)
+#define HWY_NEON_IF_NOT_EMULATED_D(D) HWY_IF_NOT_SPECIAL_FLOAT_D(D)
 #elif !HWY_HAVE_FLOAT16 && HWY_NEON_HAVE_BFLOAT16
 #define HWY_NEON_IF_EMULATED_D(D) HWY_IF_F16_D(D)
+#define HWY_GENERIC_IF_EMULATED_D(D) HWY_IF_F16_D(D)
+#define HWY_NEON_IF_NOT_EMULATED_D(D) HWY_IF_NOT_F16_D(D)
 #elif HWY_HAVE_FLOAT16 && !HWY_NEON_HAVE_BFLOAT16
 #define HWY_NEON_IF_EMULATED_D(D) HWY_IF_BF16_D(D)
+#define HWY_GENERIC_IF_EMULATED_D(D) HWY_IF_BF16_D(D)
+#define HWY_NEON_IF_NOT_EMULATED_D(D) HWY_IF_NOT_BF16_D(D)
 #elif HWY_HAVE_FLOAT16 && HWY_NEON_HAVE_BFLOAT16
 // NOTE: hwy::EnableIf<!hwy::IsSame<D, D>()>* = nullptr is used instead of
 // hwy::EnableIf<false>* = nullptr to avoid compiler errors since
@@ -205,6 +211,9 @@ namespace detail {  // for code folding and Raw128
 // SFINAE to occur instead of a hard error due to a dependency on the D template
 // argument
 #define HWY_NEON_IF_EMULATED_D(D) hwy::EnableIf<!hwy::IsSame<D, D>()>* = nullptr
+#define HWY_GENERIC_IF_EMULATED_D(D) \
+  hwy::EnableIf<!hwy::IsSame<D, D>()>* = nullptr
+#define HWY_NEON_IF_NOT_EMULATED_D(D) hwy::EnableIf<true>* = nullptr
 #else
 #error "Logic error, handled all four cases"
 #endif
@@ -9718,17 +9727,22 @@ namespace detail {
 #define HWY_NEON_BUILD_ARG_HWY_LOAD_INT from
 
 #if HWY_ARCH_ARM_A64
-#define HWY_IF_LOAD_INT(D) HWY_IF_V_SIZE_GT_D(D, 4)
-#define HWY_NEON_DEF_FUNCTION_LOAD_INT HWY_NEON_DEF_FUNCTION_ALL_TYPES
+#define HWY_IF_LOAD_INT(D) \
+  HWY_IF_V_SIZE_GT_D(D, 4), HWY_NEON_IF_NOT_EMULATED_D(D)
+#define HWY_NEON_DEF_FUNCTION_LOAD_INT(name, prefix, infix, args) \
+  HWY_NEON_DEF_FUNCTION_ALL_TYPES(name, prefix, infix, args)      \
+  HWY_NEON_DEF_FUNCTION_BFLOAT_16(name, prefix, infix, args)
 #else
-// Exclude 64x2 and f64x1, which are only supported on aarch64
+// Exclude 64x2 and f64x1, which are only supported on aarch64; also exclude any
+// emulated types.
 #define HWY_IF_LOAD_INT(D)                                                 \
-  HWY_IF_V_SIZE_GT_D(D, 4),                                                \
+  HWY_IF_V_SIZE_GT_D(D, 4), HWY_NEON_IF_NOT_EMULATED_D(D),                 \
       hwy::EnableIf<(HWY_MAX_LANES_D(D) == 1 || sizeof(TFromD<D>) < 8)>* = \
           nullptr
 #define HWY_NEON_DEF_FUNCTION_LOAD_INT(name, prefix, infix, args) \
   HWY_NEON_DEF_FUNCTION_INT_8_16_32(name, prefix, infix, args)    \
   HWY_NEON_DEF_FUNCTION_UINT_8_16_32(name, prefix, infix, args)   \
+  HWY_NEON_DEF_FUNCTION_BFLOAT_16(name, prefix, infix, args)      \
   HWY_NEON_DEF_FUNCTION_FLOAT_16_32(name, prefix, infix, args)    \
   HWY_NEON_DEF_FUNCTION(int64, 1, name, prefix, infix, s64, args) \
   HWY_NEON_DEF_FUNCTION(uint64, 1, name, prefix, infix, u64, args)
@@ -9778,7 +9792,8 @@ HWY_API void LoadInterleaved2(D d, const T* HWY_RESTRICT unaligned,
 }
 
 // <= 32 bits: avoid loading more than N bytes by copying to buffer
-template <class D, HWY_IF_V_SIZE_LE_D(D, 4), typename T = TFromD<D>>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 4), HWY_NEON_IF_NOT_EMULATED_D(D),
+          typename T = TFromD<D>>
 HWY_API void LoadInterleaved2(D d, const T* HWY_RESTRICT unaligned,
                               VFromD<D>& v0, VFromD<D>& v1) {
   // The smallest vector registers are 64-bits and we want space for two.
@@ -9792,7 +9807,8 @@ HWY_API void LoadInterleaved2(D d, const T* HWY_RESTRICT unaligned,
 
 #if HWY_ARCH_ARM_V7
 // 64x2: split into two 64x1
-template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 8)>
+template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 8),
+          HWY_NEON_IF_NOT_EMULATED_D(D)>
 HWY_API void LoadInterleaved2(D d, T* HWY_RESTRICT unaligned, Vec128<T>& v0,
                               Vec128<T>& v1) {
   const Half<decltype(d)> dh;
@@ -9817,7 +9833,8 @@ HWY_API void LoadInterleaved3(D d, const T* HWY_RESTRICT unaligned,
 }
 
 // <= 32 bits: avoid writing more than N bytes by copying to buffer
-template <class D, HWY_IF_V_SIZE_LE_D(D, 4), typename T = TFromD<D>>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 4), HWY_NEON_IF_NOT_EMULATED_D(D),
+          typename T = TFromD<D>>
 HWY_API void LoadInterleaved3(D d, const T* HWY_RESTRICT unaligned,
                               VFromD<D>& v0, VFromD<D>& v1, VFromD<D>& v2) {
   // The smallest vector registers are 64-bits and we want space for three.
@@ -9832,7 +9849,8 @@ HWY_API void LoadInterleaved3(D d, const T* HWY_RESTRICT unaligned,
 
 #if HWY_ARCH_ARM_V7
 // 64x2: split into two 64x1
-template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 8)>
+template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 8),
+          HWY_NEON_IF_NOT_EMULATED_D(D)>
 HWY_API void LoadInterleaved3(D d, const TFromD<D>* HWY_RESTRICT unaligned,
                               Vec128<T>& v0, Vec128<T>& v1, Vec128<T>& v2) {
   const Half<decltype(d)> dh;
@@ -9860,7 +9878,8 @@ HWY_API void LoadInterleaved4(D d, const T* HWY_RESTRICT unaligned,
 }
 
 // <= 32 bits: avoid writing more than N bytes by copying to buffer
-template <class D, HWY_IF_V_SIZE_LE_D(D, 4), typename T = TFromD<D>>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 4), HWY_NEON_IF_NOT_EMULATED_D(D),
+          typename T = TFromD<D>>
 HWY_API void LoadInterleaved4(D d, const T* HWY_RESTRICT unaligned,
                               VFromD<D>& v0, VFromD<D>& v1, VFromD<D>& v2,
                               VFromD<D>& v3) {
@@ -9876,7 +9895,8 @@ HWY_API void LoadInterleaved4(D d, const T* HWY_RESTRICT unaligned,
 
 #if HWY_ARCH_ARM_V7
 // 64x2: split into two 64x1
-template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 8)>
+template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 8),
+          HWY_NEON_IF_NOT_EMULATED_D(D)>
 HWY_API void LoadInterleaved4(D d, const T* HWY_RESTRICT unaligned,
                               Vec128<T>& v0, Vec128<T>& v1, Vec128<T>& v2,
                               Vec128<T>& v3) {
@@ -9903,17 +9923,22 @@ namespace detail {
 #define HWY_NEON_BUILD_ARG_HWY_STORE_INT to, tup.raw
 
 #if HWY_ARCH_ARM_A64
-#define HWY_IF_STORE_INT(D) HWY_IF_V_SIZE_GT_D(D, 4)
-#define HWY_NEON_DEF_FUNCTION_STORE_INT HWY_NEON_DEF_FUNCTION_ALL_TYPES
+#define HWY_IF_STORE_INT(D) \
+  HWY_IF_V_SIZE_GT_D(D, 4), HWY_NEON_IF_NOT_EMULATED_D(D)
+#define HWY_NEON_DEF_FUNCTION_STORE_INT(name, prefix, infix, args) \
+  HWY_NEON_DEF_FUNCTION_ALL_TYPES(name, prefix, infix, args)       \
+  HWY_NEON_DEF_FUNCTION_BFLOAT_16(name, prefix, infix, args)
 #else
-// Exclude 64x2 and f64x1, which are only supported on aarch64
+// Exclude 64x2 and f64x1, which are only supported on aarch64; also exclude any
+// emulated types.
 #define HWY_IF_STORE_INT(D)                                                \
-  HWY_IF_V_SIZE_GT_D(D, 4),                                                \
+  HWY_IF_V_SIZE_GT_D(D, 4), HWY_NEON_IF_NOT_EMULATED_D(D),                 \
       hwy::EnableIf<(HWY_MAX_LANES_D(D) == 1 || sizeof(TFromD<D>) < 8)>* = \
           nullptr
 #define HWY_NEON_DEF_FUNCTION_STORE_INT(name, prefix, infix, args) \
   HWY_NEON_DEF_FUNCTION_INT_8_16_32(name, prefix, infix, args)     \
   HWY_NEON_DEF_FUNCTION_UINT_8_16_32(name, prefix, infix, args)    \
+  HWY_NEON_DEF_FUNCTION_BFLOAT_16(name, prefix, infix, args)       \
   HWY_NEON_DEF_FUNCTION_FLOAT_16_32(name, prefix, infix, args)     \
   HWY_NEON_DEF_FUNCTION(int64, 1, name, prefix, infix, s64, args)  \
   HWY_NEON_DEF_FUNCTION(uint64, 1, name, prefix, infix, u64, args)
@@ -9948,7 +9973,8 @@ HWY_API void StoreInterleaved2(VFromD<D> v0, VFromD<D> v1, D d,
 }
 
 // <= 32 bits: avoid writing more than N bytes by copying to buffer
-template <class D, HWY_IF_V_SIZE_LE_D(D, 4), typename T = TFromD<D>>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 4), HWY_NEON_IF_NOT_EMULATED_D(D),
+          typename T = TFromD<D>>
 HWY_API void StoreInterleaved2(VFromD<D> v0, VFromD<D> v1, D d,
                                T* HWY_RESTRICT unaligned) {
   alignas(16) T buf[2 * 8 / sizeof(T)];
@@ -9959,7 +9985,8 @@ HWY_API void StoreInterleaved2(VFromD<D> v0, VFromD<D> v1, D d,
 
 #if HWY_ARCH_ARM_V7
 // 64x2: split into two 64x1
-template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 8)>
+template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 8),
+          HWY_NEON_IF_NOT_EMULATED_D(D)>
 HWY_API void StoreInterleaved2(Vec128<T> v0, Vec128<T> v1, D d,
                                T* HWY_RESTRICT unaligned) {
   const Half<decltype(d)> dh;
@@ -9980,7 +10007,8 @@ HWY_API void StoreInterleaved3(VFromD<D> v0, VFromD<D> v1, VFromD<D> v2, D d,
 }
 
 // <= 32 bits: avoid writing more than N bytes by copying to buffer
-template <class D, HWY_IF_V_SIZE_LE_D(D, 4), typename T = TFromD<D>>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 4), HWY_NEON_IF_NOT_EMULATED_D(D),
+          typename T = TFromD<D>>
 HWY_API void StoreInterleaved3(VFromD<D> v0, VFromD<D> v1, VFromD<D> v2, D d,
                                T* HWY_RESTRICT unaligned) {
   alignas(16) T buf[3 * 8 / sizeof(T)];
@@ -9991,7 +10019,8 @@ HWY_API void StoreInterleaved3(VFromD<D> v0, VFromD<D> v1, VFromD<D> v2, D d,
 
 #if HWY_ARCH_ARM_V7
 // 64x2: split into two 64x1
-template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 8)>
+template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 8),
+          HWY_NEON_IF_NOT_EMULATED_D(D)>
 HWY_API void StoreInterleaved3(Vec128<T> v0, Vec128<T> v1, Vec128<T> v2, D d,
                                T* HWY_RESTRICT unaligned) {
   const Half<decltype(d)> dh;
@@ -10012,7 +10041,8 @@ HWY_API void StoreInterleaved4(VFromD<D> v0, VFromD<D> v1, VFromD<D> v2,
 }
 
 // <= 32 bits: avoid writing more than N bytes by copying to buffer
-template <class D, HWY_IF_V_SIZE_LE_D(D, 4), typename T = TFromD<D>>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 4), HWY_NEON_IF_NOT_EMULATED_D(D),
+          typename T = TFromD<D>>
 HWY_API void StoreInterleaved4(VFromD<D> v0, VFromD<D> v1, VFromD<D> v2,
                                VFromD<D> v3, D d, T* HWY_RESTRICT unaligned) {
   alignas(16) T buf[4 * 8 / sizeof(T)];
@@ -10023,7 +10053,8 @@ HWY_API void StoreInterleaved4(VFromD<D> v0, VFromD<D> v1, VFromD<D> v2,
 
 #if HWY_ARCH_ARM_V7
 // 64x2: split into two 64x1
-template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 8)>
+template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 8),
+          HWY_NEON_IF_NOT_EMULATED_D(D)>
 HWY_API void StoreInterleaved4(Vec128<T> v0, Vec128<T> v1, Vec128<T> v2,
                                Vec128<T> v3, D d, T* HWY_RESTRICT unaligned) {
   const Half<decltype(d)> dh;
@@ -10037,6 +10068,9 @@ HWY_API void StoreInterleaved4(Vec128<T> v0, Vec128<T> v1, Vec128<T> v2,
 #endif  // HWY_ARCH_ARM_V7
 
 #undef HWY_IF_STORE_INT
+
+// Fall back on generic Load/StoreInterleaved[234] for any emulated types.
+// Requires HWY_GENERIC_IF_EMULATED_D mirrors HWY_NEON_IF_EMULATED_D.
 
 // ------------------------------ Additional mask logical operations
 template <class T>
@@ -10364,6 +10398,7 @@ namespace detail {  // for code folding
 #undef HWY_NEON_DEF_FUNCTION_UINTS
 #undef HWY_NEON_EVAL
 #undef HWY_NEON_IF_EMULATED_D
+#undef HWY_NEON_IF_NOT_EMULATED_D
 }  // namespace detail
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

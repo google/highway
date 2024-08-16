@@ -59,6 +59,7 @@ struct TestLoadStoreInterleaved2 {
 
 HWY_NOINLINE void TestAllLoadStoreInterleaved2() {
   ForAllTypes(ForMaxPow2<TestLoadStoreInterleaved2>());
+  ForSpecialTypes(ForMaxPow2<TestLoadStoreInterleaved2>());
 }
 
 // Workaround for build timeout on GCC 12 aarch64, see #776.
@@ -110,6 +111,7 @@ struct TestLoadStoreInterleaved3 {
 
 HWY_NOINLINE void TestAllLoadStoreInterleaved3() {
   ForAllTypes(ForMaxPow2<TestLoadStoreInterleaved3>());
+  ForSpecialTypes(ForMaxPow2<TestLoadStoreInterleaved3>());
 }
 
 struct TestLoadStoreInterleaved4 {
@@ -154,6 +156,7 @@ struct TestLoadStoreInterleaved4 {
 
 HWY_NOINLINE void TestAllLoadStoreInterleaved4() {
   ForAllTypes(ForMaxPow2<TestLoadStoreInterleaved4>());
+  ForSpecialTypes(ForMaxPow2<TestLoadStoreInterleaved4>());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
