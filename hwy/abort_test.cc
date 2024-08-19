@@ -4,6 +4,8 @@
 
 #include "hwy/abort.h"
 
+#include <stdio.h>
+
 #include <string>
 
 #include "hwy/base.h"
@@ -27,23 +29,24 @@ TEST(AbortDeathTest, AbortDefault) {
 }
 
 TEST(AbortDeathTest, AbortOverride) {
-  std::string expected =
-      std::string("Test Abort from [0-9]+ of ") + GetBaseName(__FILE__);
-
-  ASSERT_DEATH(
-      {
-        AbortFunc CustomAbortHandler = [](const char* file, int line,
+  const AbortFunc CustomAbortHandler = [](const char* file, int line,
                                           const char* formatted_err) -> void {
-          fprintf(stderr, "%s from %d of %s", formatted_err, line,
-                  GetBaseName(file).data());
-        };
+    fprintf(stderr, "%s from %02d of %s", formatted_err, line,
+            GetBaseName(file).data());
+  };
 
-        SetAbortFunc(CustomAbortHandler);
-        HWY_ABORT("Test %s", "Abort");
-      },
-      expected);
+  SetAbortFunc(CustomAbortHandler);
+
+  // googletest regex does not support `+` for digits on Windows?!
+  // https://google.github.io/googletest/advanced.html#regular-expression-syntax
+  // Hence we insert the expected line number manually.
+  char buf[100];
+  const std::string file = GetBaseName(__FILE__);
+  const int line = __LINE__ + 2;  // from which HWY_ABORT is called
+  snprintf(buf, sizeof(buf), "Test Abort from %02d of %s", line, file.c_str());
+  ASSERT_DEATH({ HWY_ABORT("Test %s", "Abort"); }, buf);
 }
-#endif
+#endif  // GTEST_HAS_DEATH_TEST
 
 TEST(AbortTest, AbortOverrideChain) {
   AbortFunc FirstHandler = [](const char* file, int line,
@@ -55,7 +58,9 @@ TEST(AbortTest, AbortOverrideChain) {
     fprintf(stderr, "%s from %d of %s", formatted_err, line, file);
   };
 
-  HWY_ASSERT(SetAbortFunc(FirstHandler) == nullptr);
+  // Do not check that the first SetAbortFunc returns nullptr, because it is
+  // not guaranteed to be the first call - other TEST may come first.
+  (void)SetAbortFunc(FirstHandler);
   HWY_ASSERT(GetAbortFunc() == FirstHandler);
   HWY_ASSERT(SetAbortFunc(SecondHandler) == FirstHandler);
   HWY_ASSERT(GetAbortFunc() == SecondHandler);
