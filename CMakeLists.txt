@@ -379,6 +379,7 @@ else()
     # either compiler) to support V.
     if(HWY_CMAKE_RVV)
       list(APPEND HWY_FLAGS -march=rv64gcv1p0)
+      add_link_options(-march=rv64gcv1p0)
       if(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
         list(APPEND HWY_FLAGS -menable-experimental-extensions)
       endif()
