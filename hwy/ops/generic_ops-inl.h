@@ -1991,6 +1991,81 @@ HWY_API void StoreInterleaved4(VFromD<D> part0, VFromD<D> part1,
 
 #endif  // HWY_NATIVE_LOAD_STORE_INTERLEAVED
 
+// Load/StoreInterleaved for special floats. Requires HWY_GENERIC_IF_EMULATED_D
+// is defined such that it is true only for types that actually require these
+// generic implementations.
+#if HWY_IDE || (defined(HWY_NATIVE_LOAD_STORE_SPECIAL_FLOAT_INTERLEAVED) == \
+                    defined(HWY_TARGET_TOGGLE) &&                           \
+                defined(HWY_GENERIC_IF_EMULATED_D))
+#ifdef HWY_NATIVE_LOAD_STORE_SPECIAL_FLOAT_INTERLEAVED
+#undef HWY_NATIVE_LOAD_STORE_SPECIAL_FLOAT_INTERLEAVED
+#else
+#define HWY_NATIVE_LOAD_STORE_SPECIAL_FLOAT_INTERLEAVED
+#endif
+#if HWY_IDE
+#define HWY_GENERIC_IF_EMULATED_D(D) int
+#endif
+
+template <class D, HWY_GENERIC_IF_EMULATED_D(D), typename T = TFromD<D>>
+HWY_API void LoadInterleaved2(D d, const T* HWY_RESTRICT unaligned,
+                              VFromD<D>& v0, VFromD<D>& v1) {
+  const RebindToUnsigned<decltype(d)> du;
+  VFromD<decltype(du)> vu0, vu1;
+  LoadInterleaved2(du, detail::U16LanePointer(unaligned), vu0, vu1);
+  v0 = BitCast(d, vu0);
+  v1 = BitCast(d, vu1);
+}
+
+template <class D, HWY_GENERIC_IF_EMULATED_D(D), typename T = TFromD<D>>
+HWY_API void LoadInterleaved3(D d, const T* HWY_RESTRICT unaligned,
+                              VFromD<D>& v0, VFromD<D>& v1, VFromD<D>& v2) {
+  const RebindToUnsigned<decltype(d)> du;
+  VFromD<decltype(du)> vu0, vu1, vu2;
+  LoadInterleaved3(du, detail::U16LanePointer(unaligned), vu0, vu1, vu2);
+  v0 = BitCast(d, vu0);
+  v1 = BitCast(d, vu1);
+  v2 = BitCast(d, vu2);
+}
+
+template <class D, HWY_GENERIC_IF_EMULATED_D(D), typename T = TFromD<D>>
+HWY_API void LoadInterleaved4(D d, const T* HWY_RESTRICT unaligned,
+                              VFromD<D>& v0, VFromD<D>& v1, VFromD<D>& v2,
+                              VFromD<D>& v3) {
+  const RebindToUnsigned<decltype(d)> du;
+  VFromD<decltype(du)> vu0, vu1, vu2, vu3;
+  LoadInterleaved4(du, detail::U16LanePointer(unaligned), vu0, vu1, vu2, vu3);
+  v0 = BitCast(d, vu0);
+  v1 = BitCast(d, vu1);
+  v2 = BitCast(d, vu2);
+  v3 = BitCast(d, vu3);
+}
+
+template <class D, HWY_GENERIC_IF_EMULATED_D(D), typename T = TFromD<D>>
+HWY_API void StoreInterleaved2(VFromD<D> v0, VFromD<D> v1, D d,
+                               T* HWY_RESTRICT unaligned) {
+  const RebindToUnsigned<decltype(d)> du;
+  StoreInterleaved2(BitCast(du, v0), BitCast(du, v1), du,
+                    detail::U16LanePointer(unaligned));
+}
+
+template <class D, HWY_GENERIC_IF_EMULATED_D(D), typename T = TFromD<D>>
+HWY_API void StoreInterleaved3(VFromD<D> v0, VFromD<D> v1, VFromD<D> v2, D d,
+                               T* HWY_RESTRICT unaligned) {
+  const RebindToUnsigned<decltype(d)> du;
+  StoreInterleaved3(BitCast(du, v0), BitCast(du, v1), BitCast(du, v2), du,
+                    detail::U16LanePointer(unaligned));
+}
+
+template <class D, HWY_GENERIC_IF_EMULATED_D(D), typename T = TFromD<D>>
+HWY_API void StoreInterleaved4(VFromD<D> v0, VFromD<D> v1, VFromD<D> v2,
+                               VFromD<D> v3, D d, T* HWY_RESTRICT unaligned) {
+  const RebindToUnsigned<decltype(d)> du;
+  StoreInterleaved4(BitCast(du, v0), BitCast(du, v1), BitCast(du, v2),
+                    BitCast(du, v3), du, detail::U16LanePointer(unaligned));
+}
+
+#endif  // HWY_NATIVE_LOAD_STORE_SPECIAL_FLOAT_INTERLEAVED
+
 // ------------------------------ LoadN
 
 #if (defined(HWY_NATIVE_LOAD_N) == defined(HWY_TARGET_TOGGLE))
@@ -7294,6 +7369,8 @@ HWY_API auto Le(V a, V b) -> decltype(a == b) {
 }
 
 #endif  // HWY_NATIVE_OPERATOR_REPLACEMENTS
+
+#undef HWY_GENERIC_IF_EMULATED_D
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE

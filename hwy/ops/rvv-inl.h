@@ -341,9 +341,13 @@ namespace detail {  // for code folding
   HWY_RVV_FOREACH_F16_UNCONDITIONAL(X_MACRO, NAME, OP, LMULS)
 // Only BF16 is emulated.
 #define HWY_RVV_IF_EMULATED_D(D) HWY_IF_BF16_D(D)
+#define HWY_GENERIC_IF_EMULATED_D(D) HWY_IF_BF16_D(D)
+#define HWY_RVV_IF_NOT_EMULATED_D(D) HWY_IF_NOT_BF16_D(D)
 #else
 #define HWY_RVV_FOREACH_F16(X_MACRO, NAME, OP, LMULS)
 #define HWY_RVV_IF_EMULATED_D(D) HWY_IF_SPECIAL_FLOAT_D(D)
+#define HWY_GENERIC_IF_EMULATED_D(D) HWY_IF_SPECIAL_FLOAT_D(D)
+#define HWY_RVV_IF_NOT_EMULATED_D(D) HWY_IF_NOT_SPECIAL_FLOAT_D(D)
 #endif
 #define HWY_RVV_FOREACH_F32(X_MACRO, NAME, OP, LMULS) \
   HWY_CONCAT(HWY_RVV_FOREACH_32, LMULS)(X_MACRO, float, f, NAME, OP)
@@ -4781,7 +4785,7 @@ HWY_RVV_FOREACH(HWY_RVV_STORE4, StoreInterleaved4, sseg4, _LE2_VIRT)
 
 #else  // !HWY_HAVE_TUPLE
 
-template <class D, typename T = TFromD<D>>
+template <class D, typename T = TFromD<D>, HWY_RVV_IF_NOT_EMULATED_D(D)>
 HWY_API void LoadInterleaved2(D d, const T* HWY_RESTRICT unaligned,
                               VFromD<D>& v0, VFromD<D>& v1) {
   const VFromD<D> A = LoadU(d, unaligned);  // v1[1] v0[1] v1[0] v0[0]
@@ -4804,7 +4808,7 @@ HWY_RVV_FOREACH(HWY_RVV_LOAD_STRIDED, LoadStrided, lse, _ALL_VIRT)
 #undef HWY_RVV_LOAD_STRIDED
 }  // namespace detail
 
-template <class D, typename T = TFromD<D>>
+template <class D, typename T = TFromD<D>, HWY_RVV_IF_NOT_EMULATED_D(D)>
 HWY_API void LoadInterleaved3(D d, const TFromD<D>* HWY_RESTRICT unaligned,
                               VFromD<D>& v0, VFromD<D>& v1, VFromD<D>& v2) {
   // Offsets are bytes, and this is not documented.
@@ -4813,7 +4817,7 @@ HWY_API void LoadInterleaved3(D d, const TFromD<D>* HWY_RESTRICT unaligned,
   v2 = detail::LoadStrided(d, unaligned + 2, 3 * sizeof(T));
 }
 
-template <class D, typename T = TFromD<D>>
+template <class D, typename T = TFromD<D>, HWY_RVV_IF_NOT_EMULATED_D(D)>
 HWY_API void LoadInterleaved4(D d, const TFromD<D>* HWY_RESTRICT unaligned,
                               VFromD<D>& v0, VFromD<D>& v1, VFromD<D>& v2,
                               VFromD<D>& v3) {
@@ -4826,7 +4830,7 @@ HWY_API void LoadInterleaved4(D d, const TFromD<D>* HWY_RESTRICT unaligned,
 
 // Not 64-bit / max LMUL: interleave via promote, slide, OddEven.
 template <class D, typename T = TFromD<D>, HWY_IF_NOT_T_SIZE_D(D, 8),
-          HWY_IF_POW2_LE_D(D, 2)>
+          HWY_IF_POW2_LE_D(D, 2), HWY_RVV_IF_NOT_EMULATED_D(D)>
 HWY_API void StoreInterleaved2(VFromD<D> v0, VFromD<D> v1, D d,
                                T* HWY_RESTRICT unaligned) {
   const RebindToUnsigned<D> du;
@@ -4841,7 +4845,7 @@ HWY_API void StoreInterleaved2(VFromD<D> v0, VFromD<D> v1, D d,
 
 // Can promote, max LMUL: two half-length
 template <class D, typename T = TFromD<D>, HWY_IF_NOT_T_SIZE_D(D, 8),
-          HWY_IF_POW2_GT_D(D, 2)>
+          HWY_IF_POW2_GT_D(D, 2), HWY_RVV_IF_NOT_EMULATED_D(D)>
 HWY_API void StoreInterleaved2(VFromD<D> v0, VFromD<D> v1, D d,
                                T* HWY_RESTRICT unaligned) {
   const Half<decltype(d)> dh;
@@ -4865,7 +4869,8 @@ HWY_RVV_FOREACH(HWY_RVV_STORE_STRIDED, StoreStrided, sse, _ALL_VIRT)
 }  // namespace detail
 
 // 64-bit: strided
-template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE_D(D, 8)>
+template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE_D(D, 8),
+          HWY_RVV_IF_NOT_EMULATED_D(D)>
 HWY_API void StoreInterleaved2(VFromD<D> v0, VFromD<D> v1, D d,
                                T* HWY_RESTRICT unaligned) {
   // Offsets are bytes, and this is not documented.
@@ -4873,7 +4878,7 @@ HWY_API void StoreInterleaved2(VFromD<D> v0, VFromD<D> v1, D d,
   detail::StoreStrided(v1, d, unaligned + 1, 2 * sizeof(T));
 }
 
-template <class D, typename T = TFromD<D>>
+template <class D, typename T = TFromD<D>, HWY_RVV_IF_NOT_EMULATED_D(D)>
 HWY_API void StoreInterleaved3(VFromD<D> v0, VFromD<D> v1, VFromD<D> v2, D d,
                                T* HWY_RESTRICT unaligned) {
   // Offsets are bytes, and this is not documented.
@@ -4882,7 +4887,7 @@ HWY_API void StoreInterleaved3(VFromD<D> v0, VFromD<D> v1, VFromD<D> v2, D d,
   detail::StoreStrided(v2, d, unaligned + 2, 3 * sizeof(T));
 }
 
-template <class D, typename T = TFromD<D>>
+template <class D, typename T = TFromD<D>, HWY_RVV_IF_NOT_EMULATED_D(D)>
 HWY_API void StoreInterleaved4(VFromD<D> v0, VFromD<D> v1, VFromD<D> v2,
                                VFromD<D> v3, D d, T* HWY_RESTRICT unaligned) {
   // Offsets are bytes, and this is not documented.
@@ -4893,6 +4898,9 @@ HWY_API void StoreInterleaved4(VFromD<D> v0, VFromD<D> v1, VFromD<D> v2,
 }
 
 #endif  // HWY_HAVE_TUPLE
+
+// Rely on generic Load/StoreInterleaved[234] for any emulated types.
+// Requires HWY_GENERIC_IF_EMULATED_D mirrors HWY_RVV_IF_EMULATED_D.
 
 // ------------------------------ Dup128VecFromValues (ResizeBitCast)
 

@@ -117,10 +117,13 @@ namespace detail {  // for code folding
 // SFINAE to occur instead of a hard error due to a dependency on the D template
 // argument
 #define HWY_SVE_IF_EMULATED_D(D) hwy::EnableIf<!hwy::IsSame<D, D>()>* = nullptr
+#define HWY_GENERIC_IF_EMULATED_D(D) \
+  hwy::EnableIf<!hwy::IsSame<D, D>()>* = nullptr
 #define HWY_SVE_IF_NOT_EMULATED_D(D) hwy::EnableIf<true>* = nullptr
 #else
 #define HWY_SVE_FOREACH_BF16(X_MACRO, NAME, OP)
 #define HWY_SVE_IF_EMULATED_D(D) HWY_IF_BF16_D(D)
+#define HWY_GENERIC_IF_EMULATED_D(D) HWY_IF_BF16_D(D)
 #define HWY_SVE_IF_NOT_EMULATED_D(D) HWY_IF_NOT_BF16_D(D)
 #endif  // HWY_SVE_HAVE_BF16_FEATURE
 
@@ -2029,6 +2032,7 @@ HWY_API VFromD<D> GatherIndex(D d, const TFromD<D>* HWY_RESTRICT p,
     v1 = svget2(tuple, 1);                                                    \
   }
 HWY_SVE_FOREACH(HWY_SVE_LOAD2, LoadInterleaved2, ld2)
+HWY_SVE_FOREACH_BF16(HWY_SVE_LOAD2, LoadInterleaved2, ld2)
 
 #undef HWY_SVE_LOAD2
 
@@ -2047,6 +2051,7 @@ HWY_SVE_FOREACH(HWY_SVE_LOAD2, LoadInterleaved2, ld2)
     v2 = svget3(tuple, 2);                                                  \
   }
 HWY_SVE_FOREACH(HWY_SVE_LOAD3, LoadInterleaved3, ld3)
+HWY_SVE_FOREACH_BF16(HWY_SVE_LOAD3, LoadInterleaved3, ld3)
 
 #undef HWY_SVE_LOAD3
 
@@ -2066,6 +2071,7 @@ HWY_SVE_FOREACH(HWY_SVE_LOAD3, LoadInterleaved3, ld3)
     v3 = svget4(tuple, 3);                                                    \
   }
 HWY_SVE_FOREACH(HWY_SVE_LOAD4, LoadInterleaved4, ld4)
+HWY_SVE_FOREACH_BF16(HWY_SVE_LOAD4, LoadInterleaved4, ld4)
 
 #undef HWY_SVE_LOAD4
 
@@ -2081,6 +2087,7 @@ HWY_SVE_FOREACH(HWY_SVE_LOAD4, LoadInterleaved4, ld4)
                           Create2(d, v0, v1));                          \
   }
 HWY_SVE_FOREACH(HWY_SVE_STORE2, StoreInterleaved2, st2)
+HWY_SVE_FOREACH_BF16(HWY_SVE_STORE2, StoreInterleaved2, st2)
 
 #undef HWY_SVE_STORE2
 
@@ -2097,6 +2104,7 @@ HWY_SVE_FOREACH(HWY_SVE_STORE2, StoreInterleaved2, st2)
                           Create3(d, v0, v1, v2));                      \
   }
 HWY_SVE_FOREACH(HWY_SVE_STORE3, StoreInterleaved3, st3)
+HWY_SVE_FOREACH_BF16(HWY_SVE_STORE3, StoreInterleaved3, st3)
 
 #undef HWY_SVE_STORE3
 
@@ -2113,8 +2121,12 @@ HWY_SVE_FOREACH(HWY_SVE_STORE3, StoreInterleaved3, st3)
                           Create4(d, v0, v1, v2, v3));                  \
   }
 HWY_SVE_FOREACH(HWY_SVE_STORE4, StoreInterleaved4, st4)
+HWY_SVE_FOREACH_BF16(HWY_SVE_STORE4, StoreInterleaved4, st4)
 
 #undef HWY_SVE_STORE4
+
+// Fall back on generic Load/StoreInterleaved[234] for any emulated types.
+// Requires HWY_GENERIC_IF_EMULATED_D mirrors HWY_SVE_IF_EMULATED_D.
 
 // ================================================== CONVERT
 
