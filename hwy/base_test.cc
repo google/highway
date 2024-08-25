@@ -663,6 +663,16 @@ struct TestSpecialFloat {
     AssertSpecialFloatOpResultInRange(7.0f, 7.03125f, incr_assign_result_2,
                                       __FILE__, __LINE__);
 
+    float incr_assign_result3 = -6.747985f;
+    incr_assign_result3 += static_cast<T>(4.15625f);
+    AssertSpecialFloatOpResultInRange(-2.59375f, -2.578125f,
+                                      incr_assign_result3, __FILE__, __LINE__);
+
+    float incr_assign_result4 = 6.71875;
+    incr_assign_result4 += static_cast<T>(2.359375);
+    AssertSpecialFloatOpResultInRange(9.0625, 9.125, incr_assign_result4,
+                                      __FILE__, __LINE__);
+
     T decr_assign_result_1 = static_cast<T>(4.4059753E-4f);
     EnsureNotNativeSpecialFloat(decr_assign_result_1 -=
                                 static_cast<T>(6880.0f));
@@ -673,6 +683,16 @@ struct TestSpecialFloat {
     EnsureNotNativeSpecialFloat(decr_assign_result_2 -= static_cast<int8_t>(5));
     AssertSpecialFloatOpResultInRange(80.5f, 80.5f, decr_assign_result_2,
                                       __FILE__, __LINE__);
+
+    float decr_assign_result3 = 9.875f;
+    decr_assign_result3 -= static_cast<T>(1.5234375f);
+    AssertSpecialFloatOpResultInRange(8.3125f, 8.375f, decr_assign_result3,
+                                      __FILE__, __LINE__);
+
+    double decr_assign_result4 = 0.337890625;
+    decr_assign_result4 -= static_cast<T>(2.328125);
+    AssertSpecialFloatOpResultInRange(-1.9921875, -1.984375,
+                                      decr_assign_result4, __FILE__, __LINE__);
 
     T mul_assign_result_1 = static_cast<T>(15680.0f);
     EnsureNotNativeSpecialFloat(mul_assign_result_1 *=
@@ -685,6 +705,16 @@ struct TestSpecialFloat {
     AssertSpecialFloatOpResultInRange(18.25, 18.375, mul_assign_result_2,
                                       __FILE__, __LINE__);
 
+    float mul_assign_result3 = 4.125f;
+    mul_assign_result3 *= static_cast<T>(3.375f);
+    AssertSpecialFloatOpResultInRange(13.875f, 13.9375f, mul_assign_result3,
+                                      __FILE__, __LINE__);
+
+    double mul_assign_result4 = 7.9375;
+    mul_assign_result4 *= static_cast<T>(0.79296875);
+    AssertSpecialFloatOpResultInRange(6.28125, 6.3125, mul_assign_result4,
+                                      __FILE__, __LINE__);
+
     T div_assign_result_1 = static_cast<T>(11584.0f);
     EnsureNotNativeSpecialFloat(div_assign_result_1 /= static_cast<T>(9.5625f));
     AssertSpecialFloatOpResultInRange(1208.0f, 1216.0f, div_assign_result_1,
@@ -694,6 +724,16 @@ struct TestSpecialFloat {
     EnsureNotNativeSpecialFloat(div_assign_result_2 /= static_cast<int8_t>(3));
     AssertSpecialFloatOpResultInRange(0.040283203f, 0.040527344f,
                                       div_assign_result_2, __FILE__, __LINE__);
+
+    float div_assign_result_3 = 0.21679688f;
+    div_assign_result_3 /= static_cast<T>(3.421875f);
+    AssertSpecialFloatOpResultInRange(0.06298828125f, 0.0634765625f,
+                                      div_assign_result_3, __FILE__, __LINE__);
+
+    double div_assign_result_4 = 5.34375;
+    div_assign_result_4 /= static_cast<T>(0.337890625);
+    AssertSpecialFloatOpResultInRange(15.8125, 15.875, div_assign_result_4,
+                                      __FILE__, __LINE__);
 
     HWY_ASSERT_EQ(static_cast<T>(-1.0f),
                   EnsureNotNativeSpecialFloat(-static_cast<T>(1.0f)));
