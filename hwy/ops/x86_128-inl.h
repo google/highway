@@ -9653,7 +9653,6 @@ HWY_API VFromD<DF> WidenMulPairwiseAdd(DF df, VBF a, VBF b) {
 template <class DF, HWY_IF_F32_D(DF),
           class VBF = VFromD<Repartition<bfloat16_t, DF>>>
 HWY_API VFromD<DF> WidenMulPairwiseAdd(DF df, VBF a, VBF b) {
-  // TODO(janwas): _mm_dpbf16_ps when available
   return MulAdd(PromoteEvenTo(df, a), PromoteEvenTo(df, b),
                 Mul(PromoteOddTo(df, a), PromoteOddTo(df, b)));
 }
