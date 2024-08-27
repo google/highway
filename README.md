@@ -98,7 +98,8 @@ us via the below email.
     [iresearch database index](https://github.com/iresearch-toolkit/iresearch),
     michaeljclark/zvec,
     [nebula interactive analytics / OLAP](https://github.com/varchar-io/nebula),
-    [ScaNN Scalable Nearest Neighbors](https://github.com/google-research/google-research/tree/7a269cb2ce0ae1db591fe11b62cbc0be7d72532a/scann)
+    [ScaNN Scalable Nearest Neighbors](https://github.com/google-research/google-research/tree/7a269cb2ce0ae1db591fe11b62cbc0be7d72532a/scann),
+    [vectorlite vector search](https://github.com/1yefuwang1/vectorlite/)
 *   Machine learning: [gemma.cpp](https://github.com/google/gemma.cpp),
     Tensorflow, Numpy, zpye/SimpleInfer
 *   Robotics:
