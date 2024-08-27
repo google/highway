@@ -605,11 +605,12 @@
 #endif  // HWY_HAVE_AUXV
 
 #ifndef HWY_HAVE_RUNTIME_DISPATCH_RVV  // allow override
-// The riscv_vector.h in Clang 16-18 requires compiler flags, see
+// The riscv_vector.h in Clang 16-18 requires compiler flags, and 19 still has
+// some missing intrinsics, see
 // https://github.com/llvm/llvm-project/issues/56592. GCC 13.3 also has an
 // #error check, whereas 14.1 fails with "argument type 'vuint16m8_t' requires
 // the V ISA extension": https://gcc.gnu.org/bugzilla/show_bug.cgi?id=115325.
-#if HWY_ARCH_RISCV && HWY_COMPILER_CLANG >= 1900
+#if HWY_ARCH_RISCV && HWY_COMPILER_CLANG >= 1900 && 0
 #define HWY_HAVE_RUNTIME_DISPATCH_RVV 1
 #else
 #define HWY_HAVE_RUNTIME_DISPATCH_RVV 0
