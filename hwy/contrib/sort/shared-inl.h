@@ -127,7 +127,7 @@ static_assert(SortConstants::MaxBufBytes<2>(64) <= 1664, "Unexpectedly high");
 // Armv7 debug, and Armv8 GCC 11 asan hits an internal compiler error likely
 // due to https://gcc.gnu.org/bugzilla/show_bug.cgi?id=97696. Armv8 Clang
 // hwasan/msan/tsan/asan also fail to build SVE (b/335157772).
-#undef VQSORT_ENABLED
+#ifndef VQSORT_ENABLED  // allow user override
 #if (HWY_TARGET == HWY_SCALAR) ||                                   \
     (HWY_COMPILER_MSVC && !HWY_IS_DEBUG_BUILD) ||                   \
     (HWY_ARCH_ARM_V7 && HWY_IS_DEBUG_BUILD) ||                      \
@@ -136,6 +136,7 @@ static_assert(SortConstants::MaxBufBytes<2>(64) <= 1664, "Unexpectedly high");
 #else
 #define VQSORT_ENABLED 1
 #endif
+#endif  // VQSORT_ENABLED
 
 namespace hwy {
 namespace HWY_NAMESPACE {
