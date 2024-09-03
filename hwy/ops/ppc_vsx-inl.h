@@ -4691,7 +4691,7 @@ HWY_API VFromD<D> ConvertTo(D /* tag */,
 template <class D, HWY_IF_I64_D(D)>
 HWY_API VFromD<D> ConvertTo(D /* tag */,
                             Vec128<double, Rebind<double, D>().MaxLanes()> v) {
-#if defined(__OPTIMIZE__)
+#if defined(__OPTIMIZE__) && (!HWY_COMPILER_CLANG || !HWY_S390X_HAVE_Z14)
   if (detail::IsConstantRawAltivecVect(v.raw)) {
     constexpr int64_t kMinI64 = LimitsMin<int64_t>();
     constexpr int64_t kMaxI64 = LimitsMax<int64_t>();
@@ -4790,7 +4790,7 @@ HWY_API VFromD<D> ConvertTo(D /* tag */,
   HWY_DIAGNOSTICS_OFF(disable : 5219, ignored "-Wdeprecate-lax-vec-conv-all")
 #endif
 
-#if defined(__OPTIMIZE__)
+#if defined(__OPTIMIZE__) && (!HWY_COMPILER_CLANG || !HWY_S390X_HAVE_Z14)
   if (detail::IsConstantRawAltivecVect(v.raw)) {
     constexpr uint64_t kMaxU64 = LimitsMax<uint64_t>();
     return Dup128VecFromValues(
@@ -6255,9 +6255,16 @@ HWY_INLINE V Per128BitBlkRevLanesOnBe(V v) {
 template <class V>
 HWY_INLINE V I128Subtract(V a, V b) {
 #if HWY_S390X_HAVE_Z14
+#if HWY_COMPILER_CLANG
+  // Workaround for bug in vec_sub_u128 in Clang vecintrin.h
+  typedef __uint128_t VU128 __attribute__((__vector_size__(16)));
+  const V diff_i128{reinterpret_cast<typename detail::Raw128<TFromV<V>>::type>(
+      reinterpret_cast<VU128>(a.raw) - reinterpret_cast<VU128>(b.raw))};
+#else   // !HWY_COMPILER_CLANG
   const V diff_i128{reinterpret_cast<typename detail::Raw128<TFromV<V>>::type>(
       vec_sub_u128(reinterpret_cast<__vector unsigned char>(a.raw),
                    reinterpret_cast<__vector unsigned char>(b.raw)))};
+#endif  // HWY_COMPILER_CLANG
 #elif defined(__SIZEOF_INT128__)
   using VU128 = __vector unsigned __int128;
   const V diff_i128{reinterpret_cast<typename detail::Raw128<TFromV<V>>::type>(
@@ -6752,6 +6759,26 @@ HWY_INLINE VFromD<RepartitionToWideX2<DFromV<V>>> SumsOf4(
 #if HWY_S390X_HAVE_Z14
 namespace detail {
 
+#if HWY_COMPILER_CLANG && HWY_HAS_BUILTIN(__builtin_s390_vsumqf) && \
+    HWY_HAS_BUILTIN(__builtin_s390_vsumqg)
+// Workaround for bug in vec_sum_u128 in Clang vecintrin.h
+template <class T, HWY_IF_UI32(T)>
+HWY_INLINE Vec128<T> SumOfU32OrU64LanesAsU128(Vec128<T> v) {
+  typedef __uint128_t VU128 __attribute__((__vector_size__(16)));
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const VU128 sum = {__builtin_s390_vsumqf(BitCast(du, v).raw, Zero(du).raw)};
+  return Vec128<T>{reinterpret_cast<typename detail::Raw128<T>::type>(sum)};
+}
+template <class T, HWY_IF_UI64(T)>
+HWY_INLINE Vec128<T> SumOfU32OrU64LanesAsU128(Vec128<T> v) {
+  typedef __uint128_t VU128 __attribute__((__vector_size__(16)));
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const VU128 sum = {__builtin_s390_vsumqg(BitCast(du, v).raw, Zero(du).raw)};
+  return Vec128<T>{reinterpret_cast<typename detail::Raw128<T>::type>(sum)};
+}
+#else
 template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T),
           HWY_IF_T_SIZE_ONE_OF(T, (1 << 4) | (1 << 8))>
 HWY_INLINE Vec128<T> SumOfU32OrU64LanesAsU128(Vec128<T> v) {
@@ -6760,6 +6787,7 @@ HWY_INLINE Vec128<T> SumOfU32OrU64LanesAsU128(Vec128<T> v) {
   return BitCast(
       d, Vec128<uint8_t>{vec_sum_u128(BitCast(du, v).raw, Zero(du).raw)});
 }
+#endif
 
 }  // namespace detail
 
