@@ -82,10 +82,10 @@ std::string Stats::ToString(int exclude) const {
   if ((exclude & kNoMeanSD) == 0) {
     const float sd = StandardDeviation();
     if (sd > 100) {
-      ret = snprintf(buf + pos, sizeof(buf) - pos, "Mean=%8.2E SD=%7.1E ",
+      ret = snprintf(buf + pos, sizeof(buf) - pos, "Mean=%8.2e SD=%7.1e ",
                      Mean(), sd);
     } else {
-      ret = snprintf(buf + pos, sizeof(buf) - pos, "Mean=%8.6f SD=%7.5f ",
+      ret = snprintf(buf + pos, sizeof(buf) - pos, "Mean=%8.6e SD=%7.5e ",
                      Mean(), sd);
     }
     HWY_ASSERT(ret > 0);
