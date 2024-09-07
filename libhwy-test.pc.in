@@ -5,7 +5,7 @@ includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
 
 Name: libhwy-test
 Description: Efficient and performance-portable SIMD wrapper, test helpers.
-Requires: gtest
+Requires: @HWY_PC_HWY_TEST_REQUIRES@
 Version: @HWY_LIBRARY_VERSION@
 Libs: -L${libdir} -lhwy_test
-Cflags: -I${includedir}
+Cflags: -I${includedir} @HWY_PC_HWY_TEST_CFLAGS@
