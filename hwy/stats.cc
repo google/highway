@@ -31,7 +31,7 @@ void Stats::Assimilate(const Stats& other) {
   min_ = std::min(min_, other.min_);
   max_ = std::max(max_, other.max_);
 
-  product_ *= other.product_;
+  sum_log_ += other.sum_log_;
 
   const double product_n = n_ * other.n_;
   const double n2 = n_ * n_;
