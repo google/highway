@@ -26,6 +26,7 @@
 #include <stdio.h>  // snprintf
 
 #include <array>
+#include <new>
 #include <thread>  //NOLINT
 // IWYU pragma: end_exports
 
@@ -344,8 +345,8 @@ struct alignas(HWY_ALIGNMENT) PoolMem {
 class PoolMemOwner {
  public:
   explicit PoolMemOwner(size_t num_threads)
-      // There is at least one worker, the main thread.
-      : num_workers_(HWY_MAX(num_threads, size_t{1})) {
+      // The main thread also participates.
+      : num_workers_(num_threads + 1) {
     const size_t size = sizeof(PoolMem) + num_workers_ * sizeof(PoolWorker);
     bytes_ = hwy::AllocateAligned<uint8_t>(size);
     HWY_ASSERT(bytes_);
