@@ -13,21 +13,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stdint.h>
 #include <stdio.h>
 
+#include <numeric>  // std::iota
 #include <random>
 #include <vector>
+
+#include "hwy/aligned_allocator.h"  // IsAligned
+#include "hwy/base.h"
+#include "hwy/contrib/sort/vqsort.h"
+#include "hwy/contrib/thread_pool/thread_pool.h"
+#include "hwy/contrib/thread_pool/topology.h"
+#include "hwy/per_target.h"
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/contrib/sort/sort_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
-// After foreach_target
-#include "hwy/aligned_allocator.h"  // IsAligned
+#include "hwy/highway.h"
+// After highway.h
 #include "hwy/contrib/sort/algo-inl.h"
 #include "hwy/contrib/sort/result-inl.h"
 #include "hwy/contrib/sort/vqsort-inl.h"  // BaseCase
-#include "hwy/contrib/sort/vqsort.h"
-#include "hwy/highway.h"
 #include "hwy/print-inl.h"
 #include "hwy/tests/test_util-inl.h"
 
@@ -58,6 +65,39 @@ using detail::OrderDescending128;
 using detail::OrderDescendingKV128;
 using detail::Traits128;
 #endif  // !HAVE_INTEL && HWY_TARGET != HWY_SCALAR
+
+template <typename Key>
+void TestSortIota(hwy::ThreadPool& pool) {
+  pool.Run(128, 300, [](uint64_t task, size_t /*thread*/) {
+    const size_t num = static_cast<size_t>(task);
+    Key keys[300];
+    std::iota(keys, keys + num, Key{0});
+    VQSort(keys, num, hwy::SortAscending());
+    for (size_t i = 0; i < num; ++i) {
+      if (keys[i] != i) {
+        HWY_ABORT("num %zu i %zu: not iota, got %.0f\n", num, i,
+                  static_cast<double>(keys[i]));
+      }
+    }
+  });
+}
+
+void TestAllSortIota() {
+  if constexpr (VQSORT_ENABLED) {
+    hwy::ThreadPool pool(hwy::HaveThreadingSupport() ? 4 : 0);
+    TestSortIota<uint32_t>(pool);
+    TestSortIota<int32_t>(pool);
+    if (hwy::HaveInteger64()) {
+      TestSortIota<int64_t>(pool);
+      TestSortIota<uint64_t>(pool);
+    }
+    TestSortIota<float>(pool);
+    if (hwy::HaveFloat64()) {
+      TestSortIota<double>(pool);
+    }
+    fprintf(stderr, "Iota OK\n");
+  }
+}
 
 // Supports full/partial sort and select.
 template <class Traits>
@@ -232,6 +272,7 @@ HWY_AFTER_NAMESPACE();
 
 namespace hwy {
 HWY_BEFORE_TEST(SortTest);
+HWY_EXPORT_AND_TEST_P(SortTest, TestAllSortIota);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllSort);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllSelect);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllPartialSort);
