@@ -62,9 +62,10 @@ HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
 // Now terminate the program:
 #if HWY_ARCH_RISCV
   exit(1);  // trap/abort just freeze Spike.
-#elif HWY_IS_DEBUG_BUILD && !HWY_COMPILER_MSVC
+#elif HWY_IS_DEBUG_BUILD && !HWY_COMPILER_MSVC && !HWY_ARCH_ARM
   // Facilitates breaking into a debugger, but don't use this in non-debug
   // builds because it looks like "illegal instruction", which is misleading.
+  // Also does not work on Arm.
   __builtin_trap();
 #else
   abort();  // Compile error without this due to HWY_NORETURN.

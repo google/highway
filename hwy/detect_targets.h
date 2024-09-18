@@ -265,6 +265,15 @@
 #define HWY_BROKEN_PPC_32BIT 0
 #endif
 
+// HWY_RVV fails to compile with GCC < 13 or Clang < 16.
+#if HWY_ARCH_RISCV &&                                     \
+    ((HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1600) || \
+     (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1300))
+#define HWY_BROKEN_RVV (HWY_RVV)
+#else
+#define HWY_BROKEN_RVV 0
+#endif
+
 // Allow the user to override this without any guarantee of success.
 #ifndef HWY_BROKEN_TARGETS
 
@@ -273,7 +282,7 @@
    HWY_BROKEN_AVX3_DL_ZEN4 | HWY_BROKEN_AVX3_SPR |             \
    HWY_BROKEN_ARM7_BIG_ENDIAN | HWY_BROKEN_ARM7_WITHOUT_VFP4 | \
    HWY_BROKEN_NEON_BF16 | HWY_BROKEN_SVE | HWY_BROKEN_PPC10 |  \
-   HWY_BROKEN_PPC_32BIT)
+   HWY_BROKEN_PPC_32BIT | HWY_BROKEN_RVV)
 
 #endif  // HWY_BROKEN_TARGETS
 
