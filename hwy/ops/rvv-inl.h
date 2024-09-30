@@ -5281,7 +5281,7 @@ constexpr unsigned MaxMaskBits() {
 
 template <class D>
 constexpr int SufficientPow2ForMask() {
-  return std::max(
+  return HWY_MAX(
       D().Pow2() - 3 - static_cast<int>(FloorLog2(sizeof(TFromD<D>))), -3);
 }
 }  // namespace detail
