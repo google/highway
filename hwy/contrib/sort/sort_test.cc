@@ -83,20 +83,20 @@ void TestSortIota(hwy::ThreadPool& pool) {
 }
 
 void TestAllSortIota() {
-  if constexpr (VQSORT_ENABLED) {
-    hwy::ThreadPool pool(hwy::HaveThreadingSupport() ? 4 : 0);
-    TestSortIota<uint32_t>(pool);
-    TestSortIota<int32_t>(pool);
-    if (hwy::HaveInteger64()) {
-      TestSortIota<int64_t>(pool);
-      TestSortIota<uint64_t>(pool);
-    }
-    TestSortIota<float>(pool);
-    if (hwy::HaveFloat64()) {
-      TestSortIota<double>(pool);
-    }
-    fprintf(stderr, "Iota OK\n");
+#if VQSORT_ENABLED
+  hwy::ThreadPool pool(hwy::HaveThreadingSupport() ? 4 : 0);
+  TestSortIota<uint32_t>(pool);
+  TestSortIota<int32_t>(pool);
+  if (hwy::HaveInteger64()) {
+    TestSortIota<int64_t>(pool);
+    TestSortIota<uint64_t>(pool);
   }
+  TestSortIota<float>(pool);
+  if (hwy::HaveFloat64()) {
+    TestSortIota<double>(pool);
+  }
+  fprintf(stderr, "Iota OK\n");
+#endif
 }
 
 // Supports full/partial sort and select.
