@@ -5278,6 +5278,12 @@ template <size_t kN, HWY_IF_LANES_GT(kN, 31)>
 constexpr unsigned MaxMaskBits() {
   return ~0u;
 }
+
+template <class D>
+constexpr int SufficientPow2ForMask() {
+  return HWY_MAX(
+      D().Pow2() - 3 - static_cast<int>(FloorLog2(sizeof(TFromD<D>))), -3);
+}
 }  // namespace detail
 
 template <class D, HWY_IF_T_SIZE_D(D, 1), HWY_IF_LANES_LE_D(D, 8)>
@@ -5304,11 +5310,13 @@ HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
 template <class D, HWY_IF_T_SIZE_D(D, 1), HWY_IF_LANES_GT_D(D, 8)>
 HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
 #if HWY_COMPILER_CLANG >= 1700 || HWY_COMPILER_GCC_ACTUAL >= 1400
-  const ScalableTag<uint8_t> du8;
-  const ScalableTag<uint16_t> du16;
+  const ScalableTag<uint8_t, detail::SufficientPow2ForMask<D>()> du8;
+  const ScalableTag<uint16_t, detail::SufficientPow2ForMask<D>()> du16;
   // There are exactly 16 mask bits for 128 vector bits of 8-bit lanes.
   return detail::U8MaskBitsVecToMask(
-      d, BitCast(du8, Set(du16, static_cast<uint16_t>(mask_bits))));
+      d, detail::ChangeLMUL(
+             ScalableTag<uint8_t>(),
+             BitCast(du8, Set(du16, static_cast<uint16_t>(mask_bits)))));
 #else
   // Slow fallback for completeness; the above bits to mask cast is preferred.
   const RebindToUnsigned<decltype(d)> du8;
@@ -5335,10 +5343,11 @@ HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
   if (kN < 8) mask_bits &= detail::MaxMaskBits<kN>();
 
 #if HWY_COMPILER_CLANG >= 1700 || HWY_COMPILER_GCC_ACTUAL >= 1400
-  const ScalableTag<uint8_t> du8;
+  const ScalableTag<uint8_t, detail::SufficientPow2ForMask<D>()> du8;
   // There are exactly 8 mask bits for 128 vector bits of 16-bit lanes.
-  return detail::U8MaskBitsVecToMask(d,
-                                     Set(du8, static_cast<uint8_t>(mask_bits)));
+  return detail::U8MaskBitsVecToMask(
+      d, detail::ChangeLMUL(ScalableTag<uint8_t>(),
+                            Set(du8, static_cast<uint8_t>(mask_bits))));
 #else
   // Slow fallback for completeness; the above bits to mask cast is preferred.
   const RebindToUnsigned<D> du;
@@ -5354,9 +5363,10 @@ HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
   if (kN < 4) mask_bits &= detail::MaxMaskBits<kN>();
 
 #if HWY_COMPILER_CLANG >= 1700 || HWY_COMPILER_GCC_ACTUAL >= 1400
-  const ScalableTag<uint8_t> du8;
+  const ScalableTag<uint8_t, detail::SufficientPow2ForMask<D>()> du8;
   return detail::U8MaskBitsVecToMask(
-      d, Set(du8, static_cast<uint8_t>(mask_bits * 0x11)));
+      d, detail::ChangeLMUL(ScalableTag<uint8_t>(),
+                            Set(du8, static_cast<uint8_t>(mask_bits * 0x11))));
 #else
   // Slow fallback for completeness; the above bits to mask cast is preferred.
   const RebindToUnsigned<D> du;
@@ -5371,9 +5381,10 @@ HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
   if (kN < 2) mask_bits &= detail::MaxMaskBits<kN>();
 
 #if HWY_COMPILER_CLANG >= 1700 || HWY_COMPILER_GCC_ACTUAL >= 1400
-  const ScalableTag<uint8_t> du8;
+  const ScalableTag<uint8_t, detail::SufficientPow2ForMask<D>()> du8;
   return detail::U8MaskBitsVecToMask(
-      d, Set(du8, static_cast<uint8_t>(mask_bits * 0x55)));
+      d, detail::ChangeLMUL(ScalableTag<uint8_t>(),
+                            Set(du8, static_cast<uint8_t>(mask_bits * 0x55))));
 #else
   // Slow fallback for completeness; the above bits to mask cast is preferred.
   const RebindToUnsigned<D> du;

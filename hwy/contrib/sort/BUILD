@@ -226,6 +226,8 @@ cc_test(
         ":vqsort_for_test",
         "//:hwy",
         "//:hwy_test_util",
+        "//:thread_pool",
+        "//:topology",
     ] + TEST_MAIN,
 )
 

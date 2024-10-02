@@ -374,7 +374,7 @@ TEST(ThreadPoolTest, TestCounter) {
   ThreadPool pool(kNumThreads);
   for (PoolWaitMode mode : {PoolWaitMode::kSpin, PoolWaitMode::kBlock}) {
     pool.SetWaitMode(mode);
-    alignas(128) Counter counters[kNumThreads];
+    alignas(128) Counter counters[1+kNumThreads];
 
     const uint64_t kNumTasks = kNumThreads * 19;
     pool.Run(0, kNumTasks,
@@ -387,7 +387,7 @@ TEST(ThreadPoolTest, TestCounter) {
       expected += i;
     }
 
-    for (size_t i = 1; i < kNumThreads; ++i) {
+    for (size_t i = 1; i < pool.NumWorkers(); ++i) {
       counters[0].Assimilate(counters[i]);
     }
     HWY_ASSERT_EQ(expected, counters[0].counter.load());

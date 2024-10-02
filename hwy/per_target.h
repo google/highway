@@ -39,7 +39,8 @@ HWY_DLLEXPORT int64_t DispatchedTarget();
 // unnecessarily.
 HWY_DLLEXPORT size_t VectorBytes();
 
-// Returns whether 16/64-bit floats are a supported lane type.
+// Returns whether 64-bit integers, 16/64-bit floats are a supported lane type.
+HWY_DLLEXPORT bool HaveInteger64();
 HWY_DLLEXPORT bool HaveFloat16();
 HWY_DLLEXPORT bool HaveFloat64();
 

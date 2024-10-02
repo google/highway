@@ -277,10 +277,11 @@ class Results {
     const char* string_origin = StringOrigin();
     for (size_t i = 0; i < num_zones_; ++i) {
       const Accumulator& r = zones_[i];
-      const uint64_t num_calls = r.NumCalls();
-      printf("%-40s: %10zu x %15zu = %9.6f\n", string_origin + r.BiasedOffset(),
-             num_calls, r.Duration() / num_calls,
-             static_cast<double>(r.Duration()) * inv_freq);
+      const size_t num_calls = r.NumCalls();
+      const double duration = static_cast<double>(r.Duration());
+      printf("%-40s: %10zu x %15.0f = %9.6f\n",
+             string_origin + r.BiasedOffset(), num_calls, duration / num_calls,
+             duration * inv_freq);
     }
 
     const uint64_t t1 = hn::timer::Stop();
@@ -592,7 +593,7 @@ inline void ThreadSpecific::ComputeOverhead() {
     robust_statistics::CountingSort(samples, kNumSamples);
     self_overhead = samples[kNumSamples / 2];
     if (PROFILER_PRINT_OVERHEAD) {
-      printf("Overhead: %zu\n", self_overhead);
+      printf("Overhead: %.0f\n", static_cast<double>(self_overhead));
     }
     results_.SetSelfOverhead(self_overhead);
   }
@@ -628,7 +629,7 @@ inline void ThreadSpecific::ComputeOverhead() {
   robust_statistics::CountingSort(samples, kNumSamples);
   const uint64_t child_overhead = samples[9 * kNumSamples / 10];
   if (PROFILER_PRINT_OVERHEAD) {
-    printf("Child overhead: %zu\n", child_overhead);
+    printf("Child overhead: %.0f\n", static_cast<double>(child_overhead));
   }
   results_.SetChildOverhead(child_overhead);
 }
