@@ -165,7 +165,8 @@ namespace hwy {
 // Returns a pointer whose type is `type` (T*), while allowing the compiler to
 // assume that the untyped pointer `ptr` is aligned to a multiple of sizeof(T).
 #define HWY_RCAST_ALIGNED(type, ptr) \
-  reinterpret_cast<type>(HWY_ASSUME_ALIGNED((ptr), alignof(RemovePtr<type>)))
+  reinterpret_cast<type>(            \
+      HWY_ASSUME_ALIGNED((ptr), alignof(hwy::RemovePtr<type>)))
 
 // Clang and GCC require attributes on each function into which SIMD intrinsics
 // are inlined. Support both per-function annotation (HWY_ATTR) for lambdas and
