@@ -16,6 +16,8 @@
 // High-resolution and high-precision timer
 
 // Per-target include guard
+// NOTE: this file could/should be a normal header, but user code may reference
+// hn::timer, and defining that here requires highway.h.
 #if defined(HIGHWAY_HWY_TIMER_INL_H_) == defined(HWY_TARGET_TOGGLE)
 #ifdef HIGHWAY_HWY_TIMER_INL_H_
 #undef HIGHWAY_HWY_TIMER_INL_H_

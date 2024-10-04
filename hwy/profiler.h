@@ -60,7 +60,6 @@
 #include "hwy/aligned_allocator.h"
 #include "hwy/cache_control.h"  // FlushStream
 // #include "hwy/contrib/sort/vqsort.h"
-#include "hwy/highway.h"  // Stream
 #include "hwy/robust_statistics.h"
 #include "hwy/timer-inl.h"
 #include "hwy/timer.h"
@@ -80,17 +79,6 @@ static constexpr size_t kMaxDepth = 64;  // Maximum nesting of zones.
 
 static constexpr size_t kMaxZones = 256;  // Total number of zones.
 
-// Overwrites "to" without loading it into the cache (read-for-ownership).
-// Both pointers must be aligned.
-HWY_ATTR static void StreamCacheLine(const uint64_t* HWY_RESTRICT from,
-                                     uint64_t* HWY_RESTRICT to) {
-  namespace hn = HWY_NAMESPACE;
-  const hn::ScalableTag<uint64_t> d;
-  for (size_t i = 0; i < HWY_ALIGNMENT / sizeof(uint64_t); i += Lanes(d)) {
-    hn::Stream(hn::Load(d, from + i), d, to + i);
-  }
-}
-
 #pragma pack(push, 1)
 
 // Represents zone entry/exit events. Stores a full-resolution timestamp plus
@@ -109,35 +97,46 @@ class Packet {
   static constexpr uint64_t kTimestampMask = (1ULL << kTimestampBits) - 1;
 
   static Packet Make(const size_t biased_offset, const uint64_t timestamp) {
+    HWY_DASSERT(biased_offset != 0);
     HWY_DASSERT(biased_offset < (1ULL << kOffsetBits));
 
     Packet packet;
     packet.bits_ =
         (biased_offset << kTimestampBits) + (timestamp & kTimestampMask);
+
+    HWY_DASSERT(packet.BiasedOffset() == biased_offset);
+    HWY_DASSERT(packet.Timestamp() == timestamp);
     return packet;
   }
 
   uint64_t Timestamp() const { return bits_ & kTimestampMask; }
 
-  size_t BiasedOffset() const { return (bits_ >> kTimestampBits); }
+  size_t BiasedOffset() const {
+    const size_t biased_offset = (bits_ >> kTimestampBits);
+    HWY_DASSERT(biased_offset != 0);
+    HWY_DASSERT(biased_offset < (1ULL << kOffsetBits));
+    return biased_offset;
+  }
 
  private:
   uint64_t bits_;
 };
 static_assert(sizeof(Packet) == 8, "Wrong Packet size");
 
-// Returns the address of a string literal. Assuming zone names are also
-// literals and stored nearby, we can represent them as offsets, which are
-// faster to compute than hashes or even a static index.
-//
-// This function must not be static - each call (even from other translation
-// units) must return the same value.
-inline const char* StringOrigin() {
-  // Chosen such that no zone name is a prefix nor suffix of this string
-  // to ensure they aren't merged (offset 0 identifies zone-exit packets).
-  static const char* string_origin = "__#__";
-  return string_origin - Packet::kOffsetBias;
-}
+// All translation units must use the same string origin. A static member
+// function ensures this without requiring a separate .cc file.
+struct StringOrigin {
+  // Returns the address of a string literal. Assuming zone names are also
+  // literals and stored nearby, we can represent them as offsets from this,
+  // which is faster to compute than hashes or even a static index.
+  static const char* Get() {
+    // Chosen such that no zone name is a prefix nor suffix of this string
+    // to ensure they aren't merged. Note zone exit packets use
+    // `biased_offset == kOffsetBias`.
+    static const char* string_origin = "__#__";
+    return string_origin - Packet::kOffsetBias;
+  }
+};
 
 // Representation of an active zone, stored in a stack. Used to deduct
 // child duration from the parent's self time. POD.
@@ -151,18 +150,36 @@ static_assert(sizeof(Node) == 16, "Wrong Node size");
 struct Accumulator {
   static constexpr size_t kNumCallBits = 64 - Packet::kOffsetBits;
 
-  uint64_t BiasedOffset() const { return u128.lo >> kNumCallBits; }
+  uint64_t BiasedOffset() const {
+    const size_t biased_offset = u128.lo >> kNumCallBits;
+    HWY_DASSERT(biased_offset != 0);
+    HWY_DASSERT(biased_offset < (1ULL << Packet::kOffsetBits));
+    return biased_offset;
+  }
   uint64_t NumCalls() const { return u128.lo & ((1ULL << kNumCallBits) - 1); }
   uint64_t Duration() const { return u128.hi; }
 
   void Set(uint64_t biased_offset, uint64_t num_calls, uint64_t duration) {
+    HWY_DASSERT(biased_offset != 0);
+    HWY_DASSERT(biased_offset < (1ULL << Packet::kOffsetBits));
+    HWY_DASSERT(num_calls < (1ULL << kNumCallBits));
+
     u128.hi = duration;
     u128.lo = (biased_offset << kNumCallBits) + num_calls;
+
+    HWY_DASSERT(BiasedOffset() == biased_offset);
+    HWY_DASSERT(NumCalls() == num_calls);
+    HWY_DASSERT(Duration() == duration);
   }
 
   void Add(uint64_t num_calls, uint64_t duration) {
+    const uint64_t biased_offset = BiasedOffset();
+    (void)biased_offset;
+
     u128.lo += num_calls;
     u128.hi += duration;
+
+    HWY_DASSERT(biased_offset == BiasedOffset());
   }
 
   // For fast sorting by duration, which must therefore be the hi element.
@@ -182,7 +199,10 @@ inline T ClampedSubtract(const T minuend, const T subtrahend) {
 // Per-thread call graph (stack) and Accumulator for each zone.
 class Results {
  public:
-  Results() { ZeroBytes(zones_, sizeof(zones_)); }
+  Results() {
+    ZeroBytes(nodes_, sizeof(nodes_));
+    ZeroBytes(zones_, sizeof(zones_));
+  }
 
   // Used for computing overhead when this thread encounters its first Zone.
   // This has no observable effect apart from increasing "analyze_elapsed_".
@@ -191,7 +211,7 @@ class Results {
     HWY_DASSERT(num_zones_ == 0);
     AnalyzePackets(packets, 2);
     const uint64_t duration = zones_[0].Duration();
-    zones_[0].Set(0, 0, 0);
+    zones_[0].Set(1, 0, 0);  // avoids triggering biased_offset = 0 checks
     HWY_DASSERT(depth_ == 0);
     num_zones_ = 0;
     return duration;
@@ -217,6 +237,7 @@ class Results {
       if (p.BiasedOffset() != Packet::kOffsetBias) {
         HWY_DASSERT(depth_ < kMaxDepth);
         nodes_[depth_].packet = p;
+        HWY_DASSERT(p.BiasedOffset() != 0);
         nodes_[depth_].child_total = 0;
         ++depth_;
         continue;
@@ -245,7 +266,7 @@ class Results {
 
   // Incorporates results from another thread. Call after all threads have
   // exited any zones.
-  void Assimilate(const Results& other) {
+  void Assimilate(Results& other) {
     namespace hn = HWY_NAMESPACE;
     const uint64_t t0 = hn::timer::Start();
     HWY_DASSERT(depth_ == 0);
@@ -255,6 +276,7 @@ class Results {
       const Accumulator& zone = other.zones_[i];
       UpdateOrAdd(zone.BiasedOffset(), zone.NumCalls(), zone.Duration());
     }
+    other.num_zones_ = 0;
     const uint64_t t1 = hn::timer::Stop();
     analyze_elapsed_ += t1 - t0 + other.analyze_elapsed_;
   }
@@ -268,21 +290,22 @@ class Results {
     // Sort by decreasing total (self) cost.
     // VQSort(&zones_[0].u128, num_zones_, SortDescending());
     std::sort(zones_, zones_ + num_zones_,
-              [](const Accumulator& r1, const Accumulator& r2) {
-                return r1.Duration() > r2.Duration();
+              [](const Accumulator& z1, const Accumulator& z2) {
+                return z1.Duration() > z2.Duration();
               });
 
     const double inv_freq = 1.0 / platform::InvariantTicksPerSecond();
 
-    const char* string_origin = StringOrigin();
+    const char* string_origin = StringOrigin::Get();
     for (size_t i = 0; i < num_zones_; ++i) {
-      const Accumulator& r = zones_[i];
-      const size_t num_calls = r.NumCalls();
-      const double duration = static_cast<double>(r.Duration());
+      const Accumulator& z = zones_[i];
+      const size_t num_calls = z.NumCalls();
+      const double duration = static_cast<double>(z.Duration());
       printf("%-40s: %10zu x %15.0f = %9.6f\n",
-             string_origin + r.BiasedOffset(), num_calls, duration / num_calls,
+             string_origin + z.BiasedOffset(), num_calls, duration / num_calls,
              duration * inv_freq);
     }
+    num_zones_ = 0;
 
     const uint64_t t1 = hn::timer::Stop();
     analyze_elapsed_ += t1 - t0;
@@ -294,16 +317,15 @@ class Results {
   // Updates an existing Accumulator (uniquely identified by biased_offset) or
   // adds one if this is the first time this thread analyzed that zone.
   // Uses a self-organizing list data structure, which avoids dynamic memory
-  // allocations and is far faster than unordered_map. Loads, updates and
-  // stores the entire Accumulator with vector instructions.
+  // allocations and is far faster than unordered_map.
   void UpdateOrAdd(const size_t biased_offset, const uint64_t num_calls,
                    const uint64_t duration) {
+    HWY_DASSERT(biased_offset != 0);
     HWY_DASSERT(biased_offset < (1ULL << Packet::kOffsetBits));
 
     // Special case for first zone: (maybe) update, without swapping.
-    if (zones_[0].BiasedOffset() == biased_offset) {
+    if (num_zones_ != 0 && zones_[0].BiasedOffset() == biased_offset) {
       zones_[0].Add(num_calls, duration);
-      HWY_DASSERT(zones_[0].BiasedOffset() == biased_offset);
       return;
     }
 
@@ -311,7 +333,6 @@ class Results {
     for (size_t i = 1; i < num_zones_; ++i) {
       if (zones_[i].BiasedOffset() == biased_offset) {
         zones_[i].Add(num_calls, duration);
-        HWY_DASSERT(zones_[i].BiasedOffset() == biased_offset);
         // Swap with predecessor (more conservative than move to front,
         // but at least as successful).
         const Accumulator prev = zones_[i - 1];
@@ -323,9 +344,7 @@ class Results {
 
     // Not found; create a new Accumulator.
     HWY_DASSERT(num_zones_ < kMaxZones);
-    Accumulator* HWY_RESTRICT zone = zones_ + num_zones_;
-    zone->Set(biased_offset, num_calls, duration);
-    HWY_DASSERT(zone->BiasedOffset() == biased_offset);
+    zones_[num_zones_].Set(biased_offset, num_calls, duration);
     ++num_zones_;
   }
 
@@ -333,7 +352,7 @@ class Results {
   // __func__ and GCC doesn't merge them. An N^2 search for duplicates is
   // acceptable because we only expect a few dozen zones.
   void MergeDuplicates() {
-    const char* string_origin = StringOrigin();
+    const char* string_origin = StringOrigin::Get();
     for (size_t i = 0; i < num_zones_; ++i) {
       const size_t biased_offset = zones_[i].BiasedOffset();
       const char* name = string_origin + biased_offset;
@@ -345,14 +364,14 @@ class Results {
         if (!strcmp(name, string_origin + zones_[j].BiasedOffset())) {
           num_calls += zones_[j].NumCalls();
           zones_[i].Add(0, zones_[j].Duration());
-          // Fill hole with last item.
+          // j was the last zone, so we are done.
+          if (j == num_zones_ - 1) break;
+          // Replace current zone with the last one, and check it next.
           zones_[j] = zones_[--num_zones_];
         } else {  // Name differed, try next Accumulator.
           ++j;
         }
       }
-
-      HWY_DASSERT(num_calls < (1ULL << Accumulator::kNumCallBits));
 
       // Re-pack regardless of whether any duplicates were found.
       zones_[i].Set(biased_offset, num_calls, zones_[i].Duration());
@@ -380,20 +399,21 @@ class ThreadSpecific {
       : max_packets_((PROFILER_THREAD_STORAGE << 20) / sizeof(Packet)),
         packets_(AllocateAligned<Packet>(max_packets_)),
         num_packets_(0),
-        string_origin_(StringOrigin()) {
+        string_origin_(StringOrigin::Get()) {
     // Even in optimized builds, verify that this zone's name offset fits
     // within the allotted space. If not, UpdateOrAdd is likely to overrun
     // zones_[]. Checking here on the cold path (only reached once per thread)
     // is cheap, but it only covers one zone.
     const size_t biased_offset = name - string_origin_;
-    HWY_ASSERT(biased_offset <= (1ULL << Packet::kOffsetBits));
+    HWY_ASSERT(biased_offset < (1ULL << Packet::kOffsetBits));
   }
 
   // Depends on Zone => defined below.
   void ComputeOverhead();
 
   void WriteEntry(const char* name, const uint64_t timestamp) {
-    const size_t biased_offset = name - string_origin_;
+    HWY_DASSERT(name >= string_origin_);
+    const size_t biased_offset = static_cast<size_t>(name - string_origin_);
     Write(Packet::Make(biased_offset, timestamp));
   }
 
@@ -422,6 +442,19 @@ class ThreadSpecific {
   Results& GetResults() { return results_; }
 
  private:
+  // Overwrites "to" while attempting to bypass the cache (read-for-ownership).
+  // Both pointers must be aligned.
+  static void StreamCacheLine(const uint64_t* HWY_RESTRICT from,
+                              uint64_t* HWY_RESTRICT to) {
+#if HWY_COMPILER_CLANG
+    for (size_t i = 0; i < HWY_ALIGNMENT / sizeof(uint64_t); ++i) {
+      __builtin_nontemporal_store(from[i], to + i);
+    }
+#else
+    hwy::CopyBytes(from, to, HWY_ALIGNMENT);
+#endif
+  }
+
   // Write packet to buffer/storage, emptying them as needed.
   void Write(const Packet packet) {
     // Buffer full => copy to storage.
@@ -453,7 +486,7 @@ class ThreadSpecific {
   AlignedFreeUniquePtr<Packet[]> packets_;
   size_t num_packets_;
   // Cached here because we already read this cache line on zone entry/exit.
-  const char* HWY_RESTRICT string_origin_;
+  const char* string_origin_;
   Results results_;
 };
 
@@ -498,7 +531,7 @@ class ThreadList {
 // responsible for initializing ThreadSpecific.
 class Zone {
  public:
-  // "name" must be a string literal (see StringOrigin).
+  // "name" must be a string literal (see StringOrigin::Get).
   HWY_NOINLINE explicit Zone(const char* name) {
     HWY_FENCE;
     ThreadSpecific* HWY_RESTRICT thread_specific = StaticThreadSpecific();
