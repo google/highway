@@ -6040,6 +6040,24 @@ HWY_INLINE MFromD<D> Lt128Upper(D d, const VFromD<D> a, const VFromD<D> b) {
 }
 
 // ------------------------------ Eq128
+#if HWY_COMPILER_CLANG >= 1700 || HWY_COMPILER_GCC_ACTUAL >= 1400
+
+template <class D>
+HWY_INLINE MFromD<D> Eq128(D d, const VFromD<D> a, const VFromD<D> b) {
+  static_assert(IsSame<TFromD<D>, uint64_t>(), "D must be u64");
+  auto du8mf8 = ScalableTag<uint8_t, -3>{};
+  const vuint8mf8_t eqHL =
+      detail::ChangeLMUL(du8mf8, detail::MaskToU8MaskBitsVec(Eq(a, b)));
+  const vuint8mf8_t eqxH = ShiftRight<1>(eqHL);
+  const vuint8mf8_t result0L = detail::AndS(And(eqHL, eqxH), 0x55);
+  const vuint8mf8_t resultH0 = Add(result0L, result0L);
+  auto du8m1 = ScalableTag<uint8_t>{};
+  return detail::U8MaskBitsVecToMask(
+      d, detail::ChangeLMUL(du8m1, Or(result0L, resultH0)));
+}
+
+#else
+
 template <class D>
 HWY_INLINE MFromD<D> Eq128(D d, const VFromD<D> a, const VFromD<D> b) {
   static_assert(IsSame<TFromD<D>, uint64_t>(), "D must be u64");
@@ -6050,6 +6068,8 @@ HWY_INLINE MFromD<D> Eq128(D d, const VFromD<D> a, const VFromD<D> b) {
   asm volatile("" : : "r,m"(GetLane(eq)) : "memory");
   return MaskFromVec(eq);
 }
+
+#endif
 
 // ------------------------------ Eq128Upper
 template <class D>
