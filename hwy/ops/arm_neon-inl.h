@@ -879,10 +879,10 @@ using Vec16 = Vec128<T, 2 / sizeof(T)>;
 // FF..FF or 0.
 template <typename T, size_t N = 16 / sizeof(T)>
 class Mask128 {
+ public:
   // Arm C Language Extensions return and expect unsigned type.
   using Raw = typename detail::Raw128<MakeUnsigned<T>, N>::type;
 
- public:
   using PrivateT = T;                     // only for DFromM
   static constexpr size_t kPrivateN = N;  // only for DFromM
 
@@ -5335,10 +5335,62 @@ HWY_API Vec128<int32_t, N> NearestInt(const Vec128<float, N> v) {
 #endif
 
 // ------------------------------ Floating-point classification
+
+#if !HWY_COMPILER_CLANG || HWY_COMPILER_CLANG > 1801 || HWY_ARCH_ARM_V7
 template <typename T, size_t N>
 HWY_API Mask128<T, N> IsNaN(const Vec128<T, N> v) {
   return v != v;
 }
+#else
+// Clang up to 18.1 generates less efficient code than the expected FCMEQ, see
+// https://github.com/numpy/numpy/issues/27313 and
+// https://github.com/numpy/numpy/pull/22954/files and
+// https://github.com/llvm/llvm-project/issues/59855
+
+#if HWY_HAVE_FLOAT16
+template <typename T, size_t N, HWY_IF_F16(T), HWY_IF_V_SIZE(T, N, 16)>
+HWY_API Mask128<T, N> IsNaN(const Vec128<T, N> v) {
+  typename Mask128<T, N>::Raw ret;
+  __asm__ volatile("fcmeq %0.8h, %1.8h, %1.8h" : "=w"(ret) : "w"(v.raw));
+  return Not(Mask128<T, N>(ret));
+}
+template <typename T, size_t N, HWY_IF_F16(T), HWY_IF_V_SIZE_LE(T, N, 8)>
+HWY_API Mask128<T, N> IsNaN(const Vec128<T, N> v) {
+  typename Mask128<T, N>::Raw ret;
+  __asm__ volatile("fcmeq %0.4h, %1.4h, %1.4h" : "=w"(ret) : "w"(v.raw));
+  return Not(Mask128<T, N>(ret));
+}
+#endif  // HWY_HAVE_FLOAT16
+
+template <typename T, size_t N, HWY_IF_F32(T), HWY_IF_V_SIZE(T, N, 16)>
+HWY_API Mask128<T, N> IsNaN(const Vec128<T, N> v) {
+  typename Mask128<T, N>::Raw ret;
+  __asm__ volatile("fcmeq %0.4s, %1.4s, %1.4s" : "=w"(ret) : "w"(v.raw));
+  return Not(Mask128<T, N>(ret));
+}
+template <typename T, size_t N, HWY_IF_F32(T), HWY_IF_V_SIZE_LE(T, N, 8)>
+HWY_API Mask128<T, N> IsNaN(const Vec128<T, N> v) {
+  typename Mask128<T, N>::Raw ret;
+  __asm__ volatile("fcmeq %0.2s, %1.2s, %1.2s" : "=w"(ret) : "w"(v.raw));
+  return Not(Mask128<T, N>(ret));
+}
+
+#if HWY_HAVE_FLOAT64
+template <typename T, size_t N, HWY_IF_F64(T), HWY_IF_V_SIZE(T, N, 16)>
+HWY_API Mask128<T, N> IsNaN(const Vec128<T, N> v) {
+  typename Mask128<T, N>::Raw ret;
+  __asm__ volatile("fcmeq %0.2d, %1.2d, %1.2d" : "=w"(ret) : "w"(v.raw));
+  return Not(Mask128<T, N>(ret));
+}
+template <typename T, size_t N, HWY_IF_F64(T), HWY_IF_V_SIZE_LE(T, N, 8)>
+HWY_API Mask128<T, N> IsNaN(const Vec128<T, N> v) {
+  typename Mask128<T, N>::Raw ret;
+  __asm__ volatile("fcmeq %d0, %d1, %d1" : "=w"(ret) : "w"(v.raw));
+  return Not(Mask128<T, N>(ret));
+}
+#endif  // HWY_HAVE_FLOAT64
+
+#endif  // HWY_COMPILER_CLANG
 
 // ================================================== SWIZZLE
 
