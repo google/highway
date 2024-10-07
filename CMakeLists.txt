@@ -59,6 +59,33 @@ if(CHECK_PIE_SUPPORTED)
   endif()
 endif()
 
+if (CMAKE_CXX_COMPILER_ARCHITECTURE_ID MATCHES "RISCV32|RISCV64|RISCV128" OR CMAKE_SYSTEM_PROCESSOR MATCHES "riscv32|riscv64|riscv128")
+  include(CheckCSourceCompiles)
+  check_c_source_compiles("
+  #if __riscv_xlen == 64
+  int main() { return 0; }
+  #else
+  #error Not RISCV-64
+  #endif
+  " IS_RISCV_XLEN_64)
+
+  check_c_source_compiles("
+  #if __riscv_xlen == 32
+  int main() { return 0; }
+  #else
+  #error Not RISCV-32
+  #endif
+  " IS_RISCV_XLEN_32)
+
+  if(IS_RISCV_XLEN_32)
+    set(RISCV_XLEN 32)
+  elseif(IS_RISCV_XLEN_64)
+    set(RISCV_XLEN 64)
+  else()
+    message(WARNING "Unable to determine RISC-V XLEN")
+  endif()
+endif()
+
 include(GNUInstallDirs)
 
 if (NOT CMAKE_BUILD_TYPE)
@@ -72,7 +99,7 @@ set(HWY_CMAKE_ARM7 OFF CACHE BOOL "Set copts for Armv7 with NEON (requires vfpv4
 # skipped. For GCC 13.1+, you can also build with -fexcess-precision=standard.
 set(HWY_CMAKE_SSE2 OFF CACHE BOOL "Set SSE2 as baseline for 32-bit x86?")
 
-# Currently this will compile the entire codebase with `-march=rv64gcv1p0`:
+# Currently this will compile the entire codebase with `-march=rv<XLEN>gcv1p0`:
 set(HWY_CMAKE_RVV ON CACHE BOOL "Set copts for RISCV with RVV?")
 
 # Unconditionally adding -Werror risks breaking the build when new warnings
@@ -384,8 +411,13 @@ else()
     # we add the gcv compiler flag, which then requires the CPU (now when using
     # either compiler) to support V.
     if(HWY_CMAKE_RVV)
-      list(APPEND HWY_FLAGS -march=rv64gcv1p0)
-      add_link_options(-march=rv64gcv1p0)
+      if(RISCV_XLEN EQUAL 64)
+        list(APPEND HWY_FLAGS -march=rv64gcv1p0)
+        add_link_options(-march=rv64gcv1p0)
+      elseif(RISCV_XLEN EQUAL 32)
+        list(APPEND HWY_FLAGS -march=rv32gcv1p0)
+        add_link_options(-march=rv32gcv1p0)
+      endif()
       if(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
         list(APPEND HWY_FLAGS -menable-experimental-extensions)
       endif()
