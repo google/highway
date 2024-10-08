@@ -95,9 +95,9 @@ struct Topology {
     uint16_t core = 0;     // < packages[package].cores.size()
     uint8_t package = 0;   // < packages.size()
     uint8_t smt = 0;       // < packages[package].cores[core].lps.Count()
+    uint8_t node = 0;
 
-    uint8_t reserved1 = 0;
-    uint8_t reserved2 = 0;
+    uint8_t reserved = 0;
   };
 #pragma pack(pop)
   std::vector<LP> lps;  // size() == TotalLogicalProcessors().

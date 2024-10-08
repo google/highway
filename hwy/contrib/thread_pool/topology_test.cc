@@ -49,6 +49,14 @@ TEST(TopologyTest, TestTopology) {
   if (topology.packages.empty()) return;
 
   HWY_ASSERT(!topology.lps.empty());
+  LogicalProcessorSet nodes;
+  for (size_t lp = 0; lp < topology.lps.size(); ++lp) {
+    const size_t node = static_cast<size_t>(topology.lps[lp].node);
+    if (!nodes.Get(node)) {
+      fprintf(stderr, "Found NUMA node %zu, LP %zu\n", node, lp);
+      nodes.Set(node);
+    }
+  }
 
   size_t lps_by_cluster = 0;
   size_t lps_by_core = 0;

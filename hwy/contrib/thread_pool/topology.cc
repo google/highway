@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>  // strchr
 
 #include <map>
 #include <thread>  // NOLINT
@@ -281,39 +282,60 @@ class File {
   int fd_;
 };
 
-// Interprets as base-10 ASCII, handling an K or M suffix if present.
-bool ParseSysfs(const char* str, size_t len, size_t* out) {
-  size_t value = 0;
-  // 9 digits cannot overflow even 32-bit size_t.
-  size_t pos = 0;
-  for (; pos < HWY_MIN(len, 9); ++pos) {
-    const int c = str[pos];
-    if (c < '0' || c > '9') break;
-    value *= 10;
-    value += static_cast<size_t>(c - '0');
-  }
-  if (pos == 0) {  // No digits found
-    *out = 0;
-    return false;
-  }
-  if (str[pos] == 'K') value <<= 10;
-  if (str[pos] == 'M') value <<= 20;
-  *out = value;
-  return true;
-}
-
-bool ReadSysfs(const char* format, size_t lp, size_t* out) {
+// Returns bytes read, or 0 on failure.
+size_t ReadSysfs(const char* format, size_t lp, char* buf200) {
   char path[200];
   const int bytes_written = snprintf(path, sizeof(path), format, lp);
   HWY_ASSERT(0 < bytes_written &&
              bytes_written < static_cast<int>(sizeof(path) - 1));
 
   const File file(path);
-  char buf200[200];
-  const size_t pos = file.Read(buf200);
-  if (pos == 0) return false;
+  return file.Read(buf200);
+}
 
-  return ParseSysfs(buf200, pos, out);
+// Interprets [str + pos, str + end) as base-10 ASCII. Stops when any non-digit
+// is found, or at end. Returns false if no digits found.
+bool ParseDigits(const char* str, const size_t end, size_t& pos, size_t* out) {
+  HWY_ASSERT(pos <= end);
+  // 9 digits cannot overflow even 32-bit size_t.
+  const size_t stop = pos + 9;
+  *out = 0;
+  for (; pos < HWY_MIN(end, stop); ++pos) {
+    const int c = str[pos];
+    if (c < '0' || c > '9') break;
+    *out *= 10;
+    *out += static_cast<size_t>(c - '0');
+  }
+  if (pos == 0) {  // No digits found
+    *out = 0;
+    return false;
+  }
+  return true;
+}
+
+// Number, plus optional K or M suffix, plus terminator.
+bool ParseNumberWithOptionalSuffix(const char* str, size_t len, size_t* out) {
+  size_t pos = 0;
+  if (!ParseDigits(str, len, pos, out)) return false;
+  if (str[pos] == 'K') {
+    *out <<= 10;
+    ++pos;
+  }
+  if (str[pos] == 'M') {
+    *out <<= 20;
+    ++pos;
+  }
+  if (str[pos] != '\0' && str[pos] != '\n') {
+    HWY_ABORT("Expected [suffix] terminator at %zu %s\n", pos, str);
+  }
+  return true;
+}
+
+bool ReadNumberWithOptionalSuffix(const char* format, size_t lp, size_t* out) {
+  char buf200[200];
+  const size_t pos = ReadSysfs(format, lp, buf200);
+  if (pos == 0) return false;
+  return ParseNumberWithOptionalSuffix(buf200, pos, out);
 }
 
 const char* kPackage =
@@ -322,6 +344,7 @@ const char* kCluster = "/sys/devices/system/cpu/cpu%zu/cache/index3/id";
 const char* kCore = "/sys/devices/system/cpu/cpu%zu/topology/core_id";
 const char* kL2Size = "/sys/devices/system/cpu/cpu%zu/cache/index2/size";
 const char* kL3Size = "/sys/devices/system/cpu/cpu%zu/cache/index3/size";
+const char* kNode = "/sys/devices/system/node/node%zu/cpulist";
 
 // sysfs values can be arbitrarily large, so store in a map and replace with
 // indices in order of appearance.
@@ -332,7 +355,7 @@ class Remapper {
   template <typename T>
   bool operator()(const char* format, size_t lp, T* HWY_RESTRICT out_index) {
     size_t opaque;
-    if (!ReadSysfs(format, lp, &opaque)) return false;
+    if (!ReadNumberWithOptionalSuffix(format, lp, &opaque)) return false;
 
     const auto ib = indices_.insert({opaque, num_});
     num_ += ib.second;                      // increment if inserted
@@ -382,6 +405,71 @@ std::vector<PerPackage> DetectPackages(std::vector<Topology::LP>& lps) {
   return per_package;
 }
 
+// Sets LP.node for all `lps`.
+void SetNodes(std::vector<Topology::LP>& lps) {
+  // For each NUMA node found via sysfs:
+  for (size_t node = 0;; node++) {
+    // Read its cpulist so we can scatter `node` to all its `lps`.
+    char buf200[200];
+    const size_t bytes_read = ReadSysfs(kNode, node, buf200);
+    if (bytes_read == 0) break;
+
+    constexpr size_t kNotFound = ~size_t{0};
+    size_t pos = 0;
+
+    // Returns first `found_pos >= pos` where `buf200[found_pos] == c`, or
+    // `kNotFound`.
+    const auto find = [buf200, &pos](char c) -> size_t {
+      const char* found_ptr = strchr(buf200 + pos, c);
+      if (found_ptr == nullptr) return kNotFound;
+      const size_t found_pos = found_ptr - buf200;
+      HWY_ASSERT(found_pos >= pos && buf200[found_pos] == c);
+      return found_pos;
+    };
+
+    // Reads LP number and advances `pos`. `end` is for verifying we did not
+    // read past a known terminator, or the end of string.
+    const auto parse_lp = [buf200, bytes_read, &pos,
+                           &lps](size_t end) -> size_t {
+      end = HWY_MIN(end, bytes_read);
+      size_t lp;
+      HWY_ASSERT(ParseDigits(buf200, end, pos, &lp));
+      HWY_ASSERT(lp < lps.size());
+      HWY_ASSERT(pos <= end);
+      return lp;
+    };
+
+    // Parse all [first-]last separated by commas.
+    for (;;) {
+      // Single number or first of range: ends with dash, comma, or end.
+      const size_t lp_range_first = parse_lp(HWY_MIN(find('-'), find(',')));
+
+      if (buf200[pos] == '-') {  // range
+        ++pos;                   // skip dash
+        // Last of range ends with comma or end.
+        const size_t lp_range_last = parse_lp(find(','));
+
+        for (size_t lp = lp_range_first; lp <= lp_range_last; ++lp) {
+          lps[lp].node = static_cast<uint8_t>(node);
+        }
+      } else {  // single number
+        lps[lp_range_first].node = static_cast<uint8_t>(node);
+      }
+
+      // Done if reached end of string.
+      if (pos == bytes_read || buf200[pos] == '\0' || buf200[pos] == '\n') {
+        break;
+      }
+      // Comma means at least one more term is coming.
+      if (buf200[pos] == ',') {
+        ++pos;
+        continue;
+      }
+      HWY_ABORT("Unexpected character at %zu in %s\n", pos, buf200);
+    }  // for pos
+  }  // for node
+}
+
 }  // namespace
 #endif  // HWY_OS_LINUX
 
@@ -390,6 +478,7 @@ HWY_CONTRIB_DLLEXPORT Topology::Topology() {
   lps.resize(TotalLogicalProcessors());
   const std::vector<PerPackage>& per_package = DetectPackages(lps);
   if (per_package.empty()) return;
+  SetNodes(lps);
 
   // Allocate per-package/cluster/core vectors. This indicates to callers that
   // detection succeeded.
@@ -413,10 +502,10 @@ HWY_CONTRIB_DLLEXPORT Topology::Topology() {
       Cluster& c = p.clusters[ic];
       const size_t lp = c.lps.First();
       size_t bytes;
-      if (ReadSysfs(kL2Size, lp, &bytes)) {
+      if (ReadNumberWithOptionalSuffix(kL2Size, lp, &bytes)) {
         c.private_kib = bytes >> 10;
       }
-      if (ReadSysfs(kL3Size, lp, &bytes)) {
+      if (ReadNumberWithOptionalSuffix(kL3Size, lp, &bytes)) {
         c.shared_kib = bytes >> 10;
       }
     }
