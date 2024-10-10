@@ -105,7 +105,7 @@ class Packet {
         (biased_offset << kTimestampBits) + (timestamp & kTimestampMask);
 
     HWY_DASSERT(packet.BiasedOffset() == biased_offset);
-    HWY_DASSERT(packet.Timestamp() == timestamp);
+    HWY_DASSERT(packet.Timestamp() == (timestamp & kTimestampMask));
     return packet;
   }
 

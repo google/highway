@@ -181,14 +181,14 @@ static inline constexpr size_t ShiftCount(size_t n) {
 
 template <typename T>
 T* AllocateAlignedItems(size_t items, AllocPtr alloc_ptr, void* opaque_ptr) {
-  constexpr size_t size = sizeof(T);
+  constexpr size_t kSize = sizeof(T);
 
-  constexpr bool is_pow2 = (size & (size - 1)) == 0;
-  constexpr size_t bits = ShiftCount(size);
-  static_assert(!is_pow2 || (1ull << bits) == size, "ShiftCount is incorrect");
+  constexpr bool kIsPow2 = (kSize & (kSize - 1)) == 0;
+  constexpr size_t kBits = ShiftCount(kSize);
+  static_assert(!kIsPow2 || (1ull << kBits) == kSize, "ShiftCount has a bug");
 
-  const size_t bytes = is_pow2 ? items << bits : items * size;
-  const size_t check = is_pow2 ? bytes >> bits : bytes / size;
+  const size_t bytes = kIsPow2 ? items << kBits : items * kSize;
+  const size_t check = kIsPow2 ? bytes >> kBits : bytes / kSize;
   if (check != items) {
     return nullptr;  // overflowed
   }
