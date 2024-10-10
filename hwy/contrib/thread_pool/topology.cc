@@ -422,7 +422,8 @@ void SetNodes(std::vector<Topology::LP>& lps) {
     const auto find = [buf200, &pos](char c) -> size_t {
       const char* found_ptr = strchr(buf200 + pos, c);
       if (found_ptr == nullptr) return kNotFound;
-      const size_t found_pos = found_ptr - buf200;
+      HWY_ASSERT(found_ptr >= buf200 + pos);
+      const size_t found_pos = static_cast<size_t>(found_ptr - buf200);
       HWY_ASSERT(found_pos >= pos && buf200[found_pos] == c);
       return found_pos;
     };
