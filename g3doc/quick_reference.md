@@ -678,6 +678,24 @@ is qNaN, and NaN if both are.
 
 *   <code>V **Max**(V a, V b)</code>: returns `max(a[i], b[i])`.
 
+*   <code>V **MinMagnitude**(V a, V b)</code>: returns the number with the
+    smaller magnitude if `a[i]` and `b[i]` are both non-NaN values.
+
+    If `a[i]` and `b[i]` are both non-NaN, `MinMagnitude(a, b)` returns
+    `(|a[i]| < |b[i]| || (|a[i]| == |b[i]| && a[i] < b[i])) ? a[i] : b[i]`.
+
+    Otherwise, the results of `MinMagnitude(a, b)` are implementation-defined
+    if `a[i]` is NaN or `b[i]` is NaN.
+
+*   <code>V **MaxMagnitude**(V a, V b)</code>: returns the number with the
+    larger magnitude if `a[i]` and `b[i]` are both non-NaN values.
+
+    If `a[i]` and `b[i]` are both non-NaN, `MaxMagnitude(a, b)` returns
+    `(|a[i]| < |b[i]| || (|a[i]| == |b[i]| && a[i] < b[i])) ? b[i] : a[i]`.
+
+    Otherwise, the results of `MaxMagnitude(a, b)` are implementation-defined
+    if `a[i]` is NaN or `b[i]` is NaN.
+
 All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
 
 *   `V`: `u64` \
