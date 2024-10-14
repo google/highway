@@ -21,7 +21,6 @@
 #include <string.h>  // strchr
 
 #include <map>
-#include <thread>  // NOLINT
 #include <vector>
 
 #include "hwy/detect_compiler_arch.h"  // HWY_OS_WIN
@@ -40,10 +39,13 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
+#include <errno.h>
+#include <fcntl.h>
 #include <pthread.h>
 #include <sched.h>
+#include <sys/stat.h>
 #include <sys/types.h>
-#include <unistd.h>
+#include <unistd.h>  // sysconf
 #endif  // HWY_OS_LINUX || HWY_OS_FREEBSD
 
 #if HWY_OS_FREEBSD
@@ -54,12 +56,6 @@
 #if HWY_ARCH_WASM
 #include <emscripten/threading.h>
 #endif
-
-#if HWY_OS_LINUX
-#include <errno.h>
-#include <fcntl.h>
-#include <sys/stat.h>
-#endif  // HWY_OS_LINUX
 
 #include "hwy/base.h"
 
@@ -78,27 +74,39 @@ HWY_CONTRIB_DLLEXPORT size_t TotalLogicalProcessors() {
 #if HWY_ARCH_WASM
   const int num_cores = emscripten_num_logical_cores();
   if (num_cores > 0) lp = static_cast<size_t>(num_cores);
-#else
-  const unsigned concurrency = std::thread::hardware_concurrency();
-  if (concurrency != 0) lp = static_cast<size_t>(concurrency);
+#elif HWY_OS_WIN
+  SYSTEM_INFO sysinfo;
+  GetSystemInfo(&sysinfo);  // always succeeds
+  // WARNING: this is only for the current group, hence limited to 64.
+  lp = static_cast<size_t>(sysinfo.dwNumberOfProcessors);
+#elif HWY_OS_LINUX
+  // Use configured, not "online" (_SC_NPROCESSORS_ONLN), because we want an
+  // upper bound.
+  const long ret = sysconf(_SC_NPROCESSORS_CONF);  // NOLINT(runtime/int)
+  if (ret < 0) {
+    fprintf(stderr, "Unexpected value of _SC_NPROCESSORS_CONF: %d\n",
+            static_cast<int>(ret));
+  } else {
+    lp = static_cast<size_t>(ret);
+  }
 #endif
 
-  // WASM or C++ stdlib failed to detect #CPUs.
-  if (lp == 0) {
-    if (HWY_IS_DEBUG_BUILD) {
-      fprintf(
-          stderr,
-          "Unknown TotalLogicalProcessors. HWY_OS_: WIN=%d LINUX=%d APPLE=%d;\n"
-          "HWY_ARCH_: WASM=%d X86=%d PPC=%d ARM=%d RISCV=%d S390X=%d\n",
-          HWY_OS_WIN, HWY_OS_LINUX, HWY_OS_APPLE, HWY_ARCH_WASM, HWY_ARCH_X86,
-          HWY_ARCH_PPC, HWY_ARCH_ARM, HWY_ARCH_RISCV, HWY_ARCH_S390X);
+  if (HWY_UNLIKELY(lp == 0)) {  // Failed to detect.
+    HWY_IF_CONSTEXPR(HWY_IS_DEBUG_BUILD) {
+      fprintf(stderr,
+              "Unknown TotalLogicalProcessors, assuming 1. "
+              "HWY_OS_: WIN=%d LINUX=%d APPLE=%d;\n"
+              "HWY_ARCH_: WASM=%d X86=%d PPC=%d ARM=%d RISCV=%d S390X=%d\n",
+              HWY_OS_WIN, HWY_OS_LINUX, HWY_OS_APPLE, HWY_ARCH_WASM,
+              HWY_ARCH_X86, HWY_ARCH_PPC, HWY_ARCH_ARM, HWY_ARCH_RISCV,
+              HWY_ARCH_S390X);
     }
     return 1;
   }
 
   // Warn that we are clamping.
-  if (lp > kMaxLogicalProcessors) {
-    if (HWY_IS_DEBUG_BUILD) {
+  if (HWY_UNLIKELY(lp > kMaxLogicalProcessors)) {
+    HWY_IF_CONSTEXPR(HWY_IS_DEBUG_BUILD) {
       fprintf(stderr, "OS reports %zu processors but clamping to %zu\n", lp,
               kMaxLogicalProcessors);
     }
@@ -435,6 +443,11 @@ void SetNodes(std::vector<Topology::LP>& lps) {
       end = HWY_MIN(end, bytes_read);
       size_t lp;
       HWY_ASSERT(ParseDigits(buf200, end, pos, &lp));
+      HWY_IF_CONSTEXPR(HWY_ARCH_RISCV) {
+        // On RISC-V, both TotalLogicalProcessors and GetThreadAffinity may
+        // under-report the count, hence clamp.
+        lp = HWY_MIN(lp, lps.size() - 1);
+      }
       HWY_ASSERT(lp < lps.size());
       HWY_ASSERT(pos <= end);
       return lp;
