@@ -48,6 +48,7 @@ size_t last_bits = 0;
 uint64_t best_target = ~0ull;
 #endif
 namespace HWY_NAMESPACE {
+namespace {
 
 template <size_t kBits, typename T>
 T Random(RandomState& rng) {
@@ -222,20 +223,22 @@ void TestAllPack64() {
 #endif
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(BitPackTest);
 HWY_EXPORT_AND_TEST_P(BitPackTest, TestAllPack8);
 HWY_EXPORT_AND_TEST_P(BitPackTest, TestAllPack16);
 HWY_EXPORT_AND_TEST_P(BitPackTest, TestAllPack32);
 HWY_EXPORT_AND_TEST_P(BitPackTest, TestAllPack64);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

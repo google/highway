@@ -22,6 +22,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 template <class TTo>
 struct TestPromoteMaskTo {
@@ -330,19 +331,21 @@ HWY_NOINLINE void TestAllOrderedDemote2MasksTo() {
   ForUIF163264(ForShrinkableVectors<TestOrderedDemote2MasksTo>());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwyMaskConvertTest);
 HWY_EXPORT_AND_TEST_P(HwyMaskConvertTest, TestAllPromoteMaskTo);
 HWY_EXPORT_AND_TEST_P(HwyMaskConvertTest, TestAllDemoteMaskTo);
 HWY_EXPORT_AND_TEST_P(HwyMaskConvertTest, TestAllOrderedDemote2MasksTo);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

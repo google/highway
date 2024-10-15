@@ -34,6 +34,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 // We have had test failures caused by excess precision due to keeping
 // intermediate results in 80-bit x87 registers. One such failure mode is that
@@ -625,14 +626,15 @@ HWY_NOINLINE void TestAllHypot() {
   ForFloat3264Types(ForPartialVectors<TestHypot>());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwyMathTest);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAcos);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAcosh);
@@ -656,6 +658,7 @@ HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSinCosSin);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSinCosCos);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllHypot);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

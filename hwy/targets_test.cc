@@ -21,12 +21,14 @@
 #include "hwy/tests/hwy_gtest.h"
 #include "hwy/tests/test_util-inl.h"
 
+// Simulate another project having its own namespace.
 namespace fake {
+namespace {
 
 #define DECLARE_FUNCTION(TGT)                                                \
   namespace N_##TGT {                                                        \
     /* Function argument is just to ensure/demonstrate they are possible. */ \
-    int64_t FakeFunction(int) { return HWY_##TGT; }                          \
+    HWY_MAYBE_UNUSED int64_t FakeFunction(int) { return HWY_##TGT; }         \
     template <typename T>                                                    \
     int64_t FakeFunctionT(T) {                                               \
       return HWY_##TGT;                                                      \
@@ -141,9 +143,11 @@ void CheckFakeFunction() {
 #endif
 }
 
+}  // namespace
 }  // namespace fake
 
 namespace hwy {
+namespace {
 
 #if !HWY_TEST_STANDALONE
 class HwyTargetsTest : public testing::Test {};
@@ -179,6 +183,7 @@ TEST(HwyTargetsTest, DisabledTargetsTest) {
   DisableTargets(0);  // Reset the mask.
 }
 
+}  // namespace
 }  // namespace hwy
 
 HWY_TEST_MAIN();

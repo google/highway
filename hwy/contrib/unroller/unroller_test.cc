@@ -30,6 +30,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 template <typename T>
 T SimpleDot(const T* pa, const T* pb, size_t num) {
@@ -472,18 +473,20 @@ struct TestFind {
 
 void TestAllFind() { ForFloatTypes(ForPartialVectors<TestFind>()); }
 
+}  // namespace
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(UnrollerTest);
 HWY_EXPORT_AND_TEST_P(UnrollerTest, TestAllDot);
 HWY_EXPORT_AND_TEST_P(UnrollerTest, TestAllConvert);
 HWY_EXPORT_AND_TEST_P(UnrollerTest, TestAllFind);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

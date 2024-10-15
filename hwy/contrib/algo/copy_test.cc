@@ -37,6 +37,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 // Returns random integer in [0, 128), which fits in any lane type.
 template <typename T>
@@ -189,19 +190,21 @@ void TestAllCopyIf() {
   ForUI163264(ForPartialVectors<ForeachCountAndMisalign<TestCopyIf>>());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(CopyTest);
 HWY_EXPORT_AND_TEST_P(CopyTest, TestAllFill);
 HWY_EXPORT_AND_TEST_P(CopyTest, TestAllCopy);
 HWY_EXPORT_AND_TEST_P(CopyTest, TestAllCopyIf);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

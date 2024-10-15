@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stddef.h>
 #include <stdint.h>
 
 #undef HWY_TARGET_INCLUDE
@@ -24,6 +25,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 #ifndef HWY_NATIVE_FMA
 #error "Bug in set_macros-inl.h, did not set HWY_NATIVE_FMA"
@@ -164,19 +166,21 @@ HWY_NOINLINE void TestAllMulAddSub() {
   ForAllTypes(ForPartialVectors<TestMulAddSub>());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwyFmaTest);
 HWY_EXPORT_AND_TEST_P(HwyFmaTest, TestAllMulAdd);
 HWY_EXPORT_AND_TEST_P(HwyFmaTest, TestAllMulSub);
 HWY_EXPORT_AND_TEST_P(HwyFmaTest, TestAllMulAddSub);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

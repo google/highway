@@ -24,6 +24,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 template <typename T, size_t N, int kPow2>
 size_t DeduceN(Simd<T, N, kPow2>) {
@@ -327,19 +328,21 @@ HWY_NOINLINE void TestAllSameSizeResizeBitCast() {
 #endif
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwyCastTest);
 HWY_EXPORT_AND_TEST_P(HwyCastTest, TestAllBitCast);
 HWY_EXPORT_AND_TEST_P(HwyCastTest, TestAllResizeBitCastToOneLaneVect);
 HWY_EXPORT_AND_TEST_P(HwyCastTest, TestAllSameSizeResizeBitCast);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

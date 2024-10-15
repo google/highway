@@ -223,7 +223,7 @@
 #endif
 
 // SVE[2] require recent clang or gcc versions.
-#if (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1100) || \
+#if (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1900) || \
     (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1000)
 #define HWY_BROKEN_SVE (HWY_SVE | HWY_SVE2 | HWY_SVE_256 | HWY_SVE2_128)
 #else

@@ -22,6 +22,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {  // required: unique per target
+namespace {
 
 constexpr std::uint64_t tests = 1UL << 10;
 
@@ -287,15 +288,15 @@ void TestUniformCachedXorshiro() {
 }
 #endif
 
+}  // namespace
+// NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
-
 HWY_AFTER_NAMESPACE();  // required if not using HWY_ATTR
 
 #if HWY_ONCE
-
-// This macro declares a static array used for dynamic dispatch.
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwyRandomTest);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestSeeding);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestMultiThreadSeeding);
@@ -310,6 +311,7 @@ HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestNextFixedNUniformDist);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestUniformCachedXorshiro);
 #endif
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

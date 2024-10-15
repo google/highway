@@ -25,6 +25,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 template <class D>
 static void MulByPow2TestCases(
@@ -598,18 +599,20 @@ HWY_NOINLINE void TestAllMulByFloorPow2() {
   ForFloatTypes(ForPartialVectors<TestMulByFloorPow2>());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwyMulByPow2Test);
 HWY_EXPORT_AND_TEST_P(HwyMulByPow2Test, TestAllMulByPow2);
 HWY_EXPORT_AND_TEST_P(HwyMulByPow2Test, TestAllMulByFloorPow2);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

@@ -22,6 +22,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 struct ForeachVectorTestPerLaneSizeState {
   size_t num_of_lanes_mask;
@@ -627,14 +628,15 @@ HWY_NOINLINE void TestAllForPartialFixedOrFullVectors() {
 
 #undef HWY_DECLARE_FOREACH_VECTOR_TEST
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwyForeachVecTest);
 HWY_EXPORT_AND_TEST_P(HwyForeachVecTest, TestAllForMaxPow2);
 HWY_EXPORT_AND_TEST_P(HwyForeachVecTest, TestAllForExtendableVectors);
@@ -646,6 +648,7 @@ HWY_EXPORT_AND_TEST_P(HwyForeachVecTest, TestAllForHalfVectors);
 HWY_EXPORT_AND_TEST_P(HwyForeachVecTest, TestAllForPartialVectors);
 HWY_EXPORT_AND_TEST_P(HwyForeachVecTest, TestAllForPartialFixedOrFullVectors);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

@@ -84,6 +84,7 @@ class FakeAllocator {
 }  // namespace
 
 namespace hwy {
+namespace {
 
 #if !HWY_TEST_STANDALONE
 class AlignedAllocatorTest : public testing::Test {};
@@ -282,8 +283,6 @@ TEST(AlignedAllocatorTest, TestDefaultInit) {
   HWY_ASSERT_EQ((addr1 >> (kBits - 1)) >> (kBits - 1),
                 (addr2 >> (kBits - 1)) >> (kBits - 1));
 }
-
-namespace {
 
 using std::array;
 using std::vector;

@@ -22,6 +22,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 struct TestDup128VecFromValues {
   template <class D, HWY_IF_T_SIZE_D(D, 1)>
@@ -218,17 +219,19 @@ HWY_NOINLINE void TestAllDup128VecFromValues() {
   ForFloat3264Types(func);
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwyDup128VecTest);
 HWY_EXPORT_AND_TEST_P(HwyDup128VecTest, TestAllDup128VecFromValues);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
+HWY_TEST_MAIN();
 #endif  // HWY_ONCE

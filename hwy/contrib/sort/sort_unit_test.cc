@@ -558,8 +558,8 @@ static void TestAllGenerator() {}
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(SortTest);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllFloatLargerSmaller);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllFloatInf);
@@ -568,6 +568,7 @@ HWY_EXPORT_AND_TEST_P(SortTest, TestAllBaseCase);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllPartition);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllGenerator);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
+HWY_TEST_MAIN();
 #endif  // HWY_ONCE

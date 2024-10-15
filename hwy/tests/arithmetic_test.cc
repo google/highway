@@ -26,13 +26,14 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 struct TestPlusMinus {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto v2 = Iota(d, 2);
-    const auto v3 = Iota(d, 3);
-    const auto v4 = Iota(d, 4);
+    const auto v2 = Iota(d, hwy::Unpredictable1() + 1);
+    const auto v3 = Iota(d, hwy::Unpredictable1() + 2);
+    const auto v4 = Iota(d, hwy::Unpredictable1() + 3);
 
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
@@ -305,14 +306,15 @@ HWY_NOINLINE void TestAllIntegerAbsDiff() {
 #endif
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwyArithmeticTest);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllPlusMinus);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllAddSub);
@@ -321,6 +323,7 @@ HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllAbs);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllNeg);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllIntegerAbsDiff);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

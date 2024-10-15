@@ -25,6 +25,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 template <size_t kBits>
 constexpr uint64_t FirstBits() {
@@ -423,14 +424,15 @@ HWY_NOINLINE void TestAllMulOdd() {
   // uint64_t MulOdd is already tested in TestMulEvenOdd64
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwyMulTest);
 HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMul);
 HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMulHigh);
@@ -438,6 +440,7 @@ HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMulFixedPoint15);
 HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMulEven);
 HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMulOdd);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

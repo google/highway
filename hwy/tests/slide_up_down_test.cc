@@ -24,6 +24,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 class TestSlideUpLanes {
  private:
@@ -444,20 +445,22 @@ HWY_NOINLINE void TestAllSlideBlocks() {
   ForAllTypes(ForPartialVectors<TestSlideBlocks>());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwySlideUpDownTest);
 HWY_EXPORT_AND_TEST_P(HwySlideUpDownTest, TestAllSlideUpLanes);
 HWY_EXPORT_AND_TEST_P(HwySlideUpDownTest, TestAllSlideDownLanes);
 HWY_EXPORT_AND_TEST_P(HwySlideUpDownTest, TestAllSlide1);
 HWY_EXPORT_AND_TEST_P(HwySlideUpDownTest, TestAllSlideBlocks);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

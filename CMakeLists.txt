@@ -721,12 +721,14 @@ set(HWY_TEST_FILES
   hwy/examples/skeleton_test.cc
   hwy/tests/arithmetic_test.cc
   hwy/tests/bit_permute_test.cc
+  hwy/tests/blockwise_combine_test.cc
   hwy/tests/blockwise_shift_test.cc
   hwy/tests/blockwise_test.cc
   hwy/tests/cast_test.cc
   hwy/tests/combine_test.cc
   hwy/tests/compare_test.cc
   hwy/tests/compress_test.cc
+  hwy/tests/concat_test.cc
   hwy/tests/convert_test.cc
   hwy/tests/count_test.cc
   hwy/tests/crypto_test.cc

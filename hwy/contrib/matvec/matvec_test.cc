@@ -42,6 +42,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 template <typename MatT, typename T>
 HWY_NOINLINE void SimpleMatVecAdd(const MatT* HWY_RESTRICT mat,
@@ -272,19 +273,21 @@ void TestAllMatVecBF16Both() {
   ForGEVectors<32, TestMatVecAdd<bfloat16_t, bfloat16_t>>()(float());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(MatVecTest);
 HWY_EXPORT_AND_TEST_P(MatVecTest, TestAllMatVecAdd);
 HWY_EXPORT_AND_TEST_P(MatVecTest, TestAllMatVecBF16);
 HWY_EXPORT_AND_TEST_P(MatVecTest, TestAllMatVecBF16Both);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
+HWY_TEST_MAIN();
 #endif  // HWY_ONCE

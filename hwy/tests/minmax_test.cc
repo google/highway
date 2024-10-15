@@ -13,6 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stddef.h>
+#include <stdint.h>
+
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/minmax_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
@@ -22,6 +25,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 struct TestUnsignedMinMax {
   template <typename T, class D>
@@ -257,19 +261,21 @@ HWY_NOINLINE void TestAllMinMax128Upper() {
   ForGEVectors<128, TestMinMax128Upper>()(uint64_t());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwyMinMaxTest);
 HWY_EXPORT_AND_TEST_P(HwyMinMaxTest, TestAllMinMax);
 HWY_EXPORT_AND_TEST_P(HwyMinMaxTest, TestAllMinMax128);
 HWY_EXPORT_AND_TEST_P(HwyMinMaxTest, TestAllMinMax128Upper);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

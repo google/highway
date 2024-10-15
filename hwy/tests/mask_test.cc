@@ -26,6 +26,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 // All types.
 struct TestMaskFalse {
@@ -546,14 +547,15 @@ HWY_NOINLINE void TestAllDup128MaskFromMaskBits() {
   ForAllTypes(ForPartialVectors<TestDup128MaskFromMaskBits>());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwyMaskTest);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllMaskFalse);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllFromVec);
@@ -570,6 +572,7 @@ HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllSetOnlyFirst);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllSetAtOrAfterFirst);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllDup128MaskFromMaskBits);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

@@ -13,14 +13,13 @@
 #include "hwy/tests/test_util-inl.h"  // HWY_ASSERT_EQ
 
 namespace hwy {
+namespace {
 
 #ifdef GTEST_HAS_DEATH_TEST
-namespace {
 std::string GetBaseName(std::string const& file_name) {
   auto last_slash = file_name.find_last_of("/\\");
   return file_name.substr(last_slash + 1);
 }
-}  // namespace
 
 TEST(AbortDeathTest, AbortDefault) {
   std::string expected = std::string("Abort at ") + GetBaseName(__FILE__) +
@@ -68,6 +67,7 @@ TEST(AbortTest, AbortOverrideChain) {
   HWY_ASSERT(GetAbortFunc() == nullptr);
 }
 
+}  // namespace
 }  // namespace hwy
 
 HWY_TEST_MAIN();

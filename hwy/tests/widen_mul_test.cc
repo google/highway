@@ -26,6 +26,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 struct TestSatWidenMulAccumFixedPoint {
   template <class TN, class DN>
@@ -505,14 +506,15 @@ HWY_NOINLINE void TestAllSumOfMulQuadAccumulate() {
 #endif
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwyWidenMulTest);
 HWY_EXPORT_AND_TEST_P(HwyWidenMulTest, TestAllSatWidenMulAccumFixedPoint);
 HWY_EXPORT_AND_TEST_P(HwyWidenMulTest, TestAllMulEvenAdd);
@@ -521,6 +523,7 @@ HWY_EXPORT_AND_TEST_P(HwyWidenMulTest, TestAllReorderWidenMulAccumulate);
 HWY_EXPORT_AND_TEST_P(HwyWidenMulTest, TestAllRearrangeToOddPlusEven);
 HWY_EXPORT_AND_TEST_P(HwyWidenMulTest, TestAllSumOfMulQuadAccumulate);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

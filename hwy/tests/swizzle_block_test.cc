@@ -24,6 +24,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 struct TestOddEvenBlocks {
   template <class T, class D>
@@ -243,14 +244,15 @@ HWY_NOINLINE void TestAllBroadcastBlock() {
   ForAllTypes(ForPartialFixedOrFullScalableVectors<TestBroadcastBlock>());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwySwizzleBlockTest);
 HWY_EXPORT_AND_TEST_P(HwySwizzleBlockTest, TestAllOddEvenBlocks);
 HWY_EXPORT_AND_TEST_P(HwySwizzleBlockTest, TestAllSwapAdjacentBlocks);
@@ -258,6 +260,7 @@ HWY_EXPORT_AND_TEST_P(HwySwizzleBlockTest, TestAllInsertBlock);
 HWY_EXPORT_AND_TEST_P(HwySwizzleBlockTest, TestAllExtractBlock);
 HWY_EXPORT_AND_TEST_P(HwySwizzleBlockTest, TestAllBroadcastBlock);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE
