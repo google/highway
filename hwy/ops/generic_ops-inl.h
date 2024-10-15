@@ -488,6 +488,63 @@ HWY_API V InterleaveEven(V a, V b) {
 }
 #endif
 
+// ------------------------------ MinMagnitude/MaxMagnitude
+
+#if (defined(HWY_NATIVE_FLOAT_MIN_MAX_MAGNITUDE) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_FLOAT_MIN_MAX_MAGNITUDE
+#undef HWY_NATIVE_FLOAT_MIN_MAX_MAGNITUDE
+#else
+#define HWY_NATIVE_FLOAT_MIN_MAX_MAGNITUDE
+#endif
+
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_API V MinMagnitude(V a, V b) {
+  const auto abs_a = Abs(a);
+  const auto abs_b = Abs(b);
+  return IfThenElse(Lt(abs_a, abs_b), a,
+                    Min(IfThenElse(Eq(abs_a, abs_b), a, b), b));
+}
+
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_API V MaxMagnitude(V a, V b) {
+  const auto abs_a = Abs(a);
+  const auto abs_b = Abs(b);
+  return IfThenElse(Lt(abs_a, abs_b), b,
+                    Max(IfThenElse(Eq(abs_a, abs_b), b, a), a));
+}
+
+#endif  // HWY_NATIVE_FLOAT_MIN_MAX_MAGNITUDE
+
+template <class V, HWY_IF_SIGNED_V(V)>
+HWY_API V MinMagnitude(V a, V b) {
+  const DFromV<V> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const auto abs_a = BitCast(du, Abs(a));
+  const auto abs_b = BitCast(du, Abs(b));
+  return IfThenElse(RebindMask(d, Lt(abs_a, abs_b)), a,
+                    Min(IfThenElse(RebindMask(d, Eq(abs_a, abs_b)), a, b), b));
+}
+
+template <class V, HWY_IF_SIGNED_V(V)>
+HWY_API V MaxMagnitude(V a, V b) {
+  const DFromV<V> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const auto abs_a = BitCast(du, Abs(a));
+  const auto abs_b = BitCast(du, Abs(b));
+  return IfThenElse(RebindMask(d, Lt(abs_a, abs_b)), b,
+                    Max(IfThenElse(RebindMask(d, Eq(abs_a, abs_b)), b, a), a));
+}
+
+template <class V, HWY_IF_UNSIGNED_V(V)>
+HWY_API V MinMagnitude(V a, V b) {
+  return Min(a, b);
+}
+
+template <class V, HWY_IF_UNSIGNED_V(V)>
+HWY_API V MaxMagnitude(V a, V b) {
+  return Max(a, b);
+}
+
 // ------------------------------ AddSub
 
 template <class V, HWY_IF_LANES_D(DFromV<V>, 1)>
