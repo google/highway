@@ -14,7 +14,9 @@
 // limitations under the License.
 
 // Concurrent, independent sorts for generating more memory traffic and testing
-// scalability.
+// scalability when bandwidth-limited. If you want to use multiple threads for
+// a single sort, you can use ips4o and integrate vqsort by calling it from
+// `baseCaseSort` and increasing `IPS4OML_BASE_CASE_SIZE` to say 8192.
 
 #include <stdint.h>
 #include <stdio.h>
