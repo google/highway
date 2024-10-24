@@ -2609,7 +2609,7 @@ HWY_API Vec128<int16_t, N> MulFixedPoint15(Vec128<int16_t, N> a,
 // ------------------------------ Floating-point division
 
 // Emulate missing intrinsic
-#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 700
+#if HWY_HAVE_FLOAT64 && HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 700
 HWY_INLINE float64x1_t vrecpe_f64(float64x1_t raw) {
   const CappedTag<double, 1> d;
   const Twice<decltype(d)> dt;
