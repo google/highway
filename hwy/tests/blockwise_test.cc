@@ -122,7 +122,6 @@ struct TestTableLookupBytes {
       // Avoid asan error for partial vectors.
       index_bytes[i] = static_cast<uint8_t>(HWY_MIN(index_bytes[i], max_index));
     }
-    const Vec<D> indices_v = Load(d, indices.get());
 
     uint8_t* expected_bytes = reinterpret_cast<uint8_t*>(expected.get());
 
@@ -139,7 +138,10 @@ struct TestTableLookupBytes {
             in_bytes[(block + index) % HWY_MIN(NT8, 256)];
       }
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), TableLookupBytes(in, indices_v));
+    {
+      const Vec<D> indices_v = Load(d, indices.get());
+      HWY_ASSERT_VEC_EQ(d, expected.get(), TableLookupBytes(in, indices_v));
+    }
 
     // Individually test zeroing each byte position.
     for (size_t i = 0; i < N8; ++i) {

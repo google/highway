@@ -71,10 +71,10 @@ HWY_NOINLINE void SimpleMatVecAdd(const MatT* HWY_RESTRICT mat,
   }
 }
 
-HWY_NOINLINE void SimpleMatVecAdd(const hwy::bfloat16_t* HWY_RESTRICT mat,
-                                  const float* HWY_RESTRICT vec,
-                                  const float* add, size_t rows, size_t cols,
-                                  float* HWY_RESTRICT out, ThreadPool& pool) {
+HWY_MAYBE_UNUSED HWY_NOINLINE void SimpleMatVecAdd(
+    const hwy::bfloat16_t* HWY_RESTRICT mat, const float* HWY_RESTRICT vec,
+    const float* add, size_t rows, size_t cols, float* HWY_RESTRICT out,
+    ThreadPool& pool) {
   if (add) {
     pool.Run(0, rows, [=](uint64_t r, size_t /*thread*/) {
       float dot = 0.0f;
@@ -94,11 +94,11 @@ HWY_NOINLINE void SimpleMatVecAdd(const hwy::bfloat16_t* HWY_RESTRICT mat,
   }
 }
 
-HWY_NOINLINE void SimpleMatVecAdd(const hwy::bfloat16_t* HWY_RESTRICT mat,
-                                  const hwy::bfloat16_t* HWY_RESTRICT vec,
-                                  const hwy::bfloat16_t* HWY_RESTRICT add,
-                                  size_t rows, size_t cols,
-                                  float* HWY_RESTRICT out, ThreadPool& pool) {
+HWY_MAYBE_UNUSED HWY_NOINLINE void SimpleMatVecAdd(
+    const hwy::bfloat16_t* HWY_RESTRICT mat,
+    const hwy::bfloat16_t* HWY_RESTRICT vec,
+    const hwy::bfloat16_t* HWY_RESTRICT add, size_t rows, size_t cols,
+    float* HWY_RESTRICT out, ThreadPool& pool) {
   if (add) {
     pool.Run(0, rows, [=](uint64_t r, size_t /*thread*/) {
       float dot = 0.0f;

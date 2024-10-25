@@ -73,7 +73,6 @@ HWY_TEST_DLLEXPORT bool IsEqual(const TypeInfo& info, const void* expected_ptr,
     return ComputeUlpDelta(expected, actual) <= 1;
   } else {
     HWY_ABORT("Unexpected float size %d\n", static_cast<int>(info.sizeof_t));
-    return false;
   }
 }
 

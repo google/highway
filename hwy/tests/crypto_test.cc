@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stdint.h>
 #include <string.h>  // memcpy
 
 #undef HWY_TARGET_INCLUDE
@@ -288,6 +289,7 @@ HWY_NOINLINE void TestAllAESKeyGenAssist() {
 #else
 HWY_NOINLINE void TestAllAES() {}
 HWY_NOINLINE void TestAllAESInverse() {}
+HWY_NOINLINE void TestAllAESKeyGenAssist() {}
 #endif  // HWY_TARGET != HWY_SCALAR
 
 struct TestCLMul {
@@ -713,6 +715,7 @@ HWY_BEFORE_TEST(HwyCryptoTest);
 HWY_EXPORT_AND_TEST_P(HwyCryptoTest, TestAllAES);
 HWY_EXPORT_AND_TEST_P(HwyCryptoTest, TestAllAESInverse);
 HWY_EXPORT_AND_TEST_P(HwyCryptoTest, TestAllCLMul);
+HWY_EXPORT_AND_TEST_P(HwyCryptoTest, TestAllAESKeyGenAssist);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy

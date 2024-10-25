@@ -43,8 +43,9 @@ HWY_NOINLINE T1 SimpleDot(const T1* pa, const T2* pb, size_t num) {
   return ConvertScalarTo<T1>(sum);
 }
 
-HWY_NOINLINE float SimpleDot(const float* pa, const hwy::bfloat16_t* pb,
-                             size_t num) {
+HWY_MAYBE_UNUSED HWY_NOINLINE float SimpleDot(const float* pa,
+                                              const hwy::bfloat16_t* pb,
+                                              size_t num) {
   float sum = 0.0f;
   for (size_t i = 0; i < num; ++i) {
     sum += pa[i] * F32FromBF16(pb[i]);
@@ -54,8 +55,9 @@ HWY_NOINLINE float SimpleDot(const float* pa, const hwy::bfloat16_t* pb,
 
 // Overload is required because the generic template hits an internal compiler
 // error on aarch64 clang.
-HWY_NOINLINE float SimpleDot(const bfloat16_t* pa, const bfloat16_t* pb,
-                             size_t num) {
+HWY_MAYBE_UNUSED HWY_NOINLINE float SimpleDot(const bfloat16_t* pa,
+                                              const bfloat16_t* pb,
+                                              size_t num) {
   float sum = 0.0f;
   for (size_t i = 0; i < num; ++i) {
     sum += F32FromBF16(pa[i]) * F32FromBF16(pb[i]);

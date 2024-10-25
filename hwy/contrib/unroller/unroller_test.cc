@@ -268,7 +268,6 @@ struct MinUnit : UnrollerUnit<MinUnit<T>, T, T> {
   }
 
   ptrdiff_t ReduceImpl(const hn::Vec<TT> x, T* to) {
-    const hn::ScalableTag<T> d;
     auto minvect = hn::MinOfLanes(d, x);
     (*to) = hn::ExtractLane(minvect, 0);
     return 1;
