@@ -5753,7 +5753,8 @@ HWY_API Vec128<uint8_t, N> Min(Vec128<uint8_t, N> a, Vec128<uint8_t, N> b) {
 template <size_t N>
 HWY_API Vec128<uint16_t, N> Min(Vec128<uint16_t, N> a, Vec128<uint16_t, N> b) {
 #if HWY_TARGET >= HWY_SSSE3
-  return detail::MinU(a, b);
+  return Vec128<uint16_t, N>{
+      _mm_sub_epi16(a.raw, _mm_subs_epu16(a.raw, b.raw))};
 #else
   return Vec128<uint16_t, N>{_mm_min_epu16(a.raw, b.raw)};
 #endif
@@ -5846,7 +5847,8 @@ HWY_API Vec128<uint8_t, N> Max(Vec128<uint8_t, N> a, Vec128<uint8_t, N> b) {
 template <size_t N>
 HWY_API Vec128<uint16_t, N> Max(Vec128<uint16_t, N> a, Vec128<uint16_t, N> b) {
 #if HWY_TARGET >= HWY_SSSE3
-  return detail::MaxU(a, b);
+  return Vec128<uint16_t, N>{
+      _mm_add_epi16(a.raw, _mm_subs_epu16(b.raw, a.raw))};
 #else
   return Vec128<uint16_t, N>{_mm_max_epu16(a.raw, b.raw)};
 #endif
