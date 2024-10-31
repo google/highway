@@ -223,8 +223,12 @@
 #endif
 
 // SVE[2] require recent clang or gcc versions.
-#if (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1900) || \
-    (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1000)
+
+// In addition, SVE[2] is not currently supported by any Apple CPU (at least up
+// to and including M4 and A18).
+#if (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1900) ||           \
+    (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1000) || \
+    HWY_OS_APPLE
 #define HWY_BROKEN_SVE (HWY_SVE | HWY_SVE2 | HWY_SVE_256 | HWY_SVE2_128)
 #else
 #define HWY_BROKEN_SVE 0
