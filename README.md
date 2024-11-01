@@ -40,7 +40,8 @@ clouds or client devices, choosing the best available instruction set at
 runtime. Alternatively, developers may choose to target a single instruction set
 without any runtime overhead. In both cases, the application code is the same
 except for swapping `HWY_STATIC_DISPATCH` with `HWY_DYNAMIC_DISPATCH` plus one
-line of code.
+line of code. See also @kfjahnke's
+[introduction to dispatching](https://github.com/kfjahnke/zimt/blob/multi_isa/examples/multi_isa_example/multi_simd_isa.md).
 
 **Suitable for a variety of domains**: Highway provides an extensive set of
 operations, used for image processing (floating-point), compression, video
@@ -339,6 +340,10 @@ target-specific vector types.
     You can prevent this by calling the following before any invocation of
     `HWY_DYNAMIC_*`: `hwy::GetChosenTarget().Update(hwy::SupportedTargets());`.
 
+See also a separate
+[introduction to dynamic dispatch](https://github.com/kfjahnke/zimt/blob/multi_isa/examples/multi_isa_example/multi_simd_isa.md)
+by @kfjahnke.
+
 When using dynamic dispatch, `foreach_target.h` is included from translation
 units (.cc files), not headers. Headers containing vector code shared between
 several translation units require a special include guard, for example the
@@ -369,15 +374,15 @@ generally sufficient.
 For MSVC, we recommend compiling with `/Gv` to allow non-inlined functions to
 pass vector arguments in registers. If intending to use the AVX2 target together
 with half-width vectors (e.g. for `PromoteTo`), it is also important to compile
-with `/arch:AVX2`. This seems to be the only way to reliably generate VEX-encoded
-SSE instructions on MSVC. Sometimes MSVC generates VEX-encoded SSE instructions,
-if they are mixed with AVX, but not always, see 
+with `/arch:AVX2`. This seems to be the only way to reliably generate
+VEX-encoded SSE instructions on MSVC. Sometimes MSVC generates VEX-encoded SSE
+instructions, if they are mixed with AVX, but not always, see
 [DevCom-10618264](https://developercommunity.visualstudio.com/t/10618264).
-Otherwise, mixing VEX-encoded AVX2 instructions and non-VEX SSE may cause severe 
-performance degradation. Unfortunately, with `/arch:AVX2` option, the
-resulting binary will then require AVX2. Note that no such flag is needed for
-clang and GCC because they support target-specific attributes, which we use to
-ensure proper VEX code generation for AVX2 targets.
+Otherwise, mixing VEX-encoded AVX2 instructions and non-VEX SSE may cause severe
+performance degradation. Unfortunately, with `/arch:AVX2` option, the resulting
+binary will then require AVX2. Note that no such flag is needed for clang and
+GCC because they support target-specific attributes, which we use to ensure
+proper VEX code generation for AVX2 targets.
 
 ## Strip-mining loops
 
