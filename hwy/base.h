@@ -664,6 +664,8 @@ using RemovePtr = typename RemovePtrT<T>::type;
   hwy::EnableIf<kN * sizeof(T) <= bytes>* = nullptr
 #define HWY_IF_V_SIZE_GT(T, kN, bytes) \
   hwy::EnableIf<(kN * sizeof(T) > bytes)>* = nullptr
+#define HWY_IF_V_SIZE_GE(T, kN, bytes) \
+  hwy::EnableIf<(kN * sizeof(T) >= bytes)>* = nullptr
 
 #define HWY_IF_LANES(kN, lanes) hwy::EnableIf<(kN == lanes)>* = nullptr
 #define HWY_IF_LANES_LE(kN, lanes) hwy::EnableIf<(kN <= lanes)>* = nullptr

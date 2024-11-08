@@ -623,6 +623,8 @@ HWY_API bool IsAligned(D d, T* ptr) {
   HWY_IF_V_SIZE_LE(hwy::HWY_NAMESPACE::TFromD<D>, HWY_MAX_LANES_D(D), bytes)
 #define HWY_IF_V_SIZE_GT_D(D, bytes) \
   HWY_IF_V_SIZE_GT(hwy::HWY_NAMESPACE::TFromD<D>, HWY_MAX_LANES_D(D), bytes)
+#define HWY_IF_V_SIZE_GE_D(D, bytes) \
+  HWY_IF_V_SIZE_GE(hwy::HWY_NAMESPACE::TFromD<D>, HWY_MAX_LANES_D(D), bytes)
 
 // Same, but with a vector argument. ops/*-inl.h define their own TFromV.
 #define HWY_IF_UNSIGNED_V(V) HWY_IF_UNSIGNED(hwy::HWY_NAMESPACE::TFromV<V>)
