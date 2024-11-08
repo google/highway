@@ -510,6 +510,7 @@ HWY_TESTS = [
     ("hwy/tests/", "combine_test"),
     ("hwy/tests/", "compare_test"),
     ("hwy/tests/", "compress_test"),
+    ("hwy/tests/", "complex_arithmetic_test"),
     ("hwy/tests/", "concat_test"),
     ("hwy/tests/", "convert_test"),
     ("hwy/tests/", "count_test"),

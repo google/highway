@@ -4388,6 +4388,71 @@ HWY_API V MulSub(V mul, V x, V sub) {
   return Sub(Mul(mul, x), sub);
 }
 #endif  // HWY_NATIVE_INT_FMA
+// ------------------------------ MulCplx* / MaskedMulCplx*
+
+#if (defined(HWY_NATIVE_CPLX) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_CPLX
+#undef HWY_NATIVE_CPLX
+#else
+#define HWY_NATIVE_CPLX
+#endif
+
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
+
+template <class V, HWY_IF_NOT_UNSIGNED(TFromV<V>)>
+HWY_API V CplxConj(V a) {
+  return OddEven(Neg(a), a);
+}
+
+template <class V>
+HWY_API V MulCplx(V a, V b) {
+  // a = u + iv, b = x + iy
+  const auto u = DupEven(a);
+  const auto v = DupOdd(a);
+  const auto x = DupEven(b);
+  const auto y = DupOdd(b);
+
+  return OddEven(Add(Mul(u, y), Mul(v, x)), Sub(Mul(u, x), Mul(v, y)));
+}
+
+template <class V>
+HWY_API V MulCplxConj(V a, V b) {
+  // a = u + iv, b = x + iy
+  const auto u = DupEven(a);
+  const auto v = DupOdd(a);
+  const auto x = DupEven(b);
+  const auto y = DupOdd(b);
+
+  return OddEven(Sub(Mul(v, x), Mul(u, y)), Add(Mul(u, x), Mul(v, y)));
+}
+
+template <class V>
+HWY_API V MulCplxAdd(V a, V b, V c) {
+  return Add(MulCplx(a, b), c);
+}
+
+template <class V>
+HWY_API V MulCplxConjAdd(V a, V b, V c) {
+  return Add(MulCplxConj(a, b), c);
+}
+
+template <class V, class M>
+HWY_API V MaskedMulCplxConjAddOrZero(M mask, V a, V b, V c) {
+  return IfThenElseZero(mask, MulCplxConjAdd(a, b, c));
+}
+
+template <class V, class M>
+HWY_API V MaskedMulCplxConjOrZero(M mask, V a, V b) {
+  return IfThenElseZero(mask, MulCplxConj(a, b));
+}
+
+template <class V, class M>
+HWY_API V MaskedMulCplxOr(M mask, V a, V b, V c) {
+  return IfThenElse(mask, MulCplx(a, b), c);
+}
+#endif  // HWY_TARGET != HWY_SCALAR
+
+#endif  // HWY_NATIVE_CPLX
 
 // ------------------------------ MaskedMulAddOr
 #if (defined(HWY_NATIVE_MASKED_INT_FMA) == defined(HWY_TARGET_TOGGLE))
