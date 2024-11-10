@@ -147,6 +147,151 @@ HWY_NOINLINE void TestAllPromoteTo() {
 }
 
 template <typename ToT>
+struct TestPromoteRoundTo {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D from_d) {
+    static_assert(sizeof(T) < sizeof(ToT), "Input type must be narrower");
+    const Rebind<ToT, D> to_d;
+
+    const size_t N = Lanes(from_d);
+    auto from = AllocateAligned<T>(N);
+    auto expected_ceil = AllocateAligned<ToT>(N);
+    auto expected_floor = AllocateAligned<ToT>(N);
+    auto expected_nearest_int = AllocateAligned<ToT>(N);
+    HWY_ASSERT(from && expected_ceil && expected_floor && expected_nearest_int);
+
+    RandomState rng;
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        const uint64_t bits = rng();
+        CopyBytes<sizeof(T)>(&bits, &from[i]);  // not same size
+        expected_ceil[i] =
+            ConvertScalarTo<ToT>(std::ceil(static_cast<float>(from[i])));
+        expected_floor[i] =
+            ConvertScalarTo<ToT>(std::floor(static_cast<float>(from[i])));
+        expected_nearest_int[i] =
+            ConvertScalarTo<ToT>(std::nearbyint(static_cast<float>(from[i])));
+      }
+
+      auto input = Load(from_d, from.get());
+      auto output_ceil = PromoteCeilTo(to_d, input);
+      auto output_floor = PromoteFloorTo(to_d, input);
+      auto output_nearest_int = PromoteToNearestInt(to_d, input);
+
+      HWY_ASSERT_VEC_EQ(to_d, expected_ceil.get(), output_ceil);
+      HWY_ASSERT_VEC_EQ(to_d, expected_floor.get(), output_floor);
+      HWY_ASSERT_VEC_EQ(to_d, expected_nearest_int.get(), output_nearest_int);
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllPromoteRoundTo() {
+#if HWY_HAVE_FLOAT16
+  const ForPromoteVectors<TestPromoteRoundTo<int32_t>, 1> to_i32div2;
+  to_i32div2(hwy::float16_t());
+
+  const ForPromoteVectors<TestPromoteRoundTo<float>, 1> to_f32div2;
+  to_f32div2(hwy::float16_t());
+#endif  // HWY_HAVE_FLOAT16
+
+#if HWY_HAVE_FLOAT64
+  const ForPromoteVectors<TestPromoteRoundTo<double>, 1> to_f64div2;
+  to_f64div2(float());
+#endif  // HWY_HAVE_FLOAT64
+}
+
+template <typename ToT>
+struct TestMaskedPromoteToOrZero {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    static_assert(sizeof(T) < sizeof(ToT), "Input type must be narrower");
+    const Rebind<ToT, D> to_d;
+
+    const size_t N = Lanes(d);
+    auto expected = AllocateAligned<ToT>(N);
+    auto bool_lanes = AllocateAligned<ToT>(N);
+    HWY_ASSERT(expected && bool_lanes);
+
+    const auto v1 = Iota(d, 5);
+
+    RandomState rng;
+
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        bool_lanes[i] = (Random32(&rng) & 1024) ? T(1) : T(0);
+
+        if (bool_lanes[i]) {
+          expected[i] = ConvertScalarTo<T>(i + 5);
+        } else {
+          expected[i] = ConvertScalarTo<T>(0);
+        }
+      }
+
+      const auto mask_i = Load(to_d, bool_lanes.get());
+      const auto mask = RebindMask(to_d, Gt(mask_i, Zero(to_d)));
+
+      HWY_ASSERT_VEC_EQ(to_d, expected.get(),
+                        MaskedPromoteToOrZero(mask, to_d, v1));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllMaskedPromoteToOrZero() {
+  const ForPromoteVectors<TestMaskedPromoteToOrZero<uint16_t>, 1> to_u16div2;
+  to_u16div2(uint8_t());
+
+  const ForPromoteVectors<TestMaskedPromoteToOrZero<uint32_t>, 2> to_u32div4;
+  to_u32div4(uint8_t());
+
+  const ForPromoteVectors<TestMaskedPromoteToOrZero<uint32_t>, 1> to_u32div2;
+  to_u32div2(uint16_t());
+
+  const ForPromoteVectors<TestMaskedPromoteToOrZero<int16_t>, 1> to_i16div2;
+  to_i16div2(uint8_t());
+  to_i16div2(int8_t());
+
+  const ForPromoteVectors<TestMaskedPromoteToOrZero<int32_t>, 1> to_i32div2;
+  to_i32div2(uint16_t());
+  to_i32div2(int16_t());
+
+  const ForPromoteVectors<TestMaskedPromoteToOrZero<int32_t>, 2> to_i32div4;
+  to_i32div4(uint8_t());
+  to_i32div4(int8_t());
+
+  // Must test f16/bf16 separately because we can only load/store/convert them.
+
+#if HWY_HAVE_INTEGER64
+  const ForPromoteVectors<TestMaskedPromoteToOrZero<uint64_t>, 1> to_u64div2;
+  to_u64div2(uint32_t());
+
+  const ForPromoteVectors<TestMaskedPromoteToOrZero<int64_t>, 1> to_i64div2;
+  to_i64div2(int32_t());
+  to_i64div2(uint32_t());
+
+  const ForPromoteVectors<TestMaskedPromoteToOrZero<uint64_t>, 2> to_u64div4;
+  to_u64div4(uint16_t());
+
+  const ForPromoteVectors<TestMaskedPromoteToOrZero<int64_t>, 2> to_i64div4;
+  to_i64div4(int16_t());
+  to_i64div4(uint16_t());
+
+  const ForPromoteVectors<TestMaskedPromoteToOrZero<uint64_t>, 3> to_u64div8;
+  to_u64div8(uint8_t());
+
+  const ForPromoteVectors<TestMaskedPromoteToOrZero<int64_t>, 3> to_i64div8;
+  to_i64div8(int8_t());
+  to_i64div8(uint8_t());
+#endif
+
+#if HWY_HAVE_FLOAT64
+  const ForPromoteVectors<TestMaskedPromoteToOrZero<double>, 1> to_f64div2;
+  to_f64div2(int32_t());
+  to_f64div2(uint32_t());
+  to_f64div2(float());
+#endif
+}
+
+template <typename ToT>
 struct TestPromoteUpperLowerTo {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D from_d) {
@@ -716,6 +861,111 @@ class TestIntFromFloat {
 
 HWY_NOINLINE void TestAllIntFromFloat() {
   ForFloatTypes(ForPartialVectors<TestIntFromFloat>());
+}
+
+struct TestMaskedIntFromFloat {
+  template <typename TF, class DF>
+  HWY_NOINLINE void operator()(TF /*unused*/, const DF df) {
+    using TI = MakeSigned<TF>;
+    const Rebind<TI, DF> di;
+    const size_t N = Lanes(df);
+    auto expected = AllocateAligned<TI>(N);
+    auto bool_lanes = AllocateAligned<TI>(N);
+    HWY_ASSERT(expected && bool_lanes);
+
+    RandomState rng;
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
+      }
+      const auto mask_i = Load(di, bool_lanes.get());
+      const auto mask = RebindMask(di, Gt(mask_i, Zero(di)));
+
+      // This requires a test different to that in TestMaskedFloatFromInt and
+      // TestMaskedFloatFromUint, due to differences in saturation handling
+      // between ConvertTo() and static_cast<>
+      HWY_ASSERT_VEC_EQ(di, IfThenElseZero(mask, Set(di, 1)),
+                        MaskedConvertToOrZero(mask, di, Set(df, 1)));
+    }
+  }
+};
+
+struct TestMaskedFloatFromInt {
+  template <typename TF, class DF>
+  HWY_NOINLINE void operator()(TF /*unused*/, const DF df) {
+    using TI = MakeSigned<TF>;
+    const RebindToSigned<DF> di;
+    const size_t N = Lanes(df);
+    auto from = AllocateAligned<TI>(N);
+    auto expected = AllocateAligned<TF>(N);
+    auto bool_lanes = AllocateAligned<TF>(N);
+    HWY_ASSERT(from && expected && bool_lanes);
+
+    RandomState rng;
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        const uint64_t bits = rng();
+        CopyBytes<sizeof(TF)>(&bits, &from[i]);  // not same size
+
+        bool_lanes[i] = (Random32(&rng) & 1024) ? TF(1) : TF(0);
+        if (bool_lanes[i]) {
+          expected[i] = ConvertScalarTo<TF>(from[i]);
+        } else {
+          expected[i] = ConvertScalarTo<TF>(0);
+        }
+      }
+      const auto mask_i = Load(df, bool_lanes.get());
+      const auto mask = RebindMask(df, Gt(mask_i, Zero(df)));
+
+      const auto v1 = Load(di, from.get());
+
+      // Float from int
+      HWY_ASSERT_VEC_EQ(df, expected.get(),
+                        MaskedConvertToOrZero(mask, df, v1));
+    }
+  }
+};
+
+struct TestMaskedFloatFromUint {
+  template <typename TF, class DF>
+  HWY_NOINLINE void operator()(TF /*unused*/, const DF df) {
+    using TI = MakeUnsigned<TF>;
+    const RebindToUnsigned<DF> di;
+    const size_t N = Lanes(df);
+    auto from = AllocateAligned<TI>(N);
+    auto expected = AllocateAligned<TF>(N);
+    auto bool_lanes = AllocateAligned<TF>(N);
+    HWY_ASSERT(from && expected && bool_lanes);
+
+    RandomState rng;
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        const uint64_t bits = rng();
+        CopyBytes<sizeof(TF)>(&bits, &from[i]);  // not same size
+
+        bool_lanes[i] = (Random32(&rng) & 1024) ? TF(1) : TF(0);
+        if (bool_lanes[i]) {
+          expected[i] = ConvertScalarTo<TF>(from[i]);
+        } else {
+          expected[i] = ConvertScalarTo<TF>(0);
+        }
+      }
+      const auto mask_i = Load(df, bool_lanes.get());
+      const auto mask = RebindMask(df, Gt(mask_i, Zero(df)));
+
+      const auto v1 = Load(di, from.get());
+
+      // Float from int
+      HWY_ASSERT_VEC_EQ(df, expected.get(),
+                        MaskedConvertToOrZero(mask, df, v1));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllMaskedConvertToOrZero() {
+  ForFloatTypes(ForPartialVectors<TestMaskedFloatFromInt>());
+  ForFloatTypes(ForPartialVectors<TestMaskedFloatFromUint>());
+  ForFloatTypes(ForPartialVectors<TestMaskedIntFromFloat>());
 }
 
 class TestUintFromFloat {
@@ -1451,6 +1701,8 @@ namespace {
 HWY_BEFORE_TEST(HwyConvertTest);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllRebind);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteTo);
+HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteRoundTo);
+HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllMaskedPromoteToOrZero);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteUpperLowerTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteOddEvenTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF16);
@@ -1458,6 +1710,7 @@ HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF16FromF64);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllBF16);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllConvertU8);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllIntFromFloat);
+HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllMaskedConvertToOrZero);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllUintFromFloat);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllFloatFromInt);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllFloatFromUint);
