@@ -2570,10 +2570,11 @@ HWY_API constexpr TTo ConvertScalarTo(TTo in) {
 
 template <typename T1, typename T2>
 constexpr inline T1 DivCeil(T1 a, T2 b) {
+  HWY_DASSERT(b != 0);
   return (a + b - 1) / b;
 }
 
-// Works for any `align`; if a power of two, compiler emits ADD+AND.
+// Works for any non-zero `align`; if a power of two, compiler emits ADD+AND.
 constexpr inline size_t RoundUpTo(size_t what, size_t align) {
   return DivCeil(what, align) * align;
 }
