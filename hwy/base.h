@@ -2570,7 +2570,9 @@ HWY_API constexpr TTo ConvertScalarTo(TTo in) {
 
 template <typename T1, typename T2>
 constexpr inline T1 DivCeil(T1 a, T2 b) {
+#if HWY_CXX_LANG >= 201703L
   HWY_DASSERT(b != 0);
+#endif
   return (a + b - 1) / b;
 }
 
