@@ -20,7 +20,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <algorithm>   // std::sort, std::min, std::max
+#include <algorithm>  // std::sort
 #include <functional>  // std::less, std::greater
 #include <vector>
 
@@ -128,8 +128,8 @@ template <typename T>
 class InputStats {
  public:
   void Notify(T value) {
-    min_ = std::min(min_, value);
-    max_ = std::max(max_, value);
+    min_ = HWY_MIN(min_, value);
+    max_ = HWY_MAX(max_, value);
     // Converting to integer would truncate floats, multiplying to save digits
     // risks overflow especially when casting, so instead take the sum of the
     // bit representations as the checksum.
