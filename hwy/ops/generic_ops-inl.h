@@ -661,6 +661,70 @@ HWY_API V MaskedSatSubOr(V no, M m, V a, V b) {
 }
 #endif  // HWY_NATIVE_MASKED_ARITH
 
+#if (defined(HWY_NATIVE_ZERO_MASKED_ARITH) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_ZERO_MASKED_ARITH
+#undef HWY_NATIVE_ZERO_MASKED_ARITH
+#else
+#define HWY_NATIVE_ZERO_MASKED_ARITH
+#endif
+
+template <class V, class M>
+HWY_API V MaskedAddOrZero(M m, V a, V b) {
+  return IfThenElseZero(m, Add(a, b));
+}
+
+template <class V, class M>
+HWY_API V MaskedSubOrZero(M m, V a, V b) {
+  return IfThenElseZero(m, Sub(a, b));
+}
+
+template <class V, class M>
+HWY_API V MaskedMulOrZero(M m, V a, V b) {
+  return IfThenElseZero(m, Mul(a, b));
+}
+
+template <class V, class M>
+HWY_API V MaskedDivideOrZero(M m, V a, V b) {
+  return IfThenElseZero(m, Div(a, b));
+}
+
+template <class V, class M>
+HWY_API V MaskedSaturatedAddOrZero(M m, V a, V b) {
+  return IfThenElseZero(m, SaturatedAdd(a, b));
+}
+
+template <class V, class M>
+HWY_API V MaskedSaturatedSubOrZero(M m, V a, V b) {
+  return IfThenElseZero(m, SaturatedSub(a, b));
+}
+
+template <class V, class M, typename D = DFromV<V>, HWY_IF_I16_D(D)>
+HWY_API V MaskedMulFixedPoint15OrZero(M m, V a, V b) {
+  return IfThenElseZero(m, MulFixedPoint15(a, b));
+}
+
+template <class V, class M>
+HWY_API V MaskedMulAddOrZero(M m, V mul, V x, V add) {
+  return IfThenElseZero(m, MulAdd(mul, x, add));
+}
+
+template <class V, class M>
+HWY_API V MaskedNegMulAddOrZero(M m, V mul, V x, V add) {
+  return IfThenElseZero(m, NegMulAdd(mul, x, add));
+}
+
+template <class D, class M, HWY_IF_UI32_D(D),
+          class V16 = VFromD<RepartitionToNarrow<D>>>
+HWY_API VFromD<D> MaskedWidenMulPairwiseAddOrZero(D d32, M m, V16 a, V16 b) {
+  return IfThenElseZero(m, WidenMulPairwiseAdd(d32, a, b));
+}
+
+template <class DF, class M, HWY_IF_F32_D(DF), class VBF>
+HWY_API VFromD<DF> MaskedWidenMulPairwiseAddOrZero(DF df, M m, VBF a, VBF b) {
+  return IfThenElseZero(m, WidenMulPairwiseAdd(df, a, b));
+}
+#endif  // HWY_NATIVE_ZERO_MASKED_ARITH
+
 // ------------------------------ MaskedEq etc.
 #if (defined(HWY_NATIVE_MASKED_COMP) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_MASKED_COMP
