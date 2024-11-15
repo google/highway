@@ -631,6 +631,60 @@ HWY_API V MaskedSatSubOr(V no, M m, V a, V b) {
 }
 #endif  // HWY_NATIVE_MASKED_ARITH
 
+// ------------------------------ MaskedCompEq etc.
+#if (defined(HWY_NATIVE_MASKED_COMP) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MASKED_COMP
+#undef HWY_NATIVE_MASKED_COMP
+#else
+#define HWY_NATIVE_MASKED_COMP
+#endif
+
+template <class V, class M>
+HWY_API auto MaskedCompEq(M m, V a, V b) -> decltype(a == b) {
+  return And(m, Eq(a, b));
+}
+
+template <class V, class M>
+HWY_API auto MaskedCompNe(M m, V a, V b) -> decltype(a == b) {
+  return And(m, Ne(a, b));
+}
+
+template <class V, class M>
+HWY_API auto MaskedCompLt(M m, V a, V b) -> decltype(a == b) {
+  return And(m, Lt(a, b));
+}
+
+template <class V, class M>
+HWY_API auto MaskedCompGt(M m, V a, V b) -> decltype(a == b) {
+  return And(m, Gt(a, b));
+}
+
+template <class V, class M>
+HWY_API auto MaskedCompLe(M m, V a, V b) -> decltype(a == b) {
+  return And(m, Le(a, b));
+}
+
+template <class V, class M>
+HWY_API auto MaskedCompGe(M m, V a, V b) -> decltype(a == b) {
+  return And(m, Ge(a, b));
+}
+
+template <class V, class M, class D = DFromV<V>>
+HWY_API MFromD<D> MaskedIsInf(const M m, const V v) {
+  return And(m, IsInf(v));
+}
+
+template <class V, class M, class D = DFromV<V>>
+HWY_API MFromD<D> MaskedIsFinite(const M m, const V v) {
+  return And(m, IsFinite(v));
+}
+
+template <class V, class M, class D = DFromV<V>>
+HWY_API MFromD<D> MaskedIsNaN(const M m, const V v) {
+  return And(m, IsNaN(v));
+}
+#endif  // HWY_NATIVE_MASKED_COMP
+
 // ------------------------------ IfNegativeThenNegOrUndefIfZero
 
 #if (defined(HWY_NATIVE_INTEGER_IF_NEGATIVE_THEN_NEG) == \
