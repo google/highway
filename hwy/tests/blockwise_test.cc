@@ -274,12 +274,72 @@ struct TestInterleaveOdd {
   }
 };
 
+struct TestMaskedInterleaveEven {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    const MFromD<D> first_3 = FirstN(d, 3);
+    auto even_lanes = AllocateAligned<T>(N);
+    auto odd_lanes = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(even_lanes && odd_lanes && expected);
+    for (size_t i = 0; i < N; ++i) {
+      even_lanes[i] = ConvertScalarTo<T>(2 * i + 0);
+      odd_lanes[i] = ConvertScalarTo<T>(2 * i + 1);
+    }
+    const auto even = Load(d, even_lanes.get());
+    const auto odd = Load(d, odd_lanes.get());
+
+    for (size_t i = 0; i < N; ++i) {
+      if (i < 3) {
+        expected[i] = ConvertScalarTo<T>(2 * i - (i & 1));
+      } else {
+        expected[i] = ConvertScalarTo<T>(0);
+      }
+    }
+
+    HWY_ASSERT_VEC_EQ(d, expected.get(),
+                      InterleaveEvenOrZero(first_3, even, odd));
+  }
+};
+
+struct TestMaskedInterleaveOdd {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    const MFromD<D> first_3 = FirstN(d, 3);
+    auto even_lanes = AllocateAligned<T>(N);
+    auto odd_lanes = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(even_lanes && odd_lanes && expected);
+    for (size_t i = 0; i < N; ++i) {
+      even_lanes[i] = ConvertScalarTo<T>(2 * i + 0);
+      odd_lanes[i] = ConvertScalarTo<T>(2 * i + 1);
+    }
+    const auto even = Load(d, even_lanes.get());
+    const auto odd = Load(d, odd_lanes.get());
+
+    for (size_t i = 0; i < N; ++i) {
+      if (i < 3) {
+        expected[i] = ConvertScalarTo<T>((2 * i) - (i & 1) + 2);
+      } else {
+        expected[i] = ConvertScalarTo<T>(0);
+      }
+    }
+
+    HWY_ASSERT_VEC_EQ(d, expected.get(),
+                      InterleaveOddOrZero(first_3, even, odd));
+  }
+};
+
 HWY_NOINLINE void TestAllInterleave() {
   // Not DemoteVectors because this cannot be supported by HWY_SCALAR.
   ForAllTypes(ForShrinkableVectors<TestInterleaveLower>());
   ForAllTypes(ForShrinkableVectors<TestInterleaveUpper>());
   ForAllTypes(ForShrinkableVectors<TestInterleaveEven>());
   ForAllTypes(ForShrinkableVectors<TestInterleaveOdd>());
+  ForAllTypes(ForShrinkableVectors<TestMaskedInterleaveEven>());
+  ForAllTypes(ForShrinkableVectors<TestMaskedInterleaveOdd>());
 }
 
 struct TestZipLower {
