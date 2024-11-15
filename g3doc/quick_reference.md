@@ -658,6 +658,10 @@ from left to right, of the arguments passed to `Create{2-4}`.
     <code>V **Sqrt**(V a)</code>: returns `sqrt(a[i])`.
 
 *   `V`: `{f}` \
+    <code>V **SqrtLower**(V a)</code>: returns `sqrt(a[0])` in lowest lane and
+    `a[i]` elsewhere.
+
+*   `V`: `{f}` \
     <code>V **ApproximateReciprocalSqrt**(V a)</code>: returns an approximation
     of `1.0 / sqrt(a[i])`. `sqrt(a) ~= ApproximateReciprocalSqrt(a) * a`. x86
     and PPC provide 12-bit approximations but the error on Arm is closer to 1%.
@@ -665,6 +669,10 @@ from left to right, of the arguments passed to `Create{2-4}`.
 *   `V`: `{f}` \
     <code>V **ApproximateReciprocal**(V a)</code>: returns an approximation of
     `1.0 / a[i]`.
+
+*   `V`: `{f}` \
+    <code>V **GetExponent**(V v)</code>: returns the exponent of `v[i]` as a floating point value.
+    Essentially calculates `floor(log2(x))`.
 
 #### Min/Max
 
@@ -864,6 +872,10 @@ variants are somewhat slower on Arm, and unavailable for integer inputs; if the
     c))` or `MulAddSub(a, b, OddEven(c, Neg(c))`, but `MulSub(a, b, c)` is more
     efficient on some targets (including AVX2/AVX3).
 
+*   <code>V **MulSubAdd**(V a, V b, V c)</code>: returns `a[i] * b[i] + c[i]` in
+    the even lanes and `a[i] * b[i] - c[i]` in the odd lanes. Essentially,
+    MulAddSub with `c[i]` negated.
+
 *   `V`: `bf16`, `D`: `RepartitionToWide<DFromV<V>>`, `VW`: `Vec<D>` \
     <code>VW **MulEvenAdd**(D d, V a, V b, VW c)</code>: equivalent to and
     potentially more efficient than `MulAdd(PromoteEvenTo(d, a),
@@ -904,6 +916,21 @@ not a concern, these are equivalent to, and potentially more efficient than,
     <code>V **MaskedSatSubOr**(V no, M m, V a, V b)</code>: returns `a[i] +
     b[i]` saturated to the minimum/maximum representable value, or `no[i]` if
     `m[i]` is false.
+
+#### Zero masked arithmetic
+
+All ops in this section return `0` for `mask=false` lanes. These are equivalent
+to, and potentially more efficient than, `IfThenElseZero(m, Add(a, b));` etc.
+
+*   `V`: `{f}` \
+    <code>V **MaskedSqrtOrZero**(M m, V a)</code>: returns `sqrt(a[i])` where
+    m is true, and zero otherwise.
+*   `V`: `{f}` \
+    <code>V **MaskedApproximateReciprocalSqrtOrZero**(M m, V a)</code>: returns
+    the result of ApproximateReciprocalSqrt where m is true and zero otherwise.
+*   `V`: `{f}` \
+    <code>V **MaskedApproximateReciprocalOrZero**(M m, V a)</code>: returns the
+    result of ApproximateReciprocal where m is true and zero otherwise.
 
 #### Shifts
 

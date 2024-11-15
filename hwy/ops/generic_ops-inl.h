@@ -1175,6 +1175,34 @@ HWY_API V MulByFloorPow2(V v, V exp) {
 
 #endif  // HWY_NATIVE_MUL_BY_POW2
 
+// ------------------------------ GetExponent
+
+#if (defined(HWY_NATIVE_GET_EXPONENT) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_GET_EXPONENT
+#undef HWY_NATIVE_GET_EXPONENT
+#else
+#define HWY_NATIVE_GET_EXPONENT
+#endif
+
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_API V GetExponent(V v) {
+  const DFromV<V> d;
+  using T = TFromV<V>;
+  const RebindToUnsigned<decltype(d)> du;
+  const RebindToSigned<decltype(d)> di;
+
+  constexpr uint8_t mantissa_bits = MantissaBits<T>();
+  const auto exponent_offset = Set(di, MaxExponentField<T>() >> 1);
+
+  // extract exponent bits as integer
+  const auto encoded_exponent = ShiftRight<mantissa_bits>(BitCast(du, Abs(v)));
+  const auto exponent_int = Sub(BitCast(di, encoded_exponent), exponent_offset);
+
+  // convert integer to original type
+  return ConvertTo(d, exponent_int);
+}
+
+#endif  // HWY_NATIVE_GET_EXPONENT
 // ------------------------------ LoadInterleaved2
 
 #if HWY_IDE || \
@@ -4409,6 +4437,19 @@ HWY_API V MulAddSub(V mul, V x, V sub_or_add) {
       OddEven(sub_or_add, BitCast(d, Neg(BitCast(d_negate, sub_or_add))));
   return MulAdd(mul, x, add);
 }
+// ------------------------------ MulSubAdd
+
+template <class V>
+HWY_API V MulSubAdd(V mul, V x, V sub_or_add) {
+  using D = DFromV<V>;
+  using T = TFromD<D>;
+  using TNegate = If<!IsSigned<T>(), MakeSigned<T>, T>;
+
+  const D d;
+  const Rebind<TNegate, D> d_negate;
+
+  return MulAddSub(mul, x, BitCast(d, Neg(BitCast(d_negate, sub_or_add))));
+}
 
 // ------------------------------ Integer division
 #if (defined(HWY_NATIVE_INT_DIV) == defined(HWY_TARGET_TOGGLE))
@@ -5234,6 +5275,30 @@ HWY_API VFromD<DI32> SatWidenMulAccumFixedPoint(DI32 di32,
 
 #endif  // HWY_NATIVE_I16_SATWIDENMULACCUMFIXEDPOINT
 
+// ------------------------------ SqrtLower
+#if (defined(HWY_NATIVE_SQRT_LOWER) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_SQRT_LOWER
+#undef HWY_NATIVE_SQRT_LOWER
+#else
+#define HWY_NATIVE_SQRT_LOWER
+#endif
+
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_API V SqrtLower(V a) {
+  const DFromV<V> d;
+  const auto first_mask = FirstN(d, 1);
+  return IfThenElse(first_mask, Sqrt(a), a);
+}
+
+#undef HWY_SVE_SQRT_LOWER
+#endif  // HWY_NATIVE_SQRT_LOWER
+
+// ------------------------------ MaskedSqrtOrZero
+template <class V, HWY_IF_FLOAT_V(V), class M>
+HWY_API V MaskedSqrtOrZero(M m, V v) {
+  return IfThenElseZero(m, Sqrt(v));
+}
+
 // ------------------------------ SumOfMulQuadAccumulate
 
 #if (defined(HWY_NATIVE_I8_I8_SUMOFMULQUADACCUMULATE) == \
@@ -5418,6 +5483,12 @@ HWY_API V ApproximateReciprocal(V v) {
 
 #endif  // HWY_NATIVE_F64_APPROX_RECIP
 
+// ------------------------------ MaskedApproximateReciprocalOrZero
+template <class V, HWY_IF_FLOAT_V(V), class M>
+HWY_API V MaskedApproximateReciprocalOrZero(M m, V v) {
+  return IfThenElseZero(m, ApproximateReciprocal(v));
+}
+
 // ------------------------------ F64 ApproximateReciprocalSqrt
 
 #if (defined(HWY_NATIVE_F64_APPROX_RSQRT) == defined(HWY_TARGET_TOGGLE))
@@ -5442,6 +5513,12 @@ HWY_API V ApproximateReciprocalSqrt(V v) {
 #endif  // HWY_HAVE_FLOAT64
 
 #endif  // HWY_NATIVE_F64_APPROX_RSQRT
+
+// ------------------------------ MaskedApproximateReciprocalSqrtOrZero
+template <class V, HWY_IF_FLOAT_V(V), class M>
+HWY_API V MaskedApproximateReciprocalSqrtOrZero(M m, V v) {
+  return IfThenElseZero(m, ApproximateReciprocalSqrt(v));
+}
 
 // ------------------------------ Compress*
 

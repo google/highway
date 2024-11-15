@@ -219,6 +219,15 @@ HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SPECIALIZE, _, _)
   HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_V(BASE, BITS) v) { \
     return sv##OP##_##CHAR##BITS(v);                            \
   }
+#define HWY_SVE_RETV_ARGMV_M(BASE, CHAR, BITS, HALF, NAME, OP)             \
+  HWY_API HWY_SVE_V(BASE, BITS)                                            \
+      NAME(svbool_t m, HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b) { \
+    return sv##OP##_##CHAR##BITS##_m(b, m, a);                             \
+  }
+#define HWY_SVE_RETV_ARGMV_Z(BASE, CHAR, BITS, HALF, NAME, OP)              \
+  HWY_API HWY_SVE_V(BASE, BITS) NAME(svbool_t m, HWY_SVE_V(BASE, BITS) a) { \
+    return sv##OP##_##CHAR##BITS##_z(m, a);                                 \
+  }
 
 // vector = f(vector, scalar), e.g. detail::AddN
 #define HWY_SVE_RETV_ARGPVN(BASE, CHAR, BITS, HALF, NAME, OP)    \
@@ -1233,6 +1242,29 @@ HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGV, ApproximateReciprocal, recpe)
 
 // ------------------------------ Sqrt
 HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGPV, Sqrt, sqrt)
+
+// ------------------------------ MaskedSqrt
+namespace detail {
+HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMV_M, MaskedSqrt, sqrt)
+}
+
+// ------------------------------ SqrtLower
+#ifdef HWY_NATIVE_SQRT_LOWER
+#undef HWY_NATIVE_SQRT_LOWER
+#else
+#define HWY_NATIVE_SQRT_LOWER
+#endif
+
+#define HWY_SVE_SQRT_LOWER(BASE, CHAR, BITS, HALF, NAME, OP)      \
+  HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_V(BASE, BITS) a) {   \
+    return detail::MaskedSqrt(svptrue_pat_b##BITS(SV_VL1), a, a); \
+  }
+
+HWY_SVE_FOREACH_F(HWY_SVE_SQRT_LOWER, SqrtLower, _)
+#undef HWY_SVE_SQRT_LOWER
+
+// ------------------------------ MaskedSqrtOrZero
+HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMV_Z, MaskedSqrtOrZero, sqrt)
 
 // ------------------------------ ApproximateReciprocalSqrt
 #ifdef HWY_NATIVE_F64_APPROX_RSQRT
@@ -3093,6 +3125,34 @@ HWY_API VFromD<D> Iota(const D d, T2 first) {
   return detail::AddN(ConvertTo(d, Iota(di, 0)),
                       ConvertScalarTo<TFromD<D>>(first));
 }
+
+// ------------------------------ GetExponent
+
+#if HWY_SVE_HAVE_2 || HWY_IDE
+#ifdef HWY_NATIVE_GET_EXPONENT
+#undef HWY_NATIVE_GET_EXPONENT
+#else
+#define HWY_NATIVE_GET_EXPONENT
+#endif
+
+namespace detail {
+#define HWY_SVE_GET_EXP(BASE, CHAR, BITS, HALF, NAME, OP)      \
+  HWY_API HWY_SVE_V(int, BITS) NAME(HWY_SVE_V(BASE, BITS) v) { \
+    return sv##OP##_##CHAR##BITS##_x(HWY_SVE_PTRUE(BITS), v);  \
+  }
+HWY_SVE_FOREACH_F(HWY_SVE_GET_EXP, GetExponent, logb)
+#undef HWY_SVE_GET_EXP
+}  // namespace detail
+
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_API V GetExponent(V v) {
+  const DFromV<V> d;
+  const RebindToSigned<decltype(d)> di;
+  const VFromD<decltype(di)> exponent_int = detail::GetExponent(v);
+  // convert integer to original type
+  return ConvertTo(d, exponent_int);
+}
+#endif  // HWY_SVE_HAVE_2
 
 // ------------------------------ InterleaveLower
 
