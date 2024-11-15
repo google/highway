@@ -97,6 +97,21 @@ HWY_API Vec<D> Inf(D d) {
   return BitCast(d, Set(du, max_x2 >> 1));
 }
 
+// ------------------------------ SetOr/SetOrZero
+
+template <class V, typename T = TFromV<V>, typename D = DFromV<V>,
+          typename M = MFromD<D>>
+HWY_API V SetOr(V no, M m, T a) {
+  D d;
+  return IfThenElse(m, Set(d, a), no);
+}
+
+template <class D, typename V = VFromD<D>, typename M = MFromD<D>,
+          typename T = TFromD<D>>
+HWY_API V SetOrZero(D d, M m, T a) {
+  return IfThenElseZero(m, Set(d, a));
+}
+
 // ------------------------------ ZeroExtendResizeBitCast
 
 // The implementation of detail::ZeroExtendResizeBitCast for the HWY_EMU128
@@ -335,6 +350,20 @@ HWY_API Mask<DTo> DemoteMaskTo(DTo d_to, DFrom d_from, Mask<DFrom> m) {
 }
 
 #endif  // HWY_NATIVE_DEMOTE_MASK_TO
+
+// ------------------------------ LoadHigher
+#if (defined(HWY_NATIVE_LOAD_HIGHER) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_LOAD_HIGHER
+#undef HWY_NATIVE_LOAD_HIGHER
+#else
+#define HWY_NATIVE_LOAD_HIGHER
+#endif
+template <class D, typename T, class V = VFromD<D>(), HWY_IF_LANES_GT_D(D, 1)>
+HWY_API V LoadHigher(D d, V a, T* p) {
+  const V b = LoadU(d, p);
+  return ConcatLowerLower(d, b, a);
+}
+#endif  // HWY_NATIVE_LOAD_HIGHER
 
 // ------------------------------ CombineMasks
 
@@ -1175,6 +1204,12 @@ HWY_API V MulByFloorPow2(V v, V exp) {
 
 #endif  // HWY_NATIVE_MUL_BY_POW2
 
+// ------------------------------ MaskedLoadU
+template <class D, class M>
+HWY_API VFromD<D> MaskedLoadU(D d, M m,
+                              const TFromD<D>* HWY_RESTRICT unaligned) {
+  return IfThenElseZero(m, LoadU(d, unaligned));
+}
 // ------------------------------ GetExponent
 
 #if (defined(HWY_NATIVE_GET_EXPONENT) == defined(HWY_TARGET_TOGGLE))
@@ -2659,6 +2694,25 @@ HWY_API void StoreN(VFromD<D> v, D d, T* HWY_RESTRICT p,
 
 #endif  // (defined(HWY_NATIVE_STORE_N) == defined(HWY_TARGET_TOGGLE))
 
+// ------------------------------ StoreTruncated
+#if (defined(HWY_NATIVE_STORE_TRUNCATED) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_STORE_TRUNCATED
+#undef HWY_NATIVE_STORE_TRUNCATED
+#else
+#define HWY_NATIVE_STORE_TRUNCATED
+#endif
+
+template <class DFrom, class To, class DTo = Rebind<To, DFrom>,
+          HWY_IF_T_SIZE_GT_D(DFrom, sizeof(To)),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(VFromD<DFrom>)>
+HWY_API void StoreTruncated(VFromD<DFrom> v, const DFrom d,
+                            To* HWY_RESTRICT p) {
+  DTo dsmall;
+  StoreN(TruncateTo(dsmall, v), dsmall, p, Lanes(d));
+}
+
+#endif  // (defined(HWY_NATIVE_STORE_TRUNCATED) == defined(HWY_TARGET_TOGGLE))
+
 // ------------------------------ Scatter
 
 #if (defined(HWY_NATIVE_SCATTER) == defined(HWY_TARGET_TOGGLE))
@@ -3885,6 +3939,21 @@ HWY_API V TrailingZeroCount(V v) {
                      detail::F32ExpLzcntMinMaxBitCast(Set(du, kNumOfBitsInT))));
 }
 #endif  // HWY_NATIVE_LEADING_ZERO_COUNT
+
+// ------------------------------ MaskedLeadingZeroCountOrZero
+#if (defined(HWY_NATIVE_MASKED_LEADING_ZERO_COUNT) == \
+     defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MASKED_LEADING_ZERO_COUNT
+#undef HWY_NATIVE_MASKED_LEADING_ZERO_COUNT
+#else
+#define HWY_NATIVE_MASKED_LEADING_ZERO_COUNT
+#endif
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V), class M>
+HWY_API V MaskedLeadingZeroCountOrZero(M m, V v) {
+  return IfThenElseZero(m, LeadingZeroCount(v));
+}
+#endif  // HWY_NATIVE_MASKED_LEADING_ZERO_COUNT
 
 // ------------------------------ AESRound
 
@@ -7442,6 +7511,34 @@ HWY_API V BitShuffle(V v, VI idx) {
 
 #endif  // HWY_NATIVE_BITSHUFFLE
 
+// ------------------------------ AllOnes/AllZeros
+#if (defined(HWY_NATIVE_ALLONES) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_ALLONES
+#undef HWY_NATIVE_ALLONES
+#else
+#define HWY_NATIVE_ALLONES
+#endif
+
+template <class V>
+HWY_API bool AllOnes(V a) {
+  DFromV<V> d;
+  return AllTrue(d, Eq(Not(a), Zero(d)));
+}
+#endif  // HWY_NATIVE_ALLONES
+
+#if (defined(HWY_NATIVE_ALLZEROS) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_ALLZEROS
+#undef HWY_NATIVE_ALLZEROS
+#else
+#define HWY_NATIVE_ALLZEROS
+#endif
+
+template <class V>
+HWY_API bool AllZeros(V a) {
+  DFromV<V> d;
+  return AllTrue(d, Eq(a, Zero(d)));
+}
+#endif  // HWY_NATIVE_ALLZEROS
 // ================================================== Operator wrapper
 
 // SVE* and RVV currently cannot define operators and have already defined

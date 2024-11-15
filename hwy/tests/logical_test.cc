@@ -146,6 +146,32 @@ HWY_NOINLINE void TestAllTestBit() {
   ForIntegerTypes(ForPartialVectors<TestTestBit>());
 }
 
+struct TestAllOnes {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    auto v0s = Zero(d);
+    HWY_ASSERT(AllZeros(v0s));
+    auto v1s = Not(v0s);
+    HWY_ASSERT(AllOnes(v1s));
+    const size_t kNumBits = sizeof(T) * 8;
+    for (size_t i = 0; i < kNumBits; ++i) {
+      const Vec<D> bit1 = Set(d, static_cast<T>(1ull << i));
+      const Vec<D> bit2 = Set(d, static_cast<T>(1ull << ((i + 1) % kNumBits)));
+      const Vec<D> bits12 = Or(bit1, bit2);
+      HWY_ASSERT(!AllOnes(bit1));
+      HWY_ASSERT(!AllZeros(bit1));
+      HWY_ASSERT(!AllOnes(bit2));
+      HWY_ASSERT(!AllZeros(bit2));
+      HWY_ASSERT(!AllOnes(bits12));
+      HWY_ASSERT(!AllZeros(bits12));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllAllOnes() {
+  ForIntegerTypes(ForPartialVectors<TestAllOnes>());
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -159,6 +185,8 @@ HWY_BEFORE_TEST(HwyLogicalTest);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllNot);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogical);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllTestBit);
+HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllAllOnes);
+
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy
