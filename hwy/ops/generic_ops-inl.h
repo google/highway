@@ -577,6 +577,22 @@ HWY_API V AddSub(V a, V b) {
   return Add(a, negated_even_b);
 }
 
+#if (defined(HWY_NATIVE_MUL_LOWER) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MUL_LOWER
+#undef HWY_NATIVE_MUL_LOWER
+#else
+#define HWY_NATIVE_MUL_LOWER
+#endif
+
+template <class V>
+HWY_API V MulLower(V a, V b) {
+  const DFromV<V> d;
+  const auto first_mask = FirstN(d, 1);
+  return MaskedMulOr(a, first_mask, a, b);
+}
+
+#endif  // HWY_NATIVE_MUL_LOWER
+
 // ------------------------------ MaskedAddOr etc.
 #if (defined(HWY_NATIVE_MASKED_ARITH) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_MASKED_ARITH
@@ -4352,6 +4368,12 @@ HWY_API V operator*(V x, V y) {
 
 #endif  // HWY_NATIVE_MUL_64
 
+// ------------------------------ MulRound
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_API V MulRound(V a, V b) {
+  return Round(Mul(a, b));
+}
+
 // ------------------------------ MulAdd / NegMulAdd
 
 #if (defined(HWY_NATIVE_INT_FMA) == defined(HWY_TARGET_TOGGLE))
@@ -4382,6 +4404,23 @@ HWY_API V MulSub(V mul, V x, V sub) {
   return Sub(Mul(mul, x), sub);
 }
 #endif  // HWY_NATIVE_INT_FMA
+
+// ------------------------------ MulAddLower
+#if (defined(HWY_NATIVE_MUL_ADD_LOWER) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MUL_ADD_LOWER
+#undef HWY_NATIVE_MUL_ADD_LOWER
+#else
+#define HWY_NATIVE_MUL_ADD_LOWER
+#endif
+
+template <class V>
+HWY_API V MulAddLower(const V a, const V b, const V c) {
+  const DFromV<V> d;
+  const MFromD<DFromV<V>> LowerMask = FirstN(d, 1);
+  return IfThenElse(LowerMask, MulAdd(a, b, c), a);
+}
+
+#endif  // HWY_NATIVE_MUL_ADD_LOWER
 
 // ------------------------------ Integer MulSub / NegMulSub
 #if (defined(HWY_NATIVE_INT_FMSUB) == defined(HWY_TARGET_TOGGLE))

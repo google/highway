@@ -379,6 +379,66 @@ HWY_NOINLINE void TestAllFloatExceptions() {
   ForFloatTypes(ForPartialVectors<TestFloatExceptions>());
 }
 
+struct TestMulLower {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto v0 = Zero(d);
+
+    HWY_ASSERT_VEC_EQ(d, v0, MulLower(v0, v0));
+
+    const auto v2 = Iota(d, 2);
+    const auto v3 = Iota(d, 3);
+
+    const size_t N = Lanes(d);
+    auto expected = AllocateAligned<T>(N);
+
+    for (size_t i = 0; i < N; ++i) {
+      if (i == 0) {
+        expected[i] = ConvertScalarTo<T>(2 * 3);
+      } else {
+        expected[i] = ConvertScalarTo<T>(i + 2);
+      }
+    }
+
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MulLower(v2, v3));
+  }
+};
+
+HWY_NOINLINE void TestAllMulLower() {
+  ForAllTypes(ForPartialVectors<TestMulLower>());
+}
+
+struct TestMulAddLower {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const Vec<D> v0 = Zero(d);
+
+    // Test all zeros
+    HWY_ASSERT_VEC_EQ(d, v0, MulAddLower(v0, v0, v0));
+
+    // Test upper lanes of a being passed through
+    const Vec<D> v1 = Iota(d, 1);
+    const Vec<D> v2 = Iota(d, 2);
+    const Vec<D> v3 = Iota(d, 3);
+
+    const size_t N = Lanes(d);
+    auto expected = AllocateAligned<T>(N);
+
+    for (size_t i = 0; i < N; ++i) {
+      if (i == 0) {
+        expected[i] = ConvertScalarTo<T>(5);
+      } else {
+        expected[i] = static_cast<T>(i + 1);
+      }
+    }
+
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MulAddLower(v1, v2, v3));
+  }
+};
+
+HWY_NOINLINE void TestAllTestMulAddLower() {
+  ForAllTypes(ForPartialVectors<TestMulAddLower>());
+}
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -394,6 +454,8 @@ HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllSatAddSub);
 HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllDiv);
 HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllIntegerDivMod);
 HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllFloatExceptions);
+HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllMulLower);
+HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllTestMulAddLower);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy

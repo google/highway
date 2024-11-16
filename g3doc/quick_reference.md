@@ -726,6 +726,10 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     truncating it to the lower half for integer inputs. Currently unavailable on
     SVE/RVV; use the equivalent `Mul` instead.
 
+*   `V`: `f`
+    <code>V **MulRound**(V a, V b)</code>: Multiplies `a[i]` by `b[i]` and rounds
+    the result to the nearest int with ties going to even.
+
 *   `V`: `f`, `VI`: `Vec<RebindToSigned<DFromV<V>>>` \
     <code>V **MulByPow2**(V a, VI b)</code>: Multiplies `a[i]` by `2^b[i]`.
 
@@ -755,6 +759,9 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
 *   `V`: `{u,i}` \
     <code>V **MulHigh**(V a, V b)</code>: returns the upper half of `a[i] *
     b[i]` in each lane.
+
+*   <code>V **MulLower**(V a, V b)</code>: returns `a[0] * b[0]` in the
+    first lane and `a[i]` otherwise.
 
 *   `V`: `i16` \
     <code>V **MulFixedPoint15**(V a, V b)</code>: returns the result of
@@ -881,6 +888,9 @@ variants are somewhat slower on Arm, and unavailable for integer inputs; if the
     <code>VW **MulOddAdd**(D d, V a, V b, VW c)</code>: equivalent to and
     potentially more efficient than `MulAdd(PromoteOddTo(d, a), PromoteOddTo(d,
     b), c)`.
+
+*   <code>V **MulAddLower**(V a, V b, V c)</code>: returns `a[0] * b[0] + c[0]`
+    and `a[i]` in all other lanes.
 
 #### Masked arithmetic
 
