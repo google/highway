@@ -477,4 +477,6 @@ HWY_EXPORT_AND_TEST_P(BenchSort, BenchAllSort);
 HWY_AFTER_TEST();
 }  // namespace hwy
 
+HWY_TEST_MAIN();
+
 #endif  // HWY_ONCE
