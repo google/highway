@@ -352,6 +352,122 @@ HWY_NOINLINE void TestAllSumsOf8() {
   ForGEVectors<64, TestSumsOf8>()(uint8_t());
 }
 
+struct TestMaskedReduceSum {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    RandomState rng;
+
+    const Vec<D> v2 = Iota(d, 2);
+
+    const size_t N = Lanes(d);
+    auto bool_lanes = AllocateAligned<T>(N);
+    HWY_ASSERT(bool_lanes);
+
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
+      T expected = 0;
+      for (size_t i = 0; i < N; ++i) {
+        bool_lanes[i] = (Random32(&rng) & 1024) ? T(1) : T(0);
+        if (bool_lanes[i]) {
+          expected += ConvertScalarTo<T>(i + 2);
+        }
+      }
+
+      const Vec<D> mask_i = Load(d, bool_lanes.get());
+      const Mask<D> mask = RebindMask(d, Gt(mask_i, Zero(d)));
+
+      // If all elements are disabled the result is implementation defined
+      if (AllFalse(d, mask)) {
+        continue;
+      }
+
+      HWY_ASSERT_EQ(expected, MaskedReduceSum(d, mask, v2));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllMaskedReduceSum() {
+  ForAllTypes(ForPartialVectors<TestMaskedReduceSum>());
+}
+
+struct TestMaskedReduceMin {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    RandomState rng;
+
+    const Vec<D> v2 = Iota(d, 2);
+
+    const size_t N = Lanes(d);
+    auto bool_lanes = AllocateAligned<T>(N);
+    HWY_ASSERT(bool_lanes);
+
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
+      T expected =
+          ConvertScalarTo<T>(N + 3);  // larger than any values in the vector
+      for (size_t i = 0; i < N; ++i) {
+        bool_lanes[i] = (Random32(&rng) & 1024) ? T(1) : T(0);
+        if (bool_lanes[i]) {
+          if (expected > ConvertScalarTo<T>(i + 2)) {
+            expected = ConvertScalarTo<T>(i + 2);
+          }
+        }
+      }
+
+      const Vec<D> mask_i = Load(d, bool_lanes.get());
+      const Mask<D> mask = RebindMask(d, Gt(mask_i, Zero(d)));
+
+      // If all elements are disabled the result is implementation defined
+      if (AllFalse(d, mask)) {
+        continue;
+      }
+
+      HWY_ASSERT_EQ(expected, MaskedReduceMin(d, mask, v2));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllMaskedReduceMin() {
+  ForAllTypes(ForPartialVectors<TestMaskedReduceMin>());
+}
+
+struct TestMaskedReduceMax {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    RandomState rng;
+
+    const Vec<D> v2 = Iota(d, 2);
+
+    const size_t N = Lanes(d);
+    auto bool_lanes = AllocateAligned<T>(N);
+    HWY_ASSERT(bool_lanes);
+
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
+      T expected = 0;
+      for (size_t i = 0; i < N; ++i) {
+        bool_lanes[i] = (Random32(&rng) & 1024) ? T(1) : T(0);
+        if (bool_lanes[i]) {
+          if (expected < ConvertScalarTo<T>(i + 2)) {
+            expected = ConvertScalarTo<T>(i + 2);
+          }
+        }
+      }
+
+      const Vec<D> mask_i = Load(d, bool_lanes.get());
+      const Mask<D> mask = RebindMask(d, Gt(mask_i, Zero(d)));
+
+      // If all elements are disabled the result is implementation defined
+      if (AllFalse(d, mask)) {
+        continue;
+      }
+
+      HWY_ASSERT_EQ(expected, MaskedReduceMax(d, mask, v2));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllMaskedReduceMax() {
+  ForAllTypes(ForPartialVectors<TestMaskedReduceMax>());
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -367,6 +483,10 @@ HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllMinMaxOfLanes);
 HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllSumsOf2);
 HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllSumsOf4);
 HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllSumsOf8);
+
+HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllMaskedReduceSum);
+HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllMaskedReduceMin);
+HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllMaskedReduceMax);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy
