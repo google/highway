@@ -95,7 +95,6 @@ void TestAllSortIota() {
   if (hwy::HaveFloat64()) {
     TestSortIota<double>(pool);
   }
-  fprintf(stderr, "Iota OK\n");
 #endif
 }
 

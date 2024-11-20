@@ -554,8 +554,7 @@ void Run(Algo algo, KeyType* inout, size_t num_keys, SharedState& shared,
     case Algo::kVXSort: {
 #if (VXSORT_AVX3 && HWY_TARGET != HWY_AVX3) || \
     (!VXSORT_AVX3 && HWY_TARGET != HWY_AVX2)
-      fprintf(stderr, "Do not call for target %s\n",
-              hwy::TargetName(HWY_TARGET));
+      HWY_WARN("Do not call for target %s\n", hwy::TargetName(HWY_TARGET));
       return;
 #else
 #if VXSORT_AVX3
@@ -566,7 +565,7 @@ void Run(Algo algo, KeyType* inout, size_t num_keys, SharedState& shared,
       if (kAscending) {
         return vx.sort(inout, inout + num_keys - 1);
       } else {
-        fprintf(stderr, "Skipping VX - does not support descending order\n");
+        HWY_WARN("Skipping VX - does not support descending order\n");
         return;
       }
 #endif  // enabled for this target

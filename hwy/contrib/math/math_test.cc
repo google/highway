@@ -75,8 +75,7 @@ HWY_NOINLINE void TestMath(const char* name, T (*fx1)(T),
     static bool once = true;
     if (once) {
       once = false;
-      fprintf(stderr,
-              "Skipping math_test due to GCC issue with excess precision.\n");
+      HWY_WARN("Skipping math_test due to GCC issue with excess precision.\n");
     }
     return;
   }

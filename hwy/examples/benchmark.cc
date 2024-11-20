@@ -75,7 +75,7 @@ void RunBenchmark(const char* caption) {
       [&benchmark](const FuncInput input) { return benchmark(input); }, inputs,
       kNumInputs, results, p);
   if (num_results != kNumInputs) {
-    fprintf(stderr, "MeasureClosure failed.\n");
+    HWY_WARN("MeasureClosure failed.\n");
   }
 
   benchmark.Verify(num_items);
@@ -147,17 +147,14 @@ class BenchmarkDot : public TwoArray {
   }
   void Verify(size_t num_items) {
     if (dot_ == -1.0f) {
-      fprintf(stderr, "Dot: must call Verify after benchmark");
-      abort();
+      HWY_ABORT("Dot: must call Verify after benchmark");
     }
 
     const float expected =
         std::inner_product(a_.get(), a_.get() + num_items, b_, 0.0f);
     const float rel_err = std::abs(expected - dot_) / expected;
     if (rel_err > 1.1E-6f) {
-      fprintf(stderr, "Dot: expected %e actual %e (%e)\n", expected, dot_,
-              rel_err);
-      abort();
+      HWY_ABORT("Dot: expected %e actual %e (%e)\n", expected, dot_, rel_err);
     }
   }
 
@@ -214,7 +211,7 @@ struct BenchmarkDelta : public TwoArray {
       const float expected = (i == 0) ? a_[0] : a_[i] - a_[i - 1];
       const float err = std::abs(expected - b_[i]);
       if (err > 1E-6f) {
-        fprintf(stderr, "Delta: expected %e, actual %e\n", expected, b_[i]);
+        HWY_WARN("Delta: expected %e, actual %e\n", expected, b_[i]);
       }
     }
   }

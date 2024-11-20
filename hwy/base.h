@@ -251,6 +251,12 @@ namespace hwy {
 // 4 instances of a given literal value, useful as input to LoadDup128.
 #define HWY_REP4(literal) literal, literal, literal, literal
 
+HWY_DLLEXPORT void HWY_FORMAT(3, 4)
+    Warn(const char* file, int line, const char* format, ...);
+
+#define HWY_WARN(format, ...) \
+  ::hwy::Warn(__FILE__, __LINE__, format, ##__VA_ARGS__)
+
 HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
     Abort(const char* file, int line, const char* format, ...);
 

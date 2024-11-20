@@ -95,8 +95,7 @@ HWY_CONTRIB_DLLEXPORT size_t TotalLogicalProcessors() {
   // upper bound.
   const long ret = sysconf(_SC_NPROCESSORS_CONF);  // NOLINT(runtime/int)
   if (ret < 0) {
-    fprintf(stderr, "Unexpected value of _SC_NPROCESSORS_CONF: %d\n",
-            static_cast<int>(ret));
+    HWY_WARN("Unexpected _SC_NPROCESSORS_CONF = %d\n", static_cast<int>(ret));
   } else {
     lp = static_cast<size_t>(ret);
   }
@@ -104,13 +103,12 @@ HWY_CONTRIB_DLLEXPORT size_t TotalLogicalProcessors() {
 
   if (HWY_UNLIKELY(lp == 0)) {  // Failed to detect.
     HWY_IF_CONSTEXPR(HWY_IS_DEBUG_BUILD) {
-      fprintf(stderr,
-              "Unknown TotalLogicalProcessors, assuming 1. "
-              "HWY_OS_: WIN=%d LINUX=%d APPLE=%d;\n"
-              "HWY_ARCH_: WASM=%d X86=%d PPC=%d ARM=%d RISCV=%d S390X=%d\n",
-              HWY_OS_WIN, HWY_OS_LINUX, HWY_OS_APPLE, HWY_ARCH_WASM,
-              HWY_ARCH_X86, HWY_ARCH_PPC, HWY_ARCH_ARM, HWY_ARCH_RISCV,
-              HWY_ARCH_S390X);
+      HWY_WARN(
+          "Unknown TotalLogicalProcessors, assuming 1. "
+          "HWY_OS_: WIN=%d LINUX=%d APPLE=%d;\n"
+          "HWY_ARCH_: WASM=%d X86=%d PPC=%d ARM=%d RISCV=%d S390X=%d\n",
+          HWY_OS_WIN, HWY_OS_LINUX, HWY_OS_APPLE, HWY_ARCH_WASM, HWY_ARCH_X86,
+          HWY_ARCH_PPC, HWY_ARCH_ARM, HWY_ARCH_RISCV, HWY_ARCH_S390X);
     }
     return 1;
   }
@@ -118,8 +116,8 @@ HWY_CONTRIB_DLLEXPORT size_t TotalLogicalProcessors() {
   // Warn that we are clamping.
   if (HWY_UNLIKELY(lp > kMaxLogicalProcessors)) {
     HWY_IF_CONSTEXPR(HWY_IS_DEBUG_BUILD) {
-      fprintf(stderr, "OS reports %zu processors but clamping to %zu\n", lp,
-              kMaxLogicalProcessors);
+      HWY_WARN("OS reports %zu processors but clamping to %zu\n", lp,
+               kMaxLogicalProcessors);
     }
     lp = kMaxLogicalProcessors;
   }
@@ -254,7 +252,7 @@ class File {
       if (errno == EINTR) continue;  // signal: retry
       if (errno == ENOENT) return;   // not found, give up
       if (HWY_IS_DEBUG_BUILD) {
-        fprintf(stderr, "Unexpected error opening %s: %d\n", path, errno);
+        HWY_WARN("Unexpected error opening %s: %d\n", path, errno);
       }
       return;  // unknown error, give up
     }
@@ -267,7 +265,7 @@ class File {
         if (ret == 0) break;           // success
         if (errno == EINTR) continue;  // signal: retry
         if (HWY_IS_DEBUG_BUILD) {
-          fprintf(stderr, "Unexpected error closing file: %d\n", errno);
+          HWY_WARN("Unexpected error closing file: %d\n", errno);
         }
         return;  // unknown error, ignore
       }
@@ -288,7 +286,7 @@ class File {
       if (bytes_read == -1) {
         if (errno == EINTR) continue;  // signal: retry
         if (HWY_IS_DEBUG_BUILD) {
-          fprintf(stderr, "Unexpected error reading file: %d\n", errno);
+          HWY_WARN("Unexpected error reading file: %d\n", errno);
         }
         return 0;
       }
@@ -620,7 +618,7 @@ static bool InitCachesSysfs(Caches& caches) {
   const std::vector<PackageSizes> package_sizes = DetectPackages(lps);
   // `package_sizes` is only used to check that `lps` were filled.
   if (package_sizes.empty()) {
-    fprintf(stderr, "WARN: no packages, shared cache sizes may be incorrect\n");
+    HWY_WARN("no packages, shared cache sizes may be incorrect\n");
     return false;
   }
 
@@ -635,8 +633,7 @@ static bool InitCachesSysfs(Caches& caches) {
 
     // Check before overwriting any fields.
     if (c.size_kib != 0) {
-      fprintf(stderr, "WARN: ignoring another L%u, first size %u\n", level,
-              c.size_kib);
+      HWY_WARN("ignoring another L%u, first size %u\n", level, c.size_kib);
       continue;
     }
 
@@ -644,8 +641,7 @@ static bool InitCachesSysfs(Caches& caches) {
                     WriteSysfs("ways_of_associativity", i, &c.associativity) &&
                     WriteSysfs("number_of_sets", i, &c.sets);
     if (HWY_UNLIKELY(!ok)) {
-      fprintf(stderr, "WARN: skipping partially-detected L%u, error %d\n",
-              level, errno);
+      HWY_WARN("skipping partially-detected L%u, error %d\n", level, errno);
       c = Cache();
       continue;
     }
@@ -659,8 +655,7 @@ static bool InitCachesSysfs(Caches& caches) {
     // Divide by number of *cores* sharing the cache.
     const std::string shared_str = ReadString("shared_cpu_list", i);
     if (HWY_UNLIKELY(shared_str.empty())) {
-      fprintf(stderr, "WARN: no shared_cpu_list for L%u %s\n", level,
-              type.c_str());
+      HWY_WARN("no shared_cpu_list for L%u %s\n", level, type.c_str());
       c.cores_sharing = 1;
     } else {
       const std::vector<size_t> shared_lps =
@@ -670,13 +665,13 @@ static bool InitCachesSysfs(Caches& caches) {
         if (HWY_LIKELY(lp < lps.size())) {
           num_cores += lps[lp].smt == 0;
         } else {
-          fprintf(stderr, "WARN: out of bounds lp %zu of %zu from %s\n", lp,
-                  lps.size(), shared_str.c_str());
+          HWY_WARN("out of bounds lp %zu of %zu from %s\n", lp, lps.size(),
+                   shared_str.c_str());
         }
       }
       if (num_cores == 0) {
-        fprintf(stderr, "WARN: no cores sharing L%u %s, setting to 1\n", level,
-                type.c_str());
+        HWY_WARN("no cores sharing L%u %s, setting to 1\n", level,
+                 type.c_str());
         num_cores = 1;
       }
       c.cores_sharing = static_cast<uint16_t>(num_cores);
@@ -689,8 +684,8 @@ static bool InitCachesSysfs(Caches& caches) {
 
   // Require L1 and L2 cache.
   if (HWY_UNLIKELY(caches[1].size_kib == 0 || caches[2].size_kib == 0)) {
-    fprintf(stderr, "WARN: sysfs detected L1=%u L2=%u, err %x\n",
-            caches[1].size_kib, caches[2].size_kib, errno);
+    HWY_WARN("sysfs detected L1=%u L2=%u, err %x\n", caches[1].size_kib,
+             caches[2].size_kib, errno);
     return false;
   }
 
@@ -729,10 +724,8 @@ bool ForEachSLPI(LOGICAL_PROCESSOR_RELATIONSHIP rel, Func&& func) {
     pos += info->Size;
   }
   if (pos != buf + buf_bytes) {
-    fprintf(
-        stderr,
-        "WARN: unexpected pos %p, end %p, buf_bytes %lu, sizeof(SLPI) %zu\n",
-        pos, buf + buf_bytes, buf_bytes, sizeof(SLPI));
+    HWY_WARN("unexpected pos %p, end %p, buf_bytes %lu, sizeof(SLPI) %zu\n",
+             pos, buf + buf_bytes, buf_bytes, sizeof(SLPI));
   }
 
   free(buf);
@@ -780,7 +773,7 @@ static bool InitCachesWin(Caches& caches) {
       // `max_logical_per_core`, hence round up.
       shared_with = DivCeil(shared_with, max_logical_per_core);
       if (shared_with == 0) {
-        fprintf(stderr, "WARN: no cores sharing L%u, setting to 1\n", cr.Level);
+        HWY_WARN("no cores sharing L%u, setting to 1\n", cr.Level);
         shared_with = 1;
       }
 
@@ -794,8 +787,8 @@ static bool InitCachesWin(Caches& caches) {
 
   // Require L1 and L2 cache.
   if (HWY_UNLIKELY(caches[1].size_kib == 0 || caches[2].size_kib == 0)) {
-    fprintf(stderr, "WARN: Windows detected L1=%u, L2=%u, err %lx\n",
-            caches[1].size_kib, caches[2].size_kib, GetLastError());
+    HWY_WARN("Windows detected L1=%u, L2=%u, err %lx\n", caches[1].size_kib,
+             caches[2].size_kib, GetLastError());
     return false;
   }
 
@@ -836,7 +829,7 @@ static bool InitCachesApple(Caches& caches) {
   ok &= Sysctl("hw.perflevel0.l2cachesize", 1024, err, &L2.size_kib) ||
         Sysctl("hw.l2cachesize", 1024, err, &L2.size_kib);
   if (HWY_UNLIKELY(!ok)) {
-    fprintf(stderr, "WARN: Apple cache detection failed, error %d\n", err);
+    HWY_WARN("Apple cache detection failed, error %d\n", err);
     return false;
   }
   L1.cores_sharing = 1;
@@ -853,7 +846,7 @@ static bool InitCachesApple(Caches& caches) {
   if (!sysctlbyname("machdep.cpu.brand_string", brand, &size, nullptr, 0)) {
     if (!strncmp(brand, "Apple ", 6)) {
       // Unexpected, but we will continue check the string suffixes.
-      fprintf(stderr, "WARN: unexpected Apple brand %s\n", brand);
+      HWY_WARN("unexpected Apple brand %s\n", brand);
     }
 
     if (brand[6] == 'M') {
@@ -961,7 +954,7 @@ static const Cache* InitDataCaches() {
 #elif HWY_OS_APPLE
   if (HWY_UNLIKELY(!InitCachesApple(caches))) return nullptr;
 #else
-  fprintf(stderr, "Cache detection not implemented for this platform.\n");
+  HWY_WARN("Cache detection not implemented for this platform.\n");
   (void)caches;
   return nullptr;
 #define HWY_NO_CACHE_DETECTION

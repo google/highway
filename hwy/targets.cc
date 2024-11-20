@@ -707,12 +707,11 @@ int64_t DetectTargets() {
   if ((bits & HWY_ENABLED_BASELINE) != HWY_ENABLED_BASELINE) {
     const uint64_t bits_u = static_cast<uint64_t>(bits);
     const uint64_t enabled = static_cast<uint64_t>(HWY_ENABLED_BASELINE);
-    fprintf(stderr,
-            "WARNING: CPU supports 0x%08x%08x, software requires 0x%08x%08x\n",
-            static_cast<uint32_t>(bits_u >> 32),
-            static_cast<uint32_t>(bits_u & 0xFFFFFFFF),
-            static_cast<uint32_t>(enabled >> 32),
-            static_cast<uint32_t>(enabled & 0xFFFFFFFF));
+    HWY_WARN("CPU supports 0x%08x%08x, software requires 0x%08x%08x\n",
+             static_cast<uint32_t>(bits_u >> 32),
+             static_cast<uint32_t>(bits_u & 0xFFFFFFFF),
+             static_cast<uint32_t>(enabled >> 32),
+             static_cast<uint32_t>(enabled & 0xFFFFFFFF));
   }
 
   return bits;
