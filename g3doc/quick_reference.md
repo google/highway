@@ -948,10 +948,18 @@ not a concern, these are equivalent to, and potentially more efficient than,
 *   <code>V **MaskedMulAddOr**(V no, M m, V mul, V x, V add)</code>: returns
     `mul[i] * x[i] + add[i]` or `no[i]` if `m[i]` is false.
 
+*   `V`: `{i,f}` \
+    <code>V **MaskedAbsOr**(M m, V a, V b)</code>: returns the absolute value of
+    `a[i]` where m is active and returns `b[i]` otherwise.
+
 #### Zero masked arithmetic
 
 All ops in this section return `0` for `mask=false` lanes. These are equivalent
 to, and potentially more efficient than, `IfThenElseZero(m, Add(a, b));` etc.
+
+*   `V`: `{i,f}` \
+    <code>V **MaskedAbsOrZero**(M m, V a)</code>: returns the absolute value of
+    `a[i]` where m is active and returns zero otherwise.
 
 *   <code>V **MaskedMax**(M m, V a, V b)</code>: returns `Max(a, b)[i]` or
     `zero` if `m[i]` is false.
