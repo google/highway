@@ -25,7 +25,7 @@
 #include <string>
 #include <vector>
 
-#include "hwy/detect_compiler_arch.h"  // HWY_OS_WIN
+#include "hwy/base.h"  // HWY_OS_WIN, HWY_WARN
 
 #if HWY_OS_APPLE
 #include <sys/sysctl.h>
@@ -68,8 +68,6 @@
 #include <emscripten/threading.h>
 #endif
 
-#include "hwy/base.h"
-
 namespace hwy {
 
 HWY_CONTRIB_DLLEXPORT bool HaveThreadingSupport() {
@@ -79,6 +77,39 @@ HWY_CONTRIB_DLLEXPORT bool HaveThreadingSupport() {
   return true;
 #endif
 }
+
+// Returns `whole / part`, with a check that `part` evenly divides `whole`,
+// which implies the result is exact.
+static HWY_MAYBE_UNUSED size_t DivByFactor(size_t whole, size_t part) {
+  HWY_ASSERT(part != 0);
+  const size_t div = whole / part;
+  const size_t mul = div * part;
+  if (mul != whole) {
+    HWY_ABORT("%zu / %zu = %zu; *%zu = %zu\n", whole, part, div, part, mul);
+  }
+  return div;
+}
+
+#if HWY_OS_APPLE
+
+// Returns whether sysctlbyname() succeeded; if so, writes `val / div` to
+// `out`, otherwise sets `err`.
+template <typename T>
+bool Sysctl(const char* name, size_t div, int& err, T* out) {
+  size_t val = 0;
+  size_t size = sizeof(val);
+  // Last two arguments are for updating the value, which we do not want.
+  const int ret = sysctlbyname(name, &val, &size, nullptr, 0);
+  if (HWY_UNLIKELY(ret != 0)) {
+    // Do not print warnings because some `name` are expected to fail.
+    err = ret;
+    return false;
+  }
+  *out = static_cast<T>(DivByFactor(val, div));
+  return true;
+}
+
+#endif  // HWY_OS_APPLE
 
 HWY_CONTRIB_DLLEXPORT size_t TotalLogicalProcessors() {
   size_t lp = 0;
@@ -98,6 +129,11 @@ HWY_CONTRIB_DLLEXPORT size_t TotalLogicalProcessors() {
     HWY_WARN("Unexpected _SC_NPROCESSORS_CONF = %d\n", static_cast<int>(ret));
   } else {
     lp = static_cast<size_t>(ret);
+  }
+#elif HWY_OS_APPLE
+  int err;
+  if (!Sysctl("hw.logicalcpu", 1, err, &lp)) {
+    lp = 0;
   }
 #endif
 
@@ -568,18 +604,6 @@ HWY_CONTRIB_DLLEXPORT Topology::Topology() {
 
 using Caches = std::array<Cache, 4>;
 
-// Returns `whole / part`, with a check that `part` evenly divides `whole`,
-// which implies the result is exact.
-static HWY_MAYBE_UNUSED size_t DivByFactor(size_t whole, size_t part) {
-  HWY_ASSERT(part != 0);
-  const size_t div = whole / part;
-  const size_t mul = div * part;
-  if (mul != whole) {
-    HWY_ABORT("%zu / %zu = %zu; *%zu = %zu\n", whole, part, div, part, mul);
-  }
-  return div;
-}
-
 // We assume homogeneous caches across all clusters because some OS APIs return
 // a single value for a class of CPUs.
 
@@ -798,22 +822,6 @@ static bool InitCachesWin(Caches& caches) {
 #endif  // HWY_OS_WIN
 
 #if HWY_OS_APPLE
-// Returns whether sysctlbyname() succeeded; if so, writes `val / div` to
-// `out`, otherwise sets `err`.
-template <typename T>
-bool Sysctl(const char* name, size_t div, int& err, T* out) {
-  size_t val = 0;
-  size_t size = sizeof(val);
-  // Last two arguments are for updating the value, which we do not want.
-  const int ret = sysctlbyname(name, &val, &size, nullptr, 0);
-  if (HWY_UNLIKELY(ret != 0)) {
-    // Do not print warnings because some `name` are expected to fail.
-    err = ret;
-    return false;
-  }
-  *out = static_cast<T>(DivByFactor(val, div));
-  return true;
-}
 
 static bool InitCachesApple(Caches& caches) {
   int err = 0;
@@ -834,7 +842,9 @@ static bool InitCachesApple(Caches& caches) {
   }
   L1.cores_sharing = 1;
   if (Sysctl("hw.perflevel0.cpusperl2", 1, err, &L2.cores_sharing)) {
-    L2.size_kib = DivByFactor(L2.size_kib, L2.cores_sharing);
+    // There exist CPUs for which L2 is not evenly divisible by `cores_sharing`,
+    // hence do not use `DivByFactor`. It is safer to round down.
+    L2.size_kib /= L2.cores_sharing;
   } else {
     L2.cores_sharing = 1;
   }
@@ -844,7 +854,7 @@ static bool InitCachesApple(Caches& caches) {
   char brand[128] = {0};
   size_t size = sizeof(brand);
   if (!sysctlbyname("machdep.cpu.brand_string", brand, &size, nullptr, 0)) {
-    if (!strncmp(brand, "Apple ", 6)) {
+    if (strncmp(brand, "Apple ", 6) != 0) {
       // Unexpected, but we will continue check the string suffixes.
       HWY_WARN("unexpected Apple brand %s\n", brand);
     }
@@ -900,8 +910,10 @@ static bool InitCachesApple(Caches& caches) {
   if (L3.size_kib == 0 &&
       (Sysctl("hw.perflevel0.l3cachesize", 1024, err, &L3.size_kib) ||
        Sysctl("hw.l3cachesize", 1024, err, &L3.size_kib))) {
+    // There exist CPUs for which L3 is not evenly divisible by `cores_sharing`,
+    // hence do not use `DivByFactor`. It is safer to round down.
     if (Sysctl("hw.perflevel0.cpusperl3", 1, err, &L3.cores_sharing)) {
-      L3.size_kib = DivByFactor(L3.size_kib, L3.cores_sharing);
+      L3.size_kib /= L3.cores_sharing;
     } else {
       L3.cores_sharing = 1;
     }
