@@ -48,6 +48,10 @@ TEST(TopologyTest, TestTopology) {
   Topology topology;
   if (topology.packages.empty()) return;
 
+  fprintf(stderr, "Topology: %zuP %zuX %zuC\n", topology.packages.size(),
+          topology.packages[0].clusters.size(),
+          topology.packages[0].clusters[0].lps.Count());
+
   HWY_ASSERT(!topology.lps.empty());
   LogicalProcessorSet nodes;
   for (size_t lp = 0; lp < topology.lps.size(); ++lp) {

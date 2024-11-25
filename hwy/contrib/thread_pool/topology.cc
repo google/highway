@@ -55,14 +55,16 @@
 #include <pthread.h>
 #include <sched.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>  // sysconf
 #endif  // HWY_OS_LINUX || HWY_OS_FREEBSD
 
 #if HWY_OS_FREEBSD
-// must come after sys/types.h.
-#include <sys/cpuset.h>  // CPU_SET
-#endif                   // HWY_OS_FREEBSD
+#include <sys/param.h>
+// After param.h / types.h.
+#include <sys/cpuset.h>
+#endif  // HWY_OS_FREEBSD
 
 #if HWY_ARCH_WASM
 #include <emscripten/threading.h>
@@ -78,9 +80,11 @@ HWY_CONTRIB_DLLEXPORT bool HaveThreadingSupport() {
 #endif
 }
 
+namespace {
+
 // Returns `whole / part`, with a check that `part` evenly divides `whole`,
 // which implies the result is exact.
-static HWY_MAYBE_UNUSED size_t DivByFactor(size_t whole, size_t part) {
+HWY_MAYBE_UNUSED size_t DivByFactor(size_t whole, size_t part) {
   HWY_ASSERT(part != 0);
   const size_t div = whole / part;
   const size_t mul = div * part;
@@ -90,7 +94,85 @@ static HWY_MAYBE_UNUSED size_t DivByFactor(size_t whole, size_t part) {
   return div;
 }
 
-#if HWY_OS_APPLE
+#if HWY_OS_WIN
+
+using SLPI = SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX;
+
+template <class Func>
+bool ForEachSLPI(LOGICAL_PROCESSOR_RELATIONSHIP rel, Func&& func) {
+  // Get required buffer size.
+  DWORD buf_bytes = 0;
+  HWY_ASSERT(!GetLogicalProcessorInformationEx(rel, nullptr, &buf_bytes));
+  // Observed when `rel` is not supported:
+  if (HWY_UNLIKELY(buf_bytes == 0 && GetLastError() == ERROR_GEN_FAILURE)) {
+    if (rel != RelationNumaNodeEx && rel != RelationProcessorDie) {
+      HWY_WARN("Unexpected err %lx for GLPI relationship %d\n", GetLastError(),
+               static_cast<int>(rel));
+    }
+    return false;
+  }
+  HWY_ASSERT(GetLastError() == ERROR_INSUFFICIENT_BUFFER);
+  // Note: `buf_bytes` may be less than `sizeof(SLPI)`, which has padding.
+  uint8_t* buf = static_cast<uint8_t*>(malloc(buf_bytes));
+  HWY_ASSERT(buf);
+
+  // Fill the buffer.
+  SLPI* info = reinterpret_cast<SLPI*>(buf);
+  if (HWY_UNLIKELY(!GetLogicalProcessorInformationEx(rel, info, &buf_bytes))) {
+    free(buf);
+    return false;
+  }
+
+  // Iterate over each SLPI. `sizeof(SLPI)` is unreliable, see above.
+  uint8_t* pos = buf;
+  while (pos < buf + buf_bytes) {
+    info = reinterpret_cast<SLPI*>(pos);
+    HWY_ASSERT(rel == RelationAll || info->Relationship == rel);
+    func(*info);
+    pos += info->Size;
+  }
+  if (pos != buf + buf_bytes) {
+    HWY_WARN("unexpected pos %p, end %p, buf_bytes %lu, sizeof(SLPI) %zu\n",
+             pos, buf + buf_bytes, buf_bytes, sizeof(SLPI));
+  }
+
+  free(buf);
+  return true;
+}
+
+size_t NumBits(size_t num_groups, const GROUP_AFFINITY* affinity) {
+  size_t total_bits = 0;
+  for (size_t i = 0; i < num_groups; ++i) {
+    size_t bits = 0;
+    hwy::CopyBytes<sizeof(bits)>(&affinity[i].Mask, &bits);
+    total_bits += hwy::PopCount(bits);
+  }
+  return total_bits;
+}
+
+// Calls `func(lp, lps)` for each index `lp` in the set, after ensuring that
+// `lp < lps.size()`. `line` is for debugging via Warn().
+template <class Func>
+void ForeachBit(size_t num_groups, const GROUP_AFFINITY* affinity,
+                std::vector<Topology::LP>& lps, int line, const Func& func) {
+  for (size_t group = 0; group < num_groups; ++group) {
+    size_t bits = 0;
+    hwy::CopyBytes<sizeof(bits)>(&affinity[group].Mask, &bits);
+    while (bits != 0) {
+      size_t lp = Num0BitsBelowLS1Bit_Nonzero64(bits);
+      bits &= bits - 1;  // clear LSB
+      if (HWY_UNLIKELY(lp >= lps.size())) {
+        Warn(__FILE__, __LINE__,
+             "Clamping lp %zu to lps.size() %zu, groups %zu\n", lp, lps.size(),
+             num_groups);
+        lp = lps.size() - 1;
+      }
+      func(lp, lps);
+    }
+  }
+}
+
+#elif HWY_OS_APPLE
 
 // Returns whether sysctlbyname() succeeded; if so, writes `val / div` to
 // `out`, otherwise sets `err`.
@@ -109,18 +191,22 @@ bool Sysctl(const char* name, size_t div, int& err, T* out) {
   return true;
 }
 
-#endif  // HWY_OS_APPLE
+#endif  // HWY_OS_*
+
+}  // namespace
 
 HWY_CONTRIB_DLLEXPORT size_t TotalLogicalProcessors() {
-  size_t lp = 0;
+  size_t total_lps = 0;
 #if HWY_ARCH_WASM
   const int num_cores = emscripten_num_logical_cores();
-  if (num_cores > 0) lp = static_cast<size_t>(num_cores);
+  if (num_cores > 0) total_lps = static_cast<size_t>(num_cores);
 #elif HWY_OS_WIN
-  SYSTEM_INFO sysinfo;
-  GetSystemInfo(&sysinfo);  // always succeeds
-  // WARNING: this is only for the current group, hence limited to 64.
-  lp = static_cast<size_t>(sysinfo.dwNumberOfProcessors);
+  // If there are multiple groups, this should return them all, rather than
+  // just the first 64, but VMs report less.
+  (void)ForEachSLPI(RelationProcessorCore, [&total_lps](const SLPI& info) {
+    const PROCESSOR_RELATIONSHIP& p = info.Processor;
+    total_lps += NumBits(p.GroupCount, p.GroupMask);
+  });
 #elif HWY_OS_LINUX
   // Use configured, not "online" (_SC_NPROCESSORS_ONLN), because we want an
   // upper bound.
@@ -128,16 +214,17 @@ HWY_CONTRIB_DLLEXPORT size_t TotalLogicalProcessors() {
   if (ret < 0) {
     HWY_WARN("Unexpected _SC_NPROCESSORS_CONF = %d\n", static_cast<int>(ret));
   } else {
-    lp = static_cast<size_t>(ret);
+    total_lps = static_cast<size_t>(ret);
   }
 #elif HWY_OS_APPLE
   int err;
-  if (!Sysctl("hw.logicalcpu", 1, err, &lp)) {
-    lp = 0;
+  // Only report P processors.
+  if (!Sysctl("hw.perflevel0.logicalcpu", 1, err, &total_lps)) {
+    total_lps = 0;
   }
 #endif
 
-  if (HWY_UNLIKELY(lp == 0)) {  // Failed to detect.
+  if (HWY_UNLIKELY(total_lps == 0)) {  // Failed to detect.
     HWY_IF_CONSTEXPR(HWY_IS_DEBUG_BUILD) {
       HWY_WARN(
           "Unknown TotalLogicalProcessors, assuming 1. "
@@ -150,20 +237,78 @@ HWY_CONTRIB_DLLEXPORT size_t TotalLogicalProcessors() {
   }
 
   // Warn that we are clamping.
-  if (HWY_UNLIKELY(lp > kMaxLogicalProcessors)) {
+  if (HWY_UNLIKELY(total_lps > kMaxLogicalProcessors)) {
     HWY_IF_CONSTEXPR(HWY_IS_DEBUG_BUILD) {
-      HWY_WARN("OS reports %zu processors but clamping to %zu\n", lp,
+      HWY_WARN("OS reports %zu processors but clamping to %zu\n", total_lps,
                kMaxLogicalProcessors);
     }
-    lp = kMaxLogicalProcessors;
+    total_lps = kMaxLogicalProcessors;
   }
 
-  return lp;
+  return total_lps;
 }
 
-#ifdef __ANDROID__
-#include <sys/syscall.h>
+// ------------------------------ Affinity
+
+#if HWY_OS_LINUX || HWY_OS_FREEBSD
+
+#if HWY_OS_LINUX
+using CpuSet = cpu_set_t;
+#else
+using CpuSet = cpuset_t;
 #endif
+
+// Helper functions reduce the number of #if in GetThreadAffinity.
+int GetAffinity(CpuSet* set) {
+  // To specify the current thread, pass 0 on Linux/Android and -1 on FreeBSD.
+#ifdef __ANDROID__
+  return syscall(__NR_sched_getaffinity, 0, sizeof(CpuSet), set);
+#elif HWY_OS_FREEBSD
+  return cpuset_getaffinity(CPU_LEVEL_WHICH, CPU_WHICH_TID, -1, sizeof(CpuSet),
+                            set);
+#else  // normal Linux
+  return sched_getaffinity(0, sizeof(CpuSet), set);
+#endif
+}
+
+int SetAffinity(CpuSet* set) {
+  // To specify the current thread, pass 0 on Linux/Android and -1 on FreeBSD.
+#ifdef __ANDROID__
+  return syscall(__NR_sched_setaffinity, 0, sizeof(CpuSet), set);
+#elif HWY_OS_FREEBSD
+  return cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_TID, -1, sizeof(CpuSet),
+                            set);
+#else  // normal Linux
+  return sched_setaffinity(0, sizeof(CpuSet), set);
+#endif
+}
+
+bool IsSet(size_t lp, const CpuSet* set) {
+#if HWY_COMPILER_GCC_ACTUAL
+  // Workaround for GCC compiler warning with CPU_ISSET macro
+  HWY_DIAGNOSTICS(push)
+  HWY_DIAGNOSTICS_OFF(disable : 4305 4309, ignored "-Wsign-conversion")
+#endif
+  const int is_set = CPU_ISSET(static_cast<int>(lp), set);
+#if HWY_COMPILER_GCC_ACTUAL
+  HWY_DIAGNOSTICS(pop)
+#endif
+  return is_set != 0;
+}
+
+void Set(size_t lp, CpuSet* set) {
+#if HWY_COMPILER_GCC_ACTUAL
+  // Workaround for GCC compiler warning with CPU_SET macro
+  HWY_DIAGNOSTICS(push)
+  HWY_DIAGNOSTICS_OFF(disable : 4305 4309, ignored "-Wsign-conversion")
+#endif
+  CPU_SET(static_cast<int>(lp), set);
+#if HWY_COMPILER_GCC_ACTUAL
+  HWY_DIAGNOSTICS(pop)
+#endif
+}
+
+#endif  // HWY_OS_LINUX || HWY_OS_FREEBSD
 
 HWY_CONTRIB_DLLEXPORT bool GetThreadAffinity(LogicalProcessorSet& lps) {
 #if HWY_OS_WIN
@@ -175,53 +320,18 @@ HWY_CONTRIB_DLLEXPORT bool GetThreadAffinity(LogicalProcessorSet& lps) {
   lps = LogicalProcessorSet();  // clear all
   lps.SetNonzeroBitsFrom64(prev);
   return true;
-#elif HWY_OS_LINUX
-  cpu_set_t set;
+#elif HWY_OS_LINUX || HWY_OS_FREEBSD
+  CpuSet set;
   CPU_ZERO(&set);
-  const pid_t pid = 0;  // current thread
-#ifdef __ANDROID__
-  const int err = syscall(__NR_sched_getaffinity, pid, sizeof(cpu_set_t), &set);
-#else
-  const int err = sched_getaffinity(pid, sizeof(cpu_set_t), &set);
-#endif  // __ANDROID__
+  const int err = GetAffinity(&set);
   if (err != 0) return false;
   for (size_t lp = 0; lp < kMaxLogicalProcessors; ++lp) {
-#if HWY_COMPILER_GCC_ACTUAL
-    // Workaround for GCC compiler warning with CPU_ISSET macro
-    HWY_DIAGNOSTICS(push)
-    HWY_DIAGNOSTICS_OFF(disable : 4305 4309, ignored "-Wsign-conversion")
-#endif
-    if (CPU_ISSET(static_cast<int>(lp), &set)) {
-      lps.Set(lp);
-    }
-#if HWY_COMPILER_GCC_ACTUAL
-    HWY_DIAGNOSTICS(pop)
-#endif
-  }
-  return true;
-#elif HWY_OS_FREEBSD
-  cpuset_t set;
-  CPU_ZERO(&set);
-  const pid_t pid = getpid();  // current thread
-  const int err = cpuset_getaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, pid,
-                                     sizeof(cpuset_t), &set);
-  if (err != 0) return false;
-  for (size_t lp = 0; lp < kMaxLogicalProcessors; ++lp) {
-#if HWY_COMPILER_GCC_ACTUAL
-    // Workaround for GCC compiler warning with CPU_ISSET macro
-    HWY_DIAGNOSTICS(push)
-    HWY_DIAGNOSTICS_OFF(disable : 4305 4309, ignored "-Wsign-conversion")
-#endif
-    if (CPU_ISSET(static_cast<int>(lp), &set)) {
-      lps.Set(lp);
-    }
-#if HWY_COMPILER_GCC_ACTUAL
-    HWY_DIAGNOSTICS(pop)
-#endif
+    if (IsSet(lp, &set)) lps.Set(lp);
   }
   return true;
 #else
-  // Do not even set lp=0 to force callers to handle this case.
+  // For HWY_OS_APPLE, affinity is not supported. Do not even set lp=0 to force
+  // callers to handle this case.
   (void)lps;
   return false;
 #endif
@@ -232,41 +342,11 @@ HWY_CONTRIB_DLLEXPORT bool SetThreadAffinity(const LogicalProcessorSet& lps) {
   const HANDLE hThread = GetCurrentThread();
   const DWORD_PTR prev = SetThreadAffinityMask(hThread, lps.Get64());
   return prev != 0;
-#elif HWY_OS_LINUX
-  cpu_set_t set;
+#elif HWY_OS_LINUX || HWY_OS_FREEBSD
+  CpuSet set;
   CPU_ZERO(&set);
-#if HWY_COMPILER_GCC_ACTUAL
-  // Workaround for GCC compiler warning with CPU_SET macro
-  HWY_DIAGNOSTICS(push)
-  HWY_DIAGNOSTICS_OFF(disable : 4305 4309, ignored "-Wsign-conversion")
-#endif
-  lps.Foreach([&set](size_t lp) { CPU_SET(static_cast<int>(lp), &set); });
-#if HWY_COMPILER_GCC_ACTUAL
-  HWY_DIAGNOSTICS(pop)
-#endif
-  const pid_t pid = 0;  // current thread
-#ifdef __ANDROID__
-  const int err = syscall(__NR_sched_setaffinity, pid, sizeof(cpu_set_t), &set);
-#else
-  const int err = sched_setaffinity(pid, sizeof(cpu_set_t), &set);
-#endif  // __ANDROID__
-  if (err != 0) return false;
-  return true;
-#elif HWY_OS_FREEBSD
-  cpuset_t set;
-  CPU_ZERO(&set);
-#if HWY_COMPILER_GCC_ACTUAL
-  // Workaround for GCC compiler warning with CPU_SET macro
-  HWY_DIAGNOSTICS(push)
-  HWY_DIAGNOSTICS_OFF(disable : 4305 4309, ignored "-Wsign-conversion")
-#endif
-  lps.Foreach([&set](size_t lp) { CPU_SET(static_cast<int>(lp), &set); });
-#if HWY_COMPILER_GCC_ACTUAL
-  HWY_DIAGNOSTICS(pop)
-#endif
-  const pid_t pid = getpid();  // current thread
-  const int err = cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, pid,
-                                     sizeof(cpuset_t), &set);
+  lps.Foreach([&set](size_t lp) { Set(lp, &set); });
+  const int err = SetAffinity(&set);
   if (err != 0) return false;
   return true;
 #else
@@ -276,8 +356,14 @@ HWY_CONTRIB_DLLEXPORT bool SetThreadAffinity(const LogicalProcessorSet& lps) {
 #endif
 }
 
-#if HWY_OS_LINUX
 namespace {
+
+struct PackageSizes {
+  size_t num_clusters;
+  size_t num_cores;
+};
+
+#if HWY_OS_LINUX
 
 class File {
  public:
@@ -426,11 +512,6 @@ class Remapper {
   size_t num_ = 0;
 };
 
-struct PackageSizes {
-  size_t num_clusters;
-  size_t num_cores;
-};
-
 // For internal use by `DetectPackages`.
 struct PerPackage {
   Remapper clusters;
@@ -557,11 +638,221 @@ void SetNodes(std::vector<Topology::LP>& lps) {
   }
 }
 
+void SetClusterCacheSizes(std::vector<Topology::Package>& packages) {
+  for (size_t ip = 0; ip < packages.size(); ++ip) {
+    Topology::Package& p = packages[ip];
+    for (size_t ic = 0; ic < p.clusters.size(); ++ic) {
+      Topology::Cluster& c = p.clusters[ic];
+      const size_t lp = c.lps.First();
+      size_t bytes;
+      if (ReadNumberWithOptionalSuffix(kL2Size, lp, &bytes)) {
+        c.private_kib = bytes >> 10;
+      }
+      if (ReadNumberWithOptionalSuffix(kL3Size, lp, &bytes)) {
+        c.shared_kib = bytes >> 10;
+      }
+    }
+  }
+}
+
+#elif HWY_OS_WIN
+
+// Also sets LP.core and LP.smt.
+size_t MaxLpsPerCore(std::vector<Topology::LP>& lps) {
+  size_t max_lps_per_core = 0;
+  size_t core_idx = 0;
+  (void)ForEachSLPI(RelationProcessorCore, [&max_lps_per_core, &core_idx,
+                                            &lps](const SLPI& info) {
+    const PROCESSOR_RELATIONSHIP& p = info.Processor;
+    const size_t lps_per_core = NumBits(p.GroupCount, p.GroupMask);
+    max_lps_per_core = HWY_MAX(max_lps_per_core, lps_per_core);
+
+    size_t smt = 0;
+    ForeachBit(p.GroupCount, p.GroupMask, lps, __LINE__,
+               [core_idx, &smt](size_t lp, std::vector<Topology::LP>& lps) {
+                 lps[lp].core = core_idx;
+                 lps[lp].smt = smt++;
+               });
+    ++core_idx;
+  });
+  HWY_ASSERT(max_lps_per_core != 0);
+  return max_lps_per_core;
+}
+
+// Interprets cluster (tyically a shared L3 cache) as a "processor die". Also
+// sets LP.cluster.
+size_t MaxCoresPerCluster(const size_t max_lps_per_core,
+                          std::vector<Topology::LP>& lps) {
+  size_t max_cores_per_cluster = 0;
+  size_t cluster_idx = 0;
+  // Shared between `foreach_die` and `foreach_l3`.
+  const auto foreach_cluster = [&](size_t num_groups,
+                                   const GROUP_AFFINITY* groups) {
+    const size_t lps_per_cluster = NumBits(num_groups, groups);
+    // `max_lps_per_core` is an upper bound, hence round up. It is not an error
+    // if there is only one core per cluster - can happen for L3.
+    const size_t cores_per_cluster = DivCeil(lps_per_cluster, max_lps_per_core);
+    max_cores_per_cluster = HWY_MAX(max_cores_per_cluster, cores_per_cluster);
+
+    ForeachBit(num_groups, groups, lps, __LINE__,
+               [cluster_idx](size_t lp, std::vector<Topology::LP>& lps) {
+                 lps[lp].cluster = cluster_idx;
+               });
+    ++cluster_idx;
+  };
+
+  // Passes group bits to `foreach_cluster`, depending on relationship type.
+  const auto foreach_die = [&foreach_cluster](const SLPI& info) {
+    const PROCESSOR_RELATIONSHIP& p = info.Processor;
+    foreach_cluster(p.GroupCount, p.GroupMask);
+  };
+  const auto foreach_l3 = [&foreach_cluster](const SLPI& info) {
+    const CACHE_RELATIONSHIP& cr = info.Cache;
+    if (cr.Type != CacheUnified && cr.Type != CacheData) return;
+    if (cr.Level != 3) return;
+    foreach_cluster(cr.GroupCount, cr.GroupMasks);
+  };
+
+  if (!ForEachSLPI(RelationProcessorDie, foreach_die)) {
+    // Has been observed to fail; also check for shared L3 caches.
+    (void)ForEachSLPI(RelationCache, foreach_l3);
+  }
+  if (max_cores_per_cluster == 0) {
+    HWY_WARN("All clusters empty, assuming 1 core each\n");
+    max_cores_per_cluster = 1;
+  }
+  return max_cores_per_cluster;
+}
+
+// Initializes `lps` and returns a `PackageSizes` vector (empty on failure)
+// indicating the number of clusters and cores per package.
+std::vector<PackageSizes> DetectPackages(std::vector<Topology::LP>& lps) {
+  const size_t max_lps_per_core = MaxLpsPerCore(lps);
+  const size_t max_cores_per_cluster =
+      MaxCoresPerCluster(max_lps_per_core, lps);
+
+  std::vector<PackageSizes> packages;
+  size_t package_idx = 0;
+  (void)ForEachSLPI(RelationProcessorPackage, [&](const SLPI& info) {
+    const PROCESSOR_RELATIONSHIP& p = info.Processor;
+    const size_t lps_per_package = NumBits(p.GroupCount, p.GroupMask);
+    PackageSizes ps;  // avoid designated initializers for MSVC
+    ps.num_clusters = max_cores_per_cluster;
+    // `max_lps_per_core` is an upper bound, hence round up.
+    ps.num_cores = DivCeil(lps_per_package, max_lps_per_core);
+    packages.push_back(ps);
+
+    ForeachBit(p.GroupCount, p.GroupMask, lps, __LINE__,
+               [package_idx](size_t lp, std::vector<Topology::LP>& lps) {
+                 lps[lp].package = package_idx;
+               });
+    ++package_idx;
+  });
+
+  return packages;
+}
+
+// Sets LP.node for all `lps`.
+void SetNodes(std::vector<Topology::LP>& lps) {
+  // Zero-initialize all nodes in case the below fails.
+  for (size_t lp = 0; lp < lps.size(); ++lp) {
+    lps[lp].node = 0;
+  }
+
+  // We want the full NUMA nodes, but Windows Server 2022 truncates the results
+  // of `RelationNumaNode` to a single 64-LP group. To get the old, unlimited
+  // behavior without using the new `RelationNumaNodeEx` symbol, use the old
+  // `RelationAll` and filter the SLPI we want.
+  (void)ForEachSLPI(RelationAll, [&](const SLPI& info) {
+    if (info.Relationship != RelationNumaNode) return;
+    const NUMA_NODE_RELATIONSHIP& nn = info.NumaNode;
+    // This field was previously reserved/zero. There is at least one group.
+    const size_t num_groups = HWY_MAX(1, nn.GroupCount);
+    const uint8_t node = static_cast<uint8_t>(nn.NodeNumber);
+    ForeachBit(num_groups, nn.GroupMasks, lps, __LINE__,
+               [node](size_t lp, std::vector<Topology::LP>& lps) {
+                 lps[lp].node = node;
+               });
+  });
+}
+
+#elif HWY_OS_APPLE
+
+// Initializes `lps` and returns a `PackageSizes` vector (empty on failure)
+// indicating the number of clusters and cores per package.
+std::vector<PackageSizes> DetectPackages(std::vector<Topology::LP>& lps) {
+  int err;
+
+  size_t total_cores = 0;
+  if (!Sysctl("hw.perflevel0.physicalcpu", 1, err, &total_cores)) {
+    HWY_WARN("Error %d detecting total_cores, assuming one per LP\n", err);
+    total_cores = lps.size();
+  }
+
+  if (lps.size() % total_cores != 0) {
+    HWY_WARN("LPs %zu not a multiple of total_cores %zu\n", lps.size(),
+             total_cores);
+  }
+  const size_t lp_per_core = DivCeil(lps.size(), total_cores);
+
+  size_t cores_per_cluster = 0;
+  if (!Sysctl("hw.perflevel0.cpusperl2", 1, err, &cores_per_cluster)) {
+    HWY_WARN("Error %d detecting cores_per_cluster\n", err);
+    cores_per_cluster = HWY_MIN(4, total_cores);
+  }
+
+  if (total_cores % cores_per_cluster != 0) {
+    HWY_WARN("total_cores %zu not a multiple of cores_per_cluster %zu\n",
+             total_cores, cores_per_cluster);
+  }
+
+  for (size_t lp = 0; lp < lps.size(); ++lp) {
+    lps[lp].package = 0;  // single package
+    lps[lp].core = static_cast<uint16_t>(lp / lp_per_core);
+    lps[lp].smt = static_cast<uint8_t>(lp % lp_per_core);
+    lps[lp].cluster = static_cast<uint16_t>(lp / cores_per_cluster);
+  }
+
+  PackageSizes ps;
+  ps.num_clusters = DivCeil(total_cores, cores_per_cluster);
+  ps.num_cores = total_cores;
+  return std::vector<PackageSizes>{ps};
+}
+
+// Sets LP.node for all `lps`.
+void SetNodes(std::vector<Topology::LP>& lps) {
+  for (size_t lp = 0; lp < lps.size(); ++lp) {
+    lps[lp].node = 0;  // no NUMA
+  }
+}
+
+#endif  // HWY_OS_*
+
+#if HWY_OS_WIN || HWY_OS_APPLE
+
+void SetClusterCacheSizes(std::vector<Topology::Package>& packages) {
+  // Assumes clusters are homogeneous. Otherwise, we would have to scan
+  // `RelationCache` again and find the corresponding package_idx.
+  const Cache* caches = DataCaches();
+  const size_t private_kib = caches ? caches[2].size_kib : 0;
+  const size_t shared_kib = caches ? caches[3].size_kib : 0;
+
+  for (size_t ip = 0; ip < packages.size(); ++ip) {
+    Topology::Package& p = packages[ip];
+    for (size_t ic = 0; ic < p.clusters.size(); ++ic) {
+      Topology::Cluster& c = p.clusters[ic];
+      c.private_kib = private_kib;
+      c.shared_kib = shared_kib;
+    }
+  }
+}
+
+#endif  // HWY_OS_WIN || HWY_OS_APPLE
+
 }  // namespace
-#endif  // HWY_OS_LINUX
 
 HWY_CONTRIB_DLLEXPORT Topology::Topology() {
-#if HWY_OS_LINUX
+#if HWY_OS_LINUX || HWY_OS_WIN || HWY_OS_APPLE
   lps.resize(TotalLogicalProcessors());
   const std::vector<PackageSizes>& package_sizes = DetectPackages(lps);
   if (package_sizes.empty()) return;
@@ -582,25 +873,13 @@ HWY_CONTRIB_DLLEXPORT Topology::Topology() {
     p.cores[lps[lp].core].lps.Set(lp);
   }
 
-  // Detect cache sizes (only once per cluster)
-  for (size_t ip = 0; ip < packages.size(); ++ip) {
-    Package& p = packages[ip];
-    for (size_t ic = 0; ic < p.clusters.size(); ++ic) {
-      Cluster& c = p.clusters[ic];
-      const size_t lp = c.lps.First();
-      size_t bytes;
-      if (ReadNumberWithOptionalSuffix(kL2Size, lp, &bytes)) {
-        c.private_kib = bytes >> 10;
-      }
-      if (ReadNumberWithOptionalSuffix(kL3Size, lp, &bytes)) {
-        c.shared_kib = bytes >> 10;
-      }
-    }
-  }
-#endif
+  SetClusterCacheSizes(packages);
+#endif  // HWY_OS_*
 }
 
 // ------------------------------ Cache detection
+
+namespace {
 
 using Caches = std::array<Cache, 4>;
 
@@ -636,7 +915,7 @@ bool WriteSysfs(const char* name, size_t index, T* out) {
 // Reading from sysfs is preferred because sysconf returns L3 associativity = 0
 // on some CPUs, and does not indicate sharing across cores.
 // https://www.kernel.org/doc/Documentation/ABI/testing/sysfs-devices-system-cpu
-static bool InitCachesSysfs(Caches& caches) {
+bool InitCachesSysfs(Caches& caches) {
   // For computing shared cache sizes.
   std::vector<hwy::Topology::LP> lps(TotalLogicalProcessors());
   const std::vector<PackageSizes> package_sizes = DetectPackages(lps);
@@ -717,69 +996,14 @@ static bool InitCachesSysfs(Caches& caches) {
   return true;
 }
 
-#endif  // HWY_OS_LINUX
+#elif HWY_OS_WIN
 
-#if HWY_OS_WIN
-using SLPI = SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX;
+bool InitCachesWin(Caches& caches) {
+  std::vector<hwy::Topology::LP> lps(TotalLogicalProcessors());
+  const size_t max_lps_per_core = MaxLpsPerCore(lps);
 
-template <class Func>
-bool ForEachSLPI(LOGICAL_PROCESSOR_RELATIONSHIP rel, Func&& func) {
-  // Get required buffer size.
-  DWORD buf_bytes = 0;
-  HWY_ASSERT(!GetLogicalProcessorInformationEx(rel, nullptr, &buf_bytes));
-  HWY_ASSERT(GetLastError() == ERROR_INSUFFICIENT_BUFFER);
-  // Note: `buf_bytes` may be less than `sizeof(SLPI)`, which has padding.
-  uint8_t* buf = static_cast<uint8_t*>(malloc(buf_bytes));
-  HWY_ASSERT(buf);
-
-  // Fill the buffer.
-  SLPI* info = reinterpret_cast<SLPI*>(buf);
-  if (HWY_UNLIKELY(!GetLogicalProcessorInformationEx(rel, info, &buf_bytes))) {
-    free(buf);
-    return false;
-  }
-
-  // Iterate over each SLPI. `sizeof(SLPI)` is unreliable, see above.
-  uint8_t* pos = buf;
-  while (pos < buf + buf_bytes) {
-    info = reinterpret_cast<SLPI*>(pos);
-    HWY_ASSERT(info->Relationship == rel);
-    func(*info);
-    pos += info->Size;
-  }
-  if (pos != buf + buf_bytes) {
-    HWY_WARN("unexpected pos %p, end %p, buf_bytes %lu, sizeof(SLPI) %zu\n",
-             pos, buf + buf_bytes, buf_bytes, sizeof(SLPI));
-  }
-
-  free(buf);
-  return true;
-}
-
-static size_t NumBits(size_t num_groups, const GROUP_AFFINITY* affinity) {
-  size_t total_bits = 0;
-  for (size_t i = 0; i < num_groups; ++i) {
-    size_t bits = 0;
-    hwy::CopyBytes<sizeof(bits)>(&affinity[i].Mask, &bits);
-    total_bits += hwy::PopCount(bits);
-  }
-  return total_bits;
-}
-
-static size_t MaxLogicalPerCore() {
-  size_t max_logical = 0;
-  ForEachSLPI(RelationProcessorCore, [&max_logical](const SLPI& info) {
-    const PROCESSOR_RELATIONSHIP& p = info.Processor;
-    max_logical = HWY_MAX(max_logical, NumBits(p.GroupCount, p.GroupMask));
-  });
-  HWY_ASSERT(max_logical != 0);
-  return max_logical;
-}
-
-static bool InitCachesWin(Caches& caches) {
-  const size_t max_logical_per_core = MaxLogicalPerCore();
-
-  ForEachSLPI(RelationCache, [max_logical_per_core, &caches](const SLPI& info) {
+  (void)ForEachSLPI(RelationCache, [max_lps_per_core,
+                                    &caches](const SLPI& info) {
     const CACHE_RELATIONSHIP& cr = info.Cache;
     if (cr.Type != CacheUnified && cr.Type != CacheData) return;
     if (1 <= cr.Level && cr.Level <= 3) {
@@ -794,8 +1018,8 @@ static bool InitCachesWin(Caches& caches) {
       // How many cores share this cache?
       size_t shared_with = NumBits(cr.GroupCount, cr.GroupMasks);
       // Divide out hyperthreads. This core may have fewer than
-      // `max_logical_per_core`, hence round up.
-      shared_with = DivCeil(shared_with, max_logical_per_core);
+      // `max_lps_per_core`, hence round up.
+      shared_with = DivCeil(shared_with, max_lps_per_core);
       if (shared_with == 0) {
         HWY_WARN("no cores sharing L%u, setting to 1\n", cr.Level);
         shared_with = 1;
@@ -819,11 +1043,10 @@ static bool InitCachesWin(Caches& caches) {
   // L3 is optional; if not found, its size is already zero from static init.
   return true;
 }
-#endif  // HWY_OS_WIN
 
-#if HWY_OS_APPLE
+#elif HWY_OS_APPLE
 
-static bool InitCachesApple(Caches& caches) {
+bool InitCachesApple(Caches& caches) {
   int err = 0;
   Cache& L1 = caches[1];
   Cache& L2 = caches[2];
@@ -930,11 +1153,11 @@ static bool InitCachesApple(Caches& caches) {
   return true;
 }
 
-#endif  // HWY_OS_APPLE
+#endif  // HWY_OS_*
 
 // Most APIs do not set the `sets` field, so compute it from the size and
 // associativity, and if a value is already set, ensure it matches.
-static HWY_MAYBE_UNUSED void ComputeSets(Cache& c) {
+HWY_MAYBE_UNUSED void ComputeSets(Cache& c) {
   // If there is no such cache, avoid division by zero.
   if (HWY_UNLIKELY(c.size_kib == 0)) {
     c.sets = 0;
@@ -955,7 +1178,7 @@ static HWY_MAYBE_UNUSED void ComputeSets(Cache& c) {
   }
 }
 
-static const Cache* InitDataCaches() {
+const Cache* InitDataCaches() {
   alignas(64) static Caches caches;
 
   // On failure, return immediately because InitCaches*() already warn.
@@ -988,6 +1211,8 @@ static const Cache* InitDataCaches() {
   return &caches[0];
 #endif  // HWY_NO_CACHE_DETECTION
 }
+
+}  // namespace
 
 HWY_CONTRIB_DLLEXPORT const Cache* DataCaches() {
   static const Cache* caches = InitDataCaches();
