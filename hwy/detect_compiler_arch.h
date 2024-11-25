@@ -303,10 +303,29 @@
 #define HWY_ARCH_S390X 0
 #endif
 
+#if defined(__loongarch64__) || defined(__loongarch64) || \
+    (defined(__loongarch_grlen) && __loongarch_grlen == 64)
+#define HWY_ARCH_LOONGARCH_64 1
+#else
+#define HWY_ARCH_LOONGARCH_64 0
+#endif
+
+#if defined(__loongarch__) && !HWY_ARCH_LOONGARCH_64
+#define HWY_ARCH_LOONGARCH_32 1
+#else
+#define HWY_ARCH_LOONGARCH_32 0
+#endif
+
+#if HWY_ARCH_LOONGARCH_64 || HWY_ARCH_LOONGARCH_32
+#define HWY_ARCH_LOONGARCH 1
+#else
+#define HWY_ARCH_LOONGARCH 0
+#endif
+
 // It is an error to detect multiple architectures at the same time, but OK to
 // detect none of the above.
 #if (HWY_ARCH_X86 + HWY_ARCH_PPC + HWY_ARCH_ARM + HWY_ARCH_ARM_OLD + \
-     HWY_ARCH_WASM + HWY_ARCH_RISCV + HWY_ARCH_S390X) > 1
+     HWY_ARCH_WASM + HWY_ARCH_RISCV + HWY_ARCH_S390X + HWY_ARCH_LOONGARCH) > 1
 #error "Must not detect more than one architecture"
 #endif
 

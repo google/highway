@@ -636,6 +636,39 @@
 #endif
 
 //-----------------------------------------------------------------------------
+// LSX/LASX
+#elif HWY_TARGET == HWY_LSX || HWY_TARGET == HWY_LASX
+
+#if HWY_TARGET == HWY_LSX
+#define HWY_ALIGN alignas(16)
+#define HWY_MAX_BYTES 16
+#else
+#define HWY_ALIGN alignas(32)
+#define HWY_MAX_BYTES 32
+#endif
+
+#define HWY_LANES(T) (HWY_MAX_BYTES / sizeof(T))
+
+// TODO: check flag values
+#define HWY_HAVE_SCALABLE 0
+#define HWY_HAVE_INTEGER64 1
+#define HWY_HAVE_FLOAT16 1
+#define HWY_HAVE_FLOAT64 1
+#define HWY_MEM_OPS_MIGHT_FAULT 0
+#define HWY_NATIVE_FMA 1
+#define HWY_NATIVE_DOT_BF16 0
+#define HWY_CAP_GE256 0
+#define HWY_CAP_GE512 0
+
+#if HWY_TARGET == HWY_LSX
+#define HWY_NAMESPACE N_LSX
+#else
+#define HWY_NAMESPACE N_LASX
+#endif
+
+// HWY_TARGET_STR remains undefined so HWY_ATTR is a no-op.
+
+//-----------------------------------------------------------------------------
 // EMU128
 #elif HWY_TARGET == HWY_EMU128
 

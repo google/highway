@@ -148,6 +148,13 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(int64_t target) {
       return "RVV";
 #endif
 
+#if HWY_ARCH_LOONGARCH
+    case HWY_LSX:
+      return "LSX";
+    case HWY_LASX:
+      return "LASX";
+#endif
+
     case HWY_EMU128:
       return "EMU128";
     case HWY_SCALAR:
@@ -283,6 +290,14 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(int64_t target) {
       HWY_CHOOSE_WASM_EMU256(func_name), /* WASM_EMU256 */ \
       HWY_CHOOSE_WASM(func_name),        /* WASM */        \
       nullptr                            /* reserved */
+
+#elif HWY_ARCH_LOONGARCH
+#define HWY_MAX_DYNAMIC_TARGETS 3
+#define HWY_HIGHEST_TARGET_BIT HWY_HIGHEST_TARGET_BIT_LOONGARCH
+#define HWY_CHOOSE_TARGET_LIST(func_name)        \
+  nullptr,                        /* reserved */ \
+      HWY_CHOOSE_LASX(func_name), /* LASX */     \
+      HWY_CHOOSE_LSX(func_name)   /* LSX */
 
 #else
 // Unknown architecture, will use HWY_SCALAR without dynamic dispatch, though

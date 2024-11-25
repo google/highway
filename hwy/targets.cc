@@ -675,6 +675,26 @@ int64_t DetectTargets() {
   return bits;
 }
 }  // namespace rvv
+#elif HWY_ARCH_LOONGARCH && HWY_HAVE_RUNTIME_DISPATCH
+namespace loongarch {
+
+#ifndef LA_HWCAP_LSX
+#define LA_HWCAP_LSX (1u << 4)
+#endif
+#ifndef LA_HWCAP_LASX
+#define LA_HWCAP_LASX (1u << 5)
+#endif
+
+using CapBits = unsigned long;  // NOLINT
+
+int64_t DetectTargets() {
+  int64_t bits = 0;
+  const CapBits hw = getauxval(AT_HWCAP);
+  if (hwcap & LA_HWCAP_LSX) bits |= HWY_LSX;
+  if (hwcap & LA_HWCAP_LASX) bits |= HWY_LASX;
+  return bits;
+}
+}  // namespace loongarch
 #endif  // HWY_ARCH_*
 
 // Returns targets supported by the CPU, independently of DisableTargets.
@@ -695,6 +715,8 @@ int64_t DetectTargets() {
   bits |= s390x::DetectTargets();
 #elif HWY_ARCH_RISCV && HWY_HAVE_RUNTIME_DISPATCH
   bits |= rvv::DetectTargets();
+#elif HWY_ARCH_LOONGARCH && HWY_HAVE_RUNTIME_DISPATCH
+  bits |= loongarch::DetectTargets();
 
 #else
   // TODO(janwas): detect support for WASM.
