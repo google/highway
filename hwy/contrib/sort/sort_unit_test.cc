@@ -37,15 +37,6 @@
 #include "hwy/print-inl.h"
 #include "hwy/tests/test_util-inl.h"
 
-// TODO(b/314758657): Compiler bug causes incorrect results on SSE2/S-SSE3.
-#undef VQSORT_SKIP
-#if !defined(VQSORT_DO_NOT_SKIP) && HWY_COMPILER_CLANG && HWY_ARCH_X86 && \
-    HWY_TARGET >= HWY_SSSE3
-#define VQSORT_SKIP 1
-#else
-#define VQSORT_SKIP 0
-#endif
-
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
@@ -310,7 +301,7 @@ static HWY_NOINLINE void TestBaseCase() {
 
 HWY_NOINLINE void TestAllBaseCase() {
   // Workaround for stack overflow on MSVC debug.
-#if defined(_MSC_VER) || VQSORT_SKIP
+#if defined(_MSC_VER)
   return;
 #endif
 

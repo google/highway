@@ -38,15 +38,6 @@
 #include "hwy/print-inl.h"
 #include "hwy/tests/test_util-inl.h"
 
-// TODO(b/314758657): Compiler bug causes incorrect results on SSE2/S-SSE3.
-#undef VQSORT_SKIP
-#if !defined(VQSORT_DO_NOT_SKIP) && HWY_COMPILER_CLANG && HWY_ARCH_X86 && \
-    HWY_TARGET >= HWY_SSSE3
-#define VQSORT_SKIP 1
-#else
-#define VQSORT_SKIP 0
-#endif
-
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
@@ -124,7 +115,7 @@ void TestAnySort(const std::vector<Algo>& algos, size_t num_lanes) {
   HWY_ASSERT(aligned);
 
   for (Algo algo : algos) {
-    if (IsVQ(algo) && (!VQSORT_ENABLED || VQSORT_SKIP)) continue;
+    if (IsVQ(algo) && !VQSORT_ENABLED) continue;
 
     for (Dist dist : AllDist()) {
       for (size_t misalign :
