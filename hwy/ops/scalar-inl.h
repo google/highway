@@ -288,18 +288,16 @@ HWY_API Mask1<T> MaskFromVec(const Vec1<T> v) {
 template <class D>
 using MFromD = decltype(MaskFromVec(VFromD<D>()));
 
-template <typename T>
-Vec1<T> VecFromMask(const Mask1<T> mask) {
-  Vec1<T> v;
-  CopySameSize(&mask, &v);
-  return v;
-}
-
 template <class D, typename T = TFromD<D>>
 Vec1<T> VecFromMask(D /* tag */, const Mask1<T> mask) {
   Vec1<T> v;
   CopySameSize(&mask, &v);
   return v;
+}
+
+template <typename T>
+uint64_t BitsFromMask(Mask1<T> mask) {
+  return mask.bits ? 1 : 0;
 }
 
 template <class D, HWY_IF_LANES_D(D, 1), typename T = TFromD<D>>
