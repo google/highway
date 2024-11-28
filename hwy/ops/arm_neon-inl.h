@@ -21,7 +21,6 @@
 // Arm NEON intrinsics are documented at:
 // https://developer.arm.com/architectures/instruction-sets/intrinsics/#f:@navigationhierarchiessimdisa=[Neon]
 
-#include "hwy/base.h"
 #include "hwy/ops/shared-inl.h"
 
 HWY_DIAGNOSTICS(push)
@@ -8922,16 +8921,8 @@ HWY_INLINE uint64_t NibblesFromMask(D d, MFromD<D> mask) {
   return nib & ((1ull << (d.MaxBytes() * 4)) - 1);
 }
 
-// Returns the lowest N for the BitsFromMask result.
-template <typename T, size_t N>
-constexpr uint64_t OnlyActive(uint64_t bits) {
-  return ((N * sizeof(T)) >= 8) ? bits : (bits & ((1ull << N) - 1));
-}
-
-}  // namespace detail
-
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 1), HWY_IF_V_SIZE(T, N, 16)>
-HWY_API uint64_t BitsFromMask(Mask128<T, N> mask) {
+template <typename T>
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/, Mask128<T> mask) {
   alignas(16) static constexpr uint8_t kSliceLanes[16] = {
       1, 2, 4, 8, 0x10, 0x20, 0x40, 0x80, 1, 2, 4, 8, 0x10, 0x20, 0x40, 0x80,
   };
@@ -8954,8 +8945,8 @@ HWY_API uint64_t BitsFromMask(Mask128<T, N> mask) {
 #endif
 }
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 1), HWY_IF_V_SIZE_LE(T, N, 8)>
-HWY_API uint64_t BitsFromMask(Mask128<T, N> mask) {
+template <typename T, size_t N, HWY_IF_V_SIZE_LE(T, N, 8)>
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/, Mask128<T, N> mask) {
   // Upper lanes of partial loads are undefined. OnlyActive will fix this if
   // we load all kSliceLanes so the upper lanes do not pollute the valid bits.
   alignas(8) static constexpr uint8_t kSliceLanes[8] = {1,    2,    4,    8,
@@ -8966,17 +8957,17 @@ HWY_API uint64_t BitsFromMask(Mask128<T, N> mask) {
   const Vec128<uint8_t, N> values = BitCast(du, VecFromMask(d, mask)) & slice;
 
 #if HWY_ARCH_ARM_A64
-  return detail::OnlyActive<T, N>(vaddv_u8(values.raw));
+  return vaddv_u8(values.raw);
 #else
   const uint16x4_t x2 = vpaddl_u8(values.raw);
   const uint32x2_t x4 = vpaddl_u16(x2);
   const uint64x1_t x8 = vpaddl_u32(x4);
-  return detail::OnlyActive<T, N>(vget_lane_u64(x8, 0));
+  return vget_lane_u64(x8, 0);
 #endif
 }
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 2), HWY_IF_V_SIZE(T, N, 16)>
-HWY_API uint64_t BitsFromMask(Mask128<T, N> mask) {
+template <typename T>
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/, Mask128<T> mask) {
   alignas(16) static constexpr uint16_t kSliceLanes[8] = {
       1, 2, 4, 8, 0x10, 0x20, 0x40, 0x80};
   const Full128<T> d;
@@ -8984,17 +8975,16 @@ HWY_API uint64_t BitsFromMask(Mask128<T, N> mask) {
   const Vec128<uint16_t> values =
       BitCast(du, VecFromMask(d, mask)) & Load(du, kSliceLanes);
 #if HWY_ARCH_ARM_A64
-  return detail::OnlyActive<T, N>(vaddvq_u16(values.raw));
+  return vaddvq_u16(values.raw);
 #else
   const uint32x4_t x2 = vpaddlq_u16(values.raw);
   const uint64x2_t x4 = vpaddlq_u32(x2);
-  return detail::OnlyActive<T, N>(vgetq_lane_u64(x4, 0) +
-                                  vgetq_lane_u64(x4, 1));
+  return vgetq_lane_u64(x4, 0) + vgetq_lane_u64(x4, 1);
 #endif
 }
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 2), HWY_IF_V_SIZE_LE(T, N, 8)>
-HWY_API uint64_t BitsFromMask(Mask128<T, N> mask) {
+template <typename T, size_t N, HWY_IF_V_SIZE_LE(T, N, 8)>
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/, Mask128<T, N> mask) {
   // Upper lanes of partial loads are undefined. OnlyActive will fix this if
   // we load all kSliceLanes so the upper lanes do not pollute the valid bits.
   alignas(8) static constexpr uint16_t kSliceLanes[4] = {1, 2, 4, 8};
@@ -9003,32 +8993,31 @@ HWY_API uint64_t BitsFromMask(Mask128<T, N> mask) {
   const Vec128<uint16_t, N> slice(Load(Full64<uint16_t>(), kSliceLanes).raw);
   const Vec128<uint16_t, N> values = BitCast(du, VecFromMask(d, mask)) & slice;
 #if HWY_ARCH_ARM_A64
-  return detail::OnlyActive<T, N>(vaddv_u16(values.raw));
+  return vaddv_u16(values.raw);
 #else
   const uint32x2_t x2 = vpaddl_u16(values.raw);
   const uint64x1_t x4 = vpaddl_u32(x2);
-  return detail::OnlyActive<T, N>(vget_lane_u64(x4, 0));
+  return vget_lane_u64(x4, 0);
 #endif
 }
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 4), HWY_IF_V_SIZE(T, N, 16)>
-HWY_API uint64_t BitsFromMask(Mask128<T, N> mask) {
+template <typename T>
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/, Mask128<T> mask) {
   alignas(16) static constexpr uint32_t kSliceLanes[4] = {1, 2, 4, 8};
   const Full128<T> d;
   const Full128<uint32_t> du;
   const Vec128<uint32_t> values =
       BitCast(du, VecFromMask(d, mask)) & Load(du, kSliceLanes);
 #if HWY_ARCH_ARM_A64
-  return detail::OnlyActive<T, N>(vaddvq_u32(values.raw));
+  return vaddvq_u32(values.raw);
 #else
   const uint64x2_t x2 = vpaddlq_u32(values.raw);
-  return detail::OnlyActive<T, N>(vgetq_lane_u64(x2, 0) +
-                                  vgetq_lane_u64(x2, 1));
+  return vgetq_lane_u64(x2, 0) + vgetq_lane_u64(x2, 1);
 #endif
 }
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 4), HWY_IF_V_SIZE_LE(T, N, 8)>
-HWY_API uint64_t BitsFromMask(Mask128<T, N> mask) {
+template <typename T, size_t N, HWY_IF_V_SIZE_LE(T, N, 8)>
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/, Mask128<T, N> mask) {
   // Upper lanes of partial loads are undefined. OnlyActive will fix this if
   // we load all kSliceLanes so the upper lanes do not pollute the valid bits.
   alignas(8) static constexpr uint32_t kSliceLanes[2] = {1, 2};
@@ -9037,37 +9026,45 @@ HWY_API uint64_t BitsFromMask(Mask128<T, N> mask) {
   const Vec128<uint32_t, N> slice(Load(Full64<uint32_t>(), kSliceLanes).raw);
   const Vec128<uint32_t, N> values = BitCast(du, VecFromMask(d, mask)) & slice;
 #if HWY_ARCH_ARM_A64
-  return detail::OnlyActive<T, N>(vaddv_u32(values.raw));
+  return vaddv_u32(values.raw);
 #else
   const uint64x1_t x2 = vpaddl_u32(values.raw);
-  return detail::OnlyActive<T, N>(vget_lane_u64(x2, 0));
+  return vget_lane_u64(x2, 0);
 #endif
 }
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 8), HWY_IF_V_SIZE(T, N, 16)>
-HWY_API uint64_t BitsFromMask(Mask128<T, N> m) {
+template <typename T>
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/, Mask128<T> m) {
   alignas(16) static constexpr uint64_t kSliceLanes[2] = {1, 2};
   const Full128<T> d;
   const Full128<uint64_t> du;
   const Vec128<uint64_t> values =
       BitCast(du, VecFromMask(d, m)) & Load(du, kSliceLanes);
 #if HWY_ARCH_ARM_A64
-  return detail::OnlyActive<T, N>(vaddvq_u64(values.raw));
+  return vaddvq_u64(values.raw);
 #else
-  return detail::OnlyActive<T, N>(vgetq_lane_u64(values.raw, 0) +
-                                  vgetq_lane_u64(values.raw, 1));
+  return vgetq_lane_u64(values.raw, 0) + vgetq_lane_u64(values.raw, 1);
 #endif
 }
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 8), HWY_IF_V_SIZE(T, N, 8)>
-HWY_API uint64_t BitsFromMask(Mask128<T, N> m) {
+template <typename T>
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/, Mask128<T, 1> m) {
   const Full64<T> d;
   const Full64<uint64_t> du;
   const Vec64<uint64_t> values = BitCast(du, VecFromMask(d, m)) & Set(du, 1);
   return vget_lane_u64(values.raw, 0);
 }
 
-namespace detail {
+// Returns the lowest N for the BitsFromMask result.
+template <typename T, size_t N>
+constexpr uint64_t OnlyActive(uint64_t bits) {
+  return ((N * sizeof(T)) >= 8) ? bits : (bits & ((1ull << N) - 1));
+}
+
+template <typename T, size_t N>
+HWY_INLINE uint64_t BitsFromMask(Mask128<T, N> mask) {
+  return OnlyActive<T, N>(BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask));
+}
 
 // Returns number of lanes whose mask is set.
 //
@@ -9187,7 +9184,7 @@ HWY_API intptr_t FindLastTrue(D d, MFromD<D> mask) {
 // `p` points to at least 8 writable bytes.
 template <class D>
 HWY_API size_t StoreMaskBits(D d, MFromD<D> mask, uint8_t* bits) {
-  const uint64_t mask_bits = BitsFromMask(mask);
+  const uint64_t mask_bits = detail::BitsFromMask(mask);
   const size_t kNumBytes = (d.MaxLanes() + 7) / 8;
   CopyBytes<kNumBytes>(&mask_bits, bits);
   return kNumBytes;
@@ -9675,7 +9672,7 @@ HWY_API Vec128<T, N> Compress(Vec128<T, N> v, Mask128<T, N> mask) {
 // General case, 2 or 4 byte lanes
 template <typename T, size_t N, HWY_IF_T_SIZE_ONE_OF(T, (1 << 2) | (1 << 4))>
 HWY_API Vec128<T, N> Compress(Vec128<T, N> v, Mask128<T, N> mask) {
-  return detail::Compress(v, BitsFromMask(mask));
+  return detail::Compress(v, detail::BitsFromMask(mask));
 }
 
 // Single lane: no-op
@@ -9702,9 +9699,9 @@ HWY_API Vec128<T, N> CompressNot(Vec128<T, N> v, Mask128<T, N> mask) {
   // For partial vectors, we cannot pull the Not() into the table because
   // BitsFromMask clears the upper bits.
   if (N < 16 / sizeof(T)) {
-    return detail::Compress(v, BitsFromMask(Not(mask)));
+    return detail::Compress(v, detail::BitsFromMask(Not(mask)));
   }
-  return detail::CompressNot(v, BitsFromMask(mask));
+  return detail::CompressNot(v, detail::BitsFromMask(mask));
 }
 
 // ------------------------------ CompressBlocksNot
@@ -9732,7 +9729,7 @@ HWY_INLINE Vec128<T, N> CompressBits(Vec128<T, N> v,
 template <class D, HWY_IF_NOT_T_SIZE_D(D, 1)>
 HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> mask, D d,
                              TFromD<D>* HWY_RESTRICT unaligned) {
-  const uint64_t mask_bits = BitsFromMask(mask);
+  const uint64_t mask_bits = detail::BitsFromMask(mask);
   StoreU(detail::Compress(v, mask_bits), d, unaligned);
   return PopCount(mask_bits);
 }
@@ -9742,7 +9739,7 @@ template <class D, HWY_IF_NOT_T_SIZE_D(D, 1)>
 HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> m, D d,
                                     TFromD<D>* HWY_RESTRICT unaligned) {
   const RebindToUnsigned<decltype(d)> du;  // so we can support fp16/bf16
-  const uint64_t mask_bits = BitsFromMask(m);
+  const uint64_t mask_bits = detail::BitsFromMask(m);
   const size_t count = PopCount(mask_bits);
   const MFromD<D> store_mask = RebindMask(d, FirstN(du, count));
   const VFromD<decltype(du)> compressed =

@@ -2640,60 +2640,74 @@ HWY_API Mask512<T> operator<=(Vec512<T> a, Vec512<T> b) {
 
 // ------------------------------ Mask
 
-template <typename T>
-HWY_API uint64_t BitsFromMask(const Mask512<T> mask) {
-  // OnlyActive is not required because we have at least 8 mask bits.
-  return mask.raw;
-}
+namespace detail {
 
-template <typename T, HWY_IF_UI8(T)>
-HWY_API Mask512<T> MaskFromVec(Vec512<T> v) {
+template <typename T>
+HWY_INLINE Mask512<T> MaskFromVec(hwy::SizeTag<1> /*tag*/, Vec512<T> v) {
   return Mask512<T>{_mm512_movepi8_mask(v.raw)};
 }
-template <typename T, HWY_IF_UI16(T)>
-HWY_API Mask512<T> MaskFromVec(Vec512<T> v) {
+template <typename T>
+HWY_INLINE Mask512<T> MaskFromVec(hwy::SizeTag<2> /*tag*/, Vec512<T> v) {
   return Mask512<T>{_mm512_movepi16_mask(v.raw)};
 }
-template <typename T, HWY_IF_UI32(T)>
-HWY_API Mask512<T> MaskFromVec(Vec512<T> v) {
+template <typename T>
+HWY_INLINE Mask512<T> MaskFromVec(hwy::SizeTag<4> /*tag*/, Vec512<T> v) {
   return Mask512<T>{_mm512_movepi32_mask(v.raw)};
 }
-template <typename T, HWY_IF_UI64(T)>
-HWY_API Mask512<T> MaskFromVec(Vec512<T> v) {
+template <typename T>
+HWY_INLINE Mask512<T> MaskFromVec(hwy::SizeTag<8> /*tag*/, Vec512<T> v) {
   return Mask512<T>{_mm512_movepi64_mask(v.raw)};
 }
-template <typename T, HWY_IF_FLOAT_OR_SPECIAL(T)>
+
+}  // namespace detail
+
+template <typename T, HWY_IF_NOT_FLOAT(T)>
+HWY_API Mask512<T> MaskFromVec(Vec512<T> v) {
+  return detail::MaskFromVec(hwy::SizeTag<sizeof(T)>(), v);
+}
+template <typename T, HWY_IF_FLOAT(T)>
 HWY_API Mask512<T> MaskFromVec(Vec512<T> v) {
   const RebindToSigned<DFromV<decltype(v)>> di;
   return Mask512<T>{MaskFromVec(BitCast(di, v)).raw};
 }
 
-template <typename T, HWY_IF_UI8(T)>
-HWY_API Vec512<T> VecFromMask(Mask512<T> m) {
-  return Vec512<T>{_mm512_movm_epi8(m.raw)};
+HWY_API Vec512<uint8_t> VecFromMask(Mask512<uint8_t> v) {
+  return Vec512<uint8_t>{_mm512_movm_epi8(v.raw)};
 }
-template <typename T, HWY_IF_UI16(T)>
-HWY_API Vec512<T> VecFromMask(Mask512<T> m) {
-  return Vec512<T>{_mm512_movm_epi16(m.raw)};
+HWY_API Vec512<int8_t> VecFromMask(Mask512<int8_t> v) {
+  return Vec512<int8_t>{_mm512_movm_epi8(v.raw)};
+}
+
+HWY_API Vec512<uint16_t> VecFromMask(Mask512<uint16_t> v) {
+  return Vec512<uint16_t>{_mm512_movm_epi16(v.raw)};
+}
+HWY_API Vec512<int16_t> VecFromMask(Mask512<int16_t> v) {
+  return Vec512<int16_t>{_mm512_movm_epi16(v.raw)};
 }
 #if HWY_HAVE_FLOAT16
-HWY_API Vec512<float16_t> VecFromMask(Mask512<float16_t> m) {
-  return Vec512<float16_t>{_mm512_castsi512_ph(_mm512_movm_epi16(m.raw))};
+HWY_API Vec512<float16_t> VecFromMask(Mask512<float16_t> v) {
+  return Vec512<float16_t>{_mm512_castsi512_ph(_mm512_movm_epi16(v.raw))};
 }
 #endif  // HWY_HAVE_FLOAT16
-template <typename T, HWY_IF_UI32(T)>
-HWY_API Vec512<T> VecFromMask(Mask512<T> m) {
-  return Vec512<T>{_mm512_movm_epi32(m.raw)};
+
+HWY_API Vec512<uint32_t> VecFromMask(Mask512<uint32_t> v) {
+  return Vec512<uint32_t>{_mm512_movm_epi32(v.raw)};
 }
-template <typename T, HWY_IF_UI64(T)>
-HWY_API Vec512<T> VecFromMask(Mask512<T> m) {
-  return Vec512<T>{_mm512_movm_epi64(m.raw)};
+HWY_API Vec512<int32_t> VecFromMask(Mask512<int32_t> v) {
+  return Vec512<int32_t>{_mm512_movm_epi32(v.raw)};
 }
-template <typename T, HWY_IF_FLOAT_OR_SPECIAL(T)>
-HWY_API Vec512<T> VecFromMask(Mask512<T> m) {
-  const Full512<T> d;
-  const Full512<MakeSigned<T>> di;
-  return BitCast(d, VecFromMask(RebindMask(di, m)));
+HWY_API Vec512<float> VecFromMask(Mask512<float> v) {
+  return Vec512<float>{_mm512_castsi512_ps(_mm512_movm_epi32(v.raw))};
+}
+
+HWY_API Vec512<uint64_t> VecFromMask(Mask512<uint64_t> v) {
+  return Vec512<uint64_t>{_mm512_movm_epi64(v.raw)};
+}
+HWY_API Vec512<int64_t> VecFromMask(Mask512<int64_t> v) {
+  return Vec512<int64_t>{_mm512_movm_epi64(v.raw)};
+}
+HWY_API Vec512<double> VecFromMask(Mask512<double> v) {
+  return Vec512<double>{_mm512_castsi512_pd(_mm512_movm_epi64(v.raw))};
 }
 
 // ------------------------------ Mask logical

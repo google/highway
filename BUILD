@@ -513,7 +513,6 @@ HWY_TESTS = [
     ("hwy/tests/", "mask_combine_test"),
     ("hwy/tests/", "mask_convert_test"),
     ("hwy/tests/", "mask_mem_test"),
-    ("hwy/tests/", "mask_set_test"),
     ("hwy/tests/", "mask_slide_test"),
     ("hwy/tests/", "mask_test"),
     ("hwy/tests/", "masked_arithmetic_test"),

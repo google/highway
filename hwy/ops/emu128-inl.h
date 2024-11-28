@@ -386,15 +386,6 @@ VFromD<D> VecFromMask(D /* tag */, MFromD<D> mask) {
   return v;
 }
 
-template <typename T, size_t N>
-uint64_t BitsFromMask(Mask128<T, N> mask) {
-  uint64_t bits = 0;
-  for (size_t i = 0; i < N; ++i) {
-    bits |= mask.bits[i] ? (1ull << i) : 0;
-  }
-  return bits;
-}
-
 template <class D>
 HWY_API MFromD<D> FirstN(D d, size_t n) {
   MFromD<D> m;

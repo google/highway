@@ -196,12 +196,15 @@ constexpr uint64_t OnlyActive(uint64_t mask_bits) {
 }  // namespace detail
 
 #if HWY_TARGET <= HWY_AVX3
+namespace detail {
 
+// Used by Expand() emulation, which is required for both AVX3 and AVX2.
 template <typename T, size_t N>
 HWY_INLINE uint64_t BitsFromMask(const Mask128<T, N> mask) {
-  return detail::OnlyActive<T, N>(mask.raw);
+  return OnlyActive<T, N>(mask.raw);
 }
 
+}  // namespace detail
 #endif  // HWY_TARGET <= HWY_AVX3
 
 template <class V>
@@ -12597,7 +12600,7 @@ HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> m, D d,
 
 #else  // AVX2 or below
 
-// ------------------------------ BitsFromMask
+// ------------------------------ StoreMaskBits
 
 namespace detail {
 
@@ -12605,48 +12608,50 @@ constexpr HWY_INLINE uint64_t U64FromInt(int mask_bits) {
   return static_cast<uint64_t>(static_cast<unsigned>(mask_bits));
 }
 
-}  // namespace detail
-
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
-HWY_API uint64_t BitsFromMask(const Mask128<T, N> mask) {
+template <typename T, size_t N>
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
+                                 const Mask128<T, N> mask) {
   const Simd<T, N, 0> d;
   const auto sign_bits = BitCast(d, VecFromMask(d, mask)).raw;
-  return detail::OnlyActive<T, N>(
-      detail::U64FromInt(_mm_movemask_epi8(sign_bits)));
+  return U64FromInt(_mm_movemask_epi8(sign_bits));
 }
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 2)>
-HWY_API uint64_t BitsFromMask(const Mask128<T, N> mask) {
+template <typename T, size_t N>
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/,
+                                 const Mask128<T, N> mask) {
   // Remove useless lower half of each u16 while preserving the sign bit.
   const auto sign_bits = _mm_packs_epi16(mask.raw, _mm_setzero_si128());
-  return detail::OnlyActive<T, N>(
-      detail::U64FromInt(_mm_movemask_epi8(sign_bits)));
+  return U64FromInt(_mm_movemask_epi8(sign_bits));
 }
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 4)>
-HWY_API uint64_t BitsFromMask(Mask128<T, N> mask) {
+template <typename T, size_t N>
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/, Mask128<T, N> mask) {
   const Simd<T, N, 0> d;
   const Simd<float, N, 0> df;
   const auto sign_bits = BitCast(df, VecFromMask(d, mask));
-  return detail::OnlyActive<T, N>(
-      detail::U64FromInt(_mm_movemask_ps(sign_bits.raw)));
+  return U64FromInt(_mm_movemask_ps(sign_bits.raw));
 }
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 8)>
-HWY_API uint64_t BitsFromMask(Mask128<T, N> mask) {
+template <typename T, size_t N>
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/, Mask128<T, N> mask) {
   const Simd<T, N, 0> d;
   const Simd<double, N, 0> df;
   const auto sign_bits = BitCast(df, VecFromMask(d, mask));
-  return detail::OnlyActive<T, N>(
-      detail::U64FromInt(_mm_movemask_pd(sign_bits.raw)));
+  return U64FromInt(_mm_movemask_pd(sign_bits.raw));
 }
 
-// ------------------------------ StoreMaskBits
+template <typename T, size_t N>
+HWY_INLINE uint64_t BitsFromMask(const Mask128<T, N> mask) {
+  return OnlyActive<T, N>(BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask));
+}
+
+}  // namespace detail
+
 // `p` points to at least 8 writable bytes.
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API size_t StoreMaskBits(D d, MFromD<D> mask, uint8_t* bits) {
   constexpr size_t kNumBytes = (MaxLanes(d) + 7) / 8;
-  const uint64_t mask_bits = BitsFromMask(mask);
+  const uint64_t mask_bits = detail::BitsFromMask(mask);
   CopyBytes<kNumBytes>(&mask_bits, bits);
   return kNumBytes;
 }
@@ -12656,41 +12661,41 @@ HWY_API size_t StoreMaskBits(D d, MFromD<D> mask, uint8_t* bits) {
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API bool AllFalse(D /* tag */, MFromD<D> mask) {
   // Cheaper than PTEST, which is 2 uop / 3L.
-  return BitsFromMask(mask) == 0;
+  return detail::BitsFromMask(mask) == 0;
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API bool AllTrue(D d, MFromD<D> mask) {
   constexpr uint64_t kAllBits = (1ull << MaxLanes(d)) - 1;
-  return BitsFromMask(mask) == kAllBits;
+  return detail::BitsFromMask(mask) == kAllBits;
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API size_t CountTrue(D /* tag */, MFromD<D> mask) {
-  return PopCount(BitsFromMask(mask));
+  return PopCount(detail::BitsFromMask(mask));
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API size_t FindKnownFirstTrue(D /* tag */, MFromD<D> mask) {
   return Num0BitsBelowLS1Bit_Nonzero32(
-      static_cast<uint32_t>(BitsFromMask(mask)));
+      static_cast<uint32_t>(detail::BitsFromMask(mask)));
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API intptr_t FindFirstTrue(D /* tag */, MFromD<D> mask) {
-  const uint32_t mask_bits = static_cast<uint32_t>(BitsFromMask(mask));
+  const uint32_t mask_bits = static_cast<uint32_t>(detail::BitsFromMask(mask));
   return mask_bits ? intptr_t(Num0BitsBelowLS1Bit_Nonzero32(mask_bits)) : -1;
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API size_t FindKnownLastTrue(D /* tag */, MFromD<D> mask) {
   return 31 - Num0BitsAboveMS1Bit_Nonzero32(
-                  static_cast<uint32_t>(BitsFromMask(mask)));
+                  static_cast<uint32_t>(detail::BitsFromMask(mask)));
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API intptr_t FindLastTrue(D /* tag */, MFromD<D> mask) {
-  const uint32_t mask_bits = static_cast<uint32_t>(BitsFromMask(mask));
+  const uint32_t mask_bits = static_cast<uint32_t>(detail::BitsFromMask(mask));
   return mask_bits ? intptr_t(31 - Num0BitsAboveMS1Bit_Nonzero32(mask_bits))
                    : -1;
 }
@@ -13132,7 +13137,7 @@ HWY_API Vec128<T> Compress(Vec128<T> v, Mask128<T> mask) {
 // General case, 2 or 4 bytes
 template <typename T, size_t N, HWY_IF_T_SIZE_ONE_OF(T, (1 << 2) | (1 << 4))>
 HWY_API Vec128<T, N> Compress(Vec128<T, N> v, Mask128<T, N> mask) {
-  return detail::CompressBits(v, BitsFromMask(mask));
+  return detail::CompressBits(v, detail::BitsFromMask(mask));
 }
 
 // ------------------------------ CompressNot
@@ -13160,9 +13165,9 @@ HWY_API Vec128<T, N> CompressNot(Vec128<T, N> v, Mask128<T, N> mask) {
   // For partial vectors, we cannot pull the Not() into the table because
   // BitsFromMask clears the upper bits.
   if (N < 16 / sizeof(T)) {
-    return detail::CompressBits(v, BitsFromMask(Not(mask)));
+    return detail::CompressBits(v, detail::BitsFromMask(Not(mask)));
   }
-  return detail::CompressNotBits(v, BitsFromMask(mask));
+  return detail::CompressNotBits(v, detail::BitsFromMask(mask));
 }
 
 // ------------------------------ CompressBlocksNot
@@ -13191,7 +13196,7 @@ HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> m, D d,
                              TFromD<D>* HWY_RESTRICT unaligned) {
   const RebindToUnsigned<decltype(d)> du;
 
-  const uint64_t mask_bits = BitsFromMask(m);
+  const uint64_t mask_bits = detail::BitsFromMask(m);
   HWY_DASSERT(mask_bits < (1ull << MaxLanes(d)));
   const size_t count = PopCount(mask_bits);
 
@@ -13208,7 +13213,7 @@ HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> m, D d,
                                     TFromD<D>* HWY_RESTRICT unaligned) {
   const RebindToUnsigned<decltype(d)> du;
 
-  const uint64_t mask_bits = BitsFromMask(m);
+  const uint64_t mask_bits = detail::BitsFromMask(m);
   HWY_DASSERT(mask_bits < (1ull << MaxLanes(d)));
   const size_t count = PopCount(mask_bits);
 

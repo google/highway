@@ -657,13 +657,6 @@ HWY_API Vec256<T> VecFromMask(D d, Mask256<T> m) {
   return v;
 }
 
-template <typename T>
-HWY_API uint64_t BitsFromMask(Mask256<T> m) {
-  const uint64_t lo = BitsFromMask(m.m0);
-  const uint64_t hi = BitsFromMask(m.m1);
-  return (hi << (16 / sizeof(T))) | lo;
-}
-
 // mask ? yes : no
 template <typename T>
 HWY_API Vec256<T> IfThenElse(Mask256<T> mask, Vec256<T> yes, Vec256<T> no) {
