@@ -219,6 +219,7 @@ set(HWY_SOURCES
     hwy/ops/x86_128-inl.h
     hwy/ops/x86_256-inl.h
     hwy/ops/x86_512-inl.h
+    hwy/ops/x86_avx3-inl.h
     hwy/per_target.h
     hwy/print-inl.h
     hwy/print.h

@@ -4408,6 +4408,26 @@ HWY_API Vec128<int32_t, N> operator*(const Vec128<int32_t, N> a,
   return BitCast(d, BitCast(du, a) * BitCast(du, b));
 }
 
+#if HWY_TARGET <= HWY_AVX3
+// Per-target flag to prevent generic_ops-inl.h from defining 64-bit operator*.
+#ifdef HWY_NATIVE_MUL_64
+#undef HWY_NATIVE_MUL_64
+#else
+#define HWY_NATIVE_MUL_64
+#endif
+
+template <size_t N>
+HWY_API Vec128<uint64_t, N> operator*(Vec128<uint64_t, N> a,
+                                      Vec128<uint64_t, N> b) {
+  return Vec128<uint64_t, N>{_mm_mullo_epi64(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int64_t, N> operator*(Vec128<int64_t, N> a,
+                                     Vec128<int64_t, N> b) {
+  return Vec128<int64_t, N>{_mm_mullo_epi64(a.raw, b.raw)};
+}
+#endif
+
 // ------------------------------ RotateRight (ShiftRight, Or)
 
 // U8 RotateRight implementation on AVX3_DL is now in x86_512-inl.h as U8
