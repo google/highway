@@ -59,33 +59,6 @@ if(CHECK_PIE_SUPPORTED)
   endif()
 endif()
 
-if (CMAKE_CXX_COMPILER_ARCHITECTURE_ID MATCHES "RISCV32|RISCV64|RISCV128" OR CMAKE_SYSTEM_PROCESSOR MATCHES "riscv32|riscv64|riscv128")
-  include(CheckCSourceCompiles)
-  check_c_source_compiles("
-  #if __riscv_xlen == 64
-  int main() { return 0; }
-  #else
-  #error Not RISCV-64
-  #endif
-  " IS_RISCV_XLEN_64)
-
-  check_c_source_compiles("
-  #if __riscv_xlen == 32
-  int main() { return 0; }
-  #else
-  #error Not RISCV-32
-  #endif
-  " IS_RISCV_XLEN_32)
-
-  if(IS_RISCV_XLEN_32)
-    set(RISCV_XLEN 32)
-  elseif(IS_RISCV_XLEN_64)
-    set(RISCV_XLEN 64)
-  else()
-    message(WARNING "Unable to determine RISC-V XLEN")
-  endif()
-endif()
-
 include(GNUInstallDirs)
 
 if (NOT CMAKE_BUILD_TYPE)
@@ -162,6 +135,33 @@ check_cxx_source_compiles(
     }"
   HWY_RISCV
 )
+
+if (HWY_RISCV OR CMAKE_CXX_COMPILER_ARCHITECTURE_ID MATCHES "RISCV32|RISCV64|RISCV128" OR CMAKE_SYSTEM_PROCESSOR MATCHES "riscv32|riscv64|riscv128")
+  include(CheckCSourceCompiles)
+  check_c_source_compiles("
+  #if __riscv_xlen == 64
+  int main() { return 0; }
+  #else
+  #error Not RISCV-64
+  #endif
+  " IS_RISCV_XLEN_64)
+
+  check_c_source_compiles("
+  #if __riscv_xlen == 32
+  int main() { return 0; }
+  #else
+  #error Not RISCV-32
+  #endif
+  " IS_RISCV_XLEN_32)
+
+  if(IS_RISCV_XLEN_32)
+    set(RISCV_XLEN 32)
+  elseif(IS_RISCV_XLEN_64)
+    set(RISCV_XLEN 64)
+  else()
+    message(WARNING "Unable to determine RISC-V XLEN")
+  endif()
+endif()
 
 if (HWY_ENABLE_CONTRIB)
 # Glob all the traits so we don't need to modify this file when adding
