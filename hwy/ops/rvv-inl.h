@@ -3183,10 +3183,9 @@ HWY_RVV_FOREACH(HWY_RVV_SLIDE_DOWN, SlideDown, slidedown, _ALL)
                          SHIFT, MLEN, NAME, OP)                            \
   template <size_t kIndex>                                                 \
   HWY_API HWY_RVV_V(BASE, SEW, LMULH) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) { \
-    if constexpr (kIndex == 0) {                                           \
-      return Trunc(v);                                                     \
-    } else {                                                               \
-      static_assert(kIndex == 1);                                          \
+    static_assert(kIndex == 0 || kIndex == 1, "kIndex must be 0 or 1");    \
+    HWY_IF_CONSTEXPR(kIndex == 0) { return Trunc(v); }                     \
+    else {                                                                 \
       return Trunc(SlideDown(                                              \
           v, Lanes(HWY_RVV_D(BASE, SEW, HWY_LANES(HWY_RVV_T(BASE, SEW)),   \
                              SHIFT - 1){})));                              \
@@ -3196,10 +3195,9 @@ HWY_RVV_FOREACH(HWY_RVV_SLIDE_DOWN, SlideDown, slidedown, _ALL)
                              SHIFT, MLEN, NAME, OP)                           \
   template <size_t kIndex>                                                    \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) {     \
-    if constexpr (kIndex == 0) {                                              \
-      return v;                                                               \
-    } else {                                                                  \
-      static_assert(kIndex == 1);                                             \
+    static_assert(kIndex == 0 || kIndex == 1, "kIndex must be 0 or 1");       \
+    HWY_IF_CONSTEXPR(kIndex == 0) { return v; }                               \
+    else {                                                                    \
       return SlideDown(                                                       \
           v, Lanes(HWY_RVV_D(BASE, SEW, HWY_LANES(HWY_RVV_T(BASE, SEW)),      \
                              SHIFT){}) /                                      \
@@ -3212,6 +3210,23 @@ HWY_RVV_FOREACH(HWY_RVV_GET_SMALLEST, Get, get, _GET_SET_SMALLEST)
 #undef HWY_RVV_GET
 #undef HWY_RVV_GET_VIRT
 #undef HWY_RVV_GET_SMALLEST
+
+template <size_t kIndex, class D>
+static HWY_INLINE HWY_MAYBE_UNUSED VFromD<AdjustSimdTagToMinVecPow2<Half<D>>>
+Get(D d, VFromD<D> v) {
+  static_assert(kIndex == 0 || kIndex == 1, "kIndex must be 0 or 1");
+
+  const AdjustSimdTagToMinVecPow2<Half<decltype(d)>> dh;
+  HWY_IF_CONSTEXPR(kIndex == 0 || detail::IsFull(d)) {
+    (void)dh;
+    return Get<kIndex>(v);
+  }
+  else {
+    const size_t slide_down_amt =
+        (dh.Pow2() < DFromV<decltype(v)>().Pow2()) ? Lanes(dh) : (Lanes(d) / 2);
+    return ResizeBitCast(dh, SlideDown(v, slide_down_amt));
+  }
+}
 
 #define HWY_RVV_SET(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT,  \
                     MLEN, NAME, OP)                                          \
@@ -3226,14 +3241,15 @@ HWY_RVV_FOREACH(HWY_RVV_GET_SMALLEST, Get, get, _GET_SET_SMALLEST)
   template <size_t kIndex>                                                   \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                         \
       NAME(HWY_RVV_V(BASE, SEW, LMUL) dest, HWY_RVV_V(BASE, SEW, LMULH) v) { \
+    static_assert(kIndex == 0 || kIndex == 1, "kIndex must be 0 or 1");      \
     auto d = HWY_RVV_D(BASE, SEW, HWY_LANES(HWY_RVV_T(BASE, SEW)), SHIFT){}; \
     auto df2 =                                                               \
         HWY_RVV_D(BASE, SEW, HWY_LANES(HWY_RVV_T(BASE, SEW)), SHIFT - 1){};  \
-    if constexpr (kIndex == 0) {                                             \
+    HWY_IF_CONSTEXPR(kIndex == 0) {                                          \
       return __riscv_vmv_v_v_##CHAR##SEW##LMUL##_tu(dest, Ext(d, v),         \
                                                     Lanes(df2));             \
-    } else {                                                                 \
-      static_assert(kIndex == 1);                                            \
+    }                                                                        \
+    else {                                                                   \
       return SlideUp(dest, Ext(d, v), Lanes(df2));                           \
     }                                                                        \
   }
@@ -3242,11 +3258,12 @@ HWY_RVV_FOREACH(HWY_RVV_GET_SMALLEST, Get, get, _GET_SET_SMALLEST)
   template <size_t kIndex>                                                    \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                          \
       NAME(HWY_RVV_V(BASE, SEW, LMUL) dest, HWY_RVV_V(BASE, SEW, LMUL) v) {   \
+    static_assert(kIndex == 0 || kIndex == 1, "kIndex must be 0 or 1");       \
     auto d = HWY_RVV_D(BASE, SEW, HWY_LANES(HWY_RVV_T(BASE, SEW)), SHIFT){};  \
-    if constexpr (kIndex == 0) {                                              \
+    HWY_IF_CONSTEXPR(kIndex == 0) {                                           \
       return __riscv_vmv_v_v_##CHAR##SEW##LMUL##_tu(dest, v, Lanes(d) / 2);   \
-    } else {                                                                  \
-      static_assert(kIndex == 1);                                             \
+    }                                                                         \
+    else {                                                                    \
       return SlideUp(dest, v, Lanes(d) / 2);                                  \
     }                                                                         \
   }
@@ -3256,6 +3273,23 @@ HWY_RVV_FOREACH(HWY_RVV_SET_SMALLEST, Set, set, _GET_SET_SMALLEST)
 #undef HWY_RVV_SET
 #undef HWY_RVV_SET_VIRT
 #undef HWY_RVV_SET_SMALLEST
+
+template <size_t kIndex, class D>
+static HWY_INLINE HWY_MAYBE_UNUSED VFromD<D> Set(
+    D d, VFromD<D> dest, VFromD<AdjustSimdTagToMinVecPow2<Half<D>>> v) {
+  static_assert(kIndex == 0 || kIndex == 1, "kIndex must be 0 or 1");
+
+  const AdjustSimdTagToMinVecPow2<Half<decltype(d)>> dh;
+  HWY_IF_CONSTEXPR(kIndex == 0 || detail::IsFull(d)) {
+    (void)dh;
+    return Set<kIndex>(dest, v);
+  }
+  else {
+    const size_t slide_up_amt =
+        (dh.Pow2() < DFromV<decltype(v)>().Pow2()) ? Lanes(dh) : (Lanes(d) / 2);
+    return SlideUp(dest, ResizeBitCast(d, v), slide_up_amt);
+  }
+}
 
 }  // namespace detail
 
@@ -3278,58 +3312,37 @@ HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
 
 // ------------------------------ ConcatUpperLower
 template <class D, class V>
-HWY_API V ConcatUpperLower(D, const V hi, const V lo) {
-  const auto lo_lower = detail::Get<0>(lo);
-  return detail::Set<0>(hi, lo_lower);
+HWY_API V ConcatUpperLower(D d, const V hi, const V lo) {
+  const auto lo_lower = detail::Get<0>(d, lo);
+  return detail::Set<0>(d, hi, lo_lower);
 }
 
 // ------------------------------ ConcatLowerLower
 template <class D, class V>
-HWY_API V ConcatLowerLower(D, const V hi, const V lo) {
-  const auto hi_lower = detail::Get<0>(hi);
-  return detail::Set<1>(lo, hi_lower);
+HWY_API V ConcatLowerLower(D d, const V hi, const V lo) {
+  const auto hi_lower = detail::Get<0>(d, hi);
+  return detail::Set<1>(d, lo, hi_lower);
 }
 
 // ------------------------------ ConcatUpperUpper
 template <class D, class V>
-HWY_API V ConcatUpperUpper(D, const V hi, const V lo) {
-  const auto lo_upper = detail::Get<1>(lo);
-  return detail::Set<0>(hi, lo_upper);
+HWY_API V ConcatUpperUpper(D d, const V hi, const V lo) {
+  const auto lo_upper = detail::Get<1>(d, lo);
+  return detail::Set<0>(d, hi, lo_upper);
 }
 
 // ------------------------------ ConcatLowerUpper
-namespace detail {
-
-// Only getting a full register is a no-op.
-template <class D>
-constexpr bool IsGetNoOp(D d) {
-  return d.Pow2() >= 0;
-}
-
-}  // namespace detail
-
-template <class D, class V,
-          hwy::EnableIf<detail::IsGetNoOp(Half<D>())>* = nullptr>
+template <class D, class V>
 HWY_API V ConcatLowerUpper(D d, const V hi, const V lo) {
-  const auto lo_upper = detail::Get<1>(lo);
-  const auto hi_lower = detail::Get<0>(hi);
-  const auto undef = Undefined(d);
-  return detail::Set<1>(detail::Set<0>(undef, lo_upper), hi_lower);
-}
-
-template <class D, class V,
-          hwy::EnableIf<!detail::IsGetNoOp(Half<D>())>* = nullptr>
-HWY_API V ConcatLowerUpper(D d, const V hi, const V lo) {
-  const size_t half = Lanes(d) / 2;
-  const V lo_down = detail::SlideDown(lo, half);
-  return detail::SlideUp(lo_down, hi, half);
+  const auto lo_upper = detail::Get<1>(d, lo);
+  const auto hi_lower = detail::Get<0>(d, hi);
+  return detail::Set<1>(d, ResizeBitCast(d, lo_upper), hi_lower);
 }
 
 // ------------------------------ Combine
 template <class D2, class V>
 HWY_API VFromD<D2> Combine(D2 d2, const V hi, const V lo) {
-  return detail::SlideUp(detail::Ext(d2, lo), detail::Ext(d2, hi),
-                         Lanes(d2) / 2);
+  return detail::Set<1>(d2, ResizeBitCast(d2, lo), hi);
 }
 
 // ------------------------------ ZeroExtendVector
@@ -3376,8 +3389,9 @@ HWY_API VFromD<Half<DFromV<V>>> LowerHalf(const V v) {
 }
 
 template <class DH>
-HWY_API VFromD<DH> UpperHalf(const DH d2, const VFromD<Twice<DH>> v) {
-  return LowerHalf(d2, detail::SlideDown(v, Lanes(d2)));
+HWY_API VFromD<DH> UpperHalf(const DH /*d2*/, const VFromD<Twice<DH>> v) {
+  const Twice<DH> d;
+  return detail::Get<1>(d, v);
 }
 
 // ================================================== SWIZZLE
