@@ -46,6 +46,36 @@ HWY_DIAGNOSTICS_OFF(disable : 4701 4703 6001 26494,
 #include <f16cintrin.h>
 #include <fmaintrin.h>
 #include <smmintrin.h>
+
+#if HWY_TARGET <= HWY_AVX10_2
+#include <avx512bitalgintrin.h>
+#include <avx512bwintrin.h>
+#include <avx512cdintrin.h>
+#include <avx512dqintrin.h>
+#include <avx512fintrin.h>
+#include <avx512vbmi2intrin.h>
+#include <avx512vbmiintrin.h>
+#include <avx512vbmivlintrin.h>
+#include <avx512vlbitalgintrin.h>
+#include <avx512vlbwintrin.h>
+#include <avx512vlcdintrin.h>
+#include <avx512vldqintrin.h>
+#include <avx512vlintrin.h>
+#include <avx512vlvbmi2intrin.h>
+#include <avx512vlvnniintrin.h>
+#include <avx512vnniintrin.h>
+#include <avx512vpopcntdqintrin.h>
+#include <avx512vpopcntdqvlintrin.h>
+// Must come after avx512fintrin, else will not define 512-bit intrinsics.
+#include <avx512fp16intrin.h>
+#include <avx512vlfp16intrin.h>
+#include <gfniintrin.h>
+#include <vaesintrin.h>
+#include <vpclmulqdqintrin.h>
+
+#endif  // HWY_TARGET <= HWY_AVX10_2
+
+// clang-format on
 #endif  // HWY_COMPILER_CLANGCL
 
 // For half-width vectors. Already includes base.h.
@@ -2146,6 +2176,11 @@ HWY_API Vec256<uint16_t> operator*(Vec256<uint16_t> a, Vec256<uint16_t> b) {
 HWY_API Vec256<uint32_t> operator*(Vec256<uint32_t> a, Vec256<uint32_t> b) {
   return Vec256<uint32_t>{_mm256_mullo_epi32(a.raw, b.raw)};
 }
+#if HWY_TARGET <= HWY_AVX3
+HWY_API Vec256<uint64_t> operator*(Vec256<uint64_t> a, Vec256<uint64_t> b) {
+  return Vec256<uint64_t>{_mm256_mullo_epi64(a.raw, b.raw)};
+}
+#endif
 
 // Signed
 HWY_API Vec256<int16_t> operator*(Vec256<int16_t> a, Vec256<int16_t> b) {
@@ -2154,6 +2189,11 @@ HWY_API Vec256<int16_t> operator*(Vec256<int16_t> a, Vec256<int16_t> b) {
 HWY_API Vec256<int32_t> operator*(Vec256<int32_t> a, Vec256<int32_t> b) {
   return Vec256<int32_t>{_mm256_mullo_epi32(a.raw, b.raw)};
 }
+#if HWY_TARGET <= HWY_AVX3
+HWY_API Vec256<int64_t> operator*(Vec256<int64_t> a, Vec256<int64_t> b) {
+  return Vec256<int64_t>{_mm256_mullo_epi64(a.raw, b.raw)};
+}
+#endif
 
 // Returns the upper 16 bits of a * b in each lane.
 HWY_API Vec256<uint16_t> MulHigh(Vec256<uint16_t> a, Vec256<uint16_t> b) {
@@ -6698,6 +6738,31 @@ HWY_API VFromD<D> OrderedDemote2To(D d, V a, V b) {
                                             _MM_SHUFFLE(3, 1, 2, 0))};
 }
 
+#if HWY_TARGET <= HWY_AVX3
+template <class D, HWY_IF_V_SIZE_D(D, HWY_MAX_BYTES), HWY_IF_UI32_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D dn, VFromD<Repartition<int64_t, D>> a,
+                                   VFromD<Repartition<int64_t, D>> b) {
+  const Half<decltype(dn)> dnh;
+  return Combine(dn, DemoteTo(dnh, b), DemoteTo(dnh, a));
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, HWY_MAX_BYTES), HWY_IF_U32_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D dn, VFromD<Repartition<uint64_t, D>> a,
+                                   VFromD<Repartition<uint64_t, D>> b) {
+  const Half<decltype(dn)> dnh;
+  return Combine(dn, DemoteTo(dnh, b), DemoteTo(dnh, a));
+}
+
+template <class D, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<D>),
+          HWY_IF_V_SIZE_GT_D(D, 16), class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<D>) * 2),
+          HWY_IF_LANES_D(D, HWY_MAX_LANES_D(DFromV<V>) * 2),
+          HWY_IF_T_SIZE_V(V, 8)>
+HWY_API VFromD<D> OrderedDemote2To(D d, V a, V b) {
+  return ReorderDemote2To(d, a, b);
+}
+#endif
+
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F32_D(D)>
 HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<double> v) {
   return VFromD<D>{_mm256_cvtpd_ps(v.raw)};
@@ -8730,6 +8795,85 @@ HWY_API V LeadingZeroCount(V v) {
 template <class V, HWY_IF_UI64(TFromV<V>), HWY_IF_V_SIZE_V(V, 32)>
 HWY_API V LeadingZeroCount(V v) {
   return V{_mm256_lzcnt_epi64(v.raw)};
+}
+
+namespace detail {
+
+template <class V, HWY_IF_UNSIGNED_V(V),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2)),
+          HWY_IF_LANES_LE_D(DFromV<V>, HWY_MAX_BYTES / 4)>
+static HWY_INLINE HWY_MAYBE_UNUSED V Lzcnt32ForU8OrU16OrU32(V v) {
+  const DFromV<decltype(v)> d;
+  const Rebind<int32_t, decltype(d)> di32;
+  const Rebind<uint32_t, decltype(d)> du32;
+
+  const auto v_lz_count = LeadingZeroCount(PromoteTo(du32, v));
+  return DemoteTo(d, BitCast(di32, v_lz_count));
+}
+
+template <class V, HWY_IF_UNSIGNED_V(V), HWY_IF_T_SIZE_V(V, 4)>
+static HWY_INLINE HWY_MAYBE_UNUSED V Lzcnt32ForU8OrU16OrU32(V v) {
+  return LeadingZeroCount(v);
+}
+
+template <class V, HWY_IF_UNSIGNED_V(V),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2)),
+          HWY_IF_LANES_GT_D(DFromV<V>, HWY_MAX_BYTES / 4)>
+static HWY_INLINE HWY_MAYBE_UNUSED V Lzcnt32ForU8OrU16OrU32(V v) {
+  const DFromV<decltype(v)> d;
+  const RepartitionToWide<decltype(d)> dw;
+  const RebindToSigned<decltype(dw)> dw_i;
+
+  const auto lo_v_lz_count = Lzcnt32ForU8OrU16OrU32(PromoteLowerTo(dw, v));
+  const auto hi_v_lz_count = Lzcnt32ForU8OrU16OrU32(PromoteUpperTo(dw, v));
+  return OrderedDemote2To(d, BitCast(dw_i, lo_v_lz_count),
+                          BitCast(dw_i, hi_v_lz_count));
+}
+
+}  // namespace detail
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2))>
+HWY_API V LeadingZeroCount(V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+
+  constexpr TU kNumOfBitsInT{sizeof(TU) * 8};
+  const auto v_lzcnt32 = detail::Lzcnt32ForU8OrU16OrU32(BitCast(du, v));
+  return BitCast(d, Min(v_lzcnt32 - Set(du, TU{32 - kNumOfBitsInT}),
+                        Set(du, TU{kNumOfBitsInT})));
+}
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2))>
+HWY_API V HighestSetBitIndex(V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  return BitCast(
+      d, Set(du, TU{31}) - detail::Lzcnt32ForU8OrU16OrU32(BitCast(du, v)));
+}
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 4) | (1 << 8))>
+HWY_API V HighestSetBitIndex(V v) {
+  const DFromV<decltype(v)> d;
+  using T = TFromD<decltype(d)>;
+  return BitCast(d, Set(d, T{sizeof(T) * 8 - 1}) - LeadingZeroCount(v));
+}
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V TrailingZeroCount(V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToSigned<decltype(d)> di;
+  using T = TFromD<decltype(d)>;
+
+  const auto vi = BitCast(di, v);
+  const auto lowest_bit = BitCast(d, And(vi, Neg(vi)));
+  constexpr T kNumOfBitsInT{sizeof(T) * 8};
+  const auto bit_idx = HighestSetBitIndex(lowest_bit);
+  return IfThenElse(MaskFromVec(bit_idx), Set(d, kNumOfBitsInT), bit_idx);
 }
 #endif  // HWY_TARGET <= HWY_AVX3
 

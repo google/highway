@@ -199,6 +199,7 @@ cc_library(
         "hwy/ops/x86_128-inl.h",
         "hwy/ops/x86_256-inl.h",
         "hwy/ops/x86_512-inl.h",
+        "hwy/ops/x86_avx3-inl.h",
         # Select avoids recompiling native arch if only non-native changed
     ] + select({
         ":compiler_emscripten": [

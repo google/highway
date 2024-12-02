@@ -35,7 +35,9 @@ namespace {
     }                                                                        \
   }
 
+DECLARE_FUNCTION(AVX10_2_512)
 DECLARE_FUNCTION(AVX3_SPR)
+DECLARE_FUNCTION(AVX10_2)
 DECLARE_FUNCTION(AVX3_ZEN4)
 DECLARE_FUNCTION(AVX3_DL)
 DECLARE_FUNCTION(AVX3)

@@ -59,9 +59,10 @@
 // left-shifting 2^62), but still do not use bit 63 because it is the sign bit.
 
 // --------------------------- x86: 15 targets (+ one fallback)
-// Bits 0..3 reserved (4 targets)
+// Bits 0..2 reserved (3 targets)
+#define HWY_AVX10_2_512 (1LL << 3)  // AVX10.2 with 512-bit vectors
 #define HWY_AVX3_SPR (1LL << 4)
-// Bit 5 reserved (likely AVX10.2 with 256-bit vectors)
+#define HWY_AVX10_2 (1LL << 5)  // AVX10.2 with 256-bit vectors
 // Currently HWY_AVX3_DL plus AVX512BF16 and a special case for CompressStore
 // (10x as fast).
 // We may later also use VPCONFLICT.
@@ -534,7 +535,10 @@
 
 // Require everything in AVX2 plus AVX-512 flags (also set by MSVC)
 #if HWY_BASELINE_AVX2 != 0 && defined(__AVX512F__) && defined(__AVX512BW__) && \
-    defined(__AVX512DQ__) && defined(__AVX512VL__)
+    defined(__AVX512DQ__) && defined(__AVX512VL__) &&                          \
+    ((!HWY_COMPILER_GCC_ACTUAL && !HWY_COMPILER_CLANG) ||                      \
+     HWY_COMPILER_GCC_ACTUAL < 1400 || HWY_COMPILER_CLANG < 1800 ||            \
+     defined(__EVEX512__))
 #define HWY_BASELINE_AVX3 HWY_AVX3
 #else
 #define HWY_BASELINE_AVX3 0
@@ -559,11 +563,23 @@
 #define HWY_BASELINE_AVX3_ZEN4 0
 #endif
 
+#if HWY_BASELINE_AVX2 != 0 && defined(__AVX10_2__)
+#define HWY_BASELINE_AVX10_2 HWY_AVX10_2
+#else
+#define HWY_BASELINE_AVX10_2 0
+#endif
+
 #if HWY_BASELINE_AVX3_DL != 0 && defined(__AVX512BF16__) && \
     defined(__AVX512FP16__)
 #define HWY_BASELINE_AVX3_SPR HWY_AVX3_SPR
 #else
 #define HWY_BASELINE_AVX3_SPR 0
+#endif
+
+#if HWY_BASELINE_AVX3_SPR != 0 && defined(__AVX10_2_512__)
+#define HWY_BASELINE_AVX10_2_512 HWY_AVX10_2_512
+#else
+#define HWY_BASELINE_AVX10_2_512 0
 #endif
 
 // RVV requires intrinsics 0.11 or later, see #1156.
@@ -584,14 +600,15 @@
 
 // Allow the user to override this without any guarantee of success.
 #ifndef HWY_BASELINE_TARGETS
-#define HWY_BASELINE_TARGETS                                               \
-  (HWY_BASELINE_SCALAR | HWY_BASELINE_WASM | HWY_BASELINE_PPC8 |           \
-   HWY_BASELINE_PPC9 | HWY_BASELINE_PPC10 | HWY_BASELINE_Z14 |             \
-   HWY_BASELINE_Z15 | HWY_BASELINE_SVE2 | HWY_BASELINE_SVE |               \
-   HWY_BASELINE_NEON | HWY_BASELINE_SSE2 | HWY_BASELINE_SSSE3 |            \
-   HWY_BASELINE_SSE4 | HWY_BASELINE_AVX2 | HWY_BASELINE_AVX3 |             \
-   HWY_BASELINE_AVX3_DL | HWY_BASELINE_AVX3_ZEN4 | HWY_BASELINE_AVX3_SPR | \
-   HWY_BASELINE_RVV | HWY_BASELINE_LOONGARCH)
+#define HWY_BASELINE_TARGETS                                              \
+  (HWY_BASELINE_SCALAR | HWY_BASELINE_WASM | HWY_BASELINE_PPC8 |          \
+   HWY_BASELINE_PPC9 | HWY_BASELINE_PPC10 | HWY_BASELINE_Z14 |            \
+   HWY_BASELINE_Z15 | HWY_BASELINE_SVE2 | HWY_BASELINE_SVE |              \
+   HWY_BASELINE_NEON | HWY_BASELINE_SSE2 | HWY_BASELINE_SSSE3 |           \
+   HWY_BASELINE_SSE4 | HWY_BASELINE_AVX2 | HWY_BASELINE_AVX3 |            \
+   HWY_BASELINE_AVX3_DL | HWY_BASELINE_AVX3_ZEN4 | HWY_BASELINE_AVX10_2 | \
+   HWY_BASELINE_AVX3_SPR | HWY_BASELINE_AVX10_2_512 | HWY_BASELINE_RVV |  \
+   HWY_BASELINE_LOONGARCH)
 #endif  // HWY_BASELINE_TARGETS
 
 //------------------------------------------------------------------------------
