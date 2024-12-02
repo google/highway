@@ -5599,13 +5599,6 @@ HWY_API V CompressNot(V v, M mask) {
 
 namespace detail {
 
-#if HWY_IDE
-template <class M>
-HWY_INLINE uint64_t BitsFromMask(M /* mask */) {
-  return 0;
-}
-#endif  // HWY_IDE
-
 template <size_t N>
 HWY_INLINE Vec128<uint8_t, N> IndicesForExpandFromBits(uint64_t mask_bits) {
   static_assert(N <= 8, "Should only be called for half-vectors");
@@ -5879,7 +5872,7 @@ template <typename T, size_t N, HWY_IF_T_SIZE(T, 1), HWY_IF_V_SIZE_LE(T, N, 8)>
 HWY_API Vec128<T, N> Expand(Vec128<T, N> v, Mask128<T, N> mask) {
   const DFromV<decltype(v)> d;
 
-  const uint64_t mask_bits = detail::BitsFromMask(mask);
+  const uint64_t mask_bits = BitsFromMask(d, mask);
   const Vec128<uint8_t, N> indices =
       detail::IndicesForExpandFromBits<N>(mask_bits);
   return BitCast(d, TableLookupBytesOr0(v, indices));
@@ -5893,7 +5886,7 @@ HWY_API Vec128<T> Expand(Vec128<T> v, Mask128<T> mask) {
   const Half<decltype(du)> duh;
   const Vec128<uint8_t> vu = BitCast(du, v);
 
-  const uint64_t mask_bits = detail::BitsFromMask(mask);
+  const uint64_t mask_bits = BitsFromMask(d, mask);
   const uint64_t maskL = mask_bits & 0xFF;
   const uint64_t maskH = mask_bits >> 8;
 
@@ -5925,7 +5918,7 @@ HWY_API Vec128<T, N> Expand(Vec128<T, N> v, Mask128<T, N> mask) {
   const RebindToUnsigned<decltype(d)> du;
 
   const Rebind<uint8_t, decltype(d)> du8;
-  const uint64_t mask_bits = detail::BitsFromMask(mask);
+  const uint64_t mask_bits = BitsFromMask(d, mask);
 
   // Storing as 8-bit reduces table size from 4 KiB to 2 KiB. We cannot apply
   // the nibble trick used below because not all indices fit within one lane.
@@ -6207,7 +6200,7 @@ HWY_API Vec128<T, N> Expand(Vec128<T, N> v, Mask128<T, N> mask) {
   const DFromV<decltype(v)> d;
   const RebindToUnsigned<decltype(d)> du;
 
-  const uint64_t mask_bits = detail::BitsFromMask(mask);
+  const uint64_t mask_bits = BitsFromMask(d, mask);
 
   alignas(16) static constexpr uint32_t packed_array[16] = {
       // PrintExpand64x4Nibble - same for 32x4.
@@ -7364,6 +7357,18 @@ HWY_API auto Le(V a, V b) -> decltype(a == b) {
 #endif  // HWY_NATIVE_OPERATOR_REPLACEMENTS
 
 #undef HWY_GENERIC_IF_EMULATED_D
+
+// TODO: remove once callers are updated.
+// SVE and RVV do not support DFromM because their masks are loosely typed.
+#if HWY_MAX_BYTES <= 64 && !HWY_TARGET_IS_SVE && HWY_TARGET != HWY_RVV
+namespace detail {
+template <class M>
+uint64_t BitsFromMask(M m) {
+  const DFromM<M> d;
+  return ::hwy::HWY_NAMESPACE::BitsFromMask(d, m);
+}
+}  // namespace detail
+#endif  // !HWY_HAVE_SCALABLE && HWY_MAX_BYTES <= 64
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE

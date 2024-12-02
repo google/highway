@@ -62,6 +62,9 @@ class Vec256 {
 
 template <typename T>
 struct Mask256 {
+  using PrivateT = T;                                  // only for DFromM
+  static constexpr size_t kPrivateN = 32 / sizeof(T);  // only for DFromM
+
   Mask128<T> m0;
   Mask128<T> m1;
 };
@@ -655,6 +658,14 @@ HWY_API Vec256<T> VecFromMask(D d, Mask256<T> m) {
   v.v0 = VecFromMask(dh, m.m0);
   v.v1 = VecFromMask(dh, m.m1);
   return v;
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API uint64_t BitsFromMask(D d, MFromD<D> m) {
+  const Half<D> dh;
+  const uint64_t lo = BitsFromMask(dh, m.m0);
+  const uint64_t hi = BitsFromMask(dh, m.m1);
+  return (hi << Lanes(dh)) | lo;
 }
 
 // mask ? yes : no

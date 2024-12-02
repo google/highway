@@ -78,6 +78,10 @@ struct Vec128 {
 template <typename T, size_t N = 16 / sizeof(T)>
 struct Mask128 {
   using Raw = hwy::MakeUnsigned<T>;
+
+  using PrivateT = T;                     // only for DFromM
+  static constexpr size_t kPrivateN = N;  // only for DFromM
+
   static HWY_INLINE Raw FromBool(bool b) {
     return b ? static_cast<Raw>(~Raw{0}) : 0;
   }
@@ -88,6 +92,9 @@ struct Mask128 {
 
 template <class V>
 using DFromV = Simd<typename V::PrivateT, V::kPrivateN, 0>;
+
+template <class M>
+using DFromM = Simd<typename M::PrivateT, M::kPrivateN, 0>;
 
 template <class V>
 using TFromV = typename V::PrivateT;
@@ -384,6 +391,15 @@ VFromD<D> VecFromMask(D /* tag */, MFromD<D> mask) {
   VFromD<D> v;
   CopySameSize(&mask.bits, &v.raw);
   return v;
+}
+
+template <class D>
+uint64_t BitsFromMask(D d, MFromD<D> mask) {
+  uint64_t bits = 0;
+  for (size_t i = 0; i < Lanes(d); ++i) {
+    bits |= mask.bits[i] ? (1ull << i) : 0;
+  }
+  return bits;
 }
 
 template <class D>

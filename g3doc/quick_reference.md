@@ -1153,6 +1153,12 @@ encoding depends on the platform).
 *   <code>V **VecFromMask**(D, M m)</code>: returns 0 in lane `i` if `m[i] ==
     false`, otherwise all bits set.
 
+*   <code>uint64_t **BitsFromMask**(D, M m)</code>: returns bits `b` such that
+    `(b >> i) & 1` indicates whether `m[i]` was set, and any remaining bits in
+    the `uint64_t` are zero. This is only available if `HWY_MAX_BYTES <= 64`,
+    because 512-bit vectors are the longest for which there are no more than 64
+    lanes and thus mask bits.
+
 *   <code>size_t **StoreMaskBits**(D, M m, uint8_t* p)</code>: stores a bit
     array indicating whether `m[i]` is true, in ascending order of `i`, filling
     the bits of each byte from least to most significant, then proceeding to the
@@ -1163,11 +1169,11 @@ encoding depends on the platform).
     Mask&lt;DFrom&gt; m)</code>: Promotes `m` to a mask with a lane type of
     `TFromD<DTo>`, `DFrom` is `Rebind<TFrom, DTo>`.
 
-    `PromoteMaskTo(d_to, d_from, m)` is equivalent to
-    `MaskFromVec(BitCast(d_to, PromoteTo(di_to, BitCast(di_from,
-    VecFromMask(d_from, m)))))`, where `di_from` is `RebindToSigned<DFrom>()`
-    and `di_from` is `RebindToSigned<DFrom>()`, but
-    `PromoteMaskTo(d_to, d_from, m)` is more efficient on some targets.
+    `PromoteMaskTo(d_to, d_from, m)` is equivalent to `MaskFromVec(BitCast(d_to,
+    PromoteTo(di_to, BitCast(di_from, VecFromMask(d_from, m)))))`, where
+    `di_from` is `RebindToSigned<DFrom>()` and `di_from` is
+    `RebindToSigned<DFrom>()`, but `PromoteMaskTo(d_to, d_from, m)` is more
+    efficient on some targets.
 
     PromoteMaskTo requires that `sizeof(TFromD<DFrom>) < sizeof(TFromD<DTo>)` be
     true.
@@ -1176,11 +1182,11 @@ encoding depends on the platform).
     Mask&lt;DFrom&gt; m)</code>: Demotes `m` to a mask with a lane type of
     `TFromD<DTo>`, `DFrom` is `Rebind<TFrom, DTo>`.
 
-    `DemoteMaskTo(d_to, d_from, m)` is equivalent to
-    `MaskFromVec(BitCast(d_to, DemoteTo(di_to, BitCast(di_from,
-    VecFromMask(d_from, m)))))`, where `di_from` is `RebindToSigned<DFrom>()`
-    and `di_from` is `RebindToSigned<DFrom>()`, but
-    `DemoteMaskTo(d_to, d_from, m)` is more efficient on some targets.
+    `DemoteMaskTo(d_to, d_from, m)` is equivalent to `MaskFromVec(BitCast(d_to,
+    DemoteTo(di_to, BitCast(di_from, VecFromMask(d_from, m)))))`, where
+    `di_from` is `RebindToSigned<DFrom>()` and `di_from` is
+    `RebindToSigned<DFrom>()`, but `DemoteMaskTo(d_to, d_from, m)` is more
+    efficient on some targets.
 
     DemoteMaskTo requires that `sizeof(TFromD<DFrom>) > sizeof(TFromD<DTo>)` be
     true.
@@ -1189,16 +1195,15 @@ encoding depends on the platform).
     whose `LowerHalf` is the first argument and whose `UpperHalf` is the second
     argument; `M2` is `Mask<Half<DFrom>>`; `DTo` is `Repartition<TTo, DFrom>`.
 
-    OrderedDemote2MasksTo requires that
-    `sizeof(TFromD<DTo>) == sizeof(TFromD<DFrom>) * 2` be true.
+    OrderedDemote2MasksTo requires that `sizeof(TFromD<DTo>) ==
+    sizeof(TFromD<DFrom>) * 2` be true.
 
     `OrderedDemote2MasksTo(d_to, d_from, a, b)` is equivalent to
     `MaskFromVec(BitCast(d_to, OrderedDemote2To(di_to, va, vb)))`, where `va` is
-    `BitCast(di_from, MaskFromVec(d_from, a))`, `vb` is
-    `BitCast(di_from, MaskFromVec(d_from, b))`, `di_to` is
-    `RebindToSigned<DTo>()`, and `di_from` is `RebindToSigned<DFrom>()`, but
-    `OrderedDemote2MasksTo(d_to, d_from, a, b)` is more efficient on some
-    targets.
+    `BitCast(di_from, MaskFromVec(d_from, a))`, `vb` is `BitCast(di_from,
+    MaskFromVec(d_from, b))`, `di_to` is `RebindToSigned<DTo>()`, and `di_from`
+    is `RebindToSigned<DFrom>()`, but `OrderedDemote2MasksTo(d_to, d_from, a,
+    b)` is more efficient on some targets.
 
     OrderedDemote2MasksTo is only available if `HWY_TARGET != HWY_SCALAR` is
     true.
