@@ -127,6 +127,26 @@ namespace detail {  // for code folding
   X_MACRO(BASE, CHAR, 64, __, 32, m4, m8, m2, 2, /*MLEN=*/16, NAME, OP) \
   X_MACRO(BASE, CHAR, 64, __, 32, m8, __, m4, 3, /*MLEN=*/8, NAME, OP)
 
+#define HWY_RVV_FOREACH_08_GET_SET(X_MACRO, BASE, CHAR, NAME, OP)     \
+  X_MACRO(BASE, CHAR, 8, 16, __, m2, m4, m1, 1, /*MLEN=*/4, NAME, OP) \
+  X_MACRO(BASE, CHAR, 8, 16, __, m4, m8, m2, 2, /*MLEN=*/2, NAME, OP) \
+  X_MACRO(BASE, CHAR, 8, 16, __, m8, __, m4, 3, /*MLEN=*/1, NAME, OP)
+
+#define HWY_RVV_FOREACH_16_GET_SET(X_MACRO, BASE, CHAR, NAME, OP)     \
+  X_MACRO(BASE, CHAR, 16, 32, 8, m2, m4, m1, 1, /*MLEN=*/8, NAME, OP) \
+  X_MACRO(BASE, CHAR, 16, 32, 8, m4, m8, m2, 2, /*MLEN=*/4, NAME, OP) \
+  X_MACRO(BASE, CHAR, 16, 32, 8, m8, __, m4, 3, /*MLEN=*/2, NAME, OP)
+
+#define HWY_RVV_FOREACH_32_GET_SET(X_MACRO, BASE, CHAR, NAME, OP)       \
+  X_MACRO(BASE, CHAR, 32, 64, 16, m2, m4, m1, 1, /*MLEN=*/16, NAME, OP) \
+  X_MACRO(BASE, CHAR, 32, 64, 16, m4, m8, m2, 2, /*MLEN=*/8, NAME, OP)  \
+  X_MACRO(BASE, CHAR, 32, 64, 16, m8, __, m4, 3, /*MLEN=*/4, NAME, OP)
+
+#define HWY_RVV_FOREACH_64_GET_SET(X_MACRO, BASE, CHAR, NAME, OP)       \
+  X_MACRO(BASE, CHAR, 64, __, 32, m2, m4, m1, 1, /*MLEN=*/32, NAME, OP) \
+  X_MACRO(BASE, CHAR, 64, __, 32, m4, m8, m2, 2, /*MLEN=*/16, NAME, OP) \
+  X_MACRO(BASE, CHAR, 64, __, 32, m8, __, m4, 3, /*MLEN=*/8, NAME, OP)
+
 // LMULS = _DEMOTE: can demote from SEW*LMUL to SEWH*LMULH.
 #define HWY_RVV_FOREACH_08_DEMOTE(X_MACRO, BASE, CHAR, NAME, OP)           \
   X_MACRO(BASE, CHAR, 8, 16, __, mf4, mf2, mf8, -2, /*MLEN=*/32, NAME, OP) \
@@ -274,6 +294,35 @@ namespace detail {  // for code folding
 #define HWY_RVV_FOREACH_64_LE2_VIRT(X_MACRO, BASE, CHAR, NAME, OP) \
   HWY_RVV_FOREACH_64_LE2(X_MACRO, BASE, CHAR, NAME, OP)            \
   HWY_RVV_FOREACH_64_VIRT(X_MACRO, BASE, CHAR, NAME, OP)
+
+// GET/SET + VIRT
+#define HWY_RVV_FOREACH_08_GET_SET_VIRT(X_MACRO, BASE, CHAR, NAME, OP)     \
+  X_MACRO(BASE, CHAR, 8, 16, __, mf4, mf2, mf8, -2, /*MLEN=*/32, NAME, OP) \
+  X_MACRO(BASE, CHAR, 8, 16, __, mf2, m1, mf4, -1, /*MLEN=*/16, NAME, OP)  \
+  X_MACRO(BASE, CHAR, 8, 16, __, m1, m2, mf2, 0, /*MLEN=*/8, NAME, OP)
+
+#define HWY_RVV_FOREACH_16_GET_SET_VIRT(X_MACRO, BASE, CHAR, NAME, OP)    \
+  X_MACRO(BASE, CHAR, 16, 32, 8, mf2, m1, mf4, -1, /*MLEN=*/32, NAME, OP) \
+  X_MACRO(BASE, CHAR, 16, 32, 8, m1, m2, mf2, 0, /*MLEN=*/16, NAME, OP)
+
+#define HWY_RVV_FOREACH_32_GET_SET_VIRT(X_MACRO, BASE, CHAR, NAME, OP) \
+  X_MACRO(BASE, CHAR, 32, 64, 16, m1, m2, mf2, 0, /*MLEN=*/32, NAME, OP)
+
+#define HWY_RVV_FOREACH_64_GET_SET_VIRT(X_MACRO, BASE, CHAR, NAME, OP)
+
+// For the smallest LMUL for each SEW, similar to the LowerHalf operator, we
+// provide the Get and Set operator that returns the same vector type.
+#define HWY_RVV_FOREACH_08_GET_SET_SMALLEST(X_MACRO, BASE, CHAR, NAME, OP) \
+  X_MACRO(BASE, CHAR, 8, 16, __, mf8, mf4, __, -3, /*MLEN=*/64, NAME, OP)
+
+#define HWY_RVV_FOREACH_16_GET_SET_SMALLEST(X_MACRO, BASE, CHAR, NAME, OP) \
+  X_MACRO(BASE, CHAR, 16, 32, 8, mf4, mf2, mf8, -2, /*MLEN=*/64, NAME, OP)
+
+#define HWY_RVV_FOREACH_32_GET_SET_SMALLEST(X_MACRO, BASE, CHAR, NAME, OP) \
+  X_MACRO(BASE, CHAR, 32, 64, 16, mf2, m1, mf4, -1, /*MLEN=*/64, NAME, OP)
+
+#define HWY_RVV_FOREACH_64_GET_SET_SMALLEST(X_MACRO, BASE, CHAR, NAME, OP) \
+  X_MACRO(BASE, CHAR, 64, __, 32, m1, m2, mf2, 0, /*MLEN=*/64, NAME, OP)
 
 // EXT + VIRT
 #define HWY_RVV_FOREACH_08_EXT_VIRT(X_MACRO, BASE, CHAR, NAME, OP) \
@@ -3123,6 +3172,91 @@ HWY_RVV_FOREACH(HWY_RVV_SLIDE_DOWN, SlideDown, slidedown, _ALL)
 #undef HWY_RVV_SLIDE_UP
 #undef HWY_RVV_SLIDE_DOWN
 
+#define HWY_RVV_GET(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
+                    MLEN, NAME, OP)                                         \
+  template <size_t kIndex>                                                  \
+  HWY_API HWY_RVV_V(BASE, SEW, LMULH) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) {  \
+    return __riscv_v##OP##_v_##CHAR##SEW##LMUL##_##CHAR##SEW##LMULH(        \
+        v, kIndex); /* no AVL */                                            \
+  }
+#define HWY_RVV_GET_VIRT(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,  \
+                         SHIFT, MLEN, NAME, OP)                            \
+  template <size_t kIndex>                                                 \
+  HWY_API HWY_RVV_V(BASE, SEW, LMULH) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) { \
+    if constexpr (kIndex == 0) {                                           \
+      return Trunc(v);                                                     \
+    } else {                                                               \
+      static_assert(kIndex == 1);                                          \
+      return Trunc(SlideDown(                                              \
+          v, Lanes(HWY_RVV_D(BASE, SEW, HWY_LANES(HWY_RVV_T(BASE, SEW)),   \
+                             SHIFT - 1){})));                              \
+    }                                                                      \
+  }
+#define HWY_RVV_GET_SMALLEST(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                             SHIFT, MLEN, NAME, OP)                           \
+  template <size_t kIndex>                                                    \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) {     \
+    if constexpr (kIndex == 0) {                                              \
+      return v;                                                               \
+    } else {                                                                  \
+      static_assert(kIndex == 1);                                             \
+      return SlideDown(                                                       \
+          v, Lanes(HWY_RVV_D(BASE, SEW, HWY_LANES(HWY_RVV_T(BASE, SEW)),      \
+                             SHIFT){}) /                                      \
+                 2);                                                          \
+    }                                                                         \
+  }
+HWY_RVV_FOREACH(HWY_RVV_GET, Get, get, _GET_SET)
+HWY_RVV_FOREACH(HWY_RVV_GET_VIRT, Get, get, _GET_SET_VIRT)
+HWY_RVV_FOREACH(HWY_RVV_GET_SMALLEST, Get, get, _GET_SET_SMALLEST)
+#undef HWY_RVV_GET
+#undef HWY_RVV_GET_VIRT
+#undef HWY_RVV_GET_SMALLEST
+
+#define HWY_RVV_SET(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT,  \
+                    MLEN, NAME, OP)                                          \
+  template <size_t kIndex>                                                   \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                         \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) dest, HWY_RVV_V(BASE, SEW, LMULH) v) { \
+    return __riscv_v##OP##_v_##CHAR##SEW##LMULH##_##CHAR##SEW##LMUL(         \
+        dest, kIndex, v); /* no AVL */                                       \
+  }
+#define HWY_RVV_SET_VIRT(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,    \
+                         SHIFT, MLEN, NAME, OP)                              \
+  template <size_t kIndex>                                                   \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                         \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) dest, HWY_RVV_V(BASE, SEW, LMULH) v) { \
+    auto d = HWY_RVV_D(BASE, SEW, HWY_LANES(HWY_RVV_T(BASE, SEW)), SHIFT){}; \
+    auto df2 =                                                               \
+        HWY_RVV_D(BASE, SEW, HWY_LANES(HWY_RVV_T(BASE, SEW)), SHIFT - 1){};  \
+    if constexpr (kIndex == 0) {                                             \
+      return __riscv_vmv_v_v_##CHAR##SEW##LMUL##_tu(dest, Ext(d, v),         \
+                                                    Lanes(df2));             \
+    } else {                                                                 \
+      static_assert(kIndex == 1);                                            \
+      return SlideUp(dest, Ext(d, v), Lanes(df2));                           \
+    }                                                                        \
+  }
+#define HWY_RVV_SET_SMALLEST(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                             SHIFT, MLEN, NAME, OP)                           \
+  template <size_t kIndex>                                                    \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                          \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) dest, HWY_RVV_V(BASE, SEW, LMUL) v) {   \
+    auto d = HWY_RVV_D(BASE, SEW, HWY_LANES(HWY_RVV_T(BASE, SEW)), SHIFT){};  \
+    if constexpr (kIndex == 0) {                                              \
+      return __riscv_vmv_v_v_##CHAR##SEW##LMUL##_tu(dest, v, Lanes(d) / 2);   \
+    } else {                                                                  \
+      static_assert(kIndex == 1);                                             \
+      return SlideUp(dest, v, Lanes(d) / 2);                                  \
+    }                                                                         \
+  }
+HWY_RVV_FOREACH(HWY_RVV_SET, Set, set, _GET_SET)
+HWY_RVV_FOREACH(HWY_RVV_SET_VIRT, Set, set, _GET_SET_VIRT)
+HWY_RVV_FOREACH(HWY_RVV_SET_SMALLEST, Set, set, _GET_SET_SMALLEST)
+#undef HWY_RVV_SET
+#undef HWY_RVV_SET_VIRT
+#undef HWY_RVV_SET_SMALLEST
+
 }  // namespace detail
 
 // ------------------------------ SlideUpLanes
@@ -3144,29 +3278,47 @@ HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
 
 // ------------------------------ ConcatUpperLower
 template <class D, class V>
-HWY_API V ConcatUpperLower(D d, const V hi, const V lo) {
-  const size_t half = Lanes(d) / 2;
-  const V hi_down = detail::SlideDown(hi, half);
-  return detail::SlideUp(lo, hi_down, half);
+HWY_API V ConcatUpperLower(D, const V hi, const V lo) {
+  const auto lo_lower = detail::Get<0>(lo);
+  return detail::Set<0>(hi, lo_lower);
 }
 
 // ------------------------------ ConcatLowerLower
 template <class D, class V>
-HWY_API V ConcatLowerLower(D d, const V hi, const V lo) {
-  return detail::SlideUp(lo, hi, Lanes(d) / 2);
+HWY_API V ConcatLowerLower(D, const V hi, const V lo) {
+  const auto hi_lower = detail::Get<0>(hi);
+  return detail::Set<1>(lo, hi_lower);
 }
 
 // ------------------------------ ConcatUpperUpper
 template <class D, class V>
-HWY_API V ConcatUpperUpper(D d, const V hi, const V lo) {
-  const size_t half = Lanes(d) / 2;
-  const V hi_down = detail::SlideDown(hi, half);
-  const V lo_down = detail::SlideDown(lo, half);
-  return detail::SlideUp(lo_down, hi_down, half);
+HWY_API V ConcatUpperUpper(D, const V hi, const V lo) {
+  const auto lo_upper = detail::Get<1>(lo);
+  return detail::Set<0>(hi, lo_upper);
 }
 
 // ------------------------------ ConcatLowerUpper
-template <class D, class V>
+namespace detail {
+
+// Only getting a full register is a no-op.
+template <class D>
+constexpr bool IsGetNoOp(D d) {
+  return d.Pow2() >= 0;
+}
+
+}  // namespace detail
+
+template <class D, class V,
+          hwy::EnableIf<detail::IsGetNoOp(Half<D>())>* = nullptr>
+HWY_API V ConcatLowerUpper(D d, const V hi, const V lo) {
+  const auto lo_upper = detail::Get<1>(lo);
+  const auto hi_lower = detail::Get<0>(hi);
+  const auto undef = Undefined(d);
+  return detail::Set<1>(detail::Set<0>(undef, lo_upper), hi_lower);
+}
+
+template <class D, class V,
+          hwy::EnableIf<!detail::IsGetNoOp(Half<D>())>* = nullptr>
 HWY_API V ConcatLowerUpper(D d, const V hi, const V lo) {
   const size_t half = Lanes(d) / 2;
   const V lo_down = detail::SlideDown(lo, half);
