@@ -208,9 +208,9 @@ HWY_CONTRIB_DLLEXPORT size_t TotalLogicalProcessors() {
     total_lps += NumBits(p.GroupCount, p.GroupMask);
   });
 #elif HWY_OS_LINUX
-  // Use configured, not "online" (_SC_NPROCESSORS_ONLN), because we want an
-  // upper bound.
-  const long ret = sysconf(_SC_NPROCESSORS_CONF);  // NOLINT(runtime/int)
+  // Only check "online" because sysfs entries such as topology are missing for
+  // offline CPUs, which will cause `DetectPackages` to fail.
+  const long ret = sysconf(_SC_NPROCESSORS_ONLN);  // NOLINT(runtime/int)
   if (ret < 0) {
     HWY_WARN("Unexpected _SC_NPROCESSORS_CONF = %d\n", static_cast<int>(ret));
   } else {
@@ -527,7 +527,10 @@ std::vector<PackageSizes> DetectPackages(std::vector<Topology::LP>& lps) {
 
   Remapper packages;
   for (size_t lp = 0; lp < lps.size(); ++lp) {
-    if (!packages(kPackage, lp, &lps[lp].package)) return empty;
+    if (!packages(kPackage, lp, &lps[lp].package)) {
+      HWY_WARN("Failed to read sysfs package for LP %zu\n", lp);
+      return empty;
+    }
   }
   std::vector<PerPackage> per_package(packages.Num());
   HWY_ASSERT(!per_package.empty());
@@ -539,7 +542,10 @@ std::vector<PackageSizes> DetectPackages(std::vector<Topology::LP>& lps) {
       lps[lp].cluster = 0;
     }
 
-    if (!pp.cores(kCore, lp, &lps[lp].core)) return empty;
+    if (!pp.cores(kCore, lp, &lps[lp].core)) {
+      HWY_WARN("Failed to read sysfs core for LP %zu\n", lp);
+      return empty;
+    }
 
     // SMT ID is how many LP we have already seen assigned to the same core.
     HWY_ASSERT(lps[lp].core < kMaxLogicalProcessors);
