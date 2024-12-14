@@ -294,15 +294,30 @@
 #define HWY_BROKEN_LOONGARCH 0
 #endif
 
+#if HWY_ARCH_S390X
+#if HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1900
+// Clang 18 and earlier have bugs with some ZVector intrinsics
+#define HWY_BROKEN_Z14 (HWY_Z14 | HWY_Z15)
+#elif HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 900
+// Z15 target requires GCC 9 or later
+#define HWY_BROKEN_Z14 (HWY_Z15)
+#else
+#define HWY_BROKEN_Z14 0
+#endif
+#else  // !HWY_ARCH_S390X
+#define HWY_BROKEN_Z14 0
+#endif  // HWY_ARCH_S390X
+
 // Allow the user to override this without any guarantee of success.
 #ifndef HWY_BROKEN_TARGETS
 
-#define HWY_BROKEN_TARGETS                                     \
-  (HWY_BROKEN_CLANG6 | HWY_BROKEN_32BIT | HWY_BROKEN_MSVC |    \
-   HWY_BROKEN_AVX3_DL_ZEN4 | HWY_BROKEN_AVX3_SPR |             \
-   HWY_BROKEN_ARM7_BIG_ENDIAN | HWY_BROKEN_ARM7_WITHOUT_VFP4 | \
-   HWY_BROKEN_NEON_BF16 | HWY_BROKEN_SVE | HWY_BROKEN_PPC10 |  \
-   HWY_BROKEN_PPC_32BIT | HWY_BROKEN_RVV | HWY_BROKEN_LOONGARCH)
+#define HWY_BROKEN_TARGETS                                        \
+  (HWY_BROKEN_CLANG6 | HWY_BROKEN_32BIT | HWY_BROKEN_MSVC |       \
+   HWY_BROKEN_AVX3_DL_ZEN4 | HWY_BROKEN_AVX3_SPR |                \
+   HWY_BROKEN_ARM7_BIG_ENDIAN | HWY_BROKEN_ARM7_WITHOUT_VFP4 |    \
+   HWY_BROKEN_NEON_BF16 | HWY_BROKEN_SVE | HWY_BROKEN_PPC10 |     \
+   HWY_BROKEN_PPC_32BIT | HWY_BROKEN_RVV | HWY_BROKEN_LOONGARCH | \
+   HWY_BROKEN_Z14)
 
 #endif  // HWY_BROKEN_TARGETS
 
