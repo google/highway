@@ -9,6 +9,7 @@
 #include <ctime>
 #include <iostream>  // cerr
 #include <random>
+#include <vector>
 
 // clang-format off
 #undef HWY_TARGET_INCLUDE
@@ -22,6 +23,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {  // required: unique per target
+namespace {
 
 constexpr std::uint64_t tests = 1UL << 10;
 
@@ -124,8 +126,8 @@ void TestRandomUint64() {
     }
   }
 }
-#if HWY_HAVE_FLOAT64
 void TestUniformDist() {
+#if HWY_HAVE_FLOAT64
   const std::uint64_t seed = GetSeed();
   const auto result_array = hwy::MakeUniqueAlignedArray<double>(tests);
   UniformLoop(seed, result_array.get(), tests);
@@ -141,8 +143,8 @@ void TestUniformDist() {
       HWY_ASSERT(0);
     }
   }
+#endif  // HWY_HAVE_FLOAT64
 }
-#endif
 
 void TestNextNRandomUint64() {
   const std::uint64_t seed = GetSeed();
@@ -200,8 +202,8 @@ void TestNextFixedNRandomUint64() {
     }
   }
 }
-#if HWY_HAVE_FLOAT64
 void TestNextNUniformDist() {
+#if HWY_HAVE_FLOAT64
   const std::uint64_t seed = GetSeed();
   VectorXoshiro generator{seed};
   const auto result_array = generator.Uniform(tests);
@@ -218,9 +220,11 @@ void TestNextNUniformDist() {
       HWY_ASSERT(0);
     }
   }
+#endif  // HWY_HAVE_FLOAT64
 }
 
 void TestNextFixedNUniformDist() {
+#if HWY_HAVE_FLOAT64
   const std::uint64_t seed = GetSeed();
   VectorXoshiro generator{seed};
   const auto result_array = generator.Uniform<tests>();
@@ -236,8 +240,8 @@ void TestNextFixedNUniformDist() {
       HWY_ASSERT(0);
     }
   }
+#endif  // HWY_HAVE_FLOAT64
 }
-#endif
 
 void TestCachedXorshiro() {
   const std::uint64_t seed = GetSeed();
@@ -268,8 +272,8 @@ void TestCachedXorshiro() {
     }
   }
 }
-#if HWY_HAVE_FLOAT64
 void TestUniformCachedXorshiro() {
+#if HWY_HAVE_FLOAT64
   const std::uint64_t seed = GetSeed();
 
   CachedXoshiro<> generator{seed};
@@ -284,18 +288,18 @@ void TestUniformCachedXorshiro() {
       HWY_ASSERT(0);
     }
   }
+#endif  // HWY_HAVE_FLOAT64
 }
-#endif
 
+}  // namespace
+// NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
-
 HWY_AFTER_NAMESPACE();  // required if not using HWY_ATTR
 
 #if HWY_ONCE
-
-// This macro declares a static array used for dynamic dispatch.
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwyRandomTest);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestSeeding);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestMultiThreadSeeding);
@@ -303,13 +307,12 @@ HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestRandomUint64);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestNextNRandomUint64);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestNextFixedNRandomUint64);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestCachedXorshiro);
-#if HWY_HAVE_FLOAT64
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestUniformDist);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestNextNUniformDist);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestNextFixedNUniformDist);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestUniformCachedXorshiro);
-#endif
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

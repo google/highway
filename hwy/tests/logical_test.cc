@@ -24,6 +24,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 struct TestNot {
   template <class T, class D>
@@ -145,19 +146,21 @@ HWY_NOINLINE void TestAllTestBit() {
   ForIntegerTypes(ForPartialVectors<TestTestBit>());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwyLogicalTest);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllNot);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogical);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllTestBit);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

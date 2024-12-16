@@ -5222,6 +5222,13 @@ HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
 
 namespace detail {
 
+// Returns the lowest N of the mask bits.
+template <class D>
+constexpr uint64_t OnlyActive(D d, uint64_t mask_bits) {
+  return (d.MaxBytes() == 16) ? mask_bits
+                              : mask_bits & ((1ull << d.MaxLanes()) - 1);
+}
+
 #if !HWY_PPC_HAVE_10 || HWY_IS_BIG_ENDIAN
 // fallback for missing vec_extractm
 template <size_t N>
@@ -5242,31 +5249,33 @@ HWY_INLINE uint64_t ExtractSignBits(Vec128<uint8_t, N> sign_bits,
 
 #endif  // !HWY_PPC_HAVE_10 || HWY_IS_BIG_ENDIAN
 
-template <typename T, size_t N>
-HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/, Mask128<T, N> mask) {
-  const DFromM<decltype(mask)> d;
+}  // namespace detail
+
+template <class D, HWY_IF_T_SIZE_D(D, 1)>
+HWY_API uint64_t BitsFromMask(D d, MFromD<D> mask) {
   const Repartition<uint8_t, decltype(d)> du8;
   const VFromD<decltype(du8)> sign_bits = BitCast(du8, VecFromMask(d, mask));
 
 #if HWY_PPC_HAVE_10 && HWY_IS_LITTLE_ENDIAN
-  return static_cast<uint64_t>(vec_extractm(sign_bits.raw));
+  return detail::OnlyActive(d,
+                            static_cast<uint64_t>(vec_extractm(sign_bits.raw)));
 #else   // Z14, Z15, PPC8, PPC9, or big-endian PPC10
   const __vector unsigned char kBitShuffle = {120, 112, 104, 96, 88, 80, 72, 64,
                                               56,  48,  40,  32, 24, 16, 8,  0};
-  return ExtractSignBits(sign_bits, kBitShuffle);
+  return detail::OnlyActive(d, detail::ExtractSignBits(sign_bits, kBitShuffle));
 #endif  // HWY_PPC_HAVE_10 && HWY_IS_LITTLE_ENDIAN
 }
 
-template <typename T, size_t N>
-HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/, Mask128<T, N> mask) {
-  const DFromM<decltype(mask)> d;
+template <class D, HWY_IF_T_SIZE_D(D, 2)>
+HWY_API uint64_t BitsFromMask(D d, MFromD<D> mask) {
   const RebindToUnsigned<decltype(d)> du;
 
   const Repartition<uint8_t, decltype(d)> du8;
   const VFromD<decltype(du8)> sign_bits = BitCast(du8, VecFromMask(d, mask));
 
 #if HWY_PPC_HAVE_10 && HWY_IS_LITTLE_ENDIAN
-  return static_cast<uint64_t>(vec_extractm(BitCast(du, sign_bits).raw));
+  return detail::OnlyActive(
+      d, static_cast<uint64_t>(vec_extractm(BitCast(du, sign_bits).raw)));
 #else  // Z14, Z15, PPC8, PPC9, or big-endian PPC10
   (void)du;
 #if HWY_IS_LITTLE_ENDIAN
@@ -5276,20 +5285,20 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/, Mask128<T, N> mask) {
   const __vector unsigned char kBitShuffle = {
       128, 128, 128, 128, 128, 128, 128, 128, 112, 96, 80, 64, 48, 32, 16, 0};
 #endif
-  return ExtractSignBits(sign_bits, kBitShuffle);
+  return detail::OnlyActive(d, detail::ExtractSignBits(sign_bits, kBitShuffle));
 #endif  // HWY_PPC_HAVE_10
 }
 
-template <typename T, size_t N>
-HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/, Mask128<T, N> mask) {
-  const DFromM<decltype(mask)> d;
+template <class D, HWY_IF_T_SIZE_D(D, 4)>
+HWY_API uint64_t BitsFromMask(D d, MFromD<D> mask) {
   const RebindToUnsigned<decltype(d)> du;
 
   const Repartition<uint8_t, decltype(d)> du8;
   const VFromD<decltype(du8)> sign_bits = BitCast(du8, VecFromMask(d, mask));
 
 #if HWY_PPC_HAVE_10 && HWY_IS_LITTLE_ENDIAN
-  return static_cast<uint64_t>(vec_extractm(BitCast(du, sign_bits).raw));
+  return detail::OnlyActive(
+      d, static_cast<uint64_t>(vec_extractm(BitCast(du, sign_bits).raw)));
 #else  // Z14, Z15, PPC8, PPC9, or big-endian PPC10
   (void)du;
 #if HWY_IS_LITTLE_ENDIAN
@@ -5301,20 +5310,20 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/, Mask128<T, N> mask) {
                                               128, 128, 128, 128, 128, 128,
                                               96,  64,  32,  0};
 #endif
-  return ExtractSignBits(sign_bits, kBitShuffle);
+  return detail::OnlyActive(d, detail::ExtractSignBits(sign_bits, kBitShuffle));
 #endif  // HWY_PPC_HAVE_10
 }
 
-template <typename T, size_t N>
-HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/, Mask128<T, N> mask) {
-  const DFromM<decltype(mask)> d;
+template <class D, HWY_IF_T_SIZE_D(D, 8)>
+HWY_API uint64_t BitsFromMask(D d, MFromD<D> mask) {
   const RebindToUnsigned<decltype(d)> du;
 
   const Repartition<uint8_t, decltype(d)> du8;
   const VFromD<decltype(du8)> sign_bits = BitCast(du8, VecFromMask(d, mask));
 
 #if HWY_PPC_HAVE_10 && HWY_IS_LITTLE_ENDIAN
-  return static_cast<uint64_t>(vec_extractm(BitCast(du, sign_bits).raw));
+  return detail::OnlyActive(
+      d, static_cast<uint64_t>(vec_extractm(BitCast(du, sign_bits).raw)));
 #else  // Z14, Z15, PPC8, PPC9, or big-endian PPC10
   (void)du;
 #if HWY_IS_LITTLE_ENDIAN
@@ -5326,35 +5335,22 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/, Mask128<T, N> mask) {
                                               128, 128, 128, 128, 128, 128,
                                               128, 128, 64,  0};
 #endif
-  return ExtractSignBits(sign_bits, kBitShuffle);
+  return detail::OnlyActive(d, detail::ExtractSignBits(sign_bits, kBitShuffle));
 #endif  // HWY_PPC_HAVE_10
 }
 
-// Returns the lowest N of the mask bits.
-template <typename T, size_t N>
-constexpr uint64_t OnlyActive(uint64_t mask_bits) {
-  return ((N * sizeof(T)) == 16) ? mask_bits : mask_bits & ((1ull << N) - 1);
-}
-
-template <typename T, size_t N>
-HWY_INLINE uint64_t BitsFromMask(Mask128<T, N> mask) {
-  return OnlyActive<T, N>(BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask));
-}
-
-}  // namespace detail
-
 // `p` points to at least 8 writable bytes.
 template <class D, HWY_IF_LANES_LE_D(D, 8)>
-HWY_API size_t StoreMaskBits(D /*d*/, MFromD<D> mask, uint8_t* bits) {
+HWY_API size_t StoreMaskBits(D d, MFromD<D> mask, uint8_t* bits) {
   // For vectors with 8 or fewer lanes, simply cast the result of BitsFromMask
   // to an uint8_t and store the result in bits[0].
-  bits[0] = static_cast<uint8_t>(detail::BitsFromMask(mask));
+  bits[0] = static_cast<uint8_t>(BitsFromMask(d, mask));
   return sizeof(uint8_t);
 }
 
 template <class D, HWY_IF_LANES_D(D, 16)>
-HWY_API size_t StoreMaskBits(D /*d*/, MFromD<D> mask, uint8_t* bits) {
-  const auto mask_bits = detail::BitsFromMask(mask);
+HWY_API size_t StoreMaskBits(D d, MFromD<D> mask, uint8_t* bits) {
+  const auto mask_bits = BitsFromMask(d, mask);
 
   // First convert mask_bits to a uint16_t as we only want to store
   // the lower 16 bits of mask_bits as there are 16 lanes in mask.
@@ -5419,8 +5415,8 @@ HWY_API bool AllTrue(D d, MFromD<D> mask) {
 }
 
 template <class D>
-HWY_API size_t CountTrue(D /* tag */, MFromD<D> mask) {
-  return PopCount(detail::BitsFromMask(mask));
+HWY_API size_t CountTrue(D d, MFromD<D> mask) {
+  return PopCount(BitsFromMask(d, mask));
 }
 
 #if HWY_PPC_HAVE_9 && (!HWY_PPC_HAVE_10 || HWY_IS_BIG_ENDIAN)
@@ -5467,8 +5463,7 @@ HWY_API size_t FindKnownFirstTrue(D d, MFromD<D> mask) {
     return detail::VsxCntlzLsbb(bytes) / sizeof(T);
   }
 #endif  // HWY_PPC_HAVE_9 && (!HWY_PPC_HAVE_10 || HWY_IS_BIG_ENDIAN)
-  (void)d;
-  return Num0BitsBelowLS1Bit_Nonzero64(detail::BitsFromMask(mask));
+  return Num0BitsBelowLS1Bit_Nonzero64(BitsFromMask(d, mask));
 }
 
 template <class D, typename T = TFromD<D>>
@@ -5483,8 +5478,7 @@ HWY_API intptr_t FindFirstTrue(D d, MFromD<D> mask) {
     return idx == kN ? -1 : static_cast<intptr_t>(idx);
   }
 #endif  // HWY_PPC_HAVE_9 && (!HWY_PPC_HAVE_10 || HWY_IS_BIG_ENDIAN)
-  (void)d;
-  const uint64_t mask_bits = detail::BitsFromMask(mask);
+  const uint64_t mask_bits = BitsFromMask(d, mask);
   return mask_bits ? intptr_t(Num0BitsBelowLS1Bit_Nonzero64(mask_bits)) : -1;
 }
 
@@ -5499,8 +5493,7 @@ HWY_API size_t FindKnownLastTrue(D d, MFromD<D> mask) {
     return 16 / sizeof(T) - 1 - idx;
   }
 #endif  // HWY_PPC_HAVE_9 && (!HWY_PPC_HAVE_10 || HWY_IS_BIG_ENDIAN)
-  (void)d;
-  return 63 - Num0BitsAboveMS1Bit_Nonzero64(detail::BitsFromMask(mask));
+  return 63 - Num0BitsAboveMS1Bit_Nonzero64(BitsFromMask(d, mask));
 }
 
 template <class D, typename T = TFromD<D>>
@@ -5515,8 +5508,7 @@ HWY_API intptr_t FindLastTrue(D d, MFromD<D> mask) {
     return idx == kN ? -1 : static_cast<intptr_t>(kN - 1 - idx);
   }
 #endif  // HWY_PPC_HAVE_9 && (!HWY_PPC_HAVE_10 || HWY_IS_BIG_ENDIAN)
-  (void)d;
-  const uint64_t mask_bits = detail::BitsFromMask(mask);
+  const uint64_t mask_bits = BitsFromMask(d, mask);
   return mask_bits ? intptr_t(63 - Num0BitsAboveMS1Bit_Nonzero64(mask_bits))
                    : -1;
 }
@@ -6012,7 +6004,8 @@ HWY_API Vec128<T, N> Compress(Vec128<T, N> v, Mask128<T, N> mask) {
 // General case, 2 or 4 bytes
 template <typename T, size_t N, HWY_IF_T_SIZE_ONE_OF(T, (1 << 2) | (1 << 4))>
 HWY_API Vec128<T, N> Compress(Vec128<T, N> v, Mask128<T, N> mask) {
-  return detail::CompressBits(v, detail::BitsFromMask(mask));
+  const DFromV<decltype(v)> d;
+  return detail::CompressBits(v, BitsFromMask(d, mask));
 }
 
 // ------------------------------ CompressNot
@@ -6048,12 +6041,13 @@ HWY_API Vec128<T, N> CompressNot(Vec128<T, N> v, Mask128<T, N> mask) {
 // General case, 2 or 4 bytes
 template <typename T, size_t N, HWY_IF_T_SIZE_ONE_OF(T, (1 << 2) | (1 << 4))>
 HWY_API Vec128<T, N> CompressNot(Vec128<T, N> v, Mask128<T, N> mask) {
+  const DFromV<decltype(v)> d;
   // For partial vectors, we cannot pull the Not() into the table because
   // BitsFromMask clears the upper bits.
   if (N < 16 / sizeof(T)) {
-    return detail::CompressBits(v, detail::BitsFromMask(Not(mask)));
+    return detail::CompressBits(v, BitsFromMask(d, Not(mask)));
   }
-  return detail::CompressNotBits(v, detail::BitsFromMask(mask));
+  return detail::CompressNotBits(v, BitsFromMask(d, mask));
 }
 
 // ------------------------------ CompressBlocksNot
@@ -6103,7 +6097,7 @@ HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> m, D d,
                              TFromD<D>* HWY_RESTRICT unaligned) {
   const RebindToUnsigned<decltype(d)> du;
 
-  const uint64_t mask_bits = detail::BitsFromMask(m);
+  const uint64_t mask_bits = BitsFromMask(d, m);
   HWY_DASSERT(mask_bits < (1ull << MaxLanes(d)));
   const size_t count = PopCount(mask_bits);
 
@@ -6130,7 +6124,7 @@ HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> m, D d,
                                     TFromD<D>* HWY_RESTRICT unaligned) {
   const RebindToUnsigned<decltype(d)> du;
 
-  const uint64_t mask_bits = detail::BitsFromMask(m);
+  const uint64_t mask_bits = BitsFromMask(d, m);
   HWY_DASSERT(mask_bits < (1ull << MaxLanes(d)));
   const size_t count = PopCount(mask_bits);
 

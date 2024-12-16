@@ -24,6 +24,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 struct TestCopySign {
   template <class T, class D>
@@ -81,18 +82,20 @@ HWY_NOINLINE void TestAllBroadcastSignBit() {
   ForSignedTypes(ForPartialVectors<TestBroadcastSignBit>());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwySignTest);
 HWY_EXPORT_AND_TEST_P(HwySignTest, TestAllCopySign);
 HWY_EXPORT_AND_TEST_P(HwySignTest, TestAllBroadcastSignBit);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

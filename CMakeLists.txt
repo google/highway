@@ -59,33 +59,6 @@ if(CHECK_PIE_SUPPORTED)
   endif()
 endif()
 
-if (CMAKE_CXX_COMPILER_ARCHITECTURE_ID MATCHES "RISCV32|RISCV64|RISCV128" OR CMAKE_SYSTEM_PROCESSOR MATCHES "riscv32|riscv64|riscv128")
-  include(CheckCSourceCompiles)
-  check_c_source_compiles("
-  #if __riscv_xlen == 64
-  int main() { return 0; }
-  #else
-  #error Not RISCV-64
-  #endif
-  " IS_RISCV_XLEN_64)
-
-  check_c_source_compiles("
-  #if __riscv_xlen == 32
-  int main() { return 0; }
-  #else
-  #error Not RISCV-32
-  #endif
-  " IS_RISCV_XLEN_32)
-
-  if(IS_RISCV_XLEN_32)
-    set(RISCV_XLEN 32)
-  elseif(IS_RISCV_XLEN_64)
-    set(RISCV_XLEN 64)
-  else()
-    message(WARNING "Unable to determine RISC-V XLEN")
-  endif()
-endif()
-
 include(GNUInstallDirs)
 
 if (NOT CMAKE_BUILD_TYPE)
@@ -163,6 +136,33 @@ check_cxx_source_compiles(
   HWY_RISCV
 )
 
+if (HWY_RISCV OR CMAKE_CXX_COMPILER_ARCHITECTURE_ID MATCHES "RISCV32|RISCV64|RISCV128" OR CMAKE_SYSTEM_PROCESSOR MATCHES "riscv32|riscv64|riscv128")
+  include(CheckCSourceCompiles)
+  check_c_source_compiles("
+  #if __riscv_xlen == 64
+  int main() { return 0; }
+  #else
+  #error Not RISCV-64
+  #endif
+  " IS_RISCV_XLEN_64)
+
+  check_c_source_compiles("
+  #if __riscv_xlen == 32
+  int main() { return 0; }
+  #else
+  #error Not RISCV-32
+  #endif
+  " IS_RISCV_XLEN_32)
+
+  if(IS_RISCV_XLEN_32)
+    set(RISCV_XLEN 32)
+  elseif(IS_RISCV_XLEN_64)
+    set(RISCV_XLEN 64)
+  else()
+    message(WARNING "Unable to determine RISC-V XLEN")
+  endif()
+endif()
+
 if (HWY_ENABLE_CONTRIB)
 # Glob all the traits so we don't need to modify this file when adding
 # additional special cases.
@@ -219,6 +219,7 @@ set(HWY_SOURCES
     hwy/ops/x86_128-inl.h
     hwy/ops/x86_256-inl.h
     hwy/ops/x86_512-inl.h
+    hwy/ops/x86_avx3-inl.h
     hwy/per_target.h
     hwy/print-inl.h
     hwy/print.h
@@ -235,6 +236,7 @@ if (NOT HWY_CMAKE_HEADER_ONLY)
     hwy/aligned_allocator.cc
     hwy/nanobenchmark.cc
     hwy/per_target.cc
+    hwy/perf_counters.cc
     hwy/print.cc
     hwy/targets.cc
     hwy/timer.cc
@@ -717,16 +719,19 @@ set(HWY_TEST_FILES
   hwy/bit_set_test.cc
   hwy/highway_test.cc
   hwy/nanobenchmark_test.cc
+  hwy/perf_counters_test.cc
   hwy/targets_test.cc
   hwy/examples/skeleton_test.cc
   hwy/tests/arithmetic_test.cc
   hwy/tests/bit_permute_test.cc
+  hwy/tests/blockwise_combine_test.cc
   hwy/tests/blockwise_shift_test.cc
   hwy/tests/blockwise_test.cc
   hwy/tests/cast_test.cc
   hwy/tests/combine_test.cc
   hwy/tests/compare_test.cc
   hwy/tests/compress_test.cc
+  hwy/tests/concat_test.cc
   hwy/tests/convert_test.cc
   hwy/tests/count_test.cc
   hwy/tests/crypto_test.cc
@@ -744,6 +749,7 @@ set(HWY_TEST_FILES
   hwy/tests/mask_combine_test.cc
   hwy/tests/mask_convert_test.cc
   hwy/tests/mask_mem_test.cc
+  hwy/tests/mask_set_test.cc
   hwy/tests/mask_slide_test.cc
   hwy/tests/mask_test.cc
   hwy/tests/masked_arithmetic_test.cc

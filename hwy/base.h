@@ -251,6 +251,12 @@ namespace hwy {
 // 4 instances of a given literal value, useful as input to LoadDup128.
 #define HWY_REP4(literal) literal, literal, literal, literal
 
+HWY_DLLEXPORT void HWY_FORMAT(3, 4)
+    Warn(const char* file, int line, const char* format, ...);
+
+#define HWY_WARN(format, ...) \
+  ::hwy::Warn(__FILE__, __LINE__, format, ##__VA_ARGS__)
+
 HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
     Abort(const char* file, int line, const char* format, ...);
 
@@ -2570,10 +2576,13 @@ HWY_API constexpr TTo ConvertScalarTo(TTo in) {
 
 template <typename T1, typename T2>
 constexpr inline T1 DivCeil(T1 a, T2 b) {
+#if HWY_CXX_LANG >= 201703L
+  HWY_DASSERT(b != 0);
+#endif
   return (a + b - 1) / b;
 }
 
-// Works for any `align`; if a power of two, compiler emits ADD+AND.
+// Works for any non-zero `align`; if a power of two, compiler emits ADD+AND.
 constexpr inline size_t RoundUpTo(size_t what, size_t align) {
   return DivCeil(what, align) * align;
 }

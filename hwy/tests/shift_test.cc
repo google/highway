@@ -24,6 +24,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 template <bool kSigned>
 struct TestLeftShifts {
@@ -501,20 +502,22 @@ HWY_NOINLINE void TestAllVariableRoundingShr() {
   ForIntegerTypes(ForPartialVectors<TestVariableRoundingShr>());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwyShiftTest);
 HWY_EXPORT_AND_TEST_P(HwyShiftTest, TestAllShifts);
 HWY_EXPORT_AND_TEST_P(HwyShiftTest, TestAllVariableShifts);
 HWY_EXPORT_AND_TEST_P(HwyShiftTest, TestAllRoundingShiftRight);
 HWY_EXPORT_AND_TEST_P(HwyShiftTest, TestAllVariableRoundingShr);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

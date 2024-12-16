@@ -28,6 +28,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 // Regenerate tables used in the implementation, instead of testing.
 #define HWY_PRINT_TABLES 0
@@ -124,8 +125,6 @@ HWY_NOINLINE void TestAllExpand() {
 #endif  // !HWY_PRINT_TABLES
 
 #if HWY_PRINT_TABLES || HWY_IDE
-namespace detail {  // For code folding.
-
 void PrintExpand8x8Tables() {
   printf("// %s\n", __FUNCTION__);
   constexpr size_t N = 8;
@@ -256,29 +255,28 @@ void PrintExpand64x4NibbleTables() {
   printf("\n");
 }
 
-}  // namespace detail
-
 HWY_NOINLINE void PrintTables() {
   // Only print once.
 #if HWY_TARGET == HWY_STATIC_TARGET
-  detail::PrintExpand32x8NibbleTables();
-  detail::PrintExpand64x4NibbleTables();
-  detail::PrintExpand16x8LaneTables();
-  detail::PrintExpand16x8ByteTables();
-  detail::PrintExpand8x8Tables();
+  PrintExpand32x8NibbleTables();
+  PrintExpand64x4NibbleTables();
+  PrintExpand16x8LaneTables();
+  PrintExpand16x8ByteTables();
+  PrintExpand8x8Tables();
 #endif
 }
 
 #endif  // HWY_PRINT_TABLES
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwyExpandTest);
 #if HWY_PRINT_TABLES
 // Only print instead of running tests; this will be visible in the log.
@@ -287,6 +285,7 @@ HWY_EXPORT_AND_TEST_P(HwyExpandTest, PrintTables);
 HWY_EXPORT_AND_TEST_P(HwyExpandTest, TestAllExpand);
 #endif
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

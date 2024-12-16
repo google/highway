@@ -26,6 +26,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 struct TestIntegerDiv {
   template <class D, typename T = TFromD<D>>
@@ -261,18 +262,20 @@ HWY_NOINLINE void TestAllIntegerMod() {
   ForIntegerTypes(ForPartialVectors<TestIntegerMod>());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwyDivTest);
 HWY_EXPORT_AND_TEST_P(HwyDivTest, TestAllIntegerDiv);
 HWY_EXPORT_AND_TEST_P(HwyDivTest, TestAllIntegerMod);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

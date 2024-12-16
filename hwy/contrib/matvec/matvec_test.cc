@@ -42,6 +42,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 template <typename MatT, typename T>
 HWY_NOINLINE void SimpleMatVecAdd(const MatT* HWY_RESTRICT mat,
@@ -70,10 +71,10 @@ HWY_NOINLINE void SimpleMatVecAdd(const MatT* HWY_RESTRICT mat,
   }
 }
 
-HWY_NOINLINE void SimpleMatVecAdd(const hwy::bfloat16_t* HWY_RESTRICT mat,
-                                  const float* HWY_RESTRICT vec,
-                                  const float* add, size_t rows, size_t cols,
-                                  float* HWY_RESTRICT out, ThreadPool& pool) {
+HWY_MAYBE_UNUSED HWY_NOINLINE void SimpleMatVecAdd(
+    const hwy::bfloat16_t* HWY_RESTRICT mat, const float* HWY_RESTRICT vec,
+    const float* add, size_t rows, size_t cols, float* HWY_RESTRICT out,
+    ThreadPool& pool) {
   if (add) {
     pool.Run(0, rows, [=](uint64_t r, size_t /*thread*/) {
       float dot = 0.0f;
@@ -93,11 +94,11 @@ HWY_NOINLINE void SimpleMatVecAdd(const hwy::bfloat16_t* HWY_RESTRICT mat,
   }
 }
 
-HWY_NOINLINE void SimpleMatVecAdd(const hwy::bfloat16_t* HWY_RESTRICT mat,
-                                  const hwy::bfloat16_t* HWY_RESTRICT vec,
-                                  const hwy::bfloat16_t* HWY_RESTRICT add,
-                                  size_t rows, size_t cols,
-                                  float* HWY_RESTRICT out, ThreadPool& pool) {
+HWY_MAYBE_UNUSED HWY_NOINLINE void SimpleMatVecAdd(
+    const hwy::bfloat16_t* HWY_RESTRICT mat,
+    const hwy::bfloat16_t* HWY_RESTRICT vec,
+    const hwy::bfloat16_t* HWY_RESTRICT add, size_t rows, size_t cols,
+    float* HWY_RESTRICT out, ThreadPool& pool) {
   if (add) {
     pool.Run(0, rows, [=](uint64_t r, size_t /*thread*/) {
       float dot = 0.0f;
@@ -272,19 +273,21 @@ void TestAllMatVecBF16Both() {
   ForGEVectors<32, TestMatVecAdd<bfloat16_t, bfloat16_t>>()(float());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(MatVecTest);
 HWY_EXPORT_AND_TEST_P(MatVecTest, TestAllMatVecAdd);
 HWY_EXPORT_AND_TEST_P(MatVecTest, TestAllMatVecBF16);
 HWY_EXPORT_AND_TEST_P(MatVecTest, TestAllMatVecBF16Both);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
+HWY_TEST_MAIN();
 #endif  // HWY_ONCE

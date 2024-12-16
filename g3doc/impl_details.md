@@ -249,6 +249,11 @@ For ZVector targets `HWY_Z14`, `HWY_Z15`, `HWY_Z16`, there is the
 (requires IBMid login), plus a
 [searchable reference](https://www.ibm.com/docs/en/zos/2.5.0?topic=topics-using-vector-programming-support).
 
+For LoongArch, there is a
+[list of intrinsics](https://jia.je/unofficial-loongarch-intrinsics-guide/lsx/integer_computation/)
+and
+[ISA reference](https://loongson.github.io/LoongArch-Documentation/LoongArch-Vol1-EN.html).
+
 ## Why scalar target
 
 There can be various reasons to avoid using vector intrinsics:

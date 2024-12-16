@@ -25,6 +25,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 struct TestWidenMulPairwiseAdd {
   // Must be inlined on aarch64 for bf16, else clang crashes.
@@ -340,19 +341,21 @@ HWY_NOINLINE void TestAllSatWidenMulPairwiseAccumulate() {
   ForShrinkableVectors<TestSatWidenMulPairwiseAccumulate>()(int16_t());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwyMulPairwiseTest);
 HWY_EXPORT_AND_TEST_P(HwyMulPairwiseTest, TestAllWidenMulPairwiseAdd);
 HWY_EXPORT_AND_TEST_P(HwyMulPairwiseTest, TestAllSatWidenMulPairwiseAdd);
 HWY_EXPORT_AND_TEST_P(HwyMulPairwiseTest, TestAllSatWidenMulPairwiseAccumulate);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

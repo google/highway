@@ -32,6 +32,7 @@ hwy_public = [
   "$_hwy/ops/x86_128-inl.h",
   "$_hwy/ops/x86_256-inl.h",
   "$_hwy/ops/x86_512-inl.h",
+  "$_hwy/ops/x86_avx3-inl.h",
 ]
 
 hwy_sources = [

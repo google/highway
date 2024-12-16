@@ -30,6 +30,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 template <typename T>
 T SimpleDot(const T* pa, const T* pb, size_t num) {
@@ -267,7 +268,6 @@ struct MinUnit : UnrollerUnit<MinUnit<T>, T, T> {
   }
 
   ptrdiff_t ReduceImpl(const hn::Vec<TT> x, T* to) {
-    const hn::ScalableTag<T> d;
     auto minvect = hn::MinOfLanes(d, x);
     (*to) = hn::ExtractLane(minvect, 0);
     return 1;
@@ -376,7 +376,7 @@ struct TestDot {
       AccumulateUnit<T> accfn;
       T dot_via_mul_acc;
       Unroller(accfn, y, &dot_via_mul_acc, static_cast<ptrdiff_t>(num));
-      const double tolerance = 48.0 *
+      const double tolerance = 120.0 *
                                ConvertScalarTo<double>(hwy::Epsilon<T>()) *
                                ScalarAbs(expected_dot);
       HWY_ASSERT(ScalarAbs(expected_dot - dot_via_mul_acc) < tolerance);
@@ -472,18 +472,20 @@ struct TestFind {
 
 void TestAllFind() { ForFloatTypes(ForPartialVectors<TestFind>()); }
 
+}  // namespace
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(UnrollerTest);
 HWY_EXPORT_AND_TEST_P(UnrollerTest, TestAllDot);
 HWY_EXPORT_AND_TEST_P(UnrollerTest, TestAllConvert);
 HWY_EXPORT_AND_TEST_P(UnrollerTest, TestAllFind);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

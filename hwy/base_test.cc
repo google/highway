@@ -26,6 +26,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 HWY_NOINLINE void TestAllLimits() {
   HWY_ASSERT_EQ(uint8_t{0}, LimitsMin<uint8_t>());
@@ -837,14 +838,15 @@ HWY_NOINLINE void TestAllSpecialFloat() {
   test(bfloat16_t());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(BaseTest);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllLimits);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllLowestHighest);
@@ -858,6 +860,7 @@ HWY_EXPORT_AND_TEST_P(BaseTest, TestAllMul128);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllEndian);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllSpecialFloat);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

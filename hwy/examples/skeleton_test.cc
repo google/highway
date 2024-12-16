@@ -36,6 +36,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace skeleton {
 namespace HWY_NAMESPACE {
+namespace {
 
 namespace hn = hwy::HWY_NAMESPACE;
 
@@ -129,6 +130,7 @@ HWY_NOINLINE void TestAllSumMulAdd() {
   hn::ForFloatTypes(hn::ForPartialVectors<TestSumMulAdd>());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace skeleton
@@ -136,9 +138,12 @@ HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
 namespace skeleton {
+namespace {
 HWY_BEFORE_TEST(SkeletonTest);
 HWY_EXPORT_AND_TEST_P(SkeletonTest, TestAllFloorLog2);
 HWY_EXPORT_AND_TEST_P(SkeletonTest, TestAllSumMulAdd);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace skeleton
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

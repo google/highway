@@ -16,9 +16,12 @@
 // Simple tool to print the list of targets that were compiled in when building
 // this tool.
 
+#include <stdint.h>
 #include <stdio.h>
 
 #include "hwy/highway.h"
+
+namespace {
 
 void PrintTargets(const char* msg, int64_t targets) {
   fprintf(stderr, "%s", msg);
@@ -30,6 +33,8 @@ void PrintTargets(const char* msg, int64_t targets) {
   }
   fprintf(stderr, "\n");
 }
+
+}  // namespace
 
 int main() {
 #ifdef HWY_COMPILE_ONLY_EMU128

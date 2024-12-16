@@ -25,6 +25,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 struct TestSumOfLanes {
   template <typename D,
@@ -351,14 +352,15 @@ HWY_NOINLINE void TestAllSumsOf8() {
   ForGEVectors<64, TestSumsOf8>()(uint8_t());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwyReductionTest);
 HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllSumOfLanes);
 HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllMinMaxOfLanes);
@@ -366,6 +368,7 @@ HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllSumsOf2);
 HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllSumsOf4);
 HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllSumsOf8);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

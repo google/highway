@@ -72,10 +72,12 @@ struct Vec1 {
 
 // 0 or FF..FF, same size as Vec1.
 template <typename T>
-class Mask1 {
+struct Mask1 {
   using Raw = hwy::MakeUnsigned<T>;
 
- public:
+  using PrivateT = T;                     // only for DFromM
+  static constexpr size_t kPrivateN = 1;  // only for DFromM
+
   static HWY_INLINE Mask1<T> FromBool(bool b) {
     Mask1<T> mask;
     mask.bits = b ? static_cast<Raw>(~Raw{0}) : 0;
@@ -87,6 +89,9 @@ class Mask1 {
 
 template <class V>
 using DFromV = Simd<typename V::PrivateT, V::kPrivateN, 0>;
+
+template <class M>
+using DFromM = Simd<typename M::PrivateT, M::kPrivateN, 0>;
 
 template <class V>
 using TFromV = typename V::PrivateT;
@@ -288,18 +293,16 @@ HWY_API Mask1<T> MaskFromVec(const Vec1<T> v) {
 template <class D>
 using MFromD = decltype(MaskFromVec(VFromD<D>()));
 
-template <typename T>
-Vec1<T> VecFromMask(const Mask1<T> mask) {
-  Vec1<T> v;
-  CopySameSize(&mask, &v);
-  return v;
-}
-
 template <class D, typename T = TFromD<D>>
 Vec1<T> VecFromMask(D /* tag */, const Mask1<T> mask) {
   Vec1<T> v;
   CopySameSize(&mask, &v);
   return v;
+}
+
+template <class D>
+uint64_t BitsFromMask(D, MFromD<D> mask) {
+  return mask.bits ? 1 : 0;
 }
 
 template <class D, HWY_IF_LANES_D(D, 1), typename T = TFromD<D>>

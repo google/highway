@@ -25,6 +25,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 struct TestUnsignedSaturatedAddSub {
   template <typename T, class D>
@@ -147,19 +148,21 @@ HWY_NOINLINE void TestAllSaturatedNeg() {
   ForSignedTypes(ForPartialVectors<TestSaturatedNeg>());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwySaturatedTest);
 HWY_EXPORT_AND_TEST_P(HwySaturatedTest, TestAllSaturatedAddSub);
 HWY_EXPORT_AND_TEST_P(HwySaturatedTest, TestAllSaturatedAbs);
 HWY_EXPORT_AND_TEST_P(HwySaturatedTest, TestAllSaturatedNeg);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

@@ -1917,8 +1917,8 @@ HWY_INLINE bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys,
   const bool huge_vec = kPotentiallyHuge && (2 * N > base_case_num);
   if (partial_128 || huge_vec) {
     if (VQSORT_PRINT >= 1) {
-      fprintf(stderr, "WARNING: using slow HeapSort: partial %d huge %d\n",
-              partial_128, huge_vec);
+      HWY_WARN("using slow HeapSort: partial %d huge %d\n", partial_128,
+               huge_vec);
     }
     HeapSort(st, keys, num);
     return true;
@@ -1998,7 +1998,7 @@ void Sort(D d, Traits st, T* HWY_RESTRICT keys, const size_t num,
   (void)d;
   (void)buf;
   if (VQSORT_PRINT >= 1) {
-    fprintf(stderr, "WARNING: using slow HeapSort because vqsort disabled\n");
+    HWY_WARN("using slow HeapSort because vqsort disabled\n");
   }
   detail::HeapSort(st, keys, num);
 #endif  // VQSORT_ENABLED
@@ -2043,7 +2043,7 @@ void PartialSort(D d, Traits st, T* HWY_RESTRICT keys, size_t num, size_t k,
   (void)d;
   (void)buf;
   if (VQSORT_PRINT >= 1) {
-    fprintf(stderr, "WARNING: using slow HeapSort because vqsort disabled\n");
+    HWY_WARN("using slow HeapSort because vqsort disabled\n");
   }
   detail::HeapPartialSort(st, keys, num, k);
 #endif  // VQSORT_ENABLED
@@ -2084,7 +2084,7 @@ void Select(D d, Traits st, T* HWY_RESTRICT keys, const size_t num,
   (void)d;
   (void)buf;
   if (VQSORT_PRINT >= 1) {
-    fprintf(stderr, "WARNING: using slow HeapSort because vqsort disabled\n");
+    HWY_WARN("using slow HeapSort because vqsort disabled\n");
   }
   detail::HeapSelect(st, keys, num, k);
 #endif  // VQSORT_ENABLED

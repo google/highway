@@ -24,6 +24,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 struct TestRotateLeft {
   template <typename T, class D>
@@ -277,19 +278,21 @@ HWY_NOINLINE void TestAllVariableRotations() {
   ForIntegerTypes(ForPartialVectors<TestVariableRotations>());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwyRotateTest);
 HWY_EXPORT_AND_TEST_P(HwyRotateTest, TestAllRotateLeft);
 HWY_EXPORT_AND_TEST_P(HwyRotateTest, TestAllRotateRight);
 HWY_EXPORT_AND_TEST_P(HwyRotateTest, TestAllVariableRotations);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

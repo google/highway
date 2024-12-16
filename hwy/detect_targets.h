@@ -59,9 +59,10 @@
 // left-shifting 2^62), but still do not use bit 63 because it is the sign bit.
 
 // --------------------------- x86: 15 targets (+ one fallback)
-// Bits 0..3 reserved (4 targets)
+// Bits 0..2 reserved (3 targets)
+#define HWY_AVX10_2_512 (1LL << 3)  // AVX10.2 with 512-bit vectors
 #define HWY_AVX3_SPR (1LL << 4)
-// Bit 5 reserved (likely AVX10.2 with 256-bit vectors)
+#define HWY_AVX10_2 (1LL << 5)  // AVX10.2 with 256-bit vectors
 // Currently HWY_AVX3_DL plus AVX512BF16 and a special case for CompressStore
 // (10x as fast).
 // We may later also use VPCONFLICT.
@@ -107,8 +108,14 @@
 // Bit 38 reserved
 #define HWY_HIGHEST_TARGET_BIT_RVV 38
 
-// --------------------------- Future expansion: 4 targets
-// Bits 39..42 reserved
+// --------------------------- LoongArch: 3 targets (+ one fallback)
+// Bits 39 reserved (1 target)
+#define HWY_LASX (1LL << 40)
+#define HWY_LSX (1LL << 41)
+#define HWY_HIGHEST_TARGET_BIT_LOONGARCH 41
+
+// --------------------------- Future expansion: 1 target
+// Bits 42 reserved
 
 // --------------------------- IBM Power/ZSeries: 9 targets (+ one fallback)
 // Bits 43..46 reserved (4 targets)
@@ -223,8 +230,12 @@
 #endif
 
 // SVE[2] require recent clang or gcc versions.
-#if (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1100) || \
-    (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1000)
+
+// In addition, SVE[2] is not currently supported by any Apple CPU (at least up
+// to and including M4 and A18).
+#if (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1900) ||           \
+    (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1000) || \
+    HWY_OS_APPLE
 #define HWY_BROKEN_SVE (HWY_SVE | HWY_SVE2 | HWY_SVE_256 | HWY_SVE2_128)
 #else
 #define HWY_BROKEN_SVE 0
@@ -274,6 +285,15 @@
 #define HWY_BROKEN_RVV 0
 #endif
 
+// HWY_LSX/HWY_LASX require GCC 14 or Clang 18.
+#if HWY_ARCH_LOONGARCH &&                                 \
+    ((HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1800) || \
+     (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1400))
+#define HWY_BROKEN_LOONGARCH (HWY_LSX | HWY_LASX)
+#else
+#define HWY_BROKEN_LOONGARCH 0
+#endif
+
 // Allow the user to override this without any guarantee of success.
 #ifndef HWY_BROKEN_TARGETS
 
@@ -282,7 +302,7 @@
    HWY_BROKEN_AVX3_DL_ZEN4 | HWY_BROKEN_AVX3_SPR |             \
    HWY_BROKEN_ARM7_BIG_ENDIAN | HWY_BROKEN_ARM7_WITHOUT_VFP4 | \
    HWY_BROKEN_NEON_BF16 | HWY_BROKEN_SVE | HWY_BROKEN_PPC10 |  \
-   HWY_BROKEN_PPC_32BIT | HWY_BROKEN_RVV)
+   HWY_BROKEN_PPC_32BIT | HWY_BROKEN_RVV | HWY_BROKEN_LOONGARCH)
 
 #endif  // HWY_BROKEN_TARGETS
 
@@ -515,7 +535,10 @@
 
 // Require everything in AVX2 plus AVX-512 flags (also set by MSVC)
 #if HWY_BASELINE_AVX2 != 0 && defined(__AVX512F__) && defined(__AVX512BW__) && \
-    defined(__AVX512DQ__) && defined(__AVX512VL__)
+    defined(__AVX512DQ__) && defined(__AVX512VL__) &&                          \
+    ((!HWY_COMPILER_GCC_ACTUAL && !HWY_COMPILER_CLANG) ||                      \
+     HWY_COMPILER_GCC_ACTUAL < 1400 || HWY_COMPILER_CLANG < 1800 ||            \
+     defined(__EVEX512__))
 #define HWY_BASELINE_AVX3 HWY_AVX3
 #else
 #define HWY_BASELINE_AVX3 0
@@ -540,11 +563,23 @@
 #define HWY_BASELINE_AVX3_ZEN4 0
 #endif
 
+#if HWY_BASELINE_AVX2 != 0 && defined(__AVX10_2__)
+#define HWY_BASELINE_AVX10_2 HWY_AVX10_2
+#else
+#define HWY_BASELINE_AVX10_2 0
+#endif
+
 #if HWY_BASELINE_AVX3_DL != 0 && defined(__AVX512BF16__) && \
     defined(__AVX512FP16__)
 #define HWY_BASELINE_AVX3_SPR HWY_AVX3_SPR
 #else
 #define HWY_BASELINE_AVX3_SPR 0
+#endif
+
+#if HWY_BASELINE_AVX3_SPR != 0 && defined(__AVX10_2_512__)
+#define HWY_BASELINE_AVX10_2_512 HWY_AVX10_2_512
+#else
+#define HWY_BASELINE_AVX10_2_512 0
 #endif
 
 // RVV requires intrinsics 0.11 or later, see #1156.
@@ -555,16 +590,25 @@
 #define HWY_BASELINE_RVV 0
 #endif
 
+#if HWY_ARCH_LOONGARCH && defined(__loongarch_sx) && defined(__loongarch_asx)
+#define HWY_BASELINE_LOONGARCH (HWY_LSX | HWY_LASX)
+#elif HWY_ARCH_LOONGARCH && defined(__loongarch_sx)
+#define HWY_BASELINE_LOONGARCH (HWY_LSX)
+#else
+#define HWY_BASELINE_LOONGARCH 0
+#endif
+
 // Allow the user to override this without any guarantee of success.
 #ifndef HWY_BASELINE_TARGETS
-#define HWY_BASELINE_TARGETS                                               \
-  (HWY_BASELINE_SCALAR | HWY_BASELINE_WASM | HWY_BASELINE_PPC8 |           \
-   HWY_BASELINE_PPC9 | HWY_BASELINE_PPC10 | HWY_BASELINE_Z14 |             \
-   HWY_BASELINE_Z15 | HWY_BASELINE_SVE2 | HWY_BASELINE_SVE |               \
-   HWY_BASELINE_NEON | HWY_BASELINE_SSE2 | HWY_BASELINE_SSSE3 |            \
-   HWY_BASELINE_SSE4 | HWY_BASELINE_AVX2 | HWY_BASELINE_AVX3 |             \
-   HWY_BASELINE_AVX3_DL | HWY_BASELINE_AVX3_ZEN4 | HWY_BASELINE_AVX3_SPR | \
-   HWY_BASELINE_RVV)
+#define HWY_BASELINE_TARGETS                                              \
+  (HWY_BASELINE_SCALAR | HWY_BASELINE_WASM | HWY_BASELINE_PPC8 |          \
+   HWY_BASELINE_PPC9 | HWY_BASELINE_PPC10 | HWY_BASELINE_Z14 |            \
+   HWY_BASELINE_Z15 | HWY_BASELINE_SVE2 | HWY_BASELINE_SVE |              \
+   HWY_BASELINE_NEON | HWY_BASELINE_SSE2 | HWY_BASELINE_SSSE3 |           \
+   HWY_BASELINE_SSE4 | HWY_BASELINE_AVX2 | HWY_BASELINE_AVX3 |            \
+   HWY_BASELINE_AVX3_DL | HWY_BASELINE_AVX3_ZEN4 | HWY_BASELINE_AVX10_2 | \
+   HWY_BASELINE_AVX3_SPR | HWY_BASELINE_AVX10_2_512 | HWY_BASELINE_RVV |  \
+   HWY_BASELINE_LOONGARCH)
 #endif  // HWY_BASELINE_TARGETS
 
 //------------------------------------------------------------------------------
@@ -720,6 +764,12 @@
 #define HWY_ATTAINABLE_RISCV HWY_BASELINE_RVV
 #endif
 
+#if HWY_ARCH_LOONGARCH && HWY_HAVE_RUNTIME_DISPATCH
+#define HWY_ATTAINABLE_LOONGARCH (HWY_LSX | HWY_LASX)
+#else
+#define HWY_ATTAINABLE_LOONGARCH HWY_BASELINE_LOONGARCH
+#endif
+
 #ifndef HWY_ATTAINABLE_TARGETS_X86  // allow override
 #if HWY_COMPILER_MSVC && defined(HWY_SLOW_MSVC)
 // Fewer targets for faster builds.
@@ -734,7 +784,7 @@
 #endif  // HWY_ATTAINABLE_TARGETS_X86
 
 // Attainable means enabled and the compiler allows intrinsics (even when not
-// allowed to autovectorize). Used in 3 and 4.
+// allowed to auto-vectorize). Used in 3 and 4.
 #if HWY_ARCH_X86
 #define HWY_ATTAINABLE_TARGETS HWY_ATTAINABLE_TARGETS_X86
 #elif HWY_ARCH_ARM
@@ -747,9 +797,12 @@
 #elif HWY_ARCH_S390X
 #define HWY_ATTAINABLE_TARGETS \
   HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_ATTAINABLE_S390X)
-#elif HWY_ARCH_RVV
+#elif HWY_ARCH_RISCV
 #define HWY_ATTAINABLE_TARGETS \
   HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_ATTAINABLE_RISCV)
+#elif HWY_ARCH_LOONGARCH
+#define HWY_ATTAINABLE_TARGETS \
+  HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_ATTAINABLE_LOONGARCH)
 #else
 #define HWY_ATTAINABLE_TARGETS (HWY_ENABLED_BASELINE)
 #endif  // HWY_ARCH_*

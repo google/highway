@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stdint.h>
 #include <string.h>  // memcpy
 
 #undef HWY_TARGET_INCLUDE
@@ -24,6 +25,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 #define HWY_PRINT_CLMUL_GOLDEN 0
 
@@ -287,6 +289,7 @@ HWY_NOINLINE void TestAllAESKeyGenAssist() {
 #else
 HWY_NOINLINE void TestAllAES() {}
 HWY_NOINLINE void TestAllAESInverse() {}
+HWY_NOINLINE void TestAllAESKeyGenAssist() {}
 #endif  // HWY_TARGET != HWY_SCALAR
 
 struct TestCLMul {
@@ -699,19 +702,22 @@ struct TestCLMul {
 
 HWY_NOINLINE void TestAllCLMul() { ForGEVectors<128, TestCLMul>()(uint64_t()); }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwyCryptoTest);
 HWY_EXPORT_AND_TEST_P(HwyCryptoTest, TestAllAES);
 HWY_EXPORT_AND_TEST_P(HwyCryptoTest, TestAllAESInverse);
 HWY_EXPORT_AND_TEST_P(HwyCryptoTest, TestAllCLMul);
+HWY_EXPORT_AND_TEST_P(HwyCryptoTest, TestAllAESKeyGenAssist);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

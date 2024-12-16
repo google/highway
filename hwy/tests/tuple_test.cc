@@ -24,6 +24,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 struct TestCreateAndSet {
   template <class T, class D>
@@ -71,8 +72,7 @@ struct TestCreateAndSet {
     HWY_ASSERT_VEC_EQ(d, v0, Get4<3>(t4));
 #else
     (void)d;
-    fprintf(stderr, "Warning: tuples are disabled for target %s\n",
-            hwy::TargetName(HWY_TARGET));
+    HWY_WARN("Tuples disabled for target %s\n", hwy::TargetName(HWY_TARGET));
 #endif  // HWY_HAVE_TUPLE
   }
 };
@@ -82,17 +82,19 @@ HWY_NOINLINE void TestAllCreate() {
   ForAllTypes(ForMaxPow2<TestCreateAndSet>());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(TupleTest);
 HWY_EXPORT_AND_TEST_P(TupleTest, TestAllCreate);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
+HWY_TEST_MAIN();
 #endif  // HWY_ONCE

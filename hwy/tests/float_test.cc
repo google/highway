@@ -30,6 +30,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 HWY_NOINLINE void TestAllF16FromF32() {
   const FixedTag<float, 1> d1;
@@ -505,14 +506,15 @@ HWY_NOINLINE void TestAllAbsDiff() {
   ForFloatTypes(ForPartialVectors<TestAbsDiff>());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwyFloatTest);
 HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllF16FromF32);
 HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllF32FromF16);
@@ -528,6 +530,7 @@ HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllCeil);
 HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllFloor);
 HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllAbsDiff);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

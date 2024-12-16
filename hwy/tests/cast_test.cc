@@ -24,42 +24,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
-
-template <typename T, size_t N, int kPow2>
-size_t DeduceN(Simd<T, N, kPow2>) {
-  return N;
-}
-
-template <typename ToT>
-struct TestRebind {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const Rebind<ToT, D> dto;
-    const size_t N = Lanes(d);
-    HWY_ASSERT(N <= MaxLanes(d));
-    const size_t NTo = Lanes(dto);
-    if (NTo != N) {
-      HWY_ABORT("u%zu -> u%zu: lanes %zu %zu pow2 %d %d cap %zu %zu\n",
-                8 * sizeof(T), 8 * sizeof(ToT), N, NTo, d.Pow2(), dto.Pow2(),
-                DeduceN(d), DeduceN(dto));
-    }
-  }
-};
-
-// Lane count remains the same when we rebind to smaller/equal/larger types.
-HWY_NOINLINE void TestAllRebind() {
-#if HWY_HAVE_INTEGER64
-  ForShrinkableVectors<TestRebind<uint8_t>, 3>()(uint64_t());
-#endif  // HWY_HAVE_INTEGER64
-  ForShrinkableVectors<TestRebind<uint8_t>, 2>()(uint32_t());
-  ForShrinkableVectors<TestRebind<uint8_t>, 1>()(uint16_t());
-  ForPartialVectors<TestRebind<uint8_t>>()(uint8_t());
-  ForExtendableVectors<TestRebind<uint16_t>, 1>()(uint8_t());
-  ForExtendableVectors<TestRebind<uint32_t>, 2>()(uint8_t());
-#if HWY_HAVE_INTEGER64
-  ForExtendableVectors<TestRebind<uint64_t>, 3>()(uint8_t());
-#endif  // HWY_HAVE_INTEGER64
-}
+namespace {
 
 // Cast and ensure bytes are the same. Called directly from TestAllBitCast or
 // via TestBitCastFrom.
@@ -327,19 +292,21 @@ HWY_NOINLINE void TestAllSameSizeResizeBitCast() {
 #endif
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(HwyCastTest);
 HWY_EXPORT_AND_TEST_P(HwyCastTest, TestAllBitCast);
 HWY_EXPORT_AND_TEST_P(HwyCastTest, TestAllResizeBitCastToOneLaneVect);
 HWY_EXPORT_AND_TEST_P(HwyCastTest, TestAllSameSizeResizeBitCast);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

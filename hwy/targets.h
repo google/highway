@@ -99,8 +99,12 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(int64_t target) {
       return "AVX3_DL";
     case HWY_AVX3_ZEN4:
       return "AVX3_ZEN4";
+    case HWY_AVX10_2:
+      return "AVX10_2";
     case HWY_AVX3_SPR:
       return "AVX3_SPR";
+    case HWY_AVX10_2_512:
+      return "AVX10_2_512";
 #endif
 
 #if HWY_ARCH_ARM
@@ -146,6 +150,13 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(int64_t target) {
 #if HWY_ARCH_RISCV
     case HWY_RVV:
       return "RVV";
+#endif
+
+#if HWY_ARCH_LOONGARCH
+    case HWY_LSX:
+      return "LSX";
+    case HWY_LASX:
+      return "LASX";
 #endif
 
     case HWY_EMU128:
@@ -201,22 +212,22 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(int64_t target) {
 // HWY_MAX_DYNAMIC_TARGETS) bit. This list must contain exactly
 // HWY_MAX_DYNAMIC_TARGETS elements and does not include SCALAR. The first entry
 // corresponds to the best target. Don't include a "," at the end of the list.
-#define HWY_CHOOSE_TARGET_LIST(func_name)                     \
-  nullptr,                             /* reserved */         \
-      nullptr,                         /* reserved */         \
-      nullptr,                         /* reserved */         \
-      nullptr,                         /* reserved */         \
-      HWY_CHOOSE_AVX3_SPR(func_name),  /* AVX3_SPR */         \
-      nullptr,                         /* reserved */         \
-      HWY_CHOOSE_AVX3_ZEN4(func_name), /* AVX3_ZEN4 */        \
-      HWY_CHOOSE_AVX3_DL(func_name),   /* AVX3_DL */          \
-      HWY_CHOOSE_AVX3(func_name),      /* AVX3 */             \
-      HWY_CHOOSE_AVX2(func_name),      /* AVX2 */             \
-      nullptr,                         /* AVX */              \
-      HWY_CHOOSE_SSE4(func_name),      /* SSE4 */             \
-      HWY_CHOOSE_SSSE3(func_name),     /* SSSE3 */            \
-      nullptr,                         /* reserved - SSE3? */ \
-      HWY_CHOOSE_SSE2(func_name)       /* SSE2 */
+#define HWY_CHOOSE_TARGET_LIST(func_name)                       \
+  nullptr,                               /* reserved */         \
+      nullptr,                           /* reserved */         \
+      nullptr,                           /* reserved */         \
+      HWY_CHOOSE_AVX10_2_512(func_name), /* AVX10_2_512 */      \
+      HWY_CHOOSE_AVX3_SPR(func_name),    /* AVX3_SPR */         \
+      HWY_CHOOSE_AVX10_2(func_name),     /* reserved */         \
+      HWY_CHOOSE_AVX3_ZEN4(func_name),   /* AVX3_ZEN4 */        \
+      HWY_CHOOSE_AVX3_DL(func_name),     /* AVX3_DL */          \
+      HWY_CHOOSE_AVX3(func_name),        /* AVX3 */             \
+      HWY_CHOOSE_AVX2(func_name),        /* AVX2 */             \
+      nullptr,                           /* AVX */              \
+      HWY_CHOOSE_SSE4(func_name),        /* SSE4 */             \
+      HWY_CHOOSE_SSSE3(func_name),       /* SSSE3 */            \
+      nullptr,                           /* reserved - SSE3? */ \
+      HWY_CHOOSE_SSE2(func_name)         /* SSE2 */
 
 #elif HWY_ARCH_ARM
 // See HWY_ARCH_X86 above for details.
@@ -283,6 +294,14 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(int64_t target) {
       HWY_CHOOSE_WASM_EMU256(func_name), /* WASM_EMU256 */ \
       HWY_CHOOSE_WASM(func_name),        /* WASM */        \
       nullptr                            /* reserved */
+
+#elif HWY_ARCH_LOONGARCH
+#define HWY_MAX_DYNAMIC_TARGETS 3
+#define HWY_HIGHEST_TARGET_BIT HWY_HIGHEST_TARGET_BIT_LOONGARCH
+#define HWY_CHOOSE_TARGET_LIST(func_name)        \
+  nullptr,                        /* reserved */ \
+      HWY_CHOOSE_LASX(func_name), /* LASX */     \
+      HWY_CHOOSE_LSX(func_name)   /* LSX */
 
 #else
 // Unknown architecture, will use HWY_SCALAR without dynamic dispatch, though

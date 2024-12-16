@@ -40,6 +40,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 constexpr double kAlpha = 1.5;  // arbitrary scalar
 
@@ -440,14 +441,15 @@ void TestAllReplace() {
   ForFloatTypes(ForPartialVectors<ForeachCountAndMisalign<TestReplace>>());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-
 namespace hwy {
+namespace {
 HWY_BEFORE_TEST(TransformTest);
 HWY_EXPORT_AND_TEST_P(TransformTest, TestAllGenerate);
 HWY_EXPORT_AND_TEST_P(TransformTest, TestAllForeach);
@@ -456,6 +458,7 @@ HWY_EXPORT_AND_TEST_P(TransformTest, TestAllTransform1);
 HWY_EXPORT_AND_TEST_P(TransformTest, TestAllTransform2);
 HWY_EXPORT_AND_TEST_P(TransformTest, TestAllReplace);
 HWY_AFTER_TEST();
+}  // namespace
 }  // namespace hwy
-
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

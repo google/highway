@@ -215,6 +215,9 @@ enum class FeatureIndex : uint32_t {
   kBITALG,
   kGFNI,
 
+  kAVX10,
+  kAPX,
+
   kSentinel
 };
 static_assert(static_cast<size_t>(FeatureIndex::kSentinel) < 64,
@@ -275,6 +278,8 @@ uint64_t FlagsFromCPUID() {
 
     Cpuid(7, 1, abcd);
     flags |= IsBitSet(abcd[0], 5) ? Bit(FeatureIndex::kAVX512BF16) : 0;
+    flags |= IsBitSet(abcd[3], 19) ? Bit(FeatureIndex::kAVX10) : 0;
+    flags |= IsBitSet(abcd[3], 21) ? Bit(FeatureIndex::kAPX) : 0;
   }
 
   return flags;
@@ -330,6 +335,11 @@ constexpr uint64_t kGroupAVX3_ZEN4 =
 constexpr uint64_t kGroupAVX3_SPR =
     Bit(FeatureIndex::kAVX512FP16) | kGroupAVX3_ZEN4;
 
+constexpr uint64_t kGroupAVX10 =
+    Bit(FeatureIndex::kAVX10) | Bit(FeatureIndex::kAPX) |
+    Bit(FeatureIndex::kVPCLMULQDQ) | Bit(FeatureIndex::kVAES) |
+    Bit(FeatureIndex::kGFNI) | kGroupAVX2;
+
 int64_t DetectTargets() {
   int64_t bits = 0;  // return value of supported targets.
   HWY_IF_CONSTEXPR(HWY_ARCH_X86_64) {
@@ -362,6 +372,34 @@ int64_t DetectTargets() {
     }
   }
 
+  uint32_t abcd[4];
+
+  if ((flags & kGroupAVX10) == kGroupAVX10) {
+    Cpuid(0x24, 0, abcd);
+
+    // AVX10 version is in lower 8 bits of abcd[1]
+    const uint32_t avx10_ver = abcd[1] & 0xFFu;
+
+    // 512-bit vectors are supported if avx10_ver >= 1 is true and bit 18 of
+    // abcd[1] is set
+    const bool has_avx10_with_512bit_vectors =
+        (avx10_ver >= 1) && IsBitSet(abcd[1], 18);
+
+    if (has_avx10_with_512bit_vectors) {
+      // AVX10.1 or later with support for 512-bit vectors implies support for
+      // the AVX3/AVX3_DL/AVX3_SPR targets
+      bits |= (HWY_AVX3_SPR | HWY_AVX3_DL | HWY_AVX3);
+    }
+
+    if (avx10_ver >= 2) {
+      // AVX10.2 is supported if avx10_ver >= 2 is true
+      bits |= HWY_AVX10_2;
+      if (has_avx10_with_512bit_vectors) {
+        bits |= HWY_AVX10_2_512;
+      }
+    }
+  }
+
   // Clear AVX2/AVX3 bits if the CPU or OS does not support XSAVE - otherwise,
   // YMM/ZMM registers are not preserved across context switches.
 
@@ -380,7 +418,6 @@ int64_t DetectTargets() {
   // - UnixWare 7 Release 7.1.1 or later
   // - Solaris 9 4/04 or later
 
-  uint32_t abcd[4];
   Cpuid(1, 0, abcd);
   const bool has_xsave = IsBitSet(abcd[2], 26);
   const bool has_osxsave = IsBitSet(abcd[2], 27);
@@ -675,6 +712,26 @@ int64_t DetectTargets() {
   return bits;
 }
 }  // namespace rvv
+#elif HWY_ARCH_LOONGARCH && HWY_HAVE_RUNTIME_DISPATCH
+namespace loongarch {
+
+#ifndef LA_HWCAP_LSX
+#define LA_HWCAP_LSX (1u << 4)
+#endif
+#ifndef LA_HWCAP_LASX
+#define LA_HWCAP_LASX (1u << 5)
+#endif
+
+using CapBits = unsigned long;  // NOLINT
+
+int64_t DetectTargets() {
+  int64_t bits = 0;
+  const CapBits hw = getauxval(AT_HWCAP);
+  if (hwcap & LA_HWCAP_LSX) bits |= HWY_LSX;
+  if (hwcap & LA_HWCAP_LASX) bits |= HWY_LASX;
+  return bits;
+}
+}  // namespace loongarch
 #endif  // HWY_ARCH_*
 
 // Returns targets supported by the CPU, independently of DisableTargets.
@@ -695,6 +752,8 @@ int64_t DetectTargets() {
   bits |= s390x::DetectTargets();
 #elif HWY_ARCH_RISCV && HWY_HAVE_RUNTIME_DISPATCH
   bits |= rvv::DetectTargets();
+#elif HWY_ARCH_LOONGARCH && HWY_HAVE_RUNTIME_DISPATCH
+  bits |= loongarch::DetectTargets();
 
 #else
   // TODO(janwas): detect support for WASM.
@@ -707,12 +766,11 @@ int64_t DetectTargets() {
   if ((bits & HWY_ENABLED_BASELINE) != HWY_ENABLED_BASELINE) {
     const uint64_t bits_u = static_cast<uint64_t>(bits);
     const uint64_t enabled = static_cast<uint64_t>(HWY_ENABLED_BASELINE);
-    fprintf(stderr,
-            "WARNING: CPU supports 0x%08x%08x, software requires 0x%08x%08x\n",
-            static_cast<uint32_t>(bits_u >> 32),
-            static_cast<uint32_t>(bits_u & 0xFFFFFFFF),
-            static_cast<uint32_t>(enabled >> 32),
-            static_cast<uint32_t>(enabled & 0xFFFFFFFF));
+    HWY_WARN("CPU supports 0x%08x%08x, software requires 0x%08x%08x\n",
+             static_cast<uint32_t>(bits_u >> 32),
+             static_cast<uint32_t>(bits_u & 0xFFFFFFFF),
+             static_cast<uint32_t>(enabled >> 32),
+             static_cast<uint32_t>(enabled & 0xFFFFFFFF));
   }
 
   return bits;
