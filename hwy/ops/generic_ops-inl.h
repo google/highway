@@ -672,6 +672,18 @@ HWY_API V SaturatedAbs(V v) {
 
 #endif
 
+// ------------------------------ MaskedAbsOr
+template <class V, HWY_IF_SIGNED_V(V), class M>
+HWY_API V MaskedAbsOr(M m, V v, V no) {
+  return IfThenElse(m, Abs(v), no);
+}
+
+// ------------------------------ MaskedAbsOrZero
+template <class V, HWY_IF_SIGNED_V(V), class M>
+HWY_API V MaskedAbsOrZero(M m, V v) {
+  return IfThenElseZero(m, Abs(v));
+}
+
 // ------------------------------ Reductions
 
 // Targets follow one of two strategies. If HWY_NATIVE_REDUCE_SCALAR is toggled,
@@ -969,6 +981,22 @@ HWY_API VFromD<RebindToSigned<DFromV<V>>> FloorInt(V v) {
 }
 
 #endif  // HWY_NATIVE_CEIL_FLOOR_INT
+
+#if (defined(HWY_NATIVE_ADD_LOWER) == defined(HWY_TARGET_TOGGLE))
+
+// ------------------------------ Addlower
+#ifdef HWY_NATIVE_ADD_LOWER
+#undef HWY_NATIVE_ADD_LOWER
+#else
+#define HWY_NATIVE_ADD_LOWER
+#endif
+template <class V>
+HWY_API V AddLower(V a, V b) {
+  const DFromV<V> d;
+  const MFromD<DFromV<V>> LowerMask = FirstN(d, 1);
+  return IfThenElse(LowerMask, Add(a, b), a);
+}
+#endif
 
 // ------------------------------ MulByPow2/MulByFloorPow2
 
@@ -1990,6 +2018,83 @@ HWY_API void StoreInterleaved4(VFromD<D> part0, VFromD<D> part1,
 }
 
 #endif  // HWY_NATIVE_LOAD_STORE_INTERLEAVED
+
+// ------------------------------ PairwiseAdd/PairwiseSub
+#if (defined(HWY_NATIVE_PAIRWISE_ADD) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_PAIRWISE_ADD
+#undef HWY_NATIVE_PAIRWISE_ADD
+#else
+#define HWY_NATIVE_PAIRWISE_ADD
+#endif
+
+template <class D, class V = VFromD<D>(), HWY_IF_LANES_GT_D(D, 1)>
+HWY_API V PairwiseAdd(D d, V a, V b) {
+  return Add(InterleaveEven(d, a, b), InterleaveOdd(d, a, b));
+}
+
+#endif
+
+#if (defined(HWY_NATIVE_PAIRWISE_SUB) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_PAIRWISE_SUB
+#undef HWY_NATIVE_PAIRWISE_SUB
+#else
+#define HWY_NATIVE_PAIRWISE_SUB
+#endif
+
+template <class D, class V = VFromD<D>(), HWY_IF_LANES_GT_D(D, 1)>
+HWY_API V PairwiseSub(D d, V a, V b) {
+  return Sub(InterleaveOdd(d, a, b), InterleaveEven(d, a, b));
+}
+
+#endif
+
+#if (defined(HWY_NATIVE_PAIRWISE_ADD_128) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_PAIRWISE_ADD_128
+#undef HWY_NATIVE_PAIRWISE_ADD_128
+#else
+#define HWY_NATIVE_PAIRWISE_ADD_128
+#endif
+
+template <class D>
+using IndicesFromD = decltype(IndicesFromVec(D(), Zero(RebindToUnsigned<D>())));
+
+// Generate indices to convert
+// a[0]+a[1], b[0]+b[1], a[2]+a[3], b[2]+b[3] and so on
+// to
+// Interleaved 64 bits of a[0]+a[1], a[2]+a[3], ...
+//         and 64 bits of b[0]+b[1], b[2]+b[3], ... and so on
+template <typename V, typename D = DFromV<V>, typename T = TFromD<D>,
+          const size_t N = HWY_LANES(T)>
+constexpr IndicesFromD<D> Pairwise128Indices(D d) {
+  const size_t block_len = 8 / sizeof(T);
+  const size_t n_blocks = N / block_len;
+  TFromD<RebindToUnsigned<D>> indices[N] = {0};
+
+  TFromD<RebindToUnsigned<D>> even = 0, odd = 1;
+  for (size_t block = 0; block < n_blocks; block += 2) {
+    for (size_t index = 0; index < block_len; ++index, even += 2) {
+      indices[block * block_len + index] = even;
+    }
+    for (size_t index = 0; index < block_len; ++index, odd += 2) {
+      indices[(block + 1) * block_len + index] = odd;
+    }
+  }
+  return SetTableIndices(d, indices);
+}
+
+// Pairwise add with output in 128 bit blocks of a and b.
+template <class D, class V = VFromD<D>, HWY_IF_V_SIZE_GE_D(D, 16)>
+HWY_API V PairwiseAdd128(D d, V a, V b) {
+  return TableLookupLanes(PairwiseAdd(d, a, b), Pairwise128Indices<V>(d));
+}
+
+// Pairwise sub with output in 128 bit blocks of a and b.
+template <class D, class V = VFromD<D>, HWY_IF_V_SIZE_GE_D(D, 16)>
+HWY_API V PairwiseSub128(D d, V a, V b) {
+  return TableLookupLanes(PairwiseSub(d, a, b), Pairwise128Indices<V>(d));
+}
+
+#endif
 
 // Load/StoreInterleaved for special floats. Requires HWY_GENERIC_IF_EMULATED_D
 // is defined such that it is true only for types that actually require these
