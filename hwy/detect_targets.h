@@ -647,6 +647,13 @@
 //------------------------------------------------------------------------------
 // Choose targets for dynamic dispatch according to one of four policies
 
+// TODO: remove once HWY_LSX is actually supported
+#if HWY_ARCH_LOONGARCH
+#undef HWY_COMPILE_ONLY_STATIC
+#undef HWY_COMPILE_ONLY_EMU128
+#define HWY_COMPILE_ONLY_SCALAR
+#endif
+
 #if 1 < (defined(HWY_COMPILE_ONLY_SCALAR) + defined(HWY_COMPILE_ONLY_EMU128) + \
          defined(HWY_COMPILE_ONLY_STATIC))
 #error "Can only define one of HWY_COMPILE_ONLY_{SCALAR|EMU128|STATIC} - bug?"
