@@ -148,7 +148,7 @@ struct FindUnit : UnrollerUnit<FindUnit<T>, T, MakeSigned<T>> {
 
   hn::Vec<DI> YInitImpl() { return hn::Set(di, TI{-1}); }
 
-  hn::Vec<D> MaskLoadImpl(const ptrdiff_t idx, T* from,
+  hn::Vec<D> MaskLoadImpl(const ptrdiff_t idx, const T* from,
                           const ptrdiff_t places) {
     auto mask = hn::FirstN(d, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
@@ -236,7 +236,7 @@ struct MinUnit : UnrollerUnit<MinUnit<T>, T, T> {
 
   hn::Vec<TT> YInitImpl() { return hn::Set(d, HighestValue<T>()); }
 
-  hn::Vec<TT> MaskLoadImpl(const ptrdiff_t idx, T* from,
+  hn::Vec<TT> MaskLoadImpl(const ptrdiff_t idx, const T* from,
                            const ptrdiff_t places) {
     auto mask = hn::FirstN(d, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
@@ -452,7 +452,8 @@ struct TestFind {
 
       FindUnit<T> cvtfn(ConvertScalarTo<T>(num - 1));
       MakeSigned<T> idx = 0;
-      Unroller(cvtfn, a, &idx, static_cast<ptrdiff_t>(num));
+      Unroller(cvtfn, const_cast<const T*>(a), &idx,
+               static_cast<ptrdiff_t>(num));
       HWY_ASSERT(static_cast<MakeUnsigned<T>>(idx) < num);
       HWY_ASSERT(a[idx] == ConvertScalarTo<T>(num - 1));
 
