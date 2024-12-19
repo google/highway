@@ -452,8 +452,9 @@ struct TestFind {
 
       FindUnit<T> cvtfn(ConvertScalarTo<T>(num - 1));
       MakeSigned<T> idx = 0;
-      Unroller(cvtfn, const_cast<const T*>(a), &idx,
-               static_cast<ptrdiff_t>(num));
+      // Explicitly test input can be const
+      const T* const_a = a;
+      Unroller(cvtfn, const_a, &idx, static_cast<ptrdiff_t>(num));
       HWY_ASSERT(static_cast<MakeUnsigned<T>>(idx) < num);
       HWY_ASSERT(a[idx] == ConvertScalarTo<T>(num - 1));
 
