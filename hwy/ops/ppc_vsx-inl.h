@@ -878,10 +878,47 @@ HWY_API VI TableLookupBytesOr0(const V bytes, const VI from) {
 }
 
 // ------------------------------ Reverse
+#if HWY_S390X_HAVE_Z14 && HWY_COMPILER_GCC_ACTUAL && \
+    HWY_COMPILER_GCC_ACTUAL < 900
+// Workaround for missing vec_reve on Z14 with GCC 8 or earlier
+template <class D, typename T = TFromD<D>, HWY_IF_LANES_GT_D(D, 1),
+          HWY_IF_T_SIZE_D(D, 1)>
+HWY_API Vec128<T> Reverse(D d, Vec128<T> v) {
+  const Repartition<uint8_t, decltype(d)> du8;
+  return TableLookupBytes(
+      v, BitCast(d, Dup128VecFromValues(du8, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6,
+                                        5, 4, 3, 2, 1, 0)));
+}
+
+template <class D, typename T = TFromD<D>, HWY_IF_LANES_GT_D(D, 1),
+          HWY_IF_T_SIZE_D(D, 2)>
+HWY_API Vec128<T> Reverse(D d, Vec128<T> v) {
+  const Repartition<uint8_t, decltype(d)> du8;
+  return TableLookupBytes(
+      v, BitCast(d, Dup128VecFromValues(du8, 14, 15, 12, 13, 10, 11, 8, 9, 6, 7,
+                                        4, 5, 2, 3, 0, 1)));
+}
+
+template <class D, typename T = TFromD<D>, HWY_IF_LANES_GT_D(D, 1),
+          HWY_IF_T_SIZE_D(D, 4)>
+HWY_API Vec128<T> Reverse(D d, Vec128<T> v) {
+  const Repartition<uint8_t, decltype(d)> du8;
+  return TableLookupBytes(
+      v, BitCast(d, Dup128VecFromValues(du8, 12, 13, 14, 15, 8, 9, 10, 11, 4, 5,
+                                        6, 7, 0, 1, 2, 3)));
+}
+
+template <class D, typename T = TFromD<D>, HWY_IF_LANES_GT_D(D, 1),
+          HWY_IF_T_SIZE_D(D, 8)>
+HWY_API Vec128<T> Reverse(D /* tag */, Vec128<T> v) {
+  return Vec128<T>{vec_sld(v.raw, v.raw, 8)};
+}
+#else
 template <class D, typename T = TFromD<D>, HWY_IF_LANES_GT_D(D, 1)>
 HWY_API Vec128<T> Reverse(D /* tag */, Vec128<T> v) {
   return Vec128<T>{vec_reve(v.raw)};
 }
+#endif
 
 // ------------------------------ Shuffles (Reverse)
 
@@ -2543,8 +2580,10 @@ HWY_API Vec32<T> Reverse(D d, Vec32<T> v) {
 
 // ------------------------------- ReverseLaneBytes
 
-#if (HWY_PPC_HAVE_9 || HWY_S390X_HAVE_Z14) && \
-    (HWY_COMPILER_GCC_ACTUAL >= 710 || HWY_COMPILER_CLANG >= 400)
+#if (HWY_PPC_HAVE_9 || HWY_S390X_HAVE_Z14) &&                   \
+    ((!HWY_S390X_HAVE_Z14 && HWY_COMPILER_GCC_ACTUAL >= 710) || \
+     (HWY_S390X_HAVE_Z14 && HWY_COMPILER_GCC_ACTUAL >= 900) ||  \
+     HWY_COMPILER_CLANG >= 400)
 
 // Per-target flag to prevent generic_ops-inl.h defining 8-bit ReverseLaneBytes.
 #ifdef HWY_NATIVE_REVERSE_LANE_BYTES
@@ -3651,6 +3690,10 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<float, D>> v) {
   const __vector float raw_v = InterleaveLower(v, v).raw;
 #if HWY_IS_LITTLE_ENDIAN
   return VFromD<D>{vec_doubleo(raw_v)};
+#elif HWY_S390X_HAVE_Z14 && HWY_COMPILER_GCC_ACTUAL && \
+    HWY_COMPILER_GCC_ACTUAL < 1000
+  // Workaround for compiler errors with GCC 9 or earlier on Z14
+  return VFromD<D>{__builtin_s390_vflls(raw_v)};
 #else
   return VFromD<D>{vec_doublee(raw_v)};
 #endif
@@ -3788,6 +3831,10 @@ HWY_API VFromD<D> PromoteUpperTo(D /*tag*/, Vec128<float> v) {
   const __vector float raw_v = InterleaveUpper(Full128<float>(), v, v).raw;
 #if HWY_IS_LITTLE_ENDIAN
   return VFromD<D>{vec_doubleo(raw_v)};
+#elif HWY_S390X_HAVE_Z14 && HWY_COMPILER_GCC_ACTUAL && \
+    HWY_COMPILER_GCC_ACTUAL < 1000
+  // Workaround for compiler error with GCC 9 or earlier on Z14
+  return VFromD<D>{__builtin_s390_vflls(raw_v)};
 #else
   return VFromD<D>{vec_doublee(raw_v)};
 #endif
@@ -4409,12 +4456,22 @@ HWY_API VFromD<D> OrderedDemote2To(D d, V a, V b) {
 
 template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_F32_D(D)>
 HWY_API Vec32<float> DemoteTo(D /* tag */, Vec64<double> v) {
+#if HWY_S390X_HAVE_Z14 && HWY_COMPILER_GCC_ACTUAL && \
+    HWY_COMPILER_GCC_ACTUAL < 1000
+  // Workaround for compiler error with GCC 9 or earlier on Z14
+  return Vec32<float>{__builtin_s390_vflrd(v.raw, 0, 0)};
+#else
   return Vec32<float>{vec_floate(v.raw)};
+#endif
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_F32_D(D)>
 HWY_API Vec64<float> DemoteTo(D d, Vec128<double> v) {
-#if HWY_S390X_HAVE_Z14 || HWY_IS_LITTLE_ENDIAN
+#if HWY_S390X_HAVE_Z14 && HWY_COMPILER_GCC_ACTUAL && \
+    HWY_COMPILER_GCC_ACTUAL < 1000
+  // Workaround for compiler error with GCC 9 or earlier on Z14
+  const Vec128<float> f64_to_f32{__builtin_s390_vflrd(v.raw, 0, 0)};
+#elif HWY_S390X_HAVE_Z14 || HWY_IS_LITTLE_ENDIAN
   const Vec128<float> f64_to_f32{vec_floate(v.raw)};
 #else
   const Vec128<float> f64_to_f32{vec_floato(v.raw)};
@@ -4599,8 +4656,16 @@ template <class D, typename FromT, HWY_IF_F32_D(D), HWY_IF_UI32(FromT),
 HWY_API VFromD<D> ConvertTo(D df32, Vec128<FromT> v) {
   const RepartitionToWide<decltype(df32)> df64;
 
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1000
+  // Workaround for compiler error with GCC 9 or earlier on Z14
+  const VFromD<D> vf32_lo{
+      __builtin_s390_vflrd(PromoteLowerTo(df64, v).raw, 0, 0)};
+  const VFromD<D> vf32_hi{
+      __builtin_s390_vflrd(PromoteUpperTo(df64, v).raw, 0, 0)};
+#else
   const VFromD<D> vf32_lo{vec_floate(PromoteLowerTo(df64, v).raw)};
   const VFromD<D> vf32_hi{vec_floate(PromoteUpperTo(df64, v).raw)};
+#endif
   return ConcatEven(df32, vf32_hi, vf32_lo);
 }
 #else  // Z15 or PPC
