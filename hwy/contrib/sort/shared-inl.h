@@ -1,5 +1,7 @@
 // Copyright 2021 Google LLC
+// Copyright 2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
 // SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: BSD-3-Clause
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -128,10 +130,17 @@ static_assert(SortConstants::MaxBufBytes<2>(64) <= 1664, "Unexpectedly high");
 // due to https://gcc.gnu.org/bugzilla/show_bug.cgi?id=97696. Armv8 Clang
 // hwasan/msan/tsan/asan also fail to build SVE (b/335157772).
 #undef VQSORT_ENABLED
-#if (HWY_TARGET == HWY_SCALAR) ||                                   \
-    (HWY_COMPILER_MSVC && !HWY_IS_DEBUG_BUILD) ||                   \
+#undef VQSORT_COMPILER_COMPATIBLE
+
+#if (HWY_COMPILER_MSVC && !HWY_IS_DEBUG_BUILD) ||                   \
     (HWY_ARCH_ARM_V7 && HWY_IS_DEBUG_BUILD) ||                      \
     (HWY_ARCH_ARM_A64 && HWY_COMPILER_GCC_ACTUAL && HWY_IS_ASAN)
+#define VQSORT_COMPILER_COMPATIBLE 0
+#else
+#define VQSORT_COMPILER_COMPATIBLE 1
+#endif
+
+#if (HWY_TARGET == HWY_SCALAR) || !VQSORT_COMPILER_COMPATIBLE
 #define VQSORT_ENABLED 0
 #else
 #define VQSORT_ENABLED 1
