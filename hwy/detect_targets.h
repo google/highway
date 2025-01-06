@@ -173,7 +173,12 @@
 
 // 32-bit may fail to compile AVX2/3.
 #if HWY_ARCH_X86_32
+// GCC-13 is ok with AVX2:
+#if (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL >= 1300)
+#define HWY_BROKEN_32BIT (HWY_AVX3 | (HWY_AVX3 - 1))
+#else
 #define HWY_BROKEN_32BIT (HWY_AVX2 | (HWY_AVX2 - 1))
+#endif
 #else
 #define HWY_BROKEN_32BIT 0
 #endif
