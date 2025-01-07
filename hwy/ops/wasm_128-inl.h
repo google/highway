@@ -4984,7 +4984,7 @@ HWY_API uint64_t BitsFromMask(D d, const MFromD<D> mask) {
 }
 
 template <class D, HWY_IF_T_SIZE_D(D, 2), HWY_IF_V_SIZE_LE_D(D, 16)>
-HWY_API uint64_t BitsFromMask(D d, const MFromD<D> mask) {
+HWY_API uint64_t BitsFromMask(D /*d*/, const MFromD<D> mask) {
   // Remove useless lower half of each u16 while preserving the sign bit.
   const Rebind<uint8_t, D> d8;
   using M8 = MFromD<decltype(d8)>;
@@ -5065,7 +5065,7 @@ HWY_API size_t CountTrue(D d, const MFromD<D> m) {
   return PopCount(BitsFromMask(d, m));
 }
 template <class D, HWY_IF_T_SIZE_D(D, 4), HWY_IF_V_SIZE_D(D, 16)>
-HWY_API size_t CountTrue(D d, const MFromD<D> m) {
+HWY_API size_t CountTrue(D /*d*/, const MFromD<D> m) {
   const __i32x4 var_shift = wasm_i32x4_make(1, 2, 4, 8);
   const __i32x4 shifted_bits = wasm_v128_and(m.raw, var_shift);
   alignas(16) uint64_t lanes[2];
@@ -5073,7 +5073,7 @@ HWY_API size_t CountTrue(D d, const MFromD<D> m) {
   return PopCount(lanes[0] | lanes[1]);
 }
 template <class D, HWY_IF_T_SIZE_D(D, 8), HWY_IF_V_SIZE_D(D, 16)>
-HWY_API size_t CountTrue(D d, const MFromD<D> m) {
+HWY_API size_t CountTrue(D /*d*/, const MFromD<D> m) {
   alignas(16) int64_t lanes[2];
   wasm_v128_store(lanes, m.raw);
   return static_cast<size_t>(-(lanes[0] + lanes[1]));
