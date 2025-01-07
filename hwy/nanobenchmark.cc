@@ -26,13 +26,10 @@
 
 #include "hwy/base.h"
 #include "hwy/robust_statistics.h"
-#include "hwy/timer-inl.h"
 #include "hwy/timer.h"
 
 namespace hwy {
 namespace {
-namespace timer = hwy::HWY_NAMESPACE::timer;
-
 static const timer::Ticks timer_resolution = platform::TimerResolution();
 
 // Estimates the expected value of "lambda" values with a variable number of

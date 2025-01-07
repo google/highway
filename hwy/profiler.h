@@ -61,7 +61,6 @@
 #include "hwy/cache_control.h"  // FlushStream
 // #include "hwy/contrib/sort/vqsort.h"
 #include "hwy/robust_statistics.h"
-#include "hwy/timer-inl.h"
 #include "hwy/timer.h"
 
 #define PROFILER_PRINT_OVERHEAD 0
@@ -228,8 +227,7 @@ class Results {
   // Draw all required information from the packets, which can be discarded
   // afterwards. Called whenever this thread's storage is full.
   void AnalyzePackets(const Packet* packets, const size_t num_packets) {
-    namespace hn = HWY_NAMESPACE;
-    const uint64_t t0 = hn::timer::Start();
+    const uint64_t t0 = timer::Start();
 
     for (size_t i = 0; i < num_packets; ++i) {
       const Packet p = packets[i];
@@ -260,15 +258,14 @@ class Results {
       }
     }
 
-    const uint64_t t1 = hn::timer::Stop();
+    const uint64_t t1 = timer::Stop();
     analyze_elapsed_ += t1 - t0;
   }
 
   // Incorporates results from another thread. Call after all threads have
   // exited any zones.
   void Assimilate(Results& other) {
-    namespace hn = HWY_NAMESPACE;
-    const uint64_t t0 = hn::timer::Start();
+    const uint64_t t0 = timer::Start();
     HWY_DASSERT(depth_ == 0);
     HWY_DASSERT(other.depth_ == 0);
 
@@ -277,14 +274,13 @@ class Results {
       UpdateOrAdd(zone.BiasedOffset(), zone.NumCalls(), zone.Duration());
     }
     other.num_zones_ = 0;
-    const uint64_t t1 = hn::timer::Stop();
+    const uint64_t t1 = timer::Stop();
     analyze_elapsed_ += t1 - t0 + other.analyze_elapsed_;
   }
 
   // Single-threaded.
   void Print() {
-    namespace hn = HWY_NAMESPACE;
-    const uint64_t t0 = hn::timer::Start();
+    const uint64_t t0 = timer::Start();
     MergeDuplicates();
 
     // Sort by decreasing total (self) cost.
@@ -307,7 +303,7 @@ class Results {
     }
     num_zones_ = 0;
 
-    const uint64_t t1 = hn::timer::Stop();
+    const uint64_t t1 = timer::Stop();
     analyze_elapsed_ += t1 - t0;
     printf("Total analysis [s]: %f\n",
            static_cast<double>(analyze_elapsed_) * inv_freq);
@@ -550,13 +546,13 @@ class Zone {
 
     // (Capture timestamp ASAP, not inside WriteEntry.)
     HWY_FENCE;
-    const uint64_t timestamp = HWY_NAMESPACE::timer::Start();
+    const uint64_t timestamp = timer::Start();
     thread_specific->WriteEntry(name, timestamp);
   }
 
   HWY_NOINLINE ~Zone() {
     HWY_FENCE;
-    const uint64_t timestamp = HWY_NAMESPACE::timer::Stop();
+    const uint64_t timestamp = timer::Stop();
     StaticThreadSpecific()->WriteExit(timestamp);
     HWY_FENCE;
   }
@@ -597,7 +593,6 @@ class Zone {
 #define PROFILER_PRINT_RESULTS hwy::Zone::PrintResults
 
 inline void ThreadSpecific::ComputeOverhead() {
-  namespace hn = HWY_NAMESPACE;
   // Delay after capturing timestamps before/after the actual zone runs. Even
   // with frequency throttling disabled, this has a multimodal distribution,
   // including 32, 34, 48, 52, 59, 62.
@@ -643,12 +638,12 @@ inline void ThreadSpecific::ComputeOverhead() {
       // Analysis time should not be included => must fit within buffer.
       HWY_DASSERT(kReps * 2 < max_packets_);
       std::atomic_thread_fence(std::memory_order_seq_cst);
-      const uint64_t t0 = hn::timer::Start();
+      const uint64_t t0 = timer::Start();
       for (size_t i = 0; i < kReps; ++i) {
         PROFILER_ZONE("Dummy");
       }
       FlushStream();
-      const uint64_t t1 = hn::timer::Stop();
+      const uint64_t t1 = timer::Stop();
       HWY_DASSERT(num_packets_ + buffer_size_ == kReps * 2);
       buffer_size_ = 0;
       num_packets_ = 0;

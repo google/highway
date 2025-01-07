@@ -24,7 +24,6 @@
 #include "hwy/nanobenchmark.h"  // Unpredictable1
 #include "hwy/tests/hwy_gtest.h"
 #include "hwy/tests/test_util-inl.h"
-#include "hwy/timer-inl.h"
 #include "hwy/timer.h"
 
 #if !HWY_OS_WIN
@@ -39,11 +38,10 @@ using ::hwy::platform::PerfCounters;
 void ReadAndPrint(uint64_t r, double* values) {
   char cpu100[100];
   const bool have_stop = hwy::platform::HaveTimerStop(cpu100);
-  const uint64_t t0 = HWY_STATIC_DISPATCH(timer::Start());
+  const uint64_t t0 = timer::Start();
 
   PerfCounters counters;
-  const uint64_t t1 = have_stop ? HWY_STATIC_DISPATCH(timer::Stop())
-                                : HWY_STATIC_DISPATCH(timer::Start());
+  const uint64_t t1 = have_stop ? timer::Stop() : timer::Start();
   const double elapsed_ns =
       static_cast<double>(t1 - t0) * 1E9 / platform::InvariantTicksPerSecond();
   fprintf(stderr, "r: %d, any valid %d extrapolate %f, overhead %.1f ns\n",

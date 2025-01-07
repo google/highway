@@ -31,10 +31,8 @@
 #include "hwy/contrib/sort/traits-inl.h"
 #include "hwy/contrib/sort/traits128-inl.h"
 #include "hwy/tests/test_util-inl.h"
-#include "hwy/timer-inl.h"
 #include "hwy/nanobenchmark.h"
 #include "hwy/timer.h"
-#include "hwy/per_target.h"
 // clang-format on
 
 #if HWY_OS_LINUX

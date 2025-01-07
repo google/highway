@@ -22,15 +22,12 @@
 
 #include "hwy/base.h"
 #include "hwy/robust_statistics.h"
-#include "hwy/timer-inl.h"
 
 #if HWY_ARCH_X86 && !HWY_COMPILER_MSVC
 #include <cpuid.h>  // NOLINT
 #endif
 
 namespace hwy {
-namespace timer = hwy::HWY_NAMESPACE::timer;
-
 namespace platform {
 namespace {
 
