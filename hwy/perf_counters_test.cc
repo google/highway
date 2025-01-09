@@ -90,9 +90,9 @@ TEST(PerfCountersTest, TestMem) {
   HWY_ASSERT(values[PerfCounters::kBranchMispredicts] < 1E7);  // 273K..1M
 
   HWY_ASSERT(values[PerfCounters::kL3Loads] == 0.0 ||
-             values[PerfCounters::kL3Loads] > 1000.0);  // ~90K
+             values[PerfCounters::kL3Loads] > 10.0);  // ~90K, 50 with L4
   HWY_ASSERT(values[PerfCounters::kL3Stores] == 0.0 ||
-             values[PerfCounters::kL3Stores] > 1E3);  // 9K..5M
+             values[PerfCounters::kL3Stores] > 10.0);  // 9K..5M
 
   HWY_ASSERT(values[PerfCounters::kCacheRefs] == 0.0 ||
              values[PerfCounters::kCacheRefs] > 1E4);  // 75K..66M
