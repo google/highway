@@ -89,7 +89,13 @@ void Cpuid(const uint32_t level, const uint32_t count,
 bool HasRDTSCP() {
   uint32_t abcd[4];
   Cpuid(0x80000001U, 0, abcd);         // Extended feature flags
-  return (abcd[3] & (1u << 27)) != 0;  // RDTSCP
+  if ((abcd[3] & (1u << 27)) == 0) return false;  // RDTSCP
+
+  Cpuid(0x80000007U, 0, abcd);
+  if ((abcd[3] & (1u << 8)) == 0) {
+    HWY_WARN("TSC not constant/invariant, may vary frequency or jump.");
+  }
+  return true;
 }
 
 #endif  // HWY_ARCH_X86
