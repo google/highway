@@ -30,7 +30,10 @@
 
 namespace hwy {
 namespace {
-static const timer::Ticks timer_resolution = platform::TimerResolution();
+const timer::Ticks& GetTimerResolution() {
+  static const timer::Ticks timer_resolution = platform::TimerResolution();
+  return timer_resolution;
+}
 
 // Estimates the expected value of "lambda" values with a variable number of
 // samples until the variability "rel_mad" is less than "max_rel_mad".
@@ -56,7 +59,7 @@ timer::Ticks SampleUntilStable(const double max_rel_mad, double* rel_mad,
 
   // Percentage is too strict for tiny differences, so also allow a small
   // absolute "median absolute deviation".
-  const timer::Ticks max_abs_mad = (timer_resolution + 99) / 100;
+  const timer::Ticks max_abs_mad = (GetTimerResolution() + 99) / 100;
   *rel_mad = 0.0;  // ensure initialized
 
   for (size_t eval = 0; eval < p.max_evals; ++eval, samples_per_eval *= 2) {
@@ -122,7 +125,7 @@ size_t NumSkip(const Func func, const uint8_t* arg, const InputVec& unique,
     const timer::Ticks total = SampleUntilStable(
         p.target_rel_mad, &rel_mad, p,
         [func, arg, input]() { PreventElision(func(arg, input)); });
-    min_duration = HWY_MIN(min_duration, total - timer_resolution);
+    min_duration = HWY_MIN(min_duration, total - GetTimerResolution());
   }
 
   // Number of repetitions required to reach the target resolution.
@@ -134,7 +137,7 @@ size_t NumSkip(const Func func, const uint8_t* arg, const InputVec& unique,
           : static_cast<size_t>((max_skip + min_duration - 1) / min_duration);
   if (p.verbose) {
     printf("res=%d max_skip=%d min_dur=%d num_skip=%d\n",
-           static_cast<int>(timer_resolution), static_cast<int>(max_skip),
+           static_cast<int>(GetTimerResolution()), static_cast<int>(max_skip),
            static_cast<int>(min_duration), static_cast<int>(num_skip));
   }
   return num_skip;
