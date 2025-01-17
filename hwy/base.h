@@ -129,7 +129,7 @@
 #define HWY_NORETURN __attribute__((noreturn))
 #define HWY_LIKELY(expr) __builtin_expect(!!(expr), 1)
 #define HWY_UNLIKELY(expr) __builtin_expect(!!(expr), 0)
-#if HWY_COMPILER_GCC || __has_builtin(__builtin_unreachable)
+#if HWY_COMPILER_GCC || HWY_HAS_BUILTIN(__builtin_unreachable)
 #define HWY_UNREACHABLE __builtin_unreachable()
 #else
 #define HWY_UNREACHABLE
