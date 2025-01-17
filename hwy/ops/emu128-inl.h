@@ -2917,29 +2917,9 @@ HWY_API T ReduceSum(D d, VFromD<D> v) {
   return sum;
 }
 
-namespace detail {
-template <class D, typename T = TFromD<D>, HWY_IF_FLOAT_OR_SPECIAL(T)>
-T InitReduceMin(D d) {
-  return GetLane(Inf(d));
-}
-template <class D, typename T = TFromD<D>, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
-T InitReduceMin(D d) {
-  return HighestValue<T>();
-}
-
-template <class D, typename T = TFromD<D>, HWY_IF_FLOAT_OR_SPECIAL(T)>
-T InitReduceMax(D d) {
-  return -GetLane(Inf(d));
-}
-template <class D, typename T = TFromD<D>, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
-T InitReduceMax(D d) {
-  return LowestValue<T>();
-}
-}  // namespace detail
-
 template <class D, typename T = TFromD<D>, HWY_IF_REDUCE_D(D)>
 HWY_API T ReduceMin(D d, VFromD<D> v) {
-  T min = detail::InitReduceMin(d);
+  T min = PositiveInfOrHighestValue<T>();
   for (size_t i = 0; i < MaxLanes(d); ++i) {
     min = HWY_MIN(min, v.raw[i]);
   }
@@ -2947,7 +2927,7 @@ HWY_API T ReduceMin(D d, VFromD<D> v) {
 }
 template <class D, typename T = TFromD<D>, HWY_IF_REDUCE_D(D)>
 HWY_API T ReduceMax(D d, VFromD<D> v) {
-  T max = detail::InitReduceMax(d);
+  T max = NegativeInfOrLowestValue<T>();
   for (size_t i = 0; i < MaxLanes(d); ++i) {
     max = HWY_MAX(max, v.raw[i]);
   }
