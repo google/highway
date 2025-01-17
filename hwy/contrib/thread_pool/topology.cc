@@ -1014,7 +1014,9 @@ bool InitCachesWin(Caches& caches) {
     if (cr.Type != CacheUnified && cr.Type != CacheData) return;
     if (1 <= cr.Level && cr.Level <= 3) {
       Cache& c = caches[cr.Level];
-      HWY_ASSERT(c.size_kib == 0);  // not set yet
+      // If the size is non-zero then we (probably) have already detected this
+      // cache and can skip the CR.
+      if (c.size_kib > 0) return;
       c.size_kib = static_cast<uint32_t>(DivByFactor(cr.CacheSize, 1024));
       c.bytes_per_line = static_cast<uint16_t>(cr.LineSize);
       c.associativity = (cr.Associativity == CACHE_FULLY_ASSOCIATIVE)
