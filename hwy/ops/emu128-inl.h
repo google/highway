@@ -2923,7 +2923,7 @@ T InitReduceMin(D d) {
   return GetLane(Inf(d));
 }
 template <class D, typename T = TFromD<D>, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
-T InitReduceMin(D d) {
+T InitReduceMin(D) {
   return HighestValue<T>();
 }
 
@@ -2932,7 +2932,7 @@ T InitReduceMax(D d) {
   return -GetLane(Inf(d));
 }
 template <class D, typename T = TFromD<D>, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
-T InitReduceMax(D d) {
+T InitReduceMax(D) {
   return LowestValue<T>();
 }
 }  // namespace detail
