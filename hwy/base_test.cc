@@ -17,6 +17,8 @@
 
 #include <limits>
 
+#include "hwy/nanobenchmark.h"
+
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "base_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
@@ -27,6 +29,12 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
+
+HWY_NOINLINE void TestUnreachable() {
+  if (!hwy::Unpredictable1()) {
+    HWY_UNREACHABLE;
+  }
+}
 
 HWY_NOINLINE void TestAllLimits() {
   HWY_ASSERT_EQ(uint8_t{0}, LimitsMin<uint8_t>());
@@ -864,6 +872,7 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 namespace {
 HWY_BEFORE_TEST(BaseTest);
+HWY_EXPORT_AND_TEST_P(BaseTest, TestUnreachable);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllLimits);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllLowestHighest);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllType);

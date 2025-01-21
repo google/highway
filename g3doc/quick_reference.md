@@ -2476,6 +2476,19 @@ Ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
 *   `HWY_ALIGN_MAX`: as `HWY_ALIGN`, but independent of `HWY_TARGET` and may be
     used outside `HWY_NAMESPACE`.
 
+*   `HWY_RESTRICT`: use after a pointer, e.g. `T* HWY_RESTRICT p`, to indicate
+    the pointer is not aliased, i.e. it is the only way to access the data. This
+    may improve code generation by preventing unnecessary reloads.
+
+*   `HWY_LIKELY`: use `if (HWY_LIKELY(condition))` to signal to the compiler
+    that `condition` is likely to be true. This may improve performance by
+    influencing the layout of the generated code.
+
+*   `HWY_UNLIKELY`: like `HWY_LIKELY`, but for conditions likely to be false.
+
+*   `HWY_UNREACHABLE;`: signals to the compiler that control will never reach
+    this point, which may improve code generation.
+
 ## Advanced macros
 
 Beware that these macros describe the current target being compiled. Imagine a

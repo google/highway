@@ -232,7 +232,6 @@ class AlignedFreer {
 
   template <typename T>
   void operator()(T* aligned_pointer) const {
-    // TODO(deymo): assert that we are using a POD type T.
     FreeAlignedBytes(aligned_pointer, free_, opaque_ptr_);
   }
 
@@ -251,6 +250,10 @@ using AlignedFreeUniquePtr = std::unique_ptr<T, AlignedFreer>;
 template <typename T>
 AlignedFreeUniquePtr<T[]> AllocateAligned(const size_t items, AllocPtr alloc,
                                           FreePtr free, void* opaque) {
+  static_assert(std::is_trivially_copyable<T>::value,
+                "AllocateAligned: requires trivially copyable T");
+  static_assert(std::is_trivially_destructible<T>::value,
+                "AllocateAligned: requires trivially destructible T");
   return AlignedFreeUniquePtr<T[]>(
       detail::AllocateAlignedItems<T>(items, alloc, opaque),
       AlignedFreer(free, opaque));
