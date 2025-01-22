@@ -65,6 +65,12 @@ int __ulock_wake(uint32_t op, void* address, uint64_t zero);
 
 #elif HWY_OS_WIN && !defined(HWY_DISABLE_FUTEX)
 // WakeByAddressAll requires Windows 8, so add an opt-out.
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif  // NOMINMAX
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif  // WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #pragma comment(lib, "synchronization.lib")
 

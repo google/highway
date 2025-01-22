@@ -19,9 +19,15 @@
 // detected. Must come before Highway headers.
 #include "hwy/base.h"
 #include "hwy/tests/test_util.h"
-#if defined(_WIN32) || defined(_WIN64)
+#if HWY_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif  // NOMINMAX
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif  // WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#endif
+#endif  // HWY_OS_WIN
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/memory_test.cc"
