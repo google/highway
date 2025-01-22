@@ -2420,6 +2420,45 @@ constexpr MakeSigned<T> MaxExponentField() {
   return (MakeSigned<T>{1} << ExponentBits<T>()) - 1;
 }
 
+namespace detail {
+
+template <typename T>
+static HWY_INLINE HWY_MAYBE_UNUSED HWY_BITCASTSCALAR_CONSTEXPR T
+NegativeInfOrLowestValue(hwy::FloatTag /* tag */) {
+  return BitCastScalar<T>(
+      static_cast<MakeUnsigned<T>>(SignMask<T>() | ExponentMask<T>()));
+}
+
+template <typename T>
+static HWY_INLINE HWY_MAYBE_UNUSED HWY_BITCASTSCALAR_CONSTEXPR T
+NegativeInfOrLowestValue(hwy::NonFloatTag /* tag */) {
+  return LowestValue<T>();
+}
+
+template <typename T>
+static HWY_INLINE HWY_MAYBE_UNUSED HWY_BITCASTSCALAR_CONSTEXPR T
+PositiveInfOrHighestValue(hwy::FloatTag /* tag */) {
+  return BitCastScalar<T>(ExponentMask<T>());
+}
+
+template <typename T>
+static HWY_INLINE HWY_MAYBE_UNUSED HWY_BITCASTSCALAR_CONSTEXPR T
+PositiveInfOrHighestValue(hwy::NonFloatTag /* tag */) {
+  return HighestValue<T>();
+}
+
+}  // namespace detail
+
+template <typename T>
+HWY_API HWY_BITCASTSCALAR_CONSTEXPR T NegativeInfOrLowestValue() {
+  return detail::NegativeInfOrLowestValue<T>(IsFloatTag<T>());
+}
+
+template <typename T>
+HWY_API HWY_BITCASTSCALAR_CONSTEXPR T PositiveInfOrHighestValue() {
+  return detail::PositiveInfOrHighestValue<T>(IsFloatTag<T>());
+}
+
 //------------------------------------------------------------------------------
 // Additional F16/BF16 operators
 

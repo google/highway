@@ -109,6 +109,22 @@ struct TestLowestHighest {
     if (!IsSpecialFloat<T>()) {
       HWY_ASSERT_EQ(std::numeric_limits<T>::lowest(), LowestValue<T>());
       HWY_ASSERT_EQ(std::numeric_limits<T>::max(), HighestValue<T>());
+
+      if (IsFloat<T>()) {
+        HWY_ASSERT(ScalarSignBit(NegativeInfOrLowestValue<T>()));
+        HWY_ASSERT(!ScalarIsFinite(NegativeInfOrLowestValue<T>()));
+        HWY_ASSERT(!ScalarSignBit(PositiveInfOrHighestValue<T>()));
+        HWY_ASSERT(!ScalarIsFinite(PositiveInfOrHighestValue<T>()));
+        HWY_ASSERT(NegativeInfOrLowestValue<T>() <
+                   std::numeric_limits<T>::lowest());
+        HWY_ASSERT(PositiveInfOrHighestValue<T>() >
+                   std::numeric_limits<T>::max());
+      } else {
+        HWY_ASSERT_EQ(std::numeric_limits<T>::lowest(),
+                      NegativeInfOrLowestValue<T>());
+        HWY_ASSERT_EQ(std::numeric_limits<T>::max(),
+                      PositiveInfOrHighestValue<T>());
+      }
     }
   }
 };
