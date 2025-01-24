@@ -266,7 +266,7 @@ HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SPECIALIZE, _, _)
     return sv##OP##_##CHAR##BITS##_m(m, a, b);                             \
   }
 // User-specified mask. Mask=false value is zero.
-#define HWY_SVE_RETV_ARGMVVZ(BASE, CHAR, BITS, HALF, NAME, OP)             \
+#define HWY_SVE_RETV_ARGMVV_Z(BASE, CHAR, BITS, HALF, NAME, OP)             \
   HWY_API HWY_SVE_V(BASE, BITS)                                            \
       NAME(svbool_t m, HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b) { \
     return sv##OP##_##CHAR##BITS##_z(m, a, b);                             \
@@ -279,12 +279,13 @@ HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SPECIALIZE, _, _)
     return sv##OP##_##CHAR##BITS(a, b, c);                    \
   }
 
-#define HWY_SVE_RETV_ARGMVVV(BASE, CHAR, BITS, HALF, NAME, OP)           \
-  HWY_API HWY_SVE_V(BASE, BITS)                                          \
-      NAME(svbool_t m, HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b, \
-           HWY_SVE_V(BASE, BITS) c) {                                    \
-    return sv##OP##_##CHAR##BITS##_m(m, a, b, c);                        \
+#define HWY_SVE_RETV_ARGMVVV_Z(BASE, CHAR, BITS, HALF, NAME, OP)           \
+  HWY_API HWY_SVE_V(BASE, BITS)                                            \
+      NAME(svbool_t m, HWY_SVE_V(BASE, BITS) mul, HWY_SVE_V(BASE, BITS) x, \
+           HWY_SVE_V(BASE, BITS) add) {                                    \
+    return sv##OP##_##CHAR##BITS##_z(m, x, mul, add);                      \
   }
+
 
 // ------------------------------ Lanes
 
@@ -1751,7 +1752,7 @@ HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
   return Set(d, ReduceMax(d, v));
 }
 
-// ------------------------------ MaskedAddOrZero etc. (IfThenElse)
+// ------------------------------ MaskedAdd etc. (IfThenElse)
 
 #ifdef HWY_NATIVE_ZERO_MASKED_ARITH
 #undef HWY_NATIVE_ZERO_MASKED_ARITH
@@ -1759,100 +1760,46 @@ HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
 #define HWY_NATIVE_ZERO_MASKED_ARITH
 #endif
 
-#define HWY_SVE_FMAZ(BASE, CHAR, BITS, HALF, NAME, OP)                     \
-  HWY_API HWY_SVE_V(BASE, BITS)                                            \
-      NAME(svbool_t m, HWY_SVE_V(BASE, BITS) mul, HWY_SVE_V(BASE, BITS) x, \
-           HWY_SVE_V(BASE, BITS) add) {                                    \
-    return sv##OP##_##CHAR##BITS##_z(m, x, mul, add);                      \
-  }
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV_Z, MaskedMax, max)
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV_Z, MaskedAdd, add)
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV_Z, MaskedSub, sub)
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV_Z, MaskedMul, mul)
+HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMVV_Z, MaskedDiv, div)
+HWY_SVE_FOREACH_UI32(HWY_SVE_RETV_ARGMVV_Z, MaskedDiv, div)
+HWY_SVE_FOREACH_UI64(HWY_SVE_RETV_ARGMVV_Z, MaskedDiv, div)
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVVV_Z, MaskedMulAdd, mad)
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVVV_Z, MaskedNegMulAdd, msb)
 
-namespace detail {
-HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVVZ, MaskedAddZero, add)
-HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVVZ, MaskedSubZero, sub)
-HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVVZ, MaskedMulZero, mul)
-HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMVVZ, MaskedDivZero, div)
-HWY_SVE_FOREACH_UI32(HWY_SVE_RETV_ARGMVVZ, MaskedDivZero, div)
-HWY_SVE_FOREACH_UI64(HWY_SVE_RETV_ARGMVVZ, MaskedDivZero, div)
-HWY_SVE_FOREACH(HWY_SVE_FMAZ, MaskedMulAddZero, mad)
-HWY_SVE_FOREACH(HWY_SVE_FMAZ, MaskedNegMulAddZero, msb)
-#if HWY_SVE_HAVE_2
-HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVVZ, MaskedSatAddZero, qadd)
-HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVVZ, MaskedSatSubZero, qsub)
-#endif
-}  // namespace detail
-
-#undef HWY_SVE_FMAZ
-
-template <class V, class M>
-HWY_API V MaskedAddOrZero(M m, V a, V b) {
-  return detail::MaskedAddZero(m, a, b);
-}
-
-template <class V, class M>
-HWY_API V MaskedSubOrZero(M m, V a, V b) {
-  return detail::MaskedSubZero(m, a, b);
-}
-
-template <class V, class M>
-HWY_API V MaskedMulOrZero(M m, V a, V b) {
-  return detail::MaskedMulZero(m, a, b);
-}
-
-template <class V, class M,
-          HWY_IF_T_SIZE_ONE_OF_V(
-              V, (hwy::IsSame<TFromV<V>, hwy::float16_t>() ? (1 << 2) : 0) |
-                     (1 << 4) | (1 << 8))>
-HWY_API V MaskedDivideOrZero(M m, V a, V b) {
-  return detail::MaskedDivZero(m, a, b);
-}
-
-// I8/U8/I16/U16 MaskedDivideOrZero is implemented after I8/U8/I16/U16 Div
+// I8/U8/I16/U16 MaskedDiv is implemented after I8/U8/I16/U16 Div
 
 #if HWY_SVE_HAVE_2
-template <class V, class M>
-HWY_API V MaskedSaturatedAddOrZero(M m, V a, V b) {
-  return detail::MaskedSatAddZero(m, a, b);
-}
-
-template <class V, class M>
-HWY_API V MaskedSaturatedSubOrZero(M m, V a, V b) {
-  return detail::MaskedSatSubZero(m, a, b);
-}
+HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV_Z, MaskedSaturatedAdd, qadd)
+HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV_Z, MaskedSaturatedSub, qsub)
 #else
 template <class V, class M>
-HWY_API V MaskedSaturatedAddOrZero(M m, V a, V b) {
+HWY_API V MaskedSaturatedAdd(M m, V a, V b) {
   return IfThenElseZero(m, SaturatedAdd(a, b));
 }
 
 template <class V, class M>
-HWY_API V MaskedSaturatedSubOrZero(M m, V a, V b) {
+HWY_API V MaskedSaturatedSub(M m, V a, V b) {
   return IfThenElseZero(m, SaturatedSub(a, b));
 }
 #endif
 
 template <class V, class M, typename D = DFromV<V>, HWY_IF_I16_D(D)>
-HWY_API V MaskedMulFixedPoint15OrZero(M m, V a, V b) {
+HWY_API V MaskedMulFixedPoint15(M m, V a, V b) {
   return IfThenElseZero(m, MulFixedPoint15(a, b));
-}
-
-template <class V, class M>
-HWY_API V MaskedMulAddOrZero(M m, V mul, V x, V add) {
-  return detail::MaskedMulAddZero(m, mul, x, add);
-}
-
-template <class V, class M>
-HWY_API V MaskedNegMulAddOrZero(M m, V mul, V x, V add) {
-  return detail::MaskedNegMulAddZero(m, mul, x, add);
 }
 
 template <class D, class M, HWY_IF_UI32_D(D),
           class V16 = VFromD<RepartitionToNarrow<D>>>
-HWY_API VFromD<D> MaskedWidenMulPairwiseAddOrZero(D d32, M m, V16 a, V16 b) {
+HWY_API VFromD<D> MaskedWidenMulPairwiseAdd(D d32, M m, V16 a, V16 b) {
   return IfThenElseZero(m, WidenMulPairwiseAdd(d32, a, b));
 }
 
 template <class DF, class M, HWY_IF_F32_D(DF), class VBF>
-HWY_API VFromD<DF> MaskedWidenMulPairwiseAddOrZero(DF df, M m, VBF a, VBF b) {
+HWY_API VFromD<DF> MaskedWidenMulPairwiseAdd(DF df, M m, VBF a, VBF b) {
   return IfThenElseZero(m, WidenMulPairwiseAdd(df, a, b));
 }
 
@@ -1860,21 +1807,6 @@ HWY_API VFromD<DF> MaskedWidenMulPairwiseAddOrZero(DF df, M m, VBF a, VBF b) {
 namespace detail {
 HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV_M, MaskedMul_M, mul);
 }
-
-// ------------------------------ MulLower
-#ifdef HWY_NATIVE_MUL_LOWER
-#undef HWY_NATIVE_MUL_LOWER
-#else
-#define HWY_NATIVE_MUL_LOWER
-#endif
-
-#define HWY_SVE_MUL_LOWER(BASE, CHAR, BITS, HALF, NAME, OP)        \
-  HWY_API HWY_SVE_V(BASE, BITS)                                    \
-      NAME(HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b) {     \
-    return detail::MaskedMul_M(svptrue_pat_b##BITS(SV_VL1), a, b); \
-  }
-
-HWY_SVE_FOREACH(HWY_SVE_MUL_LOWER, MulLower, _)
 
 // ================================================== COMPARE
 
@@ -5170,7 +5102,7 @@ HWY_API V MaskedDivOr(V no, M m, V a, V b) {
 
 template <class V, class M, HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2)),
           HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
-HWY_API V MaskedDivideOrZero(M m, V a, V b) {
+HWY_API V MaskedDiv(M m, V a, V b) {
   return IfThenElseZero(m, Div(a, b));
 }
 
@@ -6731,6 +6663,8 @@ HWY_SVE_FOREACH_UI(HWY_SVE_MASKED_LEADING_ZERO_COUNT, MaskedLeadingZeroCount,
 #undef HWY_SVE_RETV_ARGMVV
 #undef HWY_SVE_RETV_ARGMV_Z
 #undef HWY_SVE_RETV_ARGMV
+#undef HWY_SVE_RETV_ARGMVV_M
+#undef HWY_SVE_RETV_ARGMVV_Z
 #undef HWY_SVE_RETV_ARGPV
 #undef HWY_SVE_RETV_ARGPVN
 #undef HWY_SVE_RETV_ARGPVV
@@ -6738,6 +6672,7 @@ HWY_SVE_FOREACH_UI(HWY_SVE_MASKED_LEADING_ZERO_COUNT, MaskedLeadingZeroCount,
 #undef HWY_SVE_RETV_ARGVN
 #undef HWY_SVE_RETV_ARGVV
 #undef HWY_SVE_RETV_ARGVVV
+#undef HWY_SVE_RETV_ARGMVVV_Z
 #undef HWY_SVE_RETV_ARGMVVV
 #undef HWY_SVE_T
 #undef HWY_SVE_UNDEFINED
