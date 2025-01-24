@@ -658,10 +658,6 @@ from left to right, of the arguments passed to `Create{2-4}`.
     <code>V **Sqrt**(V a)</code>: returns `sqrt(a[i])`.
 
 *   `V`: `{f}` \
-    <code>V **SqrtLower**(V a)</code>: returns `sqrt(a[0])` in lowest lane and
-    `a[i]` elsewhere.
-
-*   `V`: `{f}` \
     <code>V **ApproximateReciprocalSqrt**(V a)</code>: returns an approximation
     of `1.0 / sqrt(a[i])`. `sqrt(a) ~= ApproximateReciprocalSqrt(a) * a`. x86
     and PPC provide 12-bit approximations but the error on Arm is closer to 1%.
@@ -893,6 +889,9 @@ exceptions for those lanes if that is supported by the ISA. When exceptions are
 not a concern, these are equivalent to, and potentially more efficient than,
 `IfThenElse(m, Add(a, b), no);` etc.
 
+*   `V`: `{f}` \
+    <code>V **MaskedSqrtOr**(V no, M m, V a)</code>: returns `sqrt(a[i])` or
+    `no[i]` if `m[i]` is false.
 *   <code>V **MaskedMinOr**(V no, M m, V a, V b)</code>: returns `Min(a, b)[i]`
     or `no[i]` if `m[i]` is false.
 *   <code>V **MaskedMaxOr**(V no, M m, V a, V b)</code>: returns `Max(a, b)[i]`
@@ -923,13 +922,13 @@ All ops in this section return `0` for `mask=false` lanes. These are equivalent
 to, and potentially more efficient than, `IfThenElseZero(m, Add(a, b));` etc.
 
 *   `V`: `{f}` \
-    <code>V **MaskedSqrtOrZero**(M m, V a)</code>: returns `sqrt(a[i])` where
+    <code>V **MaskedSqrt**(M m, V a)</code>: returns `sqrt(a[i])` where
     m is true, and zero otherwise.
 *   `V`: `{f}` \
-    <code>V **MaskedApproximateReciprocalSqrtOrZero**(M m, V a)</code>: returns
+    <code>V **MaskedApproximateReciprocalSqrt**(M m, V a)</code>: returns
     the result of ApproximateReciprocalSqrt where m is true and zero otherwise.
 *   `V`: `{f}` \
-    <code>V **MaskedApproximateReciprocalOrZero**(M m, V a)</code>: returns the
+    <code>V **MaskedApproximateReciprocal**(M m, V a)</code>: returns the
     result of ApproximateReciprocal where m is true and zero otherwise.
 
 #### Shifts

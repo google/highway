@@ -5275,29 +5275,25 @@ HWY_API VFromD<DI32> SatWidenMulAccumFixedPoint(DI32 di32,
 
 #endif  // HWY_NATIVE_I16_SATWIDENMULACCUMFIXEDPOINT
 
-// ------------------------------ SqrtLower
-#if (defined(HWY_NATIVE_SQRT_LOWER) == defined(HWY_TARGET_TOGGLE))
-#ifdef HWY_NATIVE_SQRT_LOWER
-#undef HWY_NATIVE_SQRT_LOWER
+// ------------------------------ MaskedSqrt
+
+#if (defined(HWY_NATIVE_MASKED_SQRT) == defined(HWY_TARGET_TOGGLE))
+
+#ifdef HWY_NATIVE_MASKED_SQRT
+#undef HWY_NATIVE_MASKED_SQRT
 #else
-#define HWY_NATIVE_SQRT_LOWER
+#define HWY_NATIVE_MASKED_SQRT
 #endif
-
-template <class V, HWY_IF_FLOAT_V(V)>
-HWY_API V SqrtLower(V a) {
-  const DFromV<V> d;
-  const auto first_mask = FirstN(d, 1);
-  return IfThenElse(first_mask, Sqrt(a), a);
-}
-
-#undef HWY_SVE_SQRT_LOWER
-#endif  // HWY_NATIVE_SQRT_LOWER
-
-// ------------------------------ MaskedSqrtOrZero
 template <class V, HWY_IF_FLOAT_V(V), class M>
-HWY_API V MaskedSqrtOrZero(M m, V v) {
+HWY_API V MaskedSqrt(M m, V v) {
   return IfThenElseZero(m, Sqrt(v));
 }
+
+template <class V, HWY_IF_FLOAT_V(V), class M>
+HWY_API V MaskedSqrtOr(V no, M m, V v) {
+  return IfThenElse(m, Sqrt(v), no);
+}
+#endif
 
 // ------------------------------ SumOfMulQuadAccumulate
 
@@ -5483,9 +5479,9 @@ HWY_API V ApproximateReciprocal(V v) {
 
 #endif  // HWY_NATIVE_F64_APPROX_RECIP
 
-// ------------------------------ MaskedApproximateReciprocalOrZero
+// ------------------------------ MaskedApproximateReciprocal
 template <class V, HWY_IF_FLOAT_V(V), class M>
-HWY_API V MaskedApproximateReciprocalOrZero(M m, V v) {
+HWY_API V MaskedApproximateReciprocal(M m, V v) {
   return IfThenElseZero(m, ApproximateReciprocal(v));
 }
 
@@ -5514,9 +5510,9 @@ HWY_API V ApproximateReciprocalSqrt(V v) {
 
 #endif  // HWY_NATIVE_F64_APPROX_RSQRT
 
-// ------------------------------ MaskedApproximateReciprocalSqrtOrZero
+// ------------------------------ MaskedApproximateReciprocalSqrt
 template <class V, HWY_IF_FLOAT_V(V), class M>
-HWY_API V MaskedApproximateReciprocalSqrtOrZero(M m, V v) {
+HWY_API V MaskedApproximateReciprocalSqrt(M m, V v) {
   return IfThenElseZero(m, ApproximateReciprocalSqrt(v));
 }
 

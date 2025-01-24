@@ -219,10 +219,9 @@ HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SPECIALIZE, _, _)
   HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_V(BASE, BITS) v) { \
     return sv##OP##_##CHAR##BITS(v);                            \
   }
-#define HWY_SVE_RETV_ARGMV_M(BASE, CHAR, BITS, HALF, NAME, OP)             \
-  HWY_API HWY_SVE_V(BASE, BITS)                                            \
-      NAME(svbool_t m, HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b) { \
-    return sv##OP##_##CHAR##BITS##_m(b, m, a);                             \
+#define HWY_SVE_RETV_ARGMV(BASE, CHAR, BITS, HALF, NAME, OP)                \
+  HWY_API HWY_SVE_V(BASE, BITS) NAME(svbool_t m, HWY_SVE_V(BASE, BITS) v) { \
+    return sv##OP##_##CHAR##BITS##_x(m, v);                                 \
   }
 #define HWY_SVE_RETV_ARGMV_Z(BASE, CHAR, BITS, HALF, NAME, OP)              \
   HWY_API HWY_SVE_V(BASE, BITS) NAME(svbool_t m, HWY_SVE_V(BASE, BITS) a) { \
@@ -1244,27 +1243,13 @@ HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGV, ApproximateReciprocal, recpe)
 HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGPV, Sqrt, sqrt)
 
 // ------------------------------ MaskedSqrt
-namespace detail {
-HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMV_M, MaskedSqrt, sqrt)
-}
-
-// ------------------------------ SqrtLower
-#ifdef HWY_NATIVE_SQRT_LOWER
-#undef HWY_NATIVE_SQRT_LOWER
+#ifdef HWY_NATIVE_MASKED_SQRT
+#undef HWY_NATIVE_MASKED_SQRT
 #else
-#define HWY_NATIVE_SQRT_LOWER
+#define HWY_NATIVE_MASKED_SQRT
 #endif
 
-#define HWY_SVE_SQRT_LOWER(BASE, CHAR, BITS, HALF, NAME, OP)      \
-  HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_V(BASE, BITS) a) {   \
-    return detail::MaskedSqrt(svptrue_pat_b##BITS(SV_VL1), a, a); \
-  }
-
-HWY_SVE_FOREACH_F(HWY_SVE_SQRT_LOWER, SqrtLower, _)
-#undef HWY_SVE_SQRT_LOWER
-
-// ------------------------------ MaskedSqrtOrZero
-HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMV_Z, MaskedSqrtOrZero, sqrt)
+HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMV_Z, MaskedSqrt, sqrt)
 
 // ------------------------------ ApproximateReciprocalSqrt
 #ifdef HWY_NATIVE_F64_APPROX_RSQRT
@@ -1553,6 +1538,7 @@ HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV, MaskedMul, mul)
 HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMVV, MaskedDiv, div)
 HWY_SVE_FOREACH_UI32(HWY_SVE_RETV_ARGMVV, MaskedDiv, div)
 HWY_SVE_FOREACH_UI64(HWY_SVE_RETV_ARGMVV, MaskedDiv, div)
+HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMV, MaskedSqrt, sqrt)
 #if HWY_SVE_HAVE_2
 HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV, MaskedSatAdd, qadd)
 HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV, MaskedSatSub, qsub)
@@ -1615,6 +1601,11 @@ HWY_API V MaskedSatSubOr(V no, M m, V a, V b) {
   return IfThenElse(m, SaturatedSub(a, b), no);
 }
 #endif
+
+template <class V, HWY_IF_FLOAT_V(V), class M>
+HWY_API V MaskedSqrtOr(V no, M m, V v) {
+  return IfThenElse(m, detail::MaskedSqrt(m, v), no);
+}
 
 // ================================================== REDUCE
 
@@ -6412,6 +6403,8 @@ HWY_API V HighestSetBitIndex(V v) {
 #undef HWY_SVE_IF_NOT_EMULATED_D
 #undef HWY_SVE_PTRUE
 #undef HWY_SVE_RETV_ARGMVV
+#undef HWY_SVE_RETV_ARGMV_Z
+#undef HWY_SVE_RETV_ARGMV
 #undef HWY_SVE_RETV_ARGPV
 #undef HWY_SVE_RETV_ARGPVN
 #undef HWY_SVE_RETV_ARGPVV

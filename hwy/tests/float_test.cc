@@ -179,7 +179,7 @@ struct TestMaskedApproximateReciprocal {
     HWY_ASSERT(input && actual);
 
     Store(nonzero, d, input.get());
-    Store(MaskedApproximateReciprocalOrZero(first_three, nonzero), d, actual.get());
+    Store(MaskedApproximateReciprocal(first_three, nonzero), d, actual.get());
 
     double max_l1 = 0.0;
     double worst_expected = 0.0;
@@ -224,40 +224,19 @@ HWY_NOINLINE void TestAllSquareRoot() {
   ForFloatTypes(ForPartialVectors<TestSquareRoot>());
 }
 
-struct TestSqrtLower {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto vi = Iota(d, 4);
-
-    const size_t N = Lanes(d);
-    auto expected = AllocateAligned<T>(N);
-
-    for (size_t i = 0; i < N; ++i) {
-      if (i == 0) {
-        expected[i] = ConvertScalarTo<T>(2);  // sqrt(4)
-      } else {
-        expected[i] = ConvertScalarTo<T>(i + 4);
-      }
-    }
-
-    HWY_ASSERT_VEC_EQ(d, expected.get(), SqrtLower(vi));
-  }
-};
-
-HWY_NOINLINE void TestAllSqrtLower() {
-  ForFloatTypes(ForPartialVectors<TestSqrtLower>());
-}
-
 struct TestMaskedSqrt {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const auto v0 = Zero(d);
     const auto vi = Iota(d, 4);
+    const auto v2 = Iota(d, 5);
 
     const MFromD<D> first_four = FirstN(d, 4);
     const auto expected = IfThenElse(first_four, Sqrt(vi), v0);
+    const auto masked_expected = IfThenElse(first_four, Sqrt(vi), v2);
 
-    HWY_ASSERT_VEC_EQ(d, expected, MaskedSqrtOrZero(first_four, vi));
+    HWY_ASSERT_VEC_EQ(d, expected, MaskedSqrt(first_four, vi));
+    HWY_ASSERT_VEC_EQ(d, masked_expected, MaskedSqrtOr(v2, first_four, vi));
   }
 };
 
@@ -297,7 +276,7 @@ struct TestMaskedReciprocalSquareRoot {
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
     HWY_ASSERT(lanes);
-    Store(MaskedApproximateReciprocalSqrtOrZero(first_three, v), d,
+    Store(MaskedApproximateReciprocalSqrt(first_three, v), d,
           lanes.get());
     for (size_t i = 0; i < N; ++i) {
       T expected_val = i < 3 ? ConvertScalarTo<T>(1 / std::sqrt(123.0f))
@@ -660,7 +639,6 @@ HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllF32FromF16);
 HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllDiv);
 HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllApproximateReciprocal);
 HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllSquareRoot);
-HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllSqrtLower);
 HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllMaskedSqrt);
 HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllReciprocalSquareRoot);
 HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllMaskedReciprocalSquareRoot);
