@@ -201,7 +201,7 @@ HWY_NOINLINE void TestAllPromoteRoundTo() {
 }
 
 template <typename ToT>
-struct TestMaskedPromoteToOrZero {
+struct TestMaskedPromoteTo {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     static_assert(sizeof(T) < sizeof(ToT), "Input type must be narrower");
@@ -231,60 +231,60 @@ struct TestMaskedPromoteToOrZero {
       const auto mask = RebindMask(to_d, Gt(mask_i, Zero(to_d)));
 
       HWY_ASSERT_VEC_EQ(to_d, expected.get(),
-                        MaskedPromoteToOrZero(mask, to_d, v1));
+                        MaskedPromoteTo(mask, to_d, v1));
     }
   }
 };
 
-HWY_NOINLINE void TestAllMaskedPromoteToOrZero() {
-  const ForPromoteVectors<TestMaskedPromoteToOrZero<uint16_t>, 1> to_u16div2;
+HWY_NOINLINE void TestAllMaskedPromoteTo() {
+  const ForPromoteVectors<TestMaskedPromoteTo<uint16_t>, 1> to_u16div2;
   to_u16div2(uint8_t());
 
-  const ForPromoteVectors<TestMaskedPromoteToOrZero<uint32_t>, 2> to_u32div4;
+  const ForPromoteVectors<TestMaskedPromoteTo<uint32_t>, 2> to_u32div4;
   to_u32div4(uint8_t());
 
-  const ForPromoteVectors<TestMaskedPromoteToOrZero<uint32_t>, 1> to_u32div2;
+  const ForPromoteVectors<TestMaskedPromoteTo<uint32_t>, 1> to_u32div2;
   to_u32div2(uint16_t());
 
-  const ForPromoteVectors<TestMaskedPromoteToOrZero<int16_t>, 1> to_i16div2;
+  const ForPromoteVectors<TestMaskedPromoteTo<int16_t>, 1> to_i16div2;
   to_i16div2(uint8_t());
   to_i16div2(int8_t());
 
-  const ForPromoteVectors<TestMaskedPromoteToOrZero<int32_t>, 1> to_i32div2;
+  const ForPromoteVectors<TestMaskedPromoteTo<int32_t>, 1> to_i32div2;
   to_i32div2(uint16_t());
   to_i32div2(int16_t());
 
-  const ForPromoteVectors<TestMaskedPromoteToOrZero<int32_t>, 2> to_i32div4;
+  const ForPromoteVectors<TestMaskedPromoteTo<int32_t>, 2> to_i32div4;
   to_i32div4(uint8_t());
   to_i32div4(int8_t());
 
   // Must test f16/bf16 separately because we can only load/store/convert them.
 
 #if HWY_HAVE_INTEGER64
-  const ForPromoteVectors<TestMaskedPromoteToOrZero<uint64_t>, 1> to_u64div2;
+  const ForPromoteVectors<TestMaskedPromoteTo<uint64_t>, 1> to_u64div2;
   to_u64div2(uint32_t());
 
-  const ForPromoteVectors<TestMaskedPromoteToOrZero<int64_t>, 1> to_i64div2;
+  const ForPromoteVectors<TestMaskedPromoteTo<int64_t>, 1> to_i64div2;
   to_i64div2(int32_t());
   to_i64div2(uint32_t());
 
-  const ForPromoteVectors<TestMaskedPromoteToOrZero<uint64_t>, 2> to_u64div4;
+  const ForPromoteVectors<TestMaskedPromoteTo<uint64_t>, 2> to_u64div4;
   to_u64div4(uint16_t());
 
-  const ForPromoteVectors<TestMaskedPromoteToOrZero<int64_t>, 2> to_i64div4;
+  const ForPromoteVectors<TestMaskedPromoteTo<int64_t>, 2> to_i64div4;
   to_i64div4(int16_t());
   to_i64div4(uint16_t());
 
-  const ForPromoteVectors<TestMaskedPromoteToOrZero<uint64_t>, 3> to_u64div8;
+  const ForPromoteVectors<TestMaskedPromoteTo<uint64_t>, 3> to_u64div8;
   to_u64div8(uint8_t());
 
-  const ForPromoteVectors<TestMaskedPromoteToOrZero<int64_t>, 3> to_i64div8;
+  const ForPromoteVectors<TestMaskedPromoteTo<int64_t>, 3> to_i64div8;
   to_i64div8(int8_t());
   to_i64div8(uint8_t());
 #endif
 
 #if HWY_HAVE_FLOAT64
-  const ForPromoteVectors<TestMaskedPromoteToOrZero<double>, 1> to_f64div2;
+  const ForPromoteVectors<TestMaskedPromoteTo<double>, 1> to_f64div2;
   to_f64div2(int32_t());
   to_f64div2(uint32_t());
   to_f64div2(float());
@@ -885,7 +885,7 @@ struct TestMaskedIntFromFloat {
       // TestMaskedFloatFromUint, due to differences in saturation handling
       // between ConvertTo() and static_cast<>
       HWY_ASSERT_VEC_EQ(di, IfThenElseZero(mask, Set(di, 1)),
-                        MaskedConvertToOrZero(mask, di, Set(df, 1)));
+                        MaskedConvertTo(mask, di, Set(df, 1)));
     }
   }
 };
@@ -921,7 +921,7 @@ struct TestMaskedFloatFromInt {
 
       // Float from int
       HWY_ASSERT_VEC_EQ(df, expected.get(),
-                        MaskedConvertToOrZero(mask, df, v1));
+                        MaskedConvertTo(mask, df, v1));
     }
   }
 };
@@ -957,12 +957,12 @@ struct TestMaskedFloatFromUint {
 
       // Float from int
       HWY_ASSERT_VEC_EQ(df, expected.get(),
-                        MaskedConvertToOrZero(mask, df, v1));
+                        MaskedConvertTo(mask, df, v1));
     }
   }
 };
 
-HWY_NOINLINE void TestAllMaskedConvertToOrZero() {
+HWY_NOINLINE void TestAllMaskedConvertTo() {
   ForFloatTypes(ForPartialVectors<TestMaskedFloatFromInt>());
   ForFloatTypes(ForPartialVectors<TestMaskedFloatFromUint>());
   ForFloatTypes(ForPartialVectors<TestMaskedIntFromFloat>());
@@ -1702,7 +1702,7 @@ HWY_BEFORE_TEST(HwyConvertTest);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllRebind);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteRoundTo);
-HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllMaskedPromoteToOrZero);
+HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllMaskedPromoteTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteUpperLowerTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteOddEvenTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF16);
@@ -1710,7 +1710,7 @@ HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF16FromF64);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllBF16);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllConvertU8);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllIntFromFloat);
-HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllMaskedConvertToOrZero);
+HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllMaskedConvertTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllUintFromFloat);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllFloatFromInt);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllFloatFromUint);

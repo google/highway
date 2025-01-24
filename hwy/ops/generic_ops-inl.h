@@ -4488,21 +4488,21 @@ HWY_API V MulAddSub(V mul, V x, V sub_or_add) {
   return MulAdd(mul, x, add);
 }
 
-// ------------------------------ MaskedPromoteToOrZero
+// ------------------------------ MaskedPromoteTo
 template <class D, class V, class M>
-HWY_API VFromD<D> MaskedPromoteToOrZero(M m, D d, V v) {
+HWY_API VFromD<D> MaskedPromoteTo(M m, D d, V v) {
   return IfThenElseZero(m, PromoteTo(d, v));
 }
 
-// ------------------------------ MaskedDemoteToOrZero
+// ------------------------------ MaskedDemoteTo
 template <class D, class V, class M>
-HWY_API VFromD<D> MaskedDemoteToOrZero(M m, D d, V v) {
+HWY_API VFromD<D> MaskedDemoteTo(M m, D d, V v) {
   return IfThenElseZero(m, DemoteTo(d, v));
 }
 
-// ------------------------------ MaskedConvertToOrZero
+// ------------------------------ MaskedConvertTo
 template <class D, class V, class M>
-HWY_API VFromD<D> MaskedConvertToOrZero(M m, D d, V v) {
+HWY_API VFromD<D> MaskedConvertTo(M m, D d, V v) {
   return IfThenElseZero(m, ConvertTo(d, v));
 }
 

@@ -144,7 +144,7 @@ HWY_NOINLINE void TestAllDemoteToMixed() {
 }
 
 template <typename ToT>
-struct TestMaskedDemoteToOrZeroInt {
+struct TestMaskedDemoteToInt {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D from_d) {
     static_assert(!IsFloat<ToT>(), "Use TestDemoteToFloat for float output");
@@ -181,64 +181,64 @@ struct TestMaskedDemoteToOrZeroInt {
       const auto v1 = Load(from_d, from.get());
 
       HWY_ASSERT_VEC_EQ(to_d, expected.get(),
-                        MaskedDemoteToOrZero(mask, to_d, v1));
+                        MaskedDemoteTo(mask, to_d, v1));
     }
   }
 };
 
-HWY_NOINLINE void TestAllMaskedDemoteToOrZeroInt() {
-  const ForDemoteVectors<TestMaskedDemoteToOrZeroInt<uint8_t>> from_i16_to_u8;
+HWY_NOINLINE void TestAllMaskedDemoteToInt() {
+  const ForDemoteVectors<TestMaskedDemoteToInt<uint8_t>> from_i16_to_u8;
   from_i16_to_u8(int16_t());
   from_i16_to_u8(uint16_t());
 
-  const ForDemoteVectors<TestMaskedDemoteToOrZeroInt<int8_t>> from_i16_to_i8;
+  const ForDemoteVectors<TestMaskedDemoteToInt<int8_t>> from_i16_to_i8;
   from_i16_to_i8(int16_t());
   from_i16_to_i8(uint16_t());
 
-  const ForDemoteVectors<TestMaskedDemoteToOrZeroInt<uint8_t>, 2>
+  const ForDemoteVectors<TestMaskedDemoteToInt<uint8_t>, 2>
       from_i32_to_u8;
   from_i32_to_u8(int32_t());
   from_i32_to_u8(uint32_t());
 
-  const ForDemoteVectors<TestMaskedDemoteToOrZeroInt<int8_t>, 2> from_i32_to_i8;
+  const ForDemoteVectors<TestMaskedDemoteToInt<int8_t>, 2> from_i32_to_i8;
   from_i32_to_i8(int32_t());
   from_i32_to_i8(uint32_t());
 
 #if HWY_HAVE_INTEGER64
-  const ForDemoteVectors<TestMaskedDemoteToOrZeroInt<uint8_t>, 3>
+  const ForDemoteVectors<TestMaskedDemoteToInt<uint8_t>, 3>
       from_i64_to_u8;
   from_i64_to_u8(int64_t());
   from_i64_to_u8(uint64_t());
 
-  const ForDemoteVectors<TestMaskedDemoteToOrZeroInt<int8_t>, 3> from_i64_to_i8;
+  const ForDemoteVectors<TestMaskedDemoteToInt<int8_t>, 3> from_i64_to_i8;
   from_i64_to_i8(int64_t());
   from_i64_to_i8(uint64_t());
 #endif
 
-  const ForDemoteVectors<TestMaskedDemoteToOrZeroInt<uint16_t>> from_i32_to_u16;
+  const ForDemoteVectors<TestMaskedDemoteToInt<uint16_t>> from_i32_to_u16;
   from_i32_to_u16(int32_t());
   from_i32_to_u16(uint32_t());
 
-  const ForDemoteVectors<TestMaskedDemoteToOrZeroInt<int16_t>> from_i32_to_i16;
+  const ForDemoteVectors<TestMaskedDemoteToInt<int16_t>> from_i32_to_i16;
   from_i32_to_i16(int32_t());
   from_i32_to_i16(uint32_t());
 
 #if HWY_HAVE_INTEGER64
-  const ForDemoteVectors<TestMaskedDemoteToOrZeroInt<uint16_t>, 2>
+  const ForDemoteVectors<TestMaskedDemoteToInt<uint16_t>, 2>
       from_i64_to_u16;
   from_i64_to_u16(int64_t());
   from_i64_to_u16(uint64_t());
 
-  const ForDemoteVectors<TestMaskedDemoteToOrZeroInt<int16_t>, 2>
+  const ForDemoteVectors<TestMaskedDemoteToInt<int16_t>, 2>
       from_i64_to_i16;
   from_i64_to_i16(int64_t());
   from_i64_to_i16(uint64_t());
 
-  const ForDemoteVectors<TestMaskedDemoteToOrZeroInt<uint32_t>> from_i64_to_u32;
+  const ForDemoteVectors<TestMaskedDemoteToInt<uint32_t>> from_i64_to_u32;
   from_i64_to_u32(int64_t());
   from_i64_to_u32(uint64_t());
 
-  const ForDemoteVectors<TestMaskedDemoteToOrZeroInt<int32_t>> from_i64_to_i32;
+  const ForDemoteVectors<TestMaskedDemoteToInt<int32_t>> from_i64_to_i32;
   from_i64_to_i32(int64_t());
   from_i64_to_i32(uint64_t());
 #endif
@@ -1036,7 +1036,7 @@ namespace {
 #if !HWY_IS_MSAN
 HWY_BEFORE_TEST(HwyDemoteTest);
 HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllDemoteToInt);
-HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllMaskedDemoteToOrZeroInt);
+HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllMaskedDemoteToInt);
 HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllDemoteToMixed);
 HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllDemoteToFloat);
 HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllDemoteUI64ToFloat);
