@@ -6197,9 +6197,9 @@ HWY_API VFromD<DU64> SumOfMulQuadAccumulate(DU64 /*du64*/, svuint16_t a,
   return svdot_u64(sum, a, b);
 }
 
-// ------------------------------ MulCplx* / MaskedMulCplx*
+// ------------------------------ MulComplex* / MaskedMulComplex*
 
-// Per-target flag to prevent generic_ops-inl.h from defining MulCplx*.
+// Per-target flag to prevent generic_ops-inl.h from defining MulComplex*.
 #ifdef HWY_NATIVE_CPLX
 #undef HWY_NATIVE_CPLX
 #else
@@ -6207,7 +6207,7 @@ HWY_API VFromD<DU64> SumOfMulQuadAccumulate(DU64 /*du64*/, svuint16_t a,
 #endif
 
 template <class V, HWY_IF_NOT_UNSIGNED(TFromV<V>)>
-HWY_API V CplxConj(V a) {
+HWY_API V ComplexConj(V a) {
   return OddEven(Neg(a), a);
 }
 
@@ -6232,93 +6232,93 @@ namespace detail {
 
 // Only SVE2 has complex multiply add for integer types
 // and these do not include masked variants
-HWY_SVE_FOREACH_F(HWY_SVE_CPLX_FMA, CplxMulAdd, cmla)
+HWY_SVE_FOREACH_F(HWY_SVE_CPLX_FMA, ComplexMulAdd, cmla)
 #undef HWY_SVE_CPLX_FMA
 #undef HWY_SVE_CPLX_FMA_ROT
 }  // namespace detail
 
 template <class V, class M, HWY_IF_FLOAT_V(V)>
-HWY_API V MaskedMulCplxConjAddOrZero(M mask, V a, V b, V c) {
-  return detail::CplxMulAddZ270(mask, detail::CplxMulAddZ0(mask, c, b, a), b,
+HWY_API V MaskedMulComplexConjAdd(M mask, V a, V b, V c) {
+  return detail::ComplexMulAddZ270(mask, detail::ComplexMulAddZ0(mask, c, b, a), b,
                                 a);
 }
 
 template <class V, class M, HWY_IF_FLOAT_V(V)>
-HWY_API V MaskedMulCplxConjOrZero(M mask, V a, V b) {
-  return MaskedMulCplxConjAddOrZero(mask, a, b, Zero(DFromV<V>()));
+HWY_API V MaskedMulComplexConj(M mask, V a, V b) {
+  return MaskedMulComplexConjAdd(mask, a, b, Zero(DFromV<V>()));
 }
 
 template <class V, HWY_IF_FLOAT_V(V)>
-HWY_API V MulCplxAdd(V a, V b, V c) {
-  return detail::CplxMulAdd90(detail::CplxMulAdd0(c, a, b), a, b);
+HWY_API V MulComplexAdd(V a, V b, V c) {
+  return detail::ComplexMulAdd90(detail::ComplexMulAdd0(c, a, b), a, b);
 }
 
 template <class V, HWY_IF_FLOAT_V(V)>
-HWY_API V MulCplx(V a, V b) {
-  return MulCplxAdd(a, b, Zero(DFromV<V>()));
+HWY_API V MulComplex(V a, V b) {
+  return MulComplexAdd(a, b, Zero(DFromV<V>()));
 }
 
 template <class V, class M, HWY_IF_FLOAT_V(V)>
-HWY_API V MaskedMulCplxOr(M mask, V a, V b, V c) {
-  return IfThenElse(mask, MulCplx(a, b), c);
+HWY_API V MaskedMulComplexOr(V no, M mask, V a, V b) {
+  return IfThenElse(mask, MulComplex(a, b), no);
 }
 
 template <class V, HWY_IF_FLOAT_V(V)>
-HWY_API V MulCplxConjAdd(V a, V b, V c) {
-  return detail::CplxMulAdd270(detail::CplxMulAdd0(c, b, a), b, a);
+HWY_API V MulComplexConjAdd(V a, V b, V c) {
+  return detail::ComplexMulAdd270(detail::ComplexMulAdd0(c, b, a), b, a);
 }
 
 template <class V, HWY_IF_FLOAT_V(V)>
-HWY_API V MulCplxConj(V a, V b) {
-  return MulCplxConjAdd(a, b, Zero(DFromV<V>()));
+HWY_API V MulComplexConj(V a, V b) {
+  return MulComplexConjAdd(a, b, Zero(DFromV<V>()));
 }
 
 // TODO SVE2 does have intrinsics for integers but not masked variants
 template <class V, HWY_IF_NOT_FLOAT_V(V)>
-HWY_API V MulCplx(V a, V b) {
+HWY_API V MulComplex(V a, V b) {
   // a = u + iv, b = x + iy
   const auto u = DupEven(a);
   const auto v = DupOdd(a);
   const auto x = DupEven(b);
   const auto y = DupOdd(b);
 
-  return OddEven(Add(Mul(u, y), Mul(v, x)), Sub(Mul(u, x), Mul(v, y)));
+  return OddEven(MulAdd(u, y, Mul(v, x)), Sub(Mul(u, x), Mul(v, y)));
 }
 
 template <class V, HWY_IF_NOT_FLOAT_V(V)>
-HWY_API V MulCplxConj(V a, V b) {
+HWY_API V MulComplexConj(V a, V b) {
   // a = u + iv, b = x + iy
   const auto u = DupEven(a);
   const auto v = DupOdd(a);
   const auto x = DupEven(b);
   const auto y = DupOdd(b);
 
-  return OddEven(Sub(Mul(v, x), Mul(u, y)), Add(Mul(u, x), Mul(v, y)));
+  return OddEven(Sub(Mul(v, x), Mul(u, y)), MulAdd(u, x, Mul(v, y)));
 }
 
 template <class V, HWY_IF_NOT_FLOAT_V(V)>
-HWY_API V MulCplxAdd(V a, V b, V c) {
-  return Add(MulCplx(a, b), c);
+HWY_API V MulComplexAdd(V a, V b, V c) {
+  return Add(MulComplex(a, b), c);
 }
 
 template <class V, HWY_IF_NOT_FLOAT_V(V)>
-HWY_API V MulCplxConjAdd(V a, V b, V c) {
-  return Add(MulCplxConj(a, b), c);
+HWY_API V MulComplexConjAdd(V a, V b, V c) {
+  return Add(MulComplexConj(a, b), c);
 }
 
 template <class V, class M, HWY_IF_NOT_FLOAT_V(V)>
-HWY_API V MaskedMulCplxConjAddOrZero(M mask, V a, V b, V c) {
-  return IfThenElseZero(mask, MulCplxConjAdd(a, b, c));
+HWY_API V MaskedMulComplexConjAdd(M mask, V a, V b, V c) {
+  return IfThenElseZero(mask, MulComplexConjAdd(a, b, c));
 }
 
 template <class V, class M, HWY_IF_NOT_FLOAT_V(V)>
-HWY_API V MaskedMulCplxConjOrZero(M mask, V a, V b) {
-  return IfThenElseZero(mask, MulCplxConj(a, b));
+HWY_API V MaskedMulComplexConj(M mask, V a, V b) {
+  return IfThenElseZero(mask, MulComplexConj(a, b));
 }
 
 template <class V, class M, HWY_IF_NOT_FLOAT_V(V)>
-HWY_API V MaskedMulCplxOr(M mask, V a, V b, V c) {
-  return IfThenElse(mask, MulCplx(a, b), c);
+HWY_API V MaskedMulComplexOr(V no, M mask, V a, V b) {
+  return IfThenElse(mask, MulComplex(a, b), no);
 }
 
 // ------------------------------ AESRound / CLMul

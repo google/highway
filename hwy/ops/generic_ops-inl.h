@@ -4388,7 +4388,7 @@ HWY_API V MulSub(V mul, V x, V sub) {
   return Sub(Mul(mul, x), sub);
 }
 #endif  // HWY_NATIVE_INT_FMA
-// ------------------------------ MulCplx* / MaskedMulCplx*
+// ------------------------------ MulComplex* / MaskedMulComplex*
 
 #if (defined(HWY_NATIVE_CPLX) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_CPLX
@@ -4400,55 +4400,55 @@ HWY_API V MulSub(V mul, V x, V sub) {
 #if HWY_TARGET != HWY_SCALAR || HWY_IDE
 
 template <class V, HWY_IF_NOT_UNSIGNED(TFromV<V>)>
-HWY_API V CplxConj(V a) {
+HWY_API V ComplexConj(V a) {
   return OddEven(Neg(a), a);
 }
 
 template <class V>
-HWY_API V MulCplx(V a, V b) {
+HWY_API V MulComplex(V a, V b) {
   // a = u + iv, b = x + iy
   const auto u = DupEven(a);
   const auto v = DupOdd(a);
   const auto x = DupEven(b);
   const auto y = DupOdd(b);
 
-  return OddEven(Add(Mul(u, y), Mul(v, x)), Sub(Mul(u, x), Mul(v, y)));
+  return OddEven(MulAdd(u, y, Mul(v, x)), Sub(Mul(u, x), Mul(v, y)));
 }
 
 template <class V>
-HWY_API V MulCplxConj(V a, V b) {
+HWY_API V MulComplexConj(V a, V b) {
   // a = u + iv, b = x + iy
   const auto u = DupEven(a);
   const auto v = DupOdd(a);
   const auto x = DupEven(b);
   const auto y = DupOdd(b);
 
-  return OddEven(Sub(Mul(v, x), Mul(u, y)), Add(Mul(u, x), Mul(v, y)));
+  return OddEven(Sub(Mul(v, x), Mul(u, y)), MulAdd(u, x, Mul(v, y)));
 }
 
 template <class V>
-HWY_API V MulCplxAdd(V a, V b, V c) {
-  return Add(MulCplx(a, b), c);
+HWY_API V MulComplexAdd(V a, V b, V c) {
+  return Add(MulComplex(a, b), c);
 }
 
 template <class V>
-HWY_API V MulCplxConjAdd(V a, V b, V c) {
-  return Add(MulCplxConj(a, b), c);
+HWY_API V MulComplexConjAdd(V a, V b, V c) {
+  return Add(MulComplexConj(a, b), c);
 }
 
 template <class V, class M>
-HWY_API V MaskedMulCplxConjAddOrZero(M mask, V a, V b, V c) {
-  return IfThenElseZero(mask, MulCplxConjAdd(a, b, c));
+HWY_API V MaskedMulComplexConjAdd(M mask, V a, V b, V c) {
+  return IfThenElseZero(mask, MulComplexConjAdd(a, b, c));
 }
 
 template <class V, class M>
-HWY_API V MaskedMulCplxConjOrZero(M mask, V a, V b) {
-  return IfThenElseZero(mask, MulCplxConj(a, b));
+HWY_API V MaskedMulComplexConj(M mask, V a, V b) {
+  return IfThenElseZero(mask, MulComplexConj(a, b));
 }
 
 template <class V, class M>
-HWY_API V MaskedMulCplxOr(M mask, V a, V b, V c) {
-  return IfThenElse(mask, MulCplx(a, b), c);
+HWY_API V MaskedMulComplexOr(V no, M mask, V a, V b) {
+  return IfThenElse(mask, MulComplex(a, b), no);
 }
 #endif  // HWY_TARGET != HWY_SCALAR
 

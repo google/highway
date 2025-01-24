@@ -948,21 +948,21 @@ i.e. `(a + ib)(c + id)`.
 
 Take `j` to be the even values of `i`.
 
-*   <code>V **CplxConj**(V v)</code>: returns the complex conjugate of the vector,
+*   <code>V **ComplexConj**(V v)</code>: returns the complex conjugate of the vector,
     this negates the imaginary lanes. This is equivalent to `OddEven(Neg(a), a)`.
-*   <code>V **MulCplx**(V a, V b)</code>: returns `(a[j] + i.a[j + 1])(b[j] + i.b[j + 1])`
-*   <code>V **MulCplxConj**(V a, V b)</code>: returns `(a[j] + i.a[j + 1])(b[j] - i.b[j + 1])`
-*   <code>V **MulCplxAdd**(V a, V b, V c)</code>: returns
+*   <code>V **MulComplex**(V a, V b)</code>: returns `(a[j] + i.a[j + 1])(b[j] + i.b[j + 1])`
+*   <code>V **MulComplexConj**(V a, V b)</code>: returns `(a[j] + i.a[j + 1])(b[j] - i.b[j + 1])`
+*   <code>V **MulComplexAdd**(V a, V b, V c)</code>: returns
     `(a[j] + i.a[j + 1])(b[j] + i.b[j + 1]) + (c[j] + i.c[j + 1])`
-*   <code>V **MulCplxConjAdd**(V a, V b, V c)</code>: returns
+*   <code>V **MulComplexConjAdd**(V a, V b, V c)</code>: returns
     `(a[j] + i.a[j + 1])(b[j] - i.b[j + 1]) + (c[j] + i.c[j + 1])`
-*   <code>V **MaskedMulCplxConjAddOrZero**(M mask, V a, V b, V c)</code>: returns
+*   <code>V **MaskedMulComplexConjAdd**(M mask, V a, V b, V c)</code>: returns
     `(a[j] + i.a[j + 1])(b[j] - i.b[j + 1]) + (c[j] + i.c[j + 1])` or `0` if
     `mask[i]` is false.
-*   <code>V **MaskedMulCplxConjOrZero**(M mask, V a, V b)</code>: returns
+*   <code>V **MaskedMulComplexConj**(M mask, V a, V b)</code>: returns
     `(a[j] + i.a[j + 1])(b[j] - i.b[j + 1])` or `0` if `mask[i]` is false.
-*   <code>V **MaskedMulCplxOr**(M mask, V a, V b, V c)</code>: returns `(a[j] +
-    i.a[j + 1])(b[j] + i.b[j + 1])` or `c[i]` if `mask[i]` is false.
+*   <code>V **MaskedMulComplexOr**(V no, M mask, V a, V b)</code>: returns `(a[j] +
+    i.a[j + 1])(b[j] + i.b[j + 1])` or `no[i]` if `mask[i]` is false.
 
 #### Shifts
 

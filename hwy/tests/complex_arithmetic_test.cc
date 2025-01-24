@@ -25,7 +25,7 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
-struct TestCplxConj {
+struct TestComplexConj {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
 #if HWY_TARGET != HWY_SCALAR
@@ -42,19 +42,19 @@ struct TestCplxConj {
       expected[i + 0] = ConvertScalarTo<T>(a);
       expected[i + 1] = ConvertScalarTo<T>(-b);
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), CplxConj(v1));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), ComplexConj(v1));
 #else
     (void)d;
 #endif  // HWY_TARGET != HWY_SCALAR
   }
 };
 
-HWY_NOINLINE void TestAllCplxConj() {
-  ForSignedTypes(ForShrinkableVectors<TestCplxConj>());
-  ForFloatTypes(ForShrinkableVectors<TestCplxConj>());
+HWY_NOINLINE void TestAllComplexConj() {
+  ForSignedTypes(ForShrinkableVectors<TestComplexConj>());
+  ForFloatTypes(ForShrinkableVectors<TestComplexConj>());
 }
 
-struct TestMulCplx {
+struct TestMulComplex {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
 #if HWY_TARGET != HWY_SCALAR
@@ -74,18 +74,18 @@ struct TestMulCplx {
       expected[i + 0] = ConvertScalarTo<T>((a * c) - (b * d));
       expected[i + 1] = ConvertScalarTo<T>((a * d) + (b * c));
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), MulCplx(v1, v2));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MulComplex(v1, v2));
 #else
     (void)d;
 #endif  // HWY_TARGET != HWY_SCALAR
   }
 };
 
-HWY_NOINLINE void TestAllMulCplx() {
-  ForAllTypes(ForShrinkableVectors<TestMulCplx>());
+HWY_NOINLINE void TestAllMulComplex() {
+  ForAllTypes(ForShrinkableVectors<TestMulComplex>());
 }
 
-struct TestMulCplxAdd {
+struct TestMulComplexAdd {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
 #if HWY_TARGET != HWY_SCALAR
@@ -108,18 +108,18 @@ struct TestMulCplxAdd {
       expected[i + 0] = ConvertScalarTo<T>((a * c) - (b * d) + e);
       expected[i + 1] = ConvertScalarTo<T>((a * d) + (b * c) + f);
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), MulCplxAdd(v1, v2, v3));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MulComplexAdd(v1, v2, v3));
 #else
     (void)d;
 #endif  // HWY_TARGET != HWY_SCALAR
   }
 };
 
-HWY_NOINLINE void TestAllMulCplxAdd() {
-  ForAllTypes(ForShrinkableVectors<TestMulCplxAdd>());
+HWY_NOINLINE void TestAllMulComplexAdd() {
+  ForAllTypes(ForShrinkableVectors<TestMulComplexAdd>());
 }
 
-struct TestMaskedMulCplxOr {
+struct TestMaskedMulComplexOr {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
 #if HWY_TARGET != HWY_SCALAR
@@ -157,18 +157,18 @@ struct TestMaskedMulCplxOr {
     const auto mask_i = Load(d, bool_lanes.get());
     const Mask<D> mask = Gt(mask_i, Zero(d));
 
-    HWY_ASSERT_VEC_EQ(d, expected.get(), MaskedMulCplxOr(mask, v1, v2, v3));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MaskedMulComplexOr(v3, mask, v1, v2));
 #else
     (void)d;
 #endif  // HWY_TARGET != HWY_SCALAR
   }
 };
 
-HWY_NOINLINE void TestAllMaskedMulCplxOr() {
-  ForAllTypes(ForShrinkableVectors<TestMaskedMulCplxOr>());
+HWY_NOINLINE void TestAllMaskedMulComplexOr() {
+  ForAllTypes(ForShrinkableVectors<TestMaskedMulComplexOr>());
 }
 
-struct TestMulCplxConj {
+struct TestMulComplexConj {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
 #if HWY_TARGET != HWY_SCALAR
@@ -188,18 +188,18 @@ struct TestMulCplxConj {
       expected[i + 0] = ConvertScalarTo<T>((a * c) + (b * d));
       expected[i + 1] = ConvertScalarTo<T>((b * c) - (a * d));
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), MulCplxConj(v1, v2));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MulComplexConj(v1, v2));
 #else
     (void)d;
 #endif  // HWY_TARGET != HWY_SCALAR
   }
 };
 
-HWY_NOINLINE void TestAllMulCplxConj() {
-  ForAllTypes(ForShrinkableVectors<TestMulCplxConj>());
+HWY_NOINLINE void TestAllMulComplexConj() {
+  ForAllTypes(ForShrinkableVectors<TestMulComplexConj>());
 }
 
-struct TestMulCplxConjAdd {
+struct TestMulComplexConjAdd {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
 #if HWY_TARGET != HWY_SCALAR
@@ -222,18 +222,18 @@ struct TestMulCplxConjAdd {
       expected[i + 0] = ConvertScalarTo<T>((e + (c * a)) + (d * b));
       expected[i + 1] = ConvertScalarTo<T>((f + (c * b)) - (d * a));
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), MulCplxConjAdd(v1, v2, v3));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MulComplexConjAdd(v1, v2, v3));
 #else
     (void)d;
 #endif  // HWY_TARGET != HWY_SCALAR
   }
 };
 
-HWY_NOINLINE void TestAllMulCplxConjAdd() {
-  ForAllTypes(ForShrinkableVectors<TestMulCplxConjAdd>());
+HWY_NOINLINE void TestAllMulComplexConjAdd() {
+  ForAllTypes(ForShrinkableVectors<TestMulComplexConjAdd>());
 }
 
-struct TestMaskedMulCplxConjOrZero {
+struct TestMaskedMulComplexConj {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
 #if HWY_TARGET != HWY_SCALAR
@@ -268,18 +268,18 @@ struct TestMaskedMulCplxConjOrZero {
     const auto mask_i = Load(d, bool_lanes.get());
     const Mask<D> mask = Gt(mask_i, Zero(d));
 
-    HWY_ASSERT_VEC_EQ(d, expected.get(), MaskedMulCplxConjOrZero(mask, v1, v2));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MaskedMulComplexConj(mask, v1, v2));
 #else
     (void)d;
 #endif  // HWY_TARGET != HWY_SCALAR
   }
 };
 
-HWY_NOINLINE void TestAllMaskedMulCplxConjOrZero() {
-  ForAllTypes(ForShrinkableVectors<TestMaskedMulCplxConjOrZero>());
+HWY_NOINLINE void TestAllMaskedMulComplexConj() {
+  ForAllTypes(ForShrinkableVectors<TestMaskedMulComplexConj>());
 }
 
-struct TestMaskedMulCplxConjAddOrZero {
+struct TestMaskedMulComplexConjAdd {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
 #if HWY_TARGET != HWY_SCALAR
@@ -318,15 +318,15 @@ struct TestMaskedMulCplxConjAddOrZero {
     const Mask<D> mask = Gt(mask_i, Zero(d));
 
     HWY_ASSERT_VEC_EQ(d, expected.get(),
-                      MaskedMulCplxConjAddOrZero(mask, v1, v2, v3));
+                      MaskedMulComplexConjAdd(mask, v1, v2, v3));
 #else
     (void)d;
 #endif  // HWY_TARGET != HWY_SCALAR
   }
 };
 
-HWY_NOINLINE void TestAllMaskedMulCplxConjAddOrZero() {
-  ForAllTypes(ForShrinkableVectors<TestMaskedMulCplxConjAddOrZero>());
+HWY_NOINLINE void TestAllMaskedMulComplexConjAdd() {
+  ForAllTypes(ForShrinkableVectors<TestMaskedMulComplexConjAdd>());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
@@ -337,17 +337,17 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 
 namespace hwy {
-HWY_BEFORE_TEST(HwyCplxTest);
-HWY_EXPORT_AND_TEST_P(HwyCplxTest, TestAllCplxConj);
+HWY_BEFORE_TEST(HwyComplexTest);
+HWY_EXPORT_AND_TEST_P(HwyComplexTest, TestAllComplexConj);
 
-HWY_EXPORT_AND_TEST_P(HwyCplxTest, TestAllMulCplx);
-HWY_EXPORT_AND_TEST_P(HwyCplxTest, TestAllMulCplxAdd);
-HWY_EXPORT_AND_TEST_P(HwyCplxTest, TestAllMaskedMulCplxOr);
+HWY_EXPORT_AND_TEST_P(HwyComplexTest, TestAllMulComplex);
+HWY_EXPORT_AND_TEST_P(HwyComplexTest, TestAllMulComplexAdd);
+HWY_EXPORT_AND_TEST_P(HwyComplexTest, TestAllMaskedMulComplexOr);
 
-HWY_EXPORT_AND_TEST_P(HwyCplxTest, TestAllMulCplxConj);
-HWY_EXPORT_AND_TEST_P(HwyCplxTest, TestAllMulCplxConjAdd);
-HWY_EXPORT_AND_TEST_P(HwyCplxTest, TestAllMaskedMulCplxConjOrZero);
-HWY_EXPORT_AND_TEST_P(HwyCplxTest, TestAllMaskedMulCplxConjAddOrZero);
+HWY_EXPORT_AND_TEST_P(HwyComplexTest, TestAllMulComplexConj);
+HWY_EXPORT_AND_TEST_P(HwyComplexTest, TestAllMulComplexConjAdd);
+HWY_EXPORT_AND_TEST_P(HwyComplexTest, TestAllMaskedMulComplexConj);
+HWY_EXPORT_AND_TEST_P(HwyComplexTest, TestAllMaskedMulComplexConjAdd);
 HWY_AFTER_TEST();
 }  // namespace hwy
 
