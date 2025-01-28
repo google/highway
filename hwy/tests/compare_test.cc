@@ -687,38 +687,38 @@ struct TestMaskedComparision {
     const Mask<D> mask_false = MaskFalse(d);
     const Mask<D> mask_true = MaskTrue(d);
 
-    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompEq(mask_true, v2, v3));
-    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompEq(mask_true, v3, v2));
-    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedCompEq(mask_true, v2, v2));
-    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedCompEq(mask_true, v2, v2b));
-    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedCompNe(mask_true, v2, v3));
-    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedCompNe(mask_true, v3, v2));
-    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompNe(mask_true, v2, v2));
-    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompNe(mask_true, v2, v2b));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedEq(mask_true, v2, v3));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedEq(mask_true, v3, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedEq(mask_true, v2, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedEq(mask_true, v2, v2b));
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedNe(mask_true, v2, v3));
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedNe(mask_true, v3, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedNe(mask_true, v2, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedNe(mask_true, v2, v2b));
 
-    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompLt(mask_true, v2, v0));
-    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompGt(mask_true, v0, v2));
-    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompLt(mask_true, v0, v0));
-    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompGt(mask_true, v0, v0));
-    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompLt(mask_true, v2, v2));
-    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompGt(mask_true, v2, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedLt(mask_true, v2, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedGt(mask_true, v0, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedLt(mask_true, v0, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedGt(mask_true, v0, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedLt(mask_true, v2, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedGt(mask_true, v2, v2));
 
-    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedCompGt(mask_true, v2, v0));
-    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedCompLt(mask_true, v0, v2));
-    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompLt(mask_true, v2, v0));
-    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompGt(mask_true, v0, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedGt(mask_true, v2, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedLt(mask_true, v0, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedLt(mask_true, v2, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedGt(mask_true, v0, v2));
 
-    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompLe(mask_true, v2, v0));
-    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompGe(mask_true, v0, v2));
-    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedCompLe(mask_true, v0, v0));
-    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedCompGe(mask_true, v0, v0));
-    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedCompLe(mask_true, v2, v2));
-    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedCompGe(mask_true, v2, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedLe(mask_true, v2, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedGe(mask_true, v0, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedLe(mask_true, v0, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedGe(mask_true, v0, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedLe(mask_true, v2, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedGe(mask_true, v2, v2));
 
-    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedCompGe(mask_true, v2, v0));
-    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedCompLe(mask_true, v0, v2));
-    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompLe(mask_true, v2, v0));
-    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompGe(mask_true, v0, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedGe(mask_true, v2, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedLe(mask_true, v0, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedLe(mask_true, v2, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedGe(mask_true, v0, v2));
 
     auto bool_lanes = AllocateAligned<T>(N);
     HWY_ASSERT(bool_lanes);
@@ -731,38 +731,38 @@ struct TestMaskedComparision {
       const Vec<D> mask_i = Load(d, bool_lanes.get());
       const Mask<D> mask = RebindMask(d, Gt(mask_i, Zero(d)));
 
-      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompEq(mask, v2, v3));
-      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompEq(mask, v3, v2));
-      HWY_ASSERT_MASK_EQ(d, mask, MaskedCompEq(mask, v2, v2));
-      HWY_ASSERT_MASK_EQ(d, mask, MaskedCompEq(mask, v2, v2b));
-      HWY_ASSERT_MASK_EQ(d, mask, MaskedCompNe(mask, v2, v3));
-      HWY_ASSERT_MASK_EQ(d, mask, MaskedCompNe(mask, v3, v2));
-      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompNe(mask, v2, v2));
-      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompNe(mask, v2, v2b));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedEq(mask, v2, v3));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedEq(mask, v3, v2));
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedEq(mask, v2, v2));
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedEq(mask, v2, v2b));
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedNe(mask, v2, v3));
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedNe(mask, v3, v2));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedNe(mask, v2, v2));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedNe(mask, v2, v2b));
 
-      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompLt(mask, v2, v0));
-      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompGt(mask, v0, v2));
-      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompLt(mask, v0, v0));
-      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompGt(mask, v0, v0));
-      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompLt(mask, v2, v2));
-      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompGt(mask, v2, v2));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedLt(mask, v2, v0));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedGt(mask, v0, v2));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedLt(mask, v0, v0));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedGt(mask, v0, v0));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedLt(mask, v2, v2));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedGt(mask, v2, v2));
 
-      HWY_ASSERT_MASK_EQ(d, mask, MaskedCompGt(mask, v2, v0));
-      HWY_ASSERT_MASK_EQ(d, mask, MaskedCompLt(mask, v0, v2));
-      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompLt(mask, v2, v0));
-      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompGt(mask, v0, v2));
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedGt(mask, v2, v0));
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedLt(mask, v0, v2));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedLt(mask, v2, v0));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedGt(mask, v0, v2));
 
-      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompLe(mask, v2, v0));
-      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompGe(mask, v0, v2));
-      HWY_ASSERT_MASK_EQ(d, mask, MaskedCompLe(mask, v0, v0));
-      HWY_ASSERT_MASK_EQ(d, mask, MaskedCompGe(mask, v0, v0));
-      HWY_ASSERT_MASK_EQ(d, mask, MaskedCompLe(mask, v2, v2));
-      HWY_ASSERT_MASK_EQ(d, mask, MaskedCompGe(mask, v2, v2));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedLe(mask, v2, v0));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedGe(mask, v0, v2));
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedLe(mask, v0, v0));
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedGe(mask, v0, v0));
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedLe(mask, v2, v2));
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedGe(mask, v2, v2));
 
-      HWY_ASSERT_MASK_EQ(d, mask, MaskedCompGe(mask, v2, v0));
-      HWY_ASSERT_MASK_EQ(d, mask, MaskedCompLe(mask, v0, v2));
-      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompLe(mask, v2, v0));
-      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedCompGe(mask, v0, v2));
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedGe(mask, v2, v0));
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedLe(mask, v0, v2));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedLe(mask, v2, v0));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedGe(mask, v0, v2));
     }
   }
 };

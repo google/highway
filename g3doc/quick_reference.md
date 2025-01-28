@@ -1057,18 +1057,18 @@ Per-lane variable shifts (slow if SSSE3/SSE4, or 16-bit, or Shr i64 on AVX2):
 #### Masked floating-point classification
 
 All ops in this section return `false` for `mask=false` lanes. These are
-equivalent to, and potentially more efficient than, `And(m, Eq(a, b));` etc.
+equivalent to, and potentially more efficient than, `And(m, IsNaN(v));` etc.
 
 *   `V`: `{f}` \
-    <code>M **MaskedIsNaN**(V v)</code>: returns mask indicating whether `v[i]`
-    is "not a number" (unordered) or `false` if `m[i]` is false.
+    <code>M **MaskedIsNaN**(M m, V v)</code>: returns mask indicating whether
+    `v[i]` is "not a number" (unordered) or `false` if `m[i]` is false.
 
 *   `V`: `{f}` \
-    <code>M **MaskedIsInf**(V v)</code>: returns mask indicating whether `v[i]`
-    is positive or negative infinity or `false` if `m[i]` is false.
+    <code>M **MaskedIsInf**(M m, V v)</code>: returns mask indicating whether
+    `v[i]` is positive or negative infinity or `false` if `m[i]` is false.
 
 *   `V`: `{f}` \
-    <code>M **MaskedIsFinite**(V v)</code>: returns mask indicating whether
+    <code>M **MaskedIsFinite**(M m, V v)</code>: returns mask indicating whether
     `v[i]` is neither NaN nor infinity, i.e. normal, subnormal or zero or
     `false` if `m[i]` is false. Equivalent to `Not(Or(IsNaN(v), IsInf(v)))`.
 
@@ -1555,22 +1555,22 @@ These return a mask (see above) indicating whether the condition is true.
 All ops in this section return `false` for `mask=false` lanes. These are
 equivalent to, and potentially more efficient than, `And(m, Eq(a, b));` etc.
 
-*   <code>M **MaskedCompEq**(M m, V a, V b)</code>: returns `a[i] == b[i]` or
+*   <code>M **MaskedEq**(M m, V a, V b)</code>: returns `a[i] == b[i]` or
     `false` if `m[i]` is false.
 
-*   <code>M **MaskedCompNe**(M m, V a, V b)</code>: returns `a[i] != b[i]` or
+*   <code>M **MaskedNe**(M m, V a, V b)</code>: returns `a[i] != b[i]` or
     `false` if `m[i]` is false.
 
-*   <code>M **MaskedCompLt**(M m, V a, V b)</code>: returns `a[i] < b[i]` or
+*   <code>M **MaskedLt**(M m, V a, V b)</code>: returns `a[i] < b[i]` or
     `false` if `m[i]` is false.
 
-*   <code>M **MaskedCompGt**(M m, V a, V b)</code>: returns `a[i] > b[i]` or
+*   <code>M **MaskedGt**(M m, V a, V b)</code>: returns `a[i] > b[i]` or
     `false` if `m[i]` is false.
 
-*   <code>M **MaskedCompLe**(M m, V a, V b)</code>: returns `a[i] <= b[i]` or
+*   <code>M **MaskedLe**(M m, V a, V b)</code>: returns `a[i] <= b[i]` or
     `false` if `m[i]` is false.
 
-*   <code>M **MaskedCompGe**(M m, V a, V b)</code>: returns `a[i] >= b[i]` or
+*   <code>M **MaskedGe**(M m, V a, V b)</code>: returns `a[i] >= b[i]` or
     `false` if `m[i]` is false.
 
 ### Memory

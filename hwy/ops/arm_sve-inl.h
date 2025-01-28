@@ -2138,7 +2138,7 @@ HWY_SVE_FOREACH_F(HWY_SVE_MUL_BY_POW2, MulByPow2, scale)
 
 #undef HWY_SVE_MUL_BY_POW2
 
-// ------------------------------ MaskedCompEq etc.
+// ------------------------------ MaskedEq etc.
 #ifdef HWY_NATIVE_MASKED_COMP
 #undef HWY_NATIVE_MASKED_COMP
 #else
@@ -2152,46 +2152,24 @@ HWY_SVE_FOREACH_F(HWY_SVE_MUL_BY_POW2, MulByPow2, scale)
     return sv##OP##_##CHAR##BITS(m, a, b);                   \
   }
 
-namespace detail {
 HWY_SVE_FOREACH(HWY_SVE_COMPARE_Z, MaskedEq, cmpeq)
 HWY_SVE_FOREACH(HWY_SVE_COMPARE_Z, MaskedNe, cmpne)
 HWY_SVE_FOREACH(HWY_SVE_COMPARE_Z, MaskedLt, cmplt)
 HWY_SVE_FOREACH(HWY_SVE_COMPARE_Z, MaskedLe, cmple)
 
-}  // namespace detail
-
 #undef HWY_SVE_COMPARE_Z
 
-template <class V, class M, class D = DFromV<V>>
-HWY_API MFromD<D> MaskedCompEq(M m, V a, V b) {
-  return detail::MaskedEq(m, a, b);
-}
 
 template <class V, class M, class D = DFromV<V>>
-HWY_API MFromD<D> MaskedCompNe(M m, V a, V b) {
-  return detail::MaskedNe(m, a, b);
-}
-
-template <class V, class M, class D = DFromV<V>>
-HWY_API MFromD<D> MaskedCompLt(M m, V a, V b) {
-  return detail::MaskedLt(m, a, b);
-}
-
-template <class V, class M, class D = DFromV<V>>
-HWY_API MFromD<D> MaskedCompGt(M m, V a, V b) {
+HWY_API MFromD<D> MaskedGt(M m, V a, V b) {
   // Swap args to reverse comparison
-  return detail::MaskedLt(m, b, a);
+  return MaskedLt(m, b, a);
 }
 
 template <class V, class M, class D = DFromV<V>>
-HWY_API MFromD<D> MaskedCompLe(M m, V a, V b) {
-  return detail::MaskedLe(m, a, b);
-}
-
-template <class V, class M, class D = DFromV<V>>
-HWY_API MFromD<D> MaskedCompGe(M m, V a, V b) {
+HWY_API MFromD<D> MaskedGe(M m, V a, V b) {
   // Swap args to reverse comparison
-  return detail::MaskedLe(m, b, a);
+  return MaskedLe(m, b, a);
 }
 
 template <class V, class M, class D = DFromV<V>>
@@ -2206,7 +2184,7 @@ HWY_API MFromD<D> MaskedIsFinite(const M m, const V v) {
 
 template <class V, class M, class D = DFromV<V>>
 HWY_API MFromD<D> MaskedIsNaN(const M m, const V v) {
-  return detail::MaskedNe(m, v, v);
+  return MaskedNe(m, v, v);
 }
 
 // ================================================== MEMORY

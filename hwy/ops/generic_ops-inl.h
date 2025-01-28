@@ -631,7 +631,7 @@ HWY_API V MaskedSatSubOr(V no, M m, V a, V b) {
 }
 #endif  // HWY_NATIVE_MASKED_ARITH
 
-// ------------------------------ MaskedCompEq etc.
+// ------------------------------ MaskedEq etc.
 #if (defined(HWY_NATIVE_MASKED_COMP) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_MASKED_COMP
 #undef HWY_NATIVE_MASKED_COMP
@@ -640,32 +640,32 @@ HWY_API V MaskedSatSubOr(V no, M m, V a, V b) {
 #endif
 
 template <class V, class M>
-HWY_API auto MaskedCompEq(M m, V a, V b) -> decltype(a == b) {
+HWY_API auto MaskedEq(M m, V a, V b) -> decltype(a == b) {
   return And(m, Eq(a, b));
 }
 
 template <class V, class M>
-HWY_API auto MaskedCompNe(M m, V a, V b) -> decltype(a == b) {
+HWY_API auto MaskedNe(M m, V a, V b) -> decltype(a == b) {
   return And(m, Ne(a, b));
 }
 
 template <class V, class M>
-HWY_API auto MaskedCompLt(M m, V a, V b) -> decltype(a == b) {
+HWY_API auto MaskedLt(M m, V a, V b) -> decltype(a == b) {
   return And(m, Lt(a, b));
 }
 
 template <class V, class M>
-HWY_API auto MaskedCompGt(M m, V a, V b) -> decltype(a == b) {
+HWY_API auto MaskedGt(M m, V a, V b) -> decltype(a == b) {
   return And(m, Gt(a, b));
 }
 
 template <class V, class M>
-HWY_API auto MaskedCompLe(M m, V a, V b) -> decltype(a == b) {
+HWY_API auto MaskedLe(M m, V a, V b) -> decltype(a == b) {
   return And(m, Le(a, b));
 }
 
 template <class V, class M>
-HWY_API auto MaskedCompGe(M m, V a, V b) -> decltype(a == b) {
+HWY_API auto MaskedGe(M m, V a, V b) -> decltype(a == b) {
   return And(m, Ge(a, b));
 }
 
