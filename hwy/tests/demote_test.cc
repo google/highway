@@ -144,107 +144,6 @@ HWY_NOINLINE void TestAllDemoteToMixed() {
 }
 
 template <typename ToT>
-struct TestMaskedDemoteToInt {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D from_d) {
-    static_assert(!IsFloat<ToT>(), "Use TestDemoteToFloat for float output");
-    static_assert(sizeof(T) > sizeof(ToT), "Input type must be wider");
-    const Rebind<ToT, D> to_d;
-
-    const size_t N = Lanes(from_d);
-    auto from = AllocateAligned<T>(N);
-    auto expected = AllocateAligned<ToT>(N);
-    auto bool_lanes = AllocateAligned<ToT>(N);
-    HWY_ASSERT(from && expected && bool_lanes);
-    // Narrower range in the wider type, for clamping before we cast
-    const T min = ConvertScalarTo<T>(IsSigned<T>() ? LimitsMin<ToT>()
-                                                   : static_cast<ToT>(0));
-    const T max = LimitsMax<ToT>();
-    RandomState rng;
-    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
-      for (size_t i = 0; i < N; ++i) {
-        const uint64_t bits = rng();
-        CopyBytes<sizeof(T)>(&bits, &from[i]);  // not same size
-
-        bool_lanes[i] = (Random32(&rng) & 1024) ? ToT(1) : ToT(0);
-        if (bool_lanes[i]) {
-          expected[i] = static_cast<ToT>(HWY_MIN(HWY_MAX(min, from[i]), max));
-
-        } else {
-          expected[i] = ConvertScalarTo<ToT>(0);
-        }
-      }
-
-      const auto mask_i = Load(to_d, bool_lanes.get());
-      const auto mask = RebindMask(to_d, Gt(mask_i, Zero(to_d)));
-
-      const auto v1 = Load(from_d, from.get());
-
-      HWY_ASSERT_VEC_EQ(to_d, expected.get(),
-                        MaskedDemoteTo(mask, to_d, v1));
-    }
-  }
-};
-
-HWY_NOINLINE void TestAllMaskedDemoteToInt() {
-  const ForDemoteVectors<TestMaskedDemoteToInt<uint8_t>> from_i16_to_u8;
-  from_i16_to_u8(int16_t());
-  from_i16_to_u8(uint16_t());
-
-  const ForDemoteVectors<TestMaskedDemoteToInt<int8_t>> from_i16_to_i8;
-  from_i16_to_i8(int16_t());
-  from_i16_to_i8(uint16_t());
-
-  const ForDemoteVectors<TestMaskedDemoteToInt<uint8_t>, 2>
-      from_i32_to_u8;
-  from_i32_to_u8(int32_t());
-  from_i32_to_u8(uint32_t());
-
-  const ForDemoteVectors<TestMaskedDemoteToInt<int8_t>, 2> from_i32_to_i8;
-  from_i32_to_i8(int32_t());
-  from_i32_to_i8(uint32_t());
-
-#if HWY_HAVE_INTEGER64
-  const ForDemoteVectors<TestMaskedDemoteToInt<uint8_t>, 3>
-      from_i64_to_u8;
-  from_i64_to_u8(int64_t());
-  from_i64_to_u8(uint64_t());
-
-  const ForDemoteVectors<TestMaskedDemoteToInt<int8_t>, 3> from_i64_to_i8;
-  from_i64_to_i8(int64_t());
-  from_i64_to_i8(uint64_t());
-#endif
-
-  const ForDemoteVectors<TestMaskedDemoteToInt<uint16_t>> from_i32_to_u16;
-  from_i32_to_u16(int32_t());
-  from_i32_to_u16(uint32_t());
-
-  const ForDemoteVectors<TestMaskedDemoteToInt<int16_t>> from_i32_to_i16;
-  from_i32_to_i16(int32_t());
-  from_i32_to_i16(uint32_t());
-
-#if HWY_HAVE_INTEGER64
-  const ForDemoteVectors<TestMaskedDemoteToInt<uint16_t>, 2>
-      from_i64_to_u16;
-  from_i64_to_u16(int64_t());
-  from_i64_to_u16(uint64_t());
-
-  const ForDemoteVectors<TestMaskedDemoteToInt<int16_t>, 2>
-      from_i64_to_i16;
-  from_i64_to_i16(int64_t());
-  from_i64_to_i16(uint64_t());
-
-  const ForDemoteVectors<TestMaskedDemoteToInt<uint32_t>> from_i64_to_u32;
-  from_i64_to_u32(int64_t());
-  from_i64_to_u32(uint64_t());
-
-  const ForDemoteVectors<TestMaskedDemoteToInt<int32_t>> from_i64_to_i32;
-  from_i64_to_i32(int64_t());
-  from_i64_to_i32(uint64_t());
-#endif
-}
-
-template <typename ToT>
 struct TestDemoteToFloat {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D from_d) {
@@ -566,107 +465,6 @@ AlignedFreeUniquePtr<float[]> ReorderBF16TestCases(D d, size_t& padded) {
   CopyBytes(test_cases, in.get(), kNumTestCases * sizeof(float));
   ZeroBytes(in.get() + kNumTestCases, (padded - kNumTestCases) * sizeof(float));
   return in;
-}
-
-template <typename ToT>
-struct TestDemoteRoundFloatToFloat {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D from_d) {
-    static_assert(sizeof(T) > sizeof(ToT), "Input type must be wider");
-    const Rebind<ToT, D> to_d;
-
-    const size_t N = Lanes(from_d);
-    auto from = AllocateAligned<T>(N);
-    auto expected_ceil = AllocateAligned<ToT>(N);
-    auto expected_floor = AllocateAligned<ToT>(N);
-    HWY_ASSERT(from && expected_ceil && expected_floor);
-
-    RandomState rng;
-    for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
-      for (size_t i = 0; i < N; ++i) {
-        const uint64_t bits = rng();
-        CopyBytes<sizeof(T)>(&bits, &from[i]);  // not same size
-        expected_ceil[i] = static_cast<ToT>(std::ceil(from[i]));
-        expected_floor[i] = static_cast<ToT>(std::floor(from[i]));
-      }
-      const auto in = Load(from_d, from.get());
-      HWY_ASSERT_VEC_EQ(to_d, expected_ceil.get(), DemoteCeilTo(to_d, in));
-      HWY_ASSERT_VEC_EQ(to_d, expected_floor.get(), DemoteFloorTo(to_d, in));
-    }
-  }
-};
-
-template <typename ToT>
-struct TestDemoteRoundFloatToInt {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D from_d) {
-    static_assert(!IsFloat<ToT>(), "Use TestDemoteToFloat for float output");
-    static_assert(sizeof(T) > sizeof(ToT), "Input type must be wider");
-    const Rebind<ToT, D> to_d;
-
-    const size_t N = Lanes(from_d);
-    auto from = AllocateAligned<T>(N);
-    auto from_ceil = AllocateAligned<T>(N);
-    auto from_floor = AllocateAligned<T>(N);
-    auto expected_ceil = AllocateAligned<ToT>(N);
-    auto expected_floor = AllocateAligned<ToT>(N);
-    HWY_ASSERT(from && from_ceil && from_floor && expected_ceil &&
-               expected_floor);
-
-    // Narrower range in the wider type, for clamping before we cast
-    const T min = ConvertScalarTo<T>(IsSigned<T>() ? LimitsMin<ToT>()
-                                                   : static_cast<ToT>(0));
-    const T max = LimitsMax<ToT>();
-
-    RandomState rng;
-    for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
-      for (size_t i = 0; i < N; ++i) {
-        const uint64_t bits = rng();
-        CopyBytes<sizeof(T)>(&bits, &from[i]);  // not same size
-        expected_ceil[i] =
-            static_cast<ToT>(std::ceil((HWY_MIN(HWY_MAX(min, from[i]), max))));
-        expected_floor[i] =
-            static_cast<ToT>(std::floor((HWY_MIN(HWY_MAX(min, from[i]), max))));
-      }
-      const auto in = Load(from_d, from.get());
-      HWY_ASSERT_VEC_EQ(to_d, expected_ceil.get(), DemoteCeilTo(to_d, in));
-      HWY_ASSERT_VEC_EQ(to_d, expected_floor.get(), DemoteFloorTo(to_d, in));
-    }
-
-    for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
-      for (size_t i = 0; i < N; ++i) {
-        const uint64_t bits = rng();
-        CopyBytes<sizeof(ToT)>(&bits, &expected_ceil[i]);   // not same size
-        CopyBytes<sizeof(ToT)>(&bits, &expected_floor[i]);  // not same size
-
-        if (!IsSigned<T>() && IsSigned<ToT>()) {
-          expected_ceil[i] &= static_cast<ToT>(std::ceil((max)));
-          expected_floor[i] &= static_cast<ToT>(std::floor((max)));
-        }
-
-        from_ceil[i] = ConvertScalarTo<T>(expected_ceil[i]);
-        from_floor[i] = ConvertScalarTo<T>(expected_floor[i]);
-      }
-
-      const auto in_ceil = Load(from_d, from_ceil.get());
-      const auto in_floor = Load(from_d, from_floor.get());
-      HWY_ASSERT_VEC_EQ(to_d, expected_ceil.get(), DemoteCeilTo(to_d, in_ceil));
-      HWY_ASSERT_VEC_EQ(to_d, expected_floor.get(),
-                        DemoteFloorTo(to_d, in_floor));
-    }
-  }
-};
-
-HWY_NOINLINE void TestAllDemoteRoundTo() {
-#if HWY_HAVE_FLOAT64
-  const ForDemoteVectors<TestDemoteRoundFloatToInt<int32_t>> to_i32;
-  to_i32(double());
-#endif
-
-#if HWY_HAVE_FLOAT16
-  const ForDemoteVectors<TestDemoteRoundFloatToFloat<hwy::float16_t>> to_f16;
-  to_f16(float());
-#endif
 }
 
 class TestReorderDemote2To {
@@ -1036,12 +834,10 @@ namespace {
 #if !HWY_IS_MSAN
 HWY_BEFORE_TEST(HwyDemoteTest);
 HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllDemoteToInt);
-HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllMaskedDemoteToInt);
 HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllDemoteToMixed);
 HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllDemoteToFloat);
 HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllDemoteUI64ToFloat);
 HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllDemoteToBF16);
-HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllDemoteRoundTo);
 HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllReorderDemote2To);
 HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllOrderedDemote2To);
 HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllI32F64);

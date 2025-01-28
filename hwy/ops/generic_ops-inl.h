@@ -3250,19 +3250,6 @@ HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<float, D>> v) {
 
 #endif  // HWY_NATIVE_F16C
 
-// ------------------------------ PromoteTo F16->I
-#if HWY_HAVE_FLOAT16 || HWY_IDE
-template <class D, HWY_IF_NOT_FLOAT_D(D), HWY_IF_T_SIZE_D(D, sizeof(float))>
-HWY_API VFromD<D> PromoteTo(D d, VFromD<Rebind<float16_t, D>> v) {
-  return ConvertTo(d, PromoteTo(Rebind<float, D>(), v));
-}
-
-template <class D, HWY_IF_NOT_FLOAT_D(D), HWY_IF_T_SIZE_GT_D(D, sizeof(float))>
-HWY_API VFromD<D> PromoteTo(D d, VFromD<Rebind<float16_t, D>> v) {
-  return PromoteTo(d, PromoteTo(Rebind<float, D>(), v));
-}
-#endif
-
 // ------------------------------ F64->F16 DemoteTo
 #if (defined(HWY_NATIVE_DEMOTE_F64_TO_F16) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_DEMOTE_F64_TO_F16
@@ -3396,53 +3383,6 @@ HWY_API VFromD<D> ReorderDemote2To(D dbf16, VFromD<Repartition<float, D>> a,
 
 #endif  // HWY_NATIVE_DEMOTE_F32_TO_BF16
 
-// ------------------------------ DemoteTo (Alternate Rounding)
-#if (defined(HWY_NATIVE_DEMOTE_CEIL_TO) == defined(HWY_TARGET_TOGGLE))
-#ifdef HWY_NATIVE_DEMOTE_CEIL_TO
-#undef HWY_NATIVE_DEMOTE_CEIL_TO
-#else
-#define HWY_NATIVE_DEMOTE_CEIL_TO
-#endif
-
-#if HWY_HAVE_FLOAT64
-template <class D32, HWY_IF_UI32_D(D32)>
-HWY_API VFromD<D32> DemoteCeilTo(D32 d32, VFromD<Rebind<double, D32>> v) {
-  return DemoteTo(d32, Ceil(v));
-}
-#endif  // HWY_HAVE_FLOAT64
-
-#if HWY_HAVE_FLOAT16
-template <class D16, HWY_IF_F16_D(D16)>
-HWY_API VFromD<D16> DemoteCeilTo(D16 d16, VFromD<Rebind<float, D16>> v) {
-  return DemoteTo(d16, Ceil(v));
-}
-#endif  // HWY_HAVE_FLOAT16
-
-#endif  // HWY_NATIVE_DEMOTE_CEIL_TO
-
-#if (defined(HWY_NATIVE_DEMOTE_FLOOR_TO) == defined(HWY_TARGET_TOGGLE))
-#ifdef HWY_NATIVE_DEMOTE_FLOOR_TO
-#undef HWY_NATIVE_DEMOTE_FLOOR_TO
-#else
-#define HWY_NATIVE_DEMOTE_FLOOR_TO
-#endif
-
-#if HWY_HAVE_FLOAT64
-template <class D32, HWY_IF_UI32_D(D32)>
-HWY_API VFromD<D32> DemoteFloorTo(D32 d32, VFromD<Rebind<double, D32>> v) {
-  return DemoteTo(d32, Floor(v));
-}
-#endif  // HWY_HAVE_FLOAT64
-
-#if HWY_HAVE_FLOAT16
-template <class D16, HWY_IF_F16_D(D16)>
-HWY_API VFromD<D16> DemoteFloorTo(D16 d16, VFromD<Rebind<float, D16>> v) {
-  return DemoteTo(d16, Floor(v));
-}
-#endif  // HWY_HAVE_FLOAT16
-
-#endif  // HWY_NATIVE_DEMOTE_FLOOR_TO
-
 // ------------------------------ PromoteInRangeTo
 #if (defined(HWY_NATIVE_F32_TO_UI64_PROMOTE_IN_RANGE_TO) == \
      defined(HWY_TARGET_TOGGLE))
@@ -3573,24 +3513,6 @@ HWY_API VFromD<D> PromoteInRangeOddTo(D d, V v) {
 #endif
 }
 #endif  // HWY_TARGET != HWY_SCALAR
-
-// ------------------------------ PromoteCeilTo
-template <class DTo, class V, HWY_IF_FLOAT_V(V)>
-HWY_API Vec<DTo> PromoteCeilTo(DTo d, V v) {
-  return PromoteTo(d, Ceil(v));
-}
-
-// ------------------------------ PromoteFloorTo
-template <class DTo, class V, HWY_IF_FLOAT_V(V)>
-HWY_API Vec<DTo> PromoteFloorTo(DTo d, V v) {
-  return PromoteTo(d, Floor(v));
-}
-
-// ------------------------------ PromoteToNearestInt
-template <class DTo, class V, HWY_IF_FLOAT_V(V)>
-HWY_API Vec<DTo> PromoteToNearestInt(DTo d, V v) {
-  return PromoteTo(d, Round(v));
-}
 
 // ------------------------------ SumsOf2
 
@@ -4486,18 +4408,6 @@ HWY_API V MulAddSub(V mul, V x, V sub_or_add) {
   const auto add =
       OddEven(sub_or_add, BitCast(d, Neg(BitCast(d_negate, sub_or_add))));
   return MulAdd(mul, x, add);
-}
-
-// ------------------------------ MaskedPromoteTo
-template <class D, class V, class M>
-HWY_API VFromD<D> MaskedPromoteTo(M m, D d, V v) {
-  return IfThenElseZero(m, PromoteTo(d, v));
-}
-
-// ------------------------------ MaskedDemoteTo
-template <class D, class V, class M>
-HWY_API VFromD<D> MaskedDemoteTo(M m, D d, V v) {
-  return IfThenElseZero(m, DemoteTo(d, v));
 }
 
 // ------------------------------ MaskedConvertTo
