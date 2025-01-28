@@ -4872,8 +4872,7 @@ HWY_API V AverageRound(const V a, const V b) {
 // `p` points to at least 8 readable bytes, not all of which need be valid.
 template <class D, HWY_IF_T_SIZE_D(D, 1)>
 HWY_INLINE svbool_t LoadMaskBits(D d, const uint8_t* HWY_RESTRICT bits) {
-#if (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG >= 1901) || \
-    (HWY_COMPILER_GCC && HWY_COMPILER_GCC_ACTUAL >= 1200)
+#if HWY_COMPILER_CLANG >= 1901 || HWY_COMPILER_GCC_ACTUAL >= 1200
   return *(const svbool_t*)bits;
 #endif
   // TODO(janwas): with SVE2.1, load to vector, then PMOV
