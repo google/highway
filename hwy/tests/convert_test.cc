@@ -753,7 +753,7 @@ struct TestMaskedFloatFromInt {
     const size_t N = Lanes(df);
     auto from = AllocateAligned<TI>(N);
     auto expected = AllocateAligned<TF>(N);
-    auto bool_lanes = AllocateAligned<TF>(N);
+    auto bool_lanes = AllocateAligned<TI>(N);
     HWY_ASSERT(from && expected && bool_lanes);
 
     RandomState rng;
@@ -762,15 +762,15 @@ struct TestMaskedFloatFromInt {
         const uint64_t bits = rng();
         CopyBytes<sizeof(TF)>(&bits, &from[i]);  // not same size
 
-        bool_lanes[i] = (Random32(&rng) & 1024) ? TF(1) : TF(0);
+        bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
         if (bool_lanes[i]) {
           expected[i] = ConvertScalarTo<TF>(from[i]);
         } else {
           expected[i] = ConvertScalarTo<TF>(0);
         }
       }
-      const auto mask_i = Load(df, bool_lanes.get());
-      const auto mask = RebindMask(df, Gt(mask_i, Zero(df)));
+      const auto mask_i = Load(di, bool_lanes.get());
+      const auto mask = RebindMask(df, Gt(mask_i, Zero(di)));
 
       const auto v1 = Load(di, from.get());
 
@@ -789,7 +789,7 @@ struct TestMaskedFloatFromUint {
     const size_t N = Lanes(df);
     auto from = AllocateAligned<TI>(N);
     auto expected = AllocateAligned<TF>(N);
-    auto bool_lanes = AllocateAligned<TF>(N);
+    auto bool_lanes = AllocateAligned<TI>(N);
     HWY_ASSERT(from && expected && bool_lanes);
 
     RandomState rng;
@@ -798,15 +798,15 @@ struct TestMaskedFloatFromUint {
         const uint64_t bits = rng();
         CopyBytes<sizeof(TF)>(&bits, &from[i]);  // not same size
 
-        bool_lanes[i] = (Random32(&rng) & 1024) ? TF(1) : TF(0);
+        bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
         if (bool_lanes[i]) {
           expected[i] = ConvertScalarTo<TF>(from[i]);
         } else {
           expected[i] = ConvertScalarTo<TF>(0);
         }
       }
-      const auto mask_i = Load(df, bool_lanes.get());
-      const auto mask = RebindMask(df, Gt(mask_i, Zero(df)));
+      const auto mask_i = Load(di, bool_lanes.get());
+      const auto mask = RebindMask(df, Gt(mask_i, Zero(di)));
 
       const auto v1 = Load(di, from.get());
 
