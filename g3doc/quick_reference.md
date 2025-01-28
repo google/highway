@@ -1125,7 +1125,7 @@ types, and on SVE/RVV.
 
 *   <code>V **AndNot**(V a, V b)</code>: returns `~a[i] & b[i]`.
 
-*   <code>V **MaskedOrOrZero**(M m, V a, V b)</code>: returns `a[i] || b[i]`
+*   <code>V **MaskedOr**(M m, V a, V b)</code>: returns `a[i] | b[i]`
     or `zero` if `m[i]` is false.
 
 The following three-argument functions may be more efficient than assembling
@@ -2353,22 +2353,6 @@ The following `ReverseN` must not be called if `Lanes(D()) < N`:
     `TableLookupLanes` by loading `Lanes(d)` integer indices from `idx`, which
     must be in the range `[0, 2 * Lanes(d))` but need not be unique. The index
     type `TI` must be an integer of the same size as `TFromD<D>`.
-
-*   <code>V **TableLookupLanesOr**(M m, V a, V b, unspecified)</code> returns the
-    result of `TableLookupLanes(a, unspecified)` where `m[i]` is true, and returns
-    `b[i]` where `m[i]` is false.
-
-*   <code>V **TableLookupLanesOrZero**(M m, V a, unspecified)</code> returns
-    the result of `TableLookupLanes(a, unspecified)` where `m[i]` is true, and
-    returns zero where `m[i]` is false.
-
-*   <code>V **TwoTablesLookupLanesOr**(D d, M m, V a, V b, unspecified)</code>
-    returns the result of `TwoTablesLookupLanes(V a, V b, unspecified)` where
-    `m[i]` is true, and `a[i]` where `m[i]` is false.
-
-*   <code>V **TwoTablesLookupLanesOrZero**(D d, M m, V a, V b, unspecified)</code>
-    returns the result of `TwoTablesLookupLanes(V a, V b, unspecified)` where
-    `m[i]` is true, and zero where `m[i]` is false.
 
 *   <code>V **Per4LaneBlockShuffle**&lt;size_t kIdx3, size_t kIdx2, size_t
     kIdx1, size_t kIdx0&gt;(V v)</code> does a per 4-lane block shuffle of `v`

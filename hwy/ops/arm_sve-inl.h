@@ -219,11 +219,6 @@ HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SPECIALIZE, _, _)
   HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_V(BASE, BITS) v) { \
     return sv##OP##_##CHAR##BITS(v);                            \
   }
-#define HWY_SVE_RETV_ARGMV_M(BASE, CHAR, BITS, HALF, NAME, OP)             \
-  HWY_API HWY_SVE_V(BASE, BITS)                                            \
-      NAME(svbool_t m, HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b) { \
-    return sv##OP##_##CHAR##BITS##_m(b, m, a);                             \
-  }
 #define HWY_SVE_RETV_ARGMV(BASE, CHAR, BITS, HALF, NAME, OP)                \
   HWY_API HWY_SVE_V(BASE, BITS) NAME(svbool_t m, HWY_SVE_V(BASE, BITS) v) { \
     return sv##OP##_##CHAR##BITS##_x(m, v);                                 \
@@ -265,13 +260,8 @@ HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SPECIALIZE, _, _)
       NAME(svbool_t m, HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b) { \
     return sv##OP##_##CHAR##BITS##_x(m, a, b);                             \
   }
-#define HWY_SVE_RETV_ARGMVV_M(BASE, CHAR, BITS, HALF, NAME, OP)            \
-  HWY_API HWY_SVE_V(BASE, BITS)                                            \
-      NAME(svbool_t m, HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b) { \
-    return sv##OP##_##CHAR##BITS##_m(m, a, b);                             \
-  }
 // User-specified mask. Mask=false value is zero.
-#define HWY_SVE_RETV_ARGMVVZ(BASE, CHAR, BITS, HALF, NAME, OP)             \
+#define HWY_SVE_RETV_ARGMVV_Z(BASE, CHAR, BITS, HALF, NAME, OP)             \
   HWY_API HWY_SVE_V(BASE, BITS)                                            \
       NAME(svbool_t m, HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b) { \
     return sv##OP##_##CHAR##BITS##_z(m, a, b);                             \
@@ -282,13 +272,6 @@ HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SPECIALIZE, _, _)
       NAME(HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b,  \
            HWY_SVE_V(BASE, BITS) c) {                         \
     return sv##OP##_##CHAR##BITS(a, b, c);                    \
-  }
-
-#define HWY_SVE_RETV_ARGMVVV(BASE, CHAR, BITS, HALF, NAME, OP)           \
-  HWY_API HWY_SVE_V(BASE, BITS)                                          \
-      NAME(svbool_t m, HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b, \
-           HWY_SVE_V(BASE, BITS) c) {                                    \
-    return sv##OP##_##CHAR##BITS##_x(m, a, b, c);                        \
   }
 
 // ------------------------------ Lanes
@@ -779,8 +762,8 @@ HWY_API V Or(const V a, const V b) {
   return BitCast(df, Or(BitCast(du, a), BitCast(du, b)));
 }
 
-// ------------------------------ MaskedOrOrZero
-HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVVZ, MaskedOrOrZero, orr)
+// ------------------------------ MaskedOr
+HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV_Z, MaskedOr, orr)
 
 // ------------------------------ Xor
 
@@ -1697,6 +1680,7 @@ namespace detail {
     return sv##OP##_##CHAR##BITS(pg, v);                                     \
   }
 
+// TODO: Remove SumOfLanesM in favor of using MaskedReduceSum
 HWY_SVE_FOREACH_UI(HWY_SVE_REDUCE_ADD, SumOfLanesM, addv)
 HWY_SVE_FOREACH_F(HWY_SVE_REDUCE, SumOfLanesM, addv)
 
@@ -6642,7 +6626,7 @@ HWY_SVE_FOREACH_UI(HWY_SVE_MASKED_LEADING_ZERO_COUNT, MaskedLeadingZeroCount,
 #undef HWY_SVE_IF_NOT_EMULATED_D
 #undef HWY_SVE_PTRUE
 #undef HWY_SVE_RETV_ARGMVV
-#undef HWY_SVE_RETV_ARGMVVZ
+#undef HWY_SVE_RETV_ARGMVV_Z
 #undef HWY_SVE_RETV_ARGMV_Z
 #undef HWY_SVE_RETV_ARGMV
 #undef HWY_SVE_RETV_ARGPV
@@ -6650,13 +6634,8 @@ HWY_SVE_FOREACH_UI(HWY_SVE_MASKED_LEADING_ZERO_COUNT, MaskedLeadingZeroCount,
 #undef HWY_SVE_RETV_ARGPVV
 #undef HWY_SVE_RETV_ARGV
 #undef HWY_SVE_RETV_ARGVN
-#undef HWY_SVE_RETV_ARGMV
-#undef HWY_SVE_RETV_ARGMV_M
-#undef HWY_SVE_RETV_ARGMV_Z
 #undef HWY_SVE_RETV_ARGVV
-#undef HWY_SVE_RETV_ARGMVV_M
 #undef HWY_SVE_RETV_ARGVVV
-#undef HWY_SVE_RETV_ARGMVVV
 #undef HWY_SVE_T
 #undef HWY_SVE_UNDEFINED
 #undef HWY_SVE_V

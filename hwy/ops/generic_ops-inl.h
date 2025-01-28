@@ -1026,11 +1026,11 @@ HWY_API TFromD<D> MaskedReduceSum(D d, M m, VFromD<D> v) {
 }
 template <class D, class M>
 HWY_API TFromD<D> MaskedReduceMin(D d, M m, VFromD<D> v) {
-  return ReduceMin(d, IfThenElse(m, v, MaxOfLanes(d, v)));
+  return ReduceMin(d, IfThenElse(m, v, Set(d, hwy::HighestValue<TFromD<D>>())));
 }
 template <class D, class M>
 HWY_API TFromD<D> MaskedReduceMax(D d, M m, VFromD<D> v) {
-  return ReduceMax(d, IfThenElseZero(m, v));
+  return ReduceMax(d, IfThenElse(m, v, Set(d, hwy::LowestValue<TFromD<D>>())));
 }
 
 #endif  // HWY_NATIVE_MASKED_REDUCE_SCALAR
@@ -6735,30 +6735,6 @@ HWY_API V ReverseBits(V v) {
 }
 #endif  // HWY_NATIVE_REVERSE_BITS_UI16_32_64
 
-// ------------------------------ TableLookupLanesOr
-template <class V, class M>
-HWY_API V TableLookupLanesOr(M m, V a, V b, IndicesFromD<DFromV<V>> idx) {
-  return IfThenElse(m, TableLookupLanes(a, idx), b);
-}
-
-// ------------------------------ TableLookupLanesOrZero
-template <class V, class M>
-HWY_API V TableLookupLanesOrZero(M m, V a, IndicesFromD<DFromV<V>> idx) {
-  return IfThenElseZero(m, TableLookupLanes(a, idx));
-}
-
-// ------------------------------ TwoTablesLookupLanesOr
-template <class D, class V, class M>
-HWY_API V TwoTablesLookupLanesOr(D d, M m, V a, V b, IndicesFromD<D> idx) {
-  return IfThenElse(m, TwoTablesLookupLanes(d, a, b, idx), a);
-}
-
-// ------------------------------ TwoTablesLookupLanesOrZero
-template <class D, class V, class M>
-HWY_API V TwoTablesLookupLanesOrZero(D d, M m, V a, V b, IndicesFromD<D> idx) {
-  return IfThenElse(m, TwoTablesLookupLanes(d, a, b, idx), Zero(d));
-}
-
 // ------------------------------ Per4LaneBlockShuffle
 
 #if (defined(HWY_NATIVE_PER4LANEBLKSHUF_DUP32) == defined(HWY_TARGET_TOGGLE))
@@ -7615,7 +7591,7 @@ HWY_API V BitShuffle(V v, VI idx) {
 #endif  // HWY_NATIVE_BITSHUFFLE
 
 template <class V, class M>
-HWY_API V MaskedOrOrZero(M m, V a, V b) {
+HWY_API V MaskedOr(M m, V a, V b) {
   return IfThenElseZero(m, Or(a, b));
 }
 // ------------------------------ AllBits1/AllBits0
