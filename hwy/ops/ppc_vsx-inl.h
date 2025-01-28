@@ -1939,6 +1939,9 @@ HWY_API Vec128<T, N> ApproximateReciprocal(Vec128<T, N> v) {
 #endif
 }
 
+// TODO: Implement GetExponent using vec_extract_exp (which returns the biased
+//       exponent) followed by a subtraction by MaxExponentField<T>() >> 1
+
 // ------------------------------ Floating-point square root
 
 #if HWY_S390X_HAVE_Z14

@@ -1842,6 +1842,8 @@ HWY_API Vec512<double> ApproximateReciprocal(Vec512<double> v) {
   return Vec512<double>{_mm512_rcp14_pd(v.raw)};
 }
 
+// TODO: Implement GetExponent using _mm_getexp_ps/_mm_getexp_pd/_mm_getexp_ph
+
 // ------------------------------ MaskedMinOr
 
 template <typename T, HWY_IF_U8(T)>
