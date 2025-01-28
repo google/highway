@@ -760,9 +760,6 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     <code>V **MulHigh**(V a, V b)</code>: returns the upper half of `a[i] *
     b[i]` in each lane.
 
-*   <code>V **MulLower**(V a, V b)</code>: returns `a[0] * b[0]` in the
-    first lane and `a[i]` otherwise.
-
 *   `V`: `i16` \
     <code>V **MulFixedPoint15**(V a, V b)</code>: returns the result of
     multiplying two Q1.15 fixed-point numbers. This corresponds to doubling the
@@ -889,9 +886,6 @@ variants are somewhat slower on Arm, and unavailable for integer inputs; if the
     potentially more efficient than `MulAdd(PromoteOddTo(d, a), PromoteOddTo(d,
     b), c)`.
 
-*   <code>V **MulAddLower**(V a, V b, V c)</code>: returns `a[0] * b[0] + c[0]`
-    and `a[i]` in all other lanes.
-
 #### Masked arithmetic
 
 All ops in this section return `no` for `mask=false` lanes, and suppress any
@@ -925,6 +919,8 @@ not a concern, these are equivalent to, and potentially more efficient than,
     <code>V **MaskedSatSubOr**(V no, M m, V a, V b)</code>: returns `a[i] +
     b[i]` saturated to the minimum/maximum representable value, or `no[i]` if
     `m[i]` is false.
+*   <code>V **MaskedMulAddOr**(V no, M m, V mul, V x, V add)</code>: returns
+    `mul[i] * x[i] + add[i]` or `no[i]` if `m[i]` is false.
 
 #### Zero masked arithmetic
 

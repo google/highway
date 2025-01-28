@@ -277,7 +277,7 @@ HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SPECIALIZE, _, _)
   HWY_API HWY_SVE_V(BASE, BITS)                                          \
       NAME(svbool_t m, HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b, \
            HWY_SVE_V(BASE, BITS) c) {                                    \
-    return sv##OP##_##CHAR##BITS##_m(m, a, b, c);                        \
+    return sv##OP##_##CHAR##BITS##_x(m, a, b, c);                        \
   }
 
 // ------------------------------ Lanes
@@ -1301,31 +1301,6 @@ HWY_SVE_FOREACH_F(HWY_SVE_FMA, NegMulSub, nmad)
 
 #undef HWY_SVE_FMA
 
-// ------------------------------ MaskedMulAdd
-namespace detail {
-HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVVV, MaskedMulAdd, mad)
-}
-
-// ------------------------------ MulAddLower
-#if (defined(HWY_NATIVE_MUL_ADD_LOWER) == defined(HWY_TARGET_TOGGLE))
-#ifdef HWY_NATIVE_MUL_ADD_LOWER
-#undef HWY_NATIVE_MUL_ADD_LOWER
-#else
-#define HWY_NATIVE_MUL_ADD_LOWER
-#endif
-
-#define HWY_SVE_MUL_ADD_LOWER(BASE, CHAR, BITS, HALF, NAME, OP)        \
-  HWY_API HWY_SVE_V(BASE, BITS)                                        \
-      NAME(HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b,           \
-           HWY_SVE_V(BASE, BITS) c) {                                  \
-    return detail::MaskedMulAdd(svptrue_pat_b##BITS(SV_VL1), a, b, c); \
-  }
-
-HWY_SVE_FOREACH(HWY_SVE_MUL_ADD_LOWER, MulAddLower, _)
-#undef HWY_SVE_MUL_ADD_LOWER
-
-#endif  // HWY_NATIVE_MUL_ADD_LOWER
-
 // ------------------------------ Round etc.
 
 HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGPV, Round, rintn)
@@ -1639,25 +1614,23 @@ HWY_API V MaskedSatSubOr(V no, M m, V a, V b) {
 }
 #endif
 
-// ------------------------------ MaskedMul_M
+// ------------------------------ MaskedMulAddOr
 namespace detail {
-HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV_M, MaskedMul_M, mul);
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVVV, MaskedMulAdd, mad)
 }
 
-// ------------------------------ MulLower
-#ifdef HWY_NATIVE_MUL_LOWER
-#undef HWY_NATIVE_MUL_LOWER
+// Per-target flag to prevent generic_ops-inl.h from defining int
+// MaskedMulAddOr.
+#ifdef HWY_NATIVE_MASKED_INT_FMA
+#undef HWY_NATIVE_MASKED_INT_FMA
 #else
-#define HWY_NATIVE_MUL_LOWER
+#define HWY_NATIVE_MASKED_INT_FMA
 #endif
 
-#define HWY_SVE_MUL_LOWER(BASE, CHAR, BITS, HALF, NAME, OP)        \
-  HWY_API HWY_SVE_V(BASE, BITS)                                    \
-      NAME(HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b) {     \
-    return detail::MaskedMul_M(svptrue_pat_b##BITS(SV_VL1), a, b); \
-  }
-
-HWY_SVE_FOREACH(HWY_SVE_MUL_LOWER, MulLower, _)
+template <class V, class M>
+HWY_API V MaskedMulAddOr(V no, M m, V mul, V x, V add) {
+  return IfThenElse(m, detail::MaskedMulAdd(m, mul, x, add), no);
+}
 
 template <class V, HWY_IF_FLOAT_V(V), class M>
 HWY_API V MaskedSqrtOr(V no, M m, V v) {
