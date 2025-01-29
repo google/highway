@@ -1063,15 +1063,6 @@ equivalent to, and potentially more efficient than, `And(m, IsNaN(v));` etc.
     <code>M **MaskedIsNaN**(M m, V v)</code>: returns mask indicating whether
     `v[i]` is "not a number" (unordered) or `false` if `m[i]` is false.
 
-*   `V`: `{f}` \
-    <code>M **MaskedIsInf**(M m, V v)</code>: returns mask indicating whether
-    `v[i]` is positive or negative infinity or `false` if `m[i]` is false.
-
-*   `V`: `{f}` \
-    <code>M **MaskedIsFinite**(M m, V v)</code>: returns mask indicating whether
-    `v[i]` is neither NaN nor infinity, i.e. normal, subnormal or zero or
-    `false` if `m[i]` is false. Equivalent to `Not(Or(IsNaN(v), IsInf(v)))`.
-
 ### Logical
 
 *   `V`: `{u,i}` \

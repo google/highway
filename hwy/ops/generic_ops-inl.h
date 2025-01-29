@@ -670,16 +670,6 @@ HWY_API auto MaskedGe(M m, V a, V b) -> decltype(a == b) {
 }
 
 template <class V, class M, class D = DFromV<V>>
-HWY_API MFromD<D> MaskedIsInf(const M m, const V v) {
-  return And(m, IsInf(v));
-}
-
-template <class V, class M, class D = DFromV<V>>
-HWY_API MFromD<D> MaskedIsFinite(const M m, const V v) {
-  return And(m, IsFinite(v));
-}
-
-template <class V, class M, class D = DFromV<V>>
 HWY_API MFromD<D> MaskedIsNaN(const M m, const V v) {
   return And(m, IsNaN(v));
 }
