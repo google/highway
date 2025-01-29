@@ -260,11 +260,6 @@ HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SPECIALIZE, _, _)
       NAME(svbool_t m, HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b) { \
     return sv##OP##_##CHAR##BITS##_x(m, a, b);                             \
   }
-#define HWY_SVE_RETV_ARGMVV_M(BASE, CHAR, BITS, HALF, NAME, OP)            \
-  HWY_API HWY_SVE_V(BASE, BITS)                                            \
-      NAME(svbool_t m, HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b) { \
-    return sv##OP##_##CHAR##BITS##_m(m, a, b);                             \
-  }
 
 #define HWY_SVE_RETV_ARGVVV(BASE, CHAR, BITS, HALF, NAME, OP) \
   HWY_API HWY_SVE_V(BASE, BITS)                               \
@@ -6488,7 +6483,6 @@ HWY_API V HighestSetBitIndex(V v) {
 #undef HWY_SVE_RETV_ARGV
 #undef HWY_SVE_RETV_ARGVN
 #undef HWY_SVE_RETV_ARGVV
-#undef HWY_SVE_RETV_ARGMVV_M
 #undef HWY_SVE_RETV_ARGVVV
 #undef HWY_SVE_RETV_ARGMVVV
 #undef HWY_SVE_T
