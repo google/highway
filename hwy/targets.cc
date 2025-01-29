@@ -489,6 +489,28 @@ int64_t DetectTargets() {
 }  // namespace x86
 #elif HWY_ARCH_ARM && HWY_HAVE_RUNTIME_DISPATCH
 namespace arm {
+
+#if HWY_ARCH_ARM_A64 && !HWY_OS_APPLE &&        \
+    (HWY_COMPILER_GCC || HWY_COMPILER_CLANG) && \
+    ((HWY_TARGETS & HWY_ALL_SVE) != 0)
+HWY_PUSH_ATTRIBUTES("+sve")
+int64_t DetectAdditionalSveTargets(int64_t detected_targets) {
+  uint64_t sve_vec_len;
+
+  // Use inline assembly instead of svcntb_pat(SV_ALL) as GCC or Clang might
+  // possibly optimize a svcntb_pat(SV_ALL) call to a constant if the
+  // -msve-vector-bits option is specified
+  asm("cntb %0" : "=r"(sve_vec_len)::);
+
+  return ((sve_vec_len == 32)
+              ? HWY_SVE_256
+              : (((detected_targets & HWY_SVE2) != 0 && sve_vec_len == 16)
+                     ? HWY_SVE2_128
+                     : 0));
+}
+HWY_POP_ATTRIBUTES
+#endif
+
 int64_t DetectTargets() {
   int64_t bits = 0;  // return value of supported targets.
 
@@ -546,6 +568,15 @@ int64_t DetectTargets() {
   if ((hw2 & HWCAP2_SVE2) && (hw2 & HWCAP2_SVEAES)) {
     bits |= HWY_SVE2;
   }
+
+#if (HWY_COMPILER_GCC || HWY_COMPILER_CLANG) && \
+    ((HWY_TARGETS & HWY_ALL_SVE) != 0)
+  if ((bits & HWY_ALL_SVE) != 0) {
+    bits |= DetectAdditionalSveTargets(bits);
+  }
+#endif  // (HWY_COMPILER_GCC || HWY_COMPILER_CLANG) &&
+        // ((HWY_TARGETS & HWY_ALL_SVE) != 0)
+
 #endif  // HWY_OS_APPLE
 
 #else  // !HWY_ARCH_ARM_A64
@@ -806,21 +837,6 @@ HWY_DLLEXPORT int64_t SupportedTargets() {
     // first set up ChosenTarget. No need to Update() again afterwards with the
     // final targets - that will be done by a caller of this function.
     GetChosenTarget().Update(targets);
-
-    // Now that we can call VectorBytes, check for targets with specific sizes.
-    if (HWY_ARCH_ARM_A64) {
-      const size_t vec_bytes = VectorBytes();  // uncached, see declaration
-      if ((targets & HWY_SVE) && vec_bytes == 32) {
-        targets = static_cast<int64_t>(targets | HWY_SVE_256);
-      } else {
-        targets = static_cast<int64_t>(targets & ~HWY_SVE_256);
-      }
-      if ((targets & HWY_SVE2) && vec_bytes == 16) {
-        targets = static_cast<int64_t>(targets | HWY_SVE2_128);
-      } else {
-        targets = static_cast<int64_t>(targets & ~HWY_SVE2_128);
-      }
-    }  // HWY_ARCH_ARM_A64
   }
 
   targets &= supported_mask_;
