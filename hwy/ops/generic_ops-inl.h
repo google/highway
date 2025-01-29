@@ -4352,6 +4352,12 @@ HWY_API V operator*(V x, V y) {
 
 #endif  // HWY_NATIVE_MUL_64
 
+// ------------------------------ MulRound
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_API V MulRound(V a, V b) {
+  return Round(Mul(a, b));
+}
+
 // ------------------------------ MulAdd / NegMulAdd
 
 #if (defined(HWY_NATIVE_INT_FMA) == defined(HWY_TARGET_TOGGLE))
@@ -4382,6 +4388,21 @@ HWY_API V MulSub(V mul, V x, V sub) {
   return Sub(Mul(mul, x), sub);
 }
 #endif  // HWY_NATIVE_INT_FMA
+
+// ------------------------------ MaskedMulAddOr
+#if (defined(HWY_NATIVE_MASKED_INT_FMA) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MASKED_INT_FMA
+#undef HWY_NATIVE_MASKED_INT_FMA
+#else
+#define HWY_NATIVE_MASKED_INT_FMA
+#endif
+
+template <class V, class M>
+HWY_API V MaskedMulAddOr(V no, M m, V mul, V x, V add) {
+  return IfThenElse(m, MulAdd(mul, x, add), no);
+}
+
+#endif  // HWY_NATIVE_MASKED_INT_FMA
 
 // ------------------------------ Integer MulSub / NegMulSub
 #if (defined(HWY_NATIVE_INT_FMSUB) == defined(HWY_TARGET_TOGGLE))

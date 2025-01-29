@@ -379,6 +379,55 @@ HWY_NOINLINE void TestAllFloatExceptions() {
   ForFloatTypes(ForPartialVectors<TestFloatExceptions>());
 }
 
+struct TestMaskedMulAdd {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    RandomState rng;
+    const Vec<D> k0 = Zero(d);
+    const Vec<D> v1 = Iota(d, 1);
+    const Vec<D> v2 = Iota(d, 2);
+
+    using TI = MakeSigned<T>;  // For mask > 0 comparison
+    const Rebind<TI, D> di;
+    using VI = Vec<decltype(di)>;
+    const size_t N = Lanes(d);
+    auto bool_lanes = AllocateAligned<TI>(N);
+    auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(bool_lanes && expected);
+    HWY_ASSERT_VEC_EQ(d, k0, MaskedMulAddOr(v1, MaskTrue(d), k0, k0, k0));
+    HWY_ASSERT_VEC_EQ(d, v2, MaskedMulAddOr(v1, MaskTrue(d), k0, v1, v2));
+    HWY_ASSERT_VEC_EQ(d, v2, MaskedMulAddOr(v1, MaskTrue(d), v1, k0, v2));
+    HWY_ASSERT_VEC_EQ(d, v1, MaskedMulAddOr(v1, MaskFalse(d), k0, k0, k0));
+    HWY_ASSERT_VEC_EQ(d, v1, MaskedMulAddOr(v1, MaskFalse(d), k0, v1, v2));
+    HWY_ASSERT_VEC_EQ(d, v1, MaskedMulAddOr(v1, MaskFalse(d), v1, k0, v2));
+
+    for (size_t i = 0; i < N; ++i) {
+      bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
+      if (bool_lanes[i]) {
+        expected[i] = ConvertScalarTo<T>((i + 1) * (i + 2));
+      } else {
+        expected[i] = ConvertScalarTo<T>(i + 1);
+      }
+    }
+    const VI mask_i = Load(di, bool_lanes.get());
+    const Mask<D> mask = RebindMask(d, Gt(mask_i, Zero(di)));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MaskedMulAddOr(v1, mask, v2, v1, k0));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MaskedMulAddOr(v1, mask, v1, v2, k0));
+
+    for (size_t i = 0; i < N; ++i) {
+      if (bool_lanes[i]) {
+        expected[i] = ConvertScalarTo<T>((i + 2) * (i + 2) + (i + 1));
+      } else {
+        expected[i] = ConvertScalarTo<T>(i + 2);
+      }
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MaskedMulAddOr(v2, mask, v2, v2, v1));
+  }
+};
+
+HWY_NOINLINE void TestAllMaskedMulAdd() {
+  ForAllTypes(ForPartialVectors<TestMaskedMulAdd>());
+}
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -394,6 +443,7 @@ HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllSatAddSub);
 HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllDiv);
 HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllIntegerDivMod);
 HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllFloatExceptions);
+HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllMaskedMulAdd);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy

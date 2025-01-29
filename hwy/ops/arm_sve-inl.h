@@ -268,6 +268,13 @@ HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SPECIALIZE, _, _)
     return sv##OP##_##CHAR##BITS(a, b, c);                    \
   }
 
+#define HWY_SVE_RETV_ARGMVVV(BASE, CHAR, BITS, HALF, NAME, OP)           \
+  HWY_API HWY_SVE_V(BASE, BITS)                                          \
+      NAME(svbool_t m, HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b, \
+           HWY_SVE_V(BASE, BITS) c) {                                    \
+    return sv##OP##_##CHAR##BITS##_x(m, a, b, c);                        \
+  }
+
 // ------------------------------ Lanes
 
 namespace detail {
@@ -1602,6 +1609,24 @@ HWY_API V MaskedSatSubOr(V no, M m, V a, V b) {
 }
 #endif
 
+// ------------------------------ MaskedMulAddOr
+namespace detail {
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVVV, MaskedMulAdd, mad)
+}
+
+// Per-target flag to prevent generic_ops-inl.h from defining int
+// MaskedMulAddOr.
+#ifdef HWY_NATIVE_MASKED_INT_FMA
+#undef HWY_NATIVE_MASKED_INT_FMA
+#else
+#define HWY_NATIVE_MASKED_INT_FMA
+#endif
+
+template <class V, class M>
+HWY_API V MaskedMulAddOr(V no, M m, V mul, V x, V add) {
+  return IfThenElse(m, detail::MaskedMulAdd(m, mul, x, add), no);
+}
+
 template <class V, HWY_IF_FLOAT_V(V), class M>
 HWY_API V MaskedSqrtOr(V no, M m, V v) {
   return IfThenElse(m, detail::MaskedSqrt(m, v), no);
@@ -2100,6 +2125,18 @@ HWY_API svbool_t IsFinite(const V v) {
       BitCast(di, ShiftRight<hwy::MantissaBits<T>() + 1>(Add(vu, vu)));
   return RebindMask(d, detail::LtN(exp, hwy::MaxExponentField<T>()));
 }
+
+// ------------------------------ MulByPow2/MulByFloorPow2
+
+#define HWY_SVE_MUL_BY_POW2(BASE, CHAR, BITS, HALF, NAME, OP)      \
+  HWY_API HWY_SVE_V(BASE, BITS)                                    \
+      NAME(HWY_SVE_V(BASE, BITS) v, HWY_SVE_V(int, BITS) exp) {    \
+    return sv##OP##_##CHAR##BITS##_x(HWY_SVE_PTRUE(BITS), v, exp); \
+  }
+
+HWY_SVE_FOREACH_F(HWY_SVE_MUL_BY_POW2, MulByPow2, scale)
+
+#undef HWY_SVE_MUL_BY_POW2
 
 // ================================================== MEMORY
 
@@ -6447,6 +6484,7 @@ HWY_API V HighestSetBitIndex(V v) {
 #undef HWY_SVE_RETV_ARGVN
 #undef HWY_SVE_RETV_ARGVV
 #undef HWY_SVE_RETV_ARGVVV
+#undef HWY_SVE_RETV_ARGMVVV
 #undef HWY_SVE_T
 #undef HWY_SVE_UNDEFINED
 #undef HWY_SVE_V
