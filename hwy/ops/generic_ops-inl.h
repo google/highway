@@ -4451,6 +4451,12 @@ HWY_API V MulSubAdd(V mul, V x, V sub_or_add) {
   return MulAddSub(mul, x, BitCast(d, Neg(BitCast(d_negate, sub_or_add))));
 }
 
+// ------------------------------ MaskedConvertTo
+template <class D, class V, class M>
+HWY_API VFromD<D> MaskedConvertTo(M m, D d, V v) {
+  return IfThenElseZero(m, ConvertTo(d, v));
+}
+
 // ------------------------------ Integer division
 #if (defined(HWY_NATIVE_INT_DIV) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_INT_DIV

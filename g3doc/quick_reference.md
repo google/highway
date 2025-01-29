@@ -1805,6 +1805,9 @@ All functions except `Stream` are defined in cache_control.h.
     `DemoteToNearestInt(d, v)` is more efficient on some targets, including x86
     and RVV.
 
+*   <code>Vec&lt;D&gt; **MaskedConvertTo**(M m, D d, V v)</code>: returns `v[i]`
+    converted to `D` where m is active and returns zero otherwise.
+
 #### Single vector demotion
 
 These functions demote a full vector (or parts thereof) into a vector of half
