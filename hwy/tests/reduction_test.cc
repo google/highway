@@ -357,23 +357,25 @@ struct TestMaskedReduceSum {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     RandomState rng;
 
+    using TI = MakeSigned<T>;
+    const Rebind<TI, D> di;
     const Vec<D> v2 = Iota(d, 2);
 
     const size_t N = Lanes(d);
-    auto bool_lanes = AllocateAligned<T>(N);
+    auto bool_lanes = AllocateAligned<TI>(N);
     HWY_ASSERT(bool_lanes);
 
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
       T expected = 0;
       for (size_t i = 0; i < N; ++i) {
-        bool_lanes[i] = (Random32(&rng) & 1024) ? T(1) : T(0);
+        bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
         if (bool_lanes[i]) {
           expected += ConvertScalarTo<T>(i + 2);
         }
       }
 
-      const Vec<D> mask_i = Load(d, bool_lanes.get());
-      const Mask<D> mask = RebindMask(d, Gt(mask_i, Zero(d)));
+      const auto mask_i = Load(di, bool_lanes.get());
+      const Mask<D> mask = RebindMask(d, Gt(mask_i, Zero(di)));
 
       // If all elements are disabled the result is implementation defined
       if (AllFalse(d, mask)) {
@@ -394,17 +396,19 @@ struct TestMaskedReduceMin {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     RandomState rng;
 
+    using TI = MakeSigned<T>;
+    const Rebind<TI, D> di;
     const Vec<D> v2 = Iota(d, 2);
 
     const size_t N = Lanes(d);
-    auto bool_lanes = AllocateAligned<T>(N);
+    auto bool_lanes = AllocateAligned<TI>(N);
     HWY_ASSERT(bool_lanes);
 
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
       T expected =
           ConvertScalarTo<T>(N + 3);  // larger than any values in the vector
       for (size_t i = 0; i < N; ++i) {
-        bool_lanes[i] = (Random32(&rng) & 1024) ? T(1) : T(0);
+        bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
         if (bool_lanes[i]) {
           if (expected > ConvertScalarTo<T>(i + 2)) {
             expected = ConvertScalarTo<T>(i + 2);
@@ -412,8 +416,8 @@ struct TestMaskedReduceMin {
         }
       }
 
-      const Vec<D> mask_i = Load(d, bool_lanes.get());
-      const Mask<D> mask = RebindMask(d, Gt(mask_i, Zero(d)));
+      const auto mask_i = Load(di, bool_lanes.get());
+      const Mask<D> mask = RebindMask(d, Gt(mask_i, Zero(di)));
 
       // If all elements are disabled the result is implementation defined
       if (AllFalse(d, mask)) {
@@ -434,16 +438,18 @@ struct TestMaskedReduceMax {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     RandomState rng;
 
+    using TI = MakeSigned<T>;
+    const Rebind<TI, D> di;
     const Vec<D> v2 = Iota(d, 2);
 
     const size_t N = Lanes(d);
-    auto bool_lanes = AllocateAligned<T>(N);
+    auto bool_lanes = AllocateAligned<TI>(N);
     HWY_ASSERT(bool_lanes);
 
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
       T expected = 0;
       for (size_t i = 0; i < N; ++i) {
-        bool_lanes[i] = (Random32(&rng) & 1024) ? T(1) : T(0);
+        bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
         if (bool_lanes[i]) {
           if (expected < ConvertScalarTo<T>(i + 2)) {
             expected = ConvertScalarTo<T>(i + 2);
@@ -451,8 +457,8 @@ struct TestMaskedReduceMax {
         }
       }
 
-      const Vec<D> mask_i = Load(d, bool_lanes.get());
-      const Mask<D> mask = RebindMask(d, Gt(mask_i, Zero(d)));
+      const auto mask_i = Load(di, bool_lanes.get());
+      const Mask<D> mask = RebindMask(d, Gt(mask_i, Zero(di)));
 
       // If all elements are disabled the result is implementation defined
       if (AllFalse(d, mask)) {
