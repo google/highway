@@ -97,18 +97,18 @@ HWY_API Vec<D> Inf(D d) {
   return BitCast(d, Set(du, max_x2 >> 1));
 }
 
-// ------------------------------ SetOr/SetOrZero
+// ------------------------------ MaskedSetOr/MaskedSet
 
 template <class V, typename T = TFromV<V>, typename D = DFromV<V>,
           typename M = MFromD<D>>
-HWY_API V SetOr(V no, M m, T a) {
+HWY_API V MaskedSetOr(V no, M m, T a) {
   D d;
   return IfThenElse(m, Set(d, a), no);
 }
 
 template <class D, typename V = VFromD<D>, typename M = MFromD<D>,
           typename T = TFromD<D>>
-HWY_API V SetOrZero(D d, M m, T a) {
+HWY_API V MaskedSet(D d, M m, T a) {
   return IfThenElseZero(m, Set(d, a));
 }
 
@@ -351,7 +351,7 @@ HWY_API Mask<DTo> DemoteMaskTo(DTo d_to, DFrom d_from, Mask<DFrom> m) {
 
 #endif  // HWY_NATIVE_DEMOTE_MASK_TO
 
-// ------------------------------ LoadHigher
+// ------------------------------ InsertIntoUpper
 #if (defined(HWY_NATIVE_LOAD_HIGHER) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_LOAD_HIGHER
 #undef HWY_NATIVE_LOAD_HIGHER
@@ -359,9 +359,10 @@ HWY_API Mask<DTo> DemoteMaskTo(DTo d_to, DFrom d_from, Mask<DFrom> m) {
 #define HWY_NATIVE_LOAD_HIGHER
 #endif
 template <class D, typename T, class V = VFromD<D>(), HWY_IF_LANES_GT_D(D, 1)>
-HWY_API V LoadHigher(D d, V a, T* p) {
-  const V b = LoadU(d, p);
-  return ConcatLowerLower(d, b, a);
+HWY_API V InsertIntoUpper(D d, T* p, V a) {
+  Half<D> dh;
+  const VFromD<decltype(dh)> b = LoadU(dh, p);
+  return Combine(d, b, LowerHalf(a));
 }
 #endif  // HWY_NATIVE_LOAD_HIGHER
 
@@ -1204,12 +1205,6 @@ HWY_API V MulByFloorPow2(V v, V exp) {
 
 #endif  // HWY_NATIVE_MUL_BY_POW2
 
-// ------------------------------ MaskedLoadU
-template <class D, class M>
-HWY_API VFromD<D> MaskedLoadU(D d, M m,
-                              const TFromD<D>* HWY_RESTRICT unaligned) {
-  return IfThenElseZero(m, LoadU(d, unaligned));
-}
 // ------------------------------ GetExponent
 
 #if (defined(HWY_NATIVE_GET_EXPONENT) == defined(HWY_TARGET_TOGGLE))
@@ -2694,7 +2689,7 @@ HWY_API void StoreN(VFromD<D> v, D d, T* HWY_RESTRICT p,
 
 #endif  // (defined(HWY_NATIVE_STORE_N) == defined(HWY_TARGET_TOGGLE))
 
-// ------------------------------ StoreTruncated
+// ------------------------------ TruncateStore
 #if (defined(HWY_NATIVE_STORE_TRUNCATED) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_STORE_TRUNCATED
 #undef HWY_NATIVE_STORE_TRUNCATED
@@ -2702,13 +2697,12 @@ HWY_API void StoreN(VFromD<D> v, D d, T* HWY_RESTRICT p,
 #define HWY_NATIVE_STORE_TRUNCATED
 #endif
 
-template <class DFrom, class To, class DTo = Rebind<To, DFrom>,
-          HWY_IF_T_SIZE_GT_D(DFrom, sizeof(To)),
-          HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(VFromD<DFrom>)>
-HWY_API void StoreTruncated(VFromD<DFrom> v, const DFrom d,
-                            To* HWY_RESTRICT p) {
+template <class D, class T, HWY_IF_T_SIZE_GT_D(D, sizeof(T)),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
+HWY_API void TruncateStore(VFromD<D> v, const D /*d*/, T* HWY_RESTRICT p) {
+  using DTo = Rebind<T, D>;
   DTo dsmall;
-  StoreN(TruncateTo(dsmall, v), dsmall, p, Lanes(d));
+  StoreU(TruncateTo(dsmall, v), dsmall, p);
 }
 
 #endif  // (defined(HWY_NATIVE_STORE_TRUNCATED) == defined(HWY_TARGET_TOGGLE))
@@ -7511,7 +7505,7 @@ HWY_API V BitShuffle(V v, VI idx) {
 
 #endif  // HWY_NATIVE_BITSHUFFLE
 
-// ------------------------------ AllOnes/AllZeros
+// ------------------------------ AllBits1/AllBits0
 #if (defined(HWY_NATIVE_ALLONES) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_ALLONES
 #undef HWY_NATIVE_ALLONES
@@ -7520,9 +7514,10 @@ HWY_API V BitShuffle(V v, VI idx) {
 #endif
 
 template <class V>
-HWY_API bool AllOnes(V a) {
-  DFromV<V> d;
-  return AllTrue(d, Eq(Not(a), Zero(d)));
+HWY_API bool AllBits1(V a) {
+  const RebindToUnsigned<DFromV<V>> du;
+  using TU = TFromD<decltype(du)>;
+  return AllTrue(du, Eq(BitCast(du, a), Set(du, hwy::HighestValue<TU>())));
 }
 #endif  // HWY_NATIVE_ALLONES
 
@@ -7534,7 +7529,7 @@ HWY_API bool AllOnes(V a) {
 #endif
 
 template <class V>
-HWY_API bool AllZeros(V a) {
+HWY_API bool AllBits0(V a) {
   DFromV<V> d;
   return AllTrue(d, Eq(a, Zero(d)));
 }

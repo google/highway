@@ -146,30 +146,30 @@ HWY_NOINLINE void TestAllTestBit() {
   ForIntegerTypes(ForPartialVectors<TestTestBit>());
 }
 
-struct TestAllOnes {
+struct TestAllBits {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     auto v0s = Zero(d);
-    HWY_ASSERT(AllZeros(v0s));
+    HWY_ASSERT(AllBits0(v0s));
     auto v1s = Not(v0s);
-    HWY_ASSERT(AllOnes(v1s));
+    HWY_ASSERT(AllBits1(v1s));
     const size_t kNumBits = sizeof(T) * 8;
     for (size_t i = 0; i < kNumBits; ++i) {
       const Vec<D> bit1 = Set(d, static_cast<T>(1ull << i));
       const Vec<D> bit2 = Set(d, static_cast<T>(1ull << ((i + 1) % kNumBits)));
       const Vec<D> bits12 = Or(bit1, bit2);
-      HWY_ASSERT(!AllOnes(bit1));
-      HWY_ASSERT(!AllZeros(bit1));
-      HWY_ASSERT(!AllOnes(bit2));
-      HWY_ASSERT(!AllZeros(bit2));
-      HWY_ASSERT(!AllOnes(bits12));
-      HWY_ASSERT(!AllZeros(bits12));
+      HWY_ASSERT(!AllBits1(bit1));
+      HWY_ASSERT(!AllBits0(bit1));
+      HWY_ASSERT(!AllBits1(bit2));
+      HWY_ASSERT(!AllBits0(bit2));
+      HWY_ASSERT(!AllBits1(bits12));
+      HWY_ASSERT(!AllBits0(bits12));
     }
   }
 };
 
-HWY_NOINLINE void TestAllAllOnes() {
-  ForIntegerTypes(ForPartialVectors<TestAllOnes>());
+HWY_NOINLINE void TestAllAllBits() {
+  ForIntegerTypes(ForPartialVectors<TestAllBits>());
 }
 
 }  // namespace
@@ -185,7 +185,7 @@ HWY_BEFORE_TEST(HwyLogicalTest);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllNot);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogical);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllTestBit);
-HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllAllOnes);
+HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllAllBits);
 
 HWY_AFTER_TEST();
 }  // namespace

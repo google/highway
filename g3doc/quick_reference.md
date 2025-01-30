@@ -429,9 +429,9 @@ for comparisons, for example `Lt` instead of `operator<`.
     the result, with `t0` in the least-significant (lowest-indexed) lane of each
     128-bit block and `tK` in the most-significant (highest-indexed) lane of
     each 128-bit block: `{t0, t1, ..., tK}`
-*   <code>V **SetOr**(V no, M m, T a)</code>: returns N-lane vector with lane
+*   <code>V **MaskedSetOr**(V no, M m, T a)</code>: returns N-lane vector with lane
     `i` equal to `a` if `m[i]` is true else `no[i]`.
-*   <code>V **SetOrZero**(D d, M m, T a)</code>: returns N-lane vector with lane
+*   <code>V **MaskedSet**(D d, M m, T a)</code>: returns N-lane vector with lane
     `i` equal to `a` if `m[i]` is true else 0.
 
 ### Getting/setting lanes
@@ -1087,10 +1087,10 @@ Per-lane variable shifts (slow if SSSE3/SSE4, or 16-bit, or Shr i64 on AVX2):
     ```HighestValue<MakeSigned<TFromV<V>>>()``` is returned in the
     corresponding result lanes.
 
-*   <code>bool **AllOnes**(D, V v)</code>: returns whether all bits in `v[i]`
+*   <code>bool **AllBits1**(D, V v)</code>: returns whether all bits in `v[i]`
     are set.
 
-*   <code>bool **AllZeros**(D, V v)</code>: returns whether all bits in `v[i]`
+*   <code>bool **AllBits0**(D, V v)</code>: returns whether all bits in `v[i]`
     are clear.
 
 The following operate on individual bits within each lane. Note that the
@@ -1577,9 +1577,6 @@ aligned memory at indices which are not a multiple of the vector length):
 
 *   <code>Vec&lt;D&gt; **LoadU**(D, const T* p)</code>: returns `p[i]`.
 
-*   <code>Vec&lt;D&gt; **MaskedLoadU**(D, M m, const T* p)</code>: returns `p[i]`
-    where mask is true and returns zero otherwise.
-
 *   <code>Vec&lt;D&gt; **LoadDup128**(D, const T* p)</code>: returns one 128-bit
     block loaded from `p` and broadcasted into all 128-bit block\[s\]. This may
     be faster than broadcasting single values, and is more convenient than
@@ -1610,9 +1607,9 @@ aligned memory at indices which are not a multiple of the vector length):
     lanes from `p` to the first (lowest-index) lanes of the result vector and
     fills the remaining lanes with `no`. Like LoadN, this does not fault.
 
-*   <code> Vec&lt;D&gt; **LoadHigher**(D d, V v, T* p)</code>: Loads `Lanes(d)/2` lanes from
-    `p` into the upper lanes of the result vector and the lower half of `v` into
-    the lower lanes.
+*   <code> Vec&lt;D&gt; **InsertIntoUpper**(D d, T* p, V v)</code>: Loads `Lanes(d)/2`
+    lanes from `p` into the upper lanes of the result vector and the lower half
+    of `v` into the lower lanes.
 
 #### Store
 
@@ -1653,12 +1650,9 @@ aligned memory at indices which are not a multiple of the vector length):
     StoreN does not modify any memory past
     `p + HWY_MIN(Lanes(d), max_lanes_to_store) - 1`.
 
-*   <code>void **StoreTruncated**(Vec&lt;DFrom&gt; v, DFrom d, To* HWY_RESTRICT
-    p)</code>: Truncates elements of `v` to type `To` and stores on `p`. It is
-    similar to performing `TruncateTo` followed by `StoreN` where
-    `max_lanes_to_store` is `Lanes(d)`.
-
-    StoreTruncated does not modify any memory past `p + Lanes(d) - 1`.
+*   <code>void **TruncateStore**(Vec&lt;D&gt; v, D d, T* HWY_RESTRICT p)</code>:
+    Truncates elements of `v` to type `T` and stores on `p`. It is similar to
+    performing `TruncateTo` followed by `StoreU`.
 
 #### Interleaved
 

@@ -73,18 +73,6 @@ struct TestLoadStore {
       HWY_ASSERT_EQ(i + 2, lanes3[i]);
     }
 
-    // Unaligned masked load
-    const MFromD<D> first_3 = FirstN(d, 3);
-    const VFromD<D> vu2 = MaskedLoadU(d, first_3, &lanes[1]);
-    Store(vu2, d, lanes3.get());
-    for (size_t i = 0; i < N; ++i) {
-      if (i < 3) {
-        HWY_ASSERT_EQ(i + 2, lanes3[i]);
-      } else {
-        HWY_ASSERT_EQ(0, lanes3[i]);
-      }
-    }
-
     // Unaligned store
     StoreU(lo2, d, &lanes2[N / 2]);
     size_t i = 0;
@@ -583,7 +571,7 @@ constexpr bool IsSupportedTruncation() {
           Rebind<To, D>().Pow2() + 4 >= static_cast<int>(CeilLog2(sizeof(To))));
 }
 
-struct TestStoreTruncated {
+struct TestTruncateStore {
   template <typename From, typename To, class D,
             hwy::EnableIf<!IsSupportedTruncation<From, To, D>()>* = nullptr>
   HWY_NOINLINE void testTo(From, To, const D) {
@@ -602,7 +590,7 @@ struct TestStoreTruncated {
     auto expected = AllocateAligned<To>(NFrom);
     StoreN(v_expected, dTo, expected.get(), NFrom);
     auto actual = AllocateAligned<To>(NFrom);
-    StoreTruncated(src, d, actual.get());
+    TruncateStore(src, d, actual.get());
     HWY_ASSERT_ARRAY_EQ(expected.get(), actual.get(), NFrom);
   }
 
@@ -614,11 +602,11 @@ struct TestStoreTruncated {
   }
 };
 
-HWY_NOINLINE void TestAllStoreTruncated() {
-  ForU163264(ForPartialVectors<TestStoreTruncated>());
+HWY_NOINLINE void TestAllTruncateStore() {
+  ForU163264(ForPartialVectors<TestTruncateStore>());
 }
 
-struct TestLoadHigher {
+struct TestInsertIntoUpper {
   template <typename T, class D, HWY_IF_LANES_GT_D(D, 1)>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
@@ -632,7 +620,7 @@ struct TestLoadHigher {
     const Vec<D> b = Set(d, 20);
     const Vec<D> expected_output_lanes = ConcatLowerLower(d, b, a);
 
-    HWY_ASSERT_VEC_EQ(d, expected_output_lanes, LoadHigher(d, a, pointer));
+    HWY_ASSERT_VEC_EQ(d, expected_output_lanes, InsertIntoUpper(d, pointer, a));
   }
   template <typename T, class D, HWY_IF_LANES_D(D, 1)>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -640,8 +628,8 @@ struct TestLoadHigher {
   }
 };
 
-HWY_NOINLINE void TestAllLoadHigher() {
-  ForAllTypes(ForPartialVectors<TestLoadHigher>());
+HWY_NOINLINE void TestAllInsertIntoUpper() {
+  ForAllTypes(ForPartialVectors<TestInsertIntoUpper>());
 }
 
 }  // namespace
@@ -664,8 +652,8 @@ HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllCache);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadN);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadNOr);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllStoreN);
-HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllStoreTruncated);
-HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadHigher);
+HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllTruncateStore);
+HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllInsertIntoUpper);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy

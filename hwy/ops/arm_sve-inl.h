@@ -427,26 +427,26 @@ using VFromD = decltype(Set(D(), TFromD<D>()));
 
 using VBF16 = VFromD<ScalableTag<bfloat16_t>>;
 
-// ------------------------------ SetOr/SetOrZero
+// ------------------------------ MaskedSetOr/MaskedSet
 
-#define HWY_SVE_SET_OR(BASE, CHAR, BITS, HALF, NAME, OP)                     \
-  HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_V(BASE, BITS) inactive,         \
-                                     svbool_t m, HWY_SVE_T(BASE, BITS) op) { \
-    return sv##OP##_##CHAR##BITS##_m(inactive, m, op);                       \
+#define HWY_SVE_MASKED_SET_OR(BASE, CHAR, BITS, HALF, NAME, OP)              \
+  HWY_API HWY_SVE_V(BASE, BITS)                                              \
+      NAME(HWY_SVE_V(BASE, BITS) no, svbool_t m, HWY_SVE_T(BASE, BITS) op) { \
+    return sv##OP##_##CHAR##BITS##_m(no, m, op);                             \
   }
 
-HWY_SVE_FOREACH(HWY_SVE_SET_OR, SetOr, dup_n)
-#undef HWY_SVE_SET_OR
+HWY_SVE_FOREACH(HWY_SVE_MASKED_SET_OR, MaskedSetOr, dup_n)
+#undef HWY_SVE_MASKED_SET_OR
 
-#define HWY_SVE_SET_OR_ZERO(BASE, CHAR, BITS, HALF, NAME, OP)                 \
+#define HWY_SVE_MASKED_SET(BASE, CHAR, BITS, HALF, NAME, OP)                  \
   template <size_t N, int kPow2>                                              \
   HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */, \
                                      svbool_t m, HWY_SVE_T(BASE, BITS) op) {  \
     return sv##OP##_##CHAR##BITS##_z(m, op);                                  \
   }
 
-HWY_SVE_FOREACH(HWY_SVE_SET_OR_ZERO, SetOrZero, dup_n)
-#undef HWY_SVE_SET_OR_ZERO
+HWY_SVE_FOREACH(HWY_SVE_MASKED_SET, MaskedSet, dup_n)
+#undef HWY_SVE_MASKED_SET
 
 // ------------------------------ Zero
 
@@ -2232,18 +2232,6 @@ HWY_API void BlendedStore(VFromD<D> v, MFromD<D> m, D d,
 
 #undef HWY_SVE_MEM
 
-#define HWY_SVE_MASKED_MEM(BASE, CHAR, BITS, HALF, NAME, OP)           \
-  template <size_t N, int kPow2>                                       \
-  HWY_API HWY_SVE_V(BASE, BITS)                                        \
-      MaskedLoadU(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */, svbool_t m, \
-                  const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) {      \
-    return svld1_##CHAR##BITS(m, detail::NativeLanePointer(p));        \
-  }
-
-HWY_SVE_FOREACH(HWY_SVE_MASKED_MEM, _, _)
-
-#undef HWY_SVE_MASKED_MEM
-
 #if HWY_TARGET != HWY_SVE2_128
 namespace detail {
 #define HWY_SVE_LOAD_DUP128(BASE, CHAR, BITS, HALF, NAME, OP)   \
@@ -2312,12 +2300,12 @@ HWY_API VFromD<D> LoadDup128(D d, const TFromD<D>* HWY_RESTRICT p) {
 #define HWY_SVE_STORE_TRUNCATED_WORD(BASE, CHAR, BITS, HALF, NAME, OP) \
   HWY_SVE_STORE_TRUNCATED(BASE, CHAR, BITS, HALF, NAME, OP, 32)
 
-HWY_SVE_FOREACH_UI16(HWY_SVE_STORE_TRUNCATED_BYTE, StoreTruncated, st1b)
-HWY_SVE_FOREACH_UI32(HWY_SVE_STORE_TRUNCATED_BYTE, StoreTruncated, st1b)
-HWY_SVE_FOREACH_UI64(HWY_SVE_STORE_TRUNCATED_BYTE, StoreTruncated, st1b)
-HWY_SVE_FOREACH_UI32(HWY_SVE_STORE_TRUNCATED_HALF, StoreTruncated, st1h)
-HWY_SVE_FOREACH_UI64(HWY_SVE_STORE_TRUNCATED_HALF, StoreTruncated, st1h)
-HWY_SVE_FOREACH_UI64(HWY_SVE_STORE_TRUNCATED_WORD, StoreTruncated, st1w)
+HWY_SVE_FOREACH_UI16(HWY_SVE_STORE_TRUNCATED_BYTE, TruncateStore, st1b)
+HWY_SVE_FOREACH_UI32(HWY_SVE_STORE_TRUNCATED_BYTE, TruncateStore, st1b)
+HWY_SVE_FOREACH_UI64(HWY_SVE_STORE_TRUNCATED_BYTE, TruncateStore, st1b)
+HWY_SVE_FOREACH_UI32(HWY_SVE_STORE_TRUNCATED_HALF, TruncateStore, st1h)
+HWY_SVE_FOREACH_UI64(HWY_SVE_STORE_TRUNCATED_HALF, TruncateStore, st1h)
+HWY_SVE_FOREACH_UI64(HWY_SVE_STORE_TRUNCATED_WORD, TruncateStore, st1w)
 
 #undef HWY_SVE_STORE_TRUNCATED
 

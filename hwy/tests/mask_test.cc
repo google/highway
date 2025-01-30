@@ -317,14 +317,14 @@ HWY_NOINLINE void TestAllLogicalMask() {
   ForAllTypes(ForPartialVectors<TestLogicalMask>());
 }
 
-struct TestSetOr {
+struct TestMaskedSetOr {
   template <class D>
   void testWithMask(D d, MFromD<D> m) {
     TFromD<D> a = 1;
     auto yes = Set(d, a);
     auto no = Set(d, 2);
     auto expected = IfThenElse(m, yes, no);
-    auto actual = SetOr(no, m, a);
+    auto actual = MaskedSetOr(no, m, a);
     HWY_ASSERT_VEC_EQ(d, expected, actual);
   }
   template <class T, class D>
@@ -344,18 +344,18 @@ struct TestSetOr {
   }
 };
 
-HWY_NOINLINE void TestAllSetOr() {
-  ForAllTypes(ForShrinkableVectors<TestSetOr>());
+HWY_NOINLINE void TestAllMaskedSetOr() {
+  ForAllTypes(ForShrinkableVectors<TestMaskedSetOr>());
 }
 
-struct TestSetOrZero {
+struct TestMaskedSet {
   template <class D>
   void testWithMask(D d, MFromD<D> m) {
     TFromD<D> a = 1;
     auto yes = Set(d, a);
     auto no = Zero(d);
     auto expected = IfThenElse(m, yes, no);
-    auto actual = SetOrZero(d, m, a);
+    auto actual = MaskedSet(d, m, a);
     HWY_ASSERT_VEC_EQ(d, expected, actual);
   }
   template <class T, class D>
@@ -375,8 +375,8 @@ struct TestSetOrZero {
   }
 };
 
-HWY_NOINLINE void TestAllSetOrZero() {
-  ForAllTypes(ForShrinkableVectors<TestSetOrZero>());
+HWY_NOINLINE void TestAllMaskedSet() {
+  ForAllTypes(ForShrinkableVectors<TestMaskedSet>());
 }
 
 }  // namespace
@@ -397,8 +397,8 @@ HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllCountTrue);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllFindFirstTrue);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllFindLastTrue);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllLogicalMask);
-HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllSetOr);
-HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllSetOrZero);
+HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllMaskedSetOr);
+HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllMaskedSet);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy
