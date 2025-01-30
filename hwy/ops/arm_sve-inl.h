@@ -260,11 +260,6 @@ HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SPECIALIZE, _, _)
       NAME(svbool_t m, HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b) { \
     return sv##OP##_##CHAR##BITS##_x(m, a, b);                             \
   }
-#define HWY_SVE_RETV_ARGMVV_M(BASE, CHAR, BITS, HALF, NAME, OP)            \
-  HWY_API HWY_SVE_V(BASE, BITS)                                            \
-      NAME(svbool_t m, HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b) { \
-    return sv##OP##_##CHAR##BITS##_m(m, a, b);                             \
-  }
 // User-specified mask. Mask=false value is zero.
 #define HWY_SVE_RETV_ARGMVV_Z(BASE, CHAR, BITS, HALF, NAME, OP)             \
   HWY_API HWY_SVE_V(BASE, BITS)                                            \
@@ -285,7 +280,6 @@ HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SPECIALIZE, _, _)
            HWY_SVE_V(BASE, BITS) add) {                                    \
     return sv##OP##_##CHAR##BITS##_z(m, x, mul, add);                      \
   }
-
 
 // ------------------------------ Lanes
 
@@ -1801,11 +1795,6 @@ HWY_API VFromD<D> MaskedWidenMulPairwiseAdd(D d32, M m, V16 a, V16 b) {
 template <class DF, class M, HWY_IF_F32_D(DF), class VBF>
 HWY_API VFromD<DF> MaskedWidenMulPairwiseAdd(DF df, M m, VBF a, VBF b) {
   return IfThenElseZero(m, WidenMulPairwiseAdd(df, a, b));
-}
-
-// ------------------------------ MaskedMul_M
-namespace detail {
-HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV_M, MaskedMul_M, mul);
 }
 
 // ================================================== COMPARE
@@ -6663,7 +6652,6 @@ HWY_SVE_FOREACH_UI(HWY_SVE_MASKED_LEADING_ZERO_COUNT, MaskedLeadingZeroCount,
 #undef HWY_SVE_RETV_ARGMVV
 #undef HWY_SVE_RETV_ARGMV_Z
 #undef HWY_SVE_RETV_ARGMV
-#undef HWY_SVE_RETV_ARGMVV_M
 #undef HWY_SVE_RETV_ARGMVV_Z
 #undef HWY_SVE_RETV_ARGPV
 #undef HWY_SVE_RETV_ARGPVN
