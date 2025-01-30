@@ -97,6 +97,21 @@ HWY_API Vec<D> Inf(D d) {
   return BitCast(d, Set(du, max_x2 >> 1));
 }
 
+// ------------------------------ MaskedSetOr/MaskedSet
+
+template <class V, typename T = TFromV<V>, typename D = DFromV<V>,
+          typename M = MFromD<D>>
+HWY_API V MaskedSetOr(V no, M m, T a) {
+  D d;
+  return IfThenElse(m, Set(d, a), no);
+}
+
+template <class D, typename V = VFromD<D>, typename M = MFromD<D>,
+          typename T = TFromD<D>>
+HWY_API V MaskedSet(D d, M m, T a) {
+  return IfThenElseZero(m, Set(d, a));
+}
+
 // ------------------------------ ZeroExtendResizeBitCast
 
 // The implementation of detail::ZeroExtendResizeBitCast for the HWY_EMU128
@@ -335,6 +350,21 @@ HWY_API Mask<DTo> DemoteMaskTo(DTo d_to, DFrom d_from, Mask<DFrom> m) {
 }
 
 #endif  // HWY_NATIVE_DEMOTE_MASK_TO
+
+// ------------------------------ InsertIntoUpper
+#if (defined(HWY_NATIVE_LOAD_HIGHER) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_LOAD_HIGHER
+#undef HWY_NATIVE_LOAD_HIGHER
+#else
+#define HWY_NATIVE_LOAD_HIGHER
+#endif
+template <class D, typename T, class V = VFromD<D>(), HWY_IF_LANES_GT_D(D, 1)>
+HWY_API V InsertIntoUpper(D d, T* p, V a) {
+  Half<D> dh;
+  const VFromD<decltype(dh)> b = LoadU(dh, p);
+  return Combine(d, b, LowerHalf(a));
+}
+#endif  // HWY_NATIVE_LOAD_HIGHER
 
 // ------------------------------ CombineMasks
 
@@ -2659,6 +2689,24 @@ HWY_API void StoreN(VFromD<D> v, D d, T* HWY_RESTRICT p,
 
 #endif  // (defined(HWY_NATIVE_STORE_N) == defined(HWY_TARGET_TOGGLE))
 
+// ------------------------------ TruncateStore
+#if (defined(HWY_NATIVE_STORE_TRUNCATED) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_STORE_TRUNCATED
+#undef HWY_NATIVE_STORE_TRUNCATED
+#else
+#define HWY_NATIVE_STORE_TRUNCATED
+#endif
+
+template <class D, class T, HWY_IF_T_SIZE_GT_D(D, sizeof(T)),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
+HWY_API void TruncateStore(VFromD<D> v, const D /*d*/, T* HWY_RESTRICT p) {
+  using DTo = Rebind<T, D>;
+  DTo dsmall;
+  StoreU(TruncateTo(dsmall, v), dsmall, p);
+}
+
+#endif  // (defined(HWY_NATIVE_STORE_TRUNCATED) == defined(HWY_TARGET_TOGGLE))
+
 // ------------------------------ Scatter
 
 #if (defined(HWY_NATIVE_SCATTER) == defined(HWY_TARGET_TOGGLE))
@@ -3885,6 +3933,21 @@ HWY_API V TrailingZeroCount(V v) {
                      detail::F32ExpLzcntMinMaxBitCast(Set(du, kNumOfBitsInT))));
 }
 #endif  // HWY_NATIVE_LEADING_ZERO_COUNT
+
+// ------------------------------ MaskedLeadingZeroCount
+#if (defined(HWY_NATIVE_MASKED_LEADING_ZERO_COUNT) == \
+     defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MASKED_LEADING_ZERO_COUNT
+#undef HWY_NATIVE_MASKED_LEADING_ZERO_COUNT
+#else
+#define HWY_NATIVE_MASKED_LEADING_ZERO_COUNT
+#endif
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V), class M>
+HWY_API V MaskedLeadingZeroCount(M m, V v) {
+  return IfThenElseZero(m, LeadingZeroCount(v));
+}
+#endif  // HWY_NATIVE_MASKED_LEADING_ZERO_COUNT
 
 // ------------------------------ AESRound
 
@@ -7442,6 +7505,35 @@ HWY_API V BitShuffle(V v, VI idx) {
 
 #endif  // HWY_NATIVE_BITSHUFFLE
 
+// ------------------------------ AllBits1/AllBits0
+#if (defined(HWY_NATIVE_ALLONES) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_ALLONES
+#undef HWY_NATIVE_ALLONES
+#else
+#define HWY_NATIVE_ALLONES
+#endif
+
+template <class V>
+HWY_API bool AllBits1(V a) {
+  const RebindToUnsigned<DFromV<V>> du;
+  using TU = TFromD<decltype(du)>;
+  return AllTrue(du, Eq(BitCast(du, a), Set(du, hwy::HighestValue<TU>())));
+}
+#endif  // HWY_NATIVE_ALLONES
+
+#if (defined(HWY_NATIVE_ALLZEROS) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_ALLZEROS
+#undef HWY_NATIVE_ALLZEROS
+#else
+#define HWY_NATIVE_ALLZEROS
+#endif
+
+template <class V>
+HWY_API bool AllBits0(V a) {
+  DFromV<V> d;
+  return AllTrue(d, Eq(a, Zero(d)));
+}
+#endif  // HWY_NATIVE_ALLZEROS
 // ================================================== Operator wrapper
 
 // SVE* and RVV currently cannot define operators and have already defined
