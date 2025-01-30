@@ -154,7 +154,7 @@ struct TestMaskedLeadingZeroCount {
     }
     HWY_ASSERT_VEC_EQ(
         d, lzcnt.get(),
-        MaskedLeadingZeroCountOrZero(first_3, Set(d, static_cast<T>(2))));
+        MaskedLeadingZeroCount(first_3, Set(d, static_cast<T>(2))));
 
     for (size_t j = 0; j < N; j++) {
       if (j < 3) {
@@ -165,7 +165,7 @@ struct TestMaskedLeadingZeroCount {
     }
     HWY_ASSERT_VEC_EQ(
         d, lzcnt.get(),
-        MaskedLeadingZeroCountOrZero(
+        MaskedLeadingZeroCount(
             first_3, BitCast(d, Set(du, TU{1} << (kNumOfBitsInT - 2)))));
   }
 };

@@ -6506,8 +6506,8 @@ HWY_API V HighestSetBitIndex(V v) {
     return BitCast(d, sv##OP##_##CHAR##BITS##_z(m, v));                     \
   }
 
-HWY_SVE_FOREACH_UI(HWY_SVE_MASKED_LEADING_ZERO_COUNT,
-                   MaskedLeadingZeroCountOrZero, clz)
+HWY_SVE_FOREACH_UI(HWY_SVE_MASKED_LEADING_ZERO_COUNT, MaskedLeadingZeroCount,
+                   clz)
 #undef HWY_SVE_LEADING_ZERO_COUNT
 
 // ================================================== END MACROS

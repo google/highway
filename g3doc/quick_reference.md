@@ -1070,7 +1070,7 @@ Per-lane variable shifts (slow if SSSE3/SSE4, or 16-bit, or Shr i64 on AVX2):
     ```sizeof(TFromV<V>) * 8``` is returned in the corresponding result lanes.
 
 *   `V`: `{u,i}` \
-    <code>V **MaskedLeadingZeroCountOrZero**(M m, `V a)</code>: returns the
+    <code>V **MaskedLeadingZeroCount**(M m, V a)</code>: returns the
     result of LeadingZeroCount where `m[i]` is true, and zero otherwise.
 
 *   `V`: `{u,i}` \

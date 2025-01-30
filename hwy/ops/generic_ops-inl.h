@@ -3934,7 +3934,7 @@ HWY_API V TrailingZeroCount(V v) {
 }
 #endif  // HWY_NATIVE_LEADING_ZERO_COUNT
 
-// ------------------------------ MaskedLeadingZeroCountOrZero
+// ------------------------------ MaskedLeadingZeroCount
 #if (defined(HWY_NATIVE_MASKED_LEADING_ZERO_COUNT) == \
      defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_MASKED_LEADING_ZERO_COUNT
@@ -3944,7 +3944,7 @@ HWY_API V TrailingZeroCount(V v) {
 #endif
 
 template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V), class M>
-HWY_API V MaskedLeadingZeroCountOrZero(M m, V v) {
+HWY_API V MaskedLeadingZeroCount(M m, V v) {
   return IfThenElseZero(m, LeadingZeroCount(v));
 }
 #endif  // HWY_NATIVE_MASKED_LEADING_ZERO_COUNT
