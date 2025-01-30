@@ -735,6 +735,11 @@ HWY_API Vec1<MakeWide<T>> MulEven(const Vec1<T> a, const Vec1<T> b) {
   return Vec1<TW>(static_cast<TW>(a_wide * b.raw));
 }
 
+template <class T>
+HWY_API Vec1<MakeWide<T>> MulOdd(const Vec1<T>, const Vec1<T>) {
+  static_assert(sizeof(T) == 0, "There are no odd lanes");
+}
+
 // Approximate reciprocal
 HWY_API Vec1<float> ApproximateReciprocal(const Vec1<float> v) {
   // Zero inputs are allowed, but callers are responsible for replacing the
