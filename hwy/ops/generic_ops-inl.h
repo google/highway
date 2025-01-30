@@ -896,13 +896,13 @@ HWY_API V SaturatedAbs(V v) {
 
 // ------------------------------ MaskedAbsOr
 template <class V, HWY_IF_SIGNED_V(V), class M>
-HWY_API V MaskedAbsOr(M m, V v, V no) {
+HWY_API V MaskedAbsOr(V no, M m, V v) {
   return IfThenElse(m, Abs(v), no);
 }
 
-// ------------------------------ MaskedAbsOrZero
+// ------------------------------ MaskedAbs
 template <class V, HWY_IF_SIGNED_V(V), class M>
-HWY_API V MaskedAbsOrZero(M m, V v) {
+HWY_API V MaskedAbs(M m, V v) {
   return IfThenElseZero(m, Abs(v));
 }
 
@@ -1227,22 +1227,6 @@ HWY_API VFromD<RebindToSigned<DFromV<V>>> FloorInt(V v) {
 }
 
 #endif  // HWY_NATIVE_CEIL_FLOOR_INT
-
-#if (defined(HWY_NATIVE_ADD_LOWER) == defined(HWY_TARGET_TOGGLE))
-
-// ------------------------------ Addlower
-#ifdef HWY_NATIVE_ADD_LOWER
-#undef HWY_NATIVE_ADD_LOWER
-#else
-#define HWY_NATIVE_ADD_LOWER
-#endif
-template <class V>
-HWY_API V AddLower(V a, V b) {
-  const DFromV<V> d;
-  const MFromD<DFromV<V>> LowerMask = FirstN(d, 1);
-  return IfThenElse(LowerMask, Add(a, b), a);
-}
-#endif
 
 // ------------------------------ MulByPow2/MulByFloorPow2
 
