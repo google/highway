@@ -209,18 +209,18 @@ struct TestMaskedAbs {
     const Vec<D> v1_exp = IfThenElse(first_five, vp1, vn1);
     const Vec<D> v2_exp = IfThenElse(first_five, vp2, vn2);
 
-    HWY_ASSERT_VEC_EQ(d, v1_exp, MaskedAbsOr(first_five, vn1, vn1));
-    HWY_ASSERT_VEC_EQ(d, v2_exp, MaskedAbsOr(first_five, vn2, vn2));
+    HWY_ASSERT_VEC_EQ(d, v1_exp, MaskedAbsOr(vn1, first_five, vn1));
+    HWY_ASSERT_VEC_EQ(d, v2_exp, MaskedAbsOr(vn2, first_five, vn2));
 
-    // Test that zero mask will return all zeroes for MaskedAbsOrZero
-    HWY_ASSERT_VEC_EQ(d, v0, MaskedAbsOrZero(zero_mask, vn1));
+    // Test that zero mask will return all zeroes for MaskedAbs
+    HWY_ASSERT_VEC_EQ(d, v0, MaskedAbs(zero_mask, vn1));
 
-    // Test that zero is returned in cases m==0 for MaskedAbsOrZero
+    // Test that zero is returned in cases m==0 for MaskedAbs
     const Vec<D> v1_exp_z = IfThenElseZero(first_five, vp1);
     const Vec<D> v2_exp_z = IfThenElseZero(first_five, vp2);
 
-    HWY_ASSERT_VEC_EQ(d, v1_exp_z, MaskedAbsOrZero(first_five, vn1));
-    HWY_ASSERT_VEC_EQ(d, v2_exp_z, MaskedAbsOrZero(first_five, vn2));
+    HWY_ASSERT_VEC_EQ(d, v1_exp_z, MaskedAbs(first_five, vn1));
+    HWY_ASSERT_VEC_EQ(d, v2_exp_z, MaskedAbs(first_five, vn2));
   }
 };
 
@@ -460,33 +460,7 @@ HWY_NOINLINE void TestAllIntegerAbsDiff() {
 #endif
 }
 
-struct TestAddLower {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-#if HWY_TARGET != HWY_SCALAR
-    const Vec<D> a = Iota(d, 1);
-    const Vec<D> b = Iota(d, 2);
-
-    const size_t N = Lanes(d);
-    auto expected = AllocateAligned<T>(N);
-    HWY_ASSERT(expected);
-
-    for (size_t i = 0; i < N; ++i) {
-      expected[i] = ConvertScalarTo<T>((i == 0) ? 3 : (i + 1));
-    }
-
-    HWY_ASSERT_VEC_EQ(d, expected.get(), AddLower(a, b));
-#else
-    (void)d;
-#endif
-  }
-};
-
-HWY_NOINLINE void TestAllAddLower() {
-  ForAllTypes(ForPartialVectors<TestAddLower>());
-}
 }  // namespace
-
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -502,7 +476,6 @@ HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllAverage);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllAbs);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllNeg);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllIntegerAbsDiff);
-HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllAddLower);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllPairwise);
 HWY_AFTER_TEST();
 }  // namespace
