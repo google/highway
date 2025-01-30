@@ -673,7 +673,7 @@ HWY_NOINLINE void TestAllEq128Upper() {
   ForGEVectors<128, TestEq128Upper>()(uint64_t());
 }
 
-struct TestMaskedComparision {
+struct TestMaskedCompare {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     RandomState rng;
@@ -767,8 +767,8 @@ struct TestMaskedComparision {
   }
 };
 
-HWY_NOINLINE void TestAllMaskedComparision() {
-  ForAllTypes(ForPartialVectors<TestMaskedComparision>());
+HWY_NOINLINE void TestAllMaskedCompare() {
+  ForAllTypes(ForPartialVectors<TestMaskedCompare>());
 }
 
 struct TestMaskedFloatClassification {
@@ -849,7 +849,7 @@ HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllLt128Upper);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllEq128);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllEq128Upper);
 
-HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllMaskedComparision);
+HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllMaskedCompare);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllMaskedFloatClassification);
 HWY_AFTER_TEST();
 }  // namespace
