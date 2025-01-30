@@ -611,13 +611,13 @@ struct TestInsertIntoUpper {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
     const Vec<D> a = Set(d, 1);
+    const Vec<D> b = Set(d, 20);
 
     // Generate a generic vector, then extract the pointer to the first entry
     AlignedFreeUniquePtr<T[]> pa = AllocateAligned<T>(N);
-    std::fill(pa.get(), pa.get() + N, 20.0);
+    StoreU(b, d, pa.get());
     T* pointer = pa.get();
 
-    const Vec<D> b = Set(d, 20);
     const Vec<D> expected_output_lanes = ConcatLowerLower(d, b, a);
 
     HWY_ASSERT_VEC_EQ(d, expected_output_lanes, InsertIntoUpper(d, pointer, a));
