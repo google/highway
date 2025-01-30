@@ -140,8 +140,8 @@ struct TestMaskedMulComplexOr {
       auto d = ConvertScalarTo<T>(i + 10 + 1);
       auto e = ConvertScalarTo<T>(i + 15);
       auto f = ConvertScalarTo<T>(i + 15 + 1);
-      if ((i % 4) ==
-          0) {  // Alternate between masking the real and imaginary lanes
+      // Alternate between masking the real and imaginary lanes
+      if ((i % 4) == 0) {
         bool_lanes[i + 0] = ConvertScalarTo<T>(1);
         expected[i + 0] = ConvertScalarTo<T>((a * c) - (b * d));
         bool_lanes[i + 1] = ConvertScalarTo<T>(0);
@@ -251,8 +251,8 @@ struct TestMaskedMulComplexConj {
       auto b = ConvertScalarTo<T>(i + 2 + 1);
       auto c = ConvertScalarTo<T>(i + 10);
       auto d = ConvertScalarTo<T>(i + 10 + 1);
-      if ((i % 4) ==
-          0) {  // Alternate between masking the real and imaginary lanes
+      // Alternate between masking the real and imaginary lanes
+      if ((i % 4) == 0) {
         bool_lanes[i + 0] = ConvertScalarTo<T>(1);
         expected[i + 0] = ConvertScalarTo<T>((a * c) + (b * d));
         bool_lanes[i + 1] = ConvertScalarTo<T>(0);
@@ -300,8 +300,8 @@ struct TestMaskedMulComplexConjAdd {
       auto d = ConvertScalarTo<T>(i + 10 + 1);
       auto e = ConvertScalarTo<T>(i + 15);
       auto f = ConvertScalarTo<T>(i + 15 + 1);
-      if ((i % 4) ==
-          2) {  // Alternate between masking the real and imaginary lanes
+      // Alternate between masking the real and imaginary lanes
+      if ((i % 4) == 2) {
         bool_lanes[i + 0] = ConvertScalarTo<T>(1);
         expected[i + 0] = ConvertScalarTo<T>((e + (c * a)) + (d * b));
         bool_lanes[i + 1] = ConvertScalarTo<T>(0);
