@@ -882,6 +882,7 @@ HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllSatAddSub);
 HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllDiv);
 HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllIntegerDivMod);
 HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllFloatExceptions);
+HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllMaskedMulAdd);
 
 HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllMaskedAddSubMul);
 HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllMaskedSatAddSub);
