@@ -2325,54 +2325,6 @@ HWY_API V PairwiseSub(D d, V a, V b) {
 
 #endif
 
-#if (defined(HWY_NATIVE_PAIRWISE_ADD_128) == defined(HWY_TARGET_TOGGLE))
-#ifdef HWY_NATIVE_PAIRWISE_ADD_128
-#undef HWY_NATIVE_PAIRWISE_ADD_128
-#else
-#define HWY_NATIVE_PAIRWISE_ADD_128
-#endif
-
-template <class D>
-using IndicesFromD = decltype(IndicesFromVec(D(), Zero(RebindToUnsigned<D>())));
-
-// Generate indices to convert
-// a[0]+a[1], b[0]+b[1], a[2]+a[3], b[2]+b[3] and so on
-// to
-// Interleaved 64 bits of a[0]+a[1], a[2]+a[3], ...
-//         and 64 bits of b[0]+b[1], b[2]+b[3], ... and so on
-template <typename V, typename D = DFromV<V>, typename T = TFromD<D>,
-          const size_t N = HWY_LANES(T)>
-constexpr IndicesFromD<D> Pairwise128Indices(D d) {
-  const size_t block_len = 8 / sizeof(T);
-  const size_t n_blocks = N / block_len;
-  TFromD<RebindToUnsigned<D>> indices[N] = {0};
-
-  TFromD<RebindToUnsigned<D>> even = 0, odd = 1;
-  for (size_t block = 0; block < n_blocks; block += 2) {
-    for (size_t index = 0; index < block_len; ++index, even += 2) {
-      indices[block * block_len + index] = even;
-    }
-    for (size_t index = 0; index < block_len; ++index, odd += 2) {
-      indices[(block + 1) * block_len + index] = odd;
-    }
-  }
-  return SetTableIndices(d, indices);
-}
-
-// Pairwise add with output in 128 bit blocks of a and b.
-template <class D, class V = VFromD<D>, HWY_IF_V_SIZE_GE_D(D, 16)>
-HWY_API V PairwiseAdd128(D d, V a, V b) {
-  return TableLookupLanes(PairwiseAdd(d, a, b), Pairwise128Indices<V>(d));
-}
-
-// Pairwise sub with output in 128 bit blocks of a and b.
-template <class D, class V = VFromD<D>, HWY_IF_V_SIZE_GE_D(D, 16)>
-HWY_API V PairwiseSub128(D d, V a, V b) {
-  return TableLookupLanes(PairwiseSub(d, a, b), Pairwise128Indices<V>(d));
-}
-
-#endif
-
 // Load/StoreInterleaved for special floats. Requires HWY_GENERIC_IF_EMULATED_D
 // is defined such that it is true only for types that actually require these
 // generic implementations.
@@ -7429,6 +7381,112 @@ HWY_API V Per4LaneBlockShuffle(V v) {
       (kIdx3 << 6) | (kIdx2 << 4) | (kIdx1 << 2) | kIdx0;
   return detail::Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210>(), v);
 }
+#endif
+
+
+// ------------------------------ PairwiseAdd128/PairwiseSub128 (Per4LaneBlockShuffle)
+#if (defined(HWY_NATIVE_PAIRWISE_ADD_128) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_PAIRWISE_ADD_128
+#undef HWY_NATIVE_PAIRWISE_ADD_128
+#else
+#define HWY_NATIVE_PAIRWISE_ADD_128
+#endif
+
+namespace detail {
+
+// detail::BlockwiseConcatOddEven(d, v) returns the even lanes of each block of
+// v followed by the odd lanes of v
+#if HWY_TARGET_IS_NEON || HWY_TARGET_IS_SVE || HWY_TARGET == HWY_RVV
+template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)),
+          HWY_IF_V_SIZE_GT_D(D, 8)>
+static HWY_INLINE HWY_MAYBE_UNUSED Vec<D> BlockwiseConcatOddEven(D d,
+                                                                 Vec<D> v) {
+#if HWY_TARGET == HWY_RVV
+  const ScalableTag<uint64_t, HWY_MAX(HWY_POW2_D(D), 0)> du64;
+#else
+  const Repartition<uint64_t, decltype(d)> du64;
+#endif
+
+  const auto evens = ConcatEven(d, v, v);
+  const auto odds = ConcatOdd(d, v, v);
+  return ResizeBitCast(d, InterleaveWholeLower(ResizeBitCast(du64, evens),
+                                               ResizeBitCast(du64, odds)));
+}
+
+#else  // !(HWY_TARGET_IS_NEON || HWY_TARGET_IS_SVE || HWY_TARGET == HWY_RVV)
+
+template <class D, HWY_IF_T_SIZE_D(D, 1), HWY_IF_V_SIZE_GT_D(D, 8)>
+static HWY_INLINE HWY_MAYBE_UNUSED Vec<D> BlockwiseConcatOddEven(D d,
+                                                                 Vec<D> v) {
+#if HWY_TARGET == HWY_SSE2
+  const RebindToUnsigned<decltype(d)> du;
+  const RebindToSigned<RepartitionToWide<decltype(du)>> dw;
+
+  const auto vu = BitCast(du, v);
+  return BitCast(
+      d, OrderedDemote2To(du, PromoteEvenTo(dw, vu), PromoteOddTo(dw, vu)));
+#else
+  const Repartition<uint8_t, decltype(d)> du8;
+  const auto idx =
+      BitCast(d, Dup128VecFromValues(du8, 0, 2, 4, 6, 8, 10, 12, 14, 1, 3, 5, 7,
+                                     9, 11, 13, 15));
+  return TableLookupBytes(v, idx);
+#endif
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 2), HWY_IF_V_SIZE_GT_D(D, 8)>
+static HWY_INLINE HWY_MAYBE_UNUSED Vec<D> BlockwiseConcatOddEven(D d,
+                                                                 Vec<D> v) {
+#if HWY_TARGET == HWY_SSE2
+  const RebindToSigned<decltype(d)> di;
+  const RepartitionToWide<decltype(di)> dw;
+  const auto vi = BitCast(di, v);
+  return BitCast(
+      d, OrderedDemote2To(di, PromoteEvenTo(dw, vi), PromoteOddTo(dw, vi)));
+#else
+  const Repartition<uint8_t, decltype(d)> du8;
+  const auto idx = BitCast(d, Dup128VecFromValues(du8, 0, 1, 4, 5, 8, 9, 12, 13,
+                                                  2, 3, 6, 7, 10, 11, 14, 15));
+  return TableLookupBytes(v, idx);
+#endif
+}
+#endif  // HWY_TARGET_IS_NEON || HWY_TARGET_IS_SVE || HWY_TARGET == HWY_RVV
+
+template <class D, HWY_IF_T_SIZE_D(D, 4), HWY_IF_V_SIZE_GT_D(D, 8)>
+static HWY_INLINE HWY_MAYBE_UNUSED Vec<D> BlockwiseConcatOddEven(D d,
+                                                                 Vec<D> v) {
+#if HWY_TARGET_IS_NEON || HWY_TARGET_IS_SVE
+  const Repartition<uint64_t, decltype(d)> du64;
+  const auto evens = ConcatEven(d, v, v);
+  const auto odds = ConcatOdd(d, v, v);
+  return BitCast(
+      d, InterleaveWholeLower(BitCast(du64, evens), BitCast(du64, odds)));
+#else
+  (void)d;
+  return Per4LaneBlockShuffle<3, 1, 2, 0>(v);
+#endif
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 8), HWY_IF_V_SIZE_GT_D(D, 8)>
+static HWY_INLINE HWY_MAYBE_UNUSED Vec<D> BlockwiseConcatOddEven(D /*d*/,
+                                                                 Vec<D> v) {
+  return v;
+}
+
+}  // namespace detail
+
+// Pairwise add with output in 128 bit blocks of a and b.
+template <class D, HWY_IF_V_SIZE_GT_D(D, 8)>
+HWY_API Vec<D> PairwiseAdd128(D d, Vec<D> a, Vec<D> b) {
+  return detail::BlockwiseConcatOddEven(d, PairwiseAdd(d, a, b));
+}
+
+// Pairwise sub with output in 128 bit blocks of a and b.
+template <class D, HWY_IF_V_SIZE_GT_D(D, 8)>
+HWY_API Vec<D> PairwiseSub128(D d, Vec<D> a, Vec<D> b) {
+  return detail::BlockwiseConcatOddEven(d, PairwiseAdd(d, a, b));
+}
+
 #endif
 
 // ------------------------------ Blocks
