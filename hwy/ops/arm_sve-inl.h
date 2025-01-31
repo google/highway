@@ -5086,6 +5086,10 @@ HWY_API V AverageRound(const V a, const V b) {
 // `p` points to at least 8 readable bytes, not all of which need be valid.
 template <class D, HWY_IF_T_SIZE_D(D, 1)>
 HWY_INLINE svbool_t LoadMaskBits(D d, const uint8_t* HWY_RESTRICT bits) {
+#if HWY_COMPILER_CLANG >= 1901 || HWY_COMPILER_GCC_ACTUAL >= 1200
+  (void)d;
+  return *(const svbool_t*)bits;
+#else
   // TODO(janwas): with SVE2.1, load to vector, then PMOV
   const RebindToUnsigned<D> du;
   const svuint8_t iota = Iota(du, 0);
@@ -5098,6 +5102,7 @@ HWY_INLINE svbool_t LoadMaskBits(D d, const uint8_t* HWY_RESTRICT bits) {
   const svuint8_t bit =
       svdupq_n_u8(1, 2, 4, 8, 16, 32, 64, 128, 1, 2, 4, 8, 16, 32, 64, 128);
   return TestBit(rep8, bit);
+#endif
 }
 
 template <class D, HWY_IF_T_SIZE_D(D, 2)>
