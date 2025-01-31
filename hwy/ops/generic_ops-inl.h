@@ -7646,9 +7646,9 @@ HWY_API V MultiShift(V v, VI idx) {
 
   // Extract the even bytes of each 128 bit block and pack into lower 64 bits
   const auto even_lanes =
-      BitCast(d64, concatEven(extracted_even_bytes, Zero(du16)));
+      BitCast(d64, ConcatEven(du8, Zero(du8), BitCast(du8, extracted_even_bytes)));
   const auto odd_lanes =
-      BitCast(d64, concatEven(extracted_odd_bytes, Zero(du16)));
+      BitCast(d64, ConcatEven(du8, Zero(du8), BitCast(du8, extracted_odd_bytes)));
   // Interleave at 64 bit level
   return InterleaveLower(even_lanes, odd_lanes);
 }
