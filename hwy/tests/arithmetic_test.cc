@@ -360,7 +360,7 @@ struct TestPairwiseSub {
   }
 };
 
-struct TestPairWiseAdd128 {
+struct TestPairwiseAdd128 {
   template <typename T, class D, HWY_IF_LANES_GT_D(D, 1)>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     auto a = Iota(d, 1);
@@ -398,10 +398,51 @@ struct TestPairWiseAdd128 {
   }
 };
 
+struct TestPairwiseSub128 {
+  template <typename T, class D, HWY_IF_LANES_GT_D(D, 1)>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto iota0 = Iota(d, 0);
+
+    auto a = Add(Iota(d, 1), OddEven(Zero(d), iota0));
+    auto b = Add(Iota(d, 2), OddEven(iota0, Zero(d)));
+    T even_val_a, odd_val_a, even_val_b, odd_val_b;
+    const size_t N = Lanes(d);
+    auto expected = AllocateAligned<T>(N);
+
+    const size_t vec_bytes = sizeof(T) * N;
+    const size_t blocks_of_128 = (vec_bytes >= 16) ? vec_bytes / 16 : 1;
+    const size_t lanes_in_128 = (vec_bytes >= 16) ? 16 / sizeof(T) : N;
+
+    for (size_t block = 0; block < blocks_of_128; ++block) {
+      for (size_t i = 0; i < lanes_in_128 / 2; ++i) {
+        size_t j = 2 * (block * lanes_in_128 / 2 + i);
+
+        even_val_a = ConvertScalarTo<T>(2 * j + 1);
+        odd_val_a = ConvertScalarTo<T>(j + 2);
+        even_val_b = ConvertScalarTo<T>(j + 2);
+        odd_val_b = ConvertScalarTo<T>(2 * j + 4);
+
+        expected[block * lanes_in_128 + i] = odd_val_a - even_val_a;
+        expected[block * lanes_in_128 + lanes_in_128 / 2 + i] =
+            odd_val_b - even_val_b;
+      }
+    }
+    const auto expected_v = Load(d, expected.get());
+    auto res = PairwiseSub128(d, a, b);
+    HWY_ASSERT_VEC_EQ(d, expected_v, res);
+  }
+
+  template <typename T, class D, HWY_IF_LANES_D(D, 1)>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    (void)d;
+  }
+};
+
 HWY_NOINLINE void TestAllPairwise() {
   ForAllTypes(ForPartialVectors<TestPairwiseAdd>());
   ForAllTypes(ForPartialVectors<TestPairwiseSub>());
-  ForAllTypes(ForGEVectors<128, TestPairWiseAdd128>());
+  ForAllTypes(ForGEVectors<128, TestPairwiseAdd128>());
+  ForAllTypes(ForGEVectors<128, TestPairwiseSub128>());
 }
 
 struct TestIntegerAbsDiff {

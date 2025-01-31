@@ -623,8 +623,6 @@ HWY_API bool IsAligned(D d, T* ptr) {
   HWY_IF_V_SIZE_LE(hwy::HWY_NAMESPACE::TFromD<D>, HWY_MAX_LANES_D(D), bytes)
 #define HWY_IF_V_SIZE_GT_D(D, bytes) \
   HWY_IF_V_SIZE_GT(hwy::HWY_NAMESPACE::TFromD<D>, HWY_MAX_LANES_D(D), bytes)
-#define HWY_IF_V_SIZE_GE_D(D, bytes) \
-  HWY_IF_V_SIZE_GE(hwy::HWY_NAMESPACE::TFromD<D>, HWY_MAX_LANES_D(D), bytes)
 
 // Same, but with a vector argument. ops/*-inl.h define their own TFromV.
 #define HWY_IF_UNSIGNED_V(V) HWY_IF_UNSIGNED(hwy::HWY_NAMESPACE::TFromV<V>)
@@ -676,6 +674,12 @@ HWY_API bool IsAligned(D d, T* ptr) {
 #undef HWY_IF_MULADDSUB_V
 #define HWY_IF_MULADDSUB_V(V) \
   HWY_IF_LANES_GT_D(hwy::HWY_NAMESPACE::DFromV<V>, 1)
+
+#undef HWY_IF_PAIRWISE_ADD_128_D
+#define HWY_IF_PAIRWISE_ADD_128_D(D) HWY_IF_V_SIZE_GT_D(D, 8)
+
+#undef HWY_IF_PAIRWISE_SUB_128_D
+#define HWY_IF_PAIRWISE_SUB_128_D(D) HWY_IF_V_SIZE_GT_D(D, 8)
 
 // HWY_IF_U2I_DEMOTE_FROM_LANE_SIZE_V is used to disable the default
 // implementation of unsigned to signed DemoteTo/ReorderDemote2To in
