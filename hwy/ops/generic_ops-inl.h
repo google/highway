@@ -518,24 +518,6 @@ HWY_API V InterleaveEven(V a, V b) {
 }
 #endif
 
-// ------------------------------ InterleaveEvenOrZero
-
-#if HWY_TARGET != HWY_SCALAR || HWY_IDE
-template <class V, class M>
-HWY_API V InterleaveEvenOrZero(M m, V a, V b) {
-  return IfThenElseZero(m, InterleaveEven(DFromV<V>(), a, b));
-}
-#endif
-
-// ------------------------------ InterleaveOddOrZero
-
-#if HWY_TARGET != HWY_SCALAR || HWY_IDE
-template <class V, class M>
-HWY_API V InterleaveOddOrZero(M m, V a, V b) {
-  return IfThenElseZero(m, InterleaveOdd(DFromV<V>(), a, b));
-}
-#endif
-
 // ------------------------------ MinMagnitude/MaxMagnitude
 
 #if (defined(HWY_NATIVE_FLOAT_MIN_MAX_MAGNITUDE) == defined(HWY_TARGET_TOGGLE))
@@ -680,19 +662,19 @@ HWY_API V MaskedSatSubOr(V no, M m, V a, V b) {
 #endif  // HWY_NATIVE_MASKED_ARITH
 
 // ------------------------------ MaskedShift
-template <int kshift, class V, class M>
-HWY_API V MaskedShiftLeftOrZero(M m, V a) {
-  return IfThenElseZero(m, ShiftLeft<kshift>(a));
+template <int kShift, class V, class M>
+HWY_API V MaskedShiftLeft(M m, V a) {
+  return IfThenElseZero(m, ShiftLeft<kShift>(a));
 }
 
-template <int kshift, class V, class M>
-HWY_API V MaskedShiftRightOrZero(M m, V a) {
-  return IfThenElseZero(m, ShiftRight<kshift>(a));
+template <int kShift, class V, class M>
+HWY_API V MaskedShiftRight(M m, V a) {
+  return IfThenElseZero(m, ShiftRight<kShift>(a));
 }
 
-template <int kshift, class V, class M>
+template <int kShift, class V, class M>
 HWY_API V MaskedShiftRightOr(V no, M m, V a) {
-  return IfThenElse(m, ShiftRight<kshift>(a), no);
+  return IfThenElse(m, ShiftRight<kShift>(a), no);
 }
 
 template <class V, class M>
@@ -7617,7 +7599,8 @@ HWY_API bool AllBits0(V a) {
   return AllTrue(d, Eq(a, Zero(d)));
 }
 #endif  // HWY_NATIVE_ALLZEROS
-// ------------------------------ MultiShift (Rol)
+
+// ------------------------------ MultiShift
 #if (defined(HWY_NATIVE_MULTISHIFT) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_MULTISHIFT
 #undef HWY_NATIVE_MULTISHIFT
@@ -7662,17 +7645,16 @@ HWY_API V MultiShift(V v, VI idx) {
       Shr(BitCast(du16, odd_segments), odd_idx_shift);
 
   // Extract the even bytes of each 128 bit block and pack into lower 64 bits
-  const auto extract_mask = Dup128VecFromValues(du8, 0, 2, 4, 6, 8, 10, 12, 14,
-                                                0, 0, 0, 0, 0, 0, 0, 0);
   const auto even_lanes =
-      BitCast(d64, TableLookupBytes(extracted_even_bytes, extract_mask));
+      BitCast(d64, concatEven(extracted_even_bytes, Zero(du16)));
   const auto odd_lanes =
-      BitCast(d64, TableLookupBytes(extracted_odd_bytes, extract_mask));
+      BitCast(d64, concatEven(extracted_odd_bytes, Zero(du16)));
   // Interleave at 64 bit level
   return InterleaveLower(even_lanes, odd_lanes);
 }
 
 #endif
+
 // ================================================== Operator wrapper
 
 // SVE* and RVV currently cannot define operators and have already defined

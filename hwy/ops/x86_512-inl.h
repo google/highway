@@ -7541,6 +7541,8 @@ HWY_API V BitShuffle(V v, VI idx) {
 }
 #endif  // HWY_TARGET <= HWY_AVX3_DL
 
+// TODO: Implement MultiShift using _mm512_multishift_epi64_epi8
+
 // -------------------- LeadingZeroCount
 
 template <class V, HWY_IF_UI32(TFromV<V>), HWY_IF_V_SIZE_V(V, 64)>

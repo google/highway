@@ -13664,6 +13664,8 @@ HWY_API V BitShuffle(V v, VI idx) {
 }
 #endif  // HWY_TARGET <= HWY_AVX3_DL
 
+// TODO: Implement MultiShift using _mm_multishift_epi64_epi8
+
 // ------------------------------ Lt128
 
 namespace detail {

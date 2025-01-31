@@ -1024,8 +1024,8 @@ A compound shift on 64-bit values:
 
 *   `V`: `{u,i}64`, `VI`: `{u,i}8` \
     <code>V **MultiShift**(V vals, VI indices)</code>: returns a
-    vector with `(vals[i] >> indices[i*8+j]) & 0xff` in byte `j` of `r[i]` for each
-    `j` between 0 and 7.
+    vector with `(vals[i] >> indices[i*8+j]) & 0xff` in byte `j` of vector `r[i]`
+    for each `j` between 0 and 7.
 
     If `indices[i*8+j]` is less than 0 or greater than 63, byte `j` of `r[i]` is
     implementation-defined.
@@ -1048,11 +1048,11 @@ A compound shift on 64-bit values:
 
 #### Masked Shifts
 *   `V`: `{u,i}` \
-    <code>V **MaskedShiftLeftOrZero**&lt;int&gt;(M mask, V a)</code> returns `a[i] << int` or `0` if
+    <code>V **MaskedShiftLeft**&lt;int&gt;(M mask, V a)</code> returns `a[i] << int` or `0` if
     `mask[i]` is false.
 
 *   `V`: `{u,i}` \
-    <code>V **MaskedShiftRightOrZero**&lt;int&gt;(M mask, V a)</code> returns `a[i] >> int` or `0` if
+    <code>V **MaskedShiftRight**&lt;int&gt;(M mask, V a)</code> returns `a[i] >> int` or `0` if
     `mask[i]` is false.
 
 *   `V`: `{u,i}` \
@@ -2233,12 +2233,6 @@ Ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     `InterleaveOdd(d, a, b)` is equivalent to `OddEven(b, DupOdd(a))`, but
     `InterleaveOdd(d, a, b)` is usually more efficient than `OddEven(b,
     DupOdd(a))`.
-
-*   <code>V **InterleaveEvenOrZero**(M m, V a, V b)</code>: Performs the same
-    operation as InterleaveEven, but returns zero in lanes where `m[i]` is false.
-
-*   <code>V **InterleaveOddOrZero**(M m, V a, V b)</code>: Performs the same
-    operation as InterleaveOdd, but returns zero in lanes where `m[i]` is false.
 
 #### Zip
 
