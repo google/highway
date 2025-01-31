@@ -382,9 +382,10 @@ struct TestPairwiseAdd128 {
         even_val_b = ConvertScalarTo<T>(j + 2);
         odd_val_b = ConvertScalarTo<T>(j + 3);
 
-        expected[block * lanes_in_128 + i] = even_val_a + odd_val_a;
+        expected[block * lanes_in_128 + i] =
+            ConvertScalarTo<T>(even_val_a + odd_val_a);
         expected[block * lanes_in_128 + lanes_in_128 / 2 + i] =
-            even_val_b + odd_val_b;
+            ConvertScalarTo<T>(even_val_b + odd_val_b);
       }
     }
     const auto expected_v = Load(d, expected.get());
@@ -422,9 +423,10 @@ struct TestPairwiseSub128 {
         even_val_b = ConvertScalarTo<T>(j + 2);
         odd_val_b = ConvertScalarTo<T>(2 * j + 4);
 
-        expected[block * lanes_in_128 + i] = odd_val_a - even_val_a;
+        expected[block * lanes_in_128 + i] =
+            ConvertScalarTo<T>(odd_val_a - even_val_a);
         expected[block * lanes_in_128 + lanes_in_128 / 2 + i] =
-            odd_val_b - even_val_b;
+            ConvertScalarTo<T>(odd_val_b - even_val_b);
       }
     }
     const auto expected_v = Load(d, expected.get());
