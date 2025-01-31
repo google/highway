@@ -3914,6 +3914,8 @@ HWY_API Vec128<double> AddSub(Vec128<double> a, Vec128<double> b) {
 // Need to use the default implementation of PairwiseAdd128/PairwiseSub128 in
 // generic_ops-inl.h for U8/I8/F16/I64/U64 vectors and 64-byte vectors
 
+#if HWY_TARGET <= HWY_SSSE3
+
 #undef HWY_IF_PAIRWISE_ADD_128_D
 #undef HWY_IF_PAIRWISE_SUB_128_D
 #define HWY_IF_PAIRWISE_ADD_128_D(D)                                       \
@@ -3962,6 +3964,8 @@ template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F64_D(D)>
 HWY_API VFromD<D> PairwiseSub128(D /*d*/, VFromD<D> a, VFromD<D> b) {
   return Neg(VFromD<D>{_mm_hsub_pd(a.raw, b.raw)});
 }
+
+#endif  // HWY_TARGET <= HWY_SSSE3
 
 // ------------------------------ SumsOf8
 template <size_t N>
