@@ -303,8 +303,8 @@ struct TestPairwiseAdd {
       even_val_b = ConvertScalarTo<T>(i + 2);     // b[i]
       odd_val_b = ConvertScalarTo<T>(i + 2 + 1);  // b[i+1]
 
-      expected[i] = even_val_a + odd_val_a;
-      expected[i + 1] = even_val_b + odd_val_b;
+      expected[i] = ConvertScalarTo<T>(even_val_a + odd_val_a);
+      expected[i + 1] = ConvertScalarTo<T>(even_val_b + odd_val_b);
     }
 
     HWY_ASSERT_VEC_EQ(d, expected.get(), PairwiseAdd(d, a, b));
@@ -344,8 +344,8 @@ struct TestPairwiseSub {
       b_lanes[i] = even_val_b;     // b[i]
       b_lanes[i + 1] = odd_val_b;  // b[i+1]
 
-      expected[i] = odd_val_a - even_val_a;
-      expected[i + 1] = odd_val_b - even_val_b;
+      expected[i] = ConvertScalarTo<T>(odd_val_a - even_val_a);
+      expected[i + 1] = ConvertScalarTo<T>(odd_val_b - even_val_b);
     }
 
     const auto a = Load(d, a_lanes.get());
