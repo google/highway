@@ -1249,6 +1249,27 @@ HWY_API V MulByFloorPow2(V v, V exp) {
 
 #endif  // HWY_NATIVE_MUL_BY_POW2
 
+// ------------------------------ GetBiasedExponent
+#if (defined(HWY_NATIVE_GET_BIASED_EXPONENT) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_GET_BIASED_EXPONENT
+#undef HWY_NATIVE_GET_BIASED_EXPONENT
+#else
+#define HWY_NATIVE_GET_BIASED_EXPONENT
+#endif
+
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_API VFromD<RebindToUnsigned<DFromV<V>>> GetBiasedExponent(V v) {
+  using T = TFromV<V>;
+
+  const DFromV<V> d;
+  const RebindToUnsigned<decltype(d)> du;
+
+  constexpr int kNumOfMantBits = MantissaBits<T>();
+  return ShiftRight<kNumOfMantBits>(BitCast(du, Abs(v)));
+}
+
+#endif
+
 // ------------------------------ GetExponent
 
 #if (defined(HWY_NATIVE_GET_EXPONENT) == defined(HWY_TARGET_TOGGLE))
@@ -1262,14 +1283,12 @@ template <class V, HWY_IF_FLOAT_V(V)>
 HWY_API V GetExponent(V v) {
   const DFromV<V> d;
   using T = TFromV<V>;
-  const RebindToUnsigned<decltype(d)> du;
   const RebindToSigned<decltype(d)> di;
 
-  constexpr uint8_t mantissa_bits = MantissaBits<T>();
   const auto exponent_offset = Set(di, MaxExponentField<T>() >> 1);
 
   // extract exponent bits as integer
-  const auto encoded_exponent = ShiftRight<mantissa_bits>(BitCast(du, Abs(v)));
+  const auto encoded_exponent = GetBiasedExponent(v);
   const auto exponent_int = Sub(BitCast(di, encoded_exponent), exponent_offset);
 
   // convert integer to original type

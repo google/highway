@@ -2734,6 +2734,27 @@ HWY_API Vec256<double> ApproximateReciprocal(Vec256<double> v) {
 }
 #endif
 
+// ------------------------------ GetExponent
+
+#if HWY_TARGET <= HWY_AVX3
+
+#if HWY_HAVE_FLOAT16
+template <class V, HWY_IF_F16(TFromV<V>), HWY_IF_V_SIZE_V(V, 32)>
+HWY_API V GetExponent(V v) {
+  return V{_mm256_getexp_ph(v.raw)};
+}
+#endif
+template <class V, HWY_IF_F32(TFromV<V>), HWY_IF_V_SIZE_V(V, 32)>
+HWY_API V GetExponent(V v) {
+  return V{_mm256_getexp_ps(v.raw)};
+}
+template <class V, HWY_IF_F64(TFromV<V>), HWY_IF_V_SIZE_V(V, 32)>
+HWY_API V GetExponent(V v) {
+  return V{_mm256_getexp_pd(v.raw)};
+}
+
+#endif
+
 // ------------------------------ MaskedMinOr
 
 #if HWY_TARGET <= HWY_AVX3
