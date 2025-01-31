@@ -2159,6 +2159,45 @@ HWY_SVE_FOREACH_F(HWY_SVE_MUL_BY_POW2, MulByPow2, scale)
 
 #undef HWY_SVE_MUL_BY_POW2
 
+// ------------------------------ MaskedEq etc.
+#ifdef HWY_NATIVE_MASKED_COMP
+#undef HWY_NATIVE_MASKED_COMP
+#else
+#define HWY_NATIVE_MASKED_COMP
+#endif
+
+// mask = f(mask, vector, vector)
+#define HWY_SVE_COMPARE_Z(BASE, CHAR, BITS, HALF, NAME, OP)  \
+  HWY_API svbool_t NAME(svbool_t m, HWY_SVE_V(BASE, BITS) a, \
+                        HWY_SVE_V(BASE, BITS) b) {           \
+    return sv##OP##_##CHAR##BITS(m, a, b);                   \
+  }
+
+HWY_SVE_FOREACH(HWY_SVE_COMPARE_Z, MaskedEq, cmpeq)
+HWY_SVE_FOREACH(HWY_SVE_COMPARE_Z, MaskedNe, cmpne)
+HWY_SVE_FOREACH(HWY_SVE_COMPARE_Z, MaskedLt, cmplt)
+HWY_SVE_FOREACH(HWY_SVE_COMPARE_Z, MaskedLe, cmple)
+
+#undef HWY_SVE_COMPARE_Z
+
+
+template <class V, class M, class D = DFromV<V>>
+HWY_API MFromD<D> MaskedGt(M m, V a, V b) {
+  // Swap args to reverse comparison
+  return MaskedLt(m, b, a);
+}
+
+template <class V, class M, class D = DFromV<V>>
+HWY_API MFromD<D> MaskedGe(M m, V a, V b) {
+  // Swap args to reverse comparison
+  return MaskedLe(m, b, a);
+}
+
+template <class V, class M, class D = DFromV<V>>
+HWY_API MFromD<D> MaskedIsNaN(const M m, const V v) {
+  return MaskedNe(m, v, v);
+}
+
 // ================================================== MEMORY
 
 // ------------------------------ LoadU/MaskedLoad/LoadDup128/StoreU/Stream

@@ -673,7 +673,160 @@ HWY_NOINLINE void TestAllEq128Upper() {
   ForGEVectors<128, TestEq128Upper>()(uint64_t());
 }
 
-}  // namespace
+struct TestMaskedCompare {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    RandomState rng;
+
+    const Vec<D> v0 = Zero(d);
+    const Vec<D> v2 = Iota(d, 2);
+    const Vec<D> v2b = Iota(d, 2);
+    const Vec<D> v3 = Iota(d, 3);
+    const size_t N = Lanes(d);
+
+    const Mask<D> mask_false = MaskFalse(d);
+    const Mask<D> mask_true = MaskTrue(d);
+
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedEq(mask_true, v2, v3));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedEq(mask_true, v3, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedEq(mask_true, v2, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedEq(mask_true, v2, v2b));
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedNe(mask_true, v2, v3));
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedNe(mask_true, v3, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedNe(mask_true, v2, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedNe(mask_true, v2, v2b));
+
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedLt(mask_true, v2, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedGt(mask_true, v0, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedLt(mask_true, v0, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedGt(mask_true, v0, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedLt(mask_true, v2, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedGt(mask_true, v2, v2));
+
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedGt(mask_true, v2, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedLt(mask_true, v0, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedLt(mask_true, v2, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedGt(mask_true, v0, v2));
+
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedLe(mask_true, v2, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedGe(mask_true, v0, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedLe(mask_true, v0, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedGe(mask_true, v0, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedLe(mask_true, v2, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedGe(mask_true, v2, v2));
+
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedGe(mask_true, v2, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedLe(mask_true, v0, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedLe(mask_true, v2, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedGe(mask_true, v0, v2));
+
+    auto bool_lanes = AllocateAligned<T>(N);
+    HWY_ASSERT(bool_lanes);
+
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        bool_lanes[i] = (Random32(&rng) & 1024) ? T(1) : T(0);
+      }
+
+      const Vec<D> mask_i = Load(d, bool_lanes.get());
+      const Mask<D> mask = RebindMask(d, Gt(mask_i, Zero(d)));
+
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedEq(mask, v2, v3));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedEq(mask, v3, v2));
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedEq(mask, v2, v2));
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedEq(mask, v2, v2b));
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedNe(mask, v2, v3));
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedNe(mask, v3, v2));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedNe(mask, v2, v2));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedNe(mask, v2, v2b));
+
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedLt(mask, v2, v0));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedGt(mask, v0, v2));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedLt(mask, v0, v0));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedGt(mask, v0, v0));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedLt(mask, v2, v2));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedGt(mask, v2, v2));
+
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedGt(mask, v2, v0));
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedLt(mask, v0, v2));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedLt(mask, v2, v0));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedGt(mask, v0, v2));
+
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedLe(mask, v2, v0));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedGe(mask, v0, v2));
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedLe(mask, v0, v0));
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedGe(mask, v0, v0));
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedLe(mask, v2, v2));
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedGe(mask, v2, v2));
+
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedGe(mask, v2, v0));
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedLe(mask, v0, v2));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedLe(mask, v2, v0));
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedGe(mask, v0, v2));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllMaskedCompare() {
+  ForAllTypes(ForPartialVectors<TestMaskedCompare>());
+}
+
+struct TestMaskedFloatClassification {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    RandomState rng;
+
+    const Vec<D> v0 = Zero(d);
+    const Vec<D> v1 = Iota(d, 2);
+    const Vec<D> v2 = Inf(d);
+    const Vec<D> v3 = NaN(d);
+    const size_t N = Lanes(d);
+
+    const Mask<D> mask_false = MaskFalse(d);
+    const Mask<D> mask_true = MaskTrue(d);
+
+    // Test against all zeros
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedIsNaN(mask_true, v0));
+
+    // Test against finite values
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedIsNaN(mask_true, v1));
+
+    // Test against infinite values
+    HWY_ASSERT_MASK_EQ(d, mask_false, MaskedIsNaN(mask_true, v2));
+
+    // Test against NaN values
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedIsNaN(mask_true, v3));
+
+    auto bool_lanes = AllocateAligned<T>(N);
+    HWY_ASSERT(bool_lanes);
+
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        bool_lanes[i] = (Random32(&rng) & 1024) ? T(1) : T(0);
+      }
+
+      const Vec<D> mask_i = Load(d, bool_lanes.get());
+      const Mask<D> mask = RebindMask(d, Gt(mask_i, Zero(d)));
+
+      // Test against all zeros
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedIsNaN(mask, v0));
+
+      // Test against finite values
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedIsNaN(mask, v1));
+
+      // Test against infinite values
+      HWY_ASSERT_MASK_EQ(d, mask_false, MaskedIsNaN(mask, v2));
+
+      // Test against NaN values
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedIsNaN(mask, v3));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllMaskedFloatClassification() {
+  ForFloatTypes(ForPartialVectors<TestMaskedFloatClassification>());
+}
+} // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -695,6 +848,9 @@ HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllLt128);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllLt128Upper);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllEq128);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllEq128Upper);
+
+HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllMaskedCompare);
+HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllMaskedFloatClassification);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy
