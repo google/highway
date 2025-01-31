@@ -674,6 +674,10 @@ from left to right, of the arguments passed to `Create{2-4}`.
     <code>V **GetExponent**(V v)</code>: returns the exponent of `v[i]` as a floating point value.
     Essentially calculates `floor(log2(x))`.
 
+*   `V`: `{f}`, `VU`: `Vec<RebindToUnsigned<DFromV<V>>>` \
+    <code>VU **GetBiasedExponent**(V v)</code>: returns the biased exponent of
+    `v[i]` as an unsigned integer value.
+
 #### Min/Max
 
 **Note**: Min/Max corner cases are target-specific and may change. If either

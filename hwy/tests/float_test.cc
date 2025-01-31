@@ -605,18 +605,30 @@ HWY_NOINLINE void TestAllAbsDiff() {
 struct TestGetExponent {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const RebindToUnsigned<decltype(d)> du;
+
+    using TFArith = If<IsSpecialFloat<T>(), float, T>;
+    using TU = MakeUnsigned<T>;
     const size_t N = Lanes(d);
 
     auto v = Iota(d, 1);
 
     auto expected = AllocateAligned<T>(N);
-    HWY_ASSERT(expected);
+    auto expected_biased = AllocateAligned<TU>(N);
+    HWY_ASSERT(expected && expected_biased);
+
+    constexpr int kNumOfMantBits = MantissaBits<T>();
 
     for (size_t i = 0; i < N; ++i) {
-      auto test_val = (float)(i + 1);
-      expected[i] = ConvertScalarTo<T>(std::floor(std::log2(test_val)));
+      const T test_val = ConvertScalarTo<T>(i + 1);
+      expected[i] = ConvertScalarTo<T>(
+          std::floor(std::log2(ConvertScalarTo<TFArith>(test_val))));
+      expected_biased[i] =
+          static_cast<TU>((BitCastScalar<TU>(test_val) >> kNumOfMantBits) &
+                          static_cast<TU>(MaxExponentField<T>()));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), GetExponent(v));
+    HWY_ASSERT_VEC_EQ(du, expected_biased.get(), GetBiasedExponent(v));
   }
 };
 

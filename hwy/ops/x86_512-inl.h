@@ -1842,7 +1842,22 @@ HWY_API Vec512<double> ApproximateReciprocal(Vec512<double> v) {
   return Vec512<double>{_mm512_rcp14_pd(v.raw)};
 }
 
-// TODO: Implement GetExponent using _mm_getexp_ps/_mm_getexp_pd/_mm_getexp_ph
+// ------------------------------ GetExponent
+
+#if HWY_HAVE_FLOAT16
+template <class V, HWY_IF_F16(TFromV<V>), HWY_IF_V_SIZE_V(V, 64)>
+HWY_API V GetExponent(V v) {
+  return V{_mm512_getexp_ph(v.raw)};
+}
+#endif
+template <class V, HWY_IF_F32(TFromV<V>), HWY_IF_V_SIZE_V(V, 64)>
+HWY_API V GetExponent(V v) {
+  return V{_mm512_getexp_ps(v.raw)};
+}
+template <class V, HWY_IF_F64(TFromV<V>), HWY_IF_V_SIZE_V(V, 64)>
+HWY_API V GetExponent(V v) {
+  return V{_mm512_getexp_pd(v.raw)};
+}
 
 // ------------------------------ MaskedMinOr
 

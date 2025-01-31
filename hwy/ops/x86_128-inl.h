@@ -5170,6 +5170,33 @@ HWY_API V AbsDiff(V a, V b) {
   return Abs(a - b);
 }
 
+// ------------------------------ GetExponent
+
+#if HWY_TARGET <= HWY_AVX3
+
+#ifdef HWY_NATIVE_GET_EXPONENT
+#undef HWY_NATIVE_GET_EXPONENT
+#else
+#define HWY_NATIVE_GET_EXPONENT
+#endif
+
+#if HWY_HAVE_FLOAT16
+template <class V, HWY_IF_F16(TFromV<V>), HWY_IF_V_SIZE_LE_V(V, 16)>
+HWY_API V GetExponent(V v) {
+  return V{_mm_getexp_ph(v.raw)};
+}
+#endif
+template <class V, HWY_IF_F32(TFromV<V>), HWY_IF_V_SIZE_LE_V(V, 16)>
+HWY_API V GetExponent(V v) {
+  return V{_mm_getexp_ps(v.raw)};
+}
+template <class V, HWY_IF_F64(TFromV<V>), HWY_IF_V_SIZE_LE_V(V, 16)>
+HWY_API V GetExponent(V v) {
+  return V{_mm_getexp_pd(v.raw)};
+}
+
+#endif
+
 // ------------------------------ MaskedMinOr
 
 #if HWY_TARGET <= HWY_AVX3
