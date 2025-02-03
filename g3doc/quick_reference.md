@@ -954,7 +954,7 @@ to, and potentially more efficient than, `IfThenElseZero(m, Add(a, b));` etc.
     b[i]` saturated to the minimum/maximum representable value, or `0` if
     `m[i]` is false.
 *   `V`: `i16` \
-    <code>V **MaskedMulFixedPoint15**(M m, V)</code>: returns returns the
+    <code>V **MaskedMulFixedPoint15**(M m, V a, V b)</code>: returns returns the
     result of multiplying two Q1.15 fixed-point numbers, or `0` if `m[i]` is
     false.
 *   <code>V **MaskedMulAdd**(M m, V a, V b, V c)</code>: returns `a[i] *
@@ -962,7 +962,7 @@ to, and potentially more efficient than, `IfThenElseZero(m, Add(a, b));` etc.
 *   <code>V **MaskedNegMulAdd**(M m, V a, V b, V c)</code>: returns
     `-a[i] * b[i] + c[i]` or `0` if `m[i]` is false.
 *   `V`: `{bf,u,i}16`, `D`: `RepartitionToWide<DFromV<V>>` \
-    <code>Vec&lt;D&gt; **MaskedWidenMulPairwiseAdd**(M m, V)</code>: widens `a`
+    <code>Vec&lt;D&gt; **MaskedWidenMulPairwiseAdd**(D d, M m, V a, V b)</code>: widens `a`
     and `b` to `TFromD<D>` and computes `a[2*i+1]*b[2*i+1] + a[2*i+0]*b[2*i+0]`,
     or `0` if `m[i]` is false.
 *   `V`: `{f}` \
