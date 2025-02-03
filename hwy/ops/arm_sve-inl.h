@@ -6131,6 +6131,29 @@ HWY_API svuint32_t WidenMulPairwiseAdd(Simd<uint32_t, N, kPow2> d32,
 #endif
 }
 
+// ------------------------------ SatWidenMulPairwiseAccumulate
+#if HWY_SVE_HAVE_2
+#define HWY_SVE_SAT_MUL_WIDEN_PW_ACC_SVE_2(BASE, CHAR, BITS, HALF, NAME, OP) \
+  template <size_t N, int kPow2>                                             \
+  HWY_API HWY_SVE_V(BASE, BITS)                                              \
+      NAME(HWY_SVE_D(BASE, BITS, N, kPow2) dw, HWY_SVE_V(BASE, HALF) a,      \
+           HWY_SVE_V(BASE, HALF) b, HWY_SVE_V(BASE, BITS) sum) {             \
+    auto product = svmlalt_##CHAR##BITS(svmullb_##CHAR##BITS(a, b), a, b);   \
+    const auto mul_overflow = IfThenElseZero(                                \
+        Eq(product, Set(dw, LimitsMin<int##BITS##_t>())), Set(dw, -1));      \
+    return SaturatedAdd(Sub(sum, And(BroadcastSignBit(sum), mul_overflow)),  \
+                        Add(product, mul_overflow));                         \
+  }
+HWY_SVE_FOREACH_UI16(HWY_SVE_SAT_MUL_WIDEN_PW_ACC_SVE_2,
+                     SatWidenMulPairwiseAccumulate, _)
+HWY_SVE_FOREACH_UI32(HWY_SVE_SAT_MUL_WIDEN_PW_ACC_SVE_2,
+                     SatWidenMulPairwiseAccumulate, _)
+HWY_SVE_FOREACH_UI64(HWY_SVE_SAT_MUL_WIDEN_PW_ACC_SVE_2,
+                     SatWidenMulPairwiseAccumulate, _)
+
+#undef HWY_SVE_SAT_MUL_WIDEN_PW_ACC_SVE_2
+#endif
+
 // ------------------------------ SatWidenMulAccumFixedPoint
 
 #if HWY_SVE_HAVE_2
