@@ -7650,7 +7650,7 @@ HWY_API V MultiRotateRight(V v, VI idx) {
   const auto odd_lanes =
       BitCast(d64, ConcatEven(du8, Zero(du8), BitCast(du8, extracted_odd_bytes)));
   // Interleave at 64 bit level
-  return InterleaveLower(even_lanes, odd_lanes);
+  return InterleaveWholeLower(even_lanes, odd_lanes);
 }
 
 #endif
