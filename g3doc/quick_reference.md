@@ -1023,7 +1023,7 @@ Per-lane variable shifts (slow if SSSE3/SSE4, or 16-bit, or Shr i64 on AVX2):
 A compound shift on 64-bit values:
 
 *   `V`: `{u,i}64`, `VI`: `{u,i}8` \
-    <code>V **MultiShift**(V vals, VI indices)</code>: returns a
+    <code>V **MultiRotateRight**(V vals, VI indices)</code>: returns a
     vector with `(vals[i] >> indices[i*8+j]) & 0xff` in byte `j` of vector `r[i]`
     for each `j` between 0 and 7.
 
@@ -1033,7 +1033,7 @@ A compound shift on 64-bit values:
     `VI` must be either `Vec<Repartition<int8_t, DFromV<V>>>` or
     `Vec<Repartition<uint8_t, DFromV<V>>>`.
 
-    `MultiShift(V vals, VI indices)` is equivalent to the following loop (where `N` is
+    `MultiRotateRight(V vals, VI indices)` is equivalent to the following loop (where `N` is
     equal to `Lanes(DFromV<V>())`):
     ```
     for(size_t i = 0; i < N; i++) {

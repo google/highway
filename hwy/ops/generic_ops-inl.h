@@ -7600,16 +7600,16 @@ HWY_API bool AllBits0(V a) {
 }
 #endif  // HWY_NATIVE_ALLZEROS
 
-// ------------------------------ MultiShift
-#if (defined(HWY_NATIVE_MULTISHIFT) == defined(HWY_TARGET_TOGGLE))
-#ifdef HWY_NATIVE_MULTISHIFT
-#undef HWY_NATIVE_MULTISHIFT
+// ------------------------------ MultiRotateRight
+#if (defined(HWY_NATIVE_MULTIROTATERIGHT) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MULTIROTATERIGHT
+#undef HWY_NATIVE_MULTIROTATERIGHT
 #else
-#define HWY_NATIVE_MULTISHIFT
+#define HWY_NATIVE_MULTIROTATERIGHT
 #endif
 
 template <class V, class VI, HWY_IF_UI64(TFromV<V>), HWY_IF_UI8(TFromV<VI>)>
-HWY_API V MultiShift(V v, VI idx) {
+HWY_API V MultiRotateRight(V v, VI idx) {
   const DFromV<V> d64;
   const Repartition<uint8_t, decltype(d64)> du8;
   const Repartition<uint16_t, decltype(d64)> du16;

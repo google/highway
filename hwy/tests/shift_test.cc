@@ -553,7 +553,7 @@ HWY_NOINLINE void TestAllMaskedShift() {
   ForSignedTypes(ForPartialVectors<TestMaskedShrOr>());
 }
 
-struct TestMultiShift {
+struct TestMultiRotateRight {
   uint64_t byte_swap_64(uint64_t x) {
     // Equivalent to std::byteswap for uint64 (in C++23)
     return ((x << 56) & 0xff00000000000000ULL) |
@@ -592,7 +592,7 @@ struct TestMultiShift {
       expected[i] = ConvertScalarTo<T>(initial_even);
       expected[i + 1] = ConvertScalarTo<T>(byte_swap_64(initial_odd));
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), MultiShift(v1, indices));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MultiRotateRight(v1, indices));
 
     // Test bit level shifts, different amounts for each byte
     const auto v2 = Set(d, 0x0102010201020102ul);
@@ -614,7 +614,7 @@ struct TestMultiShift {
       }
       expected[i] = ConvertScalarTo<T>(shift_result);
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), MultiShift(v2, indices));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MultiRotateRight(v2, indices));
 
     // Combine byte-level reordering with bit level shift
     indices = Dup128VecFromValues(
@@ -631,13 +631,13 @@ struct TestMultiShift {
           ConvertScalarTo<T>((initial_odd >> 4) | (initial_odd << (64 - 4)));
       expected[i + 1] = ConvertScalarTo<T>(byte_swap_64(unreversed_val));
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), MultiShift(v1, indices));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MultiRotateRight(v1, indices));
   }
 };
 
-HWY_NOINLINE void TestAllMultiShift() {
+HWY_NOINLINE void TestAllMultiRotateRight() {
 #if HWY_HAVE_INTEGER64
-  const ForGEVectors<128, TestMultiShift> test64;
+  const ForGEVectors<128, TestMultiRotateRight> test64;
   test64(uint64_t());
   test64(int64_t());
 #endif
@@ -657,7 +657,7 @@ HWY_EXPORT_AND_TEST_P(HwyShiftTest, TestAllVariableShifts);
 HWY_EXPORT_AND_TEST_P(HwyShiftTest, TestAllRoundingShiftRight);
 HWY_EXPORT_AND_TEST_P(HwyShiftTest, TestAllVariableRoundingShr);
 HWY_EXPORT_AND_TEST_P(HwyShiftTest, TestAllMaskedShift);
-HWY_EXPORT_AND_TEST_P(HwyShiftTest, TestAllMultiShift);
+HWY_EXPORT_AND_TEST_P(HwyShiftTest, TestAllMultiRotateRight);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy
