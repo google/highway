@@ -36,11 +36,11 @@ struct TestComplexConj {
     HWY_ASSERT(expected);
 
     for (size_t i = 0; i < N; i += 2) {
-      // expected = (a - ib)
-      auto a = ConvertScalarTo<T>(i + 2);
-      auto b = ConvertScalarTo<T>(i + 2 + 1);
-      expected[i + 0] = ConvertScalarTo<T>(a);
-      expected[i + 1] = ConvertScalarTo<T>(-b);
+      // expected = (x - iy)
+      auto x = ConvertScalarTo<T>(i + 2);
+      auto y = ConvertScalarTo<T>(i + 2 + 1);
+      expected[i + 0] = ConvertScalarTo<T>(x);
+      expected[i + 1] = ConvertScalarTo<T>(-y);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), ComplexConj(v1));
 #else
@@ -66,13 +66,13 @@ struct TestMulComplex {
     HWY_ASSERT(expected);
 
     for (size_t i = 0; i < N; i += 2) {
-      // expected = (a + ib)(c + id)
-      auto a = ConvertScalarTo<T>(i + 2);
-      auto b = ConvertScalarTo<T>(i + 2 + 1);
-      auto c = ConvertScalarTo<T>(i + 10);
-      auto d = ConvertScalarTo<T>(i + 10 + 1);
-      expected[i + 0] = ConvertScalarTo<T>((a * c) - (b * d));
-      expected[i + 1] = ConvertScalarTo<T>((a * d) + (b * c));
+      // expected = (x + iy)(u + iv)
+      auto x = ConvertScalarTo<T>(i + 2);
+      auto y = ConvertScalarTo<T>(i + 2 + 1);
+      auto u = ConvertScalarTo<T>(i + 10);
+      auto v = ConvertScalarTo<T>(i + 10 + 1);
+      expected[i + 0] = ConvertScalarTo<T>((x * u) - (y * v));
+      expected[i + 1] = ConvertScalarTo<T>((x * v) + (y * u));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulComplex(v1, v2));
 #else
@@ -98,15 +98,15 @@ struct TestMulComplexAdd {
     HWY_ASSERT(expected);
 
     for (size_t i = 0; i < N; i += 2) {
-      // expected = (a + ib)(c + id) + e + if
-      auto a = ConvertScalarTo<T>(i + 2);
-      auto b = ConvertScalarTo<T>(i + 2 + 1);
-      auto c = ConvertScalarTo<T>(i + 10);
-      auto d = ConvertScalarTo<T>(i + 10 + 1);
-      auto e = ConvertScalarTo<T>(i + 15);
-      auto f = ConvertScalarTo<T>(i + 15 + 1);
-      expected[i + 0] = ConvertScalarTo<T>((a * c) - (b * d) + e);
-      expected[i + 1] = ConvertScalarTo<T>((a * d) + (b * c) + f);
+      // expected = (x + iy)(u + iv) + a + ib
+      auto x = ConvertScalarTo<T>(i + 2);
+      auto y = ConvertScalarTo<T>(i + 2 + 1);
+      auto u = ConvertScalarTo<T>(i + 10);
+      auto v = ConvertScalarTo<T>(i + 10 + 1);
+      auto a = ConvertScalarTo<T>(i + 15);
+      auto b = ConvertScalarTo<T>(i + 15 + 1);
+      expected[i + 0] = ConvertScalarTo<T>((x * u) - (y * v) + a);
+      expected[i + 1] = ConvertScalarTo<T>((x * v) + (y * u) + b);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulComplexAdd(v1, v2, v3));
 #else
@@ -133,24 +133,24 @@ struct TestMaskedMulComplexOr {
     HWY_ASSERT(expected);
 
     for (size_t i = 0; i < N; i += 2) {
-      // expected = (a + ib)(c + id)
-      auto a = ConvertScalarTo<T>(i + 2);
-      auto b = ConvertScalarTo<T>(i + 2 + 1);
-      auto c = ConvertScalarTo<T>(i + 10);
-      auto d = ConvertScalarTo<T>(i + 10 + 1);
-      auto e = ConvertScalarTo<T>(i + 15);
-      auto f = ConvertScalarTo<T>(i + 15 + 1);
+      // expected = (x + iy)(u + iv)
+      auto x = ConvertScalarTo<T>(i + 2);
+      auto y = ConvertScalarTo<T>(i + 2 + 1);
+      auto u = ConvertScalarTo<T>(i + 10);
+      auto v = ConvertScalarTo<T>(i + 10 + 1);
+      auto a = ConvertScalarTo<T>(i + 15);
+      auto b = ConvertScalarTo<T>(i + 15 + 1);
       // Alternate between masking the real and imaginary lanes
       if ((i % 4) == 0) {
         bool_lanes[i + 0] = ConvertScalarTo<T>(1);
-        expected[i + 0] = ConvertScalarTo<T>((a * c) - (b * d));
+        expected[i + 0] = ConvertScalarTo<T>((x * u) - (y * v));
         bool_lanes[i + 1] = ConvertScalarTo<T>(0);
-        expected[i + 1] = ConvertScalarTo<T>(f);
+        expected[i + 1] = ConvertScalarTo<T>(b);
       } else {
         bool_lanes[i + 0] = ConvertScalarTo<T>(0);
-        expected[i + 0] = ConvertScalarTo<T>(e);
+        expected[i + 0] = ConvertScalarTo<T>(a);
         bool_lanes[i + 1] = ConvertScalarTo<T>(1);
-        expected[i + 1] = ConvertScalarTo<T>((a * d) + (b * c));
+        expected[i + 1] = ConvertScalarTo<T>((x * v) + (y * u));
       }
     }
 
@@ -180,13 +180,13 @@ struct TestMulComplexConj {
     HWY_ASSERT(expected);
 
     for (size_t i = 0; i < N; i += 2) {
-      // expected = (a + ib)(c - id)
-      auto a = ConvertScalarTo<T>(i + 2);
-      auto b = ConvertScalarTo<T>(i + 2 + 1);
-      auto c = ConvertScalarTo<T>(i + 10);
-      auto d = ConvertScalarTo<T>(i + 10 + 1);
-      expected[i + 0] = ConvertScalarTo<T>((a * c) + (b * d));
-      expected[i + 1] = ConvertScalarTo<T>((b * c) - (a * d));
+      // expected = (x + iy)(u - iv)
+      auto x = ConvertScalarTo<T>(i + 2);
+      auto y = ConvertScalarTo<T>(i + 2 + 1);
+      auto u = ConvertScalarTo<T>(i + 10);
+      auto v = ConvertScalarTo<T>(i + 10 + 1);
+      expected[i + 0] = ConvertScalarTo<T>((x * u) + (y * v));
+      expected[i + 1] = ConvertScalarTo<T>((y * u) - (x * v));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulComplexConj(v1, v2));
 #else
@@ -212,15 +212,15 @@ struct TestMulComplexConjAdd {
     HWY_ASSERT(expected);
 
     for (size_t i = 0; i < N; i += 2) {
-      // expected = (a + ib)(c - id) + e + if
-      auto a = ConvertScalarTo<T>(i + 2);
-      auto b = ConvertScalarTo<T>(i + 2 + 1);
-      auto c = ConvertScalarTo<T>(i + 10);
-      auto d = ConvertScalarTo<T>(i + 10 + 1);
-      auto e = ConvertScalarTo<T>(i + 15);
-      auto f = ConvertScalarTo<T>(i + 15 + 1);
-      expected[i + 0] = ConvertScalarTo<T>((e + (c * a)) + (d * b));
-      expected[i + 1] = ConvertScalarTo<T>((f + (c * b)) - (d * a));
+      // expected = (x + iy)(u - iv) + a + ib
+      auto x = ConvertScalarTo<T>(i + 2);
+      auto y = ConvertScalarTo<T>(i + 2 + 1);
+      auto u = ConvertScalarTo<T>(i + 10);
+      auto v = ConvertScalarTo<T>(i + 10 + 1);
+      auto a = ConvertScalarTo<T>(i + 15);
+      auto b = ConvertScalarTo<T>(i + 15 + 1);
+      expected[i + 0] = ConvertScalarTo<T>((a + (u * x)) + (v * y));
+      expected[i + 1] = ConvertScalarTo<T>((b + (u * y)) - (v * x));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulComplexConjAdd(v1, v2, v3));
 #else
@@ -246,22 +246,22 @@ struct TestMaskedMulComplexConj {
     HWY_ASSERT(expected);
 
     for (size_t i = 0; i < N; i += 2) {
-      // expected = (a + ib)(c - id)
-      auto a = ConvertScalarTo<T>(i + 2);
-      auto b = ConvertScalarTo<T>(i + 2 + 1);
-      auto c = ConvertScalarTo<T>(i + 10);
-      auto d = ConvertScalarTo<T>(i + 10 + 1);
+      // expected = (x + iy)(u - iv)
+      auto x = ConvertScalarTo<T>(i + 2);
+      auto y = ConvertScalarTo<T>(i + 2 + 1);
+      auto u = ConvertScalarTo<T>(i + 10);
+      auto v = ConvertScalarTo<T>(i + 10 + 1);
       // Alternate between masking the real and imaginary lanes
       if ((i % 4) == 0) {
         bool_lanes[i + 0] = ConvertScalarTo<T>(1);
-        expected[i + 0] = ConvertScalarTo<T>((a * c) + (b * d));
+        expected[i + 0] = ConvertScalarTo<T>((x * u) + (y * v));
         bool_lanes[i + 1] = ConvertScalarTo<T>(0);
         expected[i + 1] = ConvertScalarTo<T>(0);
       } else {
         bool_lanes[i + 0] = ConvertScalarTo<T>(0);
         expected[i + 0] = ConvertScalarTo<T>(0);
         bool_lanes[i + 1] = ConvertScalarTo<T>(1);
-        expected[i + 1] = ConvertScalarTo<T>((b * c) - (a * d));
+        expected[i + 1] = ConvertScalarTo<T>((y * u) - (x * v));
       }
     }
 
@@ -293,24 +293,24 @@ struct TestMaskedMulComplexConjAdd {
     HWY_ASSERT(expected);
 
     for (size_t i = 0; i < N; i += 2) {
-      // expected = (a + ib)(c - id) + e + if
-      auto a = ConvertScalarTo<T>(i + 2);
-      auto b = ConvertScalarTo<T>(i + 2 + 1);
-      auto c = ConvertScalarTo<T>(i + 10);
-      auto d = ConvertScalarTo<T>(i + 10 + 1);
-      auto e = ConvertScalarTo<T>(i + 15);
-      auto f = ConvertScalarTo<T>(i + 15 + 1);
+      // expected = (x + iy)(u - iv) + a + ib
+      auto x = ConvertScalarTo<T>(i + 2);
+      auto y = ConvertScalarTo<T>(i + 2 + 1);
+      auto u = ConvertScalarTo<T>(i + 10);
+      auto v = ConvertScalarTo<T>(i + 10 + 1);
+      auto a = ConvertScalarTo<T>(i + 15);
+      auto b = ConvertScalarTo<T>(i + 15 + 1);
       // Alternate between masking the real and imaginary lanes
       if ((i % 4) == 2) {
         bool_lanes[i + 0] = ConvertScalarTo<T>(1);
-        expected[i + 0] = ConvertScalarTo<T>((e + (c * a)) + (d * b));
+        expected[i + 0] = ConvertScalarTo<T>((a + (u * x)) + (v * y));
         bool_lanes[i + 1] = ConvertScalarTo<T>(0);
         expected[i + 1] = ConvertScalarTo<T>(0);
       } else {
         bool_lanes[i + 0] = ConvertScalarTo<T>(0);
         expected[i + 0] = ConvertScalarTo<T>(0);
         bool_lanes[i + 1] = ConvertScalarTo<T>(1);
-        expected[i + 1] = ConvertScalarTo<T>((f + (c * b)) - (d * a));
+        expected[i + 1] = ConvertScalarTo<T>((b + (u * y)) - (v * x));
       }
     }
 
