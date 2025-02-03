@@ -1056,11 +1056,11 @@ A compound shift on 64-bit values:
     `mask[i]` is false.
 
 *   `V`: `{u,i}` \
-    <code>V **MaskedShiftRightOr**&lt;int&gt;(V no, M mask, V a)</code> returns `a[i] >> int` or `no` if
+    <code>V **MaskedShiftRightOr**&lt;int&gt;(V no, M mask, V a)</code> returns `a[i] >> int` or `no[i]` if
     `mask[i]` is false.
 
 *   `V`: `{u,i}` \
-    <code>V **MaskedShrOr**(V no, M mask, V a, V shifts)</code> returns `a[i] >> shifts[i]` or `no` if
+    <code>V **MaskedShrOr**(V no, M mask, V a, V shifts)</code> returns `a[i] >> shifts[i]` or `no[i]` if
     `mask[i]` is false.
 
 #### Floating-point rounding
