@@ -1125,6 +1125,9 @@ types, and on SVE/RVV.
 
 *   <code>V **AndNot**(V a, V b)</code>: returns `~a[i] & b[i]`.
 
+*   <code>V **MaskedOr**(M m, V a, V b)</code>: returns `a[i] | b[i]`
+    or `zero` if `m[i]` is false.
+
 The following three-argument functions may be more efficient than assembling
 them from 2-argument functions:
 
@@ -2490,6 +2493,24 @@ more efficient on some targets.
 *   <code>T **ReduceSum**(D, V v)</code>: returns the sum of all lanes.
 *   <code>T **ReduceMin**(D, V v)</code>: returns the minimum of all lanes.
 *   <code>T **ReduceMax**(D, V v)</code>: returns the maximum of all lanes.
+
+### Masked reductions
+
+**Note**: Horizontal operations (across lanes of the same vector) such as
+reductions are slower than normal SIMD operations and are typically used outside
+critical loops.
+
+All ops in this section ignore lanes where `mask=false`. These are equivalent
+to, and potentially more efficient than, `GetLane(SumOfLanes(d,
+IfThenElseZero(m, v)))` etc. The result is implementation-defined when all mask
+elements are false.
+
+*   <code>T **MaskedReduceSum**(D, M m, V v)</code>: returns the sum of all lanes
+    where `m[i]` is `true`.
+*   <code>T **MaskedReduceMin**(D, M m, V v)</code>: returns the minimum of all
+    lanes where `m[i]` is `true`.
+*   <code>T **MaskedReduceMax**(D, M m, V v)</code>: returns the maximum of all
+    lanes where `m[i]` is `true`.
 
 ### Crypto
 

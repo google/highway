@@ -146,6 +146,28 @@ HWY_NOINLINE void TestAllTestBit() {
   ForIntegerTypes(ForPartialVectors<TestTestBit>());
 }
 
+struct TestMaskedOr {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const MFromD<D> all_true = MaskTrue(d);
+    const auto v1 = Iota(d, 1);
+    const auto v2 = Iota(d, 2);
+
+    HWY_ASSERT_VEC_EQ(d, Or(v2, v1), MaskedOr(all_true, v1, v2));
+
+    const MFromD<D> first_five = FirstN(d, 5);
+    const Vec<D> v0 = Zero(d);
+
+    const Vec<D> v1_exp = IfThenElse(first_five, Or(v2, v1), v0);
+
+    HWY_ASSERT_VEC_EQ(d, v1_exp, MaskedOr(first_five, v1, v2));
+  }
+};
+
+HWY_NOINLINE void TestAllMaskedLogical() {
+  ForAllTypes(ForPartialVectors<TestMaskedOr>());
+}
+
 struct TestAllBits {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -185,6 +207,7 @@ HWY_BEFORE_TEST(HwyLogicalTest);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllNot);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogical);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllTestBit);
+HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllMaskedLogical);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllAllBits);
 
 HWY_AFTER_TEST();

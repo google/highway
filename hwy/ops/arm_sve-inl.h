@@ -260,6 +260,12 @@ HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SPECIALIZE, _, _)
       NAME(svbool_t m, HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b) { \
     return sv##OP##_##CHAR##BITS##_x(m, a, b);                             \
   }
+// User-specified mask. Mask=false value is zero.
+#define HWY_SVE_RETV_ARGMVV_Z(BASE, CHAR, BITS, HALF, NAME, OP)             \
+  HWY_API HWY_SVE_V(BASE, BITS)                                            \
+      NAME(svbool_t m, HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b) { \
+    return sv##OP##_##CHAR##BITS##_z(m, a, b);                             \
+  }
 
 #define HWY_SVE_RETV_ARGVVV(BASE, CHAR, BITS, HALF, NAME, OP) \
   HWY_API HWY_SVE_V(BASE, BITS)                               \
@@ -762,6 +768,9 @@ HWY_API V Or(const V a, const V b) {
   const RebindToUnsigned<decltype(df)> du;
   return BitCast(df, Or(BitCast(du, a), BitCast(du, b)));
 }
+
+// ------------------------------ MaskedOr
+HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV_Z, MaskedOr, orr)
 
 // ------------------------------ Xor
 
@@ -1678,6 +1687,7 @@ namespace detail {
     return sv##OP##_##CHAR##BITS(pg, v);                                     \
   }
 
+// TODO: Remove SumOfLanesM in favor of using MaskedReduceSum
 HWY_SVE_FOREACH_UI(HWY_SVE_REDUCE_ADD, SumOfLanesM, addv)
 HWY_SVE_FOREACH_F(HWY_SVE_REDUCE, SumOfLanesM, addv)
 
@@ -1723,6 +1733,25 @@ HWY_API TFromD<D> ReduceMin(D d, VFromD<D> v) {
 template <class D, HWY_IF_REDUCE_D(D)>
 HWY_API TFromD<D> ReduceMax(D d, VFromD<D> v) {
   return detail::MaxOfLanesM(detail::MakeMask(d), v);
+}
+
+#ifdef HWY_NATIVE_MASKED_REDUCE_SCALAR
+#undef HWY_NATIVE_MASKED_REDUCE_SCALAR
+#else
+#define HWY_NATIVE_MASKED_REDUCE_SCALAR
+#endif
+
+template <class D, class M>
+HWY_API TFromD<D> MaskedReduceSum(D /*d*/, M m, VFromD<D> v) {
+  return detail::SumOfLanesM(m, v);
+}
+template <class D, class M>
+HWY_API TFromD<D> MaskedReduceMin(D /*d*/, M m, VFromD<D> v) {
+  return detail::MinOfLanesM(m, v);
+}
+template <class D, class M>
+HWY_API TFromD<D> MaskedReduceMax(D /*d*/, M m, VFromD<D> v) {
+  return detail::MaxOfLanesM(m, v);
 }
 
 // ------------------------------ SumOfLanes
@@ -5056,6 +5085,23 @@ HWY_API V IfNegativeThenElse(V v, V yes, V no) {
   static_assert(IsSigned<TFromV<V>>(), "Only works for signed/float");
   return IfThenElse(IsNegative(v), yes, no);
 }
+// ------------------------------ IfNegativeThenNegOrUndefIfZero
+
+#ifdef HWY_NATIVE_INTEGER_IF_NEGATIVE_THEN_NEG
+#undef HWY_NATIVE_INTEGER_IF_NEGATIVE_THEN_NEG
+#else
+#define HWY_NATIVE_INTEGER_IF_NEGATIVE_THEN_NEG
+#endif
+
+#define HWY_SVE_NEG_IF(BASE, CHAR, BITS, HALF, NAME, OP)          \
+  HWY_API HWY_SVE_V(BASE, BITS)                                   \
+      NAME(HWY_SVE_V(BASE, BITS) mask, HWY_SVE_V(BASE, BITS) v) { \
+    return sv##OP##_##CHAR##BITS##_m(v, IsNegative(mask), v);     \
+  }
+
+HWY_SVE_FOREACH_IF(HWY_SVE_NEG_IF, IfNegativeThenNegOrUndefIfZero, neg)
+
+#undef HWY_SVE_NEG_IF
 
 // ------------------------------ AverageRound (ShiftRight)
 
@@ -6610,6 +6656,7 @@ HWY_SVE_FOREACH_UI(HWY_SVE_MASKED_LEADING_ZERO_COUNT, MaskedLeadingZeroCount,
 #undef HWY_SVE_IF_NOT_EMULATED_D
 #undef HWY_SVE_PTRUE
 #undef HWY_SVE_RETV_ARGMVV
+#undef HWY_SVE_RETV_ARGMVV_Z
 #undef HWY_SVE_RETV_ARGMV_Z
 #undef HWY_SVE_RETV_ARGMV
 #undef HWY_SVE_RETV_ARGPV

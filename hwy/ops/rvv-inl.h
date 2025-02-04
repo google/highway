@@ -4755,6 +4755,8 @@ HWY_API T ReduceMax(D d, const VFromD<D> v) {
 
 #undef HWY_RVV_REDUCE
 
+// TODO: add MaskedReduceSum/Min/Max
+
 // ------------------------------ SumOfLanes
 
 template <class D, HWY_IF_LANES_GT_D(D, 1)>
