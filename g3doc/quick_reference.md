@@ -935,6 +935,36 @@ not a concern, these are equivalent to, and potentially more efficient than,
 All ops in this section return `0` for `mask=false` lanes. These are equivalent
 to, and potentially more efficient than, `IfThenElseZero(m, Add(a, b));` etc.
 
+*   <code>V **MaskedMax**(M m, V a, V b)</code>: returns `Max(a, b)[i]`
+    or `zero` if `m[i]` is false.
+*   <code>V **MaskedAdd**(M m, V a, V b)</code>: returns `a[i] + b[i]`
+    or `0` if `m[i]` is false.
+*   <code>V **MaskedSub**(M m, V a, V b)</code>: returns `a[i] - b[i]`
+    or `0` if `m[i]` is false.
+*   <code>V **MaskedMul**(M m, V a, V b)</code>: returns `a[i] * b[i]`
+    or `0` if `m[i]` is false.
+*   <code>V **MaskedDiv**(M m, V a, V b)</code>: returns `a[i] / b[i]`
+    or `0` if `m[i]` is false.
+*   `V`: `{u,i}{8,16}` \
+    <code>V **MaskedSaturatedAdd**(M m, V a, V b)</code>: returns `a[i] +
+    b[i]` saturated to the minimum/maximum representable value, or `0` if
+    `m[i]` is false.
+*   `V`: `{u,i}{8,16}` \
+    <code>V **MaskedSaturatedSub**(M m, V a, V b)</code>: returns `a[i] -
+    b[i]` saturated to the minimum/maximum representable value, or `0` if
+    `m[i]` is false.
+*   `V`: `i16` \
+    <code>V **MaskedMulFixedPoint15**(M m, V a, V b)</code>: returns returns the
+    result of multiplying two Q1.15 fixed-point numbers, or `0` if `m[i]` is
+    false.
+*   <code>V **MaskedMulAdd**(M m, V a, V b, V c)</code>: returns `a[i] *
+    b[i] + c[i]` or `0` if `m[i]` is false.
+*   <code>V **MaskedNegMulAdd**(M m, V a, V b, V c)</code>: returns
+    `-a[i] * b[i] + c[i]` or `0` if `m[i]` is false.
+*   `V`: `{bf,u,i}16`, `D`: `RepartitionToWide<DFromV<V>>` \
+    <code>Vec&lt;D&gt; **MaskedWidenMulPairwiseAdd**(D d, M m, V a, V b)</code>: widens `a`
+    and `b` to `TFromD<D>` and computes `a[2*i+1]*b[2*i+1] + a[2*i+0]*b[2*i+0]`,
+    or `0` if `m[i]` is false.
 *   `V`: `{f}` \
     <code>V **MaskedSqrt**(M m, V a)</code>: returns `sqrt(a[i])` where
     m is true, and zero otherwise.

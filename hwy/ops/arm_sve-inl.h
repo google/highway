@@ -273,12 +273,17 @@ HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SPECIALIZE, _, _)
            HWY_SVE_V(BASE, BITS) c) {                         \
     return sv##OP##_##CHAR##BITS(a, b, c);                    \
   }
-
 #define HWY_SVE_RETV_ARGMVVV(BASE, CHAR, BITS, HALF, NAME, OP)           \
   HWY_API HWY_SVE_V(BASE, BITS)                                          \
       NAME(svbool_t m, HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b, \
            HWY_SVE_V(BASE, BITS) c) {                                    \
     return sv##OP##_##CHAR##BITS##_x(m, a, b, c);                        \
+  }
+#define HWY_SVE_RETV_ARGMVVV_Z(BASE, CHAR, BITS, HALF, NAME, OP)           \
+  HWY_API HWY_SVE_V(BASE, BITS)                                            \
+      NAME(svbool_t m, HWY_SVE_V(BASE, BITS) mul, HWY_SVE_V(BASE, BITS) x, \
+           HWY_SVE_V(BASE, BITS) add) {                                    \
+    return sv##OP##_##CHAR##BITS##_z(m, x, mul, add);                      \
   }
 
 // ------------------------------ Lanes
@@ -1767,6 +1772,57 @@ HWY_API VFromD<D> MinOfLanes(D d, VFromD<D> v) {
 template <class D, HWY_IF_LANES_GT_D(D, 1)>
 HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
   return Set(d, ReduceMax(d, v));
+}
+
+// ------------------------------ MaskedAdd etc. (IfThenElse)
+
+#ifdef HWY_NATIVE_ZERO_MASKED_ARITH
+#undef HWY_NATIVE_ZERO_MASKED_ARITH
+#else
+#define HWY_NATIVE_ZERO_MASKED_ARITH
+#endif
+
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV_Z, MaskedMax, max)
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV_Z, MaskedAdd, add)
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV_Z, MaskedSub, sub)
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV_Z, MaskedMul, mul)
+HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMVV_Z, MaskedDiv, div)
+HWY_SVE_FOREACH_UI32(HWY_SVE_RETV_ARGMVV_Z, MaskedDiv, div)
+HWY_SVE_FOREACH_UI64(HWY_SVE_RETV_ARGMVV_Z, MaskedDiv, div)
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVVV_Z, MaskedMulAdd, mad)
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVVV_Z, MaskedNegMulAdd, msb)
+
+// I8/U8/I16/U16 MaskedDiv is implemented after I8/U8/I16/U16 Div
+
+#if HWY_SVE_HAVE_2
+HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV_Z, MaskedSaturatedAdd, qadd)
+HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV_Z, MaskedSaturatedSub, qsub)
+#else
+template <class V, class M>
+HWY_API V MaskedSaturatedAdd(M m, V a, V b) {
+  return IfThenElseZero(m, SaturatedAdd(a, b));
+}
+
+template <class V, class M>
+HWY_API V MaskedSaturatedSub(M m, V a, V b) {
+  return IfThenElseZero(m, SaturatedSub(a, b));
+}
+#endif
+
+template <class V, class M, typename D = DFromV<V>, HWY_IF_I16_D(D)>
+HWY_API V MaskedMulFixedPoint15(M m, V a, V b) {
+  return IfThenElseZero(m, MulFixedPoint15(a, b));
+}
+
+template <class D, class M, HWY_IF_UI32_D(D),
+          class V16 = VFromD<RepartitionToNarrow<D>>>
+HWY_API VFromD<D> MaskedWidenMulPairwiseAdd(D d32, M m, V16 a, V16 b) {
+  return IfThenElseZero(m, WidenMulPairwiseAdd(d32, a, b));
+}
+
+template <class DF, class M, HWY_IF_F32_D(DF), class VBF>
+HWY_API VFromD<DF> MaskedWidenMulPairwiseAdd(DF df, M m, VBF a, VBF b) {
+  return IfThenElseZero(m, WidenMulPairwiseAdd(df, a, b));
 }
 
 // ================================================== COMPARE
@@ -5061,6 +5117,12 @@ HWY_API V MaskedDivOr(V no, M m, V a, V b) {
   return IfThenElse(m, Div(a, b), no);
 }
 
+template <class V, class M, HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2)),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V MaskedDiv(M m, V a, V b) {
+  return IfThenElseZero(m, Div(a, b));
+}
+
 // ------------------------------ Mod (Div, NegMulAdd)
 template <class V>
 HWY_API V Mod(V a, V b) {
@@ -6659,6 +6721,7 @@ HWY_SVE_FOREACH_UI(HWY_SVE_MASKED_LEADING_ZERO_COUNT, MaskedLeadingZeroCount,
 #undef HWY_SVE_RETV_ARGMVV_Z
 #undef HWY_SVE_RETV_ARGMV_Z
 #undef HWY_SVE_RETV_ARGMV
+#undef HWY_SVE_RETV_ARGMVV_Z
 #undef HWY_SVE_RETV_ARGPV
 #undef HWY_SVE_RETV_ARGPVN
 #undef HWY_SVE_RETV_ARGPVV
@@ -6666,6 +6729,7 @@ HWY_SVE_FOREACH_UI(HWY_SVE_MASKED_LEADING_ZERO_COUNT, MaskedLeadingZeroCount,
 #undef HWY_SVE_RETV_ARGVN
 #undef HWY_SVE_RETV_ARGVV
 #undef HWY_SVE_RETV_ARGVVV
+#undef HWY_SVE_RETV_ARGMVVV_Z
 #undef HWY_SVE_RETV_ARGMVVV
 #undef HWY_SVE_T
 #undef HWY_SVE_UNDEFINED
