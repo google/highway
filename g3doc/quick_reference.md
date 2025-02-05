@@ -1054,6 +1054,49 @@ Per-lane variable shifts (slow if SSSE3/SSE4, or 16-bit, or Shr i64 on AVX2):
     (a[i] << ((sizeof(T)*8 - b[i]) & shift_amt_mask))`, where `shift_amt_mask` is
     equal to `sizeof(T)*8 - 1`.
 
+A compound shift on 64-bit values:
+
+*   `V`: `{u,i}64`, `VI`: `{u,i}8` \
+    <code>V **MultiRotateRight**(V vals, VI indices)</code>: returns a
+    vector with `(vals[i] >> indices[i*8+j]) & 0xff` in byte `j` of vector `r[i]`
+    for each `j` between 0 and 7.
+
+    If `indices[i*8+j]` is less than 0 or greater than 63, byte `j` of `r[i]` is
+    implementation-defined.
+
+    `VI` must be either `Vec<Repartition<int8_t, DFromV<V>>>` or
+    `Vec<Repartition<uint8_t, DFromV<V>>>`.
+
+    `MultiRotateRight(V vals, VI indices)` is equivalent to the following loop (where `N` is
+    equal to `Lanes(DFromV<V>())`):
+    ```
+    for(size_t i = 0; i < N; i++) {
+      uint64_t shift_result = 0;
+      for(int j = 0; j < 8; j++) {
+        uint64_t rot_result = (v[i] >> indices[i*8+j]) | (v[i] << (64 - indices[i*8+j]));
+        shift_result |= (rot_result & 0xff) << (j * 8);
+      }
+      r[i] = shift_result;
+    }
+    ```
+
+#### Masked Shifts
+*   `V`: `{u,i}` \
+    <code>V **MaskedShiftLeft**&lt;int&gt;(M mask, V a)</code> returns `a[i] << int` or `0` if
+    `mask[i]` is false.
+
+*   `V`: `{u,i}` \
+    <code>V **MaskedShiftRight**&lt;int&gt;(M mask, V a)</code> returns `a[i] >> int` or `0` if
+    `mask[i]` is false.
+
+*   `V`: `{u,i}` \
+    <code>V **MaskedShiftRightOr**&lt;int&gt;(V no, M mask, V a)</code> returns `a[i] >> int` or `no[i]` if
+    `mask[i]` is false.
+
+*   `V`: `{u,i}` \
+    <code>V **MaskedShrOr**(V no, M mask, V a, V shifts)</code> returns `a[i] >> shifts[i]` or `no[i]` if
+    `mask[i]` is false.
+
 #### Floating-point rounding
 
 *   `V`: `{f}` \
