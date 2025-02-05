@@ -350,5 +350,5 @@ HWY_EXPORT_AND_TEST_P(HwyComplexTest, TestAllMaskedMulComplexConj);
 HWY_EXPORT_AND_TEST_P(HwyComplexTest, TestAllMaskedMulComplexConjAdd);
 HWY_AFTER_TEST();
 }  // namespace hwy
-
+HWY_TEST_MAIN();
 #endif
