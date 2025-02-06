@@ -8795,6 +8795,24 @@ HWY_API V BitShuffle(V v, VI idx) {
 }
 #endif  // HWY_TARGET <= HWY_AVX3_DL
 
+// ------------------------------ MultiShiftRight
+
+#if HWY_TARGET <= HWY_AVX3_DL
+
+#ifdef HWY_NATIVE_MULTIROTATERIGHT
+#undef HWY_NATIVE_MULTIROTATERIGHT
+#else
+#define HWY_NATIVE_MULTIROTATERIGHT
+#endif
+
+template <class V, class VI, HWY_IF_UI64(TFromV<V>), HWY_IF_UI8(TFromV<VI>),
+          HWY_IF_V_SIZE_V(V, 32), HWY_IF_V_SIZE_V(VI, HWY_MAX_LANES_V(V) * 8)>
+HWY_API V MultiRotateRight(V v, VI idx) {
+  return V{_mm256_multishift_epi64_epi8(idx.raw, v.raw)};
+}
+
+#endif
+
 // ------------------------------ LeadingZeroCount
 
 #if HWY_TARGET <= HWY_AVX3

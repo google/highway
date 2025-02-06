@@ -261,7 +261,7 @@ HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SPECIALIZE, _, _)
     return sv##OP##_##CHAR##BITS##_x(m, a, b);                             \
   }
 // User-specified mask. Mask=false value is zero.
-#define HWY_SVE_RETV_ARGMVV_Z(BASE, CHAR, BITS, HALF, NAME, OP)             \
+#define HWY_SVE_RETV_ARGMVV_Z(BASE, CHAR, BITS, HALF, NAME, OP)            \
   HWY_API HWY_SVE_V(BASE, BITS)                                            \
       NAME(svbool_t m, HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b) { \
     return sv##OP##_##CHAR##BITS##_z(m, a, b);                             \
@@ -1116,6 +1116,35 @@ HWY_SVE_FOREACH_U(HWY_SVE_SHIFT_N, ShiftRight, lsr_n)
 HWY_SVE_FOREACH_I(HWY_SVE_SHIFT_N, ShiftRight, asr_n)
 
 #undef HWY_SVE_SHIFT_N
+
+// ------------------------------ MaskedShift[Left/Right]
+
+#define HWY_SVE_SHIFT_Z(BASE, CHAR, BITS, HALF, NAME, OP)                   \
+  template <int kBits>                                                      \
+  HWY_API HWY_SVE_V(BASE, BITS) NAME(svbool_t m, HWY_SVE_V(BASE, BITS) v) { \
+    auto shifts = static_cast<HWY_SVE_T(uint, BITS)>(kBits);                \
+    return sv##OP##_##CHAR##BITS##_z(m, v, shifts);                         \
+  }
+HWY_SVE_FOREACH_UI(HWY_SVE_SHIFT_Z, MaskedShiftLeft, lsl_n)
+HWY_SVE_FOREACH_I(HWY_SVE_SHIFT_Z, MaskedShiftRight, asr_n)
+HWY_SVE_FOREACH_U(HWY_SVE_SHIFT_Z, MaskedShiftRight, lsr_n)
+
+#undef HWY_SVE_SHIFT_Z
+
+// ------------------------------ MaskedShiftRightOr
+
+#define HWY_SVE_SHIFT_OR(BASE, CHAR, BITS, HALF, NAME, OP)                  \
+  template <int kBits>                                                      \
+  HWY_API HWY_SVE_V(BASE, BITS)                                             \
+      NAME(HWY_SVE_V(BASE, BITS) no, svbool_t m, HWY_SVE_V(BASE, BITS) v) { \
+    auto shifts = static_cast<HWY_SVE_T(uint, BITS)>(kBits);                \
+    return svsel##_##CHAR##BITS(m, sv##OP##_##CHAR##BITS##_z(m, v, shifts), \
+                                no);                                        \
+  }
+HWY_SVE_FOREACH_I(HWY_SVE_SHIFT_OR, MaskedShiftRightOr, asr_n)
+HWY_SVE_FOREACH_U(HWY_SVE_SHIFT_OR, MaskedShiftRightOr, lsr_n)
+
+#undef HWY_SVE_SHIFT_OR
 
 // ------------------------------ RotateRight
 
@@ -2264,7 +2293,6 @@ HWY_SVE_FOREACH(HWY_SVE_COMPARE_Z, MaskedLt, cmplt)
 HWY_SVE_FOREACH(HWY_SVE_COMPARE_Z, MaskedLe, cmple)
 
 #undef HWY_SVE_COMPARE_Z
-
 
 template <class V, class M, class D = DFromV<V>>
 HWY_API MFromD<D> MaskedGt(M m, V a, V b) {
