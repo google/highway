@@ -67,8 +67,7 @@
 *   Not every CPU need be supported. To reduce code size and compile time, we
     group x86 targets into clusters. In particular, SSE3 instructions are only
     used/available if S-SSE3 is also available, and AVX only if AVX2 is also
-    supported. Code generation for AVX3_DL also requires opting-in by defining
-    HWY_WANT_AVX3_DL.
+    supported.
 
 *   Access to platform-specific intrinsics is necessary for acceptance in
     performance-critical projects. We provide conversions to and from intrinsics

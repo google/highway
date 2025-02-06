@@ -63,15 +63,14 @@
 #define HWY_AVX10_2_512 (1LL << 3)  // AVX10.2 with 512-bit vectors
 #define HWY_AVX3_SPR (1LL << 4)
 #define HWY_AVX10_2 (1LL << 5)  // AVX10.2 with 256-bit vectors
-// Currently HWY_AVX3_DL plus AVX512BF16 and a special case for CompressStore
-// (10x as fast).
-// We may later also use VPCONFLICT.
+// Currently `HWY_AVX3_DL` plus `AVX512BF16` and a special case for
+// `CompressStore` (10x as fast, still useful on Zen5). We may later also use
+// `VPCONFLICT`. Note that `VP2INTERSECT` is available in Zen5.
 #define HWY_AVX3_ZEN4 (1LL << 6)  // see HWY_WANT_AVX3_ZEN4 below
 
-// Currently satisfiable by Ice Lake (VNNI, VPCLMULQDQ, VPOPCNTDQ, VBMI, VBMI2,
-// VAES, BITALG, GFNI). Later to be added: BF16 (Cooper Lake). VP2INTERSECT is
-// only in Tiger Lake?
-#define HWY_AVX3_DL (1LL << 7)  // see HWY_WANT_AVX3_DL below
+// Currently satisfiable by Ice Lake (`VNNI`, `VPCLMULQDQ`, `VPOPCNTDQ`,
+// `VBMI`, `VBMI2`, `VAES`, `BITALG`, `GFNI`).
+#define HWY_AVX3_DL (1LL << 7)
 #define HWY_AVX3 (1LL << 8)     // HWY_AVX2 plus AVX-512F/BW/CD/DQ/VL
 #define HWY_AVX2 (1LL << 9)     // HWY_SSE4 plus BMI2 + F16 + FMA
 // Bit 10: reserved
@@ -726,15 +725,6 @@
 #endif
 #endif  // HWY_HAVE_RUNTIME_DISPATCH
 
-// AVX3_DL is not widely available yet. To reduce code size and compile time,
-// only include it in the set of attainable targets (for dynamic dispatch) if
-// the user opts in, OR it is in the baseline (we check whether enabled below).
-#if defined(HWY_WANT_AVX3_DL) || (HWY_BASELINE_TARGETS & HWY_AVX3_DL)
-#define HWY_ATTAINABLE_AVX3_DL (HWY_AVX3_DL)
-#else
-#define HWY_ATTAINABLE_AVX3_DL 0
-#endif
-
 #if HWY_ARCH_ARM_A64 && HWY_HAVE_RUNTIME_DISPATCH
 #define HWY_ATTAINABLE_NEON HWY_ALL_NEON
 #elif HWY_ARCH_ARM  // static dispatch, or HWY_ARCH_ARM_V7
@@ -803,9 +793,9 @@
 #define HWY_ATTAINABLE_TARGETS_X86 \
   HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_STATIC_TARGET | HWY_AVX2)
 #else  // !HWY_COMPILER_MSVC
-#define HWY_ATTAINABLE_TARGETS_X86                                           \
-  HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_SSE2 | HWY_SSSE3 | HWY_SSE4 |        \
-              HWY_AVX2 | HWY_AVX3 | HWY_ATTAINABLE_AVX3_DL | HWY_AVX3_ZEN4 | \
+#define HWY_ATTAINABLE_TARGETS_X86                                    \
+  HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_SSE2 | HWY_SSSE3 | HWY_SSE4 | \
+              HWY_AVX2 | HWY_AVX3 | HWY_AVX3_DL | HWY_AVX3_ZEN4 |     \
               HWY_AVX3_SPR)
 #endif  // !HWY_COMPILER_MSVC
 #endif  // HWY_ATTAINABLE_TARGETS_X86
