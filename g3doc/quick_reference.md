@@ -972,6 +972,41 @@ to, and potentially more efficient than, `IfThenElseZero(m, Add(a, b));` etc.
     <code>V **MaskedApproximateReciprocal**(M m, V a)</code>: returns the
     result of ApproximateReciprocal where m is true and zero otherwise.
 
+#### Complex number operations
+
+Complex types are represented as complex value pairs of real and imaginary
+components, with the real components in even-indexed lanes and the imaginary
+components in odd-indexed lanes.
+
+All multiplies in this section are performing complex multiplication,
+i.e. `(a + ib)(c + id)`.
+
+Take `j` to be the even values of `i`.
+
+*   `V`: `{f}` \
+    <code>V **ComplexConj**(V v)</code>: returns the complex conjugate of the vector,
+    this negates the imaginary lanes. This is equivalent to `OddEven(Neg(a), a)`.
+*   `V`: `{f}` \
+    <code>V **MulComplex**(V a, V b)</code>: returns `(a[j] + i.a[j + 1])(b[j] + i.b[j + 1])`
+*   `V`: `{f}` \
+    <code>V **MulComplexConj**(V a, V b)</code>: returns `(a[j] + i.a[j + 1])(b[j] - i.b[j + 1])`
+*   `V`: `{f}` \
+    <code>V **MulComplexAdd**(V a, V b, V c)</code>: returns
+    `(a[j] + i.a[j + 1])(b[j] + i.b[j + 1]) + (c[j] + i.c[j + 1])`
+*   `V`: `{f}` \
+    <code>V **MulComplexConjAdd**(V a, V b, V c)</code>: returns
+    `(a[j] + i.a[j + 1])(b[j] - i.b[j + 1]) + (c[j] + i.c[j + 1])`
+*   `V`: `{f}` \
+    <code>V **MaskedMulComplexConjAdd**(M mask, V a, V b, V c)</code>: returns
+    `(a[j] + i.a[j + 1])(b[j] - i.b[j + 1]) + (c[j] + i.c[j + 1])` or `0` if
+    `mask[i]` is false.
+*   `V`: `{f}` \
+    <code>V **MaskedMulComplexConj**(M mask, V a, V b)</code>: returns
+    `(a[j] + i.a[j + 1])(b[j] - i.b[j + 1])` or `0` if `mask[i]` is false.
+*   `V`: `{f}` \
+    <code>V **MaskedMulComplexOr**(V no, M mask, V a, V b)</code>: returns `(a[j] +
+    i.a[j + 1])(b[j] + i.b[j + 1])` or `no[i]` if `mask[i]` is false.
+
 #### Shifts
 
 **Note**: Counts not in `[0, sizeof(T)*8)` yield implementation-defined results.
