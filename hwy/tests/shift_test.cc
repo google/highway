@@ -554,7 +554,8 @@ HWY_NOINLINE void TestAllMaskedShift() {
 }
 
 struct TestMultiRotateRight {
-  uint64_t byte_swap_64(uint64_t x) {
+#if HWY_TARGET != HWY_SCALAR
+  static HWY_INLINE uint64_t ByteSwapU64(uint64_t x) {
     // Equivalent to std::byteswap for uint64 (in C++23)
     return ((x << 56) & 0xff00000000000000ULL) |
            ((x << 40) & 0x00ff000000000000ULL) |
@@ -566,8 +567,77 @@ struct TestMultiRotateRight {
            ((x >> 56) & 0x00000000000000ffULL);
   }
 
-  template <class T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+  template <class D>
+  static HWY_NOINLINE void DoTestMultiRotateRight(D d) {
+    using T = TFromD<D>;
+    using TU = MakeUnsigned<T>;
+
+    const Repartition<uint8_t, decltype(d)> du8;
+
+    HWY_ALIGN static const uint64_t kTestCases[16] = {
+        0x3FCF738F5342BA34ULL, 0x1643B72135F9C1ECULL, 0x9569D89F85EC5689ULL,
+        0x5C82AE2EE1291AF9ULL, 0x0BE183E0146F82D5ULL, 0xE264FB25B7FCAC70ULL,
+        0x16DCC74C5615DB8FULL, 0x5C6696FF3CF2910FULL, 0x0102030405060708ULL,
+        0x1020304050607080ULL, 0x0102010201020102ULL, 0x2010011002002012ULL,
+        0xF0E1D2C3B4A59687ULL, 0x78695A4B3C2D1E0FULL, 0x627BD89345E1CAF0ULL,
+        0x7BCA6F13D02945E8ULL};
+    HWY_ALIGN static const uint8_t kRotateAmounts[128] = {
+        43, 15, 17, 29, 10, 16, 7,  45, 50, 3,  5,  52, 23, 6,  35, 25,
+        36, 24, 16, 6,  59, 61, 57, 20, 49, 5,  14, 11, 55, 32, 0,  54,
+        48, 44, 9,  28, 20, 28, 42, 60, 62, 12, 34, 63, 24, 27, 19, 46,
+        33, 19, 51, 47, 26, 31, 48, 61, 22, 4,  17, 40, 50, 53, 46, 34,
+        43, 22, 56, 39, 30, 18, 54, 40, 38, 36, 58, 9,  18, 38, 63, 41,
+        35, 0,  2,  13, 26, 41, 49, 3,  10, 1,  44, 21, 2,  7,  4,  57,
+        37, 13, 21, 29, 39, 52, 31, 37, 12, 58, 15, 8,  55, 33, 32, 59,
+        1,  53, 60, 8,  11, 23, 47, 30, 62, 51, 27, 56, 14, 42, 25, 45};
+
+    const size_t N = Lanes(d);
+    const size_t padded = RoundUpTo(16, N);
+
+    auto in_lanes = AllocateAligned<T>(padded);
+    auto in_shift_amounts = AllocateAligned<uint8_t>(padded * sizeof(T));
+    auto expected = AllocateAligned<T>(padded);
+    HWY_ASSERT(in_lanes && in_shift_amounts && expected);
+
+    for (size_t i = 0; i < padded; i += 16) {
+      const size_t copy_byte_len = HWY_MIN(padded - i, 16) * sizeof(T);
+      CopyBytes(kTestCases, in_lanes.get(), copy_byte_len);
+      CopyBytes(kRotateAmounts, in_shift_amounts.get(), copy_byte_len);
+    }
+
+    constexpr int kShiftAmtMask = static_cast<int>(sizeof(T) * 8 - 1);
+    for (size_t i = 0; i < padded; i++) {
+      const uint64_t input_val =
+          static_cast<uint64_t>(static_cast<TU>(in_lanes[i]));
+
+      for (size_t j = 0; j < sizeof(T); j++) {
+        const size_t byte_idx = i * sizeof(T) + j;
+
+        const int rotate_right_amt =
+            static_cast<int>(in_shift_amounts[byte_idx]) & kShiftAmtMask;
+        const uint8_t rotated_val = static_cast<uint8_t>(
+            ((input_val >> rotate_right_amt) |
+             (input_val << ((-rotate_right_amt) & kShiftAmtMask))) &
+            0xFF);
+        CopyBytes(&rotated_val,
+                  reinterpret_cast<uint8_t*>(expected.get()) + byte_idx,
+                  sizeof(uint8_t));
+      }
+    }
+
+    for (size_t i = 0; i < padded; i += N) {
+      HWY_ASSERT_VEC_EQ(
+          d, expected.get() + i,
+          MultiRotateRight(Load(d, in_lanes.get() + i),
+                           Load(du8, in_shift_amounts.get() + i * sizeof(T))));
+    }
+  }
+
+  template <class D, HWY_IF_LANES_D(D, 1)>
+  static HWY_INLINE void DoGe128BitMultiRotateRightTests(D /*d*/) {}
+  template <class D, HWY_IF_LANES_GT_D(D, 1)>
+  static HWY_NOINLINE void DoGe128BitMultiRotateRightTests(D d) {
+    using T = TFromD<D>;
     const Repartition<uint8_t, decltype(d)> du8;
     const size_t N = Lanes(d);
     if (N < 2) return;
@@ -589,8 +659,13 @@ struct TestMultiRotateRight {
     HWY_ASSERT(expected);
 
     for (size_t i = 0; i < N; i += 2) {
+#if HWY_IS_LITTLE_ENDIAN
       expected[i] = ConvertScalarTo<T>(initial_even);
-      expected[i + 1] = ConvertScalarTo<T>(byte_swap_64(initial_odd));
+      expected[i + 1] = ConvertScalarTo<T>(ByteSwapU64(initial_odd));
+#else
+      expected[i] = ConvertScalarTo<T>(ByteSwapU64(initial_even));
+      expected[i + 1] = ConvertScalarTo<T>(initial_odd);
+#endif
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), MultiRotateRight(v1, indices));
 
@@ -608,9 +683,15 @@ struct TestMultiRotateRight {
       const T v_i = ExtractLane(v2, i);
       T shift_result = 0;
       for (size_t j = 0; j < 8; j++) {
-        uint8_t idx = ExtractLane(indices, (i * 8) + j);
-        T rot_result = (v_i >> idx) | (v_i << (64 - idx));
+        int idx = static_cast<int>(ExtractLane(indices, (i * 8) + j));
+        T rot_result =
+            ConvertScalarTo<T>((static_cast<uint64_t>(v_i) >> idx) |
+                               (static_cast<uint64_t>(v_i) << ((-idx) & 63)));
+#if HWY_IS_LITTLE_ENDIAN
         shift_result |= (rot_result & 0xff) << (j * 8);
+#else
+        shift_result |= (rot_result & 0xff) << ((j ^ 7) * 8);
+#endif
       }
       expected[i] = ConvertScalarTo<T>(shift_result);
     }
@@ -624,25 +705,45 @@ struct TestMultiRotateRight {
     );
 
     for (size_t i = 0; i < N; i += 2) {
-      expected[i] =
-          ConvertScalarTo<T>((initial_even >> 4) | (initial_even << (64 - 4)));
+      const uint64_t shifted_initial_even =
+          (initial_even >> 4) | (initial_even << (64 - 4));
+#if HWY_IS_LITTLE_ENDIAN
+      expected[i] = ConvertScalarTo<T>(shifted_initial_even);
+#else
+      expected[i] = ConvertScalarTo<T>(ByteSwapU64(shifted_initial_even));
+#endif
 
       uint64_t unreversed_val =
           ConvertScalarTo<T>((initial_odd >> 4) | (initial_odd << (64 - 4)));
-      expected[i + 1] = ConvertScalarTo<T>(byte_swap_64(unreversed_val));
+#if HWY_IS_LITTLE_ENDIAN
+      expected[i + 1] = ConvertScalarTo<T>(ByteSwapU64(unreversed_val));
+#else
+      expected[i + 1] = ConvertScalarTo<T>(unreversed_val);
+#endif
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), MultiRotateRight(v1, indices));
+  }
+#endif  // HWY_TARGET != HWY_SCALAR
+
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+#if HWY_TARGET != HWY_SCALAR
+    DoTestMultiRotateRight(d);
+    DoGe128BitMultiRotateRightTests(d);
+#else
+    (void)d;
+#endif
   }
 };
 
 HWY_NOINLINE void TestAllMultiRotateRight() {
 #if HWY_HAVE_INTEGER64
-  const ForGEVectors<128, TestMultiRotateRight> test64;
+  const ForGEVectors<64, TestMultiRotateRight> test64;
   test64(uint64_t());
   test64(int64_t());
 #endif
 }
-} // namespace
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy

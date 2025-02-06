@@ -1073,8 +1073,14 @@ A compound shift on 64-bit values:
     for(size_t i = 0; i < N; i++) {
       uint64_t shift_result = 0;
       for(int j = 0; j < 8; j++) {
-        uint64_t rot_result = (v[i] >> indices[i*8+j]) | (v[i] << (64 - indices[i*8+j]));
+        uint64_t rot_result =
+          (static_cast<uint64_t>(v[i]) >> indices[i*8+j]) |
+          (static_cast<uint64_t>(v[i]) << ((-indices[i*8+j]) & 63));
+#if HWY_IS_LITTLE_ENDIAN
         shift_result |= (rot_result & 0xff) << (j * 8);
+#else
+        shift_result |= (rot_result & 0xff) << ((j ^ 7) * 8);
+#endif
       }
       r[i] = shift_result;
     }

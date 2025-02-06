@@ -7722,7 +7722,66 @@ HWY_API bool AllBits0(V a) {
 #define HWY_NATIVE_MULTIROTATERIGHT
 #endif
 
-template <class V, class VI, HWY_IF_UI64(TFromV<V>), HWY_IF_UI8(TFromV<VI>)>
+template <class V, class VI, HWY_IF_UI64(TFromV<V>), HWY_IF_UI8(TFromV<VI>),
+          class VI_2 = VFromD<Repartition<TFromV<VI>, DFromV<V>>>,
+          HWY_IF_LANES_D(DFromV<VI>, HWY_MAX_LANES_V(VI_2)),
+          HWY_IF_V_SIZE_V(V, 8)>
+HWY_API V MultiRotateRight(V v, VI idx) {
+  const DFromV<V> d64;
+  const Twice<decltype(d64)> dt64;
+  const Repartition<uint8_t, decltype(d64)> du8;
+  const Repartition<uint8_t, decltype(dt64)> dt_u8;
+  const Repartition<uint16_t, decltype(dt64)> dt_u16;
+  const auto k7 = Set(du8, uint8_t{0x07});
+  const auto k63 = Set(du8, uint8_t{0x3F});
+
+  const auto masked_idx = And(k63, BitCast(du8, idx));
+
+  auto byte_idx = ShiftRight<3>(masked_idx);
+#if HWY_IS_LITTLE_ENDIAN
+  const auto hi_byte_idx = Add(byte_idx, Set(du8, uint8_t{1}));
+#else
+  byte_idx = Xor(byte_idx, k7);
+  const auto hi_byte_idx = Add(byte_idx, k7);
+#endif
+
+  const auto idx_shift = And(k7, masked_idx);
+
+  // Calculate even lanes
+  const auto even_src = DupEven(ResizeBitCast(dt64, v));
+  // Expand indexes to pull out 16 bit segments of idx and idx + 1
+#if HWY_IS_LITTLE_ENDIAN
+  const auto even_idx = InterleaveLower(ResizeBitCast(dt_u8, byte_idx),
+                                        ResizeBitCast(dt_u8, hi_byte_idx));
+#else
+  const auto even_idx = InterleaveLower(ResizeBitCast(dt_u8, hi_byte_idx),
+                                        ResizeBitCast(dt_u8, byte_idx));
+#endif
+  // TableLookupBytes indexes select from within a 16 byte block
+  const auto even_segments = TableLookupBytes(even_src, even_idx);
+  // Extract unaligned bytes from 16 bit segments
+  const auto even_idx_shift = PromoteTo(dt_u16, idx_shift);
+  const auto extracted_even_bytes =
+      Shr(BitCast(dt_u16, even_segments), even_idx_shift);
+
+  // Extract the even bytes of each 128 bit block and pack into lower 64 bits
+#if HWY_IS_LITTLE_ENDIAN
+  const auto even_lanes = BitCast(
+      dt64,
+      ConcatEven(dt_u8, Zero(dt_u8), BitCast(dt_u8, extracted_even_bytes)));
+#else
+  const auto even_lanes = BitCast(
+      dt64,
+      ConcatOdd(dt_u8, Zero(dt_u8), BitCast(dt_u8, extracted_even_bytes)));
+#endif
+
+  return LowerHalf(d64, even_lanes);
+}
+
+template <class V, class VI, HWY_IF_UI64(TFromV<V>), HWY_IF_UI8(TFromV<VI>),
+          class VI_2 = VFromD<Repartition<TFromV<VI>, DFromV<V>>>,
+          HWY_IF_LANES_D(DFromV<VI>, HWY_MAX_LANES_V(VI_2)),
+          HWY_IF_V_SIZE_GT_V(V, 8)>
 HWY_API V MultiRotateRight(V v, VI idx) {
   const DFromV<V> d64;
   const Repartition<uint8_t, decltype(d64)> du8;
@@ -7731,41 +7790,83 @@ HWY_API V MultiRotateRight(V v, VI idx) {
   const auto k63 = Set(du8, uint8_t{0x3F});
 
   const auto masked_idx = And(k63, BitCast(du8, idx));
-  const auto byte_idx = ShiftRight<3>(masked_idx);
+
+  auto byte_idx = ShiftRight<3>(masked_idx);
+#if HWY_IS_LITTLE_ENDIAN
+  const auto hi_byte_idx = Add(byte_idx, Set(du8, uint8_t{1}));
+#else
+  byte_idx = Xor(byte_idx, k7);
+  const auto hi_byte_idx = Add(byte_idx, k7);
+#endif
+
   const auto idx_shift = And(k7, masked_idx);
 
   // Calculate even lanes
   const auto even_src = DupEven(v);
   // Expand indexes to pull out 16 bit segments of idx and idx + 1
-  const auto even_idx =
-      InterleaveLower(byte_idx, Add(byte_idx, Set(du8, uint8_t{1})));
+#if HWY_IS_LITTLE_ENDIAN
+  const auto even_idx = InterleaveLower(byte_idx, hi_byte_idx);
+#else
+  const auto even_idx = InterleaveLower(hi_byte_idx, byte_idx);
+#endif
   // TableLookupBytes indexes select from within a 16 byte block
   const auto even_segments = TableLookupBytes(even_src, even_idx);
   // Extract unaligned bytes from 16 bit segments
+#if HWY_IS_LITTLE_ENDIAN
   const auto even_idx_shift = ZipLower(idx_shift, Zero(du8));
+#else
+  const auto even_idx_shift = ZipLower(Zero(du8), idx_shift);
+#endif
   const auto extracted_even_bytes =
       Shr(BitCast(du16, even_segments), even_idx_shift);
 
   // Calculate odd lanes
   const auto odd_src = DupOdd(v);
   // Expand indexes to pull out 16 bit segments of idx and idx + 1
-  const auto odd_idx =
-      InterleaveUpper(du8, byte_idx, Add(byte_idx, Set(du8, uint8_t{1})));
+#if HWY_IS_LITTLE_ENDIAN
+  const auto odd_idx = InterleaveUpper(du8, byte_idx, hi_byte_idx);
+#else
+  const auto odd_idx = InterleaveUpper(du8, hi_byte_idx, byte_idx);
+#endif
   // TableLookupBytes indexes select from within a 16 byte block
   const auto odd_segments = TableLookupBytes(odd_src, odd_idx);
   // Extract unaligned bytes from 16 bit segments
+#if HWY_IS_LITTLE_ENDIAN
   const auto odd_idx_shift = ZipUpper(du16, idx_shift, Zero(du8));
+#else
+  const auto odd_idx_shift = ZipUpper(du16, Zero(du8), idx_shift);
+#endif
   const auto extracted_odd_bytes =
       Shr(BitCast(du16, odd_segments), odd_idx_shift);
 
   // Extract the even bytes of each 128 bit block and pack into lower 64 bits
-  const auto even_lanes =
-      BitCast(d64, ConcatEven(du8, Zero(du8), BitCast(du8, extracted_even_bytes)));
-  const auto odd_lanes =
-      BitCast(d64, ConcatEven(du8, Zero(du8), BitCast(du8, extracted_odd_bytes)));
+#if HWY_IS_LITTLE_ENDIAN
+  const auto even_lanes = BitCast(
+      d64, ConcatEven(du8, Zero(du8), BitCast(du8, extracted_even_bytes)));
+  const auto odd_lanes = BitCast(
+      d64, ConcatEven(du8, Zero(du8), BitCast(du8, extracted_odd_bytes)));
+#else
+  const auto even_lanes = BitCast(
+      d64, ConcatOdd(du8, Zero(du8), BitCast(du8, extracted_even_bytes)));
+  const auto odd_lanes = BitCast(
+      d64, ConcatOdd(du8, Zero(du8), BitCast(du8, extracted_odd_bytes)));
+#endif
   // Interleave at 64 bit level
   return InterleaveWholeLower(even_lanes, odd_lanes);
 }
+
+#if HWY_TARGET == HWY_RVV
+
+// MultiRotateRight for LMUL=1/2 case on RVV
+template <class V, class VI, HWY_IF_UI64(TFromV<V>), HWY_IF_UI8(TFromV<VI>),
+          class VI_2 = VFromD<Repartition<TFromV<VI>, DFromV<V>>>,
+          HWY_IF_POW2_LE_D(DFromV<V>, 0),
+          HWY_IF_LANES_D(DFromV<VI>, HWY_MAX_LANES_V(VI_2) / 2)>
+HWY_API V MultiRotateRight(V v, VI idx) {
+  return MultiRotateRight(v, ResizeBitCast(Twice<DFromV<VI>>(), idx));
+}
+
+#endif
 
 #endif
 

@@ -261,7 +261,7 @@ HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SPECIALIZE, _, _)
     return sv##OP##_##CHAR##BITS##_x(m, a, b);                             \
   }
 // User-specified mask. Mask=false value is zero.
-#define HWY_SVE_RETV_ARGMVV_Z(BASE, CHAR, BITS, HALF, NAME, OP)             \
+#define HWY_SVE_RETV_ARGMVV_Z(BASE, CHAR, BITS, HALF, NAME, OP)            \
   HWY_API HWY_SVE_V(BASE, BITS)                                            \
       NAME(svbool_t m, HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b) { \
     return sv##OP##_##CHAR##BITS##_z(m, a, b);                             \
@@ -2293,7 +2293,6 @@ HWY_SVE_FOREACH(HWY_SVE_COMPARE_Z, MaskedLt, cmplt)
 HWY_SVE_FOREACH(HWY_SVE_COMPARE_Z, MaskedLe, cmple)
 
 #undef HWY_SVE_COMPARE_Z
-
 
 template <class V, class M, class D = DFromV<V>>
 HWY_API MFromD<D> MaskedGt(M m, V a, V b) {
