@@ -162,9 +162,8 @@ void ForeachBit(size_t num_groups, const GROUP_AFFINITY* affinity,
       size_t lp = Num0BitsBelowLS1Bit_Nonzero64(bits);
       bits &= bits - 1;  // clear LSB
       if (HWY_UNLIKELY(lp >= lps.size())) {
-        Warn(__FILE__, __LINE__,
-             "Clamping lp %zu to lps.size() %zu, groups %zu\n", lp, lps.size(),
-             num_groups);
+        Warn(__FILE__, line, "Clamping lp %zu to lps.size() %zu, groups %zu\n",
+             lp, lps.size(), num_groups);
         lp = lps.size() - 1;
       }
       func(lp, lps);
@@ -676,8 +675,8 @@ size_t MaxLpsPerCore(std::vector<Topology::LP>& lps) {
     size_t smt = 0;
     ForeachBit(p.GroupCount, p.GroupMask, lps, __LINE__,
                [core_idx, &smt](size_t lp, std::vector<Topology::LP>& lps) {
-                 lps[lp].core = core_idx;
-                 lps[lp].smt = smt++;
+                 lps[lp].core = static_cast<uint16_t>(core_idx);
+                 lps[lp].smt = static_cast<uint8_t>(smt++);
                });
     ++core_idx;
   });
@@ -702,7 +701,7 @@ size_t MaxCoresPerCluster(const size_t max_lps_per_core,
 
     ForeachBit(num_groups, groups, lps, __LINE__,
                [cluster_idx](size_t lp, std::vector<Topology::LP>& lps) {
-                 lps[lp].cluster = cluster_idx;
+                 lps[lp].cluster = static_cast<uint16_t>(cluster_idx);
                });
     ++cluster_idx;
   };
@@ -750,7 +749,7 @@ std::vector<PackageSizes> DetectPackages(std::vector<Topology::LP>& lps) {
 
     ForeachBit(p.GroupCount, p.GroupMask, lps, __LINE__,
                [package_idx](size_t lp, std::vector<Topology::LP>& lps) {
-                 lps[lp].package = package_idx;
+                 lps[lp].package = static_cast<uint8_t>(package_idx);
                });
     ++package_idx;
   });
