@@ -408,9 +408,9 @@ class ParallelFor {  // 0 bytes
     const size_t num_tasks = static_cast<size_t>(end - begin);
     if (HWY_UNLIKELY(num_tasks == 0)) return false;
 
-    // If there are no workers, run all tasks already on the main thread without
-    // the overhead of planning.
-    if (HWY_UNLIKELY(num_workers <= 1)) {
+    // If there are no workers or only a singly task, run on the main thread
+    // without the overhead of planning.
+    if (HWY_UNLIKELY(num_workers <= 1 || num_tasks == 1)) {
       for (uint64_t task = begin; task < end; ++task) {
         closure(task, /*thread=*/0);
       }
