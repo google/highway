@@ -4748,6 +4748,18 @@ HWY_API Vec512<double> SwapAdjacentBlocks(Vec512<double> v) {
   return Vec512<double>{_mm512_shuffle_f64x2(v.raw, v.raw, _MM_PERM_CDAB)};
 }
 
+// ------------------------------ InterleaveEvenBlocks
+template <typename T>
+HWY_API Vec512<T> InterleaveEvenBlocks(Full512<T> d, Vec512<T> a, Vec512<T> b) {
+  return OddEvenBlocks(SlideUpBlocks<1>(d, b), a);
+}
+
+// ------------------------------ InterleaveOddBlocks (ConcatUpperUpper)
+template <typename T>
+HWY_API Vec512<T> InterleaveOddBlocks(Full512<T> d, Vec512<T> a, Vec512<T> b) {
+  return OddEvenBlocks(b, SlideDownBlocks<1>(d, a));
+}
+
 // ------------------------------ ReverseBlocks
 
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_FLOAT3264_D(D)>

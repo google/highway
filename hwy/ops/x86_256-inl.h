@@ -4245,8 +4245,90 @@ HWY_API Vec256<double> Broadcast(const Vec256<double> v) {
   return Vec256<double>{_mm256_shuffle_pd(v.raw, v.raw, 15 * kLane)};
 }
 
-// ------------------------------ BroadcastBlock
+// ------------------------------ Concat blocks (LowerHalf, ZeroExtendVector)
 
+// _mm256_broadcastsi128_si256 has 7 cycle latency on ICL.
+// _mm256_permute2x128_si256 is slow on Zen1 (8 uops), so we avoid it (at no
+// extra cost) for LowerLower and UpperLower.
+
+// hiH,hiL loH,loL |-> hiL,loL (= lower halves)
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_FLOAT3264_D(D)>
+HWY_API VFromD<D> ConcatLowerLower(D d, VFromD<D> hi, VFromD<D> lo) {
+  const RebindToUnsigned<decltype(d)> du;  // for float16_t
+  const Half<decltype(d)> d2;
+  const RebindToUnsigned<decltype(d2)> du2;  // for float16_t
+  return BitCast(
+      d, VFromD<decltype(du)>{_mm256_inserti128_si256(
+             BitCast(du, lo).raw, BitCast(du2, LowerHalf(d2, hi)).raw, 1)});
+}
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
+HWY_API Vec256<float> ConcatLowerLower(D d, Vec256<float> hi,
+                                       Vec256<float> lo) {
+  const Half<decltype(d)> d2;
+  return Vec256<float>{_mm256_insertf128_ps(lo.raw, LowerHalf(d2, hi).raw, 1)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
+HWY_API Vec256<double> ConcatLowerLower(D d, Vec256<double> hi,
+                                        Vec256<double> lo) {
+  const Half<decltype(d)> d2;
+  return Vec256<double>{_mm256_insertf128_pd(lo.raw, LowerHalf(d2, hi).raw, 1)};
+}
+
+// hiH,hiL loH,loL |-> hiL,loH (= inner halves / swap blocks)
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_FLOAT3264_D(D)>
+HWY_API VFromD<D> ConcatLowerUpper(D d, VFromD<D> hi, VFromD<D> lo) {
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, VFromD<decltype(du)>{_mm256_permute2x128_si256(
+                        BitCast(du, lo).raw, BitCast(du, hi).raw, 0x21)});
+}
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
+HWY_API Vec256<float> ConcatLowerUpper(D /* tag */, Vec256<float> hi,
+                                       Vec256<float> lo) {
+  return Vec256<float>{_mm256_permute2f128_ps(lo.raw, hi.raw, 0x21)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
+HWY_API Vec256<double> ConcatLowerUpper(D /* tag */, Vec256<double> hi,
+                                        Vec256<double> lo) {
+  return Vec256<double>{_mm256_permute2f128_pd(lo.raw, hi.raw, 0x21)};
+}
+
+// hiH,hiL loH,loL |-> hiH,loL (= outer halves)
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_FLOAT3264_D(D)>
+HWY_API VFromD<D> ConcatUpperLower(D d, VFromD<D> hi, VFromD<D> lo) {
+  const RebindToUnsigned<decltype(d)> du;  // for float16_t
+  return BitCast(d, VFromD<decltype(du)>{_mm256_blend_epi32(
+                        BitCast(du, hi).raw, BitCast(du, lo).raw, 0x0F)});
+}
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
+HWY_API Vec256<float> ConcatUpperLower(D /* tag */, Vec256<float> hi,
+                                       Vec256<float> lo) {
+  return Vec256<float>{_mm256_blend_ps(hi.raw, lo.raw, 0x0F)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
+HWY_API Vec256<double> ConcatUpperLower(D /* tag */, Vec256<double> hi,
+                                        Vec256<double> lo) {
+  return Vec256<double>{_mm256_blend_pd(hi.raw, lo.raw, 3)};
+}
+
+// hiH,hiL loH,loL |-> hiH,loH (= upper halves)
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_FLOAT3264_D(D)>
+HWY_API VFromD<D> ConcatUpperUpper(D d, VFromD<D> hi, VFromD<D> lo) {
+  const RebindToUnsigned<decltype(d)> du;  // for float16_t
+  return BitCast(d, VFromD<decltype(du)>{_mm256_permute2x128_si256(
+                        BitCast(du, lo).raw, BitCast(du, hi).raw, 0x31)});
+}
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
+HWY_API Vec256<float> ConcatUpperUpper(D /* tag */, Vec256<float> hi,
+                                       Vec256<float> lo) {
+  return Vec256<float>{_mm256_permute2f128_ps(lo.raw, hi.raw, 0x31)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
+HWY_API Vec256<double> ConcatUpperUpper(D /* tag */, Vec256<double> hi,
+                                        Vec256<double> lo) {
+  return Vec256<double>{_mm256_permute2f128_pd(lo.raw, hi.raw, 0x31)};
+}
+
+// ------------------------------ BroadcastBlock
 template <int kBlockIdx, class T>
 HWY_API Vec256<T> BroadcastBlock(Vec256<T> v) {
   static_assert(kBlockIdx == 0 || kBlockIdx == 1, "Invalid block index");
@@ -4726,6 +4808,18 @@ HWY_API Vec256<float> SwapAdjacentBlocks(Vec256<float> v) {
   return BitCast(d, SwapAdjacentBlocks(BitCast(dw, v)));
 }
 
+// ------------------------------ InterleaveEvenBlocks (ConcatLowerLower)
+template <class D, class V = VFromD<D>, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API V InterleaveEvenBlocks(D d, V a, V b) {
+  return ConcatLowerLower(d, b, a);
+}
+
+// ------------------------------ InterleaveOddBlocks (ConcatUpperUpper)
+template <class D, class V = VFromD<D>, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API V InterleaveOddBlocks(D d, V a, V b) {
+  return ConcatUpperUpper(d, b, a);
+}
+
 // ------------------------------ Reverse (RotateRight)
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 4)>
@@ -4880,89 +4974,6 @@ HWY_API VFromD<D> InterleaveUpper(D /* tag */, VFromD<D> a, VFromD<D> b) {
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
 HWY_API VFromD<D> InterleaveUpper(D /* tag */, VFromD<D> a, VFromD<D> b) {
   return VFromD<D>{_mm256_unpackhi_pd(a.raw, b.raw)};
-}
-
-// ------------------------------ Blocks (LowerHalf, ZeroExtendVector)
-
-// _mm256_broadcastsi128_si256 has 7 cycle latency on ICL.
-// _mm256_permute2x128_si256 is slow on Zen1 (8 uops), so we avoid it (at no
-// extra cost) for LowerLower and UpperLower.
-
-// hiH,hiL loH,loL |-> hiL,loL (= lower halves)
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_FLOAT3264_D(D)>
-HWY_API VFromD<D> ConcatLowerLower(D d, VFromD<D> hi, VFromD<D> lo) {
-  const RebindToUnsigned<decltype(d)> du;  // for float16_t
-  const Half<decltype(d)> d2;
-  const RebindToUnsigned<decltype(d2)> du2;  // for float16_t
-  return BitCast(
-      d, VFromD<decltype(du)>{_mm256_inserti128_si256(
-             BitCast(du, lo).raw, BitCast(du2, LowerHalf(d2, hi)).raw, 1)});
-}
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
-HWY_API Vec256<float> ConcatLowerLower(D d, Vec256<float> hi,
-                                       Vec256<float> lo) {
-  const Half<decltype(d)> d2;
-  return Vec256<float>{_mm256_insertf128_ps(lo.raw, LowerHalf(d2, hi).raw, 1)};
-}
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
-HWY_API Vec256<double> ConcatLowerLower(D d, Vec256<double> hi,
-                                        Vec256<double> lo) {
-  const Half<decltype(d)> d2;
-  return Vec256<double>{_mm256_insertf128_pd(lo.raw, LowerHalf(d2, hi).raw, 1)};
-}
-
-// hiH,hiL loH,loL |-> hiL,loH (= inner halves / swap blocks)
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_FLOAT3264_D(D)>
-HWY_API VFromD<D> ConcatLowerUpper(D d, VFromD<D> hi, VFromD<D> lo) {
-  const RebindToUnsigned<decltype(d)> du;
-  return BitCast(d, VFromD<decltype(du)>{_mm256_permute2x128_si256(
-                        BitCast(du, lo).raw, BitCast(du, hi).raw, 0x21)});
-}
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
-HWY_API Vec256<float> ConcatLowerUpper(D /* tag */, Vec256<float> hi,
-                                       Vec256<float> lo) {
-  return Vec256<float>{_mm256_permute2f128_ps(lo.raw, hi.raw, 0x21)};
-}
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
-HWY_API Vec256<double> ConcatLowerUpper(D /* tag */, Vec256<double> hi,
-                                        Vec256<double> lo) {
-  return Vec256<double>{_mm256_permute2f128_pd(lo.raw, hi.raw, 0x21)};
-}
-
-// hiH,hiL loH,loL |-> hiH,loL (= outer halves)
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_FLOAT3264_D(D)>
-HWY_API VFromD<D> ConcatUpperLower(D d, VFromD<D> hi, VFromD<D> lo) {
-  const RebindToUnsigned<decltype(d)> du;  // for float16_t
-  return BitCast(d, VFromD<decltype(du)>{_mm256_blend_epi32(
-                        BitCast(du, hi).raw, BitCast(du, lo).raw, 0x0F)});
-}
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
-HWY_API Vec256<float> ConcatUpperLower(D /* tag */, Vec256<float> hi,
-                                       Vec256<float> lo) {
-  return Vec256<float>{_mm256_blend_ps(hi.raw, lo.raw, 0x0F)};
-}
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
-HWY_API Vec256<double> ConcatUpperLower(D /* tag */, Vec256<double> hi,
-                                        Vec256<double> lo) {
-  return Vec256<double>{_mm256_blend_pd(hi.raw, lo.raw, 3)};
-}
-
-// hiH,hiL loH,loL |-> hiH,loH (= upper halves)
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_FLOAT3264_D(D)>
-HWY_API VFromD<D> ConcatUpperUpper(D d, VFromD<D> hi, VFromD<D> lo) {
-  const RebindToUnsigned<decltype(d)> du;  // for float16_t
-  return BitCast(d, VFromD<decltype(du)>{_mm256_permute2x128_si256(
-                        BitCast(du, lo).raw, BitCast(du, hi).raw, 0x31)});
-}
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
-HWY_API Vec256<float> ConcatUpperUpper(D /* tag */, Vec256<float> hi,
-                                       Vec256<float> lo) {
-  return Vec256<float>{_mm256_permute2f128_ps(lo.raw, hi.raw, 0x31)};
-}
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
-HWY_API Vec256<double> ConcatUpperUpper(D /* tag */, Vec256<double> hi,
-                                        Vec256<double> lo) {
-  return Vec256<double>{_mm256_permute2f128_pd(lo.raw, hi.raw, 0x31)};
 }
 
 // ---------------------------- InsertBlock (ConcatLowerLower, ConcatUpperLower)

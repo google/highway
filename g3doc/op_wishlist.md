@@ -2,7 +2,7 @@
 
 <!--*
 # Document freshness: For more information, see go/fresh-source.
-freshness: { owner: 'janwas' reviewed: '2024-04-09' }
+freshness: { owner: 'janwas' reviewed: '2025-02-11' }
 *-->
 
 ## Wishlist
@@ -30,7 +30,7 @@ ReduceMin/MaxOrNaN
 
 Document Reduce/Min NaN behavior
 
-_mm512_getmant, _mm512_scalef, _mm512_getexp (f32/f64)
+_mm512_getmant (f32/f64)
 
 ### Clear lowest mask bit
 

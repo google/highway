@@ -7948,6 +7948,17 @@ HWY_API Vec128<T, N> SwapAdjacentBlocks(Vec128<T, N> v) {
   return v;
 }
 
+// ------------------------------ InterleaveEvenBlocks
+template <class D, class V = VFromD<D>>
+HWY_API V InterleaveEvenBlocks(D, V a, V /*b*/) {
+  return a;
+}
+// ------------------------------ InterleaveOddBlocks
+template <class D, class V = VFromD<D>>
+HWY_API V InterleaveOddBlocks(D, V a, V /*b*/) {
+  return a;
+}
+
 // ------------------------------ ReverseBlocks
 // Single block: no change
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>

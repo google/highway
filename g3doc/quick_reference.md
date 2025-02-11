@@ -2582,6 +2582,18 @@ The following `ReverseN` must not be called if `Lanes(D()) < N`:
     less than two blocks; callers must first check that via `Lanes`. Only
     available if `HWY_TARGET != HWY_SCALAR`.
 
+*   <code>V **InterleaveEvenBlocks**(D, V a, V b)</code>: returns alternating
+    blocks: first/lowest the first from A, then the first from B, then the third
+    from A etc. Results are undefined for vectors with less than two blocks;
+    callers must first check that via `Lanes`. Only available if `HWY_TARGET !=
+    HWY_SCALAR`.
+
+*   <code>V **InterleaveOddBlocks**(D, V a, V b)</code>: returns alternating
+    blocks: first/lowest the second from A, then the second from B, then the
+    fourth from A etc. Results are undefined for vectors with less than two
+    blocks; callers must first check that via `Lanes`. Only available if
+    `HWY_TARGET != HWY_SCALAR`.
+
 ### Reductions
 
 **Note**: Horizontal operations (across lanes of the same vector) such as

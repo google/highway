@@ -1116,11 +1116,13 @@ HWY_API TFromD<D> MaskedReduceSum(D d, M m, VFromD<D> v) {
 }
 template <class D, class M>
 HWY_API TFromD<D> MaskedReduceMin(D d, M m, VFromD<D> v) {
-  return ReduceMin(d, IfThenElse(m, v, Set(d, hwy::PositiveInfOrHighestValue <TFromD<D>>())));
+  return ReduceMin(
+      d, IfThenElse(m, v, Set(d, hwy::PositiveInfOrHighestValue<TFromD<D>>())));
 }
 template <class D, class M>
 HWY_API TFromD<D> MaskedReduceMax(D d, M m, VFromD<D> v) {
-  return ReduceMax(d, IfThenElse(m, v, Set(d, hwy::NegativeInfOrLowestValue<TFromD<D>>())));
+  return ReduceMax(
+      d, IfThenElse(m, v, Set(d, hwy::NegativeInfOrLowestValue<TFromD<D>>())));
 }
 
 #endif  // HWY_NATIVE_MASKED_REDUCE_SCALAR

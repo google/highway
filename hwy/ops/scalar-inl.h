@@ -1658,10 +1658,20 @@ HWY_API Vec1<T> OddEvenBlocks(Vec1<T> /* odd */, Vec1<T> even) {
 }
 
 // ------------------------------ SwapAdjacentBlocks
-
 template <typename T>
 HWY_API Vec1<T> SwapAdjacentBlocks(Vec1<T> v) {
   return v;
+}
+
+// ------------------------------ InterleaveEvenBlocks
+template <class D, class V = VFromD<D>>
+HWY_API V InterleaveEvenBlocks(D, V a, V /*b*/) {
+  return a;
+}
+// ------------------------------ InterleaveOddBlocks
+template <class D, class V = VFromD<D>>
+HWY_API V InterleaveOddBlocks(D, V a, V /*b*/) {
+  return a;
 }
 
 // ------------------------------ TableLookupLanes
