@@ -3999,8 +3999,7 @@ HWY_API V InterleaveEvenBlocks(D d, V a, V b) {
   (void)b;
   return a;
 #else
-  constexpr auto kLanesPerBlock =
-      static_cast<TFromD<decltype(du)>>(detail::LanesPerBlock(d));
+  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(d);
   return OddEvenBlocks(SlideUpLanes(d, b, kLanesPerBlock), a);
 #endif
 }
@@ -4017,8 +4016,7 @@ HWY_API V InterleaveOddBlocks(D d, V a, V b) {
   (void)b;
   return a;
 #else
-  constexpr auto kLanesPerBlock =
-      static_cast<TFromD<decltype(du)>>(detail::LanesPerBlock(d));
+  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(d);
   return OddEvenBlocks(b, SlideDownLanes(d, a, kLanesPerBlock));
 #endif
 }
