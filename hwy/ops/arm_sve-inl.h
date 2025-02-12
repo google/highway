@@ -3924,40 +3924,6 @@ HWY_API V TwoTablesLookupLanes(V a, V b,
   return TwoTablesLookupLanes(d, a, b, idx);
 }
 
-// ------------------------------ SlideUpLanes (FirstN)
-template <class D>
-HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
-  return detail::Splice(v, Zero(d), FirstN(d, amt));
-}
-
-// ------------------------------ Slide1Up
-
-#ifdef HWY_NATIVE_SLIDE1_UP_DOWN
-#undef HWY_NATIVE_SLIDE1_UP_DOWN
-#else
-#define HWY_NATIVE_SLIDE1_UP_DOWN
-#endif
-
-template <class D>
-HWY_API VFromD<D> Slide1Up(D d, VFromD<D> v) {
-  return SlideUpLanes(d, v, 1);
-}
-
-// ------------------------------ SlideDownLanes (TableLookupLanes)
-template <class D>
-HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
-  const RebindToUnsigned<decltype(d)> du;
-  using TU = TFromD<decltype(du)>;
-  const auto idx = Iota(du, static_cast<TU>(amt));
-  return IfThenElseZero(FirstN(d, Lanes(d) - amt), TableLookupLanes(v, idx));
-}
-
-// ------------------------------ Slide1Down
-template <class D>
-HWY_API VFromD<D> Slide1Down(D d, VFromD<D> v) {
-  return SlideDownLanes(d, v, 1);
-}
-
 // ------------------------------ SwapAdjacentBlocks (TableLookupLanes)
 
 namespace detail {
@@ -3984,42 +3950,6 @@ HWY_API V SwapAdjacentBlocks(const V v) {
       static_cast<TFromD<decltype(du)>>(detail::LanesPerBlock(d));
   const VFromD<decltype(du)> idx = detail::XorN(Iota(du, 0), kLanesPerBlock);
   return TableLookupLanes(v, idx);
-#endif
-}
-
-// ------------------------------ InterleaveEvenBlocks
-// (ConcatLowerLower, SlideUpLanes, OddEvenBlocks)
-
-template <class D, class V = VFromD<D>>
-HWY_API V InterleaveEvenBlocks(D d, V a, V b) {
-#if HWY_TARGET == HWY_SVE_256
-  return ConcatLowerLower(d, b, a);
-#elif HWY_TARGET == HWY_SVE2_128
-  (void)d;
-  (void)b;
-  return a;
-#else
-  constexpr auto kLanesPerBlock =
-      static_cast<TFromD<decltype(du)>>(detail::LanesPerBlock(d));
-  return OddEvenBlocks(SlideUpLanes(d, b, kLanesPerBlock), a);
-#endif
-}
-
-// ------------------------------ InterleaveOddBlocks
-// (ConcatUpperUpper, SlideDownLanes, OddEvenBlocks)
-
-template <class D, class V = VFromD<D>>
-HWY_API V InterleaveOddBlocks(D d, V a, V b) {
-#if HWY_TARGET == HWY_SVE_256
-  return ConcatUpperUpper(d, b, a);
-#elif HWY_TARGET == HWY_SVE2_128
-  (void)d;
-  (void)b;
-  return a;
-#else
-  constexpr auto kLanesPerBlock =
-      static_cast<TFromD<decltype(du)>>(detail::LanesPerBlock(d));
-  return OddEvenBlocks(b, SlideDownLanes(d, a, kLanesPerBlock));
 #endif
 }
 
@@ -4176,6 +4106,43 @@ HWY_API VFromD<D> Reverse8(D d, const VFromD<D> v) {
 
 HWY_SVE_FOREACH_UI(HWY_SVE_REVERSE_BITS, ReverseBits, rbit)
 #undef HWY_SVE_REVERSE_BITS
+
+// ------------------------------ SlideUpLanes
+
+template <class D>
+HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
+  return detail::Splice(v, Zero(d), FirstN(d, amt));
+}
+
+// ------------------------------ Slide1Up
+
+#ifdef HWY_NATIVE_SLIDE1_UP_DOWN
+#undef HWY_NATIVE_SLIDE1_UP_DOWN
+#else
+#define HWY_NATIVE_SLIDE1_UP_DOWN
+#endif
+
+template <class D>
+HWY_API VFromD<D> Slide1Up(D d, VFromD<D> v) {
+  return SlideUpLanes(d, v, 1);
+}
+
+// ------------------------------ SlideDownLanes (TableLookupLanes)
+
+template <class D>
+HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  const auto idx = Iota(du, static_cast<TU>(amt));
+  return IfThenElseZero(FirstN(d, Lanes(d) - amt), TableLookupLanes(v, idx));
+}
+
+// ------------------------------ Slide1Down
+
+template <class D>
+HWY_API VFromD<D> Slide1Down(D d, VFromD<D> v) {
+  return SlideDownLanes(d, v, 1);
+}
 
 // ------------------------------ Block insert/extract/broadcast ops
 #if HWY_TARGET != HWY_SVE2_128
@@ -6527,8 +6494,8 @@ HWY_SVE_FOREACH_F(HWY_SVE_CPLX_FMA, ComplexMulAdd, cmla)
 
 template <class V, class M, HWY_IF_FLOAT_V(V)>
 HWY_API V MaskedMulComplexConjAdd(M mask, V a, V b, V c) {
-  const V t = detail::ComplexMulAddZ0(mask, c, b, a);
-  return detail::ComplexMulAddZ270(mask, t, b, a);
+  return detail::ComplexMulAddZ270(mask, detail::ComplexMulAddZ0(mask, c, b, a), b,
+                                a);
 }
 
 template <class V, class M, HWY_IF_FLOAT_V(V)>
