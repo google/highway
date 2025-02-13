@@ -119,7 +119,8 @@ class ShuffledIota {
 // We want predictable struct/class sizes so we can reason about cache lines.
 #pragma pack(push, 1)
 
-enum class PoolWaitMode : uint32_t { kBlock, kSpin };
+// Same values as PoolCommands::kSetBlock and kSetSpin, verified there.
+enum class PoolWaitMode : uint32_t { kBlock = 3, kSpin = 4 };
 
 // Worker's private working set.
 class PoolWorker {  // HWY_ALIGNMENT bytes
@@ -127,7 +128,6 @@ class PoolWorker {  // HWY_ALIGNMENT bytes
 
  public:
   PoolWorker(size_t thread, size_t num_workers) {
-    wait_mode_ = PoolWaitMode::kBlock;
     num_victims_ = static_cast<uint32_t>(HWY_MIN(kMaxVictims, num_workers));
 
     const Divisor div_workers(static_cast<uint32_t>(num_workers));
@@ -148,13 +148,6 @@ class PoolWorker {  // HWY_ALIGNMENT bytes
     (void)padding_;
   }
   ~PoolWorker() = default;
-
-  void SetWaitMode(PoolWaitMode wait_mode) {
-    wait_mode_.store(wait_mode, std::memory_order_release);
-  }
-  PoolWaitMode WorkerGetWaitMode() const {
-    return wait_mode_.load(std::memory_order_acquire);
-  }
 
   hwy::Span<const uint32_t> Victims() const {
     return hwy::Span<const uint32_t>(victims_.data(),
@@ -180,11 +173,10 @@ class PoolWorker {  // HWY_ALIGNMENT bytes
   std::atomic<uint64_t> begin_;
   std::atomic<uint64_t> end_;  // only changes during SetRange
 
-  std::atomic<PoolWaitMode> wait_mode_;  // (32-bit)
   uint32_t num_victims_;                 // <= kPoolMaxVictims
   std::array<uint32_t, kMaxVictims> victims_;
 
-  uint8_t padding_[HWY_ALIGNMENT - 16 - 8 - sizeof(victims_)];
+  uint8_t padding_[HWY_ALIGNMENT - 16 - 4 - sizeof(victims_)];
 };
 static_assert(sizeof(PoolWorker) == HWY_ALIGNMENT, "");
 
@@ -228,7 +220,7 @@ class PoolTasks {  // 32 bytes
 };
 
 // Modified by main thread, shared with all workers.
-class PoolCommands {  // 16 bytes
+class PoolCommands {  // 8 bytes
   static constexpr uint32_t kInitial = 0;
   static constexpr uint32_t kMask = 0xF;  // for command, rest is ABA counter.
   static constexpr size_t kShift = hwy::CeilLog2(kMask);
@@ -236,21 +228,28 @@ class PoolCommands {  // 16 bytes
  public:
   static constexpr uint32_t kTerminate = 1;
   static constexpr uint32_t kWork = 2;
-  static constexpr uint32_t kNop = 3;
+  static constexpr uint32_t kSetBlock = 3;
+  static constexpr uint32_t kSetSpin = 4;
+  // Same value so we can assign PoolWaitMode from the command.
+  static_assert(static_cast<uint32_t>(PoolWaitMode::kBlock) == kSetBlock);
+  static_assert(static_cast<uint32_t>(PoolWaitMode::kSpin) == kSetSpin);
 
   // Workers must initialize their copy to this so that they wait for the first
   // command as intended.
   static uint32_t WorkerInitialSeqCmd() { return kInitial; }
 
   // Sends `cmd` to all workers.
-  void Broadcast(uint32_t cmd) {
+  void Broadcast(PoolWaitMode wait_mode, uint32_t cmd) {
     HWY_DASSERT(cmd <= kMask);
     const uint32_t epoch = ++epoch_;
     const uint32_t seq_cmd = (epoch << kShift) | cmd;
     seq_cmd_.store(seq_cmd, std::memory_order_release);
 
-    // Wake any worker whose wait_mode_ is or was kBlock.
-    WakeAll(seq_cmd_);
+    // Only call WakeAll, which involves a syscall, if the threads are actually
+    // blocking. This is enabled by a barrier in SetWaitMode.
+    if (HWY_UNLIKELY(wait_mode == PoolWaitMode::kBlock)) {
+      WakeAll(seq_cmd_);
+    }
 
     // Workers are either starting up, or waiting for a command. Either way,
     // they will not miss this command, so no need to wait for them here.
@@ -332,6 +331,7 @@ struct alignas(HWY_ALIGNMENT) PoolMem {
 
   PoolTasks tasks;
   PoolCommands commands;
+  static_assert(sizeof(tasks) + sizeof(commands) <= HWY_ALIGNMENT);
   // barrier is more write-heavy, hence keep in another cache line.
   uint8_t padding[HWY_ALIGNMENT - sizeof(tasks) - sizeof(commands)];
 
@@ -525,6 +525,9 @@ static inline void SetThreadName(const char* format, int thread) {
 //
 // For load-balancing, we use work stealing in random order.
 class ThreadPool {
+  // Ensures ThreadFunc variable and class member start with the same value.
+  static constexpr PoolWaitMode kInitialWaitMode = PoolWaitMode::kBlock;
+
   static void ThreadFunc(size_t thread, size_t num_workers, PoolMem* mem) {
     HWY_DASSERT(thread < num_workers);
     SetThreadName("worker%03zu", static_cast<int>(thread));
@@ -532,24 +535,23 @@ class ThreadPool {
     // Ensure mem is ready to use (synchronize with PoolMemOwner's fence).
     std::atomic_thread_fence(std::memory_order_acquire);
 
-    PoolWorker& worker = mem->Worker(thread);
+    PoolWaitMode wait_mode = kInitialWaitMode;
     PoolCommands& commands = mem->commands;
     uint32_t prev_seq_cmd = PoolCommands::WorkerInitialSeqCmd();
 
     for (;;) {
-      const PoolWaitMode wait_mode = worker.WorkerGetWaitMode();
       const uint32_t command =
           commands.WorkerWaitForNewCommand(wait_mode, prev_seq_cmd);
       if (HWY_UNLIKELY(command == PoolCommands::kTerminate)) {
         return;  // exits thread
       } else if (HWY_LIKELY(command == PoolCommands::kWork)) {
         ParallelFor::WorkerRun(thread, num_workers, *mem);
-        mem->barrier.WorkerArrive(thread);
-      } else if (command == PoolCommands::kNop) {
-        // do nothing - used to change wait mode
       } else {
-        HWY_DASSERT(false);  // unknown command
+        HWY_DASSERT(command == PoolCommands::kSetBlock ||
+                    command == PoolCommands::kSetSpin);
+        wait_mode = static_cast<PoolWaitMode>(command);
       }
+      mem->barrier.WorkerArrive(thread);
     }
   }
 
@@ -584,7 +586,8 @@ class ThreadPool {
   // Waits for all threads to exit.
   ~ThreadPool() {
     PoolMem& mem = *owner_.Mem();
-    mem.commands.Broadcast(PoolCommands::kTerminate);  // requests threads exit
+    // Requests threads exit. No barrier required, we wait for them below.
+    mem.commands.Broadcast(wait_mode_, PoolCommands::kTerminate);
 
     for (std::thread& thread : threads_) {
       HWY_ASSERT(thread.joinable());
@@ -604,22 +607,25 @@ class ThreadPool {
   // but wastes power when waiting over long intervals. Inexpensive, OK to call
   // multiple times, but not concurrently with any `Run`.
   void SetWaitMode(PoolWaitMode mode) {
+    PoolMem& mem = *owner_.Mem();
+    const size_t num_workers = NumWorkers();
+
     // Run must not be active, otherwise we may overwrite the previous command
     // before it is seen by all workers.
     HWY_DASSERT(busy_.fetch_add(1) == 0);
 
-    PoolMem& mem = *owner_.Mem();
+    mem.barrier.Reset();
 
-    // For completeness/consistency, set on all workers, including the main
-    // thread, even though it will never wait for a command.
-    for (size_t thread = 0; thread < owner_.NumWorkers(); ++thread) {
-      mem.Worker(thread).SetWaitMode(mode);
-    }
+    HWY_DASSERT(mode == PoolWaitMode::kBlock || mode == PoolWaitMode::kSpin);
+    mem.commands.Broadcast(wait_mode_, static_cast<uint32_t>(mode));
 
-    // Send a no-op command so that workers wake as soon as possible. Skip the
-    // expensive barrier - workers may miss this command, but it is fine for
-    // them to wake up later and get the next actual command.
-    mem.commands.Broadcast(PoolCommands::kNop);
+    // Wait for all to ACK so that we can avoid a syscall in Broadcast.
+    mem.barrier.WorkerArrive(num_workers - 1);
+    mem.barrier.WaitAll(num_workers);
+
+    // Change after all threads have set their local variable and use this in
+    // subsequent calls to Broadcast.
+    wait_mode_ = mode;
 
     HWY_DASSERT(busy_.fetch_add(-1) == 1);
   }
@@ -641,7 +647,7 @@ class ThreadPool {
       HWY_DASSERT(busy_.fetch_add(1) == 0);
 
       mem.barrier.Reset();
-      mem.commands.Broadcast(PoolCommands::kWork);
+      mem.commands.Broadcast(wait_mode_, PoolCommands::kWork);
 
       // Also perform work on main thread instead of busy-waiting.
       const size_t thread = num_workers - 1;
@@ -682,6 +688,7 @@ class ThreadPool {
   std::vector<std::thread> threads_;
 
   PoolMemOwner owner_;
+  PoolWaitMode wait_mode_ = kInitialWaitMode;
 
   // In debug builds, detects if functions are re-entered; always present so
   // that the memory layout does not change.
