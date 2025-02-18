@@ -245,6 +245,7 @@ cc_test(
         "//:hwy",
         "//:hwy_test_util",
         "//:nanobenchmark",
+        "//:thread_pool",
     ] + TEST_MAIN,
 )
 

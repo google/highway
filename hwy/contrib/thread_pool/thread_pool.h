@@ -231,8 +231,8 @@ class PoolCommands {  // 8 bytes
   static constexpr uint32_t kSetBlock = 3;
   static constexpr uint32_t kSetSpin = 4;
   // Same value so we can assign PoolWaitMode from the command.
-  static_assert(static_cast<uint32_t>(PoolWaitMode::kBlock) == kSetBlock);
-  static_assert(static_cast<uint32_t>(PoolWaitMode::kSpin) == kSetSpin);
+  static_assert(static_cast<uint32_t>(PoolWaitMode::kBlock) == kSetBlock, "");
+  static_assert(static_cast<uint32_t>(PoolWaitMode::kSpin) == kSetSpin, "");
 
   // Workers must initialize their copy to this so that they wait for the first
   // command as intended.
@@ -331,7 +331,7 @@ struct alignas(HWY_ALIGNMENT) PoolMem {
 
   PoolTasks tasks;
   PoolCommands commands;
-  static_assert(sizeof(tasks) + sizeof(commands) <= HWY_ALIGNMENT);
+  static_assert(sizeof(tasks) + sizeof(commands) <= HWY_ALIGNMENT, "");
   // barrier is more write-heavy, hence keep in another cache line.
   uint8_t padding[HWY_ALIGNMENT - sizeof(tasks) - sizeof(commands)];
 

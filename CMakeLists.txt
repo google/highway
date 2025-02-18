@@ -184,6 +184,8 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/sort/vqsort.cc
     hwy/contrib/sort/vqsort.h
     hwy/contrib/thread_pool/futex.h
+    hwy/contrib/thread_pool/spin.cc
+    hwy/contrib/thread_pool/spin.h
     hwy/contrib/thread_pool/thread_pool.h
     hwy/contrib/thread_pool/topology.cc
     hwy/contrib/thread_pool/topology.h
@@ -228,6 +230,7 @@ set(HWY_SOURCES
     hwy/targets.h
     hwy/timer-inl.h
     hwy/timer.h
+    hwy/x86_cpuid.h
 )
 
 if (NOT HWY_CMAKE_HEADER_ONLY)
@@ -710,9 +713,6 @@ endif()  # HWY_SYSTEM_GTEST
 endif()  # HWY_TEST_STANDALONE
 
 set(HWY_TEST_FILES
-  hwy/contrib/algo/copy_test.cc
-  hwy/contrib/algo/find_test.cc
-  hwy/contrib/algo/transform_test.cc
   hwy/abort_test.cc
   hwy/aligned_allocator_test.cc
   hwy/base_test.cc
@@ -785,6 +785,9 @@ if (HWY_ENABLE_CONTRIB)
 list(APPEND HWY_TEST_LIBS hwy_contrib)
 
 list(APPEND HWY_TEST_FILES
+  hwy/contrib/algo/copy_test.cc
+  hwy/contrib/algo/find_test.cc
+  hwy/contrib/algo/transform_test.cc
   hwy/contrib/bit_pack/bit_pack_test.cc
   hwy/contrib/dot/dot_test.cc
   hwy/contrib/matvec/matvec_test.cc
@@ -796,6 +799,7 @@ list(APPEND HWY_TEST_FILES
   hwy/contrib/sort/bench_sort.cc
   hwy/contrib/sort/sort_test.cc
   hwy/contrib/sort/sort_unit_test.cc
+  hwy/contrib/thread_pool/spin_test.cc
   hwy/contrib/thread_pool/thread_pool_test.cc
   hwy/contrib/thread_pool/topology_test.cc
   hwy/contrib/unroller/unroller_test.cc

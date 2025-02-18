@@ -171,6 +171,7 @@ cc_library(
         "hwy/cache_control.h",
         "hwy/detect_compiler_arch.h",  # private
         "hwy/print.h",
+        "hwy/x86_cpuid.h",
     ],
     compatible_with = [],
     copts = COPTS,
@@ -346,8 +347,12 @@ cc_library(
 
 cc_library(
     name = "thread_pool",
+    srcs = [
+        "hwy/contrib/thread_pool/spin.cc",
+    ],
     hdrs = [
         "hwy/contrib/thread_pool/futex.h",
+        "hwy/contrib/thread_pool/spin.h",
         "hwy/contrib/thread_pool/thread_pool.h",
     ],
     compatible_with = [],
@@ -487,6 +492,7 @@ HWY_TESTS = [
     ("hwy/contrib/math/", "math_test"),
     ("hwy/contrib/random/", "random_test"),
     ("hwy/contrib/matvec/", "matvec_test"),
+    ("hwy/contrib/thread_pool/", "spin_test"),
     ("hwy/contrib/thread_pool/", "thread_pool_test"),
     ("hwy/contrib/thread_pool/", "topology_test"),
     ("hwy/contrib/unroller/", "unroller_test"),

@@ -22,20 +22,33 @@
 
 #include "hwy/base.h"
 #include "hwy/robust_statistics.h"
-
-#if HWY_ARCH_X86 && !HWY_COMPILER_MSVC
-#include <cpuid.h>  // NOLINT
-#endif
+#include "hwy/x86_cpuid.h"
 
 namespace hwy {
-namespace platform {
-namespace {
+
+#if HWY_ARCH_X86
+namespace x86 {
+
+static bool HasRDTSCP() {
+  uint32_t abcd[4];
+  Cpuid(0x80000001U, 0, abcd);                    // Extended feature flags
+  if ((abcd[3] & (1u << 27)) == 0) return false;  // RDTSCP
+
+  Cpuid(0x80000007U, 0, abcd);
+  if ((abcd[3] & (1u << 8)) == 0) {
+    HWY_WARN("TSC not constant/invariant, may vary frequency or jump.");
+  }
+  return true;
+}
+
+}  // namespace x86
+#endif  // HWY_ARCH_X86
 
 // Measures the actual current frequency of Ticks. We cannot rely on the nominal
 // frequency encoded in x86 GetCpuString because it is misleading on M1 Rosetta,
 // and not reported by AMD. CPUID 0x15 is also not yet widely supported. Also
 // used on RISC-V and aarch64.
-HWY_MAYBE_UNUSED double MeasureNominalClockRate() {
+static HWY_MAYBE_UNUSED double MeasureNominalClockRate() {
   double max_ticks_per_sec = 0.0;
   // Arbitrary, enough to ignore 2 outliers without excessive init time.
   for (int rep = 0; rep < 3; ++rep) {
@@ -63,57 +76,21 @@ HWY_MAYBE_UNUSED double MeasureNominalClockRate() {
   return max_ticks_per_sec;
 }
 
-#if HWY_ARCH_X86
-
-void Cpuid(const uint32_t level, const uint32_t count,
-           uint32_t* HWY_RESTRICT abcd) {
-#if HWY_COMPILER_MSVC
-  int regs[4];
-  __cpuidex(regs, level, count);
-  for (int i = 0; i < 4; ++i) {
-    abcd[i] = regs[i];
-  }
-#else
-  uint32_t a;
-  uint32_t b;
-  uint32_t c;
-  uint32_t d;
-  __cpuid_count(level, count, a, b, c, d);
-  abcd[0] = a;
-  abcd[1] = b;
-  abcd[2] = c;
-  abcd[3] = d;
-#endif
-}
-
-bool HasRDTSCP() {
-  uint32_t abcd[4];
-  Cpuid(0x80000001U, 0, abcd);         // Extended feature flags
-  if ((abcd[3] & (1u << 27)) == 0) return false;  // RDTSCP
-
-  Cpuid(0x80000007U, 0, abcd);
-  if ((abcd[3] & (1u << 8)) == 0) {
-    HWY_WARN("TSC not constant/invariant, may vary frequency or jump.");
-  }
-  return true;
-}
-
-#endif  // HWY_ARCH_X86
-}  // namespace
+namespace platform {
 
 HWY_DLLEXPORT bool GetCpuString(char* cpu100) {
 #if HWY_ARCH_X86
   uint32_t abcd[4];
 
   // Check if brand string is supported (it is on all reasonable Intel/AMD)
-  Cpuid(0x80000000U, 0, abcd);
+  x86::Cpuid(0x80000000U, 0, abcd);
   if (abcd[0] < 0x80000004U) {
     cpu100[0] = '\0';
     return false;
   }
 
   for (size_t i = 0; i < 3; ++i) {
-    Cpuid(static_cast<uint32_t>(0x80000002U + i), 0, abcd);
+    x86::Cpuid(static_cast<uint32_t>(0x80000002U + i), 0, abcd);
     CopyBytes<sizeof(abcd)>(&abcd[0], cpu100 + i * 16);  // not same size
   }
   cpu100[48] = '\0';
@@ -132,7 +109,7 @@ HWY_DLLEXPORT double Now() {
 
 HWY_DLLEXPORT bool HaveTimerStop(char* cpu100) {
 #if HWY_ARCH_X86
-  if (!HasRDTSCP()) {
+  if (!x86::HasRDTSCP()) {
     (void)GetCpuString(cpu100);
     return false;
   }

@@ -21,15 +21,10 @@
 #include "hwy/base.h"
 #include "hwy/detect_targets.h"
 #include "hwy/highway.h"
-#include "hwy/per_target.h"  // VectorBytes
+#include "hwy/x86_cpuid.h"
 
 #if HWY_ARCH_X86
 #include <xmmintrin.h>
-#if HWY_COMPILER_MSVC
-#include <intrin.h>
-#else  // !HWY_COMPILER_MSVC
-#include <cpuid.h>
-#endif  // HWY_COMPILER_MSVC
 
 #elif (HWY_ARCH_ARM || HWY_ARCH_PPC || HWY_ARCH_S390X || HWY_ARCH_RISCV) && \
     HWY_OS_LINUX
@@ -50,14 +45,6 @@
 #endif  // HWY_OS_APPLE
 
 namespace hwy {
-namespace {
-
-// When running tests, this value can be set to the mocked supported targets
-// mask. Only written to from a single thread before the test starts.
-int64_t supported_targets_for_test_ = 0;
-
-// Mask of targets disabled at runtime with DisableTargets.
-int64_t supported_mask_ = LimitsMax<int64_t>();
 
 #if HWY_OS_APPLE
 static HWY_INLINE HWY_MAYBE_UNUSED bool HasCpuFeature(
@@ -127,33 +114,6 @@ static HWY_INLINE HWY_MAYBE_UNUSED bool IsMacOs12_2OrLater() {
 #if HWY_ARCH_X86 && HWY_HAVE_RUNTIME_DISPATCH
 namespace x86 {
 
-// Calls CPUID instruction with eax=level and ecx=count and returns the result
-// in abcd array where abcd = {eax, ebx, ecx, edx} (hence the name abcd).
-HWY_INLINE void Cpuid(const uint32_t level, const uint32_t count,
-                      uint32_t* HWY_RESTRICT abcd) {
-#if HWY_COMPILER_MSVC
-  int regs[4];
-  __cpuidex(regs, level, count);
-  for (int i = 0; i < 4; ++i) {
-    abcd[i] = regs[i];
-  }
-#else   // HWY_COMPILER_MSVC
-  uint32_t a;
-  uint32_t b;
-  uint32_t c;
-  uint32_t d;
-  __cpuid_count(level, count, a, b, c, d);
-  abcd[0] = a;
-  abcd[1] = b;
-  abcd[2] = c;
-  abcd[3] = d;
-#endif  // HWY_COMPILER_MSVC
-}
-
-HWY_INLINE bool IsBitSet(const uint32_t reg, const int index) {
-  return (reg & (1U << index)) != 0;
-}
-
 // Returns the lower 32 bits of extended control register 0.
 // Requires CPU support for "OSXSAVE" (see below).
 uint32_t ReadXCR0() {
@@ -167,14 +127,6 @@ uint32_t ReadXCR0() {
                : "c"(index));
   return xcr0;
 #endif  // HWY_COMPILER_MSVC
-}
-
-bool IsAMD() {
-  uint32_t abcd[4];
-  Cpuid(0, 0, abcd);
-  const uint32_t max_level = abcd[0];
-  return max_level >= 1 && abcd[1] == 0x68747541 && abcd[2] == 0x444d4163 &&
-         abcd[3] == 0x69746e65;
 }
 
 // Arbitrary bit indices indicating which instruction set extensions are
@@ -223,12 +175,12 @@ enum class FeatureIndex : uint32_t {
 static_assert(static_cast<size_t>(FeatureIndex::kSentinel) < 64,
               "Too many bits for u64");
 
-HWY_INLINE constexpr uint64_t Bit(FeatureIndex index) {
+static HWY_INLINE constexpr uint64_t Bit(FeatureIndex index) {
   return 1ull << static_cast<size_t>(index);
 }
 
 // Returns bit array of FeatureIndex from CPUID feature flags.
-uint64_t FlagsFromCPUID() {
+static uint64_t FlagsFromCPUID() {
   uint64_t flags = 0;  // return value
   uint32_t abcd[4];
   Cpuid(0, 0, abcd);
@@ -286,13 +238,13 @@ uint64_t FlagsFromCPUID() {
 }
 
 // Each Highway target requires a 'group' of multiple features/flags.
-constexpr uint64_t kGroupSSE2 =
+static constexpr uint64_t kGroupSSE2 =
     Bit(FeatureIndex::kSSE) | Bit(FeatureIndex::kSSE2);
 
-constexpr uint64_t kGroupSSSE3 =
+static constexpr uint64_t kGroupSSSE3 =
     Bit(FeatureIndex::kSSE3) | Bit(FeatureIndex::kSSSE3) | kGroupSSE2;
 
-constexpr uint64_t kGroupSSE4 =
+static constexpr uint64_t kGroupSSE4 =
     Bit(FeatureIndex::kSSE41) | Bit(FeatureIndex::kSSE42) |
     Bit(FeatureIndex::kCLMUL) | Bit(FeatureIndex::kAES) | kGroupSSSE3;
 
@@ -301,46 +253,46 @@ constexpr uint64_t kGroupSSE4 =
 // [https://www.virtualbox.org/ticket/15471]. Thus we provide the option of
 // avoiding using and requiring these so AVX2 can still be used.
 #ifdef HWY_DISABLE_BMI2_FMA
-constexpr uint64_t kGroupBMI2_FMA = 0;
+static constexpr uint64_t kGroupBMI2_FMA = 0;
 #else
-constexpr uint64_t kGroupBMI2_FMA = Bit(FeatureIndex::kBMI) |
-                                    Bit(FeatureIndex::kBMI2) |
-                                    Bit(FeatureIndex::kFMA);
+static constexpr uint64_t kGroupBMI2_FMA = Bit(FeatureIndex::kBMI) |
+                                           Bit(FeatureIndex::kBMI2) |
+                                           Bit(FeatureIndex::kFMA);
 #endif
 
 #ifdef HWY_DISABLE_F16C
-constexpr uint64_t kGroupF16C = 0;
+static constexpr uint64_t kGroupF16C = 0;
 #else
-constexpr uint64_t kGroupF16C = Bit(FeatureIndex::kF16C);
+static constexpr uint64_t kGroupF16C = Bit(FeatureIndex::kF16C);
 #endif
 
-constexpr uint64_t kGroupAVX2 =
+static constexpr uint64_t kGroupAVX2 =
     Bit(FeatureIndex::kAVX) | Bit(FeatureIndex::kAVX2) |
     Bit(FeatureIndex::kLZCNT) | kGroupBMI2_FMA | kGroupF16C | kGroupSSE4;
 
-constexpr uint64_t kGroupAVX3 =
+static constexpr uint64_t kGroupAVX3 =
     Bit(FeatureIndex::kAVX512F) | Bit(FeatureIndex::kAVX512VL) |
     Bit(FeatureIndex::kAVX512DQ) | Bit(FeatureIndex::kAVX512BW) |
     Bit(FeatureIndex::kAVX512CD) | kGroupAVX2;
 
-constexpr uint64_t kGroupAVX3_DL =
+static constexpr uint64_t kGroupAVX3_DL =
     Bit(FeatureIndex::kVNNI) | Bit(FeatureIndex::kVPCLMULQDQ) |
     Bit(FeatureIndex::kVBMI) | Bit(FeatureIndex::kVBMI2) |
     Bit(FeatureIndex::kVAES) | Bit(FeatureIndex::kPOPCNTDQ) |
     Bit(FeatureIndex::kBITALG) | Bit(FeatureIndex::kGFNI) | kGroupAVX3;
 
-constexpr uint64_t kGroupAVX3_ZEN4 =
+static constexpr uint64_t kGroupAVX3_ZEN4 =
     Bit(FeatureIndex::kAVX512BF16) | kGroupAVX3_DL;
 
-constexpr uint64_t kGroupAVX3_SPR =
+static constexpr uint64_t kGroupAVX3_SPR =
     Bit(FeatureIndex::kAVX512FP16) | kGroupAVX3_ZEN4;
 
-constexpr uint64_t kGroupAVX10 =
+static constexpr uint64_t kGroupAVX10 =
     Bit(FeatureIndex::kAVX10) | Bit(FeatureIndex::kAPX) |
     Bit(FeatureIndex::kVPCLMULQDQ) | Bit(FeatureIndex::kVAES) |
     Bit(FeatureIndex::kGFNI) | kGroupAVX2;
 
-int64_t DetectTargets() {
+static int64_t DetectTargets() {
   int64_t bits = 0;  // return value of supported targets.
   HWY_IF_CONSTEXPR(HWY_ARCH_X86_64) {
     bits |= HWY_SSE2;  // always present in x64
@@ -407,7 +359,7 @@ int64_t DetectTargets() {
   // context switches on x86_64
 
   // The following OS's are known to preserve the lower 128 bits of XMM
-  // registers across context switches on x86 CPU's that support SSE (even in
+  // registers across context switches on x86 CPUs that support SSE (even in
   // 32-bit mode):
   // - Windows 2000 or later
   // - Linux 2.4.0 or later
@@ -494,7 +446,7 @@ namespace arm {
     (HWY_COMPILER_GCC || HWY_COMPILER_CLANG) && \
     ((HWY_TARGETS & HWY_ALL_SVE) != 0)
 HWY_PUSH_ATTRIBUTES("+sve")
-int64_t DetectAdditionalSveTargets(int64_t detected_targets) {
+static int64_t DetectAdditionalSveTargets(int64_t detected_targets) {
   uint64_t sve_vec_len;
 
   // Use inline assembly instead of svcntb_pat(SV_ALL) as GCC or Clang might
@@ -511,7 +463,7 @@ int64_t DetectAdditionalSveTargets(int64_t detected_targets) {
 HWY_POP_ATTRIBUTES
 #endif
 
-int64_t DetectTargets() {
+static int64_t DetectTargets() {
   int64_t bits = 0;  // return value of supported targets.
 
   using CapBits = unsigned long;  // NOLINT
@@ -626,17 +578,19 @@ namespace ppc {
 using CapBits = unsigned long;  // NOLINT
 
 // For AT_HWCAP, the others are for AT_HWCAP2
-constexpr CapBits kGroupVSX = PPC_FEATURE_HAS_ALTIVEC | PPC_FEATURE_HAS_VSX;
+static constexpr CapBits kGroupVSX =
+    PPC_FEATURE_HAS_ALTIVEC | PPC_FEATURE_HAS_VSX;
 
 #if defined(HWY_DISABLE_PPC8_CRYPTO)
-constexpr CapBits kGroupPPC8 = PPC_FEATURE2_ARCH_2_07;
+static constexpr CapBits kGroupPPC8 = PPC_FEATURE2_ARCH_2_07;
 #else
-constexpr CapBits kGroupPPC8 = PPC_FEATURE2_ARCH_2_07 | PPC_FEATURE2_VEC_CRYPTO;
+static constexpr CapBits kGroupPPC8 =
+    PPC_FEATURE2_ARCH_2_07 | PPC_FEATURE2_VEC_CRYPTO;
 #endif
-constexpr CapBits kGroupPPC9 = kGroupPPC8 | PPC_FEATURE2_ARCH_3_00;
-constexpr CapBits kGroupPPC10 = kGroupPPC9 | PPC_FEATURE2_ARCH_3_1;
+static constexpr CapBits kGroupPPC9 = kGroupPPC8 | PPC_FEATURE2_ARCH_3_00;
+static constexpr CapBits kGroupPPC10 = kGroupPPC9 | PPC_FEATURE2_ARCH_3_1;
 
-int64_t DetectTargets() {
+static int64_t DetectTargets() {
   int64_t bits = 0;  // return value of supported targets.
 
 #if defined(AT_HWCAP) && defined(AT_HWCAP2)
@@ -676,11 +630,11 @@ namespace s390x {
 
 using CapBits = unsigned long;  // NOLINT
 
-constexpr CapBits kGroupZ14 = HWCAP_S390_VX | HWCAP_S390_VXE;
-constexpr CapBits kGroupZ15 =
+static constexpr CapBits kGroupZ14 = HWCAP_S390_VX | HWCAP_S390_VXE;
+static constexpr CapBits kGroupZ15 =
     HWCAP_S390_VX | HWCAP_S390_VXE | HWCAP_S390_VXRS_EXT2;
 
-int64_t DetectTargets() {
+static int64_t DetectTargets() {
   int64_t bits = 0;
 
 #if defined(AT_HWCAP)
@@ -707,7 +661,7 @@ namespace rvv {
 
 using CapBits = unsigned long;  // NOLINT
 
-int64_t DetectTargets() {
+static int64_t DetectTargets() {
   int64_t bits = 0;
 
   const CapBits hw = getauxval(AT_HWCAP);
@@ -755,7 +709,7 @@ namespace loongarch {
 
 using CapBits = unsigned long;  // NOLINT
 
-int64_t DetectTargets() {
+static int64_t DetectTargets() {
   int64_t bits = 0;
   const CapBits hw = getauxval(AT_HWCAP);
   if (hwcap & LA_HWCAP_LSX) bits |= HWY_LSX;
@@ -768,7 +722,7 @@ int64_t DetectTargets() {
 // Returns targets supported by the CPU, independently of DisableTargets.
 // Factored out of SupportedTargets to make its structure more obvious. Note
 // that x86 CPUID may take several hundred cycles.
-int64_t DetectTargets() {
+static int64_t DetectTargets() {
   // Apps will use only one of these (the default is EMU128), but compile flags
   // for this TU may differ from that of the app, so allow both.
   int64_t bits = HWY_SCALAR | HWY_EMU128;
@@ -807,7 +761,12 @@ int64_t DetectTargets() {
   return bits;
 }
 
-}  // namespace
+// When running tests, this value can be set to the mocked supported targets
+// mask. Only written to from a single thread before the test starts.
+static int64_t supported_targets_for_test_ = 0;
+
+// Mask of targets disabled at runtime with DisableTargets.
+static int64_t supported_mask_ = LimitsMax<int64_t>();
 
 HWY_DLLEXPORT void DisableTargets(int64_t disabled_targets) {
   supported_mask_ = static_cast<int64_t>(~disabled_targets);

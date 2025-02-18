@@ -21,14 +21,11 @@
 
 #include <vector>
 
+#include "hwy/contrib/thread_pool/futex.h"  // NanoSleep
 #include "hwy/nanobenchmark.h"  // Unpredictable1
 #include "hwy/tests/hwy_gtest.h"
 #include "hwy/tests/test_util-inl.h"
 #include "hwy/timer.h"
-
-#if !HWY_OS_WIN
-#include <unistd.h>  // usleep
-#endif
 
 namespace hwy {
 namespace {
@@ -122,10 +119,8 @@ TEST(PerfCountersTest, RunBranches) {
       // Entirely different operation to ensure there is a branch.
       r >>= 1;
     }
-#if !HWY_OS_WIN
     // Ensure test runs long enough for counter multiplexing to happen.
-    usleep(100);  // NOLINT(runtime/sleep)
-#endif
+    NanoSleep(100 * 1000);
   }
 
   double values[64] = {0.0};
