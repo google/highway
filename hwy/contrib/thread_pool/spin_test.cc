@@ -59,7 +59,7 @@ TEST(SpinTest, TestPingPong) {
   pool.Run(0, 2, [&](uint64_t task, size_t thread) {
     HWY_ASSERT(task == thread);
     if (task == 0) {  // new thread
-      size_t my_reps;
+      size_t my_reps = 0;
       (void)SpinUntilDifferent(mode, 0, thread_active[0], my_reps);
       reps1.store(my_reps);
       if (!NanoSleep(20 * 1000 * 1000)) {
@@ -73,7 +73,7 @@ TEST(SpinTest, TestPingPong) {
       // Release the thread.
       thread_active[0].store(1, std::memory_order_release);
       // Wait for it to finish.
-      size_t my_reps;
+      size_t my_reps = 0;
       (void)SpinUntilDifferent(mode, 0, thread_done[0], my_reps);
       reps2.store(my_reps);
     }
