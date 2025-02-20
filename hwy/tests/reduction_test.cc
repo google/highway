@@ -370,7 +370,7 @@ struct TestMaskedReduceSum {
       for (size_t i = 0; i < N; ++i) {
         bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
         if (bool_lanes[i]) {
-          expected += ConvertScalarTo<T>(i + 2);
+          expected = ConvertScalarTo<T>(expected + ConvertScalarTo<T>(i + 2));
         }
       }
 
