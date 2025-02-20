@@ -158,6 +158,8 @@ static HWY_INLINE uint32_t SpinUntilDifferent(SpinMode mode,
     case SpinMode::kPause:
       return Spin_Pause(prev, current, reps);
   }
+
+  return 0;
 }
 
 }  // namespace hwy
