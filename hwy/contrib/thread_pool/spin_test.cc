@@ -56,33 +56,51 @@ TEST(SpinTest, TestPingPong) {
   std::atomic<size_t> reps1;
   std::atomic<size_t> reps2;
 
+  constexpr size_t kF64PerLine = HWY_ALIGNMENT / 8;
+  alignas(HWY_ALIGNMENT) std::atomic<double> before_thread_done[kF64PerLine];
+  alignas(HWY_ALIGNMENT) std::atomic<double> before_thread_release[kF64PerLine];
+  alignas(HWY_ALIGNMENT) std::atomic<double> ack_thread_done[kF64PerLine];
+  alignas(HWY_ALIGNMENT) std::atomic<double> ack_thread_release[kF64PerLine];
+
+  const auto kAcq = std::memory_order_acquire;
+  const auto kRel = std::memory_order_release;
   pool.Run(0, 2, [&](uint64_t task, size_t thread) {
     HWY_ASSERT(task == thread);
     if (task == 0) {  // new thread
       size_t my_reps = 0;
       (void)SpinUntilDifferent(mode, 0, thread_active[0], my_reps);
+      ack_thread_release[0].store(hwy::platform::Now(), kRel);
       reps1.store(my_reps);
       if (!NanoSleep(20 * 1000 * 1000)) {
         error.test_and_set();
       }
-      thread_done[0].store(1, std::memory_order_release);
+      before_thread_done[0].store(hwy::platform::Now(), kRel);
+      thread_done[0].store(1, kRel);
     } else {  // main thread
       if (!NanoSleep(30 * 1000 * 1000)) {
         error.test_and_set();
       }
       // Release the thread.
-      thread_active[0].store(1, std::memory_order_release);
+      before_thread_release[0].store(hwy::platform::Now(), kRel);
+      thread_active[0].store(1, kRel);
       // Wait for it to finish.
       size_t my_reps = 0;
       (void)SpinUntilDifferent(mode, 0, thread_done[0], my_reps);
+      ack_thread_done[0].store(hwy::platform::Now(), kRel);
       reps2.store(my_reps);
     }
   });
 
   const double t1 = hwy::platform::Now();
   const double elapsed = t1 - t0;
-  fprintf(stderr, "Elapsed time: %f us; reps1=%zu, reps2=%zu\n", elapsed * 1E6,
-          reps1.load(), reps2.load());
+  const double latency1 =
+      ack_thread_release[0].load(kAcq) - before_thread_release[0].load(kAcq);
+  const double latency2 =
+      ack_thread_done[0].load(kAcq) - before_thread_done[0].load(kAcq);
+  fprintf(stderr,
+          "Elapsed time: %f us; reps1=%zu, reps2=%zu, latency=%f %f us\n",
+          elapsed * 1E6, reps1.load(), reps2.load(), latency1 * 1E6,
+          latency2 * 1E6);
   // Unless NanoSleep failed to sleep, this should take 50ms+epsilon.
   HWY_ASSERT(error.test_and_set() || elapsed > 25E-3);
 }

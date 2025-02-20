@@ -18,13 +18,16 @@
 #include "hwy/base.h"
 // Must be in source file, not header, due to conflict between clang-cl
 // intrin.h and gtest, both of which are included in spin_test.cc.
+#if HWY_ENABLE_MONITORX || HWY_ENABLE_UMONITOR
 #include "hwy/x86_cpuid.h"
+#endif
 
 namespace hwy {
 
 HWY_CONTRIB_DLLEXPORT SpinMode DetectSpinMode() {
 #if HWY_ARCH_X86
-  uint32_t abcd[4];
+  HWY_MAYBE_UNUSED uint32_t abcd[4];
+
 #if HWY_ENABLE_MONITORX
   if (x86::IsAMD()) {
     x86::Cpuid(0x80000001U, 0, abcd);

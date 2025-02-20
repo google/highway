@@ -74,11 +74,11 @@ static inline const char* ToString(SpinMode mode) {
   switch (mode) {
 #if HWY_ENABLE_MONITORX
     case SpinMode::kMonitorX:
-      return "MonitorX";
+      return "MonitorX_C1";
 #endif
 #if HWY_ENABLE_UMONITOR
     case SpinMode::kUMonitor:
-      return "UMonitor";
+      return "UMonitor_C0.2";
 #endif
     case SpinMode::kPause:
       return "Pause";
@@ -102,9 +102,12 @@ HWY_ATTR_MONITORX static HWY_NOINLINE uint32_t Spin_MonitorX(
     // Double-checked 'lock':
     cmd = current.load(std::memory_order_acquire);
     if (cmd != prev) return cmd;
-    const unsigned hints = 0xF;  // shallowest C0 for fast wakeup
-    // Don't want extra timeout because its wake latency is ~1000 cycles
-    // [https://www.usenix.org/system/files/usenixsecurity23-zhang-ruiyi.pdf]
+    // 0xF would be C0. Its wakeup latency is less than 0.1 us shorter, and
+    // package power is sometimes actually higher than with Pause. The
+    // difference in spurious wakeups is minor.
+    const unsigned hints = 0x0;  // C1: a bit deeper than C0
+    // No timeout required, we assume the mwaitx does not miss stores, see
+    // https://www.usenix.org/system/files/usenixsecurity23-zhang-ruiyi.pdf.]
     const unsigned extensions = 0;
     _mm_mwaitx(extensions, hints, /*cycles=*/0);
   }
@@ -121,8 +124,11 @@ HWY_ATTR_UMONITOR static HWY_NOINLINE uint32_t Spin_UMonitor(
     // Double-checked 'lock':
     cmd = current.load(std::memory_order_acquire);
     if (cmd != prev) return cmd;
-    const unsigned control = 1;              // C0.1 for faster wakeup
-    const uint64_t deadline = ~uint64_t{0};  // no timeout
+    // 1 would be C0.1. C0.2 has 20x fewer spurious wakeups and additional 4%
+    // package power savings vs Pause on SPR. It comes at the cost of 0.4-0.6us
+    // higher wake latency, but the total is comparable to Zen4.
+    const unsigned control = 0;              // C0.2 for deeper sleep
+    const uint64_t deadline = ~uint64_t{0};  // no timeout, see above
     _umwait(control, deadline);
   }
 }
@@ -139,9 +145,9 @@ static HWY_INLINE uint32_t Spin_Pause(const uint32_t prev,
   }
 }
 
-// Like futex.h BlockUntilDifferent, but with spinning. `reps` is set to the
-// number of loop iterations, useful for ensuring that the monitor/wait is not
-// just returning immediately.
+// Like futex.h BlockUntilDifferent, but with spinning. Returns the new value.
+// Also sets `reps` to the number of loop iterations, useful for ensuring that
+// the monitor/wait is not just returning immediately.
 static HWY_INLINE uint32_t SpinUntilDifferent(SpinMode mode,
                                               const uint32_t prev,
                                               std::atomic<uint32_t>& current,
@@ -159,7 +165,7 @@ static HWY_INLINE uint32_t SpinUntilDifferent(SpinMode mode,
       return Spin_Pause(prev, current, reps);
   }
 
-  return 0;
+  return 0;  // unreachable
 }
 
 }  // namespace hwy
