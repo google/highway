@@ -204,6 +204,35 @@ struct Mask256 {
 template <typename T>
 using Full256 = Simd<T, 32 / sizeof(T), 0>;
 
+
+// ------------------------------ Zero
+
+// Cannot use VFromD here because it is defined in terms of Zero.
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
+HWY_API Vec256<TFromD<D>> Zero(D /* tag */) {
+  return Vec256<TFromD<D>>{_mm256_setzero_si256()};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_BF16_D(D)>
+HWY_API Vec256<bfloat16_t> Zero(D /* tag */) {
+  return Vec256<bfloat16_t>{_mm256_setzero_si256()};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F16_D(D)>
+HWY_API Vec256<float16_t> Zero(D /* tag */) {
+#if HWY_HAVE_FLOAT16
+  return Vec256<float16_t>{_mm256_setzero_ph()};
+#else
+  return Vec256<float16_t>{_mm256_setzero_si256()};
+#endif  // HWY_HAVE_FLOAT16
+}
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
+HWY_API Vec256<float> Zero(D /* tag */) {
+  return Vec256<float>{_mm256_setzero_ps()};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
+HWY_API Vec256<double> Zero(D /* tag */) {
+  return Vec256<double>{_mm256_setzero_pd()};
+}
+
 // ------------------------------ BitCast
 
 namespace detail {
@@ -273,34 +302,6 @@ HWY_INLINE VFromD<D> BitCastFromByte(D /* tag */, Vec256<uint8_t> v) {
 template <class D, HWY_IF_V_SIZE_D(D, 32), typename FromT>
 HWY_API VFromD<D> BitCast(D d, Vec256<FromT> v) {
   return detail::BitCastFromByte(d, detail::BitCastToByte(v));
-}
-
-// ------------------------------ Zero
-
-// Cannot use VFromD here because it is defined in terms of Zero.
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
-HWY_API Vec256<TFromD<D>> Zero(D /* tag */) {
-  return Vec256<TFromD<D>>{_mm256_setzero_si256()};
-}
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_BF16_D(D)>
-HWY_API Vec256<bfloat16_t> Zero(D /* tag */) {
-  return Vec256<bfloat16_t>{_mm256_setzero_si256()};
-}
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F16_D(D)>
-HWY_API Vec256<float16_t> Zero(D /* tag */) {
-#if HWY_HAVE_FLOAT16
-  return Vec256<float16_t>{_mm256_setzero_ph()};
-#else
-  return Vec256<float16_t>{_mm256_setzero_si256()};
-#endif  // HWY_HAVE_FLOAT16
-}
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
-HWY_API Vec256<float> Zero(D /* tag */) {
-  return Vec256<float>{_mm256_setzero_ps()};
-}
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
-HWY_API Vec256<double> Zero(D /* tag */) {
-  return Vec256<double>{_mm256_setzero_pd()};
 }
 
 // ------------------------------ Set
