@@ -664,6 +664,22 @@
 #endif
 // Defining one of HWY_COMPILE_ONLY_* will trump HWY_COMPILE_ALL_ATTAINABLE.
 
+#ifndef HWY_HAVE_ASM_HWCAP  // allow override
+#ifdef TOOLCHAIN_MISS_ASM_HWCAP_H
+#define HWY_HAVE_ASM_HWCAP 0  // CMake failed to find the header
+#elif defined(__has_include)  // note: wrapper macro fails on Clang ~17
+// clang-format off
+#if __has_include(<asm/hwcap.h>)
+// clang-format on
+#define HWY_HAVE_ASM_HWCAP 1  // header present
+#else
+#define HWY_HAVE_ASM_HWCAP 0  // header not present
+#endif                        // __has_include
+#else                         // compiler lacks __has_include
+#define HWY_HAVE_ASM_HWCAP 0
+#endif
+#endif  // HWY_HAVE_ASM_HWCAP
+
 #ifndef HWY_HAVE_AUXV  // allow override
 #ifdef TOOLCHAIN_MISS_SYS_AUXV_H
 #define HWY_HAVE_AUXV 0  // CMake failed to find the header

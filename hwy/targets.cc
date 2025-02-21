@@ -30,7 +30,7 @@
     HWY_OS_LINUX
 // sys/auxv.h does not always include asm/hwcap.h, or define HWCAP*, hence we
 // still include this directly. See #1199.
-#ifndef TOOLCHAIN_MISS_ASM_HWCAP_H
+#if HWY_HAVE_ASM_HWCAP
 #include <asm/hwcap.h>
 #endif
 #if HWY_HAVE_AUXV
