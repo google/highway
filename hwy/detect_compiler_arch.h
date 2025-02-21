@@ -73,7 +73,9 @@
 // https://github.com/simd-everywhere/simde/blob/47d6e603de9d04ee05cdfbc57cf282a02be1bf2a/simde/simde-detect-clang.h#L59.
 // Please send updates below to them as well, thanks!
 #if defined(__apple_build_version__) || __clang_major__ >= 999
-#if __has_warning("-Woverriding-option")
+#if __has_warning("-Wreturn-mismatch")
+#define HWY_COMPILER_CLANG 1901
+#elif __has_warning("-Woverriding-option")
 #define HWY_COMPILER_CLANG 1801
 // No new warnings in 17.0, and Apple LLVM 15.3, which should be 1600, already
 // has the unsafe_buffer_usage attribute, so we instead check for new builtins.
