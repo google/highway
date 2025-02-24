@@ -261,7 +261,7 @@ using CpuSet = cpuset_t;
 // Helper functions reduce the number of #if in GetThreadAffinity.
 int GetAffinity(CpuSet* set) {
   // To specify the current thread, pass 0 on Linux/Android and -1 on FreeBSD.
-#ifdef __ANDROID__
+#if defined(__ANDROID__) && __ANDROID_API__ < 12
   return syscall(__NR_sched_getaffinity, 0, sizeof(CpuSet), set);
 #elif HWY_OS_FREEBSD
   return cpuset_getaffinity(CPU_LEVEL_WHICH, CPU_WHICH_TID, -1, sizeof(CpuSet),
@@ -273,7 +273,7 @@ int GetAffinity(CpuSet* set) {
 
 int SetAffinity(CpuSet* set) {
   // To specify the current thread, pass 0 on Linux/Android and -1 on FreeBSD.
-#ifdef __ANDROID__
+#if defined(__ANDROID__) && __ANDROID_API__ < 12
   return syscall(__NR_sched_setaffinity, 0, sizeof(CpuSet), set);
 #elif HWY_OS_FREEBSD
   return cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_TID, -1, sizeof(CpuSet),
