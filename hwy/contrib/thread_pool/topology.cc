@@ -686,7 +686,7 @@ size_t MaxLpsPerCore(std::vector<Topology::LP>& lps) {
   return max_lps_per_core;
 }
 
-// Interprets cluster (tyically a shared L3 cache) as a "processor die". Also
+// Interprets cluster (typically a shared L3 cache) as a "processor die". Also
 // sets LP.cluster.
 size_t MaxCoresPerCluster(const size_t max_lps_per_core,
                           std::vector<Topology::LP>& lps) {

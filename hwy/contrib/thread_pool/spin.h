@@ -23,150 +23,52 @@
 #include <atomic>
 
 #include "hwy/base.h"
-#include "hwy/cache_control.h"  // Pause
-
-#ifndef HWY_ENABLE_MONITORX  // allow override
-#if HWY_ARCH_X86 && ((HWY_COMPILER_CLANG >= 309) || \
-                     (HWY_COMPILER_GCC_ACTUAL >= 502) || defined(__MWAITX__))
-#define HWY_ENABLE_MONITORX 1
-#else
-#define HWY_ENABLE_MONITORX 0
-#endif
-#endif  // HWY_ENABLE_MONITORX
-
-#ifndef HWY_ENABLE_UMONITOR  // allow override
-#if HWY_ARCH_X86 && ((HWY_COMPILER_CLANG >= 700) || \
-                     (HWY_COMPILER_GCC_ACTUAL >= 901) || defined(__WAITPKG__))
-#define HWY_ENABLE_UMONITOR 1
-#else
-#define HWY_ENABLE_UMONITOR 0
-#endif
-#endif  // HWY_ENABLE_UMONITOR
-
-#if HWY_ARCH_X86 && (HWY_ENABLE_MONITORX || HWY_ENABLE_UMONITOR)
-#include <x86intrin.h>
-#endif
-#if HWY_HAS_ATTRIBUTE(target)
-#define HWY_ATTR_MONITORX __attribute__((target("mwaitx")))
-#define HWY_ATTR_UMONITOR __attribute__((target("waitpkg")))
-#else
-#define HWY_ATTR_MONITORX
-#define HWY_ATTR_UMONITOR
-#endif
 
 namespace hwy {
 
 // User-space monitor/wait are supported on Zen2+ AMD and SPR+ Intel. Spin waits
-// are rarely called from SIMD code, hence we do not integrate this into the
-// HWY_TARGET mechanism. Returned by `DetectSpinMode`.
-enum class SpinMode {
-#if HWY_ENABLE_MONITORX
+// are rarely called from SIMD code, hence we do not integrate this into
+// `HWY_TARGET` and its runtime dispatch mechanism. Returned by `Type()`, also
+// used to disable modes at runtime in `ChooseSpin`.
+enum class SpinType {
   kMonitorX,  // AMD
-#endif
-#if HWY_ENABLE_UMONITOR
   kUMonitor,  // Intel
-#endif
   kPause
 };
 
-// For printing which is supported/enabled.
-static inline const char* ToString(SpinMode mode) {
-  switch (mode) {
-#if HWY_ENABLE_MONITORX
-    case SpinMode::kMonitorX:
-      return "MonitorX_C1";
-#endif
-#if HWY_ENABLE_UMONITOR
-    case SpinMode::kUMonitor:
-      return "UMonitor_C0.2";
-#endif
-    case SpinMode::kPause:
-      return "Pause";
-    default:
-      return nullptr;
-  }
-}
+// Returned by `UntilDifferent` in a single register.
+struct SpinResult {
+  uint32_t current;
+  // Number of retries before returning, useful for checking that the
+  // monitor/wait did not just return immediately.
+  uint32_t reps;
+};
 
-HWY_CONTRIB_DLLEXPORT SpinMode DetectSpinMode();
+// Interface for various spin-wait implementations. We rely on a VTable because
+// we may add more spin types and conditions.
+struct ISpin {  // abstract base class
+  virtual ~ISpin() = default;
 
-// HWY_NOINLINE to avoid compiler errors about inlining into a function without
-// these attributes.
-#if HWY_ENABLE_MONITORX || HWY_IDE
-HWY_ATTR_MONITORX static HWY_NOINLINE uint32_t Spin_MonitorX(
-    const uint32_t prev, std::atomic<uint32_t>& current, size_t& reps) {
-  for (reps = 0;; ++reps) {
-    uint32_t cmd = current.load(std::memory_order_acquire);
-    if (cmd != prev) return cmd;
-    // No extensions/hints currently defined.
-    _mm_monitorx(&current, 0, 0);
-    // Double-checked 'lock':
-    cmd = current.load(std::memory_order_acquire);
-    if (cmd != prev) return cmd;
-    // 0xF would be C0. Its wakeup latency is less than 0.1 us shorter, and
-    // package power is sometimes actually higher than with Pause. The
-    // difference in spurious wakeups is minor.
-    const unsigned hints = 0x0;  // C1: a bit deeper than C0
-    // No timeout required, we assume the mwaitx does not miss stores, see
-    // https://www.usenix.org/system/files/usenixsecurity23-zhang-ruiyi.pdf.]
-    const unsigned extensions = 0;
-    _mm_mwaitx(extensions, hints, /*cycles=*/0);
-  }
-}
-#endif  // HWY_ENABLE_MONITORX
+  virtual SpinType Type() const = 0;
 
-#if HWY_ENABLE_UMONITOR || HWY_IDE
-HWY_ATTR_UMONITOR static HWY_NOINLINE uint32_t Spin_UMonitor(
-    const uint32_t prev, std::atomic<uint32_t>& current, size_t& reps) {
-  for (reps = 0;; ++reps) {
-    uint32_t cmd = current.load(std::memory_order_acquire);
-    if (cmd != prev) return cmd;
-    _umonitor(&current);
-    // Double-checked 'lock':
-    cmd = current.load(std::memory_order_acquire);
-    if (cmd != prev) return cmd;
-    // 1 would be C0.1. C0.2 has 20x fewer spurious wakeups and additional 4%
-    // package power savings vs Pause on SPR. It comes at the cost of 0.4-0.6us
-    // higher wake latency, but the total is comparable to Zen4.
-    const unsigned control = 0;              // C0.2 for deeper sleep
-    const uint64_t deadline = ~uint64_t{0};  // no timeout, see above
-    _umwait(control, deadline);
-  }
-}
-#endif  // HWY_ENABLE_UMONITOR
+  // For printing which is in use.
+  virtual const char* String() const = 0;
 
-static HWY_INLINE uint32_t Spin_Pause(const uint32_t prev,
-                                      std::atomic<uint32_t>& current,
-                                      size_t& reps) {
-  for (reps = 0;; ++reps) {
-    // Unfortunately, Pause duration varies across CPUs: 5 to 140 cycles.
-    hwy::Pause();
-    const uint32_t cmd = current.load(std::memory_order_acquire);
-    if (cmd != prev) return cmd;
-  }
-}
+  // Spins until `watched != prev` and returns the new value, similar to
+  // `BlockUntilDifferent` in `futex.h`.
+  virtual SpinResult UntilDifferent(uint32_t prev,
+                                    std::atomic<uint32_t>& watched) = 0;
 
-// Like futex.h BlockUntilDifferent, but with spinning. Returns the new value.
-// Also sets `reps` to the number of loop iterations, useful for ensuring that
-// the monitor/wait is not just returning immediately.
-static HWY_INLINE uint32_t SpinUntilDifferent(SpinMode mode,
-                                              const uint32_t prev,
-                                              std::atomic<uint32_t>& current,
-                                              size_t& reps) {
-  switch (mode) {
-#if HWY_ENABLE_MONITORX
-    case SpinMode::kMonitorX:
-      return Spin_MonitorX(prev, current, reps);
-#endif
-#if HWY_ENABLE_UMONITOR
-    case SpinMode::kUMonitor:
-      return Spin_UMonitor(prev, current, reps);
-#endif
-    case SpinMode::kPause:
-      return Spin_Pause(prev, current, reps);
-  }
+  // Returns number of retries until `watched == expected`.
+  virtual size_t UntilEqual(uint32_t expected,
+                            std::atomic<uint32_t>& watched) = 0;
+};
 
-  return 0;  // unreachable
-}
+// For runtime dispatch. Returns the best-available type whose bit in `disabled`
+// is not set. Example: to disable kUMonitor, pass `1 <<
+// static_cast<int>(SpinType::kUMonitor)`. Ignores `disabled` for `kPause` if
+// that is the only supported and enabled type.
+HWY_CONTRIB_DLLEXPORT ISpin* ChooseSpin(int disabled = 0);
 
 }  // namespace hwy
 

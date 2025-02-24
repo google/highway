@@ -39,8 +39,8 @@ TEST(SpinTest, TestPingPong) {
     return;
   }
 
-  const SpinMode mode = DetectSpinMode();
-  fprintf(stderr, "Spin mode: %s\n", ToString(mode));
+  ISpin* spin = ChooseSpin();
+  fprintf(stderr, "Spin method : %s\n", spin->String());
 
   alignas(HWY_ALIGNMENT) std::atomic<uint32_t> thread_active[HWY_ALIGNMENT / 4];
   alignas(HWY_ALIGNMENT) std::atomic<uint32_t> thread_done[HWY_ALIGNMENT / 4];
@@ -67,10 +67,9 @@ TEST(SpinTest, TestPingPong) {
   pool.Run(0, 2, [&](uint64_t task, size_t thread) {
     HWY_ASSERT(task == thread);
     if (task == 0) {  // new thread
-      size_t my_reps = 0;
-      (void)SpinUntilDifferent(mode, 0, thread_active[0], my_reps);
+      SpinResult result = spin->UntilDifferent(0, thread_active[0]);
       ack_thread_release[0].store(hwy::platform::Now(), kRel);
-      reps1.store(my_reps);
+      reps1.store(result.reps);
       if (!NanoSleep(20 * 1000 * 1000)) {
         error.test_and_set();
       }
@@ -84,10 +83,9 @@ TEST(SpinTest, TestPingPong) {
       before_thread_release[0].store(hwy::platform::Now(), kRel);
       thread_active[0].store(1, kRel);
       // Wait for it to finish.
-      size_t my_reps = 0;
-      (void)SpinUntilDifferent(mode, 0, thread_done[0], my_reps);
+      const size_t reps = spin->UntilEqual(1, thread_done[0]);
       ack_thread_done[0].store(hwy::platform::Now(), kRel);
-      reps2.store(my_reps);
+      reps2.store(reps);
     }
   });
 
