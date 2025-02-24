@@ -1948,8 +1948,10 @@ HWY_API V InsertLane(const V v, size_t i, T t) {
   const RebindToSigned<decltype(d)> di;
   using TI = TFromD<decltype(di)>;
   const svbool_t is_i = detail::EqN(Iota(di, 0), static_cast<TI>(i));
-  return IfThenElse(RebindMask(d, is_i),
-                    Set(d, hwy::ConvertScalarTo<TFromV<V>>(t)), v);
+  // The actual type may be int16_t for special floats; copy, not cast.
+  TFromV<V> t_bits;
+  hwy::CopySameSize(&t, &t_bits);
+  return IfThenElse(RebindMask(d, is_i), Set(d, t_bits), v);
 }
 
 // ================================================== SWIZZLE
