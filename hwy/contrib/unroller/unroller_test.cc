@@ -14,6 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cmath>  // std::abs
 #include <vector>
 
 #include "hwy/base.h"
@@ -34,30 +35,30 @@ namespace {
 
 template <typename T>
 T SimpleDot(const T* pa, const T* pb, size_t num) {
-  T sum = 0;
+  double sum = 0.0;
   for (size_t i = 0; i < num; ++i) {
     // For reasons unknown, fp16 += does not compile on clang (Arm).
-    sum = ConvertScalarTo<T>(sum + pa[i] * pb[i]);
+    sum += ConvertScalarTo<double>(pa[i]) * ConvertScalarTo<double>(pb[i]);
   }
-  return sum;
+  return ConvertScalarTo<T>(sum);
 }
 
 template <typename T>
 T SimpleAcc(const T* pa, size_t num) {
-  T sum = 0;
+  double sum = 0.0;
   for (size_t i = 0; i < num; ++i) {
-    sum += pa[i];
+    sum += ConvertScalarTo<double>(pa[i]);
   }
-  return sum;
+  return ConvertScalarTo<T>(sum);
 }
 
 template <typename T>
 T SimpleMin(const T* pa, size_t num) {
-  T min = HighestValue<T>();
+  double min = 0.0;
   for (size_t i = 0; i < num; ++i) {
-    if (min > pa[i]) min = pa[i];
+    min = HWY_MIN(min, ConvertScalarTo<double>(pa[i]));
   }
-  return min;
+  return ConvertScalarTo<T>(min);
 }
 
 template <typename T>
@@ -371,6 +372,7 @@ struct TestDot {
       }
 
       const T expected_dot = SimpleDot(a, b, num);
+      const double expected_dot_f64 = ConvertScalarTo<double>(expected_dot);
       MultiplyUnit<T> multfn;
       Unroller(multfn, a, b, y, static_cast<ptrdiff_t>(num));
       AccumulateUnit<T> accfn;
@@ -378,22 +380,23 @@ struct TestDot {
       Unroller(accfn, y, &dot_via_mul_acc, static_cast<ptrdiff_t>(num));
       const double tolerance = 120.0 *
                                ConvertScalarTo<double>(hwy::Epsilon<T>()) *
-                               ScalarAbs(expected_dot);
-      HWY_ASSERT(ScalarAbs(expected_dot - dot_via_mul_acc) < tolerance);
+                               std::abs(expected_dot_f64);
+      HWY_ASSERT(std::abs(expected_dot_f64 - ConvertScalarTo<double>(
+                                                 dot_via_mul_acc)) < tolerance);
 
       DotUnit<T> dotfn;
       T dotr;
       Unroller(dotfn, a, b, &dotr, static_cast<ptrdiff_t>(num));
-      HWY_ASSERT(ConvertScalarTo<double>(ScalarAbs((expected_dot - dotr))) <
-                 tolerance);
+      const double dotr_f64 = ConvertScalarTo<double>(dotr);
+      HWY_ASSERT(std::abs(expected_dot_f64 - dotr_f64) < tolerance);
 
-      auto expected_min = SimpleMin(a, num);
+      const T expected_min = SimpleMin(a, num);
       MinUnit<T> minfn;
       T minr;
       Unroller(minfn, a, &minr, static_cast<ptrdiff_t>(num));
 
-      HWY_ASSERT(ConvertScalarTo<double>(ScalarAbs(expected_min - minr)) <
-                 1e-7);
+      HWY_ASSERT(std::abs(ConvertScalarTo<double>(expected_min) -
+                          ConvertScalarTo<double>(minr)) < 1e-7);
     }
 #endif
   }
