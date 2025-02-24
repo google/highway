@@ -7929,11 +7929,11 @@ HWY_API uint64_t BitsFromMask(D d, MFromD<D> mask) {
 // `p` points to at least 8 writable bytes.
 template <class D, HWY_IF_V_SIZE_D(D, 32)>
 HWY_API size_t StoreMaskBits(D d, MFromD<D> mask, uint8_t* bits) {
-  constexpr size_t N = Lanes(d);
-  constexpr size_t kNumBytes = (N + 7) / 8;
+  HWY_LANES_CONSTEXPR size_t N = Lanes(d);
+  HWY_LANES_CONSTEXPR size_t kNumBytes = (N + 7) / 8;
 
   const uint64_t mask_bits = BitsFromMask(d, mask);
-  CopyBytes<kNumBytes>(&mask_bits, bits);
+  CopyBytes(&mask_bits, bits, kNumBytes);
   return kNumBytes;
 }
 
@@ -7962,7 +7962,7 @@ HWY_API bool AllTrue(D d, MFromD<D> mask) {
 }
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_T_SIZE_D(D, 2)>
 HWY_API bool AllTrue(D d, MFromD<D> mask) {
-  constexpr uint64_t kAllBits = (1ull << Lanes(d)) - 1;
+  constexpr uint64_t kAllBits = (1ull << MaxLanes(d)) - 1;
   return BitsFromMask(d, mask) == kAllBits;
 }
 
@@ -8342,11 +8342,11 @@ HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> m, D d,
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_T_SIZE_D(D, 1)>
 HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
                                  D d, TFromD<D>* HWY_RESTRICT unaligned) {
-  constexpr size_t N = Lanes(d);
-  constexpr size_t kNumBytes = (N + 7) / 8;
+  HWY_LANES_CONSTEXPR size_t N = Lanes(d);
+  HWY_LANES_CONSTEXPR size_t kNumBytes = (N + 7) / 8;
 
   uint64_t mask_bits = 0;
-  CopyBytes<kNumBytes>(bits, &mask_bits);
+  CopyBytes(bits, &mask_bits, kNumBytes);
 
   if (N < 8) {
     mask_bits &= (1ull << N) - 1;
@@ -8637,7 +8637,7 @@ namespace detail {
 template <class D, HWY_IF_V_SIZE_D(D, 32)>
 HWY_API void LoadTransposedBlocks3(D d, const TFromD<D>* HWY_RESTRICT unaligned,
                                    VFromD<D>& A, VFromD<D>& B, VFromD<D>& C) {
-  constexpr size_t N = Lanes(d);
+  HWY_LANES_CONSTEXPR size_t N = Lanes(d);
   const VFromD<D> v10 = LoadU(d, unaligned + 0 * N);  // 1 0
   const VFromD<D> v32 = LoadU(d, unaligned + 1 * N);
   const VFromD<D> v54 = LoadU(d, unaligned + 2 * N);
@@ -8661,7 +8661,7 @@ template <class D, HWY_IF_V_SIZE_D(D, 32)>
 HWY_API void LoadTransposedBlocks4(D d, const TFromD<D>* HWY_RESTRICT unaligned,
                                    VFromD<D>& vA, VFromD<D>& vB, VFromD<D>& vC,
                                    VFromD<D>& vD) {
-  constexpr size_t N = Lanes(d);
+  HWY_LANES_CONSTEXPR size_t N = Lanes(d);
   const VFromD<D> v10 = LoadU(d, unaligned + 0 * N);
   const VFromD<D> v32 = LoadU(d, unaligned + 1 * N);
   const VFromD<D> v54 = LoadU(d, unaligned + 2 * N);
@@ -8688,7 +8688,7 @@ namespace detail {
 template <class D, HWY_IF_V_SIZE_D(D, 32)>
 HWY_API void StoreTransposedBlocks2(VFromD<D> i, VFromD<D> j, D d,
                                     TFromD<D>* HWY_RESTRICT unaligned) {
-  constexpr size_t N = Lanes(d);
+  HWY_LANES_CONSTEXPR size_t N = Lanes(d);
   const auto out0 = ConcatLowerLower(d, j, i);
   const auto out1 = ConcatUpperUpper(d, j, i);
   StoreU(out0, d, unaligned + 0 * N);
@@ -8706,7 +8706,7 @@ HWY_API void StoreTransposedBlocks2(VFromD<D> i, VFromD<D> j, D d,
 template <class D, HWY_IF_V_SIZE_D(D, 32)>
 HWY_API void StoreTransposedBlocks3(VFromD<D> i, VFromD<D> j, VFromD<D> k, D d,
                                     TFromD<D>* HWY_RESTRICT unaligned) {
-  constexpr size_t N = Lanes(d);
+  HWY_LANES_CONSTEXPR size_t N = Lanes(d);
   const auto out0 = ConcatLowerLower(d, j, i);
   const auto out1 = ConcatUpperLower(d, i, k);
   const auto out2 = ConcatUpperUpper(d, k, j);
@@ -8729,7 +8729,7 @@ template <class D, HWY_IF_V_SIZE_D(D, 32)>
 HWY_API void StoreTransposedBlocks4(VFromD<D> i, VFromD<D> j, VFromD<D> k,
                                     VFromD<D> l, D d,
                                     TFromD<D>* HWY_RESTRICT unaligned) {
-  constexpr size_t N = Lanes(d);
+  HWY_LANES_CONSTEXPR size_t N = Lanes(d);
   // Write lower halves, then upper.
   const auto out0 = ConcatLowerLower(d, j, i);
   const auto out1 = ConcatLowerLower(d, l, k);
@@ -8747,7 +8747,7 @@ HWY_API void StoreTransposedBlocks4(VFromD<D> i, VFromD<D> j, VFromD<D> k,
 #if HWY_TARGET <= HWY_AVX3
 template <class T>
 HWY_API Mask256<T> SetAtOrAfterFirst(Mask256<T> mask) {
-  constexpr size_t N = Lanes(Full256<T>());
+  constexpr size_t N = MaxLanes(Full256<T>());
   constexpr uint32_t kActiveElemMask =
       static_cast<uint32_t>((uint64_t{1} << N) - 1);
   return Mask256<T>{static_cast<typename Mask256<T>::Raw>(
@@ -8755,7 +8755,7 @@ HWY_API Mask256<T> SetAtOrAfterFirst(Mask256<T> mask) {
 }
 template <class T>
 HWY_API Mask256<T> SetBeforeFirst(Mask256<T> mask) {
-  constexpr size_t N = Lanes(Full256<T>());
+  constexpr size_t N = MaxLanes(Full256<T>());
   constexpr uint32_t kActiveElemMask =
       static_cast<uint32_t>((uint64_t{1} << N) - 1);
   return Mask256<T>{static_cast<typename Mask256<T>::Raw>(
@@ -8763,7 +8763,7 @@ HWY_API Mask256<T> SetBeforeFirst(Mask256<T> mask) {
 }
 template <class T>
 HWY_API Mask256<T> SetAtOrBeforeFirst(Mask256<T> mask) {
-  constexpr size_t N = Lanes(Full256<T>());
+  constexpr size_t N = MaxLanes(Full256<T>());
   constexpr uint32_t kActiveElemMask =
       static_cast<uint32_t>((uint64_t{1} << N) - 1);
   return Mask256<T>{static_cast<typename Mask256<T>::Raw>(
