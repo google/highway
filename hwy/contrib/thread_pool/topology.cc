@@ -994,8 +994,16 @@ bool InitCachesSysfs(Caches& caches) {
 
   // Require L1 and L2 cache.
   if (HWY_UNLIKELY(caches[1].size_kib == 0 || caches[2].size_kib == 0)) {
+// Don't complain on Android because this is known to happen there. We are
+// unaware of good alternatives: `getauxval(AT_L1D_CACHEGEOMETRY)` and
+// `sysconf(_SC_LEVEL1_DCACHE_SIZE)` are unreliable, detecting via timing seems
+// difficult to do reliably, and we do not want to maintain lists of known CPUs
+// and their properties. It's OK to return false; callers are responsible for
+// assuming reasonable defaults.
+#ifndef __ANDROID__
     HWY_WARN("sysfs detected L1=%u L2=%u, err %x\n", caches[1].size_kib,
              caches[2].size_kib, errno);
+#endif
     return false;
   }
 
