@@ -28,6 +28,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 void SortKV128Asc(K64V64* HWY_RESTRICT keys, const size_t num) {
   return VQSortStatic(keys, num, SortAscending());
@@ -43,6 +44,7 @@ void SelectKV128Asc(K64V64* HWY_RESTRICT keys, const size_t num,
   return VQSelectStatic(keys, num, k, SortAscending());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy

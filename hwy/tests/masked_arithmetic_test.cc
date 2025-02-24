@@ -428,7 +428,7 @@ struct TestMaskedMulAdd {
 HWY_NOINLINE void TestAllMaskedMulAdd() {
   ForAllTypes(ForPartialVectors<TestMaskedMulAdd>());
 }
-}  // namespace
+
 struct TestMaskedAddSubMul {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -868,6 +868,8 @@ HWY_NOINLINE void TestAllMaskedWidenMulPairwiseAdd() {
   ForShrinkableVectors<TestMaskedWidenMulPairwiseAdd>()(int16_t());
   ForShrinkableVectors<TestMaskedWidenMulPairwiseAdd>()(uint16_t());
 }
+
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy

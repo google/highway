@@ -25,6 +25,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 void SortF32Asc(float* HWY_RESTRICT keys, const size_t num) {
   return VQSortStatic(keys, num, SortAscending());
@@ -39,6 +40,7 @@ void SelectF32Asc(float* HWY_RESTRICT keys, const size_t num, const size_t k) {
   return VQSelectStatic(keys, num, k, SortAscending());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy

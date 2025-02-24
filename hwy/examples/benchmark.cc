@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>  // abort
 
@@ -32,6 +33,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 // These templates are not found via ADL.
 #if HWY_TARGET != HWY_SCALAR
@@ -224,6 +226,7 @@ void RunBenchmarks() {
   RunBenchmark<BenchmarkDelta>("delta");
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -231,6 +234,7 @@ HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
 namespace hwy {
+namespace {
 HWY_EXPORT(RunBenchmarks);
 
 void Run() {
@@ -241,6 +245,7 @@ void Run() {
   SetSupportedTargetsForTest(0);  // Reset the mask afterwards.
 }
 
+}  // namespace
 }  // namespace hwy
 
 int main(int /*argc*/, char** /*argv*/) {

@@ -24,6 +24,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 struct TestComplexConj {
   template <typename T, class D>
@@ -329,6 +330,7 @@ HWY_NOINLINE void TestAllMaskedMulComplexConjAdd() {
   ForAllTypes(ForShrinkableVectors<TestMaskedMulComplexConjAdd>());
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy

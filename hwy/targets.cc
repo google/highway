@@ -116,7 +116,7 @@ namespace x86 {
 
 // Returns the lower 32 bits of extended control register 0.
 // Requires CPU support for "OSXSAVE" (see below).
-uint32_t ReadXCR0() {
+static uint32_t ReadXCR0() {
 #if HWY_COMPILER_MSVC
   return static_cast<uint32_t>(_xgetbv(0));
 #else   // HWY_COMPILER_MSVC

@@ -250,6 +250,7 @@ HWY_CONTRIB_DLLEXPORT size_t TotalLogicalProcessors() {
 // ------------------------------ Affinity
 
 #if HWY_OS_LINUX || HWY_OS_FREEBSD
+namespace {
 
 #if HWY_OS_LINUX
 using CpuSet = cpu_set_t;
@@ -307,6 +308,7 @@ void Set(size_t lp, CpuSet* set) {
 #endif
 }
 
+}  // namespace
 #endif  // HWY_OS_LINUX || HWY_OS_FREEBSD
 
 HWY_CONTRIB_DLLEXPORT bool GetThreadAffinity(LogicalProcessorSet& lps) {

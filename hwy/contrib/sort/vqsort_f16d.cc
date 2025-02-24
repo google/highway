@@ -25,6 +25,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 void SortF16Desc(float16_t* HWY_RESTRICT keys, const size_t num) {
 #if HWY_HAVE_FLOAT16
@@ -60,6 +61,7 @@ void SelectF16Desc(float16_t* HWY_RESTRICT keys, const size_t num,
 #endif
 }
 
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
