@@ -5336,10 +5336,7 @@ HWY_API Vec512<T> operator%(Vec512<T> a, Vec512<T> b) {
 
 template <class V, HWY_IF_UI32(TFromV<V>)>
 HWY_API V AverageRound(V a, V b) {
-  using T = TFromV<V>;
-  const DFromV<decltype(a)> d;
-  return Add(Add(ShiftRight<1>(a), ShiftRight<1>(b)),
-             And(Or(a, b), Set(d, T{1})));
+  return Sub(Or(a, b), ShiftRight<1>(Xor(a, b)));
 }
 
 #endif  // HWY_NATIVE_AVERAGE_ROUND_UI64
@@ -5354,10 +5351,7 @@ HWY_API V AverageRound(V a, V b) {
 #if HWY_HAVE_INTEGER64
 template <class V, HWY_IF_UI64(TFromV<V>)>
 HWY_API V AverageRound(V a, V b) {
-  using T = TFromV<V>;
-  const DFromV<decltype(a)> d;
-  return Add(Add(ShiftRight<1>(a), ShiftRight<1>(b)),
-             And(Or(a, b), Set(d, T{1})));
+  return Sub(Or(a, b), ShiftRight<1>(Xor(a, b)));
 }
 #endif
 

@@ -5245,8 +5245,7 @@ HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGPVV, AverageRound, rhadd)
 #else
 template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
 HWY_API V AverageRound(const V a, const V b) {
-  return Add(Add(ShiftRight<1>(a), ShiftRight<1>(b)),
-             detail::AndN(Or(a, b), 1));
+  return Sub(Or(a, b), ShiftRight<1>(Xor(a, b)));
 }
 #endif  // HWY_SVE_HAVE_2
 

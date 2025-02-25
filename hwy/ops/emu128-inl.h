@@ -685,8 +685,7 @@ HWY_API Vec128<T, N> AverageRound(Vec128<T, N> a, Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
     const T a_val = a.raw[i];
     const T b_val = b.raw[i];
-    a.raw[i] = static_cast<T>(ScalarShr(a_val, 1) + ScalarShr(b_val, 1) +
-                              ((a_val | b_val) & 1));
+    a.raw[i] = static_cast<T>((a_val | b_val) - ScalarShr(a_val ^ b_val, 1));
   }
   return a;
 }
