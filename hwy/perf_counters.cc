@@ -349,23 +349,28 @@ PMU& GetPMU() {
 
 }  // namespace
 
-bool PerfCounters::Init() { return GetPMU().Init(); }
-bool PerfCounters::StartAll() { return GetPMU().StartAll(); }
-void PerfCounters::StopAllAndReset() { GetPMU().StopAllAndReset(); }
-PerfCounters::PerfCounters() {
+HWY_DLLEXPORT bool PerfCounters::Init() { return GetPMU().Init(); }
+HWY_DLLEXPORT bool PerfCounters::StartAll() { return GetPMU().StartAll(); }
+HWY_DLLEXPORT void PerfCounters::StopAllAndReset() {
+  GetPMU().StopAllAndReset();
+}
+HWY_DLLEXPORT PerfCounters::PerfCounters() {
   if (HWY_UNLIKELY(!GetPMU().Read(valid_, max_extrapolate_, values_))) {
     valid_ = BitSet64();
     max_extrapolate_ = 0.0;
     hwy::ZeroBytes(values_, sizeof(values_));
   }
 }
-size_t PerfCounters::IndexForCounter(Counter c) { return PackedIdx(c); }
+HWY_DLLEXPORT size_t PerfCounters::IndexForCounter(Counter c) {
+  return PackedIdx(c);
+}
 #else
-bool PerfCounters::Init() { return false; }
-bool PerfCounters::StartAll() { return false; }
-void PerfCounters::StopAllAndReset() {}
-PerfCounters::PerfCounters() : max_extrapolate_(1.0), values_{0.0} {}
-size_t PerfCounters::IndexForCounter(Counter) { return 0; }
+HWY_DLLEXPORT bool PerfCounters::Init() { return false; }
+HWY_DLLEXPORT bool PerfCounters::StartAll() { return false; }
+HWY_DLLEXPORT void PerfCounters::StopAllAndReset() {}
+HWY_DLLEXPORT PerfCounters::PerfCounters()
+    : max_extrapolate_(1.0), values_{0.0} {}
+HWY_DLLEXPORT size_t PerfCounters::IndexForCounter(Counter) { return 0; }
 #endif  // HWY_OS_LINUX || HWY_IDE
 
 }  // namespace platform

@@ -89,19 +89,19 @@ class PerfCounters {
   // Returns false if counters are unavailable. Must be called at least once
   // before `StartAll`; it is separate to reduce the overhead of repeatedly
   // stopping/starting counters.
-  static bool Init();
+  HWY_DLLEXPORT static bool Init();
 
   // Returns false if counters are unavailable, otherwise starts them. Note that
   // they default to stopped. Unless this is called, the values read may be 0.
-  static bool StartAll();
+  HWY_DLLEXPORT static bool StartAll();
 
   // Stops and zeros all counters. This is not necessary if users subtract the
   // previous counter values, but can increase precision because floating-point
   // has more precision near zero.
-  static void StopAllAndReset();
+  HWY_DLLEXPORT static void StopAllAndReset();
 
   // Reads the current (extrapolated, in case of multiplexing) counter values.
-  PerfCounters();
+  HWY_DLLEXPORT PerfCounters();
 
   // Returns whether any counters were successfully read.
   bool AnyValid() const { return valid_.Any(); }
@@ -136,7 +136,7 @@ class PerfCounters {
 
  private:
   // Index within `values_` for a given counter.
-  static size_t IndexForCounter(Counter c);
+  HWY_DLLEXPORT static size_t IndexForCounter(Counter c);
 
   BitSet64 valid_;
   double max_extrapolate_;
