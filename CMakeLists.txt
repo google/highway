@@ -136,6 +136,38 @@ check_cxx_source_compiles(
   HWY_RISCV
 )
 
+if (WIN32)
+  set (ORIG_CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES})
+  set (CMAKE_REQUIRED_LIBRARIES synchronization)
+  check_cxx_source_compiles(
+    "#ifndef NOMINMAX
+     #define NOMINMAX
+     #endif
+
+     #include <windows.h>
+
+     int main() {
+       unsigned val1 = 0u;
+       unsigned val2 = 1u;
+       WaitOnAddress(&val1, &val2, sizeof(unsigned), 1);
+       WakeByAddressAll(&val1);
+       WakeByAddressSingle(&val1);
+       return 0;
+     }"
+  HWY_HAVE_WIN32_SYNCHRONIZATION_LIB)
+  set (CMAKE_REQUIRED_LIBRARIES ${ORIG_CMAKE_REQUIRED_LIBRARIES})
+else()
+  set (HWY_HAVE_WIN32_SYNCHRONIZATION_LIB OFF)
+endif ()
+
+if (HWY_HAVE_WIN32_SYNCHRONIZATION_LIB OR NOT WIN32)
+  set (HWY_DISABLE_FUTEX OFF CACHE BOOL "Disable futex for thread_pool")
+else()
+  # Force HWY_DISABLE_FUTEX to ON if compiling for Win32 and
+  # libsynchronization.a or synchronization.lib is not available
+  set (HWY_DISABLE_FUTEX ON CACHE BOOL "Disable futex for thread_pool" FORCE)
+endif()
+
 if (HWY_RISCV OR CMAKE_CXX_COMPILER_ARCHITECTURE_ID MATCHES "RISCV32|RISCV64|RISCV128" OR CMAKE_SYSTEM_PROCESSOR MATCHES "riscv32|riscv64|riscv128")
   include(CheckCSourceCompiles)
   check_c_source_compiles("
@@ -441,6 +473,10 @@ else()
 
 endif()  # !MSVC
 
+if (HWY_DISABLE_FUTEX)
+  list(APPEND HWY_FLAGS -DHWY_DISABLE_FUTEX)
+endif()
+
 if (HWY_CMAKE_HEADER_ONLY)
   list(APPEND HWY_FLAGS -DHWY_HEADER_ONLY)
 endif()
@@ -517,6 +553,11 @@ set_target_properties(hwy_contrib PROPERTIES
   LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version)
 # For GCC __atomic_store_8, see #887
 target_link_libraries(hwy_contrib PRIVATE ${ATOMICS_LIBRARIES})
+
+if (WIN32 AND NOT MSVC AND NOT HWY_DISABLE_FUTEX)
+target_link_libraries(hwy_contrib PUBLIC synchronization)
+endif()
+
 # not supported by MSVC/Clang, safe to skip (we use DLLEXPORT annotations)
 if(UNIX AND NOT APPLE)
   set_property(TARGET hwy_contrib APPEND_STRING PROPERTY
@@ -618,6 +659,19 @@ endif()  # HWY_ENABLE_TESTS
 # Add a pkg-config file for libhwy and the contrib/test libraries.
 set(HWY_LIBRARY_VERSION "${CMAKE_PROJECT_VERSION}")
 set(HWY_PC_FILES libhwy.pc)
+
+if (HWY_DISABLE_FUTEX)
+  set(HWY_PC_DISABLE_FUTEX_CFLAGS "-DHWY_DISABLE_FUTEX")
+else()
+  set(HWY_PC_DISABLE_FUTEX_CFLAGS "")
+endif()
+
+if (WIN32 AND NOT MSVC AND NOT HWY_DISABLE_FUTEX)
+  set(HWY_PC_WIN32_SYNCHRONIZATION_LIBS "-lsynchronization")
+else()
+  set(HWY_PC_WIN32_SYNCHRONIZATION_LIBS "")
+endif()
+
 if (HWY_ENABLE_CONTRIB)
 list(APPEND HWY_PC_FILES libhwy-contrib.pc)
 endif()  # HWY_ENABLE_CONTRIB
