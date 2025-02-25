@@ -1894,18 +1894,13 @@ static HWY_INLINE HWY_MAYBE_UNUSED constexpr uint16_t F32BitsToBF16Bits(
 }  // namespace detail
 
 HWY_API HWY_BF16_CONSTEXPR bfloat16_t BF16FromF32(float f) {
-#if HWY_HAVE_SCALAR_BF16_OPERATORS
-  return static_cast<bfloat16_t>(f);
-#else
+  // The rounding mode is not specified in the C++ standard, so ignore
+  // `HWY_HAVE_SCALAR_BF16_OPERATORS` and only use our round to nearest.
   return bfloat16_t::FromBits(
       detail::F32BitsToBF16Bits(BitCastScalar<uint32_t>(f)));
-#endif
 }
 
 HWY_API HWY_BF16_CONSTEXPR bfloat16_t BF16FromF64(double f64) {
-#if HWY_HAVE_SCALAR_BF16_OPERATORS
-  return static_cast<bfloat16_t>(f64);
-#else
   // The mantissa bits of f64 are first rounded using round-to-odd rounding
   // to the nearest f64 value that has the lower 38 bits zeroed out to
   // ensure that the result is correctly rounded to a BF16.
@@ -1941,7 +1936,6 @@ HWY_API HWY_BF16_CONSTEXPR bfloat16_t BF16FromF64(double f64) {
           (BitCastScalar<uint64_t>(f64) & 0xFFFFFFC000000000ULL) |
           ((BitCastScalar<uint64_t>(f64) + 0x0000003FFFFFFFFFULL) &
            0x0000004000000000ULL)))));
-#endif
 }
 
 // More convenient to define outside bfloat16_t because these may use
