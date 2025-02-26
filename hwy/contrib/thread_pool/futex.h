@@ -74,7 +74,9 @@ int __ulock_wake(uint32_t op, void* address, uint64_t zero);
 #define WIN32_LEAN_AND_MEAN
 #endif  // WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#if HWY_COMPILER_MSVC || HWY_COMPILER_CLANGCL
 #pragma comment(lib, "synchronization.lib")
+#endif
 
 #elif HWY_CXX_LANG < 202002L  // NOT C++20, which has native support
 #define HWY_FUTEX_SLEEP
