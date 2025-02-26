@@ -216,7 +216,6 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/sort/vqsort.cc
     hwy/contrib/sort/vqsort.h
     hwy/contrib/thread_pool/futex.h
-    hwy/contrib/thread_pool/spin.cc
     hwy/contrib/thread_pool/spin.h
     hwy/contrib/thread_pool/thread_pool.h
     hwy/contrib/thread_pool/topology.cc

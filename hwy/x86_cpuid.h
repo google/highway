@@ -24,7 +24,7 @@
 
 #if HWY_ARCH_X86
 
-#if HWY_COMPILER_MSVC
+#if HWY_COMPILER_MSVC || HWY_COMPILER_CLANGCL
 #include <intrin.h>
 #else
 #include <cpuid.h>
@@ -37,13 +37,13 @@ namespace x86 {
 // in abcd array where abcd = {eax, ebx, ecx, edx} (hence the name abcd).
 static inline void Cpuid(const uint32_t level, const uint32_t count,
                          uint32_t* HWY_RESTRICT abcd) {
-#if HWY_COMPILER_MSVC
+#if HWY_COMPILER_MSVC || HWY_COMPILER_CLANGCL
   int regs[4];
   __cpuidex(regs, level, count);
   for (int i = 0; i < 4; ++i) {
     abcd[i] = regs[i];
   }
-#else   // HWY_COMPILER_MSVC
+#else   // HWY_COMPILER_MSVC || HWY_COMPILER_CLANGCL
   uint32_t a;
   uint32_t b;
   uint32_t c;
@@ -53,7 +53,7 @@ static inline void Cpuid(const uint32_t level, const uint32_t count,
   abcd[1] = b;
   abcd[2] = c;
   abcd[3] = d;
-#endif  // HWY_COMPILER_MSVC
+#endif  // HWY_COMPILER_MSVC || HWY_COMPILER_CLANGCL
 }
 
 static inline bool IsBitSet(const uint32_t reg, const int index) {
