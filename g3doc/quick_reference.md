@@ -405,6 +405,8 @@ your code works on all targets, we recommend instead using the corresponding
 equivalents mentioned in our description of each overloaded operator, especially
 for comparisons, for example `Lt` instead of `operator<`.
 
+<!-- mdlint off(HTML_FORMAT) -->
+
 ### Initialization
 
 *   <code>V **Zero**(D)</code>: returns N-lane vector with all bits set to 0.
