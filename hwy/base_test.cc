@@ -292,6 +292,44 @@ HWY_NOINLINE void TestAllDivisor() {
   }
 }
 
+HWY_NOINLINE void TestAllDivisor64() {
+  // Small d, small n
+  for (uint64_t d = 1; d < 256; ++d) {
+    const Divisor64 divisor(d);
+    for (uint64_t n = 0; n < 256; ++n) {
+      HWY_ASSERT(divisor.Divide(n) == n / d);
+      HWY_ASSERT(divisor.Remainder(n) == n % d);
+    }
+  }
+
+  // Large d, small n
+  for (uint64_t d = 0xFFFFFFFFFFFFFF00ULL; d != 0; ++d) {
+    const Divisor64 divisor(d);
+    for (uint64_t n = 0; n < 256; ++n) {
+      HWY_ASSERT(divisor.Divide(n) == n / d);
+      HWY_ASSERT(divisor.Remainder(n) == n % d);
+    }
+  }
+
+  // Small d, large n
+  for (uint64_t d = 1; d < 256; ++d) {
+    const Divisor64 divisor(d);
+    for (uint64_t n = 0xFFFFFFFFFFFFFF00ULL; n != 0; ++n) {
+      HWY_ASSERT(divisor.Divide(n) == n / d);
+      HWY_ASSERT(divisor.Remainder(n) == n % d);
+    }
+  }
+
+  // Large d, large n
+  for (uint64_t d = 0xFFFFFFFFFFFFFF00ULL; d != 0; ++d) {
+    const Divisor64 divisor(d);
+    for (uint64_t n = 0xFFFFFFFFFFFFFF00ULL; n != 0; ++n) {
+      HWY_ASSERT(divisor.Divide(n) == n / d);
+      HWY_ASSERT(divisor.Remainder(n) == n % d);
+    }
+  }
+}
+
 struct TestScalarShr {
   template <class T>
   HWY_NOINLINE void operator()(T /*unused*/) const {
@@ -880,6 +918,7 @@ HWY_EXPORT_AND_TEST_P(BaseTest, TestAllIsSame);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllBitScan);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllPopCount);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllDivisor);
+HWY_EXPORT_AND_TEST_P(BaseTest, TestAllDivisor64);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllScalarShr);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllMul128);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllEndian);

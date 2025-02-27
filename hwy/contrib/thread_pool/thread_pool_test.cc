@@ -34,7 +34,6 @@
 
 namespace hwy {
 namespace {
-using HWY_NAMESPACE::AdjustedReps;
 
 TEST(ThreadPoolTest, TestCoprime) {
   // 1 is coprime with anything
