@@ -3909,6 +3909,64 @@ HWY_API Vec128<double> AddSub(Vec128<double> a, Vec128<double> b) {
 }
 #endif  // HWY_TARGET <= HWY_SSSE3
 
+// ------------------------------ PairwiseAdd128/PairwiseSub128
+
+// Need to use the default implementation of PairwiseAdd128/PairwiseSub128 in
+// generic_ops-inl.h for U8/I8/F16/I64/U64 vectors and 64-byte vectors
+
+#if HWY_TARGET <= HWY_SSSE3
+
+#undef HWY_IF_PAIRWISE_ADD_128_D
+#undef HWY_IF_PAIRWISE_SUB_128_D
+#define HWY_IF_PAIRWISE_ADD_128_D(D)                                       \
+  hwy::EnableIf<(                                                          \
+      HWY_MAX_LANES_D(D) > (32 / sizeof(hwy::HWY_NAMESPACE::TFromD<D>)) || \
+      (HWY_MAX_LANES_D(D) > (8 / sizeof(hwy::HWY_NAMESPACE::TFromD<D>)) && \
+       !(hwy::IsSameEither<hwy::HWY_NAMESPACE::TFromD<D>, int16_t,         \
+                           uint16_t>() ||                                  \
+         sizeof(hwy::HWY_NAMESPACE::TFromD<D>) == 4 ||                     \
+         hwy::IsSame<hwy::HWY_NAMESPACE::TFromD<D>, double>())))>* = nullptr
+#define HWY_IF_PAIRWISE_SUB_128_D(D) HWY_IF_PAIRWISE_ADD_128_D(D)
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_UI16_D(D)>
+HWY_API VFromD<D> PairwiseAdd128(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{_mm_hadd_epi16(a.raw, b.raw)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_UI16_D(D)>
+HWY_API VFromD<D> PairwiseSub128(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  const DFromV<decltype(a)> d;
+  const RebindToSigned<decltype(d)> di;
+  return BitCast(d, Neg(BitCast(di, VFromD<D>{_mm_hsub_epi16(a.raw, b.raw)})));
+}
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_UI32_D(D)>
+HWY_API VFromD<D> PairwiseAdd128(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{_mm_hadd_epi32(a.raw, b.raw)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_UI32_D(D)>
+HWY_API VFromD<D> PairwiseSub128(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  const DFromV<decltype(a)> d;
+  const RebindToSigned<decltype(d)> di;
+  return BitCast(d, Neg(BitCast(di, VFromD<D>{_mm_hsub_epi32(a.raw, b.raw)})));
+}
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> PairwiseAdd128(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{_mm_hadd_ps(a.raw, b.raw)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> PairwiseSub128(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return Neg(VFromD<D>{_mm_hsub_ps(a.raw, b.raw)});
+}
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F64_D(D)>
+HWY_API VFromD<D> PairwiseAdd128(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{_mm_hadd_pd(a.raw, b.raw)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F64_D(D)>
+HWY_API VFromD<D> PairwiseSub128(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return Neg(VFromD<D>{_mm_hsub_pd(a.raw, b.raw)});
+}
+
+#endif  // HWY_TARGET <= HWY_SSSE3
+
 // ------------------------------ SumsOf8
 template <size_t N>
 HWY_API Vec128<uint64_t, N / 8> SumsOf8(const Vec128<uint8_t, N> v) {

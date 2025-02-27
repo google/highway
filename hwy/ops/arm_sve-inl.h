@@ -219,6 +219,11 @@ HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SPECIALIZE, _, _)
   HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_V(BASE, BITS) v) { \
     return sv##OP##_##CHAR##BITS(v);                            \
   }
+#define HWY_SVE_RETV_ARGMV_M(BASE, CHAR, BITS, HALF, NAME, OP)              \
+  HWY_API HWY_SVE_V(BASE, BITS)                                             \
+      NAME(HWY_SVE_V(BASE, BITS) no, svbool_t m, HWY_SVE_V(BASE, BITS) a) { \
+    return sv##OP##_##CHAR##BITS##_m(no, m, a);                             \
+  }
 #define HWY_SVE_RETV_ARGMV(BASE, CHAR, BITS, HALF, NAME, OP)                \
   HWY_API HWY_SVE_V(BASE, BITS) NAME(svbool_t m, HWY_SVE_V(BASE, BITS) v) { \
     return sv##OP##_##CHAR##BITS##_x(m, v);                                 \
@@ -911,6 +916,12 @@ HWY_SVE_FOREACH_IF(HWY_SVE_RETV_ARGPV, Abs, abs)
 
 HWY_SVE_FOREACH_I(HWY_SVE_RETV_ARGPV, SaturatedAbs, qabs)
 #endif  // HWY_SVE_HAVE_2
+
+// ------------------------------ MaskedAbsOr
+HWY_SVE_FOREACH_IF(HWY_SVE_RETV_ARGMV_M, MaskedAbsOr, abs)
+
+// ------------------------------ MaskedAbs
+HWY_SVE_FOREACH_IF(HWY_SVE_RETV_ARGMV_Z, MaskedAbs, abs)
 
 // ================================================== ARITHMETIC
 
@@ -6261,6 +6272,38 @@ HWY_API svuint64_t MulOdd(const svuint64_t a, const svuint64_t b) {
   return detail::InterleaveOdd(lo, hi);
 }
 
+// ------------------------------ PairwiseAdd/PairwiseSub
+#if HWY_TARGET != HWY_SCALAR
+#if HWY_SVE_HAVE_2 || HWY_IDE
+
+#ifdef HWY_NATIVE_PAIRWISE_ADD
+#undef HWY_NATIVE_PAIRWISE_ADD
+#else
+#define HWY_NATIVE_PAIRWISE_ADD
+#endif
+
+namespace detail {
+#define HWY_SVE_SV_PAIRWISE_ADD(BASE, CHAR, BITS, HALF, NAME, OP)          \
+  template <size_t N, int kPow2>                                           \
+  HWY_API HWY_SVE_V(BASE, BITS)                                            \
+      NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /*d*/, HWY_SVE_V(BASE, BITS) a, \
+           HWY_SVE_V(BASE, BITS) b) {                                      \
+    return sv##OP##_##CHAR##BITS##_m(HWY_SVE_PTRUE(BITS), a, b);           \
+  }
+
+HWY_SVE_FOREACH(HWY_SVE_SV_PAIRWISE_ADD, PairwiseAdd, addp)
+#undef HWY_SVE_SV_PAIRWISE_ADD
+}  // namespace detail
+
+// Pairwise add returning interleaved output of a and b
+template <class D, class V, HWY_IF_LANES_GT_D(D, 1)>
+HWY_API V PairwiseAdd(D d, V a, V b) {
+  return detail::PairwiseAdd(d, a, b);
+}
+
+#endif  // HWY_SVE_HAVE_2
+#endif  // HWY_TARGET != HWY_SCALAR
+
 // ------------------------------ WidenMulPairwiseAdd
 
 template <size_t N, int kPow2>
@@ -6911,6 +6954,7 @@ HWY_SVE_FOREACH_UI(HWY_SVE_MASKED_LEADING_ZERO_COUNT, MaskedLeadingZeroCount,
 #undef HWY_SVE_RETV_ARGPVV
 #undef HWY_SVE_RETV_ARGV
 #undef HWY_SVE_RETV_ARGVN
+#undef HWY_SVE_RETV_ARGMV_M
 #undef HWY_SVE_RETV_ARGVV
 #undef HWY_SVE_RETV_ARGVVV
 #undef HWY_SVE_RETV_ARGMVVV_Z
