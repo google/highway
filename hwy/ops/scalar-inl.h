@@ -626,8 +626,7 @@ template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec1<T> AverageRound(const Vec1<T> a, const Vec1<T> b) {
   const T a_val = a.raw;
   const T b_val = b.raw;
-  return Vec1<T>(static_cast<T>(ScalarShr(a_val, 1) + ScalarShr(b_val, 1) +
-                                ((a_val | b_val) & 1)));
+  return Vec1<T>(static_cast<T>((a_val | b_val) - ScalarShr(a_val ^ b_val, 1)));
 }
 
 // ------------------------------ Absolute value
