@@ -416,7 +416,7 @@ TEST(AlignedAllocatorTest, TestAlignedNDArrayTruncate) {
 }
 
 TEST(AlignedAllocatorTest, TestAlignedVector) {
-  std::vector<int> vec{0, 1, 2, 3, 4};
+  AlignedVector<int> vec{0, 1, 2, 3, 4};
   HWY_ASSERT_EQ(5, vec.size());
   HWY_ASSERT_EQ(0, vec[0]);
   HWY_ASSERT_EQ(2, vec.at(2));
