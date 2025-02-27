@@ -81,6 +81,8 @@ static inline const char* ToString(SpinType type) {
     case SpinType::kPause:
       return "Pause";
   }
+
+  return nullptr;
 }
 
 // Indirect function calls turn out to be too expensive because this is called
