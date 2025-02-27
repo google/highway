@@ -358,7 +358,8 @@ HWY_API Mask<DTo> DemoteMaskTo(DTo d_to, DFrom d_from, Mask<DFrom> m) {
 #else
 #define HWY_NATIVE_LOAD_HIGHER
 #endif
-template <class D, typename T, class V = VFromD<D>(), HWY_IF_LANES_GT_D(D, 1)>
+template <class D, typename T, class V = VFromD<D>(), HWY_IF_LANES_GT_D(D, 1),
+          HWY_IF_POW2_GT_D(D, -3)>
 HWY_API V InsertIntoUpper(D d, T* p, V a) {
   Half<D> dh;
   const VFromD<decltype(dh)> b = LoadU(dh, p);
@@ -7753,11 +7754,11 @@ HWY_API V MaskedOr(M m, V a, V b) {
 #define HWY_NATIVE_ALLONES
 #endif
 
-template <class V>
-HWY_API bool AllBits1(V a) {
-  const RebindToUnsigned<DFromV<V>> du;
+template <class D, class V = VFromD<D>>
+HWY_API bool AllBits1(D d, V v) {
+  const RebindToUnsigned<decltype(d)> du;
   using TU = TFromD<decltype(du)>;
-  return AllTrue(du, Eq(BitCast(du, a), Set(du, hwy::HighestValue<TU>())));
+  return AllTrue(du, Eq(BitCast(du, v), Set(du, hwy::HighestValue<TU>())));
 }
 #endif  // HWY_NATIVE_ALLONES
 
@@ -7768,10 +7769,9 @@ HWY_API bool AllBits1(V a) {
 #define HWY_NATIVE_ALLZEROS
 #endif
 
-template <class V>
-HWY_API bool AllBits0(V a) {
-  DFromV<V> d;
-  return AllTrue(d, Eq(a, Zero(d)));
+template <class D, class V = VFromD<D>>
+HWY_API bool AllBits0(D d, V v) {
+  return AllTrue(d, Eq(v, Zero(d)));
 }
 #endif  // HWY_NATIVE_ALLZEROS
 

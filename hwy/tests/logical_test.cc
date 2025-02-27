@@ -172,20 +172,20 @@ struct TestAllBits {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     auto v0s = Zero(d);
-    HWY_ASSERT(AllBits0(v0s));
+    HWY_ASSERT(AllBits0(d, v0s));
     auto v1s = Not(v0s);
-    HWY_ASSERT(AllBits1(v1s));
+    HWY_ASSERT(AllBits1(d, v1s));
     const size_t kNumBits = sizeof(T) * 8;
     for (size_t i = 0; i < kNumBits; ++i) {
       const Vec<D> bit1 = Set(d, static_cast<T>(1ull << i));
       const Vec<D> bit2 = Set(d, static_cast<T>(1ull << ((i + 1) % kNumBits)));
       const Vec<D> bits12 = Or(bit1, bit2);
-      HWY_ASSERT(!AllBits1(bit1));
-      HWY_ASSERT(!AllBits0(bit1));
-      HWY_ASSERT(!AllBits1(bit2));
-      HWY_ASSERT(!AllBits0(bit2));
-      HWY_ASSERT(!AllBits1(bits12));
-      HWY_ASSERT(!AllBits0(bits12));
+      HWY_ASSERT(!AllBits1(d, bit1));
+      HWY_ASSERT(!AllBits0(d, bit1));
+      HWY_ASSERT(!AllBits1(d, bit2));
+      HWY_ASSERT(!AllBits0(d, bit2));
+      HWY_ASSERT(!AllBits1(d, bits12));
+      HWY_ASSERT(!AllBits0(d, bits12));
     }
   }
 };

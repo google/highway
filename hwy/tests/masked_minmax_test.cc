@@ -141,19 +141,16 @@ struct TestMaskedMax {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const MFromD<D> all_true = MaskTrue(d);
-    const auto v1 = Iota(d, 1);
-    const auto v2 = Iota(d, 2);
+    const auto v1 = PositiveIota(d, 1);
+    const auto v2 = PositiveIota(d, 2);
 
-    HWY_ASSERT_VEC_EQ(d, v2, MaskedMax(all_true, v1, v2));
+    // Might not equal v2 due to 8-bit wraparound on RVV.
+    HWY_ASSERT_VEC_EQ(d, Max(v1, v2), MaskedMax(all_true, v1, v2));
 
     const MFromD<D> first_five = FirstN(d, 5);
-    const Vec<D> v0 = Zero(d);
-
-    const Vec<D> v1_exp = IfThenElse(first_five, v2, v0);
-
-    auto output = MaskedMax(first_five, v1, v2);
-
-    HWY_ASSERT_VEC_EQ(d, v1_exp, output);
+    const Vec<D> expected = IfThenElseZero(first_five, v2);
+    const Vec<D> actual = MaskedMax(first_five, v1, v2);
+    HWY_ASSERT_VEC_EQ(d, expected, actual);
   }
 };
 

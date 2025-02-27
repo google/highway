@@ -13,8 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <stddef.h>
-
 // Ensure incompatibilities with Windows macros (e.g. #define StoreFence) are
 // detected. Must come before Highway headers.
 #include "hwy/base.h"
@@ -629,7 +627,7 @@ struct TestInsertIntoUpper {
 };
 
 HWY_NOINLINE void TestAllInsertIntoUpper() {
-  ForAllTypes(ForPartialVectors<TestInsertIntoUpper>());
+  ForAllTypes(ForShrinkableVectors<TestInsertIntoUpper>());
 }
 
 }  // namespace

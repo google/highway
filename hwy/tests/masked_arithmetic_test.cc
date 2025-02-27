@@ -151,7 +151,7 @@ struct TestSignedSatAddSub {
 
     const Vec<D> v0 = Zero(d);
     const Vec<D> vpm = Set(d, LimitsMax<T>());
-    const Vec<D> vi = PositiveIota(d);
+    const Vec<D> vi = PositiveIota(d, 1);
     const Vec<D> vn = Sub(v0, vi);
     const Vec<D> vnm = Set(d, LimitsMin<T>());
 
@@ -559,7 +559,7 @@ struct TestSignedMaskedSatAddSub {
 
     const Vec<D> v0 = Zero(d);
     const Vec<D> vpm = Set(d, LimitsMax<T>());
-    const Vec<D> vi = PositiveIota(d);
+    const Vec<D> vi = PositiveIota(d, 1);
     const Vec<D> vn = Sub(v0, vi);
     const Vec<D> vnm = Set(d, LimitsMin<T>());
 
@@ -837,20 +837,23 @@ struct TestMaskedWidenMulPairwiseAdd {
         dw, f0, MaskedWidenMulPairwiseAdd(dw, MaskTrue(dw), bf1, bf0));
 
     auto expected = AllocateAligned<TW>(NN / 2);
-    const auto v1l = Iota(dw, 1);
-    const auto v1h = Iota(dw, 1 + NN / 2);
+    // Avoid too large values: RVV's N lanes can exceed bf16 precision with N*N.
+    const size_t kMax = 20;
+    const VW max = Set(dw, ConvertScalarTo<TW>(kMax));
+    const VW v1l = Min(max, Iota(dw, 1));
+    const VW v1h = Min(max, Iota(dw, 1 + NN / 2));
     // Cannot Iota() bfloat16_t directly.
     const auto v1 = OrderedDemote2To(dn, v1l, v1h);
-    const auto v2l = Iota(dw, 3);
-    const auto v2h = Iota(dw, 3 + NN / 2);
+    const VW v2l = Min(max, Iota(dw, 3));
+    const VW v2h = Min(max, Iota(dw, 3 + NN / 2));
     // Cannot Iota() bfloat16_t directly.
     const auto v2 = OrderedDemote2To(dn, v2l, v2h);
     HWY_ASSERT(expected);
     for (size_t p = 0; p < (NN / 2); ++p) {
-      auto a_odd = 2 * p + 1 + 1;   // a[2*p+1]
-      auto b_odd = 2 * p + 1 + 3;   // b[2*p+1]
-      auto a_even = 2 * p + 0 + 1;  // a[2*p+0]
-      auto b_even = 2 * p + 0 + 3;  // b[2*p+0]
+      const size_t a_odd = HWY_MIN(kMax, 2 * p + 1 + 1);   // a[2*p+1]
+      const size_t b_odd = HWY_MIN(kMax, 2 * p + 1 + 3);   // b[2*p+1]
+      const size_t a_even = HWY_MIN(kMax, 2 * p + 0 + 1);  // a[2*p+0]
+      const size_t b_even = HWY_MIN(kMax, 2 * p + 0 + 3);  // b[2*p+0]
       expected[p] = ConvertScalarTo<TW>(a_odd * b_odd + a_even * b_even);
     }
 
