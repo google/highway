@@ -53,7 +53,7 @@ struct TestSignedSaturatedAddSub {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const Vec<D> v0 = Zero(d);
     const Vec<D> vpm = Set(d, LimitsMax<T>());
-    const Vec<D> vi = PositiveIota(d);
+    const Vec<D> vi = PositiveIota(d, 1);
     const Vec<D> vn = Sub(v0, vi);
     const Vec<D> vnm = Set(d, LimitsMin<T>());
     HWY_ASSERT_MASK_EQ(d, MaskTrue(d), Gt(vi, v0));

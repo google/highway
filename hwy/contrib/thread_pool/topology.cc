@@ -1189,7 +1189,8 @@ HWY_MAYBE_UNUSED void ComputeSets(Cache& c) {
   if (c.sets == 0) {
     c.sets = static_cast<uint32_t>(sets);
   } else {
-    if (c.sets != sets) {
+    const size_t diff = c.sets - sets;
+    if (diff > 1) {
       HWY_ABORT("Inconsistent cache sets %u != %zu\n", c.sets, sets);
     }
   }

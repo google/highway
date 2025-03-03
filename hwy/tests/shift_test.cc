@@ -13,8 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <stddef.h>
-
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/shift_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
@@ -572,16 +570,17 @@ struct TestMultiRotateRight {
     using T = TFromD<D>;
     using TU = MakeUnsigned<T>;
 
+    const size_t N = Lanes(d);
     const Repartition<uint8_t, decltype(d)> du8;
 
-    HWY_ALIGN static const uint64_t kTestCases[16] = {
+    HWY_ALIGN static constexpr uint64_t kTestCases[16] = {
         0x3FCF738F5342BA34ULL, 0x1643B72135F9C1ECULL, 0x9569D89F85EC5689ULL,
         0x5C82AE2EE1291AF9ULL, 0x0BE183E0146F82D5ULL, 0xE264FB25B7FCAC70ULL,
         0x16DCC74C5615DB8FULL, 0x5C6696FF3CF2910FULL, 0x0102030405060708ULL,
         0x1020304050607080ULL, 0x0102010201020102ULL, 0x2010011002002012ULL,
         0xF0E1D2C3B4A59687ULL, 0x78695A4B3C2D1E0FULL, 0x627BD89345E1CAF0ULL,
         0x7BCA6F13D02945E8ULL};
-    HWY_ALIGN static const uint8_t kRotateAmounts[128] = {
+    HWY_ALIGN static constexpr uint8_t kRotateAmounts[128] = {
         43, 15, 17, 29, 10, 16, 7,  45, 50, 3,  5,  52, 23, 6,  35, 25,
         36, 24, 16, 6,  59, 61, 57, 20, 49, 5,  14, 11, 55, 32, 0,  54,
         48, 44, 9,  28, 20, 28, 42, 60, 62, 12, 34, 63, 24, 27, 19, 46,
@@ -591,18 +590,18 @@ struct TestMultiRotateRight {
         37, 13, 21, 29, 39, 52, 31, 37, 12, 58, 15, 8,  55, 33, 32, 59,
         1,  53, 60, 8,  11, 23, 47, 30, 62, 51, 27, 56, 14, 42, 25, 45};
 
-    const size_t N = Lanes(d);
-    const size_t padded = RoundUpTo(16, N);
-
+    // Replicate the test cases into the padded vector, repeating as necessary
+    // to fill the vector.
+    const size_t padded = RoundUpTo(N, 16);
     auto in_lanes = AllocateAligned<T>(padded);
     auto in_shift_amounts = AllocateAligned<uint8_t>(padded * sizeof(T));
     auto expected = AllocateAligned<T>(padded);
     HWY_ASSERT(in_lanes && in_shift_amounts && expected);
 
     for (size_t i = 0; i < padded; i += 16) {
-      const size_t copy_byte_len = HWY_MIN(padded - i, 16) * sizeof(T);
-      CopyBytes(kTestCases, in_lanes.get(), copy_byte_len);
-      CopyBytes(kRotateAmounts, in_shift_amounts.get(), copy_byte_len);
+      const size_t kBytes = 16 * sizeof(T);
+      CopyBytes(kTestCases, in_lanes.get() + i, kBytes);
+      CopyBytes(kRotateAmounts, in_shift_amounts.get() + i * sizeof(T), kBytes);
     }
 
     constexpr int kShiftAmtMask = static_cast<int>(sizeof(T) * 8 - 1);

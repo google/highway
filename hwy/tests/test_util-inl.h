@@ -19,6 +19,9 @@
 #include <string.h>  // memset
 
 // IWYU pragma: begin_exports
+#include <stddef.h>
+#include <stdint.h>
+
 #include "hwy/aligned_allocator.h"
 #include "hwy/base.h"
 #include "hwy/detect_targets.h"
@@ -49,13 +52,13 @@ namespace HWY_NAMESPACE {
 using ::hwy::AdjustedReps;
 
 // Like Iota, but avoids wrapping around to negative integers.
-template <class D, HWY_IF_FLOAT_D(D)>
-HWY_INLINE Vec<D> PositiveIota(D d) {
-  return Iota(d, 1);
+template <class D, typename T2, HWY_IF_FLOAT_D(D)>
+HWY_INLINE Vec<D> PositiveIota(D d, T2 first) {
+  return Iota(d, first);
 }
-template <class D, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
-HWY_INLINE Vec<D> PositiveIota(D d) {
-  const auto vi = Iota(d, 1);
+template <class D, typename T2, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
+HWY_INLINE Vec<D> PositiveIota(D d, T2 first) {
+  const auto vi = Iota(d, first);
   return Max(And(vi, Set(d, LimitsMax<TFromD<D>>())),
              Set(d, static_cast<TFromD<D>>(1)));
 }

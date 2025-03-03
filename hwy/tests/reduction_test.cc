@@ -16,6 +16,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "hwy/base.h"
+
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/reduction_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
@@ -398,31 +400,26 @@ struct TestMaskedReduceMin {
 
     using TI = MakeSigned<T>;
     const Rebind<TI, D> di;
-    const Vec<D> v2 = Iota(d, 2);
+    const Vec<D> v2 = PositiveIota(d, 2);
 
     const size_t N = Lanes(d);
     auto bool_lanes = AllocateAligned<TI>(N);
     HWY_ASSERT(bool_lanes);
 
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
-      T expected =
-          ConvertScalarTo<T>(N + 3);  // larger than any values in the vector
+      T expected = hwy::PositiveInfOrHighestValue<T>();
       for (size_t i = 0; i < N; ++i) {
         bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
         if (bool_lanes[i]) {
-          if (expected > ConvertScalarTo<T>(i + 2)) {
-            expected = ConvertScalarTo<T>(i + 2);
-          }
+          expected = ConvertScalarTo<T>(HWY_MIN(expected, ExtractLane(v2, i)));
         }
       }
 
       const auto mask_i = Load(di, bool_lanes.get());
       const Mask<D> mask = RebindMask(d, Gt(mask_i, Zero(di)));
 
-      // If all elements are disabled the result is implementation defined
-      if (AllFalse(d, mask)) {
-        continue;
-      }
+      // If all elements are disabled, the result is implementation defined.
+      if (AllFalse(d, mask)) continue;
 
       HWY_ASSERT_EQ(expected, MaskedReduceMin(d, mask, v2));
     }
@@ -440,30 +437,26 @@ struct TestMaskedReduceMax {
 
     using TI = MakeSigned<T>;
     const Rebind<TI, D> di;
-    const Vec<D> v2 = Iota(d, 2);
+    const Vec<D> v2 = PositiveIota(d, 2);
 
     const size_t N = Lanes(d);
     auto bool_lanes = AllocateAligned<TI>(N);
     HWY_ASSERT(bool_lanes);
 
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
-      T expected = 0;
+      T expected = NegativeInfOrLowestValue<T>();
       for (size_t i = 0; i < N; ++i) {
         bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
         if (bool_lanes[i]) {
-          if (expected < ConvertScalarTo<T>(i + 2)) {
-            expected = ConvertScalarTo<T>(i + 2);
-          }
+          expected = ConvertScalarTo<T>(HWY_MAX(expected, ExtractLane(v2, i)));
         }
       }
 
       const auto mask_i = Load(di, bool_lanes.get());
       const Mask<D> mask = RebindMask(d, Gt(mask_i, Zero(di)));
 
-      // If all elements are disabled the result is implementation defined
-      if (AllFalse(d, mask)) {
-        continue;
-      }
+      // If all elements are disabled, the result is implementation defined.
+      if (AllFalse(d, mask)) continue;
 
       HWY_ASSERT_EQ(expected, MaskedReduceMax(d, mask, v2));
     }
