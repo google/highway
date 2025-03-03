@@ -1478,7 +1478,11 @@ HWY_API Vec512<T> Ror(Vec512<T> a, Vec512<T> b) {
 // ------------------------------ ShiftLeftSame
 
 // GCC <14 and Clang <11 do not follow the Intel documentation for AVX-512
-// shift-with-immediate: the counts should all be unsigned int.
+// shift-with-immediate: the counts should all be unsigned int. Despite casting,
+// we still see warnings in GCC debug builds, hence disable.
+HWY_DIAGNOSTICS(push)
+HWY_DIAGNOSTICS_OFF(disable : 4245 4365, ignored "-Wsign-conversion")
+
 #if HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1100
 using Shift16Count = int;
 using Shift3264Count = int;
@@ -1641,6 +1645,8 @@ HWY_API Vec512<int8_t> ShiftRightSame(Vec512<int8_t> v, const int bits) {
       BitCast(di, Set(du, static_cast<uint8_t>(0x80 >> bits)));
   return (shifted ^ shifted_sign) - shifted_sign;
 }
+
+HWY_DIAGNOSTICS(pop)
 
 // ------------------------------ Minimum
 
@@ -2946,11 +2952,28 @@ HWY_API Vec512<int64_t> BroadcastSignBit(Vec512<int64_t> v) {
 
 // ------------------------------ Floating-point classification (Not)
 
+namespace detail {
+
+template <int kCategories>
+__mmask32 Fix_mm512_fpclass_ph_mask(__m512h v) {
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1500
+  // GCC's _mm512_cmp_ph_mask uses `__mmask8` instead of `__mmask32`, hence only
+  // the first 8 lanes are set.
+  return static_cast<__mmask32>(__builtin_ia32_fpclassph512_mask(
+      static_cast<__v32hf>(v), kCategories, static_cast<__mmask32>(-1)));
+#else
+  return _mm512_fpclass_ph_mask(v, kCategories);
+#endif
+}
+
+}  // namespace detail
+
 #if HWY_HAVE_FLOAT16 || HWY_IDE
 
 HWY_API Mask512<float16_t> IsNaN(Vec512<float16_t> v) {
-  return Mask512<float16_t>{_mm512_fpclass_ph_mask(
-      v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
+  constexpr int kCategories = HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN;
+  return Mask512<float16_t>{
+      detail::Fix_mm512_fpclass_ph_mask<kCategories>(v.raw)};
 }
 
 HWY_API Mask512<float16_t> IsEitherNaN(Vec512<float16_t> a,
@@ -2963,15 +2986,18 @@ HWY_API Mask512<float16_t> IsEitherNaN(Vec512<float16_t> a,
 }
 
 HWY_API Mask512<float16_t> IsInf(Vec512<float16_t> v) {
-  return Mask512<float16_t>{_mm512_fpclass_ph_mask(v.raw, 0x18)};
+  constexpr int kCategories = HWY_X86_FPCLASS_POS_INF | HWY_X86_FPCLASS_NEG_INF;
+  return Mask512<float16_t>{
+      detail::Fix_mm512_fpclass_ph_mask<kCategories>(v.raw)};
 }
 
 // Returns whether normal/subnormal/zero. fpclass doesn't have a flag for
 // positive, so we have to check for inf/NaN and negate.
 HWY_API Mask512<float16_t> IsFinite(Vec512<float16_t> v) {
-  return Not(Mask512<float16_t>{_mm512_fpclass_ph_mask(
-      v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN |
-                 HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)});
+  constexpr int kCategories = HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN |
+                              HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF;
+  return Not(Mask512<float16_t>{
+      detail::Fix_mm512_fpclass_ph_mask<kCategories>(v.raw)});
 }
 
 #endif  // HWY_HAVE_FLOAT16

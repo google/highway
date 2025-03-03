@@ -2413,28 +2413,36 @@ HWY_API Vec256<int32_t> BroadcastSignBit(const Vec256<int32_t> v) {
   return ShiftRight<31>(v);
 }
 
+#if HWY_TARGET <= HWY_AVX3
+
+template <int kBits>
+HWY_API Vec256<int64_t> ShiftRight(const Vec256<int64_t> v) {
+  return Vec256<int64_t>{
+      _mm256_srai_epi64(v.raw, static_cast<Shift64Count>(kBits))};
+}
+
 HWY_API Vec256<int64_t> BroadcastSignBit(const Vec256<int64_t> v) {
-#if HWY_TARGET == HWY_AVX2
+  return ShiftRight<63>(v);
+}
+
+#else  // AVX2
+
+// Unlike above, this will be used to implement int64_t ShiftRight.
+HWY_API Vec256<int64_t> BroadcastSignBit(const Vec256<int64_t> v) {
   const DFromV<decltype(v)> d;
   return VecFromMask(v < Zero(d));
-#else
-  return Vec256<int64_t>{_mm256_srai_epi64(v.raw, 63)};
-#endif
 }
 
 template <int kBits>
 HWY_API Vec256<int64_t> ShiftRight(const Vec256<int64_t> v) {
-#if HWY_TARGET <= HWY_AVX3
-  return Vec256<int64_t>{
-      _mm256_srai_epi64(v.raw, static_cast<Shift64Count>(kBits))};
-#else
   const Full256<int64_t> di;
   const Full256<uint64_t> du;
   const auto right = BitCast(di, ShiftRight<kBits>(BitCast(du, v)));
   const auto sign = ShiftLeft<64 - kBits>(BroadcastSignBit(v));
   return right | sign;
-#endif
 }
+
+#endif  // #if HWY_TARGET <= HWY_AVX3
 
 // ------------------------------ IfNegativeThenElse (BroadcastSignBit)
 HWY_API Vec256<int8_t> IfNegativeThenElse(Vec256<int8_t> v, Vec256<int8_t> yes,
@@ -2494,6 +2502,10 @@ HWY_API Vec256<int32_t> IfNegativeThenNegOrUndefIfZero(Vec256<int32_t> mask,
 }
 
 // ------------------------------ ShiftLeftSame
+
+// Disable sign conversion warnings for GCC debug intrinsics.
+HWY_DIAGNOSTICS(push)
+HWY_DIAGNOSTICS_OFF(disable : 4245 4365, ignored "-Wsign-conversion")
 
 HWY_API Vec256<uint16_t> ShiftLeftSame(const Vec256<uint16_t> v,
                                        const int bits) {
@@ -2641,6 +2653,8 @@ HWY_API Vec256<int8_t> ShiftRightSame(Vec256<int8_t> v, const int bits) {
       BitCast(di, Set(du, static_cast<uint8_t>(0x80 >> bits)));
   return (shifted ^ shifted_sign) - shifted_sign;
 }
+
+HWY_DIAGNOSTICS(pop)
 
 // ------------------------------ Neg (Xor, Sub)
 
