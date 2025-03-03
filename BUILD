@@ -33,26 +33,8 @@ config_setting(
 )
 
 config_setting(
-    name = "compiler_msvc_actual",
-    flag_values = {"@bazel_tools//tools/cpp:compiler": "msvc"},
-)
-
-# The above is insufficient for Bazel on Windows, which does not seem to
-# detect/set a compiler flag. This workaround prevents compile errors due to
-# passing clang-only warning flags to MSVC.
-config_setting(
-    name = "compiler_msvc_cpu",
-    values = {
-        "cpu": "x64_windows",
-    },
-)
-
-selects.config_setting_group(
     name = "compiler_msvc",
-    match_any = [
-        ":compiler_msvc_actual",
-        ":compiler_msvc_cpu",
-    ],
+    flag_values = {"@bazel_tools//tools/cpp:compiler": "msvc-cl"},
 )
 
 config_setting(
