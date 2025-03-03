@@ -65,7 +65,7 @@ struct SpinResult {
 // are rarely called from SIMD code, hence we do not integrate this into
 // `HWY_TARGET` and its runtime dispatch mechanism. Returned by `Type()`, also
 // used by callers to set the `disabled` argument for `DetectSpin`.
-enum class SpinType {
+enum class SpinType : uint8_t {
   kMonitorX,  // AMD
   kUMonitor,  // Intel
   kPause
@@ -80,9 +80,9 @@ static inline const char* ToString(SpinType type) {
       return "UMonitor_C0.2";
     case SpinType::kPause:
       return "Pause";
+    default:
+      return nullptr;
   }
-
-  return nullptr;
 }
 
 // Indirect function calls turn out to be too expensive because this is called
@@ -244,7 +244,7 @@ static inline SpinType DetectSpin(int disabled = 0) {
 
 // Calls `func(spin)` for the given `spin_type`.
 template <class Func>
-void CallWithSpin(SpinType spin_type, const Func& func) {
+void CallWithSpin(SpinType spin_type, Func&& func) {
   switch (spin_type) {
 #if HWY_ENABLE_MONITORX
     case SpinType::kMonitorX:

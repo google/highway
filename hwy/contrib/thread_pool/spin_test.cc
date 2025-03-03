@@ -47,8 +47,8 @@ struct TestPingPongT {
     const double t0 = hwy::platform::Now();
     std::atomic_flag error = ATOMIC_FLAG_INIT;
 
-    std::atomic<size_t> reps1;
-    std::atomic<size_t> reps2;
+    alignas(HWY_ALIGNMENT) std::atomic<size_t> reps1;
+    alignas(HWY_ALIGNMENT) std::atomic<size_t> reps2;
 
     constexpr size_t kF64PerLine = HWY_ALIGNMENT / 8;
     alignas(HWY_ALIGNMENT) std::atomic<double> before_thread_done[kF64PerLine];

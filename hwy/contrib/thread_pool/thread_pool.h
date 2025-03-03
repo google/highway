@@ -20,38 +20,49 @@
 #ifndef HIGHWAY_HWY_CONTRIB_THREAD_POOL_THREAD_POOL_H_
 #define HIGHWAY_HWY_CONTRIB_THREAD_POOL_THREAD_POOL_H_
 
-// IWYU pragma: begin_exports
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>  // snprintf
 
 #include <array>
-#include <new>
-#include <thread>  //NOLINT
-// IWYU pragma: end_exports
-
 #include <atomic>
+#include <thread>  // NOLINT
 #include <vector>
+
+#if HWY_OS_FREEBSD
+#include <pthread_np.h>
+#endif
 
 #include "hwy/aligned_allocator.h"  // HWY_ALIGNMENT
 #include "hwy/base.h"
 #include "hwy/cache_control.h"  // Pause
 #include "hwy/contrib/thread_pool/futex.h"
+#include "hwy/contrib/thread_pool/spin.h"
 #include "hwy/contrib/thread_pool/topology.h"
 
-// Temporary NOINLINE for profiling.
-#define HWY_POOL_INLINE HWY_NOINLINE
-
-#ifndef HWY_POOL_SETRANGE_INLINE
-#if HWY_ARCH_ARM
-// Workaround for invalid codegen on Arm (begin_ is larger than expected).
-#define HWY_POOL_SETRANGE_INLINE HWY_NOINLINE
-#else
-#define HWY_POOL_SETRANGE_INLINE
-#endif
-#endif  // HWY_POOL_SETRANGE_INLINE
+// Define to HWY_NOINLINE to see profiles of `WorkerRun*` and waits.
+#define HWY_POOL_PROFILE
 
 namespace hwy {
+
+// Sets the name of the current thread to the format string `format`, which must
+// include %d for `thread`. Currently only implemented for pthreads (*nix and
+// OSX); Windows involves throwing an exception.
+static inline void SetThreadName(const char* format, int thread) {
+  char buf[16] = {};  // Linux limit, including \0
+  const int chars_written = snprintf(buf, sizeof(buf), format, thread);
+  HWY_ASSERT(0 < chars_written &&
+             chars_written <= static_cast<int>(sizeof(buf) - 1));
+
+#if HWY_OS_LINUX && (!defined(__ANDROID__) || __ANDROID_API__ >= 19)
+  HWY_ASSERT(0 == pthread_setname_np(pthread_self(), buf));
+#elif HWY_OS_FREEBSD
+  HWY_ASSERT(0 == pthread_set_name_np(pthread_self(), buf));
+#elif HWY_OS_APPLE
+  // Different interface: single argument, current thread only.
+  HWY_ASSERT(0 == pthread_setname_np(buf));
+#endif
+}
 
 // Generates a random permutation of [0, size). O(1) storage.
 class ShuffledIota {
@@ -60,7 +71,7 @@ class ShuffledIota {
   explicit ShuffledIota(uint32_t coprime) : coprime_(coprime) {}
 
   // Returns the next after `current`, using an LCG-like generator.
-  uint32_t Next(uint32_t current, const Divisor& divisor) const {
+  uint32_t Next(uint32_t current, const Divisor64& divisor) const {
     HWY_DASSERT(current < divisor.GetDivisor());
     // (coprime * i + current) % size, see https://lemire.me/blog/2017/09/18/.
     return divisor.Remainder(current + coprime_);
@@ -116,396 +127,472 @@ class ShuffledIota {
   uint32_t coprime_;
 };
 
+// Signature of the (internal) function called from workers(s) for each
+// `task` in the [`begin`, `end`) passed to Run(). Closures (lambdas) do not
+// receive the first argument, which points to the lambda object.
+typedef void (*PoolRunFunc)(const void* opaque, uint64_t task, size_t worker);
+
 // We want predictable struct/class sizes so we can reason about cache lines.
 #pragma pack(push, 1)
 
-// Same values as PoolCommands::kSetBlock and kSetSpin, verified there.
-enum class PoolWaitMode : uint32_t { kBlock = 3, kSpin = 4 };
-
-// Worker's private working set.
-class PoolWorker {  // HWY_ALIGNMENT bytes
+// Per-worker storage for work stealing and barrier.
+class alignas(HWY_ALIGNMENT) PoolWorker {  // HWY_ALIGNMENT bytes
   static constexpr size_t kMaxVictims = 4;
 
- public:
-  PoolWorker(size_t thread, size_t num_workers) {
-    num_victims_ = static_cast<uint32_t>(HWY_MIN(kMaxVictims, num_workers));
+  static constexpr auto kAcq = std::memory_order_acquire;
+  static constexpr auto kRel = std::memory_order_release;
 
-    const Divisor div_workers(static_cast<uint32_t>(num_workers));
+ public:
+  PoolWorker(size_t worker, const Divisor64& div_workers) {
+    HWY_DASSERT(IsAligned(this, HWY_ALIGNMENT));
+    const size_t num_workers = div_workers.GetDivisor();
+    HWY_DASSERT(worker < num_workers);
+    num_victims_ = static_cast<uint32_t>(HWY_MIN(kMaxVictims, num_workers));
 
     // Increase gap between coprimes to reduce collisions.
     const uint32_t coprime = ShuffledIota::FindAnotherCoprime(
         static_cast<uint32_t>(num_workers),
-        static_cast<uint32_t>((thread + 1) * 257 + thread * 13));
+        static_cast<uint32_t>((worker + 1) * 257 + worker * 13));
     const ShuffledIota shuffled_iota(coprime);
 
-    // To simplify WorkerRun, our own thread is the first to 'steal' from.
-    victims_[0] = static_cast<uint32_t>(thread);
+    // To simplify `WorkerRun`, this worker is the first to 'steal' from.
+    victims_[0] = static_cast<uint32_t>(worker);
     for (uint32_t i = 1; i < num_victims_; ++i) {
       victims_[i] = shuffled_iota.Next(victims_[i - 1], div_workers);
-      HWY_DASSERT(victims_[i] != thread);
+      HWY_DASSERT(victims_[i] != worker);
     }
-
-    (void)padding_;
   }
-  ~PoolWorker() = default;
 
+  // Assigns workers their share of `[begin, end)`. Called from the main
+  // thread; workers are initializing or spinning for a command.
+  static void DivideRangeAmongWorkers(const uint64_t begin, const uint64_t end,
+                                      const Divisor64& div_workers,
+                                      PoolWorker* workers) {
+    const size_t num_workers = div_workers.GetDivisor();
+    HWY_DASSERT(num_workers > 1);  // Else Run() runs on the main thread.
+    HWY_DASSERT(begin <= end);
+    const size_t num_tasks = static_cast<size_t>(end - begin);
+
+    // Assigning all remainders to the last worker causes imbalance. We instead
+    // give one more to each worker whose index is less. This may be zero when
+    // called from `TestTasks`.
+    const size_t min_tasks = div_workers.Divide(num_tasks);
+    const size_t remainder = div_workers.Remainder(num_tasks);
+
+    uint64_t my_begin = begin;
+    for (size_t worker = 0; worker < num_workers; ++worker) {
+      const uint64_t my_end = my_begin + min_tasks + (worker < remainder);
+      workers[worker].my_begin_.store(my_begin, kRel);
+      workers[worker].my_end_.store(my_end, kRel);
+      my_begin = my_end;
+    }
+    HWY_DASSERT(my_begin == end);
+  }
+
+  // Must be called for each `worker` in [0, num_workers).
+  //
+  // A prior version of this code attempted to assign only as much work as a
+  // worker will actually use. As with OpenMP's 'guided' strategy, we assigned
+  // remaining/(k*num_threads) in each iteration. Although the worst-case
+  // imbalance is bounded, this required several rounds of work allocation, and
+  // the atomic counter did not scale to > 30 threads.
+  //
+  // We now use work stealing instead, where already-finished workers look for
+  // and perform work from others, as if they were that worker. This deals with
+  // imbalances as they arise, but care is required to reduce contention. We
+  // randomize the order in which threads choose victims to steal from.
+  static HWY_POOL_PROFILE void WorkerRunWithStealing(const size_t worker,
+                                                     PoolWorker* workers,
+                                                     PoolRunFunc func,
+                                                     const void* opaque) {
+    // For each worker in random order, attempt to do all their work.
+    for (uint32_t victim : workers[worker].Victims()) {
+      PoolWorker* other_worker = workers + victim;
+
+      // Until all of other_worker's work is done:
+      const uint64_t other_end = other_worker->my_end_.load(kAcq);
+      for (;;) {
+        // The worker that first sets `task` to `other_end` exits this loop.
+        // After that, `task` can be incremented up to `num_workers - 1` times,
+        // once per other worker.
+        const uint64_t task = other_worker->WorkerReserveTask();
+        if (HWY_UNLIKELY(task >= other_end)) {
+          hwy::Pause();  // Reduce coherency traffic while stealing.
+          break;
+        }
+        // `worker` is the one we are actually running on; this is important
+        // because it is the TLS index for user code.
+        func(opaque, task, worker);
+      }
+    }
+  }
+
+  // Barrier storage: an epoch counter can be used as a flag which does not
+  // require resetting afterwards. Note that the counter increment is relaxed,
+  // and here we only use store-release.
+  std::atomic<uint32_t>& Epoch() { return epoch_; }
+  void StoreEpoch(uint32_t epoch) { epoch_.store(epoch, kRel); }
+
+ private:
   hwy::Span<const uint32_t> Victims() const {
     return hwy::Span<const uint32_t>(victims_.data(),
                                      static_cast<size_t>(num_victims_));
   }
 
-  // Called from main thread in Plan().
-  HWY_POOL_SETRANGE_INLINE void SetRange(uint64_t begin, uint64_t end) {
-    const auto rel = std::memory_order_release;
-    begin_.store(begin, rel);
-    end_.store(end, rel);
-  }
-
-  // Returns the STL-style end of this worker's assigned range.
-  uint64_t WorkerGetEnd() const { return end_.load(std::memory_order_acquire); }
-
-  // Returns the next task to execute. If >= WorkerGetEnd(), it must be skipped.
+  // Returns the next task to execute. If >= my_end_, it must be skipped.
   uint64_t WorkerReserveTask() {
-    return begin_.fetch_add(1, std::memory_order_relaxed);
+    // TODO(janwas): replace with cooperative work-stealing.
+    return my_begin_.fetch_add(1, std::memory_order_relaxed);
   }
 
- private:
-  std::atomic<uint64_t> begin_;
-  std::atomic<uint64_t> end_;  // only changes during SetRange
+  // Set by DivideRangeAmongWorkers:
+  std::atomic<uint64_t> my_begin_;
+  std::atomic<uint64_t> my_end_;
 
-  uint32_t num_victims_;                 // <= kPoolMaxVictims
+  std::atomic<uint32_t> epoch_{0};
+
+  uint32_t num_victims_;  // <= kPoolMaxVictims
   std::array<uint32_t, kMaxVictims> victims_;
 
-  uint8_t padding_[HWY_ALIGNMENT - 16 - 4 - sizeof(victims_)];
+  HWY_MAYBE_UNUSED uint8_t padding_[HWY_ALIGNMENT - 24 - sizeof(victims_)];
 };
 static_assert(sizeof(PoolWorker) == HWY_ALIGNMENT, "");
 
-// Modified by main thread, shared with all workers.
-class PoolTasks {  // 32 bytes
-  // Signature of the (internal) function called from workers(s) for each
-  // `task` in the [`begin`, `end`) passed to Run(). Closures (lambdas) do not
-  // receive the first argument, which points to the lambda object.
-  typedef void (*RunFunc)(const void* opaque, uint64_t task, size_t thread_id);
-
-  // Calls closure(task, thread). Signature must match RunFunc.
-  template <class Closure>
-  static void CallClosure(const void* opaque, uint64_t task, size_t thread) {
-    (*reinterpret_cast<const Closure*>(opaque))(task, thread);
-  }
-
+// Creates/destroys `PoolWorker` using preallocated storage. See comment at
+// `ThreadPool::worker_bytes_` for why we do not dynamically allocate.
+class PoolWorkerLifecycle {  // 0 bytes
  public:
-  // Called from main thread in Plan().
-  template <class Closure>
-  void Store(const Closure& closure, uint64_t begin, uint64_t end) {
-    const auto rel = std::memory_order_release;
-    func_.store(static_cast<RunFunc>(&CallClosure<Closure>), rel);
-    opaque_.store(reinterpret_cast<const void*>(&closure), rel);
-    begin_.store(begin, rel);
-    end_.store(end, rel);
+  // Placement new for `PoolWorker` into `storage` because its ctor requires
+  // the worker index. Returns array of all workers.
+  static PoolWorker* Init(uint8_t* storage, const Divisor64& div_workers) {
+    PoolWorker* workers = new (storage) PoolWorker(0, div_workers);
+    for (size_t worker = 1; worker < div_workers.GetDivisor(); ++worker) {
+      new (Worker(storage, worker)) PoolWorker(worker, div_workers);
+      // Ensure pointer arithmetic is the same (will be used in Destroy).
+      HWY_DASSERT(reinterpret_cast<uintptr_t>(workers + worker) ==
+                  reinterpret_cast<uintptr_t>(Worker(storage, worker)));
+    }
+
+    // Publish non-atomic stores in `workers` for use by `ThreadFunc`.
+    std::atomic_thread_fence(std::memory_order_release);
+
+    return workers;
   }
 
-  RunFunc WorkerGet(uint64_t& begin, uint64_t& end, const void*& opaque) const {
-    const auto acq = std::memory_order_acquire;
-    begin = begin_.load(acq);
-    end = end_.load(acq);
-    opaque = opaque_.load(acq);
-    return func_.load(acq);
+  static void Destroy(PoolWorker* workers, size_t num_workers) {
+    for (size_t worker = 0; worker < num_workers; ++worker) {
+      workers[worker].~PoolWorker();
+    }
   }
 
  private:
-  std::atomic<RunFunc> func_;
-  std::atomic<const void*> opaque_;
-  std::atomic<uint64_t> begin_;
-  std::atomic<uint64_t> end_;
+  static uint8_t* Worker(uint8_t* storage, size_t worker) {
+    return storage + worker * sizeof(PoolWorker);
+  }
 };
 
-// Modified by main thread, shared with all workers.
-class PoolCommands {  // 8 bytes
-  static constexpr uint32_t kInitial = 0;
-  static constexpr uint32_t kMask = 0xF;  // for command, rest is ABA counter.
-  static constexpr size_t kShift = hwy::CeilLog2(kMask);
+// Stores arguments to `Run`: the function and range of task indices. Set by
+// the main thread, read by workers including the main thread.
+class alignas(8) PoolRange {
+  static constexpr auto kAcq = std::memory_order_acquire;
 
  public:
-  static constexpr uint32_t kTerminate = 1;
-  static constexpr uint32_t kWork = 2;
-  static constexpr uint32_t kSetBlock = 3;
-  static constexpr uint32_t kSetSpin = 4;
-  // Same value so we can assign PoolWaitMode from the command.
-  static_assert(static_cast<uint32_t>(PoolWaitMode::kBlock) == kSetBlock, "");
-  static_assert(static_cast<uint32_t>(PoolWaitMode::kSpin) == kSetSpin, "");
+  PoolRange() { HWY_DASSERT(IsAligned(this, 8)); }
 
-  // Workers must initialize their copy to this so that they wait for the first
-  // command as intended.
-  static uint32_t WorkerInitialSeqCmd() { return kInitial; }
+  template <class Closure>
+  void Set(uint64_t begin, uint64_t end, const Closure& closure) {
+    constexpr auto kRel = std::memory_order_release;
+    // More than one task, otherwise `Run` would have run the closure directly.
+    HWY_DASSERT(begin < end + 1);
+    begin_.store(begin, kRel);
+    end_.store(end, kRel);
+    func_.store(static_cast<PoolRunFunc>(&CallClosure<Closure>), kRel);
+    opaque_.store(reinterpret_cast<const void*>(&closure), kRel);
+  }
 
-  // Sends `cmd` to all workers.
-  void Broadcast(PoolWaitMode wait_mode, uint32_t cmd) {
-    HWY_DASSERT(cmd <= kMask);
-    const uint32_t epoch = ++epoch_;
-    const uint32_t seq_cmd = (epoch << kShift) | cmd;
-    seq_cmd_.store(seq_cmd, std::memory_order_release);
+  size_t NumTasks() const {
+    return static_cast<size_t>(end_.load(kAcq) - begin_.load(kAcq));
+  }
 
-    // Only call WakeAll, which involves a syscall, if the threads are actually
-    // blocking. This is enabled by a barrier in SetWaitMode.
-    if (HWY_UNLIKELY(wait_mode == PoolWaitMode::kBlock)) {
-      WakeAll(seq_cmd_);
+  // For passing to `PoolWorker::WorkerRunWithStealing`.
+  const void* Opaque() const { return opaque_.load(kAcq); }
+  PoolRunFunc Func() const { return func_.load(kAcq); }
+
+  // Special case for <= 1 task per worker, where stealing is unnecessary.
+  HWY_POOL_PROFILE void WorkerRunSingle(size_t worker) const {
+    const uint64_t begin = begin_.load(kAcq);
+    const uint64_t end = end_.load(kAcq);
+    // More than one task, otherwise `Run` would have run the closure directly.
+    HWY_DASSERT(begin < end + 1);
+
+    const uint64_t task = begin + worker;
+    // We might still have more workers than tasks, so check first.
+    if (HWY_LIKELY(task < end)) {
+      const void* opaque = Opaque();
+      const PoolRunFunc func = Func();
+      func(opaque, task, worker);
+    }
+  }
+
+ private:
+  // Calls closure(task, worker). Signature must match `PoolRunFunc`.
+  template <class Closure>
+  static void CallClosure(const void* opaque, uint64_t task, size_t worker) {
+    (*reinterpret_cast<const Closure*>(opaque))(task, worker);
+  }
+
+  std::atomic<uint64_t> begin_;
+  std::atomic<uint64_t> end_;
+  std::atomic<PoolRunFunc> func_;
+  std::atomic<const void*> opaque_;
+};
+static_assert(sizeof(PoolRange) == 16 + 2 * sizeof(void*), "");
+
+// Differing barrier types: performance varies with worker count and locality.
+enum class BarrierType : uint8_t { kOrdered, kCounter1, kGroup2, kGroup4 };
+
+// All methods are const because they only use storage in `PoolWorker` and
+// `CallWithBarrier` passes temporaries and we prefer to pass empty classes as
+// arguments to enable type deduction.
+
+// Set flag, spin on each flag.
+class BarrierOrdered {
+ public:
+  BarrierType Type() const { return BarrierType::kOrdered; }
+
+  void Reset(PoolWorker* /*workers*/) const {}
+
+  template <class Spin>
+  void WorkerNotify(size_t thread, size_t /*num_threads*/, PoolWorker* workers,
+                    uint32_t seq, const Spin&) const {
+    workers[thread].StoreEpoch(seq);
+  }
+
+  template <class Spin>
+  void Wait(size_t num_threads, PoolWorker* workers, uint32_t seq,
+            const Spin& spin) const {
+    for (size_t i = 0; i < num_threads; ++i) {
+      spin.UntilEqual(seq, workers[i].Epoch());
+    }
+  }
+};
+
+// Single atomic counter. TODO: remove if not competitive?
+class BarrierCounter1 {
+ public:
+  BarrierType Type() const { return BarrierType::kCounter1; }
+
+  void Reset(PoolWorker* workers) const {
+    workers[0].Epoch().store(0, std::memory_order_release);
+  }
+
+  template <class Spin>
+  void WorkerNotify(size_t thread, size_t /*num_threads*/, PoolWorker* workers,
+                    uint32_t seq, const Spin& /*spin*/) const {
+    workers[0].Epoch().fetch_add(1, std::memory_order_acq_rel);
+  }
+
+  template <class Spin>
+  void Wait(size_t num_threads, PoolWorker* workers, uint32_t seq,
+            const Spin& spin) const {
+    (void)spin.UntilEqual(static_cast<uint32_t>(num_threads),
+                          workers[0].Epoch());
+  }
+};
+
+// Leader threads wait for others in the group, loop over leaders.
+template <size_t kGroupSize>
+class BarrierGroup {
+ public:
+  BarrierType Type() const {
+    return kGroupSize == 2 ? BarrierType::kGroup2 : BarrierType::kGroup4;
+  }
+
+  void Reset(PoolWorker* /*workers*/) const {}
+
+  template <class Spin>
+  void WorkerNotify(size_t thread, size_t num_threads, PoolWorker* workers,
+                    uint32_t seq, const Spin& spin) const {
+    // Leaders wait for all others in their group before marking themselves.
+    if (thread % kGroupSize == 0) {
+      for (size_t i = thread + 1; i < HWY_MIN(thread + kGroupSize, num_threads);
+           ++i) {
+        (void)spin.UntilEqual(seq, workers[i].Epoch());
+      }
+    }
+    workers[thread].StoreEpoch(seq);
+  }
+
+  template <class Spin>
+  void Wait(size_t num_threads, PoolWorker* workers, uint32_t seq,
+            const Spin& spin) const {
+    for (size_t i = 0; i < num_threads; i += kGroupSize) {
+      (void)spin.UntilEqual(seq, workers[i].Epoch());
+    }
+  }
+};
+
+// Whether `PoolWaiter` should block or spin. Encoded into two bits. Always
+// nonzero so the first `Wake` changes `current_` from the initial 0, and thus
+// triggers `WaitUntilDifferent`.
+enum class PoolWaitMode : uint8_t { kBlock = 1, kSpin = 2 };
+
+// Encodes parameters sent from the main thread to workers into 32 bits so they
+// fit in `PoolWaiter`, and can be quickly swapped in when autotuning.
+struct alignas(8) PoolConfig {  // 8 bytes
+  PoolConfig(BarrierType barrier_type, SpinType spin_type)
+      : barrier_type(barrier_type), spin_type(spin_type) {}
+
+  explicit PoolConfig(uint32_t bits) {
+    seq = bits >> 8;
+    spin_type = static_cast<SpinType>((bits >> 5) & 7);
+    barrier_type = static_cast<BarrierType>((bits >> 2) & 7);
+    wait_mode = static_cast<PoolWaitMode>(bits & 3);
+  }
+
+  uint32_t Bits() const {
+    const uint32_t spin_bits = static_cast<uint32_t>(spin_type);
+    const uint32_t barrier_bits = static_cast<uint32_t>(barrier_type);
+    const uint32_t wait_bits = static_cast<uint32_t>(wait_mode);
+    HWY_DASSERT(spin_bits < 8);
+    HWY_DASSERT(barrier_bits < 8);
+    HWY_DASSERT(wait_bits < 4);
+    uint32_t bits = seq << 8;
+    bits |= spin_bits << 5;
+    bits |= barrier_bits << 2;
+    bits |= wait_bits;
+    return bits;
+  }
+
+  uint32_t seq = 0;
+  // Default is to block, because spinning only makes sense when threads are
+  // pinned and wake latency is important.
+  PoolWaitMode wait_mode = PoolWaitMode::kBlock;
+  BarrierType barrier_type;
+  SpinType spin_type;
+  HWY_MAYBE_UNUSED uint8_t padding_;
+};
+static_assert(sizeof(PoolConfig) == 8, "");
+
+// Single-slot mailbox for `PoolConfig`, updated whenever we want the worker
+// threads to wake.
+class alignas(8) PoolWaiter {  // 8 bytes
+ public:
+  PoolWaiter() { HWY_DASSERT(IsAligned(&current_, 8)); }
+
+  // Exit flag. Kept separate from `PoolConfig` so that autotuning does not
+  // accidentally overwrite it.
+  void RequestStop() { stop_.store(1, std::memory_order_release); }
+  bool WantStop() const { return stop_.load(std::memory_order_acquire) != 0; }
+
+  // Updates `main_config.seq`, which the main thread passes to `barrier.Wait`,
+  // and wakes all workers by sending them the *new* config, which they also
+  // pass to their `barrier.WorkerNotify`. `prev_wait_mode` was the value of
+  // `main_config.wait_mode` before any update, which is the way workers are
+  // currently waiting. It is the same as `main_config.wait_mode` except during
+  // a call to `ThreadPool::SetWaitMode`.
+  void Wake(const PoolWaitMode prev_wait_mode, PoolConfig& main_config) {
+    ++main_config.seq;
+    const uint32_t next = main_config.Bits();
+    // Never returns to initial 0 state because `PoolWaitMode` is never 0.
+    HWY_DASSERT(next != 0);
+    // Store-release is much more efficient than read-modify-write fetch_add on
+    // many-core x86 because the latter (even with memory_order_relaxed)
+    // involves a LOCK prefix, which interferes with other cores'
+    // cache-coherency transactions and drains our core's store buffer.
+    current_.store(next, std::memory_order_release);
+
+    // Only call `WakeAll`, which involves an expensive syscall, if workers are
+    // *currently* blocking due to the initial or previously sent config.
+    if (HWY_UNLIKELY(prev_wait_mode == PoolWaitMode::kBlock)) {
+      WakeAll(current_);
     }
 
     // Workers are either starting up, or waiting for a command. Either way,
     // they will not miss this command, so no need to wait for them here.
   }
 
-  // Returns the command, i.e., one of the public constants, e.g., kTerminate.
-  uint32_t WorkerWaitForNewCommand(PoolWaitMode wait_mode,
-                                   uint32_t& prev_seq_cmd) {
-    uint32_t seq_cmd;
-    if (HWY_LIKELY(wait_mode == PoolWaitMode::kSpin)) {
-      seq_cmd = SpinUntilDifferent(prev_seq_cmd, seq_cmd_);
+  // Waits using `worker_config.wait_mode` until `Wake()` has been called again,
+  // then updates `worker_config` and `prev`.
+  template <class Spin>
+  HWY_POOL_PROFILE void WaitUntilDifferent(PoolConfig& worker_config,
+                                           const Spin& spin, uint32_t& prev) {
+    if (HWY_LIKELY(worker_config.wait_mode == PoolWaitMode::kSpin)) {
+      const SpinResult result = spin.UntilDifferent(prev, current_);
+      // TODO: store result.reps in stats.
+      prev = result.current;
     } else {
-      seq_cmd = BlockUntilDifferent(prev_seq_cmd, seq_cmd_);
+      prev = BlockUntilDifferent(prev, current_);
     }
-    prev_seq_cmd = seq_cmd;
-    return seq_cmd & kMask;
+    worker_config = PoolConfig(prev);
   }
 
  private:
-  static HWY_INLINE uint32_t SpinUntilDifferent(
-      const uint32_t prev_seq_cmd, std::atomic<uint32_t>& current) {
-    for (;;) {
-      hwy::Pause();
-      const uint32_t seq_cmd = current.load(std::memory_order_acquire);
-      if (seq_cmd != prev_seq_cmd) return seq_cmd;
-    }
-  }
-
-  // Counter for ABA-proofing WorkerWaitForNewCommand. Stored next to seq_cmd_
-  // because both are written at the same time by the main thread. Sharding this
-  // 4x (one per cache line) is not helpful.
-  uint32_t epoch_{0};
-  std::atomic<uint32_t> seq_cmd_{kInitial};
+  // Use u32 to match futex.h. Initializer is the same as in `ThreadFunc`.
+  std::atomic<uint32_t> current_{0};
+  std::atomic<uint32_t> stop_{0};
 };
-
-// Modified by main thread AND workers.
-// TODO(janwas): more scalable tree
-class alignas(HWY_ALIGNMENT) PoolBarrier {  // 4 * HWY_ALIGNMENT bytes
-  static constexpr size_t kU64PerCacheLine = HWY_ALIGNMENT / sizeof(uint64_t);
-
- public:
-  void Reset() {
-    for (size_t i = 0; i < 4; ++i) {
-      num_finished_[i * kU64PerCacheLine].store(0, std::memory_order_release);
-    }
-  }
-
-  void WorkerArrive(size_t thread) {
-    const size_t i = (thread & 3);
-    num_finished_[i * kU64PerCacheLine].fetch_add(1, std::memory_order_release);
-  }
-
-  // Spin until all have called Arrive(). Note that workers spin for a new
-  // command, not the barrier itself.
-  HWY_POOL_INLINE void WaitAll(size_t num_workers) {
-    const auto acq = std::memory_order_acquire;
-    for (;;) {
-      hwy::Pause();
-      const uint64_t sum = num_finished_[0 * kU64PerCacheLine].load(acq) +
-                           num_finished_[1 * kU64PerCacheLine].load(acq) +
-                           num_finished_[2 * kU64PerCacheLine].load(acq) +
-                           num_finished_[3 * kU64PerCacheLine].load(acq);
-      if (sum == num_workers) break;
-    }
-  }
-
- private:
-  // Sharded to reduce contention. Four counters, each in their own cache line.
-  std::atomic<uint64_t> num_finished_[4 * kU64PerCacheLine];
-};
-
-// All mutable pool and worker state.
-struct alignas(HWY_ALIGNMENT) PoolMem {
-  PoolWorker& Worker(size_t thread) {
-    return *reinterpret_cast<PoolWorker*>(reinterpret_cast<uint8_t*>(&barrier) +
-                                          sizeof(barrier) +
-                                          thread * sizeof(PoolWorker));
-  }
-
-  PoolTasks tasks;
-  PoolCommands commands;
-  static_assert(sizeof(tasks) + sizeof(commands) <= HWY_ALIGNMENT, "");
-  // barrier is more write-heavy, hence keep in another cache line.
-  uint8_t padding[HWY_ALIGNMENT - sizeof(tasks) - sizeof(commands)];
-
-  PoolBarrier barrier;
-  static_assert(sizeof(barrier) % HWY_ALIGNMENT == 0, "");
-
-  // Followed by `num_workers` PoolWorker.
-};
-
-// Aligned allocation and initialization of variable-length PoolMem.
-class PoolMemOwner {
- public:
-  explicit PoolMemOwner(size_t num_threads)
-      // The main thread also participates.
-      : num_workers_(num_threads + 1) {
-    const size_t size = sizeof(PoolMem) + num_workers_ * sizeof(PoolWorker);
-    bytes_ = hwy::AllocateAligned<uint8_t>(size);
-    HWY_ASSERT(bytes_);
-    mem_ = new (bytes_.get()) PoolMem();
-
-    for (size_t thread = 0; thread < num_workers_; ++thread) {
-      new (&mem_->Worker(thread)) PoolWorker(thread, num_workers_);
-    }
-
-    // Publish non-atomic stores in mem_ - that is the only shared state workers
-    // access before they call WorkerWaitForNewCommand.
-    std::atomic_thread_fence(std::memory_order_release);
-  }
-
-  ~PoolMemOwner() {
-    for (size_t thread = 0; thread < num_workers_; ++thread) {
-      mem_->Worker(thread).~PoolWorker();
-    }
-    mem_->~PoolMem();
-  }
-
-  size_t NumWorkers() const { return num_workers_; }
-
-  PoolMem* Mem() const { return mem_; }
-
- private:
-  const size_t num_workers_;  // >= 1
-  // Aligned allocation ensures we do not straddle cache lines.
-  hwy::AlignedFreeUniquePtr<uint8_t[]> bytes_;
-  PoolMem* mem_;
-};
-
-// Plans and executes parallel-for loops with work-stealing. No synchronization
-// because there is no mutable shared state.
-class ParallelFor {  // 0 bytes
-  // A prior version of this code attempted to assign only as much work as a
-  // thread will actually use. As with OpenMP's 'guided' strategy, we assigned
-  // remaining/(k*num_threads) in each iteration. Although the worst-case
-  // imbalance is bounded, this required several rounds of work allocation, and
-  // the atomic counter did not scale to > 30 threads.
-  //
-  // We now use work stealing instead, where already-finished threads look for
-  // and perform work from others, as if they were that thread. This deals with
-  // imbalances as they arise, but care is required to reduce contention. We
-  // randomize the order in which threads choose victims to steal from.
-  //
-  // Results: across 10K calls Run(), we observe a mean of 5.1 tasks per
-  // thread, and standard deviation 0.67, indicating good load-balance.
-
- public:
-  // Make preparations for workers to later run `closure(i)` for all `i` in
-  // `[begin, end)`. Called from the main thread; workers are initializing or
-  // spinning for a command. Returns false if there are no tasks or workers.
-  template <class Closure>
-  static bool Plan(uint64_t begin, uint64_t end, size_t num_workers,
-                   const Closure& closure, PoolMem& mem) {
-    // If there are no tasks, we are done.
-    HWY_DASSERT(begin <= end);
-    const size_t num_tasks = static_cast<size_t>(end - begin);
-    if (HWY_UNLIKELY(num_tasks == 0)) return false;
-
-    // If there are no workers or only a singly task, run on the main thread
-    // without the overhead of planning.
-    if (HWY_UNLIKELY(num_workers <= 1 || num_tasks == 1)) {
-      for (uint64_t task = begin; task < end; ++task) {
-        closure(task, /*thread=*/0);
-      }
-      return false;
-    }
-
-    // Store for later retrieval by all workers in WorkerRun. Must happen after
-    // the loop above because it may be re-entered by concurrent threads.
-    mem.tasks.Store(closure, begin, end);
-
-    // Assigning all remainders to the last thread causes imbalance. We instead
-    // give one more to each thread whose index is less.
-    const size_t remainder = num_tasks % num_workers;
-    const size_t min_tasks = num_tasks / num_workers;
-
-    uint64_t task = begin;
-    for (size_t thread = 0; thread < num_workers; ++thread) {
-      const uint64_t my_end = task + min_tasks + (thread < remainder);
-      mem.Worker(thread).SetRange(task, my_end);
-      task = my_end;
-    }
-    HWY_DASSERT(task == end);
-    return true;
-  }
-
-  // Must be called for each `thread` in [0, num_workers), but only if
-  // Plan returned true.
-  static HWY_POOL_INLINE void WorkerRun(const size_t thread, size_t num_workers,
-                                        PoolMem& mem) {
-    // Nonzero, otherwise Plan returned false and this should not be called.
-    HWY_DASSERT(num_workers != 0);
-    HWY_DASSERT(thread < num_workers);
-
-    const PoolTasks& tasks = mem.tasks;
-
-    uint64_t begin, end;
-    const void* opaque;
-    const auto func = tasks.WorkerGet(begin, end, opaque);
-
-    // Special case for <= 1 task per worker - avoid any shared state.
-    if (HWY_UNLIKELY(end <= begin + num_workers)) {
-      const uint64_t task = begin + thread;
-      if (HWY_LIKELY(task < end)) {
-        func(opaque, task, thread);
-      }
-      return;
-    }
-
-    // For each worker in random order, attempt to do all their work.
-    for (uint32_t victim : mem.Worker(thread).Victims()) {
-      PoolWorker* other_worker = &mem.Worker(victim);
-
-      // Until all of other_worker's work is done:
-      const uint64_t other_end = other_worker->WorkerGetEnd();
-      for (;;) {
-        // On x86 this generates a LOCK prefix, but that is only expensive if
-        // there is actually contention, which is unlikely because we shard the
-        // counters, threads do not quite proceed in lockstep due to memory
-        // traffic, and stealing happens in semi-random order.
-        uint64_t task = other_worker->WorkerReserveTask();
-
-        // The worker that first sets `task` to `other_end` exits this loop.
-        // After that, `task` can be incremented up to `num_workers - 1` times,
-        // once per other worker.
-        HWY_DASSERT(task < other_end + num_workers);
-
-        if (HWY_UNLIKELY(task >= other_end)) {
-          hwy::Pause();  // Reduce coherency traffic while stealing.
-          break;
-        }
-        // `thread` is the one we are actually running on; this is important
-        // because it is the TLS index for user code.
-        func(opaque, task, thread);
-      }
-    }
-  }
-};
+static_assert(sizeof(PoolWaiter) == 8, "");
 
 #pragma pack(pop)
 
-// Sets the name of the current thread to the format string `format`, which must
-// include %d for `thread`. Currently only implemented for pthreads (*nix and
-// OSX); Windows involves throwing an exception.
-static inline void SetThreadName(const char* format, int thread) {
-#if HWY_OS_LINUX
-  char buf[16] = {};  // Linux limit, including \0
-  const int chars_written = snprintf(buf, sizeof(buf), format, thread);
-  HWY_ASSERT(0 < chars_written &&
-             chars_written <= static_cast<int>(sizeof(buf) - 1));
-  HWY_ASSERT(0 == pthread_setname_np(pthread_self(), buf));
-#else
-  (void)format;
-  (void)thread;
-#endif
-}
+// State shared by main and worker threads.
+class PoolShared {
+ public:
+  explicit PoolShared(size_t num_threads) : num_threads(num_threads) {}
+
+  // The two functions below inline the barrier and spin policy classes to
+  // minimize branching:
+
+  // Called from worker threads' `ThreadFunc`.
+  template <class Spin, class Barrier>
+  void WorkNotifyWait(const size_t thread, PoolConfig& worker_config,
+                      uint32_t& prev, const Spin& spin,
+                      const Barrier& barrier) {
+    DoWork(thread);
+
+    barrier.WorkerNotify(thread, num_threads, workers, worker_config.seq, spin);
+
+    waiter.WaitUntilDifferent(worker_config, spin, prev);
+  }
+
+  // Called on main thread during `ThreadPool::Run()`.
+  template <class Spin, class Barrier>
+  void WakeWorkWait(PoolWaitMode prev_wait_mode, const Spin& spin,
+                    const Barrier& barrier) {
+    barrier.Reset(workers);
+
+    waiter.Wake(prev_wait_mode, main_config);
+
+    // Also perform work on the main thread before waiting.
+    DoWork(num_threads);
+
+    // Independent of wait mode, spins until all threads called `WorkerNotify`.
+    // Note that workers threads then `WaitUntilDifferent` until we later call
+    // `Wake()` again, so there is no 'release' phase of the barrier.
+    barrier.Wait(num_threads, workers, main_config.seq, spin);
+  }
+
+  PoolWorker* workers;  // points inside `ThreadPool::worker_storage_`.
+  PoolWaiter waiter;
+  // TODO: autotune this.
+  PoolConfig main_config = PoolConfig(BarrierType::kGroup4, DetectSpin());
+  PoolRange range;
+
+ private:
+  void DoWork(size_t worker) {
+    if (range.NumTasks() > num_threads + 1) {
+      PoolWorker::WorkerRunWithStealing(worker, workers, range.Func(),
+                                        range.Opaque());
+    } else {
+      range.WorkerRunSingle(worker);
+    }
+  }
+
+  // Passed to `Barrier*::WorkerNotify`. Only threads participate in the
+  // barrier; the main thread only calls `Wait`, not `WorkerNotify`.
+  const size_t num_threads;
+};
 
 // Highly efficient parallel-for, intended for workloads with thousands of
 // fork-join regions which consist of calling tasks[t](i) for a few hundred i,
@@ -517,44 +604,14 @@ static inline void SetThreadName(const char* format, int thread) {
 // pointer to a lambda function, without the allocation/indirection required for
 // std::function.
 //
-// To reduce fork/join latency, we use an efficient barrier, optionally
-// support spin-waits via SetWaitMode, and avoid any mutex/lock.
+// To reduce fork/join latency, we choose an efficient barrier, optionally
+// enable spin-waits via SetWaitMode, and avoid any mutex/lock.
 //
 // To eliminate false sharing and enable reasoning about cache line traffic, the
-// worker state uses a single aligned allocation.
+// class is aligned and holds all worker state.
 //
 // For load-balancing, we use work stealing in random order.
-class ThreadPool {
-  // Ensures ThreadFunc variable and class member start with the same value.
-  static constexpr PoolWaitMode kInitialWaitMode = PoolWaitMode::kBlock;
-
-  static void ThreadFunc(size_t thread, size_t num_workers, PoolMem* mem) {
-    HWY_DASSERT(thread < num_workers);
-    SetThreadName("worker%03zu", static_cast<int>(thread));
-
-    // Ensure mem is ready to use (synchronize with PoolMemOwner's fence).
-    std::atomic_thread_fence(std::memory_order_acquire);
-
-    PoolWaitMode wait_mode = kInitialWaitMode;
-    PoolCommands& commands = mem->commands;
-    uint32_t prev_seq_cmd = PoolCommands::WorkerInitialSeqCmd();
-
-    for (;;) {
-      const uint32_t command =
-          commands.WorkerWaitForNewCommand(wait_mode, prev_seq_cmd);
-      if (HWY_UNLIKELY(command == PoolCommands::kTerminate)) {
-        return;  // exits thread
-      } else if (HWY_LIKELY(command == PoolCommands::kWork)) {
-        ParallelFor::WorkerRun(thread, num_workers, *mem);
-      } else {
-        HWY_DASSERT(command == PoolCommands::kSetBlock ||
-                    command == PoolCommands::kSetSpin);
-        wait_mode = static_cast<PoolWaitMode>(command);
-      }
-      mem->barrier.WorkerArrive(thread);
-    }
-  }
-
+class alignas(HWY_ALIGNMENT) ThreadPool {
  public:
   // This typically includes hyperthreads, hence it is a loose upper bound.
   // -1 because these are in addition to the main thread.
@@ -568,96 +625,108 @@ class ThreadPool {
     return static_cast<size_t>(std::thread::hardware_concurrency() - 1);
   }
 
-  // `num_threads` should not exceed `MaxThreads()`. If `num_threads` <= 1,
-  // Run() runs only on the main thread. Otherwise, we launch `num_threads - 1`
-  // threads because the main thread also participates.
-  explicit ThreadPool(size_t num_threads) : owner_(num_threads) {
-    (void)busy_;  // unused in non-debug builds, avoid warning
-    const size_t num_workers = owner_.NumWorkers();
+  // `num_threads` is the number of *additional* threads to spawn, which should
+  // not exceed `MaxThreads()`. Note that the main thread also performs work.
+  explicit ThreadPool(size_t num_threads)
+      : shared_(num_threads), div_workers_(ClampedNumWorkers(num_threads)) {
+    shared_.workers = PoolWorkerLifecycle::Init(worker_bytes_, div_workers_);
 
-    // Launch threads without waiting afterwards: they will receive the next
-    // PoolCommands once ready.
-    threads_.reserve(num_workers - 1);
-    for (size_t thread = 0; thread < num_workers - 1; ++thread) {
-      threads_.emplace_back(ThreadFunc, thread, num_workers, owner_.Mem());
+    threads_.reserve(num_threads);
+    for (size_t thread = 0; thread < num_threads; ++thread) {
+      threads_.emplace_back(ThreadFunc(thread, &shared_));
     }
+
+    // No barrier required because `WaitUntilDifferent` works even if it is
+    // called after `Wake`, because it checks for a new/different value, and
+    // only one value is sent before the next barrier.
   }
 
   // Waits for all threads to exit.
   ~ThreadPool() {
-    PoolMem& mem = *owner_.Mem();
     // Requests threads exit. No barrier required, we wait for them below.
-    mem.commands.Broadcast(wait_mode_, PoolCommands::kTerminate);
+    shared_.waiter.RequestStop();
+    shared_.waiter.Wake(shared_.main_config.wait_mode, shared_.main_config);
 
     for (std::thread& thread : threads_) {
       HWY_ASSERT(thread.joinable());
       thread.join();
     }
+
+    PoolWorkerLifecycle::Destroy(shared_.workers, NumWorkers());
   }
 
   ThreadPool(const ThreadPool&) = delete;
   ThreadPool& operator&(const ThreadPool&) = delete;
 
-  // Returns number of PoolWorker, i.e., one more than the largest `thread`
+  // Returns number of PoolWorker, i.e., one more than the largest `worker`
   // argument. Useful for callers that want to allocate thread-local storage.
-  size_t NumWorkers() const { return owner_.NumWorkers(); }
-
-  // `mode` is initially `kBlock`, which means futex. Switching to `kSpin`
-  // reduces fork-join overhead especially when there are many calls to `Run`,
-  // but wastes power when waiting over long intervals. Inexpensive, OK to call
-  // multiple times, but not concurrently with any `Run`.
-  void SetWaitMode(PoolWaitMode mode) {
-    PoolMem& mem = *owner_.Mem();
-    const size_t num_workers = NumWorkers();
-
-    // Run must not be active, otherwise we may overwrite the previous command
-    // before it is seen by all workers.
-    HWY_DASSERT(busy_.fetch_add(1) == 0);
-
-    mem.barrier.Reset();
-
-    HWY_DASSERT(mode == PoolWaitMode::kBlock || mode == PoolWaitMode::kSpin);
-    mem.commands.Broadcast(wait_mode_, static_cast<uint32_t>(mode));
-
-    // Wait for all to ACK so that we can avoid a syscall in Broadcast.
-    mem.barrier.WorkerArrive(num_workers - 1);
-    mem.barrier.WaitAll(num_workers);
-
-    // Change after all threads have set their local variable and use this in
-    // subsequent calls to Broadcast.
-    wait_mode_ = mode;
-
-    HWY_DASSERT(busy_.fetch_add(-1) == 1);
+  size_t NumWorkers() const {
+    return static_cast<size_t>(div_workers_.GetDivisor());
   }
 
-  // parallel-for: Runs `closure(task, thread)` on worker thread(s) for every
-  // `task` in `[begin, end)`. Note that the unit of work should be large
-  // enough to amortize the function call overhead, but small enough that each
-  // worker processes a few tasks. Thus each `task` is usually a loop.
+  // `mode` defaults to `kBlock`, which means futex. Switching to `kSpin`
+  // reduces fork-join overhead especially when there are many calls to `Run`,
+  // but wastes power when waiting over long intervals. Must not be called
+  // concurrently with any `Run`, because this uses the same waiter/barrier.
+  void SetWaitMode(PoolWaitMode mode) {
+    if (NumWorkers() == 1) {
+      shared_.main_config.wait_mode = mode;
+      return;
+    }
+
+    SetBusy();
+
+    const PoolWaitMode prev_wait_mode = shared_.main_config.wait_mode;
+    shared_.main_config.wait_mode = mode;
+    // We just want a barrier without duplicating `WakeWorkWait`. Set up a no-op
+    // function for it to call. Must be no more tasks than workers because we
+    // do not call `DivideRangeAmongWorkers`.
+    shared_.range.Set(0, NumWorkers(), [](size_t, size_t) {});
+    CallWithSpinAndBarrier(shared_.main_config,
+                           WakeWorkWait(prev_wait_mode, shared_));
+    // After waking, workers are using the new config for their next wait.
+
+    ClearBusy();
+  }
+
+  // For printing which are in use.
+  SpinType Spin() const { return shared_.main_config.spin_type; }
+  BarrierType Barrier() const { return shared_.main_config.barrier_type; }
+
+  // parallel-for: Runs `closure(task, worker)` on workers for every `task` in
+  // `[begin, end)`. Note that the unit of work should be large enough to
+  // amortize the function call overhead, but small enough that each worker
+  // processes a few tasks. Thus each `task` is usually a loop.
   //
-  // Not thread-safe - concurrent calls to `Run` in the same ThreadPool are
-  // forbidden unless NumWorkers() == 0. We check for that in debug builds.
+  // Not thread-safe - concurrent parallel-for in the same ThreadPool are
+  // forbidden unless `NumWorkers() == 1` or `end <= begin + 1`.
   template <class Closure>
   void Run(uint64_t begin, uint64_t end, const Closure& closure) {
+    const size_t num_tasks = static_cast<size_t>(end - begin);
     const size_t num_workers = NumWorkers();
-    PoolMem& mem = *owner_.Mem();
 
-    if (HWY_LIKELY(ParallelFor::Plan(begin, end, num_workers, closure, mem))) {
-      // Only check if we are going to fork/join.
-      HWY_DASSERT(busy_.fetch_add(1) == 0);
-
-      mem.barrier.Reset();
-      mem.commands.Broadcast(wait_mode_, PoolCommands::kWork);
-
-      // Also perform work on main thread instead of busy-waiting.
-      const size_t thread = num_workers - 1;
-      ParallelFor::WorkerRun(thread, num_workers, mem);
-      mem.barrier.WorkerArrive(thread);
-
-      mem.barrier.WaitAll(num_workers);
-
-      HWY_DASSERT(busy_.fetch_add(-1) == 1);
+    // If zero or one task, or no extra threads, run on the main thread without
+    // setting any member variables, because we may be re-entering Run.
+    if (HWY_UNLIKELY(num_tasks <= 1 || num_workers == 1)) {
+      for (uint64_t task = begin; task < end; ++task) {
+        closure(task, /*worker=*/0);
+      }
+      return;
     }
+
+    SetBusy();
+    shared_.range.Set(begin, end, closure);
+
+    // More than one task per worker: use work stealing.
+    if (HWY_LIKELY(num_tasks > num_workers)) {
+      PoolWorker::DivideRangeAmongWorkers(begin, end, div_workers_,
+                                          shared_.workers);
+    }
+
+    CallWithSpinAndBarrier(
+        shared_.main_config,
+        WakeWorkWait(shared_.main_config.wait_mode, shared_));
+    ClearBusy();
   }
 
   // Can pass this as init_closure when no initialization is needed.
@@ -670,8 +739,8 @@ class ThreadPool {
 
   // DEPRECATED prior interface with 32-bit tasks and first calling
   // `init_closure(num_threads)`. Instead, perform any init before this, calling
-  // NumWorkers() for an upper bound on the thread indices, then call the
-  // other overload.
+  // NumWorkers() for an upper bound on the worker index, then call the other
+  // overload of Run().
   template <class InitClosure, class RunClosure>
   bool Run(uint64_t begin, uint64_t end, const InitClosure& init_closure,
            const RunClosure& run_closure) {
@@ -680,19 +749,151 @@ class ThreadPool {
     return true;
   }
 
-  // Only for use in tests.
-  PoolMem& InternalMem() const { return *owner_.Mem(); }
-
  private:
+  // Some CPUs already have more than this many threads, but rather than one
+  // large pool, we assume applications create multiple pools, ideally per
+  // cluster (cores sharing a cache), because this improves locality and barrier
+  // latency. In that case, this is a generous upper bound.
+  static constexpr size_t kMaxWorkers = 64;
+
+  // Used to initialize ThreadPool::div_workers_ from its ctor argument.
+  static size_t ClampedNumWorkers(size_t num_threads) {
+    size_t num_workers = num_threads + 1;  // includes main thread
+    HWY_ASSERT(num_workers != 0);          // did not overflow
+
+    // Upper bound is required for `worker_bytes_`.
+    if (HWY_UNLIKELY(num_workers > kMaxWorkers)) {
+      HWY_WARN("ThreadPool: clamping num_workers %zu to %zu.", num_workers,
+               kMaxWorkers);
+      num_workers = kMaxWorkers;
+    }
+    return num_workers;
+  }
+
+  // Called by `CallWithSpin`; calls `func(spin, barrier)` given `barrier_type`.
+  template <class Func>
+  class CallWithBarrier {
+   public:
+    CallWithBarrier(BarrierType barrier_type, Func&& func)
+        : func_(std::forward<Func>(func)), barrier_type_(barrier_type) {}
+
+    template <class Spin>
+    void operator()(const Spin& spin) const {
+      switch (barrier_type_) {
+        case BarrierType::kOrdered:
+          func_(spin, BarrierOrdered());
+          break;
+        case hwy::BarrierType::kCounter1:
+          func_(spin, BarrierCounter1());
+          break;
+        case hwy::BarrierType::kGroup2:
+          func_(spin, BarrierGroup<2>());
+          break;
+        case hwy::BarrierType::kGroup4:
+          func_(spin, BarrierGroup<4>());
+          break;
+      }
+    }
+
+   private:
+    Func func_;
+    BarrierType barrier_type_;
+  };
+
+  // Double-dispatch: calls `Func::operator()(spin, barrier)`.
+  template <class Func>
+  static void CallWithSpinAndBarrier(const PoolConfig& config, Func&& func) {
+    CallWithSpin(
+        config.spin_type,
+        CallWithBarrier<Func>(config.barrier_type, std::forward<Func>(func)));
+  }
+
+  class alignas(8) ThreadFunc {
+   public:
+    ThreadFunc(size_t thread, PoolShared* shared)
+        : thread_(thread), shared_(shared) {
+      HWY_DASSERT(IsAligned(this, 8));
+    }
+
+    // Called by std::thread.
+    void operator()() {
+      SetThreadName("worker%03zu", static_cast<int>(thread_));
+
+      // Ensure main thread's writes are visible (synchronizes with fence in
+      // `WorkerLifecycle::Init`).
+      std::atomic_thread_fence(std::memory_order_acquire);
+
+      // Wait for the main thread to call `Wake()`. `SpinPause()` is ignored
+      // because `worker_config_.wait_mode` is initially `kBlock`. By pulling
+      // this out of the loop, we avoid having to skip the work/barrier during
+      // the first loop iteration.
+      shared_->waiter.WaitUntilDifferent(worker_config_, SpinPause(), prev_);
+
+      // `~ThreadPool` sets the stop flag that exits this loop and thus thread.
+      while (!shared_->waiter.WantStop()) {
+        // We just woke up. Dispatch each time so that we switch to the barrier
+        // and spin types written to `worker_config_` by the other `operator()`.
+        CallWithSpinAndBarrier(worker_config_, *this);
+      }
+    }
+
+    // Called from the other `operator()` via `CallWithSpinAndBarrier`.
+    template <class Spin, class Barrier>
+    void operator()(const Spin& spin, const Barrier& barrier) {
+      shared_->WorkNotifyWait(thread_, worker_config_, prev_, spin, barrier);
+    }
+
+   private:
+    const size_t thread_;
+    PoolShared* const shared_;
+    // Safe but ignored defaults: overwritten by `WaitUntilDifferent`.
+    PoolConfig worker_config_ =
+        PoolConfig(BarrierType::kGroup4, SpinType::kPause);
+    // Initial value matters, see `PoolWaitMode`.
+    uint32_t prev_ = 0;
+  };
+
+  // Adapter template instead of generic lambda so this works in C++11.
+  class alignas(8) WakeWorkWait {
+   public:
+    WakeWorkWait(PoolWaitMode prev_wait_mode, PoolShared& shared)
+        : shared_(shared), prev_wait_mode_(prev_wait_mode) {
+      HWY_DASSERT(IsAligned(this, 8));
+    }
+
+    template <class Spin, class Barrier>
+    void operator()(const Spin& spin, const Barrier& barrier) const {
+      shared_.WakeWorkWait(prev_wait_mode_, spin, barrier);
+    }
+
+   private:
+    PoolShared& shared_;
+    const PoolWaitMode prev_wait_mode_;
+    HWY_MAYBE_UNUSED uint8_t padding_[7];
+  };
+  static_assert(sizeof(WakeWorkWait) == 16, "");
+
+  // Debug-only re-entrancy detection.
+  void SetBusy() { HWY_DASSERT(!busy_.test_and_set()); }
+  void ClearBusy() {
+    if constexpr (HWY_IS_DEBUG_BUILD) busy_.clear();
+  }
+
+  PoolShared shared_;
+
+  Divisor64 div_workers_;
+
+  // In debug builds, detects if functions are re-entered.
+  std::atomic_flag busy_ = ATOMIC_FLAG_INIT;
+
   // Unmodified after ctor, but cannot be const because we call thread::join().
   std::vector<std::thread> threads_;
 
-  PoolMemOwner owner_;
-  PoolWaitMode wait_mode_ = kInitialWaitMode;
-
-  // In debug builds, detects if functions are re-entered; always present so
-  // that the memory layout does not change.
-  std::atomic<int> busy_{0};
+  // Last because it is large. Store inside ThreadPool so that callers can bind
+  // it to the NUMA node's memory. Not stored inside WorkerLifecycle because
+  // that class would be initialized after workers_.
+  alignas(HWY_ALIGNMENT) uint8_t
+      worker_bytes_[sizeof(PoolWorker) * kMaxWorkers];
 };
 
 }  // namespace hwy
