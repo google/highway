@@ -25,6 +25,19 @@
 
 namespace hwy {
 
+// Based on https://github.com/numpy/numpy/issues/16313#issuecomment-641897028
+static HWY_INLINE uint64_t RandomBits(uint64_t* HWY_RESTRICT state) {
+  const uint64_t a = state[0];
+  const uint64_t b = state[1];
+  const uint64_t w = state[2] + 1;
+  const uint64_t next = a ^ w;
+  state[0] = (b + (b << 3)) ^ (b >> 11);
+  const uint64_t rot = (b << 24) | (b >> 40);
+  state[1] = rot + next;
+  state[2] = w;
+  return next;
+}
+
 // Internal constants - these are to avoid magic numbers/literals and cannot be
 // changed without also changing the associated code.
 struct SortConstants {

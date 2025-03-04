@@ -1199,19 +1199,6 @@ HWY_INLINE V MedianOf3(Traits st, V v0, V v1, V v2) {
   return v1;
 }
 
-// Based on https://github.com/numpy/numpy/issues/16313#issuecomment-641897028
-HWY_INLINE uint64_t RandomBits(uint64_t* HWY_RESTRICT state) {
-  const uint64_t a = state[0];
-  const uint64_t b = state[1];
-  const uint64_t w = state[2] + 1;
-  const uint64_t next = a ^ w;
-  state[0] = (b + (b << 3)) ^ (b >> 11);
-  const uint64_t rot = (b << 24) | (b >> 40);
-  state[1] = rot + next;
-  state[2] = w;
-  return next;
-}
-
 // Returns slightly biased random index of a chunk in [0, num_chunks).
 // See https://www.pcg-random.org/posts/bounded-rands.html.
 HWY_INLINE size_t RandomChunkIndex(const uint32_t num_chunks, uint32_t bits) {
