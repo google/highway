@@ -2952,6 +2952,8 @@ HWY_API Vec512<int64_t> BroadcastSignBit(Vec512<int64_t> v) {
 
 // ------------------------------ Floating-point classification (Not)
 
+#if HWY_HAVE_FLOAT16 || HWY_IDE
+
 namespace detail {
 
 template <int kCategories>
@@ -2967,8 +2969,6 @@ __mmask32 Fix_mm512_fpclass_ph_mask(__m512h v) {
 }
 
 }  // namespace detail
-
-#if HWY_HAVE_FLOAT16 || HWY_IDE
 
 HWY_API Mask512<float16_t> IsNaN(Vec512<float16_t> v) {
   constexpr int kCategories = HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN;
