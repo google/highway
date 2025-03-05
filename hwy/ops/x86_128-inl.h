@@ -1053,6 +1053,16 @@ HWY_API MFromD<DTo> DemoteMaskTo(DTo /*d_to*/, DFrom /*d_from*/,
 #define HWY_NATIVE_COMBINE_MASKS
 #endif
 
+// For Clang and GCC, mask intrinsics (KORTEST) weren't added until recently.
+#if !defined(HWY_COMPILER_HAS_MASK_INTRINSICS)
+#if HWY_COMPILER_MSVC != 0 || HWY_COMPILER_GCC_ACTUAL >= 700 || \
+    HWY_COMPILER_CLANG >= 800
+#define HWY_COMPILER_HAS_MASK_INTRINSICS 1
+#else
+#define HWY_COMPILER_HAS_MASK_INTRINSICS 0
+#endif
+#endif  // HWY_COMPILER_HAS_MASK_INTRINSICS
+
 template <class D, HWY_IF_LANES_D(D, 2)>
 HWY_API MFromD<D> CombineMasks(D /*d*/, MFromD<Half<D>> hi,
                                MFromD<Half<D>> lo) {
@@ -1526,16 +1536,6 @@ HWY_API V IfThenZeroElse(MFromD<D> mask, V no) {
 }
 
 // ------------------------------ Mask logical
-
-// For Clang and GCC, mask intrinsics (KORTEST) weren't added until recently.
-#if !defined(HWY_COMPILER_HAS_MASK_INTRINSICS)
-#if HWY_COMPILER_MSVC != 0 || HWY_COMPILER_GCC_ACTUAL >= 700 || \
-    HWY_COMPILER_CLANG >= 800
-#define HWY_COMPILER_HAS_MASK_INTRINSICS 1
-#else
-#define HWY_COMPILER_HAS_MASK_INTRINSICS 0
-#endif
-#endif  // HWY_COMPILER_HAS_MASK_INTRINSICS
 
 namespace detail {
 
