@@ -228,7 +228,7 @@ namespace hwy {
 // Better:
 //   HWY_ASSUME(x == 2);
 //   HWY_ASSUME(y == 3);
-#if HWY_HAS_CPP_ATTRIBUTE(assume)
+#if (HWY_CXX_LANG >= 202302L) && HWY_HAS_CPP_ATTRIBUTE(assume)
 #define HWY_ASSUME(expr) [[assume(expr)]]
 #elif HWY_COMPILER_MSVC || HWY_COMPILER_ICC
 #define HWY_ASSUME(expr) __assume(expr)
