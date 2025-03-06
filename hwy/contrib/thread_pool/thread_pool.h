@@ -74,7 +74,7 @@ class ShuffledIota {
   uint32_t Next(uint32_t current, const Divisor64& divisor) const {
     HWY_DASSERT(current < divisor.GetDivisor());
     // (coprime * i + current) % size, see https://lemire.me/blog/2017/09/18/.
-    return divisor.Remainder(current + coprime_);
+    return static_cast<uint32_t>(divisor.Remainder(current + coprime_));
   }
 
   // Returns true if a and b have no common denominator except 1. Based on
@@ -387,13 +387,13 @@ class BarrierCounter1 {
   }
 
   template <class Spin>
-  void WorkerNotify(size_t thread, size_t /*num_threads*/, PoolWorker* workers,
-                    uint32_t seq, const Spin& /*spin*/) const {
+  void WorkerNotify(size_t /*thread*/, size_t /*num_threads*/, PoolWorker* workers,
+                    uint32_t /*seq*/, const Spin& /*spin*/) const {
     workers[0].Epoch().fetch_add(1, std::memory_order_acq_rel);
   }
 
   template <class Spin>
-  void Wait(size_t num_threads, PoolWorker* workers, uint32_t seq,
+  void Wait(size_t num_threads, PoolWorker* workers, uint32_t /*seq*/,
             const Spin& spin) const {
     (void)spin.UntilEqual(static_cast<uint32_t>(num_threads),
                           workers[0].Epoch());
