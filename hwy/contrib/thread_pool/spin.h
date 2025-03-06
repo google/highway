@@ -44,8 +44,24 @@
 #endif
 #endif  // HWY_ENABLE_UMONITOR
 
+// Inline assembly is preferred because it allows inlining of `UntilDifferent`
+// etc, but we also support intrinsics for MSVC.
+#ifndef HWY_ENABLE_SPIN_ASM  // allow override
+#if (HWY_COMPILER_CLANG || HWY_COMPILER_GCC) && HWY_ARCH_X86_64
+#define HWY_ENABLE_SPIN_ASM 1
+#else
+#define HWY_ENABLE_SPIN_ASM 0
+#endif
+#endif  // HWY_ENABLE_SPIN_ASM
+
 #if HWY_ENABLE_MONITORX || HWY_ENABLE_UMONITOR
+#if HWY_ENABLE_SPIN_ASM
+#define HWY_INLINE_SPIN HWY_INLINE  // can inline functions with inline assembly
+#else
+// Intrinsics require attributes, which prevent inlining.
+#define HWY_INLINE_SPIN
 #include <x86intrin.h>
+#endif  // HWY_ENABLE_SPIN_ASM
 
 #include "hwy/x86_cpuid.h"
 #endif  // HWY_ENABLE_MONITORX || HWY_ENABLE_UMONITOR
@@ -66,8 +82,8 @@ struct SpinResult {
 // `HWY_TARGET` and its runtime dispatch mechanism. Returned by `Type()`, also
 // used by callers to set the `disabled` argument for `DetectSpin`.
 enum class SpinType : uint8_t {
-  kMonitorX,  // AMD
-  kUMonitor,  // Intel
+  kMonitorX = 1,  // AMD
+  kUMonitor,      // Intel
   kPause
 };
 
@@ -95,8 +111,8 @@ struct SpinPause {
 
   // Spins until `watched != prev` and returns the new value, similar to
   // `BlockUntilDifferent` in `futex.h`.
-  SpinResult UntilDifferent(const uint32_t prev,
-                            std::atomic<uint32_t>& watched) const {
+  HWY_INLINE SpinResult UntilDifferent(
+      const uint32_t prev, const std::atomic<uint32_t>& watched) const {
     for (uint32_t reps = 0;; ++reps) {
       const uint32_t current = watched.load(std::memory_order_acquire);
       if (current != prev) return SpinResult{current, reps};
@@ -105,8 +121,8 @@ struct SpinPause {
   }
 
   // Returns number of retries until `watched == expected`.
-  size_t UntilEqual(const uint32_t expected,
-                    std::atomic<uint32_t>& watched) const {
+  HWY_INLINE size_t UntilEqual(const uint32_t expected,
+                               const std::atomic<uint32_t>& watched) const {
     for (size_t reps = 0;; ++reps) {
       const uint32_t current = watched.load(std::memory_order_acquire);
       if (current == expected) return reps;
@@ -116,42 +132,60 @@ struct SpinPause {
 };
 
 #if HWY_ENABLE_MONITORX || HWY_IDE
+#if !HWY_ENABLE_SPIN_ASM
 HWY_PUSH_ATTRIBUTES("mwaitx")
+#endif
 
 // AMD's user-mode monitor/wait (Zen2+).
 class SpinMonitorX {
  public:
   SpinType Type() const { return SpinType::kMonitorX; }
 
-  SpinResult UntilDifferent(const uint32_t prev,
-                            std::atomic<uint32_t>& watched) const {
+  HWY_INLINE_SPIN SpinResult UntilDifferent(
+      const uint32_t prev, const std::atomic<uint32_t>& watched) const {
     for (uint32_t reps = 0;; ++reps) {
       uint32_t current = watched.load(std::memory_order_acquire);
       if (current != prev) return SpinResult{current, reps};
-      // No extensions/hints currently defined.
-      _mm_monitorx(&watched, 0, 0);
+      Monitor(&watched);
       // Double-checked 'lock' to avoid missed events:
       current = watched.load(std::memory_order_acquire);
       if (current != prev) return SpinResult{current, reps};
-      _mm_mwaitx(kExtensions, kHints, /*cycles=*/0);
+      Wait();
     }
   }
 
-  size_t UntilEqual(const uint32_t expected,
-                    std::atomic<uint32_t>& watched) const {
+  HWY_INLINE_SPIN size_t UntilEqual(
+      const uint32_t expected, const std::atomic<uint32_t>& watched) const {
     for (size_t reps = 0;; ++reps) {
       uint32_t current = watched.load(std::memory_order_acquire);
       if (current == expected) return reps;
-      // No extensions/hints currently defined.
-      _mm_monitorx(&watched, 0, 0);
+      Monitor(&watched);
       // Double-checked 'lock' to avoid missed events:
       current = watched.load(std::memory_order_acquire);
       if (current == expected) return reps;
-      _mm_mwaitx(kExtensions, kHints, /*cycles=*/0);
+      Wait();
     }
   }
 
  private:
+  static HWY_INLINE void Monitor(const void* addr) {
+    // No extensions/hints currently defined.
+#if HWY_ENABLE_SPIN_ASM
+    asm volatile("monitorx" ::"a"(addr), "c"(0), "d"(0));
+#else
+    _mm_monitorx(const_cast<void*>(addr), 0, 0);
+#endif
+  }
+
+  static HWY_INLINE void Wait() {
+#if HWY_ENABLE_SPIN_ASM
+    // EBX=0 cycles means no timeout/infinite.
+    asm volatile("mwaitx" ::"a"(kHints), "b"(0), "c"(kExtensions));
+#else
+    _mm_mwaitx(kExtensions, kHints, /*cycles=*/0);
+#endif
+  }
+
   // 0xF would be C0. Its wakeup latency is less than 0.1 us shorter, and
   // package power is sometimes actually higher than with Pause. The
   // difference in spurious wakeups is minor.
@@ -161,44 +195,65 @@ class SpinMonitorX {
   static constexpr unsigned kExtensions = 0;
 };
 
+#if !HWY_ENABLE_SPIN_ASM
 HWY_POP_ATTRIBUTES
+#endif
 #endif  // HWY_ENABLE_MONITORX
 
 #if HWY_ENABLE_UMONITOR || HWY_IDE
+#if !HWY_ENABLE_SPIN_ASM
 HWY_PUSH_ATTRIBUTES("waitpkg")
+#endif
 
 // Intel's user-mode monitor/wait (SPR+).
 class SpinUMonitor {
  public:
   SpinType Type() const { return SpinType::kUMonitor; }
 
-  SpinResult UntilDifferent(const uint32_t prev,
-                            std::atomic<uint32_t>& watched) const {
+  HWY_INLINE_SPIN SpinResult UntilDifferent(
+      const uint32_t prev, const std::atomic<uint32_t>& watched) const {
     for (uint32_t reps = 0;; ++reps) {
       uint32_t current = watched.load(std::memory_order_acquire);
       if (current != prev) return SpinResult{current, reps};
-      _umonitor(&watched);
+      Monitor(&watched);
       // Double-checked 'lock' to avoid missed events:
       current = watched.load(std::memory_order_acquire);
       if (current != prev) return SpinResult{current, reps};
-      _umwait(kControl, kDeadline);
+      Wait();
     }
   }
 
-  size_t UntilEqual(const uint32_t expected,
-                    std::atomic<uint32_t>& watched) const {
+  HWY_INLINE_SPIN size_t UntilEqual(
+      const uint32_t expected, const std::atomic<uint32_t>& watched) const {
     for (size_t reps = 0;; ++reps) {
       uint32_t current = watched.load(std::memory_order_acquire);
       if (current == expected) return reps;
-      _umonitor(&watched);
+      Monitor(&watched);
       // Double-checked 'lock' to avoid missed events:
       current = watched.load(std::memory_order_acquire);
       if (current == expected) return reps;
-      _umwait(kControl, kDeadline);
+      Wait();
     }
   }
 
  private:
+  static HWY_INLINE void Monitor(const void* addr) {
+#if HWY_ENABLE_SPIN_ASM
+    asm volatile("umonitor %%rcx" ::"c"(addr));
+#else
+    _umonitor(const_cast<void*>(addr));
+#endif
+  }
+
+  static HWY_INLINE void Wait() {
+#if HWY_ENABLE_SPIN_ASM
+    asm volatile("umwait %%ecx" ::"c"(kControl), "d"(kDeadline >> 32),
+                 "a"(kDeadline & 0xFFFFFFFFu));
+#else
+    _umwait(kControl, kDeadline);
+#endif
+  }
+
   // 1 would be C0.1. C0.2 has 20x fewer spurious wakeups and additional 4%
   // package power savings vs Pause on SPR. It comes at the cost of
   // 0.4-0.6us higher wake latency, but the total is comparable to Zen4.
@@ -206,7 +261,9 @@ class SpinUMonitor {
   static constexpr uint64_t kDeadline = ~uint64_t{0};  // no timeout, see above
 };
 
+#if !HWY_ENABLE_SPIN_ASM
 HWY_POP_ATTRIBUTES
+#endif
 #endif  // HWY_ENABLE_UMONITOR
 
 // TODO(janwas): add WFE on Arm. May wake at 10 kHz, but still worthwhile.
@@ -244,7 +301,7 @@ static inline SpinType DetectSpin(int disabled = 0) {
 
 // Calls `func(spin)` for the given `spin_type`.
 template <class Func>
-void CallWithSpin(SpinType spin_type, Func&& func) {
+HWY_INLINE void CallWithSpin(SpinType spin_type, Func&& func) {
   switch (spin_type) {
 #if HWY_ENABLE_MONITORX
     case SpinType::kMonitorX:
