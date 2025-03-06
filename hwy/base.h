@@ -2926,9 +2926,15 @@ class Divisor {
 #endif
 #endif  // HWY_HAVE_DIV128
 
-// As above, but for 64-bit divisors: more expensive to compute and initialize.
-// If HWY_HAVE_DIV128, we can precompute the multiplicative inverse.
+// Divisor64 can precompute the multiplicative inverse.
 #if HWY_HAVE_DIV128
+
+#if HWY_COMPILER_MSVC && HWY_ARCH_X86_64
+#pragma intrinsic(_udiv128)
+#pragma intrinsic(__umulh)
+#endif
+
+// As above, but for 64-bit divisors: more expensive to compute and initialize.
 class Divisor64 {
  public:
   explicit Divisor64(uint64_t divisor) : divisor_(divisor) {
