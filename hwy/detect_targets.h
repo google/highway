@@ -214,12 +214,18 @@
 #define HWY_BROKEN_ARM7_BIG_ENDIAN 0
 #endif
 
+#ifdef __ARM_NEON_FP
+#define HWY_HAVE_NEON_FP __ARM_NEON_FP
+#else
+#define HWY_HAVE_NEON_FP 0
+#endif
+
 // armv7-a without a detected vfpv4 is not supported
 // (for example Cortex-A8, Cortex-A9)
 // vfpv4 always have neon half-float _and_ FMA.
 #if HWY_ARCH_ARM_V7 && (__ARM_ARCH_PROFILE == 'A') && \
     !defined(__ARM_VFPV4__) &&                        \
-    !((__ARM_NEON_FP & 0x2 /* half-float */) && (__ARM_FEATURE_FMA == 1))
+    !((HWY_HAVE_NEON_FP & 0x2 /* half-float */) && (__ARM_FEATURE_FMA == 1))
 #define HWY_BROKEN_ARM7_WITHOUT_VFP4 HWY_ALL_NEON
 #else
 #define HWY_BROKEN_ARM7_WITHOUT_VFP4 0
