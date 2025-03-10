@@ -35,6 +35,7 @@
 #include "hwy/tests/test_util-inl.h"  // AdjustedReps
 
 namespace hwy {
+namespace pool {
 namespace {
 
 TEST(ThreadPoolTest, TestCoprime) {
@@ -200,61 +201,64 @@ TEST(ThreadPoolTest, TestMultiplePermutations) {
   }  // size
 }
 
-TEST(ThreadPoolTest, TestConfig) {
-  // Verify encode/decode.
-  PoolConfig config(BarrierType::kOrdered, SpinType::kPause);
-  config.seq = ~0u;
-  PoolConfig decoded(config.Bits());
-  HWY_ASSERT(decoded.seq == (~0u >> 8));  // upper 8 bits are lost.
-  HWY_ASSERT(decoded.spin_type == SpinType::kPause);
-  HWY_ASSERT(decoded.barrier_type == BarrierType::kOrdered);
-  HWY_ASSERT(decoded.wait_mode == PoolWaitMode::kBlock);
-}
-
-class CallWait {
+class DoWait {
  public:
-  CallWait(PoolWaiter& waiter, PoolConfig& config)
-      : waiter_(waiter), config_(config) {}
+  DoWait(Worker* worker, uint32_t epoch) : worker_(worker), epoch_(epoch) {}
 
-  template <class Spin>
-  void operator()(const Spin& spin) {
-    const uint32_t prev_before = prev_;
-    waiter_.WaitUntilDifferent(config_, spin, prev_);
-    HWY_ASSERT(prev_ != prev_before);
-    HWY_ASSERT(config_.Bits() == prev_);
+  template <class Spin, class Wait, class Barrier>
+  void operator()(const Spin& spin, const Wait& wait, const Barrier&) const {
+    wait.UntilWoken(worker_, spin, epoch_);
   }
 
  private:
-  PoolWaiter& waiter_;
-  PoolConfig& config_;
-  uint32_t prev_ = 0;
+  Worker* const worker_;
+  const uint32_t epoch_;
 };
 
-TEST(ThreadPoolTest, TestWaiter) {
-  if (!HaveThreadingSupport()) return;
-  PoolWaiter waiter;
-  // BarrierType is unused/ignored.
-  PoolConfig worker_config(BarrierType::kOrdered, DetectSpin());
-  PoolConfig main_config = worker_config;
+class DoWakeWorkers {
+ public:
+  DoWakeWorkers(Worker* workers, uint32_t epoch)
+      : workers_(workers), epoch_(epoch) {}
 
-  std::thread thread(
-      [&]() { waiter.Wake(main_config.wait_mode, main_config); });
-  CallWait call_wait(waiter, worker_config);
-  CallWithSpin(main_config.spin_type, call_wait);
-  HWY_ASSERT(main_config.Bits() == worker_config.Bits());
-  HWY_ASSERT(main_config.seq != 0);
-  thread.join();
+  template <class Spin, class Wait, class Barrier>
+  void operator()(const Spin&, const Wait& wait, const Barrier&) const {
+    wait.WakeWorkers(workers_, epoch_);
+  }
+
+ private:
+  Worker* const workers_;
+  const uint32_t epoch_;
+};
+
+// Verifies that the waiter can be woken by the main thread.
+TEST(ThreadPoolTest, TestWaiter) {
+  if (!hwy::HaveThreadingSupport()) return;
+  const size_t kNumThreads = 1;
+  const Divisor64 div_workers(kNumThreads);
+
+  for (WaitType wait_type :
+       {WaitType::kBlock, WaitType::kSpin1, WaitType::kSpinSeparate}) {
+    Worker worker(0, kNumThreads, div_workers);
+    alignas(8)
+        const Config config(SpinType::kPause, wait_type, BarrierType::kGroup4);
+
+    // This thread acts as the "main thread", which will wake the actual main.
+    std::thread thread(
+        [&]() { CallWithConfig(config, DoWakeWorkers(&worker, 1)); });
+    CallWithConfig(config, DoWait(&worker, 1));
+    thread.join();
+  }
 }
 
 // Ensures all tasks are run. Similar to TestPool below but without threads.
 TEST(ThreadPoolTest, TestTasks) {
   for (size_t num_threads = 1; num_threads <= 8; ++num_threads) {
     const size_t num_workers = num_threads + 1;
-    auto storage =
-        hwy::AllocateAligned<uint8_t>(num_workers * sizeof(PoolWorker));
+    auto storage = hwy::AllocateAligned<uint8_t>(num_workers * sizeof(Worker));
     HWY_ASSERT(storage);
     const Divisor64 div_workers(num_workers);
-    PoolWorker* workers = PoolWorkerLifecycle::Init(storage.get(), div_workers);
+    Worker* workers =
+        WorkerLifecycle::Init(storage.get(), num_threads, div_workers);
 
     constexpr uint64_t kMaxTasks = 20;
     uint64_t mementos[kMaxTasks];  // non-atomic, no threads involved.
@@ -270,14 +274,13 @@ TEST(ThreadPoolTest, TestTasks) {
           // Store mementos ensure we visited each task.
           mementos[task - begin] = 1000 + task;
         };
-        PoolRange range;
-        range.Set(begin, end, func);
+        Tasks tasks;
+        tasks.Set(begin, end, func);
 
-        PoolWorker::DivideRangeAmongWorkers(begin, end, div_workers, workers);
+        Tasks::DivideRangeAmongWorkers(begin, end, div_workers, workers);
         // The `tasks < workers` special case requires running by all workers.
         for (size_t thread = 0; thread < num_workers; ++thread) {
-          PoolWorker::WorkerRunWithStealing(thread, workers, range.Func(),
-                                            range.Opaque());
+          tasks.WorkerRun(workers + thread);
         }
 
         // Ensure all tasks were run.
@@ -287,13 +290,13 @@ TEST(ThreadPoolTest, TestTasks) {
       }
     }
 
-    PoolWorkerLifecycle::Destroy(workers, num_workers);
+    WorkerLifecycle::Destroy(workers, num_workers);
   }
 }
 
 // Ensures old code with 32-bit tasks and InitClosure still compiles.
 TEST(ThreadPoolTest, TestDeprecated) {
-  ThreadPool pool(0);
+  hwy::ThreadPool pool(0);
   pool.Run(1, 10, &ThreadPool::NoInit,
            [&](const uint64_t /*task*/, size_t /*thread*/) {});
 }
@@ -302,12 +305,12 @@ TEST(ThreadPoolTest, TestDeprecated) {
 // pool can be reused (multiple consecutive Run calls), pool can be destroyed
 // (joining with its threads), num_threads=0 works (runs on current thread).
 TEST(ThreadPoolTest, TestPool) {
-  if (!HaveThreadingSupport()) return;
+  if (!hwy::HaveThreadingSupport()) return;
 
-  ThreadPool inner(0);
+  hwy::ThreadPool inner(0);
 
   for (size_t num_threads = 0; num_threads <= 6; num_threads += 3) {
-    ThreadPool pool(HWY_MIN(ThreadPool::MaxThreads(), num_threads));
+    hwy::ThreadPool pool(HWY_MIN(ThreadPool::MaxThreads(), num_threads));
     for (bool spin : {true, false}) {
       pool.SetWaitMode(spin ? PoolWaitMode::kSpin : PoolWaitMode::kBlock);
 
@@ -373,7 +376,7 @@ struct SmallAssignmentState {
 
 // Verify "thread" parameter when processing few tasks.
 TEST(ThreadPoolTest, TestSmallAssignments) {
-  if (!HaveThreadingSupport()) return;
+  if (!hwy::HaveThreadingSupport()) return;
 
   static SmallAssignmentState state;
 
@@ -423,7 +426,7 @@ struct Counter {
 
 // Can switch between any wait mode, and multiple times.
 TEST(ThreadPoolTest, TestWaitMode) {
-  if (!HaveThreadingSupport()) return;
+  if (!hwy::HaveThreadingSupport()) return;
 
   ThreadPool pool(9);
   RandomState rng;
@@ -434,7 +437,7 @@ TEST(ThreadPoolTest, TestWaitMode) {
 }
 
 TEST(ThreadPoolTest, TestCounter) {
-  if (!HaveThreadingSupport()) return;
+  if (!hwy::HaveThreadingSupport()) return;
 
   const size_t kNumThreads = 12;
   ThreadPool pool(kNumThreads);
@@ -461,6 +464,7 @@ TEST(ThreadPoolTest, TestCounter) {
 }
 
 }  // namespace
+}  // namespace pool
 }  // namespace hwy
 
 HWY_TEST_MAIN();
