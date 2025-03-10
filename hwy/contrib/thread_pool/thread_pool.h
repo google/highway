@@ -1040,7 +1040,7 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
 
     SetBusy();
 
-    const auto closure = [this, copy](uint64_t task, size_t worker) {
+    const auto closure = [this, copy](HWY_MAYBE_UNUSED uint64_t task, size_t worker) {
       HWY_DASSERT(task == worker);  // one task per worker
       workers_[worker].LatchConfig(copy);
     };
