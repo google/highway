@@ -12629,36 +12629,7 @@ HWY_API Vec128<uint64_t> CompressBlocksNot(Vec128<uint64_t> v,
 
 // ------------------------------ CompressStore (defined in x86_512)
 
-// ------------------------------ CompressBlendedStore (CompressStore)
-template <class D, HWY_IF_V_SIZE_LE_D(D, 8)>
-HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> m, D d,
-                                    TFromD<D>* HWY_RESTRICT unaligned) {
-  // AVX-512 already does the blending at no extra cost (latency 11,
-  // rthroughput 2 - same as compress plus store).
-  if (HWY_TARGET == HWY_AVX3_DL ||
-      (HWY_TARGET != HWY_AVX3_ZEN4 && sizeof(TFromD<D>) > 2)) {
-    // We're relying on the mask to blend. Clear the undefined upper bits.
-    constexpr size_t kN = MaxLanes(d);
-    if (kN != 16 / sizeof(TFromD<D>)) {
-      m = And(m, FirstN(d, kN));
-    }
-    return CompressStore(v, m, d, unaligned);
-  } else {
-    const size_t count = CountTrue(d, m);
-    const VFromD<D> compressed = Compress(v, m);
-#if HWY_MEM_OPS_MIGHT_FAULT
-    // BlendedStore tests mask for each lane, but we know that the mask is
-    // FirstN, so we can just copy.
-    alignas(16) TFromD<D> buf[MaxLanes(d)];
-    Store(compressed, d, buf);
-    CopyBytes(buf, unaligned, count * sizeof(TFromD<D>));
-#else
-    BlendedStore(compressed, FirstN(d, count), d, unaligned);
-#endif
-    detail::MaybeUnpoison(unaligned, count);
-    return count;
-  }
-}
+// ------------------------------ CompressBlendedStore (defined in x86_avx3)
 
 // ------------------------------ CompressBitsStore (defined in x86_512)
 
