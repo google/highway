@@ -191,7 +191,7 @@ class Config {  // 8 bytes
   WaitType wait_type;
   BarrierType barrier_type;
   bool exit;
-  HWY_MAYBE_UNUSED uint32_t reserved = 0;
+  uint32_t reserved = 0;
 
  private:
   // Prevents inlining DetectSpin() into the ctor.
@@ -307,7 +307,14 @@ class alignas(HWY_ALIGNMENT) Worker {  // HWY_ALIGNMENT bytes
   const size_t num_threads_;
   Worker* const workers_;
 
-  HWY_MAYBE_UNUSED uint8_t padding_[HWY_ALIGNMENT - 64 - sizeof(victims_)];
+#if HWY_COMPILER_CLANG
+  HWY_DIAGNOSTICS(push)
+  HWY_DIAGNOSTICS_OFF(disable : 4700, ignored "-Wunused-private-field")
+#endif
+  uint8_t padding_[HWY_ALIGNMENT - 64 - sizeof(victims_)];
+#if HWY_COMPILER_CLANG
+  HWY_DIAGNOSTICS(pop)
+#endif
 };
 static_assert(sizeof(Worker) == HWY_ALIGNMENT, "");
 
