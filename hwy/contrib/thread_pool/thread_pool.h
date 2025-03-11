@@ -216,7 +216,7 @@ class alignas(HWY_ALIGNMENT) Worker {  // HWY_ALIGNMENT bytes
       : worker_(worker), num_threads_(num_threads), workers_(this - worker) {
     HWY_DASSERT(IsAligned(this, HWY_ALIGNMENT));
     HWY_DASSERT(worker <= num_threads);
-    const size_t num_workers = div_workers.GetDivisor();
+    const size_t num_workers = static_cast<size_t>(div_workers.GetDivisor());
     num_victims_ = static_cast<uint32_t>(HWY_MIN(kMaxVictims, num_workers));
 
     // Increase gap between coprimes to reduce collisions.
@@ -377,7 +377,7 @@ class alignas(8) Tasks {
   static void DivideRangeAmongWorkers(const uint64_t begin, const uint64_t end,
                                       const Divisor64& div_workers,
                                       Worker* workers) {
-    const size_t num_workers = div_workers.GetDivisor();
+    const size_t num_workers = static_cast<size_t>(div_workers.GetDivisor());
     HWY_DASSERT(num_workers > 1);  // Else Run() runs on the main thread.
     HWY_DASSERT(begin <= end);
     const size_t num_tasks = static_cast<size_t>(end - begin);
@@ -385,8 +385,9 @@ class alignas(8) Tasks {
     // Assigning all remainders to the last worker causes imbalance. We instead
     // give one more to each worker whose index is less. This may be zero when
     // called from `TestTasks`.
-    const size_t min_tasks = div_workers.Divide(num_tasks);
-    const size_t remainder = div_workers.Remainder(num_tasks);
+    const size_t min_tasks = static_cast<size_t>(div_workers.Divide(num_tasks));
+    const size_t remainder =
+        static_cast<size_t>(div_workers.Remainder(num_tasks));
 
     uint64_t my_begin = begin;
     for (size_t worker = 0; worker < num_workers; ++worker) {
