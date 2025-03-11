@@ -214,6 +214,8 @@ class alignas(HWY_ALIGNMENT) Worker {  // HWY_ALIGNMENT bytes
   Worker(const size_t worker, const size_t num_threads,
          const Divisor64& div_workers)
       : worker_(worker), num_threads_(num_threads), workers_(this - worker) {
+    (void)padding_;
+
     HWY_DASSERT(IsAligned(this, HWY_ALIGNMENT));
     HWY_DASSERT(worker <= num_threads);
     const size_t num_workers = static_cast<size_t>(div_workers.GetDivisor());
@@ -307,14 +309,7 @@ class alignas(HWY_ALIGNMENT) Worker {  // HWY_ALIGNMENT bytes
   const size_t num_threads_;
   Worker* const workers_;
 
-#if HWY_COMPILER_CLANG
-  HWY_DIAGNOSTICS(push)
-  HWY_DIAGNOSTICS_OFF(disable : 4700, ignored "-Wunused-private-field")
-#endif
   uint8_t padding_[HWY_ALIGNMENT - 64 - sizeof(victims_)];
-#if HWY_COMPILER_CLANG
-  HWY_DIAGNOSTICS(pop)
-#endif
 };
 static_assert(sizeof(Worker) == HWY_ALIGNMENT, "");
 
