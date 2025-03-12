@@ -16,9 +16,6 @@ jobs:
       fail-fast: true
       matrix:
         include:
-          - arch: aarch64
-            distro: ubuntu_latest
-            cxx_flags: -Wno-psabi
           - arch: armv7
             distro: ubuntu_latest
             cxx_flags: -Wno-psabi
@@ -48,5 +45,42 @@ jobs:
           export CMAKE_BUILD_PARALLEL_LEVEL=2
           export CTEST_PARALLEL_LEVEL=2
           CXXFLAGS=${{ matrix.cxx_flags }} cmake -GNinja ${{ matrix.cmake_flags }} -DHWY_SYSTEM_GTEST=ON -DHWY_WARNINGS_ARE_ERRORS=ON -B out .
+          cmake --build out
+          ctest --test-dir out
+  aarch64_cmake:
+    name: Build and test ${{ matrix.name }} on AArch64
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      matrix:
+        include:
+          - name: Clang-18
+            extra_deps: clang-18
+            c_compiler: clang-18
+            cxx_compiler: clang++-18
+            cxx_standard: 17
+
+          - name: GCC-14
+            extra_deps: g++-14
+            c_compiler: gcc-14
+            cxx_compiler: g++-14
+            cxx_flags: -ftrapv
+            cxx_standard: 17
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
+        with:
+          egress-policy: audit  # cannot be block - runner does git checkout
+
+      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.0.0
+
+      - name: Install deps
+        run: sudo apt-get install ${{ matrix.extra_deps }}
+
+      - name: Build and test
+        run: |
+          export CMAKE_BUILD_PARALLEL_LEVEL=2
+          export CTEST_PARALLEL_LEVEL=2
+          CXXFLAGS="${{ matrix.cxx_flags }}" CC=${{ matrix.c_compiler }} CXX=${{ matrix.cxx_compiler }} cmake -DHWY_WARNINGS_ARE_ERRORS=ON -DCMAKE_CXX_STANDARD=${{ matrix.cxx_standard }} ${{ matrix.extra_cmake_flags }} -B out .
           cmake --build out
           ctest --test-dir out
