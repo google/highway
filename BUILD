@@ -255,7 +255,18 @@ cc_library(
     compatible_with = [],
     copts = COPTS,
     deps = [
-        ":hwy",  # HWY_ASSERT
+        ":hwy",  # HWY_DASSERT
+    ],
+)
+
+cc_library(
+    name = "auto_tune",
+    hdrs = ["hwy/auto_tune.h"],
+    compatible_with = [],
+    copts = COPTS,
+    deps = [
+        ":hwy",
+        # "//hwy/contrib/sort:vqsort",
     ],
 )
 
@@ -343,7 +354,7 @@ cc_library(
     copts = COPTS,
     deps = [
         ":bit_set",
-        ":hwy",  # HWY_ASSERT
+        ":hwy",
     ],
 )
 
@@ -357,8 +368,9 @@ cc_library(
     compatible_with = [],
     copts = COPTS,
     deps = [
+        ":auto_tune",
         ":bit_set",
-        ":hwy",  # HWY_ASSERT
+        ":hwy",
         ":profiler",
         ":stats",
         ":timer",
@@ -500,6 +512,7 @@ HWY_TESTS = [
     ("hwy/examples/", "skeleton_test"),
     ("hwy/", "abort_test"),
     ("hwy/", "aligned_allocator_test"),
+    ("hwy/", "auto_tune_test"),
     ("hwy/", "base_test"),
     ("hwy/", "bit_set_test"),
     ("hwy/", "highway_test"),
@@ -575,6 +588,7 @@ HWY_TEST_COPTS = select({
 
 HWY_TEST_DEPS = [
     ":algo",
+    ":auto_tune",
     ":bit_pack",
     ":bit_set",
     ":dot",

@@ -26,6 +26,7 @@
 
 #include <array>
 #include <atomic>
+#include <string>
 #include <thread>  // NOLINT
 #include <vector>
 
@@ -35,11 +36,13 @@
 #endif
 
 #include "hwy/aligned_allocator.h"  // HWY_ALIGNMENT
+#include "hwy/auto_tune.h"
 #include "hwy/base.h"
 #include "hwy/cache_control.h"  // Pause
 #include "hwy/contrib/thread_pool/futex.h"
 #include "hwy/contrib/thread_pool/spin.h"
 #include "hwy/contrib/thread_pool/topology.h"
+#include "hwy/timer.h"
 
 // Define to HWY_NOINLINE to see profiles of `WorkerRun*` and waits.
 #define HWY_POOL_PROFILE
@@ -69,6 +72,8 @@ static inline void SetThreadName(const char* format, int thread) {
 enum class PoolWaitMode : uint8_t { kBlock = 1, kSpin };
 
 namespace pool {
+
+static constexpr int kVerbosity = 0;
 
 // Generates a random permutation of [0, size). O(1) storage.
 class ShuffledIota {
@@ -133,9 +138,22 @@ class ShuffledIota {
   uint32_t coprime_;
 };
 
-// 'Policies' suitable for various worker counts and locality.
-enum class WaitType : uint8_t { kBlock, kSpin1, kSpinSeparate };
-enum class BarrierType : uint8_t { kOrdered, kCounter1, kGroup2, kGroup4 };
+// 'Policies' suitable for various worker counts and locality. To define a
+// new class, add an enum and update `ToString` plus `FunctorAddWait`. The
+// enumerators must be contiguous so we can iterate over them.
+enum class WaitType : uint8_t {
+  kBlock,
+  kSpin1,
+  kSpinSeparate,
+  kSentinel  // Must be last.
+};
+enum class BarrierType : uint8_t {
+  kOrdered,
+  kCounter1,
+  kGroup2,
+  kGroup4,
+  kSentinel  // Must be last.
+};
 
 // For printing which is in use.
 static inline const char* ToString(WaitType type) {
@@ -143,13 +161,16 @@ static inline const char* ToString(WaitType type) {
     case WaitType::kBlock:
       return "Block";
     case WaitType::kSpin1:
-      return "Spin1";
+      return "1";
     case WaitType::kSpinSeparate:
-      return "SpinSeparate";
-    default:
+      return "Separate";
+    case WaitType::kSentinel:
       return nullptr;
+    default:
+      HWY_UNREACHABLE;
   }
 }
+
 static inline const char* ToString(BarrierType type) {
   switch (type) {
     case BarrierType::kOrdered:
@@ -160,8 +181,10 @@ static inline const char* ToString(BarrierType type) {
       return "Group2";
     case BarrierType::kGroup4:
       return "Group4";
-    default:
+    case BarrierType::kSentinel:
       return nullptr;
+    default:
+      HWY_UNREACHABLE;
   }
 }
 
@@ -175,30 +198,68 @@ static inline const char* ToString(BarrierType type) {
 // with relaxed stores, hence we do not have to fit it in the 32 futex bits.
 class Config {  // 8 bytes
  public:
+  static std::vector<Config> AllCandidates(PoolWaitMode wait_mode,
+                                           size_t num_threads) {
+    std::vector<SpinType> spin_types(size_t{1}, DetectSpin());
+    // Monitor-based spin may be slower, so also try Pause.
+    if (spin_types[0] != SpinType::kPause) {
+      spin_types.push_back(SpinType::kPause);
+    }
+
+    std::vector<WaitType> wait_types;
+    if (wait_mode == PoolWaitMode::kSpin) {
+      // All except `kBlock`.
+      for (size_t wait = 0;; ++wait) {
+        const WaitType wait_type = static_cast<WaitType>(wait);
+        if (wait_type == WaitType::kSentinel) break;
+        if (wait_type != WaitType::kBlock) wait_types.push_back(wait_type);
+      }
+    } else {
+      wait_types.push_back(WaitType::kBlock);
+    }
+
+    std::vector<BarrierType> barrier_types;
+    // Note that casting an integer is UB if there is no matching enumerator,
+    // but we define a sentinel to prevent this.
+    for (size_t barrier = 0;; ++barrier) {
+      const BarrierType barrier_type = static_cast<BarrierType>(barrier);
+      if (barrier_type == BarrierType::kSentinel) break;
+      // If <= 2 workers, group size of 4 is the same as 2.
+      if (barrier_type == BarrierType::kGroup4 && num_threads <= 1) continue;
+      barrier_types.push_back(barrier_type);
+    }
+
+    std::vector<Config> candidates;
+    candidates.reserve(50);
+    for (const SpinType spin_type : spin_types) {
+      for (const WaitType wait_type : wait_types) {
+        for (const BarrierType barrier_type : barrier_types) {
+          candidates.emplace_back(spin_type, wait_type, barrier_type);
+        }
+      }
+    }
+    return candidates;
+  }
+
+  std::string ToString() const {
+    char buf[128];
+    snprintf(buf, sizeof(buf), "%14s %9s %9s", hwy::ToString(spin_type),
+             pool::ToString(wait_type), pool::ToString(barrier_type));
+    return buf;
+  }
+
+  Config() {}
   Config(SpinType spin_type, WaitType wait_type, BarrierType barrier_type)
       : spin_type(spin_type),
         wait_type(wait_type),
         barrier_type(barrier_type),
         exit(false) {}
 
-  // Initial value for both the main and worker threads.
-  // Default is to block, because spinning only makes sense when threads are
-  // pinned and wake latency is important, so it must explicitly be requested
-  // by calling `pool.SetWaitMode`.
-  Config() : Config(DefaultSpin(), WaitType::kBlock, BarrierType::kOrdered) {}
-
   SpinType spin_type;
   WaitType wait_type;
   BarrierType barrier_type;
   bool exit;
   uint32_t reserved = 0;
-
- private:
-  // Prevents inlining DetectSpin() into the ctor.
-  static SpinType DefaultSpin() {
-    static const SpinType spin_type = DetectSpin();
-    return spin_type;
-  }
 };
 static_assert(sizeof(Config) == 8, "");
 
@@ -260,7 +321,7 @@ class alignas(HWY_ALIGNMENT) Worker {  // HWY_ALIGNMENT bytes
 
   uint64_t MyEnd() const { return my_end_.load(kAcq); }
 
-  hwy::Span<const uint32_t> Victims() const {
+  Span<const uint32_t> Victims() const {
     return hwy::Span<const uint32_t>(victims_.data(),
                                      static_cast<size_t>(num_victims_));
   }
@@ -816,7 +877,13 @@ class WorkerAdapter {
 // `HWY_POOL_PROFILE` so we can more easily inspect the generated code.
 class ThreadFunc {
  public:
-  ThreadFunc(Worker* worker, Tasks* tasks) : worker_(worker), tasks_(tasks) {}
+  ThreadFunc(Worker* worker, Tasks* tasks, Config config)
+      : worker_(worker),
+        tasks_(tasks),
+        config_(config),
+        worker_adapter_(worker_) {
+    worker->LatchConfig(config);
+  }
 
   HWY_POOL_PROFILE void operator()() {
     SetThreadName("worker%03zu", static_cast<int>(worker_->Index()));
@@ -825,31 +892,31 @@ class ThreadFunc {
     // `WorkerLifecycle::Init`).
     std::atomic_thread_fence(std::memory_order_acquire);
 
-    Config config;
-    WorkerAdapter worker_adapter(worker_);
-
     // Initialization must match pre-increment in `MainAdapter::SetEpoch`.
     // Loop termination is triggered by `~ThreadPool`.
     for (uint32_t epoch = 1;; ++epoch) {
-      worker_adapter.SetEpoch(epoch);
-      CallWithSpinWait(config, worker_adapter);
+      worker_adapter_.SetEpoch(epoch);
+      CallWithSpinWait(config_, worker_adapter_);
 
       // Must happen before `WorkerRun` because `SendConfig` writes it there.
-      config = worker_->LatchedConfig();
+      config_ = worker_->LatchedConfig();
 
       tasks_->WorkerRun(worker_);
 
       // Notify barrier after `WorkerRun`.
-      CallWithSpinBarrier(config, worker_adapter);
+      CallWithSpinBarrier(config_, worker_adapter_);
 
       // Check after notifying the barrier, otherwise the main thread deadlocks.
-      if (HWY_UNLIKELY(config.exit)) break;
+      if (HWY_UNLIKELY(config_.exit)) break;
     }
   }
 
  private:
   Worker* const worker_;
   Tasks* const tasks_;
+
+  Config config_;
+  WorkerAdapter worker_adapter_;
 };
 
 }  // namespace pool
@@ -865,7 +932,9 @@ class ThreadFunc {
 // std::function.
 //
 // To reduce fork/join latency, we choose an efficient barrier, optionally
-// enable spin-waits via SetWaitMode, and avoid any mutex/lock.
+// enable spin-waits via SetWaitMode, and avoid any mutex/lock. We largely even
+// avoid atomic RMW operations (LOCK prefix): currently for the wait and
+// barrier, in future hopefully also for work stealing.
 //
 // To eliminate false sharing and enable reasoning about cache line traffic, the
 // class is aligned and holds all worker state.
@@ -888,14 +957,26 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
   // `num_threads` is the number of *additional* threads to spawn, which should
   // not exceed `MaxThreads()`. Note that the main thread also performs work.
   explicit ThreadPool(size_t num_threads)
-      : num_threads_(ClampedNumThreads(num_threads)),
+      : have_timer_stop_(platform::HaveTimerStop(cpu100_)),
+        num_threads_(ClampedNumThreads(num_threads)),
         div_workers_(num_threads_ + 1),
         workers_(pool::WorkerLifecycle::Init(worker_bytes_, num_threads_,
                                              div_workers_)),
         main_adapter_(workers_ + num_threads_, &tasks_) {
+    // Leaves the default wait mode as `kBlock`, which means futex, because
+    // spinning only makes sense when threads are pinned and wake latency is
+    // important, so it must explicitly be requested by calling `SetWaitMode`.
+    for (PoolWaitMode mode : {PoolWaitMode::kSpin, PoolWaitMode::kBlock}) {
+      wait_mode_ = mode;  // for AutoTuner
+      AutoTuner().SetCandidates(
+          pool::Config::AllCandidates(mode, num_threads_));
+    }
+    config_ = AutoTuner().FirstCandidate();
+
     threads_.reserve(num_threads_);
     for (size_t thread = 0; thread < num_threads_; ++thread) {
-      threads_.emplace_back(pool::ThreadFunc(workers_ + thread, &tasks_));
+      threads_.emplace_back(
+          pool::ThreadFunc(workers_ + thread, &tasks_, config_));
     }
 
     // No barrier is required here because wakeup works regardless of the
@@ -934,17 +1015,15 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
   // but wastes power when waiting over long intervals. Must not be called
   // concurrently with any `Run`, because this uses the same waiter/barrier.
   void SetWaitMode(PoolWaitMode mode) {
-    // TODO: autotune this.
-    pool::WaitType new_wait_type = mode == PoolWaitMode::kBlock
-                                       ? pool::WaitType::kBlock
-                                       : pool::WaitType::kSpinSeparate;
-    pool::Config copy = config_;
-    copy.wait_type = new_wait_type;
-    SendConfig(copy);
+    wait_mode_ = mode;
+    SendConfig(AutoTuneComplete() ? *AutoTuner().Best()
+                                  : AutoTuner().NextConfig());
   }
 
   // For printing which are in use.
   pool::Config config() const { return config_; }
+
+  bool AutoTuneComplete() const { return AutoTuner().Best(); }
 
   // parallel-for: Runs `closure(task, worker)` on workers for every `task` in
   // `[begin, end)`. Note that the unit of work should be large enough to
@@ -976,8 +1055,30 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
     }
 
     main_adapter_.SetEpoch(++epoch_);
-    CallWithConfig(config_, main_adapter_);
-    ClearBusy();
+
+    AutoTuneT& auto_tuner = AutoTuner();
+    if (HWY_LIKELY(auto_tuner.Best())) {
+      CallWithConfig(config_, main_adapter_);
+      ClearBusy();
+    } else {
+      const uint64_t t0 = timer::Start();
+      CallWithConfig(config_, main_adapter_);
+      const uint64_t t1 = have_timer_stop_ ? timer::Stop() : timer::Start();
+      auto_tuner.NotifyCost(t1 - t0);
+      ClearBusy();              // before `SendConfig`
+      if (auto_tuner.Best()) {  // just finished
+        SendConfig(*auto_tuner.Best());
+        HWY_IF_CONSTEXPR(pool::kVerbosity >= 1) {
+          fprintf(stderr, "  %s %f\n", auto_tuner.Best()->ToString().c_str(),
+                  auto_tuner.BestCost());
+        }
+      } else {
+        SendConfig(auto_tuner.NextConfig());
+        HWY_IF_CONSTEXPR(pool::kVerbosity >= 2) {
+          fprintf(stderr, "  %s %5lu\n", config_.ToString().c_str(), t1 - t0);
+        }
+      }
+    }
   }
 
   // Can pass this as init_closure when no initialization is needed.
@@ -1069,6 +1170,17 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
     ClearBusy();
   }
 
+  using AutoTuneT = AutoTune<pool::Config, 10>;
+  AutoTuneT& AutoTuner() {
+    static_assert(static_cast<size_t>(PoolWaitMode::kBlock) == 1, "");
+    return auto_tune_[static_cast<size_t>(wait_mode_) - 1];
+  }
+  const AutoTuneT& AutoTuner() const {
+    return auto_tune_[static_cast<size_t>(wait_mode_) - 1];
+  }
+
+  char cpu100_[100];
+  const bool have_timer_stop_;
   const size_t num_threads_;  // not including main thread
   const Divisor64 div_workers_;
   pool::Worker* const workers_;  // points into `worker_bytes_`
@@ -1077,7 +1189,7 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
 
   // The only mutable state:
   pool::Tasks tasks_;    // written by `Run` and read by workers.
-  pool::Config config_;  // updated via `SendConfig`.
+  pool::Config config_;  // for use by the next `Run`. Updated via `SendConfig`.
   uint32_t epoch_ = 0;   // passed to `MainAdapter`.
 
   // In debug builds, detects if functions are re-entered.
@@ -1085,6 +1197,9 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
 
   // Unmodified after ctor, but cannot be const because we call thread::join().
   std::vector<std::thread> threads_;
+
+  PoolWaitMode wait_mode_;
+  AutoTuneT auto_tune_[2];  // accessed via `AutoTuner`
 
   // Last because it is large. Store inside `ThreadPool` so that callers can
   // bind it to the NUMA node's memory. Not stored inside `WorkerLifecycle`

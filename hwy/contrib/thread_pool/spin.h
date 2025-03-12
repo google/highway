@@ -84,7 +84,8 @@ struct SpinResult {
 enum class SpinType : uint8_t {
   kMonitorX = 1,  // AMD
   kUMonitor,      // Intel
-  kPause
+  kPause,
+  kSentinel  // for iterating over all enumerators. Must be last.
 };
 
 // For printing which is in use.
@@ -96,8 +97,10 @@ static inline const char* ToString(SpinType type) {
       return "UMonitor_C0.2";
     case SpinType::kPause:
       return "Pause";
-    default:
+    case SpinType::kSentinel:
       return nullptr;
+    default:
+      HWY_UNREACHABLE;
   }
 }
 
