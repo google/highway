@@ -31,17 +31,37 @@ namespace HWY_NAMESPACE {
 namespace {
 
 void SortKV128Asc(K64V64* HWY_RESTRICT keys, const size_t num) {
+  // 128-bit keys require 128-bit SIMD.
+#if HWY_TARGET != HWY_SCALAR
   return VQSortStatic(keys, num, SortAscending());
+#else
+  (void)keys;
+  (void)num;
+#endif
 }
 
 void PartialSortKV128Asc(K64V64* HWY_RESTRICT keys, const size_t num,
                          const size_t k) {
+  // 128-bit keys require 128-bit SIMD.
+#if HWY_TARGET != HWY_SCALAR
   return VQPartialSortStatic(keys, num, k, SortAscending());
+#else
+  (void)keys;
+  (void)num;
+  (void)k;
+#endif
 }
 
 void SelectKV128Asc(K64V64* HWY_RESTRICT keys, const size_t num,
                     const size_t k) {
+  // 128-bit keys require 128-bit SIMD.
+#if HWY_TARGET != HWY_SCALAR
   return VQSelectStatic(keys, num, k, SortAscending());
+#else
+  (void)keys;
+  (void)num;
+  (void)k;
+#endif
 }
 
 }  // namespace

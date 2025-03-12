@@ -35,9 +35,10 @@ namespace {
 struct TestPingPongT {
   template <class Spin>
   void operator()(const Spin& spin) const {
-    alignas(HWY_ALIGNMENT) std::atomic<uint32_t>
-        thread_active[HWY_ALIGNMENT / 4];
-    alignas(HWY_ALIGNMENT) std::atomic<uint32_t> thread_done[HWY_ALIGNMENT / 4];
+    constexpr size_t kU32PerLine = HWY_ALIGNMENT / 4;
+    constexpr size_t kF64PerLine = HWY_ALIGNMENT / 8;
+    alignas(HWY_ALIGNMENT) std::atomic<uint32_t> thread_active[kU32PerLine];
+    alignas(HWY_ALIGNMENT) std::atomic<uint32_t> thread_done[kU32PerLine];
 
     thread_active[0].store(0, std::memory_order_release);
     thread_done[0].store(0, std::memory_order_release);
@@ -50,10 +51,8 @@ struct TestPingPongT {
     alignas(HWY_ALIGNMENT) std::atomic<size_t> reps1;
     alignas(HWY_ALIGNMENT) std::atomic<size_t> reps2;
 
-    constexpr size_t kF64PerLine = HWY_ALIGNMENT / 8;
     alignas(HWY_ALIGNMENT) std::atomic<double> before_thread_done[kF64PerLine];
-    alignas(HWY_ALIGNMENT) std::atomic<double>
-        before_thread_release[kF64PerLine];
+    alignas(HWY_ALIGNMENT) std::atomic<double> before_thread_go[kF64PerLine];
     alignas(HWY_ALIGNMENT) std::atomic<double> ack_thread_done[kF64PerLine];
     alignas(HWY_ALIGNMENT) std::atomic<double> ack_thread_release[kF64PerLine];
 
@@ -75,7 +74,7 @@ struct TestPingPongT {
           error.test_and_set();
         }
         // Release the thread.
-        before_thread_release[0].store(hwy::platform::Now(), kRel);
+        before_thread_go[0].store(hwy::platform::Now(), kRel);
         thread_active[0].store(1, kRel);
         // Wait for it to finish.
         const size_t reps = spin.UntilEqual(1, thread_done[0]);
@@ -87,7 +86,7 @@ struct TestPingPongT {
     const double t1 = hwy::platform::Now();
     const double elapsed = t1 - t0;
     const double latency1 =
-        ack_thread_release[0].load(kAcq) - before_thread_release[0].load(kAcq);
+        ack_thread_release[0].load(kAcq) - before_thread_go[0].load(kAcq);
     const double latency2 =
         ack_thread_done[0].load(kAcq) - before_thread_done[0].load(kAcq);
     fprintf(stderr,

@@ -266,7 +266,7 @@ cc_library(
     copts = COPTS,
     deps = [
         ":hwy",
-        # "//hwy/contrib/sort:vqsort",
+        "//hwy/contrib/sort:vqsort",
     ],
 )
 
@@ -292,8 +292,9 @@ cc_library(
     copts = COPTS,
     deps = [
         ":hwy",
+        ":robust_statistics",
         ":timer",
-        # "//hwy/contrib/sort:vqsort",
+        "//hwy/contrib/sort:vqsort",
     ],
 )
 

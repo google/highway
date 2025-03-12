@@ -75,6 +75,12 @@ namespace pool {
 
 static constexpr int kVerbosity = 0;
 
+// Some CPUs already have more than this many threads, but rather than one
+// large pool, we assume applications create multiple pools, ideally per
+// cluster (cores sharing a cache), because this improves locality and barrier
+// latency. In that case, this is a generous upper bound.
+static constexpr size_t kMaxThreads = 63;
+
 // Generates a random permutation of [0, size). O(1) storage.
 class ShuffledIota {
  public:
@@ -150,6 +156,8 @@ enum class WaitType : uint8_t {
 enum class BarrierType : uint8_t {
   kOrdered,
   kCounter1,
+  kCounter2,
+  kCounter4,
   kGroup2,
   kGroup4,
   kSentinel  // Must be last.
@@ -161,7 +169,7 @@ static inline const char* ToString(WaitType type) {
     case WaitType::kBlock:
       return "Block";
     case WaitType::kSpin1:
-      return "1";
+      return "Single";
     case WaitType::kSpinSeparate:
       return "Separate";
     case WaitType::kSentinel:
@@ -177,6 +185,10 @@ static inline const char* ToString(BarrierType type) {
       return "Ordered";
     case BarrierType::kCounter1:
       return "Counter1";
+    case BarrierType::kCounter2:
+      return "Counter2";
+    case BarrierType::kCounter4:
+      return "Counter4";
     case BarrierType::kGroup2:
       return "Group2";
     case BarrierType::kGroup4:
@@ -225,7 +237,8 @@ class Config {  // 8 bytes
       const BarrierType barrier_type = static_cast<BarrierType>(barrier);
       if (barrier_type == BarrierType::kSentinel) break;
       // If <= 2 workers, group size of 4 is the same as 2.
-      if (barrier_type == BarrierType::kGroup4 && num_threads <= 1) continue;
+      if (num_threads <= 1 && barrier_type == BarrierType::kCounter4) continue;
+      if (num_threads <= 1 && barrier_type == BarrierType::kGroup4) continue;
       barrier_types.push_back(barrier_type);
     }
 
@@ -589,8 +602,9 @@ struct WaitBlock {
   }
 };
 
-// Single u32: only requires a single store by the main thread, but all worker
-// threads poll this one cache line.
+// Single u32: single store by the main thread. All worker threads poll this
+// one cache line and thus have it in a shared state, which means the store
+// will invalidate each of them, leading to more transactions than SpinSeparate.
 struct WaitSpin1 {
   WaitType Type() const { return WaitType::kSpin1; }
 
@@ -607,7 +621,7 @@ struct WaitSpin1 {
 };
 
 // Separate u32 per thread: more stores for the main thread, but each worker
-// only polls its own cache line.
+// only polls its own cache line, leading to fewer cache-coherency transactions.
 struct WaitSpinSeparate {
   WaitType Type() const { return WaitType::kSpinSeparate; }
 
@@ -628,24 +642,61 @@ struct WaitSpinSeparate {
 // ------------------------------ Barrier: Main thread waits for workers
 
 // Single atomic counter. TODO: remove if not competitive?
-class BarrierCounter1 {
- public:
-  BarrierType Type() const { return BarrierType::kCounter1; }
+template <size_t kShards>
+class BarrierCounter {
+  static_assert(kShards == 1 || kShards == 2 || kShards == 4, "");  // pow2
 
-  void Reset(Worker* workers) const { workers[0].StoreBarrier(0); }
+ public:
+  BarrierType Type() const {
+    return kShards == 1   ? BarrierType::kCounter1
+           : kShards == 2 ? BarrierType::kCounter2
+                          : BarrierType::kCounter4;
+  }
+
+  void Reset(Worker* workers) const {
+    for (size_t i = 0; i < kShards; ++i) {
+      // Use last worker(s) to avoid contention with other stores to the Worker.
+      // Note that there are kMaxThreads + 1 workers, hence i == 0 is the last.
+      workers[kMaxThreads - i].StoreBarrier(0);
+    }
+  }
 
   template <class Spin>
   void WorkerReached(Worker* worker, const Spin& /*spin*/,
                      uint32_t /*epoch*/) const {
-    worker->AllWorkers()->MutableBarrier().fetch_add(1,
-                                                     std::memory_order_acq_rel);
+    const size_t shard = worker->Index() & (kShards - 1);
+    const auto kAcqRel = std::memory_order_acq_rel;
+    worker->AllWorkers()[kMaxThreads - shard].MutableBarrier().fetch_add(
+        1, kAcqRel);
   }
 
   template <class Spin>
   void UntilReached(size_t num_threads, const Worker* workers, const Spin& spin,
                     uint32_t /*epoch*/) const {
-    (void)spin.UntilEqual(static_cast<uint32_t>(num_threads),
-                          workers[0].Barrier());
+    HWY_IF_CONSTEXPR(kShards == 1) {
+      (void)spin.UntilEqual(static_cast<uint32_t>(num_threads),
+                            workers[kMaxThreads].Barrier());
+    }
+    HWY_IF_CONSTEXPR(kShards == 2) {
+      const auto kAcq = std::memory_order_acquire;
+      for (;;) {
+        hwy::Pause();
+        const uint64_t sum = workers[kMaxThreads - 0].Barrier().load(kAcq) +
+                             workers[kMaxThreads - 1].Barrier().load(kAcq);
+        if (sum == num_threads) break;
+      }
+    }
+    HWY_IF_CONSTEXPR(kShards == 4) {
+      const auto kAcq = std::memory_order_acquire;
+      for (;;) {
+        hwy::Pause();
+        const uint64_t sum = workers[kMaxThreads - 0].Barrier().load(kAcq) +
+                             workers[kMaxThreads - 1].Barrier().load(kAcq) +
+                             workers[kMaxThreads - 2].Barrier().load(kAcq) +
+                             workers[kMaxThreads - 3].Barrier().load(kAcq);
+        if (sum == num_threads) break;
+      }
+    }
   }
 };
 
@@ -752,7 +803,11 @@ class FunctorAddBarrier {
       case BarrierType::kOrdered:
         return func_(wait, BarrierOrdered());
       case BarrierType::kCounter1:
-        return func_(wait, BarrierCounter1());
+        return func_(wait, BarrierCounter<1>());
+      case BarrierType::kCounter2:
+        return func_(wait, BarrierCounter<2>());
+      case BarrierType::kCounter4:
+        return func_(wait, BarrierCounter<4>());
       case BarrierType::kGroup2:
         return func_(wait, BarrierGroup<2>());
       case BarrierType::kGroup4:
@@ -767,7 +822,11 @@ class FunctorAddBarrier {
       case BarrierType::kOrdered:
         return func_(spin, wait, BarrierOrdered());
       case BarrierType::kCounter1:
-        return func_(spin, wait, BarrierCounter1());
+        return func_(spin, wait, BarrierCounter<1>());
+      case BarrierType::kCounter2:
+        return func_(spin, wait, BarrierCounter<2>());
+      case BarrierType::kCounter4:
+        return func_(spin, wait, BarrierCounter<4>());
       case BarrierType::kGroup2:
         return func_(spin, wait, BarrierGroup<2>());
       case BarrierType::kGroup4:
@@ -971,7 +1030,7 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
       AutoTuner().SetCandidates(
           pool::Config::AllCandidates(mode, num_threads_));
     }
-    config_ = AutoTuner().FirstCandidate();
+    config_ = AutoTuner().Candidates()[0];
 
     threads_.reserve(num_threads_);
     for (size_t thread = 0; thread < num_threads_; ++thread) {
@@ -1024,6 +1083,7 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
   pool::Config config() const { return config_; }
 
   bool AutoTuneComplete() const { return AutoTuner().Best(); }
+  Span<CostDistribution> AutoTuneCosts() { return AutoTuner().Costs(); }
 
   // parallel-for: Runs `closure(task, worker)` on workers for every `task` in
   // `[begin, end)`. Note that the unit of work should be large enough to
@@ -1067,16 +1127,20 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
       auto_tuner.NotifyCost(t1 - t0);
       ClearBusy();              // before `SendConfig`
       if (auto_tuner.Best()) {  // just finished
-        SendConfig(*auto_tuner.Best());
         HWY_IF_CONSTEXPR(pool::kVerbosity >= 1) {
-          fprintf(stderr, "  %s %f\n", auto_tuner.Best()->ToString().c_str(),
-                  auto_tuner.BestCost());
+          const size_t idx_best =
+              auto_tuner.Best() - auto_tuner.Candidates().data();
+          auto& AT = auto_tuner.Costs()[idx_best];
+          fprintf(stderr, "  %s %f (%f %f %f)\n",
+                  auto_tuner.Best()->ToString().c_str(), AT.EstimateCost(),
+                  AT.Stddev(), AT.Lower(), AT.Upper());
         }
+        SendConfig(*auto_tuner.Best());
       } else {
-        SendConfig(auto_tuner.NextConfig());
         HWY_IF_CONSTEXPR(pool::kVerbosity >= 2) {
           fprintf(stderr, "  %s %5lu\n", config_.ToString().c_str(), t1 - t0);
         }
+        SendConfig(auto_tuner.NextConfig());
       }
     }
   }
@@ -1102,19 +1166,13 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
   }
 
  private:
-  // Some CPUs already have more than this many threads, but rather than one
-  // large pool, we assume applications create multiple pools, ideally per
-  // cluster (cores sharing a cache), because this improves locality and barrier
-  // latency. In that case, this is a generous upper bound.
-  static constexpr size_t kMaxThreads = 63;
-
   // Used to initialize ThreadPool::num_threads_ from its ctor argument.
   static size_t ClampedNumThreads(size_t num_threads) {
     // Upper bound is required for `worker_bytes_`.
-    if (HWY_UNLIKELY(num_threads > kMaxThreads)) {
+    if (HWY_UNLIKELY(num_threads > pool::kMaxThreads)) {
       HWY_WARN("ThreadPool: clamping num_threads %zu to %zu.", num_threads,
-               kMaxThreads);
-      num_threads = kMaxThreads;
+               pool::kMaxThreads);
+      num_threads = pool::kMaxThreads;
     }
     return num_threads;
   }
@@ -1170,7 +1228,7 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
     ClearBusy();
   }
 
-  using AutoTuneT = AutoTune<pool::Config, 10>;
+  using AutoTuneT = AutoTune<pool::Config, 30>;
   AutoTuneT& AutoTuner() {
     static_assert(static_cast<size_t>(PoolWaitMode::kBlock) == 1, "");
     return auto_tune_[static_cast<size_t>(wait_mode_) - 1];
@@ -1205,7 +1263,7 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
   // bind it to the NUMA node's memory. Not stored inside `WorkerLifecycle`
   // because that class would be initialized after `workers_`.
   alignas(HWY_ALIGNMENT) uint8_t
-      worker_bytes_[sizeof(pool::Worker) * (kMaxThreads + 1)];
+      worker_bytes_[sizeof(pool::Worker) * (pool::kMaxThreads + 1)];
 };
 
 }  // namespace hwy
