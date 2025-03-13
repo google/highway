@@ -553,6 +553,14 @@ from left to right, of the arguments passed to `Create{2-4}`.
 
 *   <code>V **AbsDiff**(V a, V b)</code>: returns `|a[i] - b[i]|` in each lane.
 
+*   <code>V **PairwiseAdd**(D d, V a, V b)</code>: Add consecutive pairs of elements.
+    Return the results of a and b interleaved, such that `r[i] = a[i] + a[i+1]` for
+    even lanes and `r[i] = b[i-1] + b[i]` for odd lanes.
+
+*   <code>V **PairwiseSub**(D d, V a, V b)</code>: Subtract consecutive pairs of elements.
+    Return the results of a and b interleaved, such that `r[i] = a[i+1] - a[i]` for
+    even lanes and `r[i] = b[i] - b[i-1]` for odd lanes.
+
 *   `V`: `{i,u}{8,16,32},f{16,32}`, `VW`: `Vec<RepartitionToWide<DFromV<V>>>` \
     <code>VW **SumsOf2**(V v)</code> returns the sums of 2 consecutive lanes,
     promoting each sum into a lane of `TFromV<VW>`.
@@ -927,10 +935,18 @@ not a concern, these are equivalent to, and potentially more efficient than,
 *   <code>V **MaskedMulAddOr**(V no, M m, V mul, V x, V add)</code>: returns
     `mul[i] * x[i] + add[i]` or `no[i]` if `m[i]` is false.
 
+*   `V`: `{i,f}` \
+    <code>V **MaskedAbsOr**(V no, M m, V a)</code>: returns the absolute value of
+    `a[i]` where m is active and returns `no[i]` otherwise.
+
 #### Zero masked arithmetic
 
 All ops in this section return `0` for `mask=false` lanes. These are equivalent
 to, and potentially more efficient than, `IfThenElseZero(m, Add(a, b));` etc.
+
+*   `V`: `{i,f}` \
+    <code>V **MaskedAbs**(M m, V a)</code>: returns the absolute value of
+    `a[i]` where m is active and returns zero otherwise.
 
 *   <code>V **MaskedMax**(M m, V a, V b)</code>: returns `Max(a, b)[i]` or
     `zero` if `m[i]` is false.
@@ -2281,6 +2297,16 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
       r[i] = shuf_result;
     }
     ```
+
+*   <code>V **PairwiseAdd128**(D d, V a, V b)</code>: Add consecutive pairs of
+    elements in a and b, and pack results in 128 bit blocks, such that
+    `r[i] = a[i] + a[i+1]` for 64 bits, followed by `b[i] + b[i+1]` for next 64
+    bits and repeated.
+
+*   <code>V **PairwiseSub128**(D d, V a, V b)</code>: Subtract consecutive pairs
+    of elements in a and b, and pack results in 128 bit blocks, such that
+    `r[i] = a[i] + a[i+1]` for 64 bits, followed by `b[i] + b[i+1]` for next 64
+    bits and repeated.
 
 #### Interleave
 

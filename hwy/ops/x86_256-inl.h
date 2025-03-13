@@ -1978,6 +1978,47 @@ HWY_API Vec256<double> AddSub(Vec256<double> a, Vec256<double> b) {
   return Vec256<double>{_mm256_addsub_pd(a.raw, b.raw)};
 }
 
+// ------------------------------ PairwiseAdd128/PairwiseSub128
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_UI16_D(D)>
+HWY_API VFromD<D> PairwiseAdd128(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{_mm256_hadd_epi16(a.raw, b.raw)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_UI16_D(D)>
+HWY_API VFromD<D> PairwiseSub128(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  const DFromV<decltype(a)> d;
+  const RebindToSigned<decltype(d)> di;
+  return BitCast(d,
+                 Neg(BitCast(di, VFromD<D>{_mm256_hsub_epi16(a.raw, b.raw)})));
+}
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_UI32_D(D)>
+HWY_API VFromD<D> PairwiseAdd128(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{_mm256_hadd_epi32(a.raw, b.raw)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_UI32_D(D)>
+HWY_API VFromD<D> PairwiseSub128(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  const DFromV<decltype(a)> d;
+  const RebindToSigned<decltype(d)> di;
+  return BitCast(d,
+                 Neg(BitCast(di, VFromD<D>{_mm256_hsub_epi32(a.raw, b.raw)})));
+}
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> PairwiseAdd128(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{_mm256_hadd_ps(a.raw, b.raw)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> PairwiseSub128(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return Neg(VFromD<D>{_mm256_hsub_ps(a.raw, b.raw)});
+}
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
+HWY_API VFromD<D> PairwiseAdd128(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{_mm256_hadd_pd(a.raw, b.raw)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
+HWY_API VFromD<D> PairwiseSub128(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return Neg(VFromD<D>{_mm256_hsub_pd(a.raw, b.raw)});
+}
+
 // ------------------------------ SumsOf8
 HWY_API Vec256<uint64_t> SumsOf8(Vec256<uint8_t> v) {
   return Vec256<uint64_t>{_mm256_sad_epu8(v.raw, _mm256_setzero_si256())};
