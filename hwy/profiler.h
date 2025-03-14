@@ -54,12 +54,11 @@
 #include <stdio.h>
 #include <string.h>  // strcmp
 
-#include <algorithm>  // std::sort
 #include <atomic>
 
 #include "hwy/aligned_allocator.h"
 #include "hwy/cache_control.h"  // FlushStream
-// #include "hwy/contrib/sort/vqsort.h"
+#include "hwy/contrib/sort/vqsort.h"
 #include "hwy/robust_statistics.h"
 #include "hwy/timer.h"
 
@@ -284,11 +283,7 @@ class Results {
     MergeDuplicates();
 
     // Sort by decreasing total (self) cost.
-    // VQSort(&zones_[0].u128, num_zones_, SortDescending());
-    std::sort(zones_, zones_ + num_zones_,
-              [](const Accumulator& z1, const Accumulator& z2) {
-                return z1.Duration() > z2.Duration();
-              });
+    VQSort(&zones_[0].u128, num_zones_, SortDescending());
 
     const double inv_freq = 1.0 / platform::InvariantTicksPerSecond();
 
