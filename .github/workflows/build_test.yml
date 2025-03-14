@@ -22,70 +22,10 @@ concurrency:
 jobs:
   cmake:
     name: Build and test ${{ matrix.name }}
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         include:
-          - name: Clang-6.0
-            extra_deps: clang-6.0
-            c_compiler: clang-6.0
-            cxx_compiler: clang++-6.0
-            cxx_standard: 11
-
-          - name: Clang-6.0 (C++14)
-            extra_deps: clang-6.0
-            c_compiler: clang-6.0
-            cxx_compiler: clang++-6.0
-            cxx_standard: 14
-
-          - name: Clang-6.0 (C++17)
-            extra_deps: clang-6.0
-            c_compiler: clang-6.0
-            cxx_compiler: clang++-6.0
-            cxx_standard: 17
-
-          - name: Clang-7
-            extra_deps: clang-7
-            c_compiler: clang-7
-            cxx_compiler: clang++-7
-            cxx_standard: 11
-
-          - name: Clang-7 (C++14)
-            extra_deps: clang-7
-            c_compiler: clang-7
-            cxx_compiler: clang++-7
-            cxx_standard: 14
-
-          - name: Clang-7 (C++17)
-            extra_deps: clang-7
-            c_compiler: clang-7
-            cxx_compiler: clang++-7
-            cxx_standard: 17
-
-          - name: Clang-8
-            extra_deps: clang-8
-            c_compiler: clang-8
-            cxx_compiler: clang++-8
-            cxx_standard: 11
-
-          - name: Clang-9
-            extra_deps: clang-9
-            c_compiler: clang-9
-            cxx_compiler: clang++-9
-            cxx_standard: 11
-
-          - name: Clang-10
-            extra_deps: clang-10
-            c_compiler: clang-10
-            cxx_compiler: clang++-10
-            cxx_standard: 11
-
-          - name: Clang-10 (C++20)
-            extra_deps: clang-10
-            c_compiler: clang-10
-            cxx_compiler: clang++-10
-            cxx_standard: 20
-
           - name: Clang-11
             extra_deps: clang-11
             c_compiler: clang-11
@@ -98,66 +38,6 @@ jobs:
             cxx_compiler: clang++-12
             cxx_standard: 11
 
-          - name: GCC-8
-            extra_deps: g++-8
-            c_compiler: gcc-8
-            cxx_compiler: g++-8
-            cxx_flags: -ftrapv
-            cxx_standard: 11
-
-          - name: GCC-8 (C++14)
-            extra_deps: g++-8
-            c_compiler: gcc-8
-            cxx_compiler: g++-8
-            cxx_flags: -ftrapv
-            cxx_standard: 14
-
-          - name: GCC-8 (C++17)
-            extra_deps: g++-8
-            c_compiler: gcc-8
-            cxx_compiler: g++-8
-            cxx_flags: -ftrapv
-            cxx_standard: 17
-
-          - name: GCC-9
-            extra_deps: g++-9
-            c_compiler: gcc-9
-            cxx_compiler: g++-9
-            cxx_flags: -ftrapv
-            cxx_standard: 11
-
-          - name: GCC-10
-            extra_deps: g++-10
-            c_compiler: gcc-10
-            cxx_compiler: g++-10
-            cxx_flags: -ftrapv
-            cxx_standard: 11
-
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
-        with:
-          egress-policy: audit  # cannot be block - runner does git checkout
-
-      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.0.0
-
-      - name: Install deps
-        run: sudo apt-get install ${{ matrix.extra_deps }}
-
-      - name: Build and test
-        run: |
-          export CMAKE_BUILD_PARALLEL_LEVEL=2
-          export CTEST_PARALLEL_LEVEL=2
-          CXXFLAGS=${{ matrix.cxx_flags }} CC=${{ matrix.c_compiler }} CXX=${{ matrix.cxx_compiler }} cmake -DHWY_WARNINGS_ARE_ERRORS=ON -DCMAKE_CXX_STANDARD=${{ matrix.cxx_standard }} -B out .
-          cmake --build out
-          ctest --test-dir out
-
-  cmake_ubuntu_2204:
-    name: Build and test ${{ matrix.name }}
-    runs-on: ubuntu-22.04
-    strategy:
-      matrix:
-        include:
           - name: Clang-13
             extra_deps: clang-13
             c_compiler: clang-13
@@ -190,6 +70,20 @@ jobs:
             cxx_flags: -m32 -DHWY_DISABLED_TARGETS=0x1FF -DHWY_BROKEN_TARGETS=0x1FF
             extra_cmake_flags: -DCMAKE_C_COMPILER_TARGET=i686-linux-gnu -DCMAKE_CXX_COMPILER_TARGET=i686-linux-gnu -DHWY_CMAKE_SSE2=ON
             cxx_standard: 17
+
+          - name: GCC-9
+            extra_deps: g++-9
+            c_compiler: gcc-9
+            cxx_compiler: g++-9
+            cxx_flags: -ftrapv
+            cxx_standard: 11
+
+          - name: GCC-10
+            extra_deps: g++-10
+            c_compiler: gcc-10
+            cxx_compiler: g++-10
+            cxx_flags: -ftrapv
+            cxx_standard: 11
 
           - name: GCC-11
             extra_deps: g++-11
