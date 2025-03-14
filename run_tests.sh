@@ -91,5 +91,12 @@ rm -rf build_rvv && mkdir build_rvv && cd build_rvv
 CC=riscv64-linux-gnu-gcc-13 CXX=riscv64-linux-gnu-g++-13 cmake .. -DCMAKE_C_COMPILER_TARGET="riscv64-linux-gnu" -DCMAKE_CXX_COMPILER_TARGET="riscv64-linux-gnu" -DCMAKE_CROSSCOMPILING=true -DCMAKE_CROSSCOMPILING_EMULATOR="/usr/bin/qemu-riscv64;-cpu;max;-L;/usr/riscv64-linux-gnu" -DCMAKE_SYSTEM_NAME=Linux
 clear && make -j && ctest -j && cd .. && rm -rf build_rvv
 
+#######################################
+echo LOONGARCH64 GCC
+export QEMU_LD_PREFIX=/usr/loongarch64-linux-gnu
+rm -rf build_loong64 && mkdir build_loong64 && cd build_loong64
+CC=loongarch64-linux-gnu-gcc-14 CXX=loongarch64-linux-gnu-g++-14 cmake .. -DCMAKE_C_COMPILER_TARGET="loongarch64-linux-gnu" -DCMAKE_CXX_COMPILER_TARGET="loongarch64-linux-gnu" -DCMAKE_CROSSCOMPILING=true -DCMAKE_CROSSCOMPILING_EMULATOR="/usr/bin/qemu-loongarch64-static;-cpu;max;-L;/usr/loongarch64-linux-gnu" -DCMAKE_SYSTEM_NAME=Linux
+clear && make -j && ctest -j && cd .. && rm -rf build_loong64
+
 
 echo Success
