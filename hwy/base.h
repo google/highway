@@ -1125,7 +1125,8 @@ HWY_API HWY_BITCASTSCALAR_CONSTEXPR To BitCastScalar(const From& val) {
 
 #ifndef HWY_HAVE_SCALAR_F16_TYPE
 // Compiler supports _Float16, not necessarily with operators.
-#if HWY_NEON_HAVE_F16C || HWY_RVV_HAVE_F16_VEC || HWY_SSE2_HAVE_F16_TYPE
+#if HWY_NEON_HAVE_F16C || HWY_RVV_HAVE_F16_VEC || HWY_SSE2_HAVE_F16_TYPE || \
+     __SPIRV_DEVICE__
 #define HWY_HAVE_SCALAR_F16_TYPE 1
 #else
 #define HWY_HAVE_SCALAR_F16_TYPE 0
@@ -1177,7 +1178,7 @@ using NativeSpecialFloatToWrapper =
 // are generated regardless of F16 support; see #1684.
 struct alignas(2) float16_t {
 #if HWY_HAVE_SCALAR_F16_TYPE
-#if HWY_RVV_HAVE_F16_VEC || HWY_SSE2_HAVE_F16_TYPE
+#if HWY_RVV_HAVE_F16_VEC || HWY_SSE2_HAVE_F16_TYPE || __SPIRV_DEVICE__
   using Native = _Float16;
 #elif HWY_NEON_HAVE_F16C
   using Native = __fp16;
