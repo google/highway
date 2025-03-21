@@ -2176,50 +2176,30 @@ using MakeTraits =
 // SortAscending or SortDescending.
 template <typename Key, class Order>
 void VQSortStatic(Key* HWY_RESTRICT keys, const size_t num_keys, Order) {
-#if VQSORT_ENABLED
   const detail::MakeTraits<Key, Order> st;
   using LaneType = typename decltype(st)::LaneType;
   const SortTag<LaneType> d;
   Sort(d, st, reinterpret_cast<LaneType*>(keys), num_keys * st.LanesPerKey());
-#else
-  (void)keys;
-  (void)num_keys;
-  HWY_ASSERT(0);
-#endif  // VQSORT_ENABLED
 }
 
 template <typename Key, class Order>
 void VQPartialSortStatic(Key* HWY_RESTRICT keys, const size_t num_keys,
                          const size_t k_keys, Order) {
-#if VQSORT_ENABLED
   const detail::MakeTraits<Key, Order> st;
   using LaneType = typename decltype(st)::LaneType;
   const SortTag<LaneType> d;
   PartialSort(d, st, reinterpret_cast<LaneType*>(keys),
               num_keys * st.LanesPerKey(), k_keys * st.LanesPerKey());
-#else
-  (void)keys;
-  (void)num_keys;
-  (void)k_keys;
-  HWY_ASSERT(0);
-#endif  // VQSORT_ENABLED
 }
 
 template <typename Key, class Order>
 void VQSelectStatic(Key* HWY_RESTRICT keys, const size_t num_keys,
                     const size_t k_keys, Order) {
-#if VQSORT_ENABLED
   const detail::MakeTraits<Key, Order> st;
   using LaneType = typename decltype(st)::LaneType;
   const SortTag<LaneType> d;
   Select(d, st, reinterpret_cast<LaneType*>(keys), num_keys * st.LanesPerKey(),
          k_keys * st.LanesPerKey());
-#else
-  (void)keys;
-  (void)num_keys;
-  (void)k_keys;
-  HWY_ASSERT(0);
-#endif  // VQSORT_ENABLED
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

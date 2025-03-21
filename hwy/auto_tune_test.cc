@@ -46,11 +46,14 @@ TEST(AutoTuneTest, TestCostDistribution) {
       const size_t num_outliers = HWY_MAX(num / 4, size_t{1});
       for (size_t i = 0; i < num - num_outliers; ++i) cd.Notify(kVal);
       for (size_t i = 0; i < num_outliers; ++i) cd.Notify(outlier);
-      HWY_ASSERT_EQ(kVal, cd.EstimateCost());
+      const double cost = cd.EstimateCost();
+      // Winsorization allows outliers to shift the central tendency a bit.
+      HWY_ASSERT(cost >= kVal - 0.25);
+      HWY_ASSERT(cost <= kVal + 0.25);
     }
   }
 
-  // Gaussian distribution with salt and pepper noise.
+  // Gaussian distribution with additive+multiplicative noise.
   RandomState rng;
   for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
     CostDistribution cd;
@@ -60,13 +63,21 @@ TEST(AutoTuneTest, TestCostDistribution) {
       double sum = 500.0;
       for (size_t sum_idx = 0; sum_idx < 100; ++sum_idx) sum += Random(rng);
 
-      // 16% salt and pepper noise
+      // 16% noise: mostly additive, some lucky shots.
       const uint32_t r = Random32(&rng);
-      if (r < (1u << 28)) sum = (r & 3) ? 1E5 : 1;
+      if (r < (1u << 28)) {
+        static constexpr double kPowers[4] = {0.0, 1E3, 1E4, 1E5};
+        static constexpr double kMul[4] = {0.50, 0.75, 0.85, 0.90};
+        if (r & 3) {  // 75% chance of large additive noise
+          sum += kPowers[r & 3];
+        } else {  // 25% chance of small multiplicative reduction
+          sum *= kMul[(r >> 2) & 3];
+        }
+      }
       cd.Notify(sum);
     }
     const double cost = cd.EstimateCost();
-    if (!(300.0 <= cost && cost <= 510.0)) {
+    if (!(490.0 <= cost && cost <= 540.0)) {
       HWY_ABORT("Cost %f outside expected range.", cost);
     }
   }
