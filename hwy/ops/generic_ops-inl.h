@@ -528,20 +528,21 @@ HWY_API V InterleaveEven(V a, V b) {
 #define HWY_NATIVE_FLOAT_MIN_MAX_MAGNITUDE
 #endif
 
-template <class V, HWY_IF_FLOAT_V(V)>
+template <class V, HWY_IF_FLOAT_OR_SPECIAL_V(V)>
 HWY_API V MinMagnitude(V a, V b) {
-  const auto abs_a = Abs(a);
-  const auto abs_b = Abs(b);
-  return IfThenElse(Lt(abs_a, abs_b), a,
-                    Min(IfThenElse(Eq(abs_a, abs_b), a, b), b));
+  const V abs_a = Abs(a);
+  const V abs_b = Abs(b);
+  const V min = Min(IfThenElse(Eq(abs_a, abs_b), a, b), b);
+  return IfThenElse(Lt(abs_a, abs_b), a, min);
 }
 
-template <class V, HWY_IF_FLOAT_V(V)>
+template <class V, HWY_IF_FLOAT_OR_SPECIAL_V(V)>
 HWY_API V MaxMagnitude(V a, V b) {
-  const auto abs_a = Abs(a);
-  const auto abs_b = Abs(b);
-  return IfThenElse(Lt(abs_a, abs_b), b,
-                    Max(IfThenElse(Eq(abs_a, abs_b), b, a), a));
+  const V abs_a = Abs(a);
+  const V abs_b = Abs(b);
+  // This lvalue appears to be necessary to avoid a clang bug on SVE.
+  const V max = Max(IfThenElse(Eq(abs_a, abs_b), b, a), a);
+  return IfThenElse(Lt(abs_a, abs_b), b, max);
 }
 
 #endif  // HWY_NATIVE_FLOAT_MIN_MAX_MAGNITUDE

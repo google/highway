@@ -742,6 +742,25 @@ HWY_API svfloat64_t Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1) {
   return svdupq_n_f64(t0, t1);
 }
 
+// ------------------------------ GetLane
+
+namespace detail {
+#define HWY_SVE_GET_LANE(BASE, CHAR, BITS, HALF, NAME, OP) \
+  HWY_INLINE HWY_SVE_T(BASE, BITS)                         \
+      NAME(HWY_SVE_V(BASE, BITS) v, svbool_t mask) {       \
+    return sv##OP##_##CHAR##BITS(mask, v);                 \
+  }
+
+HWY_SVE_FOREACH(HWY_SVE_GET_LANE, GetLaneM, lasta)
+HWY_SVE_FOREACH(HWY_SVE_GET_LANE, ExtractLastMatchingLaneM, lastb)
+#undef HWY_SVE_GET_LANE
+}  // namespace detail
+
+template <class V>
+HWY_API TFromV<V> GetLane(V v) {
+  return detail::GetLaneM(v, detail::PFalse());
+}
+
 // ================================================== LOGICAL
 
 // detail::*N() functions accept a scalar argument to avoid extra Set().
@@ -902,26 +921,6 @@ HWY_API VBF16 Neg(VBF16 v) {
 
 HWY_SVE_FOREACH_I(HWY_SVE_RETV_ARGPV, SaturatedNeg, qneg)
 #endif  // HWY_SVE_HAVE_2
-
-// ------------------------------ Abs
-HWY_SVE_FOREACH_IF(HWY_SVE_RETV_ARGPV, Abs, abs)
-
-// ------------------------------ SaturatedAbs
-#if HWY_SVE_HAVE_2
-#ifdef HWY_NATIVE_SATURATED_ABS
-#undef HWY_NATIVE_SATURATED_ABS
-#else
-#define HWY_NATIVE_SATURATED_ABS
-#endif
-
-HWY_SVE_FOREACH_I(HWY_SVE_RETV_ARGPV, SaturatedAbs, qabs)
-#endif  // HWY_SVE_HAVE_2
-
-// ------------------------------ MaskedAbsOr
-HWY_SVE_FOREACH_IF(HWY_SVE_RETV_ARGMV_M, MaskedAbsOr, abs)
-
-// ------------------------------ MaskedAbs
-HWY_SVE_FOREACH_IF(HWY_SVE_RETV_ARGMV_Z, MaskedAbs, abs)
 
 // ================================================== ARITHMETIC
 
@@ -1250,17 +1249,51 @@ HWY_API V RoundingShiftRightSame(V v, int bits) {
 
 #endif  // HWY_SVE_HAVE_2
 
-// ------------------------------ Min/Max
+// ------------------------------ BroadcastSignBit (ShiftRight)
+template <class V>
+HWY_API V BroadcastSignBit(const V v) {
+  return ShiftRight<sizeof(TFromV<V>) * 8 - 1>(v);
+}
 
-HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGPVV, Min, min)
-HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGPVV, Max, max)
-HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGPVV, Min, minnm)
-HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGPVV, Max, maxnm)
+// ------------------------------ Abs (ShiftRight, Add, Xor, AndN)
 
-namespace detail {
-HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGPVN, MinN, min_n)
-HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGPVN, MaxN, max_n)
-}  // namespace detail
+// Workaround for incorrect results with `svabs`.
+#if HWY_COMPILER_CLANG
+template <class V, HWY_IF_SIGNED_V(V)>
+HWY_API V Abs(V v) {
+  const V sign = BroadcastSignBit(v);
+  return Xor(Add(v, sign), sign);
+}
+
+template <class V, HWY_IF_FLOAT_OR_SPECIAL_V(V)>
+HWY_NOINLINE V Abs(V v) {
+  const DFromV<V> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = MakeUnsigned<TFromD<decltype(d)>>;
+  return BitCast(
+      d, detail::AndN(BitCast(du, v), static_cast<TU>(~SignMask<TU>())));
+}
+
+#else
+HWY_SVE_FOREACH_IF(HWY_SVE_RETV_ARGPV, Abs, abs)
+#endif
+
+// ------------------------------ SaturatedAbs
+#if HWY_SVE_HAVE_2
+#ifdef HWY_NATIVE_SATURATED_ABS
+#undef HWY_NATIVE_SATURATED_ABS
+#else
+#define HWY_NATIVE_SATURATED_ABS
+#endif
+
+HWY_SVE_FOREACH_I(HWY_SVE_RETV_ARGPV, SaturatedAbs, qabs)
+#endif  // HWY_SVE_HAVE_2
+
+// ------------------------------ MaskedAbsOr
+HWY_SVE_FOREACH_IF(HWY_SVE_RETV_ARGMV_M, MaskedAbsOr, abs)
+
+// ------------------------------ MaskedAbs
+HWY_SVE_FOREACH_IF(HWY_SVE_RETV_ARGMV_Z, MaskedAbs, abs)
 
 // ------------------------------ Mul
 
@@ -1924,46 +1957,32 @@ HWY_API svbool_t TestBit(const V a, const V bit) {
   return detail::NeN(And(a, bit), 0);
 }
 
-// ================================================== LANE ACCESS
+// ------------------------------ Min/Max (Lt, IfThenElse)
 
-// ------------------------------ GetLane
+HWY_SVE_FOREACH_U(HWY_SVE_RETV_ARGPVV, Min, min)
+HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGPVV, Max, max)
+HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGPVV, Max, maxnm)
+
+// Workaround for incorrect results with `svmin`.
+#if HWY_COMPILER_CLANG
+template <class V, HWY_IF_SIGNED_V(V)>
+HWY_API V Min(V a, V b) {
+  return IfThenElse(Lt(a, b), a, b);
+}
+template <class V, HWY_IF_FLOAT_OR_SPECIAL_V(V)>
+HWY_API V Min(V a, V b) {
+  return IfThenElse(Lt(a, b), a, b);
+}
+
+#else
+HWY_SVE_FOREACH_I(HWY_SVE_RETV_ARGPVV, Min, min)
+HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGPVV, Min, minnm)
+#endif
 
 namespace detail {
-#define HWY_SVE_GET_LANE(BASE, CHAR, BITS, HALF, NAME, OP) \
-  HWY_INLINE HWY_SVE_T(BASE, BITS)                         \
-      NAME(HWY_SVE_V(BASE, BITS) v, svbool_t mask) {       \
-    return sv##OP##_##CHAR##BITS(mask, v);                 \
-  }
-
-HWY_SVE_FOREACH(HWY_SVE_GET_LANE, GetLaneM, lasta)
-HWY_SVE_FOREACH(HWY_SVE_GET_LANE, ExtractLastMatchingLaneM, lastb)
-#undef HWY_SVE_GET_LANE
+HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGPVN, MinN, min_n)
+HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGPVN, MaxN, max_n)
 }  // namespace detail
-
-template <class V>
-HWY_API TFromV<V> GetLane(V v) {
-  return detail::GetLaneM(v, detail::PFalse());
-}
-
-// ------------------------------ ExtractLane
-template <class V>
-HWY_API TFromV<V> ExtractLane(V v, size_t i) {
-  return detail::GetLaneM(v, FirstN(DFromV<V>(), i));
-}
-
-// ------------------------------ InsertLane (IfThenElse, EqN)
-template <class V, typename T>
-HWY_API V InsertLane(const V v, size_t i, T t) {
-  static_assert(sizeof(TFromV<V>) == sizeof(T), "Lane size mismatch");
-  const DFromV<V> d;
-  const RebindToSigned<decltype(d)> di;
-  using TI = TFromD<decltype(di)>;
-  const svbool_t is_i = detail::EqN(Iota(di, 0), static_cast<TI>(i));
-  // The actual type may be int16_t for special floats; copy, not cast.
-  TFromV<V> t_bits;
-  hwy::CopySameSize(&t, &t_bits);
-  return IfThenElse(RebindMask(d, is_i), Set(d, t_bits), v);
-}
 
 // ================================================== SWIZZLE
 
@@ -3386,7 +3405,7 @@ HWY_API VFromD<DI32> DemoteToNearestInt(DI32 di32,
   return DemoteTo(di32, Round(v));
 }
 
-// ------------------------------ Iota (Add, ConvertTo)
+// ------------------------------ Iota (AddN, ConvertTo)
 
 #define HWY_SVE_IOTA(BASE, CHAR, BITS, HALF, NAME, OP)          \
   template <size_t N, int kPow2, typename T2>                   \
@@ -3399,11 +3418,34 @@ HWY_API VFromD<DI32> DemoteToNearestInt(DI32 di32,
 HWY_SVE_FOREACH_UI(HWY_SVE_IOTA, Iota, index)
 #undef HWY_SVE_IOTA
 
-template <class D, typename T2, HWY_IF_FLOAT_D(D)>
+template <class D, typename T = TFromD<D>, typename T2, HWY_IF_FLOAT(T)>
 HWY_API VFromD<D> Iota(const D d, T2 first) {
   const RebindToSigned<D> di;
-  return detail::AddN(ConvertTo(d, Iota(di, 0)),
-                      ConvertScalarTo<TFromD<D>>(first));
+  const T first_f = ConvertScalarTo<T>(first);
+  const VFromD<D> iota_f = ConvertTo(d, Iota(di, 0));
+  return detail::AddN(iota_f, first_f);
+}
+
+// ================================================== LANE ACCESS
+
+// ------------------------------ ExtractLane (GetLaneM, FirstN)
+template <class V>
+HWY_API TFromV<V> ExtractLane(V v, size_t i) {
+  return detail::GetLaneM(v, FirstN(DFromV<V>(), i));
+}
+
+// ------------------------------ InsertLane (IfThenElse, EqN)
+template <class V, typename T>
+HWY_API V InsertLane(const V v, size_t i, T t) {
+  static_assert(sizeof(TFromV<V>) == sizeof(T), "Lane size mismatch");
+  const DFromV<V> d;
+  const RebindToSigned<decltype(d)> di;
+  using TI = TFromD<decltype(di)>;
+  const svbool_t is_i = detail::EqN(Iota(di, 0), static_cast<TI>(i));
+  // The actual type may be int16_t for special floats; copy, not cast.
+  TFromV<V> t_bits;
+  hwy::CopySameSize(&t, &t_bits);
+  return IfThenElse(RebindMask(d, is_i), Set(d, t_bits), v);
 }
 
 // ------------------------------ GetExponent
@@ -5205,12 +5247,6 @@ HWY_API V Mod(V a, V b) {
 template <class V, class M>
 HWY_API V MaskedModOr(V no, M m, V a, V b) {
   return IfThenElse(m, Mod(a, b), no);
-}
-
-// ------------------------------ BroadcastSignBit (ShiftRight)
-template <class V>
-HWY_API V BroadcastSignBit(const V v) {
-  return ShiftRight<sizeof(TFromV<V>) * 8 - 1>(v);
 }
 
 // ------------------------------ IfNegativeThenElse (BroadcastSignBit)

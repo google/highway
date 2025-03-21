@@ -257,16 +257,27 @@
 // SVE[2] require recent clang or gcc versions.
 
 #ifndef HWY_BROKEN_SVE  // allow override
-// In addition, SVE[2] is not currently supported by any Apple CPU (at least up
-// to and including M4 and A18).
-#if (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1900) ||           \
+// GCC 10+. Clang 19 still has many test failures for SVE. No Apple CPU (at
+// least up to and including M4 and A18) has SVE.
+#if (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 2000) ||           \
     (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1000) || \
     HWY_OS_APPLE
-#define HWY_BROKEN_SVE (HWY_SVE | HWY_SVE2 | HWY_SVE_256 | HWY_SVE2_128)
+#define HWY_BROKEN_SVE (HWY_SVE | HWY_SVE_256)
 #else
 #define HWY_BROKEN_SVE 0
 #endif
 #endif  // HWY_BROKEN_SVE
+
+#ifndef HWY_BROKEN_SVE2  // allow override
+// Clang 19 still has many test failures for SVE2.
+#if (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 2000) ||           \
+    (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1000) || \
+    HWY_OS_APPLE
+#define HWY_BROKEN_SVE2 (HWY_SVE2 | HWY_SVE2_128)
+#else
+#define HWY_BROKEN_SVE2 0
+#endif
+#endif  // HWY_BROKEN_SVE2
 
 #ifndef HWY_BROKEN_PPC10  // allow override
 #if (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1100)
@@ -348,13 +359,13 @@
 // Allow the user to override this without any guarantee of success.
 #ifndef HWY_BROKEN_TARGETS
 
-#define HWY_BROKEN_TARGETS                                        \
-  (HWY_BROKEN_CLANG6 | HWY_BROKEN_32BIT | HWY_BROKEN_MSVC |       \
-   HWY_BROKEN_AVX3_DL_ZEN4 | HWY_BROKEN_AVX3_SPR |                \
-   HWY_BROKEN_ARM7_BIG_ENDIAN | HWY_BROKEN_ARM7_WITHOUT_VFP4 |    \
-   HWY_BROKEN_NEON_BF16 | HWY_BROKEN_SVE | HWY_BROKEN_PPC10 |     \
-   HWY_BROKEN_PPC_32BIT | HWY_BROKEN_RVV | HWY_BROKEN_LOONGARCH | \
-   HWY_BROKEN_Z14)
+#define HWY_BROKEN_TARGETS                                     \
+  (HWY_BROKEN_CLANG6 | HWY_BROKEN_32BIT | HWY_BROKEN_MSVC |    \
+   HWY_BROKEN_AVX3_DL_ZEN4 | HWY_BROKEN_AVX3_SPR |             \
+   HWY_BROKEN_ARM7_BIG_ENDIAN | HWY_BROKEN_ARM7_WITHOUT_VFP4 | \
+   HWY_BROKEN_NEON_BF16 | HWY_BROKEN_SVE | HWY_BROKEN_SVE2 |   \
+   HWY_BROKEN_PPC10 | HWY_BROKEN_PPC_32BIT | HWY_BROKEN_RVV |  \
+   HWY_BROKEN_LOONGARCH | HWY_BROKEN_Z14)
 
 #endif  // HWY_BROKEN_TARGETS
 

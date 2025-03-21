@@ -13,6 +13,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// For faster build on Arm. We still test SVE2_128, SVE and NEON.
+#ifndef HWY_DISABLED_TARGETS
+#define HWY_DISABLED_TARGETS (HWY_SVE_256 | HWY_NEON_WITHOUT_AES | HWY_SVE2)
+#endif
+
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/fma_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
