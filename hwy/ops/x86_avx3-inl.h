@@ -107,6 +107,8 @@ HWY_API V RotateRight(V v) {
 
 // ------------------------------ Compress
 
+#pragma push_macro("HWY_X86_SLOW_COMPRESS_STORE")
+
 #ifndef HWY_X86_SLOW_COMPRESS_STORE  // allow override
 // Slow on Zen4 and SPR, faster if we emulate via Compress().
 #if HWY_TARGET == HWY_AVX3_ZEN4 || HWY_TARGET == HWY_AVX3_SPR
@@ -463,17 +465,23 @@ HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> mask, D d,
 }
 
 // ------------------------------ CompressBlendedStore
-template <class D, HWY_IF_V_SIZE_GT_D(D, 8)>
+template <class D>
 HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> m, D d,
                                     TFromD<D>* HWY_RESTRICT unaligned) {
   // Native CompressStore already does the blending at no extra cost (latency
   // 11, rthroughput 2 - same as compress plus store).
-  if (HWY_TARGET == HWY_AVX3_DL ||
-      (!HWY_X86_SLOW_COMPRESS_STORE && sizeof(TFromD<D>) > 2)) {
+
+  HWY_IF_CONSTEXPR(HWY_MAX_LANES_D(D) < (16 / sizeof(TFromD<D>))) {
+    m = And(m, FirstN(d, HWY_MAX_LANES_D(D)));
+  }
+
+  HWY_IF_CONSTEXPR(!HWY_X86_SLOW_COMPRESS_STORE &&
+                   (HWY_TARGET <= HWY_AVX3_DL || sizeof(TFromD<D>) > 2)) {
     return CompressStore(v, m, d, unaligned);
-  } else {
+  }
+  else {
     const size_t count = CountTrue(d, m);
-    BlendedStore(Compress(v, m), FirstN(d, count), d, unaligned);
+    StoreN(Compress(v, m), d, unaligned, count);
     detail::MaybeUnpoison(unaligned, count);
     return count;
   }
@@ -486,6 +494,8 @@ HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
                                  D d, TFromD<D>* HWY_RESTRICT unaligned) {
   return CompressStore(v, LoadMaskBits(d, bits), d, unaligned);
 }
+
+#pragma pop_macro("HWY_X86_SLOW_COMPRESS_STORE")
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
