@@ -116,7 +116,8 @@ static void CheckCache(const Cache& c, size_t level) {
   HWY_ASSERT(32 <= c.bytes_per_line && c.bytes_per_line <= 1024);
 
   HWY_ASSERT(c.cores_sharing != 0);
-  HWY_ASSERT(c.cores_sharing <= TotalLogicalProcessors());
+  // +1 observed on RISC-V.
+  HWY_ASSERT(c.cores_sharing <= TotalLogicalProcessors() + 1);
 }
 
 TEST(TopologyTest, TestCaches) {

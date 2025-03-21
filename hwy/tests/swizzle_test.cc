@@ -258,6 +258,11 @@ struct TestInsertLane {
     DoTestInsertLaneWithConstAmt(d, lanes.get());
 #endif
 
+// TODO(janwas): file compiler bug report
+#if HWY_COMPILER_CLANG && (HWY_COMPILER_CLANG < 2000) && HWY_ARCH_ARM
+    if (IsSpecialFloat<T>()) return;
+#endif
+
     V v2 = Zero(d);
     for (size_t i = 0; i < N; ++i) {
       lanes[i] = ConvertScalarTo<T>(i + 1);

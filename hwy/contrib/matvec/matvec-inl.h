@@ -22,6 +22,8 @@
 #define HIGHWAY_HWY_CONTRIB_MATVEC_MATVEC_INL_H_
 #endif
 
+#include <stddef.h>
+
 #include "hwy/cache_control.h"
 #include "hwy/contrib/thread_pool/thread_pool.h"
 #include "hwy/highway.h"

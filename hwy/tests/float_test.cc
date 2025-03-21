@@ -144,8 +144,9 @@ struct TestApproximateReciprocal {
     double worst_expected = 0.0;
     double worst_actual = 0.0;
     for (size_t i = 0; i < N; ++i) {
-      const double expected = 1.0 / input[i];
-      const double l1 = ScalarAbs(expected - actual[i]);
+      const double expected = 1.0 / ConvertScalarTo<double>(input[i]);
+      const double l1 =
+          ScalarAbs(expected - ConvertScalarTo<double>(actual[i]));
       if (l1 > max_l1) {
         max_l1 = l1;
         worst_expected = expected;
@@ -187,11 +188,12 @@ struct TestMaskedApproximateReciprocal {
     double expected;
     for (size_t i = 0; i < N; ++i) {
       if (i < 3) {
-        expected = 1.0 / input[i];
+        expected = 1.0 / ConvertScalarTo<double>(input[i]);
       } else {
         expected = 0.0;
       }
-      const double l1 = ScalarAbs(expected - actual[i]);
+      const double l1 =
+          ScalarAbs(expected - ConvertScalarTo<double>(actual[i]));
       if (l1 > max_l1) {
         max_l1 = l1;
         worst_expected = expected;
@@ -254,7 +256,9 @@ struct TestReciprocalSquareRoot {
     Store(ApproximateReciprocalSqrt(v), d, lanes.get());
     for (size_t i = 0; i < N; ++i) {
       T err = ConvertScalarTo<T>(ConvertScalarTo<float>(lanes[i]) - 0.090166f);
-      if (err < ConvertScalarTo<T>(0)) err = -err;
+      if (err < ConvertScalarTo<T>(0)) {
+        err = ConvertScalarTo<T>(-ConvertScalarTo<float>(err));
+      }
       if (static_cast<double>(err) >= 4E-4) {
         HWY_ABORT("Lane %d (%d): actual %f err %f\n", static_cast<int>(i),
                   static_cast<int>(N), static_cast<double>(lanes[i]),

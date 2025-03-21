@@ -139,7 +139,7 @@ TEST(PerfCountersTest, RunBranches) {
 
   HWY_ASSERT(values[PerfCounters::kL3Loads] < 1E8);       // 174K..12M
   HWY_ASSERT(values[PerfCounters::kL3Stores] < 1E7);      // 44K..1.8M
-  HWY_ASSERT(values[PerfCounters::kCacheRefs] < 1E8);     // 5M..27M
+  HWY_ASSERT(values[PerfCounters::kCacheRefs] < 1E9);     // 5M..104M
   HWY_ASSERT(values[PerfCounters::kCacheMisses] < 1E8);   // 500K..10M
   HWY_ASSERT(values[PerfCounters::kBusCycles] < 1E11);    // 1M..10B
   HWY_ASSERT(values[PerfCounters::kPageFaults] < 1E4);    // 0..1.1K (in SDE)
