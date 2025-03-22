@@ -42,6 +42,7 @@
 #include "hwy/contrib/thread_pool/futex.h"
 #include "hwy/contrib/thread_pool/spin.h"
 #include "hwy/contrib/thread_pool/topology.h"
+#include "hwy/stats.h"
 #include "hwy/timer.h"
 
 // Define to HWY_NOINLINE to see profiles of `WorkerRun*` and waits.
@@ -73,7 +74,11 @@ enum class PoolWaitMode : uint8_t { kBlock = 1, kSpin };
 
 namespace pool {
 
-static constexpr int kVerbosity = 0;
+#ifndef HWY_POOL_VERBOSITY
+#define HWY_POOL_VERBOSITY 0
+#endif
+
+static constexpr int kVerbosity = HWY_POOL_VERBOSITY;
 
 // Some CPUs already have more than this many threads, but rather than one
 // large pool, we assume applications create multiple pools, ideally per
@@ -1128,12 +1133,23 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
       ClearBusy();              // before `SendConfig`
       if (auto_tuner.Best()) {  // just finished
         HWY_IF_CONSTEXPR(pool::kVerbosity >= 1) {
-          const size_t idx_best =
-              auto_tuner.Best() - auto_tuner.Candidates().data();
+          const size_t idx_best = static_cast<size_t>(
+              auto_tuner.Best() - auto_tuner.Candidates().data());
+          HWY_DASSERT(idx_best < auto_tuner.Costs().size());
           auto& AT = auto_tuner.Costs()[idx_best];
-          fprintf(stderr, "  %s %f (%f %f %f)\n",
-                  auto_tuner.Best()->ToString().c_str(), AT.EstimateCost(),
-                  AT.Stddev(), AT.Lower(), AT.Upper());
+          const double best_cost = AT.EstimateCost();
+          HWY_DASSERT(best_cost > 0.0);  // will divide by this below
+
+          Stats s_ratio;
+          for (size_t i = 0; i < auto_tuner.Costs().size(); ++i) {
+            if (i == idx_best) continue;
+            const double cost = auto_tuner.Costs()[i].EstimateCost();
+            s_ratio.Notify(static_cast<float>(cost / best_cost));
+          }
+
+          fprintf(stderr, "  %s %5.0f +/- %4.0f. Gain %.2fx [%.2fx, %.2fx]\n",
+                  auto_tuner.Best()->ToString().c_str(), best_cost, AT.Stddev(),
+                  s_ratio.GeometricMean(), s_ratio.Min(), s_ratio.Max());
         }
         SendConfig(*auto_tuner.Best());
       } else {
