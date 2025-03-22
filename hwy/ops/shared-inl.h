@@ -458,13 +458,32 @@ HWY_INLINE HWY_MAYBE_UNUSED constexpr size_t MaxLanes(D) {
   return HWY_MAX_LANES_D(D);
 }
 
-#if !HWY_HAVE_SCALABLE
+#undef HWY_HAVE_CONSTEXPR_LANES
+#undef HWY_LANES_CONSTEXPR
 
-// If non-scalable, this is constexpr; otherwise the target's header defines a
-// non-constexpr version of this function. This is the actual vector length,
-// used when advancing loop counters.
+#if HWY_HAVE_SCALABLE
+#define HWY_HAVE_CONSTEXPR_LANES 0
+#define HWY_LANES_CONSTEXPR
+#else
+
+// We want Lanes() to be constexpr where possible, so that compilers are able to
+// precompute offsets. However, user code must not depend on the constexpr,
+// because that will fail for RISC-V V and Arm SVE. To achieve both, we mark it
+// as non-constexpr in debug builds, but not sanitizers, because we typically
+// want them to see the same code.
+#if HWY_IS_DEBUG_BUILD && !HWY_IS_SANITIZER
+#define HWY_HAVE_CONSTEXPR_LANES 0
+#define HWY_LANES_CONSTEXPR
+#else
+#define HWY_HAVE_CONSTEXPR_LANES 1
+#define HWY_LANES_CONSTEXPR constexpr
+#endif
+
+// Returns actual vector length, used when advancing loop counters. The
+// non-constexpr implementations are defined in their target's header. For a
+// guaranteed-constexpr upper bound, use `MaxLanes(d)`.
 template <class D>
-HWY_INLINE HWY_MAYBE_UNUSED constexpr size_t Lanes(D) {
+HWY_INLINE HWY_MAYBE_UNUSED HWY_LANES_CONSTEXPR size_t Lanes(D) {
   return HWY_MAX_LANES_D(D);
 }
 
