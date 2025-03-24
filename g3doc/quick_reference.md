@@ -24,7 +24,7 @@ a CPU that does not support this instruction set, it will crash.
 Dynamic dispatch means compiling your code multiple times and choosing the best
 available implementation at runtime. Highway supports three ways of doing this:
 
-*   Highway can take care of everything including compilation (by re-#including
+*   Highway can take care of everything including compilation (by re-`#include`
     your code), setting the required compiler #pragmas, and dispatching to the
     best available implementation. The only changes to your code relative to
     static dispatch are adding `#define HWY_TARGET_INCLUDE`, `#include
@@ -2907,7 +2907,7 @@ be called without verifying AVX2 is indeed supported.
 To prevent this problem, we use target-specific attributes introduced via
 `#pragma`. Function using SIMD must reside between `HWY_BEFORE_NAMESPACE` and
 `HWY_AFTER_NAMESPACE`. Conversely, non-SIMD functions and in particular,
-#include of normal or standard library headers must NOT reside between
+`#include` of normal or standard library headers must NOT reside between
 `HWY_BEFORE_NAMESPACE` and `HWY_AFTER_NAMESPACE`. Alternatively, individual
 functions may be prefixed with `HWY_ATTR`, which is more verbose, but ensures
 that `#include`-d functions are not covered by target-specific attributes.
