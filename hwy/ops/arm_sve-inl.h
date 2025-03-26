@@ -2138,10 +2138,10 @@ HWY_API uint64_t BitsFromMask(D d, svbool_t mask) {
   const Repartition<uint64_t, D> du64;
   svuint64_t bits_in_u64 = detail::BitsFromBool(detail::BoolFromMask<D>(mask));
 
-  constexpr size_t N = Lanes(d);
+  constexpr size_t N = MaxLanes(d);
   static_assert(N < 64, "SVE2_128 and SVE_256 are only 128 or 256 bits");
   const uint64_t valid = (1ull << N) - 1;
-  if constexpr (N <= 8) {
+  HWY_IF_CONSTEXPR(N <= 8) {
     // Upper bits are undefined even if N == 8, hence mask.
     return GetLane(bits_in_u64) & valid;
   }
@@ -2150,14 +2150,14 @@ HWY_API uint64_t BitsFromMask(D d, svbool_t mask) {
   bits_in_u64 = detail::AndN(bits_in_u64, 0xFF);
 
   // 128-bit vector: only two u64, so avoid ReduceSum.
-  if constexpr (HWY_TARGET == HWY_SVE2_128) {
+  HWY_IF_CONSTEXPR(HWY_TARGET == HWY_SVE2_128) {
     alignas(16) uint64_t lanes[2];
     Store(bits_in_u64, du64, lanes);
     // lanes[0] is always valid because we know N > 8, but lanes[1] might
     // not be - we may mask it out below.
     const uint64_t result = lanes[0] + (lanes[1] << 8);
     // 8-bit lanes, no further masking
-    if constexpr (N == 16) return result;
+    HWY_IF_CONSTEXPR(N == 16) return result;
     return result & valid;
   }
 
@@ -3601,10 +3601,10 @@ HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0xDD> /*idx_3210_tag*/,
 
 namespace detail {
 
-#if HWY_TARGET == HWY_SVE_256 || HWY_IDE
+#if (HWY_TARGET == HWY_SVE_256 && HWY_HAVE_CONSTEXPR_LANES) || HWY_IDE
 template <class D, HWY_IF_T_SIZE_D(D, 1)>
 svbool_t MaskLowerHalf(D d) {
-  switch (Lanes(d)) {
+  switch (MaxLanes(d)) {
     case 32:
       return svptrue_pat_b8(SV_VL16);
     case 16:
@@ -3619,7 +3619,7 @@ svbool_t MaskLowerHalf(D d) {
 }
 template <class D, HWY_IF_T_SIZE_D(D, 2)>
 svbool_t MaskLowerHalf(D d) {
-  switch (Lanes(d)) {
+  switch (MaxLanes(d)) {
     case 16:
       return svptrue_pat_b16(SV_VL8);
     case 8:
@@ -3632,7 +3632,7 @@ svbool_t MaskLowerHalf(D d) {
 }
 template <class D, HWY_IF_T_SIZE_D(D, 4)>
 svbool_t MaskLowerHalf(D d) {
-  switch (Lanes(d)) {
+  switch (MaxLanes(d)) {
     case 8:
       return svptrue_pat_b32(SV_VL4);
     case 4:
@@ -3643,7 +3643,7 @@ svbool_t MaskLowerHalf(D d) {
 }
 template <class D, HWY_IF_T_SIZE_D(D, 8)>
 svbool_t MaskLowerHalf(D d) {
-  switch (Lanes(d)) {
+  switch (MaxLanes(d)) {
     case 4:
       return svptrue_pat_b64(SV_VL2);
     default:
@@ -3651,10 +3651,10 @@ svbool_t MaskLowerHalf(D d) {
   }
 }
 #endif
-#if HWY_TARGET == HWY_SVE2_128 || HWY_IDE
+#if (HWY_TARGET == HWY_SVE2_128 && HWY_HAVE_CONSTEXPR_LANES) || HWY_IDE
 template <class D, HWY_IF_T_SIZE_D(D, 1)>
 svbool_t MaskLowerHalf(D d) {
-  switch (Lanes(d)) {
+  switch (MaxLanes(d)) {
     case 16:
       return svptrue_pat_b8(SV_VL8);
     case 8:
@@ -3669,7 +3669,7 @@ svbool_t MaskLowerHalf(D d) {
 }
 template <class D, HWY_IF_T_SIZE_D(D, 2)>
 svbool_t MaskLowerHalf(D d) {
-  switch (Lanes(d)) {
+  switch (MaxLanes(d)) {
     case 8:
       return svptrue_pat_b16(SV_VL4);
     case 4:
@@ -3682,14 +3682,15 @@ svbool_t MaskLowerHalf(D d) {
 }
 template <class D, HWY_IF_T_SIZE_D(D, 4)>
 svbool_t MaskLowerHalf(D d) {
-  return svptrue_pat_b32(Lanes(d) == 4 ? SV_VL2 : SV_VL1);
+  return svptrue_pat_b32(MaxLanes(d) == 4 ? SV_VL2 : SV_VL1);
 }
 template <class D, HWY_IF_T_SIZE_D(D, 8)>
 svbool_t MaskLowerHalf(D /*d*/) {
   return svptrue_pat_b64(SV_VL1);
 }
 #endif  // HWY_TARGET == HWY_SVE2_128
-#if HWY_TARGET != HWY_SVE_256 && HWY_TARGET != HWY_SVE2_128
+#if (HWY_TARGET != HWY_SVE_256 && HWY_TARGET != HWY_SVE2_128) || \
+    !HWY_HAVE_CONSTEXPR_LANES
 template <class D>
 svbool_t MaskLowerHalf(D d) {
   return FirstN(d, Lanes(d) / 2);
@@ -3745,7 +3746,7 @@ HWY_API V ConcatLowerLower(const D d, const V hi, const V lo) {
 // ------------------------------ ConcatLowerUpper
 template <class D, class V>
 HWY_API V ConcatLowerUpper(const D d, const V hi, const V lo) {
-#if HWY_TARGET == HWY_SVE_256 || HWY_TARGET == HWY_SVE2_128  // constexpr Lanes
+#if HWY_HAVE_CONSTEXPR_LANES
   if (detail::IsFull(d)) {
     return detail::Ext<Lanes(d) / 2>(hi, lo);
   }
@@ -3801,7 +3802,7 @@ HWY_API V UpperHalf(const DH dh, const V v) {
   // Cast so that we support bfloat16_t.
   const RebindToUnsigned<decltype(d)> du;
   const VFromD<decltype(du)> vu = BitCast(du, v);
-#if HWY_TARGET == HWY_SVE_256 || HWY_TARGET == HWY_SVE2_128  // constexpr Lanes
+#if HWY_HAVE_CONSTEXPR_LANES
   return BitCast(d, detail::Ext<Lanes(dh)>(vu, vu));
 #else
   const MFromD<decltype(du)> mask = detail::MaskUpperHalf(du);
@@ -5459,12 +5460,13 @@ HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
 template <class D>
 HWY_API size_t StoreMaskBits(D d, svbool_t m, uint8_t* bits) {
 #if HWY_TARGET == HWY_SVE_256 || HWY_TARGET == HWY_SVE2_128
-  constexpr size_t N = Lanes(d);
+  constexpr size_t N = MaxLanes(d);
   const uint64_t bits64 = BitsFromMask(d, m);
-  if constexpr (N < 8) {
+  HWY_IF_CONSTEXPR(N < 8) {
     // BitsFromMask guarantees upper bits are zero, hence no masking.
     bits[0] = static_cast<uint8_t>(bits64);
-  } else {
+  }
+  else {
     static_assert(N % 8 == 0, "N is pow2 >= 8, hence divisible");
     static_assert(HWY_IS_LITTLE_ENDIAN, "");
     hwy::CopyBytes<N / 8>(&bits64, bits);

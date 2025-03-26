@@ -300,6 +300,7 @@ alternatives for use-cases requiring an upper bound on the lanes:
     `16/sizeof(T)`.
 
 Due to ADL restrictions, user code calling Highway ops must either:
+
 *   Reside inside `namespace hwy { namespace HWY_NAMESPACE {`; or
 *   prefix each op with an alias such as `namespace hn = hwy::HWY_NAMESPACE;
     hn::Add()`; or

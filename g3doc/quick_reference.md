@@ -180,8 +180,15 @@ initialization functions such as `Set` take a zero-sized tag argument called `d`
 of type `D` and return an actual vector of unspecified type.
 
 The actual lane count (used to increment loop counters etc.) can be obtained via
-`Lanes(d)`. This value might not be known at compile time, thus storage for
-vectors should be dynamically allocated, e.g. via `AllocateAligned(Lanes(d))`.
+`Lanes(d)`. To improve code generation (constant-propagation) for targets with
+fixed-size vectors, this function is `constexpr` `#if HWY_HAVE_CONSTEXPR_LANES`.
+Otherwise, users must not assign `Lanes(d)` to `constexpr` variables. You can
+ensure this by using `HWY_LANES_CONSTEXPR` instead of `constexpr`. To help
+detect mismatches, we define `HWY_HAVE_CONSTEXPR_LANES` to 0 in debug builds.
+
+Because `Lanes(d)` might not be constexpr, it must also not be used as array
+dimensions. Instead, storage for vectors should be dynamically allocated, e.g.
+via `AllocateAligned(Lanes(d))`.
 
 Note that `Lanes(d)` could potentially change at runtime. This is currently
 unlikely, and will not be initiated by Highway without user action, but could
@@ -200,7 +207,7 @@ will not happen during the critical section (the vector code which uses the
 result of the previously obtained `Lanes(d)`).
 
 `MaxLanes(d)` returns a (potentially loose) upper bound on `Lanes(d)`, and is
-implemented as a constexpr function.
+always implemented as a constexpr function.
 
 The actual lane count is guaranteed to be a power of two, even on SVE. This
 simplifies alignment: remainders can be computed as `count & (Lanes(d) - 1)`
@@ -553,13 +560,13 @@ from left to right, of the arguments passed to `Create{2-4}`.
 
 *   <code>V **AbsDiff**(V a, V b)</code>: returns `|a[i] - b[i]|` in each lane.
 
-*   <code>V **PairwiseAdd**(D d, V a, V b)</code>: Add consecutive pairs of elements.
-    Return the results of a and b interleaved, such that `r[i] = a[i] + a[i+1]` for
-    even lanes and `r[i] = b[i-1] + b[i]` for odd lanes.
+*   <code>V **PairwiseAdd**(D d, V a, V b)</code>: Add consecutive pairs of
+    elements. Return the results of a and b interleaved, such that `r[i] =
+    a[i] + a[i+1]` for even lanes and `r[i] = b[i-1] + b[i]` for odd lanes.
 
-*   <code>V **PairwiseSub**(D d, V a, V b)</code>: Subtract consecutive pairs of elements.
-    Return the results of a and b interleaved, such that `r[i] = a[i+1] - a[i]` for
-    even lanes and `r[i] = b[i] - b[i-1]` for odd lanes.
+*   <code>V **PairwiseSub**(D d, V a, V b)</code>: Subtract consecutive pairs of
+    elements. Return the results of a and b interleaved, such that `r[i] =
+    a[i+1] - a[i]` for even lanes and `r[i] = b[i] - b[i-1]` for odd lanes.
 
 *   `V`: `{i,u}{8,16,32},f{16,32}`, `VW`: `Vec<RepartitionToWide<DFromV<V>>>` \
     <code>VW **SumsOf2**(V v)</code> returns the sums of 2 consecutive lanes,
@@ -739,18 +746,16 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     truncating it to the lower half for integer inputs. Currently unavailable on
     SVE/RVV; use the equivalent `Mul` instead.
 
-*   `V`: `f`
-    <code>V **MulRound**(V a, V b)</code>: Multiplies `a[i]` by `b[i]` and rounds
-    the result to the nearest int with ties going to even.
+*   `V`: `f` <code>V **MulRound**(V a, V b)</code>: Multiplies `a[i]` by `b[i]`
+    and rounds the result to the nearest int with ties going to even.
 
 *   `V`: `f`, `VI`: `Vec<RebindToSigned<DFromV<V>>>` \
     <code>V **MulByPow2**(V a, VI b)</code>: Multiplies `a[i]` by `2^b[i]`.
 
-    `MulByPow2(a, b)` is equivalent to
-    `std::ldexp(a[i], HWY_MIN(HWY_MAX(b[i], LimitsMin<int>()), LimitsMax<int>()))`.
+    `MulByPow2(a, b)` is equivalent to `std::ldexp(a[i], HWY_MIN(HWY_MAX(b[i],
+    LimitsMin<int>()), LimitsMax<int>()))`.
 
-*   `V`: `f`
-    <code>V **MulByFloorPow2**(V a, V b)</code>: Multiplies `a[i]` by
+*   `V`: `f` <code>V **MulByFloorPow2**(V a, V b)</code>: Multiplies `a[i]` by
     `2^floor(b[i])`.
 
     It is implementation-defined if `MulByFloorPow2(a, b)` returns zero or NaN
@@ -936,8 +941,8 @@ not a concern, these are equivalent to, and potentially more efficient than,
     `mul[i] * x[i] + add[i]` or `no[i]` if `m[i]` is false.
 
 *   `V`: `{i,f}` \
-    <code>V **MaskedAbsOr**(V no, M m, V a)</code>: returns the absolute value of
-    `a[i]` where m is active and returns `no[i]` otherwise.
+    <code>V **MaskedAbsOr**(V no, M m, V a)</code>: returns the absolute value
+    of `a[i]` where m is active and returns `no[i]` otherwise.
 
 #### Zero masked arithmetic
 
@@ -2797,6 +2802,11 @@ supported for the `HWY_SCALAR` target.
 
 *   `HWY_HAVE_SCALABLE` indicates vector sizes are unknown at compile time, and
     determined by the CPU.
+
+*   `HWY_HAVE_CONSTEXPR_LANES` is 1 if `Lanes(d)` is `constexpr`. This is always
+    0 `#if HWY_HAVE_SCALABLE`, and may also be 0 in other cases, currently
+    including debug builds. `HWY_LANES_CONSTEXPR` replaces the `constexpr`
+    keyword for this usage. It expands to `constexpr` or nothing.
 
 *   `HWY_HAVE_TUPLE` indicates `Vec{2-4}`, `Create{2-4}` and `Get{2-4}` are
     usable. This is already true `#if !HWY_HAVE_SCALABLE`, and for SVE targets,

@@ -3533,7 +3533,7 @@ HWY_API T ExtractLane(const Vec512<T> v, size_t i) {
   }
 #endif
 
-  alignas(64) T lanes[Lanes(d)];
+  alignas(64) T lanes[MaxLanes(d)];
   Store(v, d, lanes);
   return lanes[i];
 }
@@ -6994,7 +6994,7 @@ HWY_API Vec512<T> Expand(Vec512<T> v, const Mask512<T> mask) {
   // LUTs are infeasible for 2^64 possible masks, so splice together two
   // half-vector Expand.
   const Full256<T> dh;
-  constexpr size_t N = Lanes(d);
+  constexpr size_t N = MaxLanes(d);
   // We have to shift the input by a variable number of u8. Shuffling requires
   // VBMI2, in which case we would already have NativeExpand. We instead
   // load at an offset, which may incur a store to load forwarding stall.
@@ -7022,10 +7022,10 @@ HWY_API Vec512<T> Expand(Vec512<T> v, const Mask512<T> mask) {
   // LUTs are infeasible for 2^32 possible masks, so splice together two
   // half-vector Expand.
   const Full256<T> dh;
-  constexpr size_t N = Lanes(d);
+  HWY_LANES_CONSTEXPR size_t N = Lanes(d);
   using Bits = typename Mask256<T>::Raw;
   const Mask256<T> maskL{
-      static_cast<Bits>(mask.raw & Bits{(1ULL << (N / 2)) - 1})};
+      static_cast<Bits>(mask.raw & static_cast<Bits>((1ULL << (N / 2)) - 1))};
   const Mask256<T> maskH{static_cast<Bits>(mask.raw >> (N / 2))};
   // In AVX3 we can permutevar, which avoids a potential store to load
   // forwarding stall vs. reloading the input.
@@ -7192,7 +7192,7 @@ Vec512<double> Shuffle128(const Vec512<double> lo, const Vec512<double> hi) {
 template <class D, HWY_IF_V_SIZE_D(D, 64)>
 HWY_API void LoadTransposedBlocks3(D d, const TFromD<D>* HWY_RESTRICT unaligned,
                                    VFromD<D>& A, VFromD<D>& B, VFromD<D>& C) {
-  constexpr size_t N = Lanes(d);
+  HWY_LANES_CONSTEXPR size_t N = Lanes(d);
   const VFromD<D> v3210 = LoadU(d, unaligned + 0 * N);
   const VFromD<D> v7654 = LoadU(d, unaligned + 1 * N);
   const VFromD<D> vba98 = LoadU(d, unaligned + 2 * N);
@@ -7219,7 +7219,7 @@ template <class D, HWY_IF_V_SIZE_D(D, 64)>
 HWY_API void LoadTransposedBlocks4(D d, const TFromD<D>* HWY_RESTRICT unaligned,
                                    VFromD<D>& vA, VFromD<D>& vB, VFromD<D>& vC,
                                    VFromD<D>& vD) {
-  constexpr size_t N = Lanes(d);
+  HWY_LANES_CONSTEXPR size_t N = Lanes(d);
   const VFromD<D> v3210 = LoadU(d, unaligned + 0 * N);
   const VFromD<D> v7654 = LoadU(d, unaligned + 1 * N);
   const VFromD<D> vba98 = LoadU(d, unaligned + 2 * N);
@@ -7252,7 +7252,7 @@ namespace detail {
 template <class D, HWY_IF_V_SIZE_D(D, 64)>
 HWY_API void StoreTransposedBlocks2(const VFromD<D> i, const VFromD<D> j, D d,
                                     TFromD<D>* HWY_RESTRICT unaligned) {
-  constexpr size_t N = Lanes(d);
+  HWY_LANES_CONSTEXPR size_t N = Lanes(d);
   const auto j1_j0_i1_i0 = detail::Shuffle128<_MM_PERM_BABA>(i, j);
   const auto j3_j2_i3_i2 = detail::Shuffle128<_MM_PERM_DCDC>(i, j);
   const auto j1_i1_j0_i0 =
@@ -7275,7 +7275,7 @@ template <class D, HWY_IF_V_SIZE_D(D, 64)>
 HWY_API void StoreTransposedBlocks3(const VFromD<D> i, const VFromD<D> j,
                                     const VFromD<D> k, D d,
                                     TFromD<D>* HWY_RESTRICT unaligned) {
-  constexpr size_t N = Lanes(d);
+  HWY_LANES_CONSTEXPR size_t N = Lanes(d);
   const VFromD<D> j2_j0_i2_i0 = detail::Shuffle128<_MM_PERM_CACA>(i, j);
   const VFromD<D> i3_i1_k2_k0 = detail::Shuffle128<_MM_PERM_DBCA>(k, i);
   const VFromD<D> j3_j1_k3_k1 = detail::Shuffle128<_MM_PERM_DBDB>(k, j);
@@ -7306,7 +7306,7 @@ template <class D, HWY_IF_V_SIZE_D(D, 64)>
 HWY_API void StoreTransposedBlocks4(const VFromD<D> i, const VFromD<D> j,
                                     const VFromD<D> k, const VFromD<D> l, D d,
                                     TFromD<D>* HWY_RESTRICT unaligned) {
-  constexpr size_t N = Lanes(d);
+  HWY_LANES_CONSTEXPR size_t N = Lanes(d);
   const VFromD<D> j1_j0_i1_i0 = detail::Shuffle128<_MM_PERM_BABA>(i, j);
   const VFromD<D> l1_l0_k1_k0 = detail::Shuffle128<_MM_PERM_BABA>(k, l);
   const VFromD<D> j3_j2_i3_i2 = detail::Shuffle128<_MM_PERM_DCDC>(i, j);
