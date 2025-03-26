@@ -84,12 +84,12 @@ class Stats {
 
     // Online moments. Reference: https://goo.gl/9ha694
     const double d = x - m1_;
-    const double d_div_n = d / n_;
-    const double d2n1_div_n = d * (n_ - 1) * d_div_n;
+    const double d_div_n = d / static_cast<double>(n_);
+    const double d2n1_div_n = d * (static_cast<double>(n_) - 1) * d_div_n;
     const int64_t n_poly = n_ * n_ - 3 * n_ + 3;
     m1_ += d_div_n;
-    m4_ += d_div_n * (d_div_n * (d2n1_div_n * n_poly + 6.0 * m2_) - 4.0 * m3_);
-    m3_ += d_div_n * (d2n1_div_n * (n_ - 2) - 3.0 * m2_);
+    m4_ += d_div_n * (d_div_n * (d2n1_div_n * static_cast<double>(n_poly) + 6.0 * m2_) - 4.0 * m3_);
+    m3_ += d_div_n * (d2n1_div_n * (static_cast<double>(n_) - 2) - 3.0 * m2_);
     m2_ += d2n1_div_n;
   }
 
@@ -101,7 +101,7 @@ class Stats {
   float Max() const { return max_; }
 
   double GeometricMean() const {
-    return n_ == 0 ? 0.0 : std::exp(sum_log_ / n_);
+    return n_ == 0 ? 0.0 : std::exp(sum_log_ / static_cast<double>(n_));
   }
 
   double Mean() const { return m1_; }
@@ -126,20 +126,20 @@ class Stats {
   double Skewness() const {
     if (n_ == 0) return 0.0;
     const double biased = SampleSkewness();
-    const double r = (n_ - 1.0) / n_;
+    const double r = (static_cast<double>(n_) - 1.0) / static_cast<double>(n_);
     return biased * std::pow(r, 1.5);
   }
   // Near zero for normal distributions; smaller values indicate fewer/smaller
   // outliers and larger indicates more/larger outliers. Assumes n_ is large.
   double SampleKurtosis() const {
     if (ScalarAbs(m2_) < 1E-7) return 0.0;
-    return m4_ * n_ / (m2_ * m2_);
+    return m4_ * static_cast<double>(n_) / (m2_ * m2_);
   }
   // Corrected for bias (same as Wikipedia and Minitab but not Excel).
   double Kurtosis() const {
     if (n_ == 0) return 0.0;
     const double biased = SampleKurtosis();
-    const double r = (n_ - 1.0) / n_;
+    const double r = (static_cast<double>(n_) - 1.0) / static_cast<double>(n_);
     return biased * r * r;
   }
 
