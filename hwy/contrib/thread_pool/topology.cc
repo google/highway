@@ -817,7 +817,7 @@ std::vector<PackageSizes> DetectPackages(std::vector<Topology::LP>& lps) {
     lps[lp].package = 0;  // single package
     lps[lp].core = static_cast<uint16_t>(lp / lp_per_core);
     lps[lp].smt = static_cast<uint8_t>(lp % lp_per_core);
-    lps[lp].cluster = static_cast<uint16_t>(lp / cores_per_cluster);
+    lps[lp].cluster = static_cast<uint16_t>(lps[lp].core / cores_per_cluster);
   }
 
   PackageSizes ps;
