@@ -2878,7 +2878,8 @@ as an expression, e.g. `-DHWY_DISABLED_TARGETS=(HWY_SSE4|HWY_AVX3)`.
     defined (i.e. those for which the corresponding flag, e.g. -mavx2, was
     passed to the compiler). If specified, this should be the same for all
     translation units, otherwise the safety check in SupportedTargets (that all
-    enabled baseline targets are supported) may be inaccurate.
+    enabled baseline targets are supported) will not report a mismatch for the
+    targets specified in other translation units.
 
 Zero or one of the following macros may be defined to replace the default
 policy for selecting `HWY_TARGETS`:
