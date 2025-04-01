@@ -6392,8 +6392,9 @@ HWY_API Vec128<T> Expand(Vec128<T> v, Mask128<T> mask) {
   // We want to skip past the v bytes already consumed by idxL. There is no
   // instruction for shift-reg by variable bytes. Storing v itself would work
   // but would involve a store-load forwarding stall. We instead shuffle using
-  // loaded indices. multishift_epi64_epi8 would also help, but if we have that,
-  // we probably also have native 8-bit Expand.
+  // loaded indices.
+  // TODO: MultiRotateRight would also help, but if we have that, we probably
+  // also have native 8-bit Expand?
   alignas(16) static constexpr uint8_t iota[32] = {
       0,   1,   2,   3,   4,   5,   6,   7,   8,   9,   10,
       11,  12,  13,  14,  15,  128, 128, 128, 128, 128, 128,
