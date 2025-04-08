@@ -486,11 +486,35 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "abort_header_only",
+    hdrs = [
+        "hwy/abort.h",
+        "hwy/base.h",
+        "hwy/detect_compiler_arch.h",  # private
+        "hwy/highway_export.h",  # public
+    ],
+    compatible_with = [],
+    copts = COPTS,
+    local_defines = ["HWY_HEADER_ONLY"],
+)
+
 cc_test(
     name = "list_targets",
     size = "small",
     srcs = ["hwy/tests/list_targets.cc"],
     deps = [":hwy"],
+)
+
+cc_test(
+    name = "abort_header_only_test",
+    size = "small",
+    srcs = ["hwy/abort_header_only_test.cc"],
+    deps = [
+        ":abort_header_only",
+        ":hwy_test_util",
+        "@com_google_googletest//:gtest_main",
+    ],
 )
 
 # path, name, deps

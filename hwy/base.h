@@ -26,6 +26,9 @@
 #include <ostream>
 #endif
 
+#if defined (HWY_HEADER_ONLY)
+#include "hwy/abort.h"
+#endif
 #include "hwy/detect_compiler_arch.h"
 #include "hwy/highway_export.h"
 
@@ -149,12 +152,14 @@
 
 namespace hwy {
 
+#if !defined(HWY_HEADER_ONLY)
 // Enables error-checking of format strings.
 #if HWY_HAS_ATTRIBUTE(__format__)
 #define HWY_FORMAT(idx_fmt, idx_arg) \
   __attribute__((__format__(__printf__, idx_fmt, idx_arg)))
 #else
 #define HWY_FORMAT(idx_fmt, idx_arg)
+#endif
 #endif
 
 // Returns a void* pointer which the compiler then assumes is N-byte aligned.
@@ -257,14 +262,16 @@ namespace hwy {
 // 4 instances of a given literal value, useful as input to LoadDup128.
 #define HWY_REP4(literal) literal, literal, literal, literal
 
+#if !defined(HWY_HEADER_ONLY)
 HWY_DLLEXPORT void HWY_FORMAT(3, 4)
     Warn(const char* file, int line, const char* format, ...);
 
-#define HWY_WARN(format, ...) \
-  ::hwy::Warn(__FILE__, __LINE__, format, ##__VA_ARGS__)
-
 HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
     Abort(const char* file, int line, const char* format, ...);
+#endif
+
+#define HWY_WARN(format, ...) \
+  ::hwy::Warn(__FILE__, __LINE__, format, ##__VA_ARGS__)
 
 #define HWY_ABORT(format, ...) \
   ::hwy::Abort(__FILE__, __LINE__, format, ##__VA_ARGS__)
