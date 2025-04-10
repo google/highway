@@ -21,14 +21,15 @@
 // IWYU pragma: begin_exports
 #include <stddef.h>
 #include <stdint.h>
+#if defined(HWY_HEADER_ONLY)
+#include <cstdarg>
+#include <cstdio>
+#endif
 
 #if !defined(HWY_NO_LIBCXX)
 #include <ostream>
 #endif
 
-#if defined (HWY_HEADER_ONLY)
-#include "hwy/abort.h"
-#endif
 #include "hwy/detect_compiler_arch.h"
 #include "hwy/highway_export.h"
 
@@ -152,14 +153,12 @@
 
 namespace hwy {
 
-#if !defined(HWY_HEADER_ONLY)
 // Enables error-checking of format strings.
 #if HWY_HAS_ATTRIBUTE(__format__)
 #define HWY_FORMAT(idx_fmt, idx_arg) \
   __attribute__((__format__(__printf__, idx_fmt, idx_arg)))
 #else
 #define HWY_FORMAT(idx_fmt, idx_arg)
-#endif
 #endif
 
 // Returns a void* pointer which the compiler then assumes is N-byte aligned.
@@ -262,13 +261,76 @@ namespace hwy {
 // 4 instances of a given literal value, useful as input to LoadDup128.
 #define HWY_REP4(literal) literal, literal, literal, literal
 
-#if !defined(HWY_HEADER_ONLY)
+//------------------------------------------------------------------------------
+// Abort / Warn
+
+#if defined(HWY_HEADER_ONLY)
+HWY_DLLEXPORT inline void HWY_FORMAT(3, 4)
+    Warn(const char* file, int line, const char* format, ...) {
+  char buf[800];
+  va_list args;
+  va_start(args, format);
+  vsnprintf(buf, sizeof(buf), format, args);
+  va_end(args);
+
+  fprintf(stderr, "Warn at %s:%d: %s\n", file, line, buf);
+}
+
+HWY_DLLEXPORT HWY_NORETURN inline void HWY_FORMAT(3, 4)
+    Abort(const char* file, int line, const char* format, ...) {
+  char buf[800];
+  va_list args;
+  va_start(args, format);
+  vsnprintf(buf, sizeof(buf), format, args);
+  va_end(args);
+
+  fprintf(stderr, "Abort at %s:%d: %s\n", file, line, buf);
+
+  fflush(stderr);
+
+// Now terminate the program:
+#if HWY_ARCH_RISCV
+  exit(1);  // trap/abort just freeze Spike.
+#else
+  abort();  // Compile error without this due to HWY_NORETURN.
+#endif
+}
+#else  // !HWY_HEADER_ONLY
+// Interfaces for custom Warn/Abort handlers.
+typedef void (*WarnFunc)(const char* file, int line, const char* message);
+
+typedef void (*AbortFunc)(const char* file, int line, const char* message);
+
+// Returns current Warn() handler, or nullptr if no handler was yet registered,
+// indicating Highway should print to stderr.
+// DEPRECATED because this is thread-hostile and prone to misuse (modifying the
+// underlying pointer through the reference).
+HWY_DLLEXPORT WarnFunc& GetWarnFunc();
+
+// Returns current Abort() handler, or nullptr if no handler was yet registered,
+// indicating Highway should print to stderr and abort.
+// DEPRECATED because this is thread-hostile and prone to misuse (modifying the
+// underlying pointer through the reference).
+HWY_DLLEXPORT AbortFunc& GetAbortFunc();
+
+// Sets a new Warn() handler and returns the previous handler, which is nullptr
+// if no previous handler was registered, and should otherwise be called from
+// the new handler. Thread-safe.
+HWY_DLLEXPORT WarnFunc SetWarnFunc(WarnFunc func);
+
+// Sets a new Abort() handler and returns the previous handler, which is nullptr
+// if no previous handler was registered, and should otherwise be called from
+// the new handler. If all handlers return, then Highway will terminate the app.
+// Thread-safe.
+HWY_DLLEXPORT AbortFunc SetAbortFunc(AbortFunc func);
+
 HWY_DLLEXPORT void HWY_FORMAT(3, 4)
     Warn(const char* file, int line, const char* format, ...);
 
 HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
     Abort(const char* file, int line, const char* format, ...);
-#endif
+
+#endif  // HWY_HEADER_ONLY
 
 #define HWY_WARN(format, ...) \
   ::hwy::Warn(__FILE__, __LINE__, format, ##__VA_ARGS__)
@@ -1138,7 +1200,7 @@ HWY_API HWY_BITCASTSCALAR_CONSTEXPR To BitCastScalar(const From& val) {
 #ifndef HWY_HAVE_SCALAR_F16_TYPE
 // Compiler supports _Float16, not necessarily with operators.
 #if HWY_NEON_HAVE_F16C || HWY_RVV_HAVE_F16_VEC || HWY_SSE2_HAVE_F16_TYPE || \
-     __SPIRV_DEVICE__
+    __SPIRV_DEVICE__
 #define HWY_HAVE_SCALAR_F16_TYPE 1
 #else
 #define HWY_HAVE_SCALAR_F16_TYPE 0
