@@ -627,12 +627,14 @@ struct AddExport {
 #include "hwy/ops/wasm_128-inl.h"
 #elif HWY_TARGET == HWY_RVV
 #include "hwy/ops/rvv-inl.h"
+#elif HWY_TARGET == HWY_LSX
+#include "hwy/ops/loongarch_lsx-inl.h"
+#elif HWY_TARGET == HWY_LASX
+#include "hwy/ops/loongarch_lasx-inl.h"
 #elif HWY_TARGET == HWY_EMU128
 #include "hwy/ops/emu128-inl.h"
 #elif HWY_TARGET == HWY_SCALAR
 #include "hwy/ops/scalar-inl.h"
-#elif HWY_TARGET == HWY_LSX || HWY_TARGET == HWY_LASX
-#include "hwy/ops/loongarch_lsx-inl.h"
 #else
 #pragma message("HWY_TARGET does not match any known target")
 #endif  // HWY_TARGET
