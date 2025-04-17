@@ -567,7 +567,13 @@ struct AddExport {
   (HWY_DISPATCH_TABLE(FUNC_NAME)[hwy::GetChosenTarget().GetIndex()])
 
 // Calls the function pointer for the chosen target.
-#define HWY_DYNAMIC_DISPATCH(FUNC_NAME) (*(HWY_DYNAMIC_POINTER(FUNC_NAME)))
+// We add an empty asm instruction to block inlining to work around an LLVM
+// inliner crash caused by inlining incompatible intrinsics.
+#define HWY_DYNAMIC_DISPATCH(FUNC_NAME) ({ \
+  auto p =*(HWY_DYNAMIC_POINTER(FUNC_NAME)); \
+  asm ("" : "+r"(p)); \
+  p; \
+})
 
 // Same as DISPATCH, but provide a different arg name to clarify usage.
 #define HWY_DYNAMIC_DISPATCH_T(TABLE_NAME) HWY_DYNAMIC_DISPATCH(TABLE_NAME)
