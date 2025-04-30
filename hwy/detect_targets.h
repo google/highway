@@ -60,9 +60,9 @@
 
 // --------------------------- x86: 15 targets (+ one fallback)
 // Bits 0..2 reserved (3 targets)
-#define HWY_AVX10_2_512 (1LL << 3)  // AVX10.2 with 512-bit vectors
+#define HWY_AVX10_2 (1LL << 3)  // AVX10.2 with 512-bit vectors
 #define HWY_AVX3_SPR (1LL << 4)
-#define HWY_AVX10_2 (1LL << 5)  // AVX10.2 with 256-bit vectors
+// Bit 5: reserved (1 target)
 // Currently `HWY_AVX3_DL` plus `AVX512BF16` and a special case for
 // `CompressStore` (10x as fast, still useful on Zen5). We may later also use
 // `VPCONFLICT`. Note that `VP2INTERSECT` is available in Zen5.
@@ -71,8 +71,8 @@
 // Currently satisfiable by Ice Lake (`VNNI`, `VPCLMULQDQ`, `VPOPCNTDQ`,
 // `VBMI`, `VBMI2`, `VAES`, `BITALG`, `GFNI`).
 #define HWY_AVX3_DL (1LL << 7)
-#define HWY_AVX3 (1LL << 8)     // HWY_AVX2 plus AVX-512F/BW/CD/DQ/VL
-#define HWY_AVX2 (1LL << 9)     // HWY_SSE4 plus BMI2 + F16 + FMA
+#define HWY_AVX3 (1LL << 8)  // HWY_AVX2 plus AVX-512F/BW/CD/DQ/VL
+#define HWY_AVX2 (1LL << 9)  // HWY_SSE4 plus BMI2 + F16 + FMA
 // Bit 10: reserved
 #define HWY_SSE4 (1LL << 11)   // SSE4.2 plus AES + CLMUL
 #define HWY_SSSE3 (1LL << 12)  // S-SSE3
@@ -600,10 +600,12 @@
 #endif
 
 // Require everything in AVX2 plus AVX-512 flags (also set by MSVC)
-#if HWY_BASELINE_AVX2 != 0 && defined(__AVX512F__) && defined(__AVX512BW__) && \
-    defined(__AVX512DQ__) && defined(__AVX512VL__) &&                          \
-    ((!HWY_COMPILER_GCC_ACTUAL && !HWY_COMPILER_CLANG) ||                      \
-     HWY_COMPILER_GCC_ACTUAL < 1400 || HWY_COMPILER_CLANG < 1800 ||            \
+#if HWY_BASELINE_AVX2 != 0 &&                                       \
+    ((defined(__AVX512F__) && defined(__AVX512BW__) &&              \
+      defined(__AVX512DQ__) && defined(__AVX512VL__)) ||            \
+     defined(__AVX10_2__)) &&                                       \
+    ((!HWY_COMPILER_GCC_ACTUAL && !HWY_COMPILER_CLANG) ||           \
+     HWY_COMPILER_GCC_ACTUAL < 1400 || HWY_COMPILER_CLANG < 1800 || \
      defined(__EVEX512__))
 #define HWY_BASELINE_AVX3 HWY_AVX3
 #else
@@ -611,10 +613,12 @@
 #endif
 
 // TODO(janwas): not yet known whether these will be set by MSVC
-#if HWY_BASELINE_AVX3 != 0 && defined(__AVX512VNNI__) && defined(__VAES__) && \
-    defined(__VPCLMULQDQ__) && defined(__AVX512VBMI__) &&                     \
-    defined(__AVX512VBMI2__) && defined(__AVX512VPOPCNTDQ__) &&               \
-    defined(__AVX512BITALG__)
+#if HWY_BASELINE_AVX3 != 0 &&                                     \
+    ((defined(__AVX512VNNI__) && defined(__VAES__) &&             \
+      defined(__VPCLMULQDQ__) && defined(__AVX512VBMI__) &&       \
+      defined(__AVX512VBMI2__) && defined(__AVX512VPOPCNTDQ__) && \
+      defined(__AVX512BITALG__)) ||                               \
+     defined(__AVX10_2__))
 #define HWY_BASELINE_AVX3_DL HWY_AVX3_DL
 #else
 #define HWY_BASELINE_AVX3_DL 0
@@ -629,23 +633,19 @@
 #define HWY_BASELINE_AVX3_ZEN4 0
 #endif
 
-#if HWY_BASELINE_AVX2 != 0 && defined(__AVX10_2__)
-#define HWY_BASELINE_AVX10_2 HWY_AVX10_2
-#else
-#define HWY_BASELINE_AVX10_2 0
-#endif
-
-#if HWY_BASELINE_AVX3_DL != 0 && defined(__AVX512BF16__) && \
-    defined(__AVX512FP16__)
+#if HWY_BASELINE_AVX3_DL != 0 &&                             \
+    ((defined(__AVX512BF16__) && defined(__AVX512FP16__)) || \
+     defined(__AVX10_2__))
 #define HWY_BASELINE_AVX3_SPR HWY_AVX3_SPR
 #else
 #define HWY_BASELINE_AVX3_SPR 0
 #endif
 
-#if HWY_BASELINE_AVX3_SPR != 0 && defined(__AVX10_2_512__)
-#define HWY_BASELINE_AVX10_2_512 HWY_AVX10_2_512
+#if HWY_BASELINE_AVX3_SPR != 0 && defined(__AVX10_2__) && \
+    (HWY_COMPILER_GCC_ACTUAL >= 1500 || HWY_COMPILER_CLANG >= 2001)
+#define HWY_BASELINE_AVX10_2 HWY_AVX10_2
 #else
-#define HWY_BASELINE_AVX10_2_512 0
+#define HWY_BASELINE_AVX10_2 0
 #endif
 
 // RVV requires intrinsics 0.11 or later, see #1156.
@@ -666,15 +666,14 @@
 
 // Allow the user to override this without any guarantee of success.
 #ifndef HWY_BASELINE_TARGETS
-#define HWY_BASELINE_TARGETS                                              \
-  (HWY_BASELINE_SCALAR | HWY_BASELINE_WASM | HWY_BASELINE_PPC8 |          \
-   HWY_BASELINE_PPC9 | HWY_BASELINE_PPC10 | HWY_BASELINE_Z14 |            \
-   HWY_BASELINE_Z15 | HWY_BASELINE_SVE2 | HWY_BASELINE_SVE |              \
-   HWY_BASELINE_NEON | HWY_BASELINE_SSE2 | HWY_BASELINE_SSSE3 |           \
-   HWY_BASELINE_SSE4 | HWY_BASELINE_AVX2 | HWY_BASELINE_AVX3 |            \
-   HWY_BASELINE_AVX3_DL | HWY_BASELINE_AVX3_ZEN4 | HWY_BASELINE_AVX10_2 | \
-   HWY_BASELINE_AVX3_SPR | HWY_BASELINE_AVX10_2_512 | HWY_BASELINE_RVV |  \
-   HWY_BASELINE_LOONGARCH)
+#define HWY_BASELINE_TARGETS                                               \
+  (HWY_BASELINE_SCALAR | HWY_BASELINE_WASM | HWY_BASELINE_PPC8 |           \
+   HWY_BASELINE_PPC9 | HWY_BASELINE_PPC10 | HWY_BASELINE_Z14 |             \
+   HWY_BASELINE_Z15 | HWY_BASELINE_SVE2 | HWY_BASELINE_SVE |               \
+   HWY_BASELINE_NEON | HWY_BASELINE_SSE2 | HWY_BASELINE_SSSE3 |            \
+   HWY_BASELINE_SSE4 | HWY_BASELINE_AVX2 | HWY_BASELINE_AVX3 |             \
+   HWY_BASELINE_AVX3_DL | HWY_BASELINE_AVX3_ZEN4 | HWY_BASELINE_AVX3_SPR | \
+   HWY_BASELINE_AVX10_2 | HWY_BASELINE_RVV | HWY_BASELINE_LOONGARCH)
 #endif  // HWY_BASELINE_TARGETS
 
 //------------------------------------------------------------------------------
@@ -859,7 +858,7 @@
 #define HWY_ATTAINABLE_TARGETS_X86                                    \
   HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_SSE2 | HWY_SSSE3 | HWY_SSE4 | \
               HWY_AVX2 | HWY_AVX3 | HWY_AVX3_DL | HWY_AVX3_ZEN4 |     \
-              HWY_AVX3_SPR)
+              HWY_AVX3_SPR | HWY_AVX10_2)
 #endif  // !HWY_COMPILER_MSVC
 #endif  // HWY_ATTAINABLE_TARGETS_X86
 
