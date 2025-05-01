@@ -155,7 +155,7 @@ jobs:
             # Clang 16 or later to work around crashes that occur with Clang 16
             # or later when some of the Google Highway tests are compiled with
             # all x86 targets enabled
-            cxx_flags: -DHWY_DISABLED_TARGETS=0x50
+            cxx_flags: -DHWY_DISABLED_TARGETS=0x58
             cxx_standard: 17
 
           - name: Clang-17
@@ -166,7 +166,7 @@ jobs:
             # Clang 16 or later to work around crashes that occur with Clang 16
             # or later when some of the Google Highway tests are compiled with
             # all x86 targets enabled
-            cxx_flags: -DHWY_DISABLED_TARGETS=0x50
+            cxx_flags: -DHWY_DISABLED_TARGETS=0x58
             cxx_standard: 17
 
           - name: Clang-18
@@ -177,7 +177,7 @@ jobs:
             # Clang 16 or later to work around crashes that occur with Clang 16
             # or later when some of the Google Highway tests are compiled with
             # all x86 targets enabled
-            cxx_flags: -DHWY_DISABLED_TARGETS=0x50
+            cxx_flags: -DHWY_DISABLED_TARGETS=0x58
             cxx_standard: 17
 
           - name: Clang-18 (C++23)
@@ -188,7 +188,7 @@ jobs:
             # Clang 16 or later to work around crashes that occur with Clang 16
             # or later when some of the Google Highway tests are compiled with
             # all x86 targets enabled
-            cxx_flags: -DHWY_DISABLED_TARGETS=0x50
+            cxx_flags: -DHWY_DISABLED_TARGETS=0x58
             cxx_standard: 23
 
           - name: GCC-13
