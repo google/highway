@@ -2180,10 +2180,9 @@ or `ConcatOdd` followed by `PromoteLowerTo`:
     the output order is the result of demoting the elements of `a` in the lower
     half of the result followed by the result of demoting the elements of `b` in
     the upper half of the result. `OrderedDemote2To(d, a, b)` is equivalent to
-    `Combine(d, DemoteTo(Half<D>(), b), DemoteTo(Half<D>(), a))`, but
-    `OrderedDemote2To(d, a, b)` is typically more efficient than `Combine(d,
-    DemoteTo(Half<D>(), b), DemoteTo(Half<D>(), a))`. Only available if
-    `HWY_TARGET != HWY_SCALAR`.
+    `Combine(d, DemoteTo(Half<D>(), b), DemoteTo(Half<D>(), a))`, but typically
+    more efficient. Note that integer inputs are saturated to the destination
+    range as with `DemoteTo`. Only available if `HWY_TARGET != HWY_SCALAR`.
 
 *   `V`,`D`: (`u16,u8`), (`u32,u16`), (`u64,u32`), \
     <code>Vec&lt;D&gt; **OrderedTruncate2To**(D d, V a, V b)</code>: as above,
