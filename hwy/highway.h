@@ -124,12 +124,10 @@ namespace hwy {
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_AVX3_DL::FUNC_NAME
 #elif HWY_STATIC_TARGET == HWY_AVX3_ZEN4
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_AVX3_ZEN4::FUNC_NAME
-#elif HWY_STATIC_TARGET == HWY_AVX10_2
-#define HWY_STATIC_DISPATCH(FUNC_NAME) N_AVX10_2::FUNC_NAME
 #elif HWY_STATIC_TARGET == HWY_AVX3_SPR
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_AVX3_SPR::FUNC_NAME
-#elif HWY_STATIC_TARGET == HWY_AVX10_2_512
-#define HWY_STATIC_DISPATCH(FUNC_NAME) N_AVX10_2_512::FUNC_NAME
+#elif HWY_STATIC_TARGET == HWY_AVX10_2
+#define HWY_STATIC_DISPATCH(FUNC_NAME) N_AVX10_2::FUNC_NAME
 #endif
 
 // HWY_CHOOSE_*(FUNC_NAME) expands to the function pointer for that target or
@@ -288,22 +286,16 @@ namespace hwy {
 #define HWY_CHOOSE_AVX3_ZEN4(FUNC_NAME) nullptr
 #endif
 
-#if HWY_TARGETS & HWY_AVX10_2
-#define HWY_CHOOSE_AVX10_2(FUNC_NAME) &N_AVX10_2::FUNC_NAME
-#else
-#define HWY_CHOOSE_AVX10_2(FUNC_NAME) nullptr
-#endif
-
 #if HWY_TARGETS & HWY_AVX3_SPR
 #define HWY_CHOOSE_AVX3_SPR(FUNC_NAME) &N_AVX3_SPR::FUNC_NAME
 #else
 #define HWY_CHOOSE_AVX3_SPR(FUNC_NAME) nullptr
 #endif
 
-#if HWY_TARGETS & HWY_AVX10_2_512
-#define HWY_CHOOSE_AVX10_2_512(FUNC_NAME) &N_AVX10_2_512::FUNC_NAME
+#if HWY_TARGETS & HWY_AVX10_2
+#define HWY_CHOOSE_AVX10_2(FUNC_NAME) &N_AVX10_2::FUNC_NAME
 #else
-#define HWY_CHOOSE_AVX10_2_512(FUNC_NAME) nullptr
+#define HWY_CHOOSE_AVX10_2(FUNC_NAME) nullptr
 #endif
 
 // MSVC 2017 workaround: the non-type template parameter to ChooseAndCall
@@ -569,11 +561,12 @@ struct AddExport {
 // Calls the function pointer for the chosen target.
 // We call hwy::PreventElision(...) to work around a compiler crash where the
 // LLVM inliner crashes due to inlining incompatible intrinsics.
-#define HWY_DYNAMIC_DISPATCH(FUNC_NAME) ({ \
-  auto p = *(HWY_DYNAMIC_POINTER(FUNC_NAME)); \
-  hwy::PreventElision(p); \
-  p; \
-})
+#define HWY_DYNAMIC_DISPATCH(FUNC_NAME)         \
+  ({                                            \
+    auto p = *(HWY_DYNAMIC_POINTER(FUNC_NAME)); \
+    hwy::PreventElision(p);                     \
+    p;                                          \
+  })
 
 // Same as DISPATCH, but provide a different arg name to clarify usage.
 #define HWY_DYNAMIC_DISPATCH_T(TABLE_NAME) HWY_DYNAMIC_DISPATCH(TABLE_NAME)
@@ -616,9 +609,9 @@ struct AddExport {
 #include "hwy/ops/x86_128-inl.h"
 #elif HWY_TARGET == HWY_AVX2
 #include "hwy/ops/x86_256-inl.h"
-#elif HWY_TARGET == HWY_AVX3 || HWY_TARGET == HWY_AVX3_DL ||    \
-    HWY_TARGET == HWY_AVX3_ZEN4 || HWY_TARGET == HWY_AVX10_2 || \
-    HWY_TARGET == HWY_AVX3_SPR || HWY_TARGET == HWY_AVX10_2_512
+#elif HWY_TARGET == HWY_AVX3 || HWY_TARGET == HWY_AVX3_DL ||     \
+    HWY_TARGET == HWY_AVX3_ZEN4 || HWY_TARGET == HWY_AVX3_SPR || \
+    HWY_TARGET == HWY_AVX10_2
 #include "hwy/ops/x86_avx3-inl.h"
 #elif HWY_TARGET == HWY_Z14 || HWY_TARGET == HWY_Z15 || \
     (HWY_TARGET & HWY_ALL_PPC)
