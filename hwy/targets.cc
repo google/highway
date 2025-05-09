@@ -26,7 +26,7 @@
 #if HWY_ARCH_X86
 #include <xmmintrin.h>
 
-#elif (HWY_ARCH_ARM || HWY_ARCH_PPC || HWY_ARCH_S390X || HWY_ARCH_RISCV) && \
+#elif (HWY_ARCH_ARM || HWY_ARCH_PPC || HWY_ARCH_S390X || HWY_ARCH_RISCV || HWY_ARCH_LOONGARCH) && \
     HWY_OS_LINUX
 // sys/auxv.h does not always include asm/hwcap.h, or define HWCAP*, hence we
 // still include this directly. See #1199.
@@ -698,6 +698,7 @@ static int64_t DetectTargets() {
 }
 }  // namespace rvv
 #elif HWY_ARCH_LOONGARCH && HWY_HAVE_RUNTIME_DISPATCH
+
 namespace loongarch {
 
 #ifndef LA_HWCAP_LSX
@@ -712,8 +713,8 @@ using CapBits = unsigned long;  // NOLINT
 static int64_t DetectTargets() {
   int64_t bits = 0;
   const CapBits hw = getauxval(AT_HWCAP);
-  if (hwcap & LA_HWCAP_LSX) bits |= HWY_LSX;
-  if (hwcap & LA_HWCAP_LASX) bits |= HWY_LASX;
+  if (hw & LA_HWCAP_LSX) bits |= HWY_LSX;
+  if (hw & LA_HWCAP_LASX) bits |= HWY_LASX;
   return bits;
 }
 }  // namespace loongarch

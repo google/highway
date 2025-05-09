@@ -708,15 +708,20 @@
 
 #define HWY_LANES(T) (HWY_MAX_BYTES / sizeof(T))
 
-// TODO: check flag values
 #define HWY_HAVE_SCALABLE 0
 #define HWY_HAVE_INTEGER64 1
-#define HWY_HAVE_FLOAT16 1
+#define HWY_HAVE_FLOAT16 0
 #define HWY_HAVE_FLOAT64 1
-#define HWY_MEM_OPS_MIGHT_FAULT 0
+#define HWY_MEM_OPS_MIGHT_FAULT 1
 #define HWY_NATIVE_FMA 1
 #define HWY_NATIVE_DOT_BF16 0
+
+#if HWY_TARGET == HWY_LSX
 #define HWY_CAP_GE256 0
+#else
+#define HWY_CAP_GE256 1
+#endif
+
 #define HWY_CAP_GE512 0
 
 #if HWY_TARGET == HWY_LSX
