@@ -567,13 +567,23 @@ struct AddExport {
   (HWY_DISPATCH_TABLE(FUNC_NAME)[hwy::GetChosenTarget().GetIndex()])
 
 // Calls the function pointer for the chosen target.
-// We call hwy::PreventElision(...) to work around a compiler crash where the
-// LLVM inliner crashes due to inlining incompatible intrinsics.
-#define HWY_DYNAMIC_DISPATCH(FUNC_NAME) ({ \
-  auto p = *(HWY_DYNAMIC_POINTER(FUNC_NAME)); \
-  hwy::PreventElision(p); \
-  p; \
-})
+#if HWY_COMPILER_GCC || HWY_COMPILER_CLANG
+
+// On GCC or Clang, we call hwy::PreventElision(...) to work around a compiler
+// crash where the LLVM inliner crashes due to inlining incompatible intrinsics.
+
+#define HWY_DYNAMIC_DISPATCH(FUNC_NAME)         \
+  __extension__({                               \
+    auto p = *(HWY_DYNAMIC_POINTER(FUNC_NAME)); \
+    hwy::PreventElision(p);                     \
+    p;                                          \
+  })
+
+#else  // !(HWY_COMPILER_GCC || HWY_COMPILER_CLANG)
+
+#define HWY_DYNAMIC_DISPATCH(FUNC_NAME) (*(HWY_DYNAMIC_POINTER(FUNC_NAME)))
+
+#endif  // HWY_COMPILER_GCC || HWY_COMPILER_CLANG
 
 // Same as DISPATCH, but provide a different arg name to clarify usage.
 #define HWY_DYNAMIC_DISPATCH_T(TABLE_NAME) HWY_DYNAMIC_DISPATCH(TABLE_NAME)
