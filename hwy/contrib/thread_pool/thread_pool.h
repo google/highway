@@ -934,20 +934,21 @@ class WorkerAdapter {
   // Split into separate wait/barrier functions because `ThreadFunc` latches
   // the config in between them.
   template <class Spin, class Param2>
-  hwy::EnableIf<
-      hwy::IsSame<hwy::RemoveCvRef<decltype(hwy::RemoveCvRef<Param2>().Type())>,
-                  WaitType>() ||
-      hwy::IsSame<hwy::RemoveCvRef<decltype(hwy::RemoveCvRef<Param2>().Type())>,
-                  BarrierType>()>
+  hwy::EnableIf<hwy::IsSameEither<
+      hwy::RemoveCvRef<decltype(hwy::RemoveCvRef<Param2>().Type())>, WaitType,
+      BarrierType>()>
   operator()(const Spin& spin, const Param2& wait_or_barrier) const {
-    this->CallImpl(
-        hwy::SizeTag<
-            hwy::IsSame<
-                hwy::RemoveCvRef<decltype(hwy::RemoveCvRef<Param2>().Type())>,
-                WaitType>()
-                ? 1
-                : 2>(),
-        spin, wait_or_barrier);
+    // Use tag dispatch to work around template argument deduction error with
+    // MSVC 2019
+
+    constexpr size_t kType =
+        hwy::IsSame<
+            hwy::RemoveCvRef<decltype(hwy::RemoveCvRef<Param2>().Type())>,
+            WaitType>() ? 1 : 2;
+
+    // Using this->CallImpl below ensures that WorkerAdapter::CallImpl is
+    // selected and avoids unwanted argument dependent lookup
+    this->CallImpl(hwy::SizeTag<kType>(), spin, wait_or_barrier);
   }
 
  private:
