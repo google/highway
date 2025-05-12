@@ -719,7 +719,7 @@ target_sources(hwy_profiler_example PRIVATE
     hwy/profiler.h)
 target_compile_options(hwy_profiler_example PRIVATE ${HWY_FLAGS})
 target_compile_features(hwy_profiler_example PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
-target_link_libraries(hwy_profiler_example PRIVATE hwy)
+target_link_libraries(hwy_profiler_example PRIVATE hwy hwy_contrib)
 target_link_libraries(hwy_profiler_example PRIVATE ${ATOMICS_LIBRARIES})
 set_target_properties(hwy_profiler_example
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
