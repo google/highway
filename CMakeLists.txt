@@ -769,7 +769,6 @@ endif()  # HWY_TEST_STANDALONE
 set(HWY_TEST_FILES
   hwy/abort_test.cc
   hwy/aligned_allocator_test.cc
-  hwy/auto_tune_test.cc
   hwy/base_test.cc
   hwy/bit_set_test.cc
   hwy/highway_test.cc
@@ -842,6 +841,7 @@ if (HWY_ENABLE_CONTRIB)
 list(APPEND HWY_TEST_LIBS hwy_contrib)
 
 list(APPEND HWY_TEST_FILES
+  hwy/auto_tune_test.cc
   hwy/contrib/algo/copy_test.cc
   hwy/contrib/algo/find_test.cc
   hwy/contrib/algo/transform_test.cc
