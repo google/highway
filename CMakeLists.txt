@@ -714,6 +714,7 @@ set_target_properties(hwy_benchmark
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
 
 # Profiler demo
+if (HWY_ENABLE_CONTRIB)
 add_executable(hwy_profiler_example hwy/examples/profiler_example.cc)
 target_sources(hwy_profiler_example PRIVATE
     hwy/profiler.h)
@@ -723,6 +724,7 @@ target_link_libraries(hwy_profiler_example PRIVATE hwy hwy_contrib)
 target_link_libraries(hwy_profiler_example PRIVATE ${ATOMICS_LIBRARIES})
 set_target_properties(hwy_profiler_example
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
+endif()  # HWY_ENABLE_CONTRIB
 
 endif()  # HWY_ENABLE_EXAMPLES
 # -------------------------------------------------------- Tests
