@@ -644,18 +644,12 @@ HWY_API V MaskedMulOr(V no, M m, V a, V b) {
 
 template <class V, class M>
 HWY_API V MaskedDivOr(V no, M m, V a, V b) {
-  const DFromV<V> d;
-  // Avoid division by zero for masked-out lanes.
-  const V nonzero = Set(d, TFromD<decltype(d)>{1});
-  return IfThenElse(m, Div(a, IfThenElse(m, b, nonzero)), no);
+  return IfThenElse(m, Div(a, b), no);
 }
 
 template <class V, class M>
 HWY_API V MaskedModOr(V no, M m, V a, V b) {
-  const DFromV<V> d;
-  // Avoid division by zero for masked-out lanes.
-  const V nonzero = Set(d, TFromD<decltype(d)>{1});
-  return IfThenElse(m, Mod(a, IfThenElse(m, b, nonzero)), no);
+  return IfThenElse(m, Mod(a, b), no);
 }
 
 template <class V, class M>
