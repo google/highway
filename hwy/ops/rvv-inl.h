@@ -1190,7 +1190,7 @@ HWY_RVV_FOREACH_I(HWY_RVV_RETV_ARGVV, SaturatedSub, ssub, _ALL)
 // Clang 16 with __riscv_v_intrinsic == 11000 may either require VXRM or avoid.
 // Assume earlier versions avoid.
 #elif HWY_COMPILER_CLANG && \
-    (HWY_COMPILER_CLANG < 1600 || __riscv_v_intrinsic < 11000)
+    (HWY_COMPILER_CLANG < 1600 || __riscv_v_intrinsic < 1000000)
 #define HWY_RVV_AVOID_VXRM
 #endif
 

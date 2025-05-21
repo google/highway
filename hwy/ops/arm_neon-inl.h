@@ -3395,21 +3395,19 @@ HWY_API Mask128<int64_t, N> TestBit(Vec128<int64_t, N> v,
 #undef HWY_NEON_BUILD_PARAM_HWY_TESTBIT
 #undef HWY_NEON_BUILD_ARG_HWY_TESTBIT
 
-// ------------------------------ Abs i64 (IfThenElse, BroadcastSignBit)
+// ------------------------------ Abs i64 (IfNegativeThenElse, Neg)
 HWY_API Vec128<int64_t> Abs(const Vec128<int64_t> v) {
 #if HWY_ARCH_ARM_A64
   return Vec128<int64_t>(vabsq_s64(v.raw));
 #else
-  const auto zero = Zero(DFromV<decltype(v)>());
-  return IfThenElse(MaskFromVec(BroadcastSignBit(v)), zero - v, v);
+  return IfNegativeThenElse(v, Neg(v), v);
 #endif
 }
 HWY_API Vec64<int64_t> Abs(const Vec64<int64_t> v) {
 #if HWY_ARCH_ARM_A64
   return Vec64<int64_t>(vabs_s64(v.raw));
 #else
-  const auto zero = Zero(DFromV<decltype(v)>());
-  return IfThenElse(MaskFromVec(BroadcastSignBit(v)), zero - v, v);
+  return IfNegativeThenElse(v, Neg(v), v);
 #endif
 }
 
@@ -3418,7 +3416,7 @@ HWY_API Vec128<int64_t> SaturatedAbs(const Vec128<int64_t> v) {
   return Vec128<int64_t>(vqabsq_s64(v.raw));
 #else
   const auto zero = Zero(DFromV<decltype(v)>());
-  return IfThenElse(MaskFromVec(BroadcastSignBit(v)), SaturatedSub(zero, v), v);
+  return IfNegativeThenElse(v, SaturatedSub(zero, v), v);
 #endif
 }
 HWY_API Vec64<int64_t> SaturatedAbs(const Vec64<int64_t> v) {
@@ -3426,7 +3424,7 @@ HWY_API Vec64<int64_t> SaturatedAbs(const Vec64<int64_t> v) {
   return Vec64<int64_t>(vqabs_s64(v.raw));
 #else
   const auto zero = Zero(DFromV<decltype(v)>());
-  return IfThenElse(MaskFromVec(BroadcastSignBit(v)), SaturatedSub(zero, v), v);
+  return IfNegativeThenElse(v, SaturatedSub(zero, v), v);
 #endif
 }
 
