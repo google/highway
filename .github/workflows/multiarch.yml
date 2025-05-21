@@ -84,3 +84,42 @@ jobs:
           CXXFLAGS="${{ matrix.cxx_flags }}" CC=${{ matrix.c_compiler }} CXX=${{ matrix.cxx_compiler }} cmake -DHWY_WARNINGS_ARE_ERRORS=ON -DCMAKE_CXX_STANDARD=${{ matrix.cxx_standard }} ${{ matrix.extra_cmake_flags }} -B out .
           cmake --build out
           ctest --test-dir out
+
+  loongarch64_cmake:
+    name: Build and test ${{ matrix.name }} on LoongArch64
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include:
+          - name: GCC-14
+            extra_deps: qemu-loongarch64
+            c_compiler: loongarch64-unknown-linux-gnu-gcc
+            cxx_compiler: loongarch64-unknown-linux-gnu-g++
+            cxx_standard: 17
+    steps:
+      - name: get cross-tools evn
+        run: |
+          wget https://github.com/loongson/build-tools/releases/download/2025.02.21/x86_64-cross-tools-loongarch64-binutils_2.44-gcc_14.2.0-glibc_2.41.tar.xz
+          sudo tar -xvf x86_64-cross-tools-loongarch64-binutils_2.44-gcc_14.2.0-glibc_2.41.tar.xz -C /opt
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit  # cannot be block - runner does git checkout
+
+      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.0.0
+
+      - name: Install deps
+        run: |
+          wget https://github.com/loongson/build-tools/releases/download/2025.02.21/${{ matrix.extra_deps }}
+          chmod +x ${{ matrix.extra_deps }}
+          sudo mv ${{ matrix.extra_deps }} /opt/cross-tools/bin
+      - name: Build and test
+        run: |
+          export CMAKE_BUILD_PARALLEL_LEVEL=2
+          export CTEST_PARALLEL_LEVEL=2
+          export PATH="/opt/cross-tools/bin:$PATH"
+          export LD_LIBRARY_PATH="/opt/cross-tools/loongarch64-unknown-linux-gnu/lib:$LD_LIBRARY_PATH"
+          export CC=${{ matrix.c_compiler }} CXX=${{ matrix.cxx_compiler }}
+          cmake -DCMAKE_C_COMPILER_TARGET="loongarch64-unknown-linux-gnu" -DCMAKE_CXX_COMPILER_TARGET="loongarch64-unknown-linux-gnu" -DCMAKE_CROSSCOMPILING=true -DCMAKE_CROSSCOMPILING_EMULATOR="qemu-loongarch64;-cpu;max;-L;/opt/cross-tools/target" -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=loongarch64 -B out .
+          cmake --build out
+          ctest --test-dir out

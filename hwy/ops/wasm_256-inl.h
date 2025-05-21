@@ -662,7 +662,7 @@ HWY_API Vec256<T> VecFromMask(D d, Mask256<T> m) {
 
 template <class D, HWY_IF_V_SIZE_D(D, 32)>
 HWY_API uint64_t BitsFromMask(D d, MFromD<D> m) {
-  const Half<D> dh;
+  const Half<decltype(d)> dh;
   const uint64_t lo = BitsFromMask(dh, m.m0);
   const uint64_t hi = BitsFromMask(dh, m.m1);
   return (hi << Lanes(dh)) | lo;
