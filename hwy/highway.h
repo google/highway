@@ -574,9 +574,9 @@ struct AddExport {
 
 #define HWY_DYNAMIC_DISPATCH(FUNC_NAME)         \
   __extension__({                               \
-    auto p = *(HWY_DYNAMIC_POINTER(FUNC_NAME)); \
-    hwy::PreventElision(p);                     \
-    p;                                          \
+    auto HWY_CONCAT(hwy_tmp_, __LINE__) = *(HWY_DYNAMIC_POINTER(FUNC_NAME)); \
+    hwy::PreventElision(HWY_CONCAT(hwy_tmp_, __LINE__));                     \
+    HWY_CONCAT(hwy_tmp_, __LINE__);                                          \
   })
 
 #else  // !(HWY_COMPILER_GCC || HWY_COMPILER_CLANG)
