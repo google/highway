@@ -2636,53 +2636,83 @@ HWY_API float F32FromBF16Mem(const void* ptr) {
 #define HWY_BF16_TO_F16_CONSTEXPR HWY_F16_CONSTEXPR
 #endif
 
-// For casting from TFrom to TTo
-template <typename TTo, typename TFrom, HWY_IF_NOT_SPECIAL_FLOAT(TTo),
-          HWY_IF_NOT_SPECIAL_FLOAT(TFrom), HWY_IF_NOT_SAME(TTo, TFrom)>
-HWY_API constexpr TTo ConvertScalarTo(const TFrom in) {
-  return static_cast<TTo>(in);
+namespace detail {
+
+template <class TTo, class TFrom>
+static HWY_INLINE HWY_MAYBE_UNUSED constexpr TTo ConvertScalarToResult(
+    hwy::SizeTag<0> /*conv_to_tag*/, TFrom in) {
+  return static_cast<TTo>(static_cast<TFrom>(in));
 }
-template <typename TTo, typename TFrom, HWY_IF_F16(TTo),
-          HWY_IF_NOT_SPECIAL_FLOAT(TFrom), HWY_IF_NOT_SAME(TFrom, double)>
-HWY_API constexpr TTo ConvertScalarTo(const TFrom in) {
-  return F16FromF32(static_cast<float>(in));
+
+template <class TTo>
+static HWY_INLINE HWY_MAYBE_UNUSED HWY_F16_CONSTEXPR TTo
+ConvertScalarToResult(hwy::FloatTag /*conv_to_tag*/, float in) {
+  return F16FromF32(in);
 }
-template <typename TTo, HWY_IF_F16(TTo)>
-HWY_API HWY_BF16_TO_F16_CONSTEXPR TTo
-ConvertScalarTo(const hwy::bfloat16_t in) {
-  return F16FromF32(F32FromBF16(in));
-}
-template <typename TTo, HWY_IF_F16(TTo)>
-HWY_API HWY_F16_CONSTEXPR TTo ConvertScalarTo(const double in) {
+
+template <class TTo>
+static HWY_INLINE HWY_MAYBE_UNUSED HWY_F16_CONSTEXPR TTo
+ConvertScalarToResult(hwy::FloatTag /*conv_to_tag*/, double in) {
   return F16FromF64(in);
 }
-template <typename TTo, typename TFrom, HWY_IF_BF16(TTo),
-          HWY_IF_NOT_SPECIAL_FLOAT(TFrom), HWY_IF_NOT_SAME(TFrom, double)>
-HWY_API HWY_BF16_CONSTEXPR TTo ConvertScalarTo(const TFrom in) {
-  return BF16FromF32(static_cast<float>(in));
+
+template <class TTo>
+static HWY_INLINE HWY_MAYBE_UNUSED HWY_BF16_CONSTEXPR TTo
+ConvertScalarToResult(hwy::SpecialTag /*conv_to_tag*/, float in) {
+  return BF16FromF32(in);
 }
-template <typename TTo, HWY_IF_BF16(TTo)>
-HWY_API HWY_BF16_TO_F16_CONSTEXPR TTo ConvertScalarTo(const hwy::float16_t in) {
-  return BF16FromF32(F32FromF16(in));
-}
-template <typename TTo, HWY_IF_BF16(TTo)>
-HWY_API HWY_BF16_CONSTEXPR TTo ConvertScalarTo(const double in) {
+
+template <class TTo>
+static HWY_INLINE HWY_MAYBE_UNUSED HWY_BF16_CONSTEXPR TTo
+ConvertScalarToResult(hwy::SpecialTag /*conv_to_tag*/, double in) {
   return BF16FromF64(in);
 }
-template <typename TTo, typename TFrom, HWY_IF_F16(TFrom),
-          HWY_IF_NOT_SPECIAL_FLOAT(TTo)>
-HWY_API HWY_F16_CONSTEXPR TTo ConvertScalarTo(const TFrom in) {
-  return static_cast<TTo>(F32FromF16(in));
+
+template <class TFrom, HWY_IF_BF16(TFrom)>
+static HWY_INLINE HWY_MAYBE_UNUSED HWY_BF16_CONSTEXPR float
+ConvertScalarSpecialFloatToF32(hwy::SpecialTag /*conv_from_tag*/, TFrom in) {
+  return F32FromBF16(in);
 }
-template <typename TTo, typename TFrom, HWY_IF_BF16(TFrom),
-          HWY_IF_NOT_SPECIAL_FLOAT(TTo)>
-HWY_API HWY_BF16_CONSTEXPR TTo ConvertScalarTo(TFrom in) {
-  return static_cast<TTo>(F32FromBF16(in));
+
+template <class TFrom, HWY_IF_F16(TFrom)>
+static HWY_INLINE HWY_MAYBE_UNUSED HWY_F16_CONSTEXPR float
+ConvertScalarSpecialFloatToF32(hwy::SpecialTag /*conv_from_tag*/, TFrom in) {
+  return F32FromF16(in);
 }
-// Same: return unchanged
-template <typename TTo>
-HWY_API constexpr TTo ConvertScalarTo(TTo in) {
-  return in;
+
+template <class TFrom>
+static HWY_INLINE HWY_MAYBE_UNUSED constexpr auto
+ConvertScalarSpecialFloatToF32(hwy::FloatTag /*conv_from_tag*/, TFrom in)
+    -> hwy::If<hwy::IsSame<hwy::RemoveCvRef<TFrom>, double>(), double, float> {
+  return static_cast<
+      hwy::If<hwy::IsSame<hwy::RemoveCvRef<TFrom>, double>(), double, float>>(
+      in);
+}
+
+template <class TFrom>
+static HWY_INLINE HWY_MAYBE_UNUSED constexpr TFrom
+ConvertScalarSpecialFloatToF32(hwy::SizeTag<0> /*conv_from_tag*/, TFrom in) {
+  return static_cast<TFrom>(in);
+}
+
+}  // namespace detail
+
+template <typename TTo, typename TFrom>
+HWY_API constexpr TTo ConvertScalarTo(TFrom in) {
+  return detail::ConvertScalarToResult<TTo>(
+      hwy::SizeTag<
+          (!hwy::IsSame<hwy::RemoveCvRef<TFrom>, hwy::RemoveCvRef<TTo>>() &&
+           hwy::IsSpecialFloat<TTo>())
+              ? (hwy::IsSame<RemoveCvRef<TTo>, hwy::bfloat16_t>() ? 0x300
+                                                                  : 0x200)
+              : 0>(),
+      detail::ConvertScalarSpecialFloatToF32(
+          hwy::SizeTag<
+              (!hwy::IsSame<hwy::RemoveCvRef<TFrom>, hwy::RemoveCvRef<TTo>>() &&
+               (hwy::IsSpecialFloat<TFrom>() || hwy::IsSpecialFloat<TTo>()))
+                  ? (hwy::IsSpecialFloat<TFrom>() ? 0x300 : 0x200)
+                  : 0>(),
+          static_cast<TFrom&&>(in)));
 }
 
 //------------------------------------------------------------------------------
