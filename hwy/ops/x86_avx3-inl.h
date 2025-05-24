@@ -15,15 +15,9 @@
 
 // External include guard in highway.h - see comment there.
 
-#if HWY_TARGET == HWY_AVX10_2
-// For AVX10 targets that only support 256-bit or smaller vectors. Already
-// includes base.h and shared-inl.h.
-#include "hwy/ops/x86_256-inl.h"
-#else
 // For AVX3/AVX10 targets that support 512-byte vectors. Already includes base.h
 // and shared-inl.h.
 #include "hwy/ops/x86_512-inl.h"
-#endif
 
 // AVX3/AVX10 ops that have dependencies on ops defined in x86_512-inl.h if
 // HWY_MAX_BYTES >= 64 is true are defined below

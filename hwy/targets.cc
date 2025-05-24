@@ -341,13 +341,10 @@ static int64_t DetectTargets() {
       // AVX10.1 or later with support for 512-bit vectors implies support for
       // the AVX3/AVX3_DL/AVX3_SPR targets
       bits |= (HWY_AVX3_SPR | HWY_AVX3_DL | HWY_AVX3);
-    }
 
-    if (avx10_ver >= 2) {
-      // AVX10.2 is supported if avx10_ver >= 2 is true
-      bits |= HWY_AVX10_2;
-      if (has_avx10_with_512bit_vectors) {
-        bits |= HWY_AVX10_2_512;
+      if (avx10_ver >= 2) {
+        // AVX10.2 is supported if avx10_ver >= 2 is true
+        bits |= HWY_AVX10_2;
       }
     }
   }
@@ -405,7 +402,7 @@ static int64_t DetectTargets() {
 #endif
 
     const uint32_t xcr0 = ReadXCR0();
-    constexpr int64_t min_avx3 = HWY_AVX3 | HWY_AVX3_DL | HWY_AVX3_SPR;
+    constexpr int64_t min_avx3 = HWY_AVX3 | (HWY_AVX3 - 1);
     // XMM/YMM
     if (!IsBitSet(xcr0, 1) || !IsBitSet(xcr0, 2)) {
       // Clear the AVX2/AVX3 bits if XMM/YMM XSAVE is not enabled
