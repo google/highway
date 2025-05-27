@@ -26,7 +26,8 @@
 #if HWY_ARCH_X86
 #include <xmmintrin.h>
 
-#elif (HWY_ARCH_ARM || HWY_ARCH_PPC || HWY_ARCH_S390X || HWY_ARCH_RISCV || HWY_ARCH_LOONGARCH) && \
+#elif (HWY_ARCH_ARM || HWY_ARCH_PPC || HWY_ARCH_S390X || HWY_ARCH_RISCV || \
+       HWY_ARCH_LOONGARCH) &&                                              \
     HWY_OS_LINUX
 // sys/auxv.h does not always include asm/hwcap.h, or define HWCAP*, hence we
 // still include this directly. See #1199.
@@ -244,9 +245,14 @@ static constexpr uint64_t kGroupSSE2 =
 static constexpr uint64_t kGroupSSSE3 =
     Bit(FeatureIndex::kSSE3) | Bit(FeatureIndex::kSSSE3) | kGroupSSE2;
 
+#ifdef HWY_DISABLE_PCLMUL_AES
+static constexpr uint64_t kGroupSSE4 =
+    Bit(FeatureIndex::kSSE41) | Bit(FeatureIndex::kSSE42) | kGroupSSSE3;
+#else
 static constexpr uint64_t kGroupSSE4 =
     Bit(FeatureIndex::kSSE41) | Bit(FeatureIndex::kSSE42) |
     Bit(FeatureIndex::kCLMUL) | Bit(FeatureIndex::kAES) | kGroupSSSE3;
+#endif  // HWY_DISABLE_PCLMUL_AES
 
 // We normally assume BMI/BMI2/FMA are available if AVX2 is. This allows us to
 // use BZHI and (compiler-generated) MULX. However, VirtualBox lacks them
