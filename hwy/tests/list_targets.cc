@@ -93,6 +93,15 @@ void PrintTargets(const char* msg, int64_t targets) {
   fprintf(stderr, "\n");
 }
 
+void TestVisitor() {
+  long long enabled = 0;  // NOLINT
+#define PER_TARGET(TARGET, NAMESPACE) enabled |= TARGET;
+  HWY_VISIT_TARGETS(PER_TARGET)
+  if (enabled != HWY_TARGETS) {
+    HWY_ABORT("Enabled %llx != HWY_TARGETS %llx\n", enabled, HWY_TARGETS);
+  }
+}
+
 }  // namespace
 
 int main() {
@@ -107,5 +116,6 @@ int main() {
   PrintTargets("HWY_BROKEN_TARGETS:    ", HWY_BROKEN_TARGETS);
   PrintTargets("HWY_DISABLED_TARGETS:  ", HWY_DISABLED_TARGETS);
   PrintTargets("Current CPU supports:  ", hwy::SupportedTargets());
+  TestVisitor();
   return 0;
 }

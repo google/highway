@@ -356,6 +356,13 @@ instructions (implying the target CPU must support them).
     if they are not marked as available by the compiler. On MSVC, the only ways
     to enable SSSE3 and SSE4 are defining these, or enabling AVX.
 
+*   `HWY_VISIT_TARGETS(VISITOR)` expands to `VISITOR(HWY_AVX2, N_AVX2)` for all
+    enabled targets (here: AVX2). The latter is the namespace name. This can be
+    used to declare target-specific functions in a header, so that they can be
+    called from within that namespace without the overhead of an additional
+    `HWY_DYNAMIC_DISPATCH`. Note that the `foreach_targets.h` mechanism does not
+    work for that because it must reside in a .cc file.
+
 You can detect and influence the set of supported targets:
 
 *   `TargetName(t)` returns a string literal identifying the single target `t`,
