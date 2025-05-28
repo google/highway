@@ -39,9 +39,9 @@ static inline void Cpuid(const uint32_t level, const uint32_t count,
                          uint32_t* HWY_RESTRICT abcd) {
 #if HWY_COMPILER_MSVC || HWY_COMPILER_CLANGCL
   int regs[4];
-  __cpuidex(regs, level, count);
+  __cpuidex(regs, static_cast<int>(level), static_cast<int>(count));
   for (int i = 0; i < 4; ++i) {
-    abcd[i] = regs[i];
+    abcd[i] = static_cast<uint32_t>(regs[i]);
   }
 #else   // HWY_COMPILER_MSVC || HWY_COMPILER_CLANGCL
   uint32_t a;
