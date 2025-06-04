@@ -703,7 +703,7 @@ HWY_API bool IsAligned(D d, T* ptr) {
 // HWY_IF_U2I_DEMOTE_FROM_LANE_SIZE_V is used to disable the default
 // implementation of unsigned to signed DemoteTo/ReorderDemote2To in
 // generic_ops-inl.h for at least some of the unsigned to signed demotions on
-// SCALAR/EMU128/SSE2/SSSE3/SSE4/AVX2/SVE/SVE2
+// SCALAR/EMU128/SSE2/SSSE3/SSE4/AVX2/SVE/SVE2/LSX/LASX
 
 #undef HWY_IF_U2I_DEMOTE_FROM_LANE_SIZE_V
 #define HWY_IF_U2I_DEMOTE_FROM_LANE_SIZE_V(V) void* = nullptr

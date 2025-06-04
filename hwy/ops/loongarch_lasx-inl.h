@@ -225,11 +225,21 @@ HWY_API VFromD<D> ResizeBitCast(D /*d*/, FromV v) {
 template <class D, class FromV, HWY_IF_V_SIZE_LE_V(FromV, 16),
           HWY_IF_V_SIZE_D(D, 32)>
 HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
-  alignas(32) __m128i vec_tmp[2];
-  __m256i vec_result;
-  vec_tmp[0] = ResizeBitCast(Full128<uint8_t>(), v).raw;
-  CopyBytes<32>(vec_tmp, &vec_result);
-  return BitCast(d, Vec256<uint8_t>{vec_result});
+  typedef uint64_t GccRawU64M128Vec __attribute__((__vector_size__(16)));
+
+  const GccRawU64M128Vec raw_v0 = reinterpret_cast<GccRawU64M128Vec>(v.raw);
+#if HWY_COMPILER_CLANG && HWY_HAS_BUILTIN(__builtin_nondeterministic_value)
+  const GccRawU64M128Vec raw_v1 = __builtin_nondeterministic_value(raw_v0);
+#else
+  const GccRawU64M128Vec raw_v1 = raw_v0;
+#endif
+
+  const Repartition<uint64_t, decltype(d)> du64;
+  const Half<decltype(du64)> dh_u64;
+  return BitCast(
+      d,
+      Combine(du64, VFromD<decltype(dh_u64)>{reinterpret_cast<__m128i>(raw_v1)},
+              VFromD<decltype(dh_u64)>{reinterpret_cast<__m128i>(raw_v0)}));
 }
 
 // ------------------------------ Dup128VecFromValues
@@ -242,7 +252,8 @@ HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
                                       TFromD<D> t11, TFromD<D> t12,
                                       TFromD<D> t13, TFromD<D> t14,
                                       TFromD<D> t15) {
-  alignas(32) char rawI8[32] = {
+  typedef int8_t GccI8RawVectType __attribute__((__vector_size__(32)));
+  GccI8RawVectType raw_i8_vec = {
       static_cast<char>(t0),  static_cast<char>(t1),  static_cast<char>(t2),
       static_cast<char>(t3),  static_cast<char>(t4),  static_cast<char>(t5),
       static_cast<char>(t6),  static_cast<char>(t7),  static_cast<char>(t8),
@@ -254,7 +265,7 @@ HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
       static_cast<char>(t8),  static_cast<char>(t9),  static_cast<char>(t10),
       static_cast<char>(t11), static_cast<char>(t12), static_cast<char>(t13),
       static_cast<char>(t14), static_cast<char>(t15)};
-  return VFromD<D>{__lasx_xvld(rawI8, 0)};
+  return VFromD<D>{reinterpret_cast<__m256i>(raw_i8_vec)};
 }
 
 template <class D, HWY_IF_UI16_D(D), HWY_IF_V_SIZE_D(D, 32)>
@@ -262,48 +273,53 @@ HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
                                       TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
                                       TFromD<D> t5, TFromD<D> t6,
                                       TFromD<D> t7) {
-  alignas(32)
-      int16_t rawI16[16] = {static_cast<int16_t>(t0), static_cast<int16_t>(t1),
-                            static_cast<int16_t>(t2), static_cast<int16_t>(t3),
-                            static_cast<int16_t>(t4), static_cast<int16_t>(t5),
-                            static_cast<int16_t>(t6), static_cast<int16_t>(t7),
-                            static_cast<int16_t>(t0), static_cast<int16_t>(t1),
-                            static_cast<int16_t>(t2), static_cast<int16_t>(t3),
-                            static_cast<int16_t>(t4), static_cast<int16_t>(t5),
-                            static_cast<int16_t>(t6), static_cast<int16_t>(t7)};
-  return VFromD<D>{__lasx_xvld(rawI16, 0)};
+  typedef int16_t GccI16RawVectType __attribute__((__vector_size__(32)));
+  GccI16RawVectType raw_i16_vec = {
+      static_cast<int16_t>(t0), static_cast<int16_t>(t1),
+      static_cast<int16_t>(t2), static_cast<int16_t>(t3),
+      static_cast<int16_t>(t4), static_cast<int16_t>(t5),
+      static_cast<int16_t>(t6), static_cast<int16_t>(t7),
+      static_cast<int16_t>(t0), static_cast<int16_t>(t1),
+      static_cast<int16_t>(t2), static_cast<int16_t>(t3),
+      static_cast<int16_t>(t4), static_cast<int16_t>(t5),
+      static_cast<int16_t>(t6), static_cast<int16_t>(t7)};
+  return VFromD<D>{reinterpret_cast<__m256i>(raw_i16_vec)};
 }
 
 template <class D, HWY_IF_UI32_D(D), HWY_IF_V_SIZE_D(D, 32)>
 HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
                                       TFromD<D> t2, TFromD<D> t3) {
-  alignas(32)
-      int32_t rawI32[8] = {static_cast<int32_t>(t0), static_cast<int32_t>(t1),
-                           static_cast<int32_t>(t2), static_cast<int32_t>(t3),
-                           static_cast<int32_t>(t0), static_cast<int32_t>(t1),
-                           static_cast<int32_t>(t2), static_cast<int32_t>(t3)};
-  return VFromD<D>{__lasx_xvld(rawI32, 0)};
+  typedef int32_t GccI32RawVectType __attribute__((__vector_size__(32)));
+  GccI32RawVectType raw_i32_vec = {
+      static_cast<int32_t>(t0), static_cast<int32_t>(t1),
+      static_cast<int32_t>(t2), static_cast<int32_t>(t3),
+      static_cast<int32_t>(t0), static_cast<int32_t>(t1),
+      static_cast<int32_t>(t2), static_cast<int32_t>(t3)};
+  return VFromD<D>{reinterpret_cast<__m256i>(raw_i32_vec)};
 }
 
 template <class D, HWY_IF_F32_D(D), HWY_IF_V_SIZE_D(D, 32)>
 HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
                                       TFromD<D> t2, TFromD<D> t3) {
-  alignas(32) float rawF32[8] = {t0, t1, t2, t3, t0, t1, t2, t3};
-  return BitCast(D(), Vec256<int32_t>{__lasx_xvld(rawF32, 0)});
+  typedef float GccF32RawVectType __attribute__((__vector_size__(32)));
+  GccF32RawVectType raw_f32_vec = {t0, t1, t2, t3, t0, t1, t2, t3};
+  return Vec256<float>{reinterpret_cast<__m256>(raw_f32_vec)};
 }
 
 template <class D, HWY_IF_UI64_D(D), HWY_IF_V_SIZE_D(D, 32)>
 HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1) {
-  alignas(32)
-      int64_t rawI64[4] = {static_cast<int64_t>(t0), static_cast<int64_t>(t1),
-                           static_cast<int64_t>(t0), static_cast<int64_t>(t1)};
-  return VFromD<D>{__lasx_xvld(rawI64, 0)};
+  typedef int64_t GccI64RawVectType __attribute__((__vector_size__(32)));
+  const GccI64RawVectType raw_i64_vec = {
+      static_cast<int64_t>(t0), static_cast<int64_t>(t1),
+      static_cast<int64_t>(t0), static_cast<int64_t>(t1)};
+  return VFromD<D>{reinterpret_cast<__m256i>(raw_i64_vec)};
 }
 
 template <class D, HWY_IF_F64_D(D), HWY_IF_V_SIZE_D(D, 32)>
 HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1) {
-  alignas(32) double rawF64[4] = {t0, t1, t0, t1};
-  return BitCast(D(), Vec256<int64_t>{__lasx_xvld(rawF64, 0)});
+  typedef double GccF64RawVectType __attribute__((__vector_size__(32)));
+  const GccF64RawVectType raw_f64_vec = {t0, t1, t0, t1};
+  return VFromD<D>{reinterpret_cast<__m256d>(raw_f64_vec)};
 }
 
 // ------------------------------ And
@@ -768,7 +784,8 @@ namespace detail {
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 1)>
 HWY_INLINE VFromD<D> Iota0(D /*d*/) {
-  alignas(32) static constexpr char rawI8[32] = {
+  typedef int8_t GccI8RawVectType __attribute__((__vector_size__(32)));
+  const GccI8RawVectType raw_i8_vec = {
       static_cast<char>(0),  static_cast<char>(1),  static_cast<char>(2),
       static_cast<char>(3),  static_cast<char>(4),  static_cast<char>(5),
       static_cast<char>(6),  static_cast<char>(7),  static_cast<char>(8),
@@ -780,12 +797,13 @@ HWY_INLINE VFromD<D> Iota0(D /*d*/) {
       static_cast<char>(24), static_cast<char>(25), static_cast<char>(26),
       static_cast<char>(27), static_cast<char>(28), static_cast<char>(29),
       static_cast<char>(30), static_cast<char>(31)};
-  return VFromD<D>{__lasx_xvld(rawI8, 0)};
+  return VFromD<D>{reinterpret_cast<__m256i>(raw_i8_vec)};
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_UI16_D(D)>
 HWY_INLINE VFromD<D> Iota0(D /*d*/) {
-  alignas(32) static constexpr int16_t rawI16[16] = {
+  typedef int16_t GccI16RawVectType __attribute__((__vector_size__(32)));
+  const GccI16RawVectType raw_i16_vec = {
       static_cast<int16_t>(0),  static_cast<int16_t>(1),
       static_cast<int16_t>(2),  static_cast<int16_t>(3),
       static_cast<int16_t>(4),  static_cast<int16_t>(5),
@@ -794,37 +812,41 @@ HWY_INLINE VFromD<D> Iota0(D /*d*/) {
       static_cast<int16_t>(10), static_cast<int16_t>(11),
       static_cast<int16_t>(12), static_cast<int16_t>(13),
       static_cast<int16_t>(14), static_cast<int16_t>(15)};
-  return VFromD<D>{__lasx_xvld(rawI16, 0)};
+  return VFromD<D>{reinterpret_cast<__m256i>(raw_i16_vec)};
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_UI32_D(D)>
 HWY_INLINE VFromD<D> Iota0(D /*d*/) {
-  alignas(32) static constexpr int32_t rawI32[8] = {
+  typedef int32_t GccI32RawVectType __attribute__((__vector_size__(32)));
+  const GccI32RawVectType raw_i32_vec = {
       static_cast<int32_t>(0), static_cast<int32_t>(1), static_cast<int32_t>(2),
       static_cast<int32_t>(3), static_cast<int32_t>(4), static_cast<int32_t>(5),
       static_cast<int32_t>(6), static_cast<int32_t>(7)};
-  return VFromD<D>{__lasx_xvld(rawI32, 0)};
+  return VFromD<D>{reinterpret_cast<__m256i>(raw_i32_vec)};
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_UI64_D(D)>
 HWY_INLINE VFromD<D> Iota0(D /*d*/) {
-  alignas(32) int64_t static constexpr rawI64[4] = {
+  typedef int64_t GccI64RawVectType __attribute__((__vector_size__(32)));
+  const GccI64RawVectType raw_i64_vec = {
       static_cast<int64_t>(0), static_cast<int64_t>(1), static_cast<int64_t>(2),
       static_cast<int64_t>(3)};
-  return VFromD<D>{__lasx_xvld(rawI64, 0)};
+  return VFromD<D>{reinterpret_cast<__m256i>(raw_i64_vec)};
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
 HWY_INLINE VFromD<D> Iota0(D /*d*/) {
-  alignas(32) static constexpr float rawF32[8] = {0.0f, 1.0f, 2.0f, 3.0f,
-                                                  4.0f, 5.0f, 6.0f, 7.0f};
-  return BitCast(D(), Vec256<int32_t>{__lasx_xvld(rawF32, 0)});
+  typedef float GccF32RawVectType __attribute__((__vector_size__(32)));
+  const GccF32RawVectType raw_f32_vec = {0.0f, 1.0f, 2.0f, 3.0f,
+                                         4.0f, 5.0f, 6.0f, 7.0f};
+  return VFromD<D>{reinterpret_cast<__m256>(raw_f32_vec)};
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
 HWY_INLINE VFromD<D> Iota0(D /*d*/) {
-  alignas(32) static constexpr double rawF64[4] = {0.0, 1.0, 2.0, 3.0};
-  return BitCast(D(), Vec256<int64_t>{__lasx_xvld(rawF64, 0)});
+  typedef double GccF64RawVectType __attribute__((__vector_size__(32)));
+  const GccF64RawVectType raw_f64_vec = {0.0, 1.0, 2.0, 3.0};
+  return VFromD<D>{reinterpret_cast<__m256d>(raw_f64_vec)};
 }
 
 }  // namespace detail
@@ -937,9 +959,6 @@ HWY_API Vec256<int64_t> SumsOf8(Vec256<int8_t> v) {
   v.raw = __lasx_xvhaddw_w_h(v.raw, v.raw);
   return Vec256<int64_t>{__lasx_xvhaddw_d_w(v.raw, v.raw)};
 }
-HWY_API Vec256<uint64_t> SumsOf8AbsDiff(Vec256<uint8_t> a, Vec256<uint8_t> b) {
-  return SumsOf8(Vec256<uint8_t>{__lasx_xvabsd_bu(a.raw, b.raw)});
-}
 
 // ------------------------------ SaturatedAdd
 
@@ -952,6 +971,12 @@ HWY_API Vec256<uint8_t> SaturatedAdd(Vec256<uint8_t> a, Vec256<uint8_t> b) {
 HWY_API Vec256<uint16_t> SaturatedAdd(Vec256<uint16_t> a, Vec256<uint16_t> b) {
   return Vec256<uint16_t>{__lasx_xvsadd_hu(a.raw, b.raw)};
 }
+HWY_API Vec256<uint32_t> SaturatedAdd(Vec256<uint32_t> a, Vec256<uint32_t> b) {
+  return Vec256<uint32_t>{__lasx_xvsadd_wu(a.raw, b.raw)};
+}
+HWY_API Vec256<uint64_t> SaturatedAdd(Vec256<uint64_t> a, Vec256<uint64_t> b) {
+  return Vec256<uint64_t>{__lasx_xvsadd_du(a.raw, b.raw)};
+}
 
 // Signed
 HWY_API Vec256<int8_t> SaturatedAdd(Vec256<int8_t> a, Vec256<int8_t> b) {
@@ -959,6 +984,12 @@ HWY_API Vec256<int8_t> SaturatedAdd(Vec256<int8_t> a, Vec256<int8_t> b) {
 }
 HWY_API Vec256<int16_t> SaturatedAdd(Vec256<int16_t> a, Vec256<int16_t> b) {
   return Vec256<int16_t>{__lasx_xvsadd_h(a.raw, b.raw)};
+}
+HWY_API Vec256<int32_t> SaturatedAdd(Vec256<int32_t> a, Vec256<int32_t> b) {
+  return Vec256<int32_t>{__lasx_xvsadd_w(a.raw, b.raw)};
+}
+HWY_API Vec256<int64_t> SaturatedAdd(Vec256<int64_t> a, Vec256<int64_t> b) {
+  return Vec256<int64_t>{__lasx_xvsadd_d(a.raw, b.raw)};
 }
 
 // ------------------------------ SaturatedSub
@@ -972,6 +1003,12 @@ HWY_API Vec256<uint8_t> SaturatedSub(Vec256<uint8_t> a, Vec256<uint8_t> b) {
 HWY_API Vec256<uint16_t> SaturatedSub(Vec256<uint16_t> a, Vec256<uint16_t> b) {
   return Vec256<uint16_t>{__lasx_xvssub_hu(a.raw, b.raw)};
 }
+HWY_API Vec256<uint32_t> SaturatedSub(Vec256<uint32_t> a, Vec256<uint32_t> b) {
+  return Vec256<uint32_t>{__lasx_xvssub_wu(a.raw, b.raw)};
+}
+HWY_API Vec256<uint64_t> SaturatedSub(Vec256<uint64_t> a, Vec256<uint64_t> b) {
+  return Vec256<uint64_t>{__lasx_xvssub_du(a.raw, b.raw)};
+}
 
 // Signed
 HWY_API Vec256<int8_t> SaturatedSub(Vec256<int8_t> a, Vec256<int8_t> b) {
@@ -979,6 +1016,12 @@ HWY_API Vec256<int8_t> SaturatedSub(Vec256<int8_t> a, Vec256<int8_t> b) {
 }
 HWY_API Vec256<int16_t> SaturatedSub(Vec256<int16_t> a, Vec256<int16_t> b) {
   return Vec256<int16_t>{__lasx_xvssub_h(a.raw, b.raw)};
+}
+HWY_API Vec256<int32_t> SaturatedSub(Vec256<int32_t> a, Vec256<int32_t> b) {
+  return Vec256<int32_t>{__lasx_xvssub_w(a.raw, b.raw)};
+}
+HWY_API Vec256<int64_t> SaturatedSub(Vec256<int64_t> a, Vec256<int64_t> b) {
+  return Vec256<int64_t>{__lasx_xvssub_d(a.raw, b.raw)};
 }
 
 // ------------------------------ Average
@@ -1025,6 +1068,33 @@ HWY_API Vec256<int32_t> Abs(const Vec256<int32_t> v) {
 }
 HWY_API Vec256<int64_t> Abs(const Vec256<int64_t> v) {
   return Vec256<int64_t>{__lasx_xvabsd_d(v.raw, __lasx_xvreplgr2vr_d(0))};
+}
+
+// ------------------------------ Integer AbsDiff
+HWY_API Vec256<int8_t> AbsDiff(const Vec256<int8_t> a, Vec256<int8_t> b) {
+  return Vec256<int8_t>{__lasx_xvabsd_b(a.raw, b.raw)};
+}
+HWY_API Vec256<int16_t> AbsDiff(const Vec256<int16_t> a, Vec256<int16_t> b) {
+  return Vec256<int16_t>{__lasx_xvabsd_h(a.raw, b.raw)};
+}
+HWY_API Vec256<int32_t> AbsDiff(const Vec256<int32_t> a, Vec256<int32_t> b) {
+  return Vec256<int32_t>{__lasx_xvabsd_w(a.raw, b.raw)};
+}
+HWY_API Vec256<int64_t> AbsDiff(const Vec256<int64_t> a, Vec256<int64_t> b) {
+  return Vec256<int64_t>{__lasx_xvabsd_d(a.raw, b.raw)};
+}
+
+HWY_API Vec256<uint8_t> AbsDiff(const Vec256<uint8_t> a, Vec256<uint8_t> b) {
+  return Vec256<uint8_t>{__lasx_xvabsd_bu(a.raw, b.raw)};
+}
+HWY_API Vec256<uint16_t> AbsDiff(const Vec256<uint16_t> a, Vec256<uint16_t> b) {
+  return Vec256<uint16_t>{__lasx_xvabsd_hu(a.raw, b.raw)};
+}
+HWY_API Vec256<uint32_t> AbsDiff(const Vec256<uint32_t> a, Vec256<uint32_t> b) {
+  return Vec256<uint32_t>{__lasx_xvabsd_wu(a.raw, b.raw)};
+}
+HWY_API Vec256<uint64_t> AbsDiff(const Vec256<uint64_t> a, Vec256<uint64_t> b) {
+  return Vec256<uint64_t>{__lasx_xvabsd_du(a.raw, b.raw)};
 }
 
 // ------------------------------ Integer multiplication
@@ -1147,6 +1217,146 @@ HWY_API Vec256<T> MulFixedPoint15(Vec256<T> a, Vec256<T> b) {
   return Vec256<T>{__lasx_xvssrarni_h_w(i64_hi.raw, i64_lo.raw, 15)};
 }
 
+// ------------------------------ Integer division
+
+HWY_API Vec256<int8_t> operator/(const Vec256<int8_t> a,
+                                 const Vec256<int8_t> b) {
+  // Use inline assembly to avoid undefined behavior if any lanes of b are zero
+  // or a[i] == LimitsMin<int8_t>() && b[i] == -1
+  __m256i raw_result;
+  __asm__("xvdiv.b %u0,%u1,%u2" : "=f"(raw_result) : "f"(a.raw), "f"(b.raw) :);
+  return Vec256<int8_t>{raw_result};
+}
+
+HWY_API Vec256<uint8_t> operator/(const Vec256<uint8_t> a,
+                                  const Vec256<uint8_t> b) {
+  // Use inline assembly to avoid undefined behavior if any lanes of b are zero
+  __m256i raw_result;
+  __asm__("xvdiv.bu %u0,%u1,%u2" : "=f"(raw_result) : "f"(a.raw), "f"(b.raw) :);
+  return Vec256<uint8_t>{raw_result};
+}
+
+HWY_API Vec256<int16_t> operator/(const Vec256<int16_t> a,
+                                  const Vec256<int16_t> b) {
+  // Use inline assembly to avoid undefined behavior if any lanes of b are zero
+  // or a[i] == LimitsMin<int16_t>() && b[i] == -1
+  __m256i raw_result;
+  __asm__("xvdiv.h %u0,%u1,%u2" : "=f"(raw_result) : "f"(a.raw), "f"(b.raw) :);
+  return Vec256<int16_t>{raw_result};
+}
+
+HWY_API Vec256<uint16_t> operator/(const Vec256<uint16_t> a,
+                                   const Vec256<uint16_t> b) {
+  // Use inline assembly to avoid undefined behavior if any lanes of b are zero
+  __m256i raw_result;
+  __asm__("xvdiv.hu %u0,%u1,%u2" : "=f"(raw_result) : "f"(a.raw), "f"(b.raw) :);
+  return Vec256<uint16_t>{raw_result};
+}
+
+HWY_API Vec256<int32_t> operator/(const Vec256<int32_t> a,
+                                  const Vec256<int32_t> b) {
+  // Use inline assembly to avoid undefined behavior if any lanes of b are zero
+  // or a[i] == LimitsMin<int32_t>() && b[i] == -1
+  __m256i raw_result;
+  __asm__("xvdiv.w %u0,%u1,%u2" : "=f"(raw_result) : "f"(a.raw), "f"(b.raw) :);
+  return Vec256<int32_t>{raw_result};
+}
+
+HWY_API Vec256<uint32_t> operator/(const Vec256<uint32_t> a,
+                                   const Vec256<uint32_t> b) {
+  // Use inline assembly to avoid undefined behavior if any lanes of b are zero
+  __m256i raw_result;
+  __asm__("xvdiv.wu %u0,%u1,%u2" : "=f"(raw_result) : "f"(a.raw), "f"(b.raw) :);
+  return Vec256<uint32_t>{raw_result};
+}
+
+HWY_API Vec256<int64_t> operator/(const Vec256<int64_t> a,
+                                  const Vec256<int64_t> b) {
+  // Use inline assembly to avoid undefined behavior if any lanes of b are zero
+  // or a[i] == LimitsMin<int64_t>() && b[i] == -1
+  __m256i raw_result;
+  __asm__("xvdiv.d %u0,%u1,%u2" : "=f"(raw_result) : "f"(a.raw), "f"(b.raw) :);
+  return Vec256<int64_t>{raw_result};
+}
+
+HWY_API Vec256<uint64_t> operator/(const Vec256<uint64_t> a,
+                                   const Vec256<uint64_t> b) {
+  // Use inline assembly to avoid undefined behavior if any lanes of b are zero
+  __m256i raw_result;
+  __asm__("xvdiv.du %u0,%u1,%u2" : "=f"(raw_result) : "f"(a.raw), "f"(b.raw) :);
+  return Vec256<uint64_t>{raw_result};
+}
+
+// ------------------------------ Integer modulo
+
+HWY_API Vec256<int8_t> operator%(const Vec256<int8_t> a,
+                                 const Vec256<int8_t> b) {
+  // Use inline assembly to avoid undefined behavior if any lanes of b are zero
+  // or a[i] == LimitsMin<int8_t>() && b[i] == -1
+  __m256i raw_result;
+  __asm__("xvmod.b %u0,%u1,%u2" : "=f"(raw_result) : "f"(a.raw), "f"(b.raw) :);
+  return Vec256<int8_t>{raw_result};
+}
+
+HWY_API Vec256<uint8_t> operator%(const Vec256<uint8_t> a,
+                                  const Vec256<uint8_t> b) {
+  // Use inline assembly to avoid undefined behavior if any lanes of b are zero
+  __m256i raw_result;
+  __asm__("xvmod.bu %u0,%u1,%u2" : "=f"(raw_result) : "f"(a.raw), "f"(b.raw) :);
+  return Vec256<uint8_t>{raw_result};
+}
+
+HWY_API Vec256<int16_t> operator%(const Vec256<int16_t> a,
+                                  const Vec256<int16_t> b) {
+  // Use inline assembly to avoid undefined behavior if any lanes of b are zero
+  // or a[i] == LimitsMin<int16_t>() && b[i] == -1
+  __m256i raw_result;
+  __asm__("xvmod.h %u0,%u1,%u2" : "=f"(raw_result) : "f"(a.raw), "f"(b.raw) :);
+  return Vec256<int16_t>{raw_result};
+}
+
+HWY_API Vec256<uint16_t> operator%(const Vec256<uint16_t> a,
+                                   const Vec256<uint16_t> b) {
+  // Use inline assembly to avoid undefined behavior if any lanes of b are zero
+  __m256i raw_result;
+  __asm__("xvmod.hu %u0,%u1,%u2" : "=f"(raw_result) : "f"(a.raw), "f"(b.raw) :);
+  return Vec256<uint16_t>{raw_result};
+}
+
+HWY_API Vec256<int32_t> operator%(const Vec256<int32_t> a,
+                                  const Vec256<int32_t> b) {
+  // Use inline assembly to avoid undefined behavior if any lanes of b are zero
+  // or a[i] == LimitsMin<int32_t>() && b[i] == -1
+  __m256i raw_result;
+  __asm__("xvmod.w %u0,%u1,%u2" : "=f"(raw_result) : "f"(a.raw), "f"(b.raw) :);
+  return Vec256<int32_t>{raw_result};
+}
+
+HWY_API Vec256<uint32_t> operator%(const Vec256<uint32_t> a,
+                                   const Vec256<uint32_t> b) {
+  // Use inline assembly to avoid undefined behavior if any lanes of b are zero
+  __m256i raw_result;
+  __asm__("xvmod.wu %u0,%u1,%u2" : "=f"(raw_result) : "f"(a.raw), "f"(b.raw) :);
+  return Vec256<uint32_t>{raw_result};
+}
+
+HWY_API Vec256<int64_t> operator%(const Vec256<int64_t> a,
+                                  const Vec256<int64_t> b) {
+  // Use inline assembly to avoid undefined behavior if any lanes of b are zero
+  // or a[i] == LimitsMin<int64_t>() && b[i] == -1
+  __m256i raw_result;
+  __asm__("xvmod.d %u0,%u1,%u2" : "=f"(raw_result) : "f"(a.raw), "f"(b.raw) :);
+  return Vec256<int64_t>{raw_result};
+}
+
+HWY_API Vec256<uint64_t> operator%(const Vec256<uint64_t> a,
+                                   const Vec256<uint64_t> b) {
+  // Use inline assembly to avoid undefined behavior if any lanes of b are zero
+  __m256i raw_result;
+  __asm__("xvmod.du %u0,%u1,%u2" : "=f"(raw_result) : "f"(a.raw), "f"(b.raw) :);
+  return Vec256<uint64_t>{raw_result};
+}
+
 // ------------------------------ ShiftLeft (Compile-time constant shifts)
 
 template <int kBits, typename T, HWY_IF_UI8(T)>
@@ -1212,12 +1422,6 @@ HWY_API Vec256<int64_t> ShiftRight(Vec256<int64_t> v) {
 }
 
 // ------------------------------ RoundingShiftRight
-
-#ifdef HWY_NATIVE_ROUNDING_SHR
-#undef HWY_NATIVE_ROUNDING_SHR
-#else
-#define HWY_NATIVE_ROUNDING_SHR
-#endif
 
 template <int kBits>
 HWY_API Vec256<int8_t> RoundingShiftRight(Vec256<int8_t> v) {
@@ -1326,20 +1530,8 @@ HWY_API Vec256<T> Ror(Vec256<T> a, Vec256<T> b) {
   return Vec256<T>{__lasx_xvrotr_b(a.raw, b.raw)};
 }
 
-template <class T, HWY_IF_UI8(T)>
-HWY_API Vec256<T> Rol(Vec256<T> a, Vec256<T> b) {
-  b.raw = __lasx_xvsub_b(__lasx_xvreplgr2vr_b(8), b.raw);
-  return Vec256<T>{__lasx_xvrotr_b(a.raw, b.raw)};
-}
-
 template <class T, HWY_IF_UI16(T)>
 HWY_API Vec256<T> Ror(Vec256<T> a, Vec256<T> b) {
-  return Vec256<T>{__lasx_xvrotr_h(a.raw, b.raw)};
-}
-
-template <class T, HWY_IF_UI16(T)>
-HWY_API Vec256<T> Rol(Vec256<T> a, Vec256<T> b) {
-  b.raw = __lasx_xvsub_h(__lasx_xvreplgr2vr_h(16), b.raw);
   return Vec256<T>{__lasx_xvrotr_h(a.raw, b.raw)};
 }
 
@@ -1348,20 +1540,8 @@ HWY_API Vec256<T> Ror(Vec256<T> a, Vec256<T> b) {
   return Vec256<T>{__lasx_xvrotr_w(a.raw, b.raw)};
 }
 
-template <class T, HWY_IF_UI32(T)>
-HWY_API Vec256<T> Rol(Vec256<T> a, Vec256<T> b) {
-  b.raw = __lasx_xvsub_w(__lasx_xvreplgr2vr_w(32), b.raw);
-  return Vec256<T>{__lasx_xvrotr_w(a.raw, b.raw)};
-}
-
 template <class T, HWY_IF_UI64(T)>
 HWY_API Vec256<T> Ror(Vec256<T> a, Vec256<T> b) {
-  return Vec256<T>{__lasx_xvrotr_d(a.raw, b.raw)};
-}
-
-template <class T, HWY_IF_UI64(T)>
-HWY_API Vec256<T> Rol(Vec256<T> a, Vec256<T> b) {
-  b.raw = __lasx_xvsub_d(__lasx_xvreplgr2vr_d(64), b.raw);
   return Vec256<T>{__lasx_xvrotr_d(a.raw, b.raw)};
 }
 
@@ -1397,17 +1577,22 @@ HWY_API Vec256<T> IfNegativeThenElse(Vec256<T> v, Vec256<T> yes, Vec256<T> no) {
 
 HWY_API Vec256<int8_t> IfNegativeThenNegOrUndefIfZero(Vec256<int8_t> mask,
                                                       Vec256<int8_t> v) {
-  return IfNegativeThenElse(mask, Vec256<int8_t>{__lasx_xvneg_b(v.raw)}, v);
+  return Vec256<int8_t>{__lasx_xvsigncov_b(mask.raw, v.raw)};
 }
 
 HWY_API Vec256<int16_t> IfNegativeThenNegOrUndefIfZero(Vec256<int16_t> mask,
                                                        Vec256<int16_t> v) {
-  return IfNegativeThenElse(mask, Vec256<int16_t>{__lasx_xvneg_h(v.raw)}, v);
+  return Vec256<int16_t>{__lasx_xvsigncov_h(mask.raw, v.raw)};
 }
 
 HWY_API Vec256<int32_t> IfNegativeThenNegOrUndefIfZero(Vec256<int32_t> mask,
                                                        Vec256<int32_t> v) {
-  return IfNegativeThenElse(mask, Vec256<int32_t>{__lasx_xvneg_w(v.raw)}, v);
+  return Vec256<int32_t>{__lasx_xvsigncov_w(mask.raw, v.raw)};
+}
+
+HWY_API Vec256<int64_t> IfNegativeThenNegOrUndefIfZero(Vec256<int64_t> mask,
+                                                       Vec256<int64_t> v) {
+  return Vec256<int64_t>{__lasx_xvsigncov_d(mask.raw, v.raw)};
 }
 
 // ------------------------------ ShiftLeftSame
@@ -1744,13 +1929,6 @@ HWY_API Mask256<double> IsEitherNaN(Vec256<double> a, Vec256<double> b) {
   return RebindMask(d, MFromD<decltype(di)>{__lasx_xvfcmp_cun_d(a.raw, b.raw)});
 }
 
-// ------------------------------ IsInf, IsFinite
-// use defined in generic_ops-inl.h
-
-#ifdef HWY_NATIVE_ISINF
-#undef HWY_NATIVE_ISINF
-#endif
-
 // ================================================== MEMORY
 
 // ------------------------------ Load
@@ -1875,11 +2053,7 @@ HWY_API T ExtractLane(const Vec256<T> v, size_t i) {
 // ------------------------------ InsertLane (Store)
 template <typename T>
 HWY_API Vec256<T> InsertLane(const Vec256<T> v, size_t i, T t) {
-  DFromV<decltype(v)> d;
-  alignas(32) T lanes[32 / sizeof(T)];
-  Store(v, d, lanes);
-  lanes[i] = t;
-  return Load(d, lanes);
+  return detail::InsertLaneUsingBroadcastAndBlend(v, i, t);
 }
 
 // ------------------------------ GetLane (LowerHalf)
@@ -2859,19 +3033,12 @@ HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
                                   hwy::SizeTag<8> /*lane_size_tag*/,
                                   hwy::SizeTag<32> /*vect_size_tag*/, V v) {
   const DFromV<decltype(v)> d;
-  alignas(32) uint64_t idx[4] = {kIdx3210 & 3, (kIdx3210 >> 2) & 3,
-                                 (kIdx3210 >> 4) & 3, (kIdx3210 >> 6) & 3};
-  return TableLookupLanes(v, SetTableIndices(d, idx));
-}
+  const RebindToUnsigned<decltype(d)> du;
+  using VU = VFromD<decltype(du)>;
 
-template <size_t kIdx3210, class V, HWY_IF_FLOAT(TFromV<V>)>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
-                                  hwy::SizeTag<8> /*lane_size_tag*/,
-                                  hwy::SizeTag<32> /*vect_size_tag*/, V v) {
-  const DFromV<decltype(v)> d;
-  alignas(32) uint64_t idx[4] = {kIdx3210 & 3, (kIdx3210 >> 2) & 3,
-                                 (kIdx3210 >> 4) & 3, (kIdx3210 >> 6) & 3};
-  return BitCast(d, TableLookupLanes(v, SetTableIndices(d, idx)));
+  const VU vu = BitCast(du, v);
+  return BitCast(
+      d, VU{__lasx_xvpermi_d(vu.raw, static_cast<int>(kIdx3210 & 0xFF))});
 }
 
 }  // namespace detail
@@ -3209,6 +3376,14 @@ HWY_API Vec256<uint32_t> RearrangeToOddPlusEven(const Vec256<uint32_t> sum0,
 
 // ------------------------------ Promotions (part w/ narrow lanes -> full)
 
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<hwy::float16_t, D>> v) {
+  const Repartition<hwy::float16_t, D> df16;
+  const auto from_128 = ZeroExtendVector(df16, v);
+  const VFromD<decltype(df16)> f16_concat{__lasx_xvpermi_d(from_128.raw, 0xd8)};
+  return VFromD<D>{__lasx_xvfcvtl_s_h(f16_concat.raw)};
+}
+
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
 HWY_API VFromD<D> PromoteTo(D /* tag */, Vec128<float> v) {
   const Repartition<float, D> df;
@@ -3383,23 +3558,10 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, Vec32<int8_t> v) {
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I64_D(D)>
-HWY_API VFromD<D> PromoteInRangeTo(D /* di64 */, VFromD<Rebind<float, D>> v) {
-  alignas(32) __m128i vec_tmp[2];
-  __m256i vec_temp;
-  vec_tmp[0] = BitCast(Rebind<int32_t, D>(), v).raw;
-  CopyBytes<32>(vec_tmp, &vec_temp);
-  const auto v_ex = __lasx_xvpermi_d(vec_temp, 0xd8);
+HWY_API VFromD<D> PromoteTo(D di64, VFromD<Rebind<float, D>> v) {
+  const auto vec_temp = Combine(Repartition<float, decltype(di64)>(), v, v);
+  const auto v_ex = __lasx_xvpermi_d(vec_temp.raw, 0xd8);
   return VFromD<D>{__lasx_xvftintrzl_l_s(reinterpret_cast<__m256>(v_ex))};
-}
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U64_D(D)>
-HWY_API VFromD<D> PromoteInRangeTo(D /* du64 */, VFromD<Rebind<float, D>> v) {
-  alignas(32) __m128i vec_tmp[2];
-  __m256i vec_temp;
-  vec_tmp[0] = BitCast(Rebind<int32_t, D>(), v).raw;
-  CopyBytes<32>(vec_tmp, &vec_temp);
-  const auto v_ex = __lasx_xvpermi_d(vec_temp, 0xd8);
-  const auto v_fd = __lasx_xvfcvtl_d_s(reinterpret_cast<__m256>(v_ex));
-  return VFromD<D>{__lasx_xvftintrz_lu_d(v_fd)};
 }
 
 // ------------------------------ PromoteEvenTo/PromoteOddTo
@@ -3427,199 +3589,102 @@ HWY_INLINE VFromD<D> PromoteOddTo(hwy::SignedTag /*to_type_tag*/,
 
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
 
-template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U16_D(D)>
-HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<int32_t> v) {
-  const __m256i u16 = __lasx_xvssrani_hu_w(v.raw, v.raw, 0);
-  return LowerHalf(VFromD<Twice<D>>{__lasx_xvpermi_d(u16, 0xd8)});
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U16_D(D)>
-HWY_API VFromD<D> DemoteTo(D dn, Vec256<uint32_t> v) {
-  const DFromV<decltype(v)> d;
-  const RebindToSigned<decltype(d)> di;
-  return DemoteTo(dn, BitCast(di, Min(v, Set(d, 0x7FFFFFFFu))));
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_I16_D(D)>
-HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<int32_t> v) {
-  const __m256i i16 = __lasx_xvssrani_h_w(v.raw, v.raw, 0);
-  return LowerHalf(VFromD<Twice<D>>{__lasx_xvpermi_d(i16, 0xd8)});
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_U8_D(D)>
-HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<int32_t> v) {
-  const __m256i i16_blocks = __lasx_xvssrani_h_w(v.raw, v.raw, 0);
-  const __m256i i16_concat = __lasx_xvpermi_d(i16_blocks, 0xd8);
-  const __m256i i8_blocks = __lasx_xvssrani_bu_h(i16_concat, i16_concat, 0);
-  return LowerHalf(LowerHalf(Vec256<uint8_t>{i8_blocks}));
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_U8_D(D)>
-HWY_API VFromD<D> DemoteTo(D dn, Vec256<uint32_t> v) {
-  const DFromV<decltype(v)> d;
-  const RebindToSigned<decltype(d)> di;
-  return DemoteTo(dn, BitCast(di, Min(v, Set(d, 0x7FFFFFFFu))));
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U8_D(D)>
-HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<int16_t> v) {
-  const __m256i u8 = __lasx_xvssrani_bu_h(v.raw, v.raw, 0);
-  return LowerHalf(VFromD<Twice<D>>{__lasx_xvpermi_d(u8, 0xd8)});
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U8_D(D)>
-HWY_API VFromD<D> DemoteTo(D dn, Vec256<uint16_t> v) {
-  const DFromV<decltype(v)> d;
-  const RebindToSigned<decltype(d)> di;
-  return DemoteTo(dn, BitCast(di, Min(v, Set(d, 0x7FFFu))));
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_I8_D(D)>
-HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<int32_t> v) {
-  const __m256i i16_blocks = __lasx_xvssrani_h_w(v.raw, v.raw, 0);
-  const __m256i i16_concat = __lasx_xvpermi_d(i16_blocks, 0xd8);
-  const __m256i i16 = __lasx_xvssrani_b_h(i16_concat, i16_concat, 0);
-  return LowerHalf(LowerHalf(VFromD<Twice<Twice<D>>>{i16}));
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_I8_D(D)>
-HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<int16_t> v) {
-  const __m256i i8 = __lasx_xvssrani_b_h(v.raw, v.raw, 0);
-  return LowerHalf(VFromD<Twice<D>>{__lasx_xvpermi_d(i8, 0xd8)});
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_I32_D(D)>
-HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<int64_t> v) {
-  const __m256i i32_blocks = __lasx_xvssrani_w_d(v.raw, v.raw, 0);
-  return LowerHalf(VFromD<Twice<D>>{__lasx_xvpermi_d(i32_blocks, 0xd8)});
-}
-template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_I16_D(D)>
-HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<int64_t> v) {
-  const __m256i i32_blocks = __lasx_xvssrani_w_d(v.raw, v.raw, 0);
-  const __m256i i32_concat = __lasx_xvpermi_d(i32_blocks, 0xd8);
-  const __m256i i16_blocks = __lasx_xvssrani_h_w(i32_concat, i32_concat, 0);
-  return LowerHalf(LowerHalf(Vec256<int16_t>{i16_blocks}));
-}
-template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_I8_D(D)>
-HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<int64_t> v) {
-  const __m256i i32_blocks = __lasx_xvssrani_w_d(v.raw, v.raw, 0);
-  const __m256i i32_concat = __lasx_xvpermi_d(i32_blocks, 0xd8);
-  const __m256i i16_blocks = __lasx_xvssrani_h_w(i32_concat, i32_concat, 0);
-  const __m256i i8_blocks = __lasx_xvssrani_b_h(i16_blocks, i16_blocks, 0);
-  return LowerHalf(LowerHalf(LowerHalf(Vec256<int8_t>{i8_blocks})));
-}
-template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U32_D(D)>
-HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<int64_t> v) {
-  const __m256i i32_blocks = __lasx_xvssrani_wu_d(v.raw, v.raw, 0);
-  return LowerHalf(VFromD<Twice<D>>{__lasx_xvpermi_d(i32_blocks, 0xd8)});
-}
-template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_U16_D(D)>
-HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<int64_t> v) {
-  const __m256i i32_blocks = __lasx_xvssrani_w_d(v.raw, v.raw, 0);
-  const __m256i i32_concat = __lasx_xvpermi_d(i32_blocks, 0xd8);
-  const __m256i i16_blocks = __lasx_xvssrani_hu_w(i32_concat, i32_concat, 0);
-  return LowerHalf(LowerHalf(VFromD<Twice<Twice<D>>>{i16_blocks}));
-}
-template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_U8_D(D)>
-HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<int64_t> v) {
-  const __m256i i32_blocks = __lasx_xvssrani_w_d(v.raw, v.raw, 0);
-  const __m256i i32_concat = __lasx_xvpermi_d(i32_blocks, 0xd8);
-  const __m256i i16_blocks = __lasx_xvssrani_h_w(i32_concat, i32_concat, 0);
-  const __m256i i8_blocks = __lasx_xvssrani_bu_h(i16_blocks, i16_blocks, 0);
-  return LowerHalf(LowerHalf(LowerHalf(Vec256<uint8_t>{i8_blocks})));
-}
-template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U32_D(D)>
-HWY_API VFromD<D> DemoteTo(D dn, Vec256<uint64_t> v) {
-  const DFromV<decltype(v)> d;
-  const RebindToSigned<decltype(d)> di;
-  return DemoteTo(dn, BitCast(di, Min(v, Set(d, 0x7FFFFFFFFFFFFFFFu))));
-}
-template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_U16_D(D)>
-HWY_API VFromD<D> DemoteTo(D dn, Vec256<uint64_t> v) {
-  const DFromV<decltype(v)> d;
-  const RebindToSigned<decltype(d)> di;
-  return DemoteTo(dn, BitCast(di, Min(v, Set(d, 0x7FFFFFFFFFFFFFFFu))));
-}
-template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_U8_D(D)>
-HWY_API VFromD<D> DemoteTo(D dn, Vec256<uint64_t> v) {
-  const DFromV<decltype(v)> d;
-  const RebindToSigned<decltype(d)> di;
-  return DemoteTo(dn, BitCast(di, Min(v, Set(d, 0x7FFFFFFFFFFFFFFFu))));
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I16_D(D)>
-HWY_API VFromD<D> ReorderDemote2To(D /*d16*/, Vec256<int32_t> a,
-                                   Vec256<int32_t> b) {
-  return VFromD<D>{__lasx_xvssrani_h_w(b.raw, a.raw, 0)};
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U16_D(D)>
-HWY_API VFromD<D> ReorderDemote2To(D /*d16*/, Vec256<int32_t> a,
-                                   Vec256<int32_t> b) {
-  return VFromD<D>{__lasx_xvssrani_hu_w(b.raw, a.raw, 0)};
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U16_D(D)>
-HWY_API VFromD<D> ReorderDemote2To(D dn, Vec256<uint32_t> a,
-                                   Vec256<uint32_t> b) {
-  const DFromV<decltype(a)> d;
-  const RebindToSigned<decltype(d)> di;
-  const auto max_i32 = Set(d, 0x7FFFFFFFu);
-  return ReorderDemote2To(dn, BitCast(di, Min(a, max_i32)),
-                          BitCast(di, Min(b, max_i32)));
-}
-
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I8_D(D)>
-HWY_API VFromD<D> ReorderDemote2To(D /*d16*/, Vec256<int16_t> a,
+HWY_API VFromD<D> ReorderDemote2To(D /* tag */, Vec256<int16_t> a,
                                    Vec256<int16_t> b) {
   return VFromD<D>{__lasx_xvssrani_b_h(b.raw, a.raw, 0)};
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U8_D(D)>
-HWY_API VFromD<D> ReorderDemote2To(D /*d16*/, Vec256<int16_t> a,
+HWY_API VFromD<D> ReorderDemote2To(D /* tag */, Vec256<int16_t> a,
                                    Vec256<int16_t> b) {
   return VFromD<D>{__lasx_xvssrani_bu_h(b.raw, a.raw, 0)};
 }
 
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U8_D(D)>
-HWY_API VFromD<D> ReorderDemote2To(D dn, Vec256<uint16_t> a,
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I8_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D /* tag */, Vec256<uint16_t> a,
                                    Vec256<uint16_t> b) {
-  const DFromV<decltype(a)> d;
-  const RebindToSigned<decltype(d)> di;
-  const auto max_i16 = Set(d, 0x7FFFu);
-  return ReorderDemote2To(dn, BitCast(di, Min(a, max_i16)),
-                          BitCast(di, Min(b, max_i16)));
+  return VFromD<D>{__lasx_xvssrlni_b_h(b.raw, a.raw, 0)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U8_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D /* tag */, Vec256<uint16_t> a,
+                                   Vec256<uint16_t> b) {
+  return VFromD<D>{__lasx_xvssrlni_bu_h(b.raw, a.raw, 0)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I16_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D /* tag */, Vec256<int32_t> a,
+                                   Vec256<int32_t> b) {
+  return VFromD<D>{__lasx_xvssrani_h_w(b.raw, a.raw, 0)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U16_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D /* tag */, Vec256<int32_t> a,
+                                   Vec256<int32_t> b) {
+  return VFromD<D>{__lasx_xvssrani_hu_w(b.raw, a.raw, 0)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I16_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D /* tag */, Vec256<uint32_t> a,
+                                   Vec256<uint32_t> b) {
+  return VFromD<D>{__lasx_xvssrlni_h_w(b.raw, a.raw, 0)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U16_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D /* tag */, Vec256<uint32_t> a,
+                                   Vec256<uint32_t> b) {
+  return VFromD<D>{__lasx_xvssrlni_hu_w(b.raw, a.raw, 0)};
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I32_D(D)>
-HWY_API Vec256<int32_t> ReorderDemote2To(D /*d32*/, Vec256<int64_t> a,
-                                         Vec256<int64_t> b) {
+HWY_API VFromD<D> ReorderDemote2To(D /* tag */, Vec256<int64_t> a,
+                                   Vec256<int64_t> b) {
   return VFromD<D>{__lasx_xvssrani_w_d(b.raw, a.raw, 0)};
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U32_D(D)>
-HWY_API Vec256<uint32_t> ReorderDemote2To(D /*d32*/, Vec256<int64_t> a,
-                                          Vec256<int64_t> b) {
+HWY_API VFromD<D> ReorderDemote2To(D /* tag */, Vec256<int64_t> a,
+                                   Vec256<int64_t> b) {
   return VFromD<D>{__lasx_xvssrani_wu_d(b.raw, a.raw, 0)};
 }
 
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_UI32_D(D)>
-HWY_API VFromD<D> ReorderDemote2To(D dn, Vec256<uint64_t> a,
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I32_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D /* tag */, Vec256<uint64_t> a,
                                    Vec256<uint64_t> b) {
-  const DFromV<decltype(a)> d;
-  const RebindToSigned<decltype(d)> di;
-  const auto max_i64 = Set(d, 0x7FFFFFFFFFFFFFFFu);
-  return ReorderDemote2To(dn, BitCast(di, Min(a, max_i64)),
-                          BitCast(di, Min(b, max_i64)));
+  return VFromD<D>{__lasx_xvssrlni_w_d(b.raw, a.raw, 0)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U32_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D /* tag */, Vec256<uint64_t> a,
+                                   Vec256<uint64_t> b) {
+  return VFromD<D>{__lasx_xvssrlni_wu_d(b.raw, a.raw, 0)};
 }
 
 template <class D, class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<D>),
           HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
           HWY_IF_T_SIZE_V(V, sizeof(TFromD<D>) * 2),
-          HWY_IF_LANES_D(D, HWY_MAX_LANES_D(DFromV<V>) * 2),
-          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2) | (1 << 4) | 1 << 8)>
+          HWY_IF_LANES_D(D, HWY_MAX_LANES_D(DFromV<V>) * 2)>
 HWY_API VFromD<D> OrderedDemote2To(D d, V a, V b) {
   return VFromD<D>{__lasx_xvpermi_d(ReorderDemote2To(d, a, b).raw, 0xd8)};
+}
+
+template <class D, class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D),
+          HWY_IF_V_SIZE_D(D, 16), HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<D>) * 2),
+          HWY_IF_LANES_D(D, HWY_MAX_LANES_D(DFromV<V>))>
+HWY_API VFromD<D> DemoteTo(D d, V v) {
+  return LowerHalf(OrderedDemote2To(Twice<decltype(d)>(), v, v));
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F16_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<float> v) {
+  const Full256<int16_t> di;
+  const Vec256<hwy::float16_t> f16_blocks{__lasx_xvfcvt_h_s(v.raw, v.raw)};
+  const auto f16_concat =
+      BitCast(Twice<D>(), VFromD<decltype(di)>{__lasx_xvpermi_d(
+                              BitCast(di, f16_blocks).raw, 0xd8)});
+  return LowerHalf(f16_concat);
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F32_D(D)>
@@ -3633,14 +3698,9 @@ HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<double> v) {
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_I32_D(D)>
-HWY_API VFromD<D> DemoteInRangeTo(D dn, Vec256<double> v) {
+HWY_API VFromD<D> DemoteTo(D dn, Vec256<double> v) {
   const __m256i i32_blocks = __lasx_xvftintrz_w_d(v.raw, v.raw);
   return LowerHalf(dn, VFromD<Twice<D>>{__lasx_xvpermi_d(i32_blocks, 0xd8)});
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U32_D(D)>
-HWY_API VFromD<D> DemoteInRangeTo(D dn, Vec256<double> v) {
-  return DemoteTo(dn, Vec256<uint64_t>{__lasx_xvftintrz_lu_d(v.raw)});
 }
 
 // For already range-limited input [0, 255].
@@ -4519,29 +4579,31 @@ HWY_API void StoreTransposedBlocks4(VFromD<D> i, VFromD<D> j, VFromD<D> k,
 
 // ------------------------------ Additional mask logical operations
 
+namespace detail {
+
+template <class T>
+static HWY_INLINE HWY_MAYBE_UNUSED Vec256<T> LasxI256Neg(Vec256<T> v) {
+  const Full256<T> d;
+  const Repartition<uint64_t, decltype(d)> du64;
+
+  const auto vu64 = BitCast(du64, v);
+  const auto vu64_zero = Zero(du64);
+  const auto i128_ne_zero = VecFromMask(du64, Ne128(du64, vu64, vu64_zero));
+  const VFromD<decltype(du64)> i128_neg_result{
+      __lasx_xvsub_q(vu64_zero.raw, vu64.raw)};
+  const VFromD<decltype(du64)> i256_neg_result_as_u64{
+      __lasx_xvadd_q(i128_neg_result.raw,
+                     ConcatLowerLower(du64, i128_ne_zero, vu64_zero).raw)};
+
+  return BitCast(d, i256_neg_result_as_u64);
+}
+
+}  // namespace detail
+
 template <class T>
 HWY_API Mask256<T> SetAtOrAfterFirst(Mask256<T> mask) {
   const Full256<T> d;
-  const Repartition<int64_t, decltype(d)> di64;
-  const Repartition<int32_t, decltype(d)> di32;
-  const Half<decltype(di64)> dh_i64;
-  const Half<decltype(di32)> dh_i32;
-  using VI32 = VFromD<decltype(di32)>;
-
-  auto vmask = BitCast(di64, VecFromMask(d, mask));
-  vmask = Or(vmask, Neg(vmask));
-
-  // Copy the sign bit of the even int64_t lanes to the odd int64_t lanes
-  const auto vidx = Dup128VecFromValues(di32, 0, 0, 1 + 4, 1 + 4);
-  const auto vmask2 =
-      VI32{__lasx_xvshuf_w(vidx.raw, BitCast(di32, vmask).raw, Zero(di32).raw)};
-  vmask = Or(vmask, BitCast(di64, BroadcastSignBit(vmask2)));
-
-  // Copy the sign bit of the lower 128-bit half to the upper 128-bit half
-  const auto vmask3 =
-      BroadcastSignBit(Broadcast<3>(BitCast(dh_i32, LowerHalf(dh_i64, vmask))));
-  vmask = Or(vmask, BitCast(di64, Combine(di32, vmask3, Zero(dh_i32))));
-  return MaskFromVec(BitCast(d, vmask));
+  return Or(mask, MaskFromVec(detail::LasxI256Neg(VecFromMask(d, mask))));
 }
 
 template <class T>
@@ -4553,24 +4615,11 @@ template <class T>
 HWY_API Mask256<T> SetOnlyFirst(Mask256<T> mask) {
   const Full256<T> d;
   const RebindToSigned<decltype(d)> di;
-  const Repartition<int64_t, decltype(d)> di64;
-  const Half<decltype(di64)> dh_i64;
 
-  const auto zero = Zero(di64);
-  const auto vmask = BitCast(di64, VecFromMask(d, mask));
+  const auto vmask = BitCast(di, VecFromMask(d, mask));
+  const auto neg_vmask = detail::LasxI256Neg(vmask);
 
-  const auto vmask_eq_0 = VecFromMask(di64, vmask == zero);
-  auto vmask2_lo = LowerHalf(dh_i64, vmask_eq_0);
-  auto vmask2_hi = UpperHalf(dh_i64, vmask_eq_0);
-
-  vmask2_lo = And(vmask2_lo, InterleaveLower(vmask2_lo, vmask2_lo));
-  vmask2_hi = And(ConcatLowerUpper(dh_i64, vmask2_hi, vmask2_lo),
-                  InterleaveUpper(dh_i64, vmask2_lo, vmask2_lo));
-  vmask2_lo = InterleaveLower(Set(dh_i64, int64_t{-1}), vmask2_lo);
-
-  const auto vmask2 = Combine(di64, vmask2_hi, vmask2_lo);
-  const auto only_first_vmask = Neg(BitCast(di, And(vmask, Neg(vmask))));
-  return MaskFromVec(BitCast(d, And(only_first_vmask, BitCast(di, vmask2))));
+  return MaskFromVec(BitCast(d, Neg(And(vmask, neg_vmask))));
 }
 
 template <class T>
@@ -4609,21 +4658,6 @@ HWY_API V HighestSetBitIndex(V v) {
   const DFromV<decltype(v)> d;
   using T = TFromD<decltype(d)>;
   return BitCast(d, Set(d, T{sizeof(T) * 8 - 1}) - LeadingZeroCount(v));
-}
-
-template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V), HWY_IF_V_SIZE_V(V, 32),
-          HWY_IF_T_SIZE_V(V, 1)>
-HWY_API V TrailingZeroCount(V v) {
-  return LeadingZeroCount(ReverseBits(v));
-}
-
-template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V), HWY_IF_V_SIZE_V(V, 32),
-          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 2) | (1 << 4) | (1 << 8))>
-HWY_API V TrailingZeroCount(V v) {
-  const DFromV<decltype(v)> d;
-  const Repartition<uint8_t, decltype(d)> du8;
-  return LeadingZeroCount(
-      ReverseLaneBytes(BitCast(d, ReverseBits(BitCast(du8, v)))));
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
