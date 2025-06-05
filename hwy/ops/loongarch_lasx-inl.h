@@ -3377,7 +3377,7 @@ HWY_API Vec256<uint32_t> RearrangeToOddPlusEven(const Vec256<uint32_t> sum0,
 // ------------------------------ Promotions (part w/ narrow lanes -> full)
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
-HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<hwy::float16_t, D>> v) {
+HWY_API VFromD<D> PromoteTo(D /* tag */, Vec128<hwy::float16_t> v) {
   const Repartition<hwy::float16_t, D> df16;
   const auto from_128 = ZeroExtendVector(df16, v);
   const VFromD<decltype(df16)> f16_concat{__lasx_xvpermi_d(from_128.raw, 0xd8)};
@@ -3402,17 +3402,6 @@ HWY_API VFromD<D> PromoteTo(D /*di64*/, Vec128<float> v) {
   const auto f32_concat = BitCast(
       df, Vec256<uint32_t>{__lasx_xvpermi_d(BitCast(di, from_128).raw, 0xd8)});
   return VFromD<D>{__lasx_xvftintrzl_l_s(f32_concat.raw)};
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U64_D(D)>
-HWY_API VFromD<D> PromoteTo(D /*du64*/, Vec128<float> v) {
-  const Repartition<float, D> df;
-  const RebindToSigned<decltype(df)> di;
-  const auto from_128 = ZeroExtendVector(df, v);
-  const auto f32_concat = BitCast(
-      df, Vec256<uint32_t>{__lasx_xvpermi_d(BitCast(di, from_128).raw, 0xd8)});
-  const auto f64_blocks = __lasx_xvfcvtl_d_s(f32_concat.raw);
-  return VFromD<D>{__lasx_xvftintrz_lu_d(f64_blocks)};
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
@@ -3555,13 +3544,6 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, Vec32<int8_t> v) {
   vec_temp = __lasx_xvsllwil_w_h(vec_temp, 0);
   vec_temp = __lasx_xvpermi_d(vec_temp, 0xd8);
   return VFromD<D>{__lasx_xvsllwil_d_w(vec_temp, 0)};
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I64_D(D)>
-HWY_API VFromD<D> PromoteTo(D di64, VFromD<Rebind<float, D>> v) {
-  const auto vec_temp = Combine(Repartition<float, decltype(di64)>(), v, v);
-  const auto v_ex = __lasx_xvpermi_d(vec_temp.raw, 0xd8);
-  return VFromD<D>{__lasx_xvftintrzl_l_s(reinterpret_cast<__m256>(v_ex))};
 }
 
 // ------------------------------ PromoteEvenTo/PromoteOddTo
