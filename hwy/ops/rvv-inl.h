@@ -16,7 +16,20 @@
 // RISC-V V vectors (length not known at compile time).
 // External include guard in highway.h - see comment there.
 
+#pragma push_macro("__riscv_v_elen")
+
+// Workaround that ensures that all of the __riscv_vsetvl_* and
+// __riscv_vsetvlmax_* macros in riscv_vector.h are defined when compiling with
+// Clang 20 with dynamic dispatch and a baseline target of SCALAR or EMU128
+#if HWY_COMPILER_CLANG >= 2000 && HWY_COMPILER_CLANG < 2100 && \
+    (!defined(__riscv_v_elen) || __riscv_v_elen < 64)
+#undef __riscv_v_elen
+#define __riscv_v_elen 64
+#endif
+
 #include <riscv_vector.h>
+
+#pragma pop_macro("__riscv_v_elen")
 
 #include "hwy/ops/shared-inl.h"
 
