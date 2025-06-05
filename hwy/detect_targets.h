@@ -649,9 +649,13 @@
 #define HWY_BASELINE_AVX10_2 0
 #endif
 
-// Check for RVV 1.0, though 0.11 (11000) already worked.
-#if HWY_ARCH_RISCV && defined(__riscv_v_intrinsic) && \
-    __riscv_v_intrinsic >= 1000000
+// RVV requires intrinsics 0.11 or later, see #1156.
+
+// Also check that the __riscv_v macro is defined as GCC or Clang will define
+// the __risc_v macro if the RISC-V "V" extension is enabled.
+
+#if HWY_ARCH_RISCV && defined(__riscv_v) && defined(__riscv_v_intrinsic) && \
+    __riscv_v_intrinsic >= 11000
 #define HWY_BASELINE_RVV HWY_RVV
 #else
 #define HWY_BASELINE_RVV 0
