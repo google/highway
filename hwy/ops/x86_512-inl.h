@@ -1858,11 +1858,19 @@ HWY_API V GetExponent(V v) {
 #endif
 template <class V, HWY_IF_F32(TFromV<V>), HWY_IF_V_SIZE_V(V, 64)>
 HWY_API V GetExponent(V v) {
+  // Work around warnings in the intrinsic definitions (passing -1 as a mask).
+  HWY_DIAGNOSTICS(push)
+  HWY_DIAGNOSTICS_OFF(disable : 4245 4365, ignored "-Wsign-conversion")
   return V{_mm512_getexp_ps(v.raw)};
+  HWY_DIAGNOSTICS(pop)
 }
 template <class V, HWY_IF_F64(TFromV<V>), HWY_IF_V_SIZE_V(V, 64)>
 HWY_API V GetExponent(V v) {
+  // Work around warnings in the intrinsic definitions (passing -1 as a mask).
+  HWY_DIAGNOSTICS(push)
+  HWY_DIAGNOSTICS_OFF(disable : 4245 4365, ignored "-Wsign-conversion")
   return V{_mm512_getexp_pd(v.raw)};
+  HWY_DIAGNOSTICS(pop)
 }
 
 // ------------------------------ MaskedMinOr
