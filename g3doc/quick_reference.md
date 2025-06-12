@@ -709,6 +709,28 @@ is qNaN, and NaN if both are.
 
 *   <code>V **Max**(V a, V b)</code>: returns `max(a[i], b[i])`.
 
+*   <code>V **MinNumber**(V a, V b)</code>: returns `min(a[i], b[i])` if `a[i]`
+    and `b[i]` are both non-NaN.
+
+    If one of `a[i]` or `b[i]` is qNaN and the other value is non-NaN,
+    `MinNumber(a, b)` returns the non-NaN value.
+
+    If one of `a[i]` or `b[i]` is sNaN and the other value is non-NaN, it is
+    implementation-defined whether `MinNumber(a, b)` returns `a[i]` or `b[i]`.
+
+    Otherwise, if `a[i]` and `b[i]` are both NaN, `MinNumber(a, b)` returns NaN.
+
+*   <code>V **MaxNumber**(V a, V b)</code>: returns `max(a[i], b[i])` if `a[i]`
+    and `b[i]` are both non-NaN.
+
+    If one of `a[i]` or `b[i]` is qNaN and the other value is non-NaN,
+    `MaxNumber(a, b)` returns the non-NaN value.
+
+    If one of `a[i]` or `b[i]` is sNaN and the other value is non-NaN, it is
+    implementation-defined whether `MaxNumber(a, b)` returns `a[i]` or `b[i]`.
+
+    Otherwise, if `a[i]` and `b[i]` are both NaN, `MaxNumber(a, b)` returns NaN.
+
 *   <code>V **MinMagnitude**(V a, V b)</code>: returns the number with the
     smaller magnitude if `a[i]` and `b[i]` are both non-NaN values.
 

@@ -3560,6 +3560,28 @@ HWY_API Vec128<double> Max(Vec128<double> a, Vec128<double> b) {
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Max, vmax, _, 2)
 #endif  // HWY_ARCH_ARM_A64
 
+// ------------------------------ MinNumber and MaxNumber
+
+#if !HWY_ARCH_ARM_A64
+
+#ifdef HWY_NATIVE_FLOAT_MIN_MAX_NUMBER
+#undef HWY_NATIVE_FLOAT_MIN_MAX_NUMBER
+#else
+#define HWY_NATIVE_FLOAT_MIN_MAX_NUMBER
+#endif
+
+template <class V, HWY_IF_FLOAT_OR_SPECIAL_V(V)>
+HWY_API V MinNumber(V a, V b) {
+  return Min(IfThenElse(IsNaN(a), b, a), IfThenElse(IsNaN(b), a, b));
+}
+
+template <class V, HWY_IF_FLOAT_OR_SPECIAL_V(V)>
+HWY_API V MaxNumber(V a, V b) {
+  return Max(IfThenElse(IsNaN(a), b, a), IfThenElse(IsNaN(b), a, b));
+}
+
+#endif
+
 // ================================================== MEMORY
 
 // ------------------------------ Load 128

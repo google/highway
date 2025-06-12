@@ -1734,6 +1734,68 @@ HWY_API Vec512<double> Max(Vec512<double> a, Vec512<double> b) {
   return Vec512<double>{_mm512_max_pd(a.raw, b.raw)};
 }
 
+// ------------------------------ MinNumber and MaxNumber
+
+#if HWY_X86_HAVE_AVX10_2_OPS
+
+#if HWY_HAVE_FLOAT16
+HWY_API Vec512<float16_t> MinNumber(Vec512<float16_t> a, Vec512<float16_t> b) {
+  return Vec512<float16_t>{_mm512_minmax_ph(a.raw, b.raw, 0x14)};
+}
+#endif
+HWY_API Vec512<float> MinNumber(Vec512<float> a, Vec512<float> b) {
+  return Vec512<float>{_mm512_minmax_ps(a.raw, b.raw, 0x14)};
+}
+HWY_API Vec512<double> MinNumber(Vec512<double> a, Vec512<double> b) {
+  return Vec512<double>{_mm512_minmax_pd(a.raw, b.raw, 0x14)};
+}
+
+#if HWY_HAVE_FLOAT16
+HWY_API Vec512<float16_t> MaxNumber(Vec512<float16_t> a, Vec512<float16_t> b) {
+  return Vec512<float16_t>{_mm512_minmax_ph(a.raw, b.raw, 0x15)};
+}
+#endif
+HWY_API Vec512<float> MaxNumber(Vec512<float> a, Vec512<float> b) {
+  return Vec512<float>{_mm512_minmax_ps(a.raw, b.raw, 0x15)};
+}
+HWY_API Vec512<double> MaxNumber(Vec512<double> a, Vec512<double> b) {
+  return Vec512<double>{_mm512_minmax_pd(a.raw, b.raw, 0x15)};
+}
+
+#endif
+
+// ------------------------------ MinMagnitude and MaxMagnitude
+
+#if HWY_X86_HAVE_AVX10_2_OPS
+
+#if HWY_HAVE_FLOAT16
+HWY_API Vec512<float16_t> MinMagnitude(Vec512<float16_t> a,
+                                       Vec512<float16_t> b) {
+  return Vec512<float16_t>{_mm512_minmax_ph(a.raw, b.raw, 0x16)};
+}
+#endif
+HWY_API Vec512<float> MinMagnitude(Vec512<float> a, Vec512<float> b) {
+  return Vec512<float>{_mm512_minmax_ps(a.raw, b.raw, 0x16)};
+}
+HWY_API Vec512<double> MinMagnitude(Vec512<double> a, Vec512<double> b) {
+  return Vec512<double>{_mm512_minmax_pd(a.raw, b.raw, 0x16)};
+}
+
+#if HWY_HAVE_FLOAT16
+HWY_API Vec512<float16_t> MaxMagnitude(Vec512<float16_t> a,
+                                       Vec512<float16_t> b) {
+  return Vec512<float16_t>{_mm512_minmax_ph(a.raw, b.raw, 0x17)};
+}
+#endif
+HWY_API Vec512<float> MaxMagnitude(Vec512<float> a, Vec512<float> b) {
+  return Vec512<float>{_mm512_minmax_ps(a.raw, b.raw, 0x17)};
+}
+HWY_API Vec512<double> MaxMagnitude(Vec512<double> a, Vec512<double> b) {
+  return Vec512<double>{_mm512_minmax_pd(a.raw, b.raw, 0x17)};
+}
+
+#endif
+
 // ------------------------------ Integer multiplication
 
 // Unsigned

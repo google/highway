@@ -778,6 +778,22 @@ HWY_API Vec256<double> Max(const Vec256<double> a, const Vec256<double> b) {
   return Vec256<double>{__lasx_xvfmax_d(a.raw, b.raw)};
 }
 
+// ------------------------------ MinMagnitude and MaxMagnitude
+
+HWY_API Vec256<float> MinMagnitude(Vec256<float> a, Vec256<float> b) {
+  return Vec256<float>{__lasx_xvfmina_s(a.raw, b.raw)};
+}
+HWY_API Vec256<double> MinMagnitude(Vec256<double> a, Vec256<double> b) {
+  return Vec256<double>{__lasx_xvfmina_d(a.raw, b.raw)};
+}
+
+HWY_API Vec256<float> MaxMagnitude(Vec256<float> a, Vec256<float> b) {
+  return Vec256<float>{__lasx_xvfmaxa_s(a.raw, b.raw)};
+}
+HWY_API Vec256<double> MaxMagnitude(Vec256<double> a, Vec256<double> b) {
+  return Vec256<double>{__lasx_xvfmaxa_d(a.raw, b.raw)};
+}
+
 // ------------------------------ Iota
 
 namespace detail {
