@@ -733,7 +733,11 @@ HWY_TEST_DEPS = [
             local_defines = ["HWY_IS_TEST"],
             # Placeholder for malloc, do not remove
             # for test_suite.
-            tags = ["hwy_ops_test"],
+            tags = [
+                "hwy_ops_test",
+                # TODO(b/422564815): Re-enable MSAN once fixed.
+                "nomsan",
+            ],
             deps = HWY_TEST_DEPS + extra_deps + select({
                 ":compiler_emscripten": [":preamble.js.lds"],
                 "//conditions:default": [],
