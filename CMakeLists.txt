@@ -859,6 +859,7 @@ set(HWY_TEST_FILES
   hwy/tests/masked_minmax_test.cc
   hwy/tests/memory_test.cc
   hwy/tests/minmax_magnitude_test.cc
+  hwy/tests/minmax_number_test.cc
   hwy/tests/minmax_test.cc
   hwy/tests/minmax128_test.cc
   hwy/tests/mul_by_pow2_test.cc

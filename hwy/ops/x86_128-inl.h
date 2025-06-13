@@ -6018,6 +6018,110 @@ HWY_API Vec128<double, N> Max(Vec128<double, N> a, Vec128<double, N> b) {
   return Vec128<double, N>{_mm_max_pd(a.raw, b.raw)};
 }
 
+// ------------------------------ MinNumber and MaxNumber
+
+#ifdef HWY_NATIVE_FLOAT_MIN_MAX_NUMBER
+#undef HWY_NATIVE_FLOAT_MIN_MAX_NUMBER
+#else
+#define HWY_NATIVE_FLOAT_MIN_MAX_NUMBER
+#endif
+
+#if HWY_X86_HAVE_AVX10_2_OPS
+
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Vec128<float16_t, N> MinNumber(Vec128<float16_t, N> a,
+                                       Vec128<float16_t, N> b) {
+  return Vec128<float16_t, N>{_mm_minmax_ph(a.raw, b.raw, 0x14)};
+}
+#endif
+template <size_t N>
+HWY_API Vec128<float, N> MinNumber(Vec128<float, N> a, Vec128<float, N> b) {
+  return Vec128<float, N>{_mm_minmax_ps(a.raw, b.raw, 0x14)};
+}
+template <size_t N>
+HWY_API Vec128<double, N> MinNumber(Vec128<double, N> a, Vec128<double, N> b) {
+  return Vec128<double, N>{_mm_minmax_pd(a.raw, b.raw, 0x14)};
+}
+
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Vec128<float16_t, N> MaxNumber(Vec128<float16_t, N> a,
+                                       Vec128<float16_t, N> b) {
+  return Vec128<float16_t, N>{_mm_minmax_ph(a.raw, b.raw, 0x15)};
+}
+#endif
+template <size_t N>
+HWY_API Vec128<float, N> MaxNumber(Vec128<float, N> a, Vec128<float, N> b) {
+  return Vec128<float, N>{_mm_minmax_ps(a.raw, b.raw, 0x15)};
+}
+template <size_t N>
+HWY_API Vec128<double, N> MaxNumber(Vec128<double, N> a, Vec128<double, N> b) {
+  return Vec128<double, N>{_mm_minmax_pd(a.raw, b.raw, 0x15)};
+}
+
+#else
+
+// MinNumber/MaxNumber are generic for all vector lengths on targets other
+// than AVX10.2
+template <class V, HWY_IF_FLOAT_OR_SPECIAL_V(V)>
+HWY_API V MinNumber(V a, V b) {
+  return Min(a, IfThenElse(IsNaN(b), a, b));
+}
+
+template <class V, HWY_IF_FLOAT_OR_SPECIAL_V(V)>
+HWY_API V MaxNumber(V a, V b) {
+  return Max(a, IfThenElse(IsNaN(b), a, b));
+}
+
+#endif
+
+// ------------------------------ MinMagnitude and MaxMagnitude
+
+#if HWY_X86_HAVE_AVX10_2_OPS
+
+#ifdef HWY_NATIVE_FLOAT_MIN_MAX_MAGNITUDE
+#undef HWY_NATIVE_FLOAT_MIN_MAX_MAGNITUDE
+#else
+#define HWY_NATIVE_FLOAT_MIN_MAX_MAGNITUDE
+#endif
+
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Vec128<float16_t, N> MinMagnitude(Vec128<float16_t, N> a,
+                                          Vec128<float16_t, N> b) {
+  return Vec128<float16_t, N>{_mm_minmax_ph(a.raw, b.raw, 0x16)};
+}
+#endif
+template <size_t N>
+HWY_API Vec128<float, N> MinMagnitude(Vec128<float, N> a, Vec128<float, N> b) {
+  return Vec128<float, N>{_mm_minmax_ps(a.raw, b.raw, 0x16)};
+}
+template <size_t N>
+HWY_API Vec128<double, N> MinMagnitude(Vec128<double, N> a,
+                                       Vec128<double, N> b) {
+  return Vec128<double, N>{_mm_minmax_pd(a.raw, b.raw, 0x16)};
+}
+
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Vec128<float16_t, N> MaxMagnitude(Vec128<float16_t, N> a,
+                                          Vec128<float16_t, N> b) {
+  return Vec128<float16_t, N>{_mm_minmax_ph(a.raw, b.raw, 0x17)};
+}
+#endif
+template <size_t N>
+HWY_API Vec128<float, N> MaxMagnitude(Vec128<float, N> a, Vec128<float, N> b) {
+  return Vec128<float, N>{_mm_minmax_ps(a.raw, b.raw, 0x17)};
+}
+template <size_t N>
+HWY_API Vec128<double, N> MaxMagnitude(Vec128<double, N> a,
+                                       Vec128<double, N> b) {
+  return Vec128<double, N>{_mm_minmax_pd(a.raw, b.raw, 0x17)};
+}
+
+#endif
+
 // ================================================== MEMORY (3)
 
 // ------------------------------ Non-temporal stores

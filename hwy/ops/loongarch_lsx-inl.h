@@ -2634,6 +2634,34 @@ HWY_API Vec128<double, N> Max(Vec128<double, N> a, Vec128<double, N> b) {
   return Vec128<double, N>{__lsx_vfmax_d(a.raw, b.raw)};
 }
 
+// ------------------------------ MinMagnitude and MaxMagnitude
+
+#ifdef HWY_NATIVE_FLOAT_MIN_MAX_MAGNITUDE
+#undef HWY_NATIVE_FLOAT_MIN_MAX_MAGNITUDE
+#else
+#define HWY_NATIVE_FLOAT_MIN_MAX_MAGNITUDE
+#endif
+
+template <size_t N>
+HWY_API Vec128<float, N> MinMagnitude(Vec128<float, N> a, Vec128<float, N> b) {
+  return Vec128<float, N>{__lsx_vfmina_s(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<double, N> MinMagnitude(Vec128<double, N> a,
+                                       Vec128<double, N> b) {
+  return Vec128<double, N>{__lsx_vfmina_d(a.raw, b.raw)};
+}
+
+template <size_t N>
+HWY_API Vec128<float, N> MaxMagnitude(Vec128<float, N> a, Vec128<float, N> b) {
+  return Vec128<float, N>{__lsx_vfmaxa_s(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<double, N> MaxMagnitude(Vec128<double, N> a,
+                                       Vec128<double, N> b) {
+  return Vec128<double, N>{__lsx_vfmaxa_d(a.raw, b.raw)};
+}
+
 // ------------------------------ Non-temporal stores
 
 // Same as aligned stores on non-x86.

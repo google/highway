@@ -204,7 +204,6 @@ struct Mask256 {
 template <typename T>
 using Full256 = Simd<T, 32 / sizeof(T), 0>;
 
-
 // ------------------------------ Zero
 
 // Cannot use VFromD here because it is defined in terms of Zero.
@@ -1786,6 +1785,68 @@ HWY_API Vec256<float> Max(const Vec256<float> a, const Vec256<float> b) {
 HWY_API Vec256<double> Max(const Vec256<double> a, const Vec256<double> b) {
   return Vec256<double>{_mm256_max_pd(a.raw, b.raw)};
 }
+
+// ------------------------------ MinNumber and MaxNumber
+
+#if HWY_X86_HAVE_AVX10_2_OPS
+
+#if HWY_HAVE_FLOAT16
+HWY_API Vec256<float16_t> MinNumber(Vec256<float16_t> a, Vec256<float16_t> b) {
+  return Vec256<float16_t>{_mm256_minmax_ph(a.raw, b.raw, 0x14)};
+}
+#endif
+HWY_API Vec256<float> MinNumber(Vec256<float> a, Vec256<float> b) {
+  return Vec256<float>{_mm256_minmax_ps(a.raw, b.raw, 0x14)};
+}
+HWY_API Vec256<double> MinNumber(Vec256<double> a, Vec256<double> b) {
+  return Vec256<double>{_mm256_minmax_pd(a.raw, b.raw, 0x14)};
+}
+
+#if HWY_HAVE_FLOAT16
+HWY_API Vec256<float16_t> MaxNumber(Vec256<float16_t> a, Vec256<float16_t> b) {
+  return Vec256<float16_t>{_mm256_minmax_ph(a.raw, b.raw, 0x15)};
+}
+#endif
+HWY_API Vec256<float> MaxNumber(Vec256<float> a, Vec256<float> b) {
+  return Vec256<float>{_mm256_minmax_ps(a.raw, b.raw, 0x15)};
+}
+HWY_API Vec256<double> MaxNumber(Vec256<double> a, Vec256<double> b) {
+  return Vec256<double>{_mm256_minmax_pd(a.raw, b.raw, 0x15)};
+}
+
+#endif
+
+// ------------------------------ MinMagnitude and MaxMagnitude
+
+#if HWY_X86_HAVE_AVX10_2_OPS
+
+#if HWY_HAVE_FLOAT16
+HWY_API Vec256<float16_t> MinMagnitude(Vec256<float16_t> a,
+                                       Vec256<float16_t> b) {
+  return Vec256<float16_t>{_mm256_minmax_ph(a.raw, b.raw, 0x16)};
+}
+#endif
+HWY_API Vec256<float> MinMagnitude(Vec256<float> a, Vec256<float> b) {
+  return Vec256<float>{_mm256_minmax_ps(a.raw, b.raw, 0x16)};
+}
+HWY_API Vec256<double> MinMagnitude(Vec256<double> a, Vec256<double> b) {
+  return Vec256<double>{_mm256_minmax_pd(a.raw, b.raw, 0x16)};
+}
+
+#if HWY_HAVE_FLOAT16
+HWY_API Vec256<float16_t> MaxMagnitude(Vec256<float16_t> a,
+                                       Vec256<float16_t> b) {
+  return Vec256<float16_t>{_mm256_minmax_ph(a.raw, b.raw, 0x17)};
+}
+#endif
+HWY_API Vec256<float> MaxMagnitude(Vec256<float> a, Vec256<float> b) {
+  return Vec256<float>{_mm256_minmax_ps(a.raw, b.raw, 0x17)};
+}
+HWY_API Vec256<double> MaxMagnitude(Vec256<double> a, Vec256<double> b) {
+  return Vec256<double>{_mm256_minmax_pd(a.raw, b.raw, 0x17)};
+}
+
+#endif
 
 // ------------------------------ Iota
 

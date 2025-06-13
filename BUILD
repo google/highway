@@ -651,6 +651,7 @@ HWY_TESTS = HWY_CONTRIB_TESTS + (
     ("hwy/tests/", "masked_minmax_test", []),
     ("hwy/tests/", "memory_test", []),
     ("hwy/tests/", "minmax_magnitude_test", []),
+    ("hwy/tests/", "minmax_number_test", []),
     ("hwy/tests/", "minmax_test", []),
     ("hwy/tests/", "minmax128_test", []),
     ("hwy/tests/", "mul_by_pow2_test", []),
