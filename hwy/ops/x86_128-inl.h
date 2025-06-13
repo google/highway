@@ -70,6 +70,14 @@ namespace detail {
 #define HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT "x"
 #endif
 
+#undef HWY_X86_HAVE_AVX10_2_OPS
+#if HWY_TARGET_IS_AVX10_2 && \
+    (HWY_COMPILER_GCC_ACTUAL >= 1501 || HWY_COMPILER3_CLANG >= 200103)
+#define HWY_X86_HAVE_AVX10_2_OPS 1
+#else
+#define HWY_X86_HAVE_AVX10_2_OPS 0
+#endif
+
 template <typename T>
 struct Raw128 {
   using type = __m128i;
@@ -10443,6 +10451,7 @@ X86ConvertScalarFromFloat(TF from_val) {
   return X86ConvertScalarFromFloat<TTo>(hwy::TypeTag<RemoveCvRef<TTo>>(),
                                         from_val);
 }
+
 #endif  // HWY_COMPILER_GCC_ACTUAL >= 700 && !HWY_IS_DEBUG_BUILD
 
 }  // namespace detail
@@ -10455,7 +10464,9 @@ X86ConvertScalarFromFloat(TF from_val) {
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_I32_D(D)>
 HWY_API VFromD<D> DemoteInRangeTo(D /* tag */, VFromD<Rebind<double, D>> v) {
-#if HWY_COMPILER_GCC_ACTUAL
+#if HWY_X86_HAVE_AVX10_2_OPS
+  return VFromD<D>{_mm_cvtts_pd_epi32(v.raw)};
+#elif HWY_COMPILER_GCC_ACTUAL
   // Workaround for undefined behavior in _mm_cvttpd_epi32 with GCC if any
   // values of v[i] are not within the range of an int32_t
 
@@ -10492,7 +10503,9 @@ HWY_API VFromD<D> DemoteTo(D di32, VFromD<Rebind<double, D>> v) {
 #if HWY_TARGET <= HWY_AVX3
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U32_D(D)>
 HWY_API VFromD<D> DemoteInRangeTo(D /* tag */, VFromD<Rebind<double, D>> v) {
-#if HWY_COMPILER_GCC_ACTUAL
+#if HWY_X86_HAVE_AVX10_2_OPS
+  return VFromD<D>{_mm_cvtts_pd_epu32(v.raw)};
+#elif HWY_COMPILER_GCC_ACTUAL
   // Workaround for undefined behavior in _mm_cvttpd_epu32 with GCC if any
   // values of v[i] are not within the range of an uint32_t
 
@@ -10520,8 +10533,12 @@ HWY_API VFromD<D> DemoteInRangeTo(D /* tag */, VFromD<Rebind<double, D>> v) {
 
 // F64->U32 DemoteTo is generic for all vector lengths
 template <class D, HWY_IF_U32_D(D)>
-HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<Rebind<double, D>> v) {
-  return DemoteInRangeTo(D(), ZeroIfNegative(v));
+HWY_API VFromD<D> DemoteTo(D du32, VFromD<Rebind<double, D>> v) {
+#if HWY_X86_HAVE_AVX10_2_OPS
+  return DemoteInRangeTo(du32, v);
+#else
+  return DemoteInRangeTo(du32, ZeroIfNegative(v));
+#endif
 }
 #else   // HWY_TARGET > HWY_AVX3
 
@@ -10649,7 +10666,9 @@ HWY_API Vec128<uint8_t, N> U8FromU32(const Vec128<uint32_t, N> v) {
 #if HWY_TARGET <= HWY_AVX3
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I64_D(D)>
 HWY_API VFromD<D> PromoteInRangeTo(D /*di64*/, VFromD<Rebind<float, D>> v) {
-#if HWY_COMPILER_GCC_ACTUAL
+#if HWY_X86_HAVE_AVX10_2_OPS
+  return VFromD<D>{_mm_cvtts_ps_epi64(v.raw)};
+#elif HWY_COMPILER_GCC_ACTUAL
   // Workaround for undefined behavior with GCC if any values of v[i] are not
   // within the range of an int64_t
 
@@ -10677,6 +10696,9 @@ HWY_API VFromD<D> PromoteInRangeTo(D /*di64*/, VFromD<Rebind<float, D>> v) {
 // Generic for all vector lengths.
 template <class D, HWY_IF_I64_D(D)>
 HWY_API VFromD<D> PromoteTo(D di64, VFromD<Rebind<float, D>> v) {
+#if HWY_X86_HAVE_AVX10_2_OPS
+  return PromoteInRangeTo(di64, v);
+#else
   const Rebind<float, decltype(di64)> df32;
   const RebindToFloat<decltype(di64)> df64;
   // We now avoid GCC UB in PromoteInRangeTo via assembly, see #2189 and
@@ -10689,14 +10711,21 @@ HWY_API VFromD<D> PromoteTo(D di64, VFromD<Rebind<float, D>> v) {
       di64, PromoteMaskTo(df64, df32, Ge(v, Set(df32, 9.223372e18f))));
   return IfThenElse(overflow, Set(di64, LimitsMax<int64_t>()),
                     PromoteInRangeTo(di64, v));
+#endif
 }
 template <class D, HWY_IF_U64_D(D)>
-HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<float, D>> v) {
-  return PromoteInRangeTo(D(), ZeroIfNegative(v));
+HWY_API VFromD<D> PromoteTo(D du64, VFromD<Rebind<float, D>> v) {
+#if HWY_X86_HAVE_AVX10_2_OPS
+  return PromoteInRangeTo(du64, v);
+#else
+  return PromoteInRangeTo(du64, ZeroIfNegative(v));
+#endif
 }
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U64_D(D)>
 HWY_API VFromD<D> PromoteInRangeTo(D /* tag */, VFromD<Rebind<float, D>> v) {
-#if HWY_COMPILER_GCC_ACTUAL
+#if HWY_X86_HAVE_AVX10_2_OPS
+  return VFromD<D>{_mm_cvtts_ps_epu64(v.raw)};
+#elif HWY_COMPILER_GCC_ACTUAL
   // Workaround for undefined behavior with GCC if any values of v[i] are not
   // within the range of an uint64_t
 
@@ -11375,7 +11404,9 @@ HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<RebindToFloat<D>> v) {
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I32_D(D)>
 HWY_API VFromD<D> ConvertInRangeTo(D /*di*/, VFromD<RebindToFloat<D>> v) {
-#if HWY_COMPILER_GCC_ACTUAL
+#if HWY_X86_HAVE_AVX10_2_OPS
+  return VFromD<D>{_mm_cvtts_ps_epi32(v.raw)};
+#elif HWY_COMPILER_GCC_ACTUAL
   // Workaround for undefined behavior in _mm_cvttps_epi32 with GCC if any
   // values of v[i] are not within the range of an int32_t
 
@@ -11405,17 +11436,23 @@ HWY_API VFromD<D> ConvertInRangeTo(D /*di*/, VFromD<RebindToFloat<D>> v) {
 // F32 to I32 ConvertTo is generic for all vector lengths
 template <class D, HWY_IF_I32_D(D)>
 HWY_API VFromD<D> ConvertTo(D di, VFromD<RebindToFloat<D>> v) {
+#if HWY_X86_HAVE_AVX10_2_OPS
+  return ConvertInRangeTo(di, v);
+#else
   const RebindToFloat<decltype(di)> df;
   // See comment at the first occurrence of "IfThenElse(overflow,".
   const MFromD<D> overflow = RebindMask(di, Ge(v, Set(df, 2147483648.0f)));
   return IfThenElse(overflow, Set(di, LimitsMax<int32_t>()),
                     ConvertInRangeTo(di, v));
+#endif
 }
 
 #if HWY_TARGET <= HWY_AVX3
 template <class DI, HWY_IF_V_SIZE_LE_D(DI, 16), HWY_IF_I64_D(DI)>
 HWY_API VFromD<DI> ConvertInRangeTo(DI /*di*/, VFromD<RebindToFloat<DI>> v) {
-#if HWY_COMPILER_GCC_ACTUAL
+#if HWY_X86_HAVE_AVX10_2_OPS
+  return VFromD<DI>{_mm_cvtts_pd_epi64(v.raw)};
+#elif HWY_COMPILER_GCC_ACTUAL
   // Workaround for undefined behavior in _mm_cvttpd_epi64 with GCC if any
   // values of v[i] are not within the range of an int64_t
 
@@ -11443,17 +11480,23 @@ HWY_API VFromD<DI> ConvertInRangeTo(DI /*di*/, VFromD<RebindToFloat<DI>> v) {
 // F64 to I64 ConvertTo is generic for all vector lengths on AVX3
 template <class DI, HWY_IF_I64_D(DI)>
 HWY_API VFromD<DI> ConvertTo(DI di, VFromD<RebindToFloat<DI>> v) {
+#if HWY_X86_HAVE_AVX10_2_OPS
+  return ConvertInRangeTo(di, v);
+#else
   const RebindToFloat<decltype(di)> df;
   // See comment at the first occurrence of "IfThenElse(overflow,".
   const MFromD<DI> overflow =
       RebindMask(di, Ge(v, Set(df, 9.223372036854776e18)));
   return IfThenElse(overflow, Set(di, LimitsMax<int64_t>()),
                     ConvertInRangeTo(di, v));
+#endif
 }
 
 template <class DU, HWY_IF_V_SIZE_LE_D(DU, 16), HWY_IF_U32_D(DU)>
 HWY_API VFromD<DU> ConvertInRangeTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
-#if HWY_COMPILER_GCC_ACTUAL
+#if HWY_X86_HAVE_AVX10_2_OPS
+  return VFromD<DU>{_mm_cvtts_ps_epu32(v.raw)};
+#elif HWY_COMPILER_GCC_ACTUAL
   // Workaround for undefined behavior in _mm_cvttps_epu32 with GCC if any
   // values of v[i] are not within the range of an uint32_t
 
@@ -11482,13 +11525,19 @@ HWY_API VFromD<DU> ConvertInRangeTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
 
 // F32->U32 ConvertTo is generic for all vector lengths
 template <class DU, HWY_IF_U32_D(DU)>
-HWY_API VFromD<DU> ConvertTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
-  return ConvertInRangeTo(DU(), ZeroIfNegative(v));
+HWY_API VFromD<DU> ConvertTo(DU du32, VFromD<RebindToFloat<DU>> v) {
+#if HWY_X86_HAVE_AVX10_2_OPS
+  return ConvertInRangeTo(du32, v);
+#else
+  return ConvertInRangeTo(du32, ZeroIfNegative(v));
+#endif
 }
 
 template <class DU, HWY_IF_V_SIZE_LE_D(DU, 16), HWY_IF_U64_D(DU)>
 HWY_API VFromD<DU> ConvertInRangeTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
-#if HWY_COMPILER_GCC_ACTUAL
+#if HWY_X86_HAVE_AVX10_2_OPS
+  return VFromD<DU>{_mm_cvtts_pd_epu64(v.raw)};
+#elif HWY_COMPILER_GCC_ACTUAL
   // Workaround for undefined behavior in _mm_cvttpd_epu64 with GCC if any
   // values of v[i] are not within the range of an uint64_t
 
@@ -11515,8 +11564,12 @@ HWY_API VFromD<DU> ConvertInRangeTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
 
 // F64->U64 ConvertTo is generic for all vector lengths
 template <class DU, HWY_IF_U64_D(DU)>
-HWY_API VFromD<DU> ConvertTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
-  return ConvertInRangeTo(DU(), ZeroIfNegative(v));
+HWY_API VFromD<DU> ConvertTo(DU du64, VFromD<RebindToFloat<DU>> v) {
+#if HWY_X86_HAVE_AVX10_2_OPS
+  return ConvertInRangeTo(du64, v);
+#else
+  return ConvertInRangeTo(du64, ZeroIfNegative(v));
+#endif
 }
 
 #else  // AVX2 or below
