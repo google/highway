@@ -485,7 +485,10 @@ static int64_t DetectTargets() {
   if (HasCpuFeature("hw.optional.arm.FEAT_AES")) {
     bits |= HWY_NEON;
 
-    if (HasCpuFeature("hw.optional.AdvSIMD_HPFPCvt") &&
+    // Some macOS versions report AdvSIMD_HPFPCvt under a different key.
+    // Check both known variants for compatibility.
+    if ((HasCpuFeature("hw.optional.AdvSIMD_HPFPCvt") ||
+         HasCpuFeature("hw.optional.arm.AdvSIMD_HPFPCvt")) &&
         HasCpuFeature("hw.optional.arm.FEAT_DotProd") &&
         HasCpuFeature("hw.optional.arm.FEAT_BF16")) {
       bits |= HWY_NEON_BF16;
