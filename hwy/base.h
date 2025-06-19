@@ -55,11 +55,11 @@
 #include <inttypes.h>
 #endif
 
+#endif  // !HWY_IDE
+
 #if (HWY_ARCH_X86 && !defined(HWY_NO_LIBCXX)) || HWY_COMPILER_MSVC
 #include <atomic>
 #endif
-
-#endif  // !HWY_IDE
 
 #ifndef HWY_HAVE_COMPARE_HEADER  // allow override
 #define HWY_HAVE_COMPARE_HEADER 0

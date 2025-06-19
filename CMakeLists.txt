@@ -311,6 +311,7 @@ if (NOT HWY_CMAKE_HEADER_ONLY)
     hwy/per_target.cc
     hwy/perf_counters.cc
     hwy/print.cc
+    hwy/profiler.cc
     hwy/targets.cc
     hwy/timer.cc
   )

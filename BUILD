@@ -285,16 +285,15 @@ cc_library(
 
 cc_library(
     name = "profiler",
-    hdrs = [
-        "hwy/profiler.h",
-    ],
+    srcs = ["hwy/profiler.cc"],
+    hdrs = ["hwy/profiler.h"],
     compatible_with = [],
     copts = COPTS,
     deps = [
+        ":bit_set",
         ":hwy",
         ":robust_statistics",
         ":timer",
-        "//hwy/contrib/sort:vqsort",
     ],
 )
 
@@ -305,6 +304,7 @@ cc_binary(
     deps = [
         ":hwy",
         ":profiler",
+        ":thread_pool",
         ":timer",
     ],
 )

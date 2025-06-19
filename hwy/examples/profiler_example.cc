@@ -15,6 +15,7 @@
 #include <cmath>
 
 #include "hwy/base.h"  // Abort
+#include "hwy/contrib/thread_pool/thread_pool.h"
 #include "hwy/profiler.h"
 #include "hwy/timer.h"
 
@@ -31,17 +32,17 @@ void Spin(const double min_time) {
   }
 }
 
-void Spin10() {
+HWY_NOINLINE void Spin10() {
   PROFILER_FUNC;
   Spin(10E-6);
 }
 
-void Spin20() {
+HWY_NOINLINE void Spin20() {
   PROFILER_FUNC;
   Spin(20E-6);
 }
 
-void Spin3060() {
+HWY_NOINLINE void Spin3060() {
   {
     PROFILER_ZONE("spin30");
     Spin(30E-6);
@@ -52,25 +53,28 @@ void Spin3060() {
   }
 }
 
-void Level3() {
-  PROFILER_FUNC;
-  for (int rep = 0; rep < 10; ++rep) {
-    double total = 0.0;
-    for (int i = 0; i < 100 - rep; ++i) {
-      total += std::pow(0.9, i);
+HWY_NOINLINE void Level3() {
+  ThreadPool pool(3);
+  pool.Run(0, 5, [](uint64_t /*task*/, HWY_MAYBE_UNUSED size_t thread) {
+    PROFILER_ZONE2(static_cast<uint8_t>(thread), "Level3");
+    for (int rep = 0; rep < 10; ++rep) {
+      double total = 0.0;
+      for (int i = 0; i < 100 - rep; ++i) {
+        total += std::pow(0.9, i);
+      }
+      if (std::abs(total - 9.999) > 1E-2) {
+        HWY_ABORT("unexpected total %f", total);
+      }
     }
-    if (std::abs(total - 9.999) > 1E-2) {
-      HWY_ABORT("unexpected total %f", total);
-    }
-  }
+  });
 }
 
-void Level2() {
+HWY_NOINLINE void Level2() {
   PROFILER_FUNC;
   Level3();
 }
 
-void Level1() {
+HWY_NOINLINE void Level1() {
   PROFILER_FUNC;
   Level2();
 }
