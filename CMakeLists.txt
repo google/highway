@@ -210,7 +210,7 @@ if (NOT Threads_FOUND AND HWY_ENABLE_CONTRIB)
   message(FATAL_ERROR "Threads must be available if HWY_ENABLE_CONTRIB is ON")
 endif()
 
-if(Threads_FOUND AND THREADS_HAVE_PTHREAD_ARG)
+if(Threads_FOUND)
   if(THREADS_HAVE_PTHREAD_ARG)
     set(HWY_THREAD_FLAGS "-pthread")
   else()
