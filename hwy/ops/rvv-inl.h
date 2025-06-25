@@ -5947,9 +5947,13 @@ HWY_API V64 BitShuffle(V64 values, VI idx) {
 template <class V, HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2) | (1 << 4)),
           class D = DFromV<V>, class DW = RepartitionToWide<D>>
 HWY_API VFromD<DW> MulEven(const V a, const V b) {
-  const auto lo = Mul(a, b);
-  const auto hi = MulHigh(a, b);
-  return BitCast(DW(), OddEven(detail::Slide1Up(hi), lo));
+  constexpr int maskVal = sizeof(TFromD<D>) == 4 ? 5
+                          : sizeof(TFromD<D>) == 2 ? 0x55
+                                                   : 0x5555;
+  const auto mask = Dup128MaskFromMaskBits(D(), maskVal);
+  const auto hi = Slide1Up(D(), MulHigh(a, b));
+  const auto res = MaskedMulOr(hi, mask, a, b);
+  return BitCast(DW(), res);
 }
 
 template <class V, HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2) | (1 << 4)),
@@ -5963,9 +5967,9 @@ HWY_API VFromD<DW> MulOdd(const V a, const V b) {
 // There is no 64x64 vwmul.
 template <class V, HWY_IF_T_SIZE_V(V, 8)>
 HWY_INLINE V MulEven(const V a, const V b) {
-  const auto lo = Mul(a, b);
-  const auto hi = MulHigh(a, b);
-  return OddEven(detail::Slide1Up(hi), lo);
+  const auto mask = Dup128MaskFromMaskBits(DFromV<V>(), 1);
+  const auto hi = Slide1Up(DFromV<V>(), MulHigh(a, b));
+  return MaskedMulOr(hi, mask, a, b);
 }
 
 template <class V, HWY_IF_T_SIZE_V(V, 8)>
