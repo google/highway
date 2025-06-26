@@ -76,6 +76,23 @@ static HWY_MAYBE_UNUSED double MeasureNominalClockRate() {
   return max_ticks_per_sec;
 }
 
+#if HWY_ARCH_PPC && defined(__GLIBC__) && defined(__powerpc64__)
+namespace ppc {
+
+static HWY_INLINE double GetTimebaseFreq() {
+  const auto timebase_freq = __ppc_get_timebase_freq();
+  // If timebase_freq is greater than 0, then return timebase_freq.
+
+  // Otherwise, if timebase_freq is less than or equal to 0, fall back to
+  // MeasureNominalClockRate(). This works around issues if running on QEMU on
+  // non-PPC CPU's.
+  return (timebase_freq > 0) ? static_cast<double>(timebase_freq)
+                             : MeasureNominalClockRate();
+}
+
+}  // namespace ppc
+#endif
+
 namespace platform {
 
 HWY_DLLEXPORT bool GetCpuString(char* cpu100) {
@@ -120,7 +137,8 @@ HWY_DLLEXPORT bool HaveTimerStop(char* cpu100) {
 
 HWY_DLLEXPORT double InvariantTicksPerSecond() {
 #if HWY_ARCH_PPC && defined(__GLIBC__) && defined(__powerpc64__)
-  return static_cast<double>(__ppc_get_timebase_freq());
+  static const double freq = ppc::GetTimebaseFreq();
+  return freq;
 #elif HWY_ARCH_X86 || HWY_ARCH_RISCV || (HWY_ARCH_ARM_A64 && !HWY_COMPILER_MSVC)
   // We assume the x86 TSC is invariant; it is on all recent Intel/AMD CPUs.
   static const double freq = MeasureNominalClockRate();
