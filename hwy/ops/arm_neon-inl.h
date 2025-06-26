@@ -1927,10 +1927,74 @@ HWY_API Vec128<T, 16> InsertLane(const Vec128<T, 16> v, size_t i, T t) {
 // ================================================== ARITHMETIC
 
 // ------------------------------ Addition
-HWY_NEON_DEF_FUNCTION_ALL_TYPES(operator+, vadd, _, 2)
+HWY_NEON_DEF_FUNCTION_UINTS(operator+, vadd, _, 2)
+HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator+, vadd, _, 2)
+
+template <size_t N>
+HWY_API Vec128<int8_t, N> operator+(Vec128<int8_t, N> a, Vec128<int8_t, N> b) {
+  const DFromV<decltype(a)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, BitCast(du, a) + BitCast(du, b));
+}
+
+template <size_t N>
+HWY_API Vec128<int16_t, N> operator+(Vec128<int16_t, N> a,
+                                     Vec128<int16_t, N> b) {
+  const DFromV<decltype(a)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, BitCast(du, a) + BitCast(du, b));
+}
+
+template <size_t N>
+HWY_API Vec128<int32_t, N> operator+(Vec128<int32_t, N> a,
+                                     Vec128<int32_t, N> b) {
+  const DFromV<decltype(a)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, BitCast(du, a) + BitCast(du, b));
+}
+
+template <size_t N>
+HWY_API Vec128<int64_t, N> operator+(Vec128<int64_t, N> a,
+                                     Vec128<int64_t, N> b) {
+  const DFromV<decltype(a)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, BitCast(du, a) + BitCast(du, b));
+}
 
 // ------------------------------ Subtraction
-HWY_NEON_DEF_FUNCTION_ALL_TYPES(operator-, vsub, _, 2)
+HWY_NEON_DEF_FUNCTION_UINTS(operator-, vsub, _, 2)
+HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator-, vsub, _, 2)
+
+template <size_t N>
+HWY_API Vec128<int8_t, N> operator-(Vec128<int8_t, N> a, Vec128<int8_t, N> b) {
+  const DFromV<decltype(a)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, BitCast(du, a) - BitCast(du, b));
+}
+
+template <size_t N>
+HWY_API Vec128<int16_t, N> operator-(Vec128<int16_t, N> a,
+                                     Vec128<int16_t, N> b) {
+  const DFromV<decltype(a)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, BitCast(du, a) - BitCast(du, b));
+}
+
+template <size_t N>
+HWY_API Vec128<int32_t, N> operator-(Vec128<int32_t, N> a,
+                                     Vec128<int32_t, N> b) {
+  const DFromV<decltype(a)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, BitCast(du, a) - BitCast(du, b));
+}
+
+template <size_t N>
+HWY_API Vec128<int64_t, N> operator-(Vec128<int64_t, N> a,
+                                     Vec128<int64_t, N> b) {
+  const DFromV<decltype(a)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, BitCast(du, a) - BitCast(du, b));
+}
 
 // ------------------------------ SumsOf8
 
@@ -2453,8 +2517,30 @@ HWY_API Vec128<T, N> RoundingShiftRightSame(const Vec128<T, N> v, int bits) {
 
 // All except ui64
 HWY_NEON_DEF_FUNCTION_UINT_8_16_32(operator*, vmul, _, 2)
-HWY_NEON_DEF_FUNCTION_INT_8_16_32(operator*, vmul, _, 2)
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator*, vmul, _, 2)
+
+template <size_t N>
+HWY_API Vec128<int8_t, N> operator*(Vec128<int8_t, N> a, Vec128<int8_t, N> b) {
+  const DFromV<decltype(a)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, BitCast(du, a) * BitCast(du, b));
+}
+
+template <size_t N>
+HWY_API Vec128<int16_t, N> operator*(Vec128<int16_t, N> a,
+                                     Vec128<int16_t, N> b) {
+  const DFromV<decltype(a)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, BitCast(du, a) * BitCast(du, b));
+}
+
+template <size_t N>
+HWY_API Vec128<int32_t, N> operator*(Vec128<int32_t, N> a,
+                                     Vec128<int32_t, N> b) {
+  const DFromV<decltype(a)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, BitCast(du, a) * BitCast(du, b));
+}
 
 // ------------------------------ Integer multiplication
 
