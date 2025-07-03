@@ -691,9 +691,11 @@ HWY_INLINE size_t PartitionRightmost(D d, Traits st, T* const keys,
   }
 
   const size_t numWrittenR = bufR - max_buf;
-  // MSan seems not to understand CompressStore.
+// Prior to 2022-10, Clang MSAN did not understand AVX-512 CompressStore.
+#if HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1600
   detail::MaybeUnpoison(buf, bufL);
   detail::MaybeUnpoison(buf + max_buf, numWrittenR);
+#endif
 
   // Overwrite already-read end of keys with bufR.
   writeR = num - numWrittenR;

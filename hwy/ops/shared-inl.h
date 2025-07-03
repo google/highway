@@ -162,9 +162,10 @@ HWY_INLINE void MaybePoison(T* HWY_RESTRICT unaligned, size_t count) {
 #endif
 }
 
+// This can be useful for working around MSAN limitations. For example, prior
+// to Clang 16, it did not understand AVX-512 CompressStore.
 template <typename T>
 HWY_INLINE void MaybeUnpoison(T* HWY_RESTRICT unaligned, size_t count) {
-  // Workaround for MSAN not marking compressstore as initialized (b/233326619)
 #if HWY_IS_MSAN
   __msan_unpoison(unaligned, count * sizeof(T));
 #else

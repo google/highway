@@ -2045,13 +2045,13 @@ HWY_API Vec128<int8_t, N> ShiftRight(const Vec128<int8_t, N> v) {
 
 // Clang static analysis claims the memory immediately after a partial vector
 // store is uninitialized, and also flags the input to partial loads (at least
-// for loadl_pd) as "garbage". This is a false alarm because msan does not
-// raise errors. We work around this by using CopyBytes instead of intrinsics,
-// but only for the analyzer to avoid potentially bad code generation.
+// for loadl_pd) as "garbage". Since 2025-07, MSAN began raising errors. We
+// work around this by using CopyBytes instead of intrinsics, but only for MSAN
+// and static analyzer builds to avoid potentially bad code generation.
 // Unfortunately __clang_analyzer__ was not defined for clang-tidy prior to v7.
 #ifndef HWY_SAFE_PARTIAL_LOAD_STORE
-#if defined(__clang_analyzer__) || \
-    (HWY_COMPILER_CLANG != 0 && HWY_COMPILER_CLANG < 700)
+#if HWY_IS_MSAN || (defined(__clang_analyzer__) || \
+                    (HWY_COMPILER_CLANG != 0 && HWY_COMPILER_CLANG < 700))
 #define HWY_SAFE_PARTIAL_LOAD_STORE 1
 #else
 #define HWY_SAFE_PARTIAL_LOAD_STORE 0
@@ -7139,51 +7139,47 @@ HWY_API Vec128<float16_t, N> TableLookupLanes(Vec128<float16_t, N> v,
 
 template <typename T, size_t N, HWY_IF_T_SIZE(T, 4)>
 HWY_API Vec128<T, N> TableLookupLanes(Vec128<T, N> v, Indices128<T, N> idx) {
-#if HWY_TARGET <= HWY_AVX2
   const DFromV<decltype(v)> d;
-  const RebindToFloat<decltype(d)> df;
-  const Vec128<float, N> perm{_mm_permutevar_ps(BitCast(df, v).raw, idx.raw)};
-  return BitCast(d, perm);
+  const Full128<T> d_full;
+  const Vec128<T> v_full = ZeroExtendResizeBitCast(d_full, d, v);
+
+  const RebindToSigned<decltype(d)> di;
+  const Full128<MakeSigned<T>> di_full;
+  const VFromD<decltype(di_full)> vidx =
+      ZeroExtendResizeBitCast(di_full, di, VFromD<decltype(di)>{idx.raw});
+
+#if HWY_TARGET <= HWY_AVX2
+  // There is no permutevar for non-float; _mm256_permutevar8x32_epi32 is for
+  // 256-bit vectors, hence cast to float.
+  const Full128<float> df_full;
+  // Workaround for MSAN false positive.
+  HWY_IF_CONSTEXPR(HWY_IS_MSAN) PreventElision(GetLane(vidx));
+  const Vec128<float> perm{
+      _mm_permutevar_ps(BitCast(df_full, v_full).raw, vidx.raw)};
+  return ResizeBitCast(d, perm);
 #elif HWY_TARGET == HWY_SSE2
 #if HWY_COMPILER_GCC_ACTUAL && HWY_HAS_BUILTIN(__builtin_shuffle)
   typedef uint32_t GccU32RawVectType __attribute__((__vector_size__(16)));
   return Vec128<T, N>{reinterpret_cast<typename detail::Raw128<T>::type>(
-      __builtin_shuffle(reinterpret_cast<GccU32RawVectType>(v.raw),
-                        reinterpret_cast<GccU32RawVectType>(idx.raw)))};
+      __builtin_shuffle(reinterpret_cast<GccU32RawVectType>(v_full.raw),
+                        reinterpret_cast<GccU32RawVectType>(vidx.raw)))};
 #else
-  const Full128<T> d_full;
   alignas(16) T src_lanes[4];
-  alignas(16) uint32_t indices[4];
+  alignas(16) int32_t indices[4];
   alignas(16) T result_lanes[4];
 
-  Store(Vec128<T>{v.raw}, d_full, src_lanes);
-  _mm_store_si128(reinterpret_cast<__m128i*>(indices), idx.raw);
+  Store(v_full, d_full, src_lanes);
+  Store(vidx, di_full, indices);
 
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < N; i++) {
     result_lanes[i] = src_lanes[indices[i] & 3u];
   }
-
-  return Vec128<T, N>{Load(d_full, result_lanes).raw};
+  return Load(d, result_lanes);
 #endif  // HWY_COMPILER_GCC_ACTUAL && HWY_HAS_BUILTIN(__builtin_shuffle)
 #else   // SSSE3 or SSE4
-  return TableLookupBytes(v, Vec128<T, N>{idx.raw});
+  return ResizeBitCast(d, TableLookupBytes(BitCast(di_full, v_full), vidx));
 #endif
 }
-
-#if HWY_TARGET <= HWY_SSSE3
-template <size_t N, HWY_IF_V_SIZE_GT(float, N, 4)>
-HWY_API Vec128<float, N> TableLookupLanes(Vec128<float, N> v,
-                                          Indices128<float, N> idx) {
-#if HWY_TARGET <= HWY_AVX2
-  return Vec128<float, N>{_mm_permutevar_ps(v.raw, idx.raw)};
-#else   // SSSE3 or SSE4
-  const DFromV<decltype(v)> df;
-  const RebindToSigned<decltype(df)> di;
-  return BitCast(df,
-                 TableLookupBytes(BitCast(di, v), Vec128<int32_t, N>{idx.raw}));
-#endif  // HWY_TARGET <= HWY_AVX2
-}
-#endif  // HWY_TARGET <= HWY_SSSE3
 
 // Single lane: no change
 template <typename T>
@@ -7192,11 +7188,15 @@ HWY_API Vec128<T, 1> TableLookupLanes(Vec128<T, 1> v,
   return v;
 }
 
-template <typename T, HWY_IF_UI64(T)>
+template <typename T, HWY_IF_T_SIZE(T, 8)>
 HWY_API Vec128<T> TableLookupLanes(Vec128<T> v, Indices128<T> idx) {
   const DFromV<decltype(v)> d;
+  // No need for ZeroExtendResizeBitCast, we have full vectors.
   Vec128<int64_t> vidx{idx.raw};
-#if HWY_TARGET <= HWY_AVX2
+
+  // Disable in MSAN builds due to false positive. Note that this affects
+  // CompressNot, which assumes upper index bits will be ignored.
+#if HWY_TARGET <= HWY_AVX2 && !HWY_IS_MSAN
   // There is no _mm_permute[x]var_epi64.
   vidx += vidx;  // bit1 is the decider (unusual)
   const RebindToFloat<decltype(d)> df;
@@ -7208,26 +7208,8 @@ HWY_API Vec128<T> TableLookupLanes(Vec128<T> v, Indices128<T> idx) {
   // to obtain an all-zero or all-one mask.
   const RebindToSigned<decltype(d)> di;
   const Vec128<int64_t> same = (vidx ^ Iota(di, 0)) - Set(di, 1);
-  const Mask128<T> mask_same = RebindMask(d, MaskFromVec(same));
-  return IfThenElse(mask_same, v, Shuffle01(v));
-#endif
-}
-
-HWY_API Vec128<double> TableLookupLanes(Vec128<double> v,
-                                        Indices128<double> idx) {
-  Vec128<int64_t> vidx{idx.raw};
-#if HWY_TARGET <= HWY_AVX2
-  vidx += vidx;  // bit1 is the decider (unusual)
-  return Vec128<double>{_mm_permutevar_pd(v.raw, vidx.raw)};
-#else
-  // Only 2 lanes: can swap+blend. Choose v if vidx == iota. To avoid a 64-bit
-  // comparison (expensive on SSSE3), just invert the upper lane and subtract 1
-  // to obtain an all-zero or all-one mask.
-  const DFromV<decltype(v)> d;
-  const RebindToSigned<decltype(d)> di;
-  const Vec128<int64_t> same = (vidx ^ Iota(di, 0)) - Set(di, 1);
-  const Mask128<double> mask_same = RebindMask(d, MaskFromVec(same));
-  return IfThenElse(mask_same, v, Shuffle01(v));
+  return BitCast(
+      d, IfVecThenElse(same, BitCast(di, v), Shuffle01(BitCast(di, v))));
 #endif
 }
 
@@ -12826,14 +12808,16 @@ HWY_API Vec128<T> CompressNot(Vec128<T> v, Mask128<T> mask) {
   alignas(16) static constexpr uint64_t packed_array[16] = {
       0x00000010, 0x00000001, 0x00000010, 0x00000010};
 
-  // For lane i, shift the i-th 4-bit index down to bits [0, 2) -
-  // _mm_permutexvar_epi64 will ignore the upper bits.
+  // For lane i, shift the i-th 4-bit index down to bits [0, 2).
   const DFromV<decltype(v)> d;
   const RebindToUnsigned<decltype(d)> du64;
   const auto packed = Set(du64, packed_array[mask.raw]);
-  alignas(16) static constexpr uint64_t shifts[2] = {0, 4};
-  const auto indices = Indices128<T>{(packed >> Load(du64, shifts)).raw};
-  return TableLookupLanes(v, indices);
+  alignas(16) static constexpr uint64_t kShifts[2] = {0, 4};
+  Vec128<uint64_t> indices = packed >> Load(du64, kShifts);
+  // _mm_permutevar_pd will ignore the upper bits, but TableLookupLanes uses
+  // a fallback in MSAN builds, so mask there.
+  HWY_IF_CONSTEXPR(HWY_IS_MSAN) indices &= Set(du64, 1);
+  return TableLookupLanes(v, Indices128<T>{indices.raw});
 }
 
 // ------------------------------ CompressBlocksNot
