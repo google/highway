@@ -7171,8 +7171,8 @@ HWY_API Vec128<T, N> TableLookupLanes(Vec128<T, N> v, Indices128<T, N> idx) {
   Store(v_full, d_full, src_lanes);
   Store(vidx, di_full, indices);
 
-  for (int i = 0; i < N; i++) {
-    result_lanes[i] = src_lanes[indices[i] & 3u];
+  for (size_t i = 0; i < N; i++) {
+    result_lanes[i] = src_lanes[static_cast<size_t>(indices[i] & 3)];
   }
   return Load(d, result_lanes);
 #endif  // HWY_COMPILER_GCC_ACTUAL && HWY_HAS_BUILTIN(__builtin_shuffle)

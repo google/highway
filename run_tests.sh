@@ -14,9 +14,9 @@ cmake .. -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON -DCMAKE_BUILD_TYPE=Release
 make -j && ctest -j && cd .. && rm -rf build
 
 #######################################
-echo DEBUG Clang 13
+echo DEBUG Clang 15
 rm -rf build_dbg && mkdir build_dbg && cd build_dbg
-CXX=clang++-13 CC=clang-13 cmake .. -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON -DCMAKE_BUILD_TYPE=Debug
+CXX=clang++-15 CC=clang-15 cmake .. -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON -DCMAKE_BUILD_TYPE=Debug
 make -j && ctest -j && cd .. && rm -rf build_dbg
 
 #######################################
