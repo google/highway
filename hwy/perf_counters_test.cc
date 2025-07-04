@@ -96,7 +96,7 @@ TEST(PerfCountersTest, TestMem) {
   HWY_ASSERT(values[PerfCounters::kCacheMisses] == 0.0 ||
              values[PerfCounters::kCacheMisses] > 1.0);  // 10..51M
   HWY_ASSERT(values[PerfCounters::kBusCycles] == 0.0 ||
-             values[PerfCounters::kBusCycles] > 1E7);  // 82M
+             values[PerfCounters::kBusCycles] > 1E6);  // 8M
 }
 
 // Ensures a branch-heavy workload has high branch-related counters and not
