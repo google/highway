@@ -322,7 +322,8 @@ struct TestIntegerDivMod {
         const auto b = static_cast<T>(HWY_MAX(b0, 2));
         const auto a = static_cast<T>(HWY_MAX(a0, b + b));
 
-        bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
+        bool_lanes[i] =
+            (Random32(&rng) & 1024) ? TI(hwy::Unpredictable1()) : TI(0);
         if (bool_lanes[i]) {
           expected_quot[i] = static_cast<T>(a / b);
           expected_mod[i] = static_cast<T>(a % b);
