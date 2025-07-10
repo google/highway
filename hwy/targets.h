@@ -82,98 +82,84 @@ HWY_INLINE std::vector<int64_t> SupportedAndGeneratedTargets() {
 
 #endif  // HWY_NO_LIBCXX
 
+// Returns a string that satisfies gtest IsValidParamName(). No longer report
+// targets as "Unknown" if they are for a different architecture, because some
+// users unconditionally disable targets and we want to see which.
 static inline HWY_MAYBE_UNUSED const char* TargetName(int64_t target) {
-  if (target == HWY_EMU128) return "EMU128";
-  if (target == HWY_SCALAR) return "SCALAR";
+  switch (target) {
+    case HWY_EMU128:
+      return "EMU128";
+    case HWY_SCALAR:
+      return "SCALAR";
 
-  HWY_IF_CONSTEXPR(HWY_ARCH_X86) {
-    switch (target) {
-      case HWY_SSE2:
-        return "SSE2";
-      case HWY_SSSE3:
-        return "SSSE3";
-      case HWY_SSE4:
-        return "SSE4";
-      case HWY_AVX2:
-        return "AVX2";
-      case HWY_AVX3:
-        return "AVX3";
-      case HWY_AVX3_DL:
-        return "AVX3_DL";
-      case HWY_AVX3_ZEN4:
-        return "AVX3_ZEN4";
-      case HWY_AVX3_SPR:
-        return "AVX3_SPR";
-      case HWY_AVX10_2:
-        return "AVX10_2";
-    }
+    // X86
+    case HWY_SSE2:
+      return "SSE2";
+    case HWY_SSSE3:
+      return "SSSE3";
+    case HWY_SSE4:
+      return "SSE4";
+    case HWY_AVX2:
+      return "AVX2";
+    case HWY_AVX3:
+      return "AVX3";
+    case HWY_AVX3_DL:
+      return "AVX3_DL";
+    case HWY_AVX3_ZEN4:
+      return "AVX3_ZEN4";
+    case HWY_AVX3_SPR:
+      return "AVX3_SPR";
+    case HWY_AVX10_2:
+      return "AVX10_2";
+
+      // ARM
+    case HWY_SVE2_128:
+      return "SVE2_128";
+    case HWY_SVE_256:
+      return "SVE_256";
+    case HWY_SVE2:
+      return "SVE2";
+    case HWY_SVE:
+      return "SVE";
+    case HWY_NEON_BF16:
+      return "NEON_BF16";
+    case HWY_NEON:
+      return "NEON";
+    case HWY_NEON_WITHOUT_AES:
+      return "NEON_WITHOUT_AES";
+
+      // PPC
+    case HWY_PPC8:
+      return "PPC8";
+    case HWY_PPC9:
+      return "PPC9";
+    case HWY_PPC10:
+      return "PPC10";
+
+      // S390X
+    case HWY_Z14:
+      return "Z14";
+    case HWY_Z15:
+      return "Z15";
+
+      // WASM
+    case HWY_WASM:
+      return "WASM";
+    case HWY_WASM_EMU256:
+      return "WASM_EMU256";
+
+      // RISCV
+    case HWY_RVV:
+      return "RVV";
+
+      // LOONGARCH
+    case HWY_LSX:
+      return "LSX";
+    case HWY_LASX:
+      return "LASX";
   }
 
-  HWY_IF_CONSTEXPR(HWY_ARCH_ARM) {
-    switch (target) {
-      case HWY_SVE2_128:
-        return "SVE2_128";
-      case HWY_SVE_256:
-        return "SVE_256";
-      case HWY_SVE2:
-        return "SVE2";
-      case HWY_SVE:
-        return "SVE";
-      case HWY_NEON_BF16:
-        return "NEON_BF16";
-      case HWY_NEON:
-        return "NEON";
-      case HWY_NEON_WITHOUT_AES:
-        return "NEON_WITHOUT_AES";
-    }
-  }
-
-  HWY_IF_CONSTEXPR(HWY_ARCH_PPC) {
-    switch (target) {
-      case HWY_PPC8:
-        return "PPC8";
-      case HWY_PPC9:
-        return "PPC9";
-      case HWY_PPC10:
-        return "PPC10";
-    }
-  }
-
-  HWY_IF_CONSTEXPR(HWY_ARCH_S390X) {
-    switch (target) {
-      case HWY_Z14:
-        return "Z14";
-      case HWY_Z15:
-        return "Z15";
-    }
-  }
-
-  HWY_IF_CONSTEXPR(HWY_ARCH_WASM) {
-    switch (target) {
-      case HWY_WASM:
-        return "WASM";
-      case HWY_WASM_EMU256:
-        return "WASM_EMU256";
-    }
-  }
-
-  HWY_IF_CONSTEXPR(HWY_ARCH_RISCV) {
-    switch (target) {
-      case HWY_RVV:
-        return "RVV";
-    }
-  }
-
-  HWY_IF_CONSTEXPR(HWY_ARCH_LOONGARCH) {
-    switch (target) {
-      case HWY_LSX:
-        return "LSX";
-      case HWY_LASX:
-        return "LASX";
-    }
-  }
-
-  return "Unknown";  // must satisfy gtest IsValidParamName()
+  return "Unknown";
 }
 
 // Invokes VISITOR(TARGET, NAMESPACE) for all enabled targets. Alphabetic order.

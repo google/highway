@@ -75,7 +75,7 @@ void PrintConfig() {
 
 void PrintHave() {
   fprintf(stderr,
-          "Have: constexpr_lanes:%d runtime_dispatch:%d auxv:%d"
+          "Have: constexpr_lanes:%d runtime_dispatch:%d auxv:%d "
           "f16 type:%d/ops%d bf16 type:%d/ops%d\n",
           HWY_HAVE_CONSTEXPR_LANES, HWY_HAVE_RUNTIME_DISPATCH, HWY_HAVE_AUXV,
           HWY_HAVE_SCALAR_F16_TYPE, HWY_HAVE_SCALAR_F16_OPERATORS,
