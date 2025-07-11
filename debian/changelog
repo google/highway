@@ -1,3 +1,46 @@
+highway (1.3.0-1) UNRELEASED; urgency=medium
+
+Add:
+- AddLower, PairwiseAdd/Sub, MaskedAbsOr, BitsFromMask
+- AVX10_2 and Loongson LASX/LSX targets
+- AVX3_SPR F16, WASM_EMU256 F64 types
+- CeilInt/FloorInt, DemoteToNearestInt and F16/F64 NearestInt
+- Complex number operations, F16/BF16 assignment operators
+- emulated bf16/f16 Load/StoreInterleaved
+- hwy::Warn/HWY_WARN, use instead of fprintf
+- HWY_UNREACHABLE, HWY_VISIT_TARGETS
+- i16 Dot, AverageRound, RoundingShiftRight/RoundingShr
+- InterleaveEvenBlocks/InterleaveOddBlocks, MinMagnitude/MaxMagnitude
+- masked comparisons, promote, round, GetBiasedExponent
+- MulByPow2/MulByFloorPow2, MulRound, MulLower/MulAddLower
+- PositiveInfOrHighestValue/NegativeInfOrLowestValue
+- RVV groundwork for runtime dispatch, enable tuples
+- spin wait, NanoSleep, Counter2/4 barrier, Divisor64, perf_counters
+
+Improvements:
+- dpbf16 WidenMulPairwiseAdd Exp2, AVX10.2 float->int, AVX3 GetExponent
+- header-only abort.h/cc, tests runnable with Bazel8
+- HWY_BROKEN_*: allow individual override
+- Lanes: 'optional constexpr', AllBits1
+- MaskedEq/Ne, NEON SumOfMulQuadAccumulate, MaskedReduceMin/Max, MulEven
+- RVV various ops via superoptimizer
+- SetThreadName: support more systems
+- SVE2 SatWidenMulPairwiseAccumulate, SSE2/SSSE3 U16 Min/Max
+- TargetName: no longer returns unknown for other arch
+- ThreadPool autotune, avoid WakeAll
+- topology: add NUMA node, support Windows/Apple
+
+Fixes:
+- avoid wraparound for -ftrapv, topology for offline CPUs/RVV
+- warnings from -Wmissing-declarations/prototypes
+- AdvSIMD_HPFPCvt on OSX
+- f32->bf16 rounding: avoid unspecified built-in cast
+- MSAN, PPC InvariantTicksPerSecond on QEMU, HWY_RCAST_ALIGNED, IsNaN
+- vqsort for ascending order, add 8-bit test
+
+Thanks to all contributors, especially johnplatts and eustas!
+
+-- Jan Wassenberg <janwas@google.com>  Fri, 11 Jun 2025 18:00:00 +0200
 
 highway (1.2.0-1) UNRELEASED; urgency=medium
 
