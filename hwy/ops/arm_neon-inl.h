@@ -2971,26 +2971,6 @@ HWY_API Vec128<T, N> OrAnd(Vec128<T, N> o, Vec128<T, N> a1, Vec128<T, N> a2) {
   return Or(o, And(a1, a2));
 }
 
-// ------------------------------ IfVecThenElse
-template <typename T, size_t N>
-HWY_API Vec128<T, N> IfVecThenElse(Vec128<T, N> mask, Vec128<T, N> yes,
-                                   Vec128<T, N> no) {
-  return IfThenElse(MaskFromVec(mask), yes, no);
-}
-
-// ------------------------------ BitwiseIfThenElse
-
-#ifdef HWY_NATIVE_BITWISE_IF_THEN_ELSE
-#undef HWY_NATIVE_BITWISE_IF_THEN_ELSE
-#else
-#define HWY_NATIVE_BITWISE_IF_THEN_ELSE
-#endif
-
-template <class V>
-HWY_API V BitwiseIfThenElse(V mask, V yes, V no) {
-  return IfVecThenElse(mask, yes, no);
-}
-
 // ------------------------------ Operator overloads (internal-only if float)
 
 template <typename T, size_t N>
@@ -3110,14 +3090,6 @@ HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Abs, vabs, _, 1)
 
 HWY_NEON_DEF_FUNCTION_INT_8_16_32(SaturatedAbs, vqabs, _, 1)
 
-// ------------------------------ CopySign
-template <typename T, size_t N>
-HWY_API Vec128<T, N> CopySign(Vec128<T, N> magn, Vec128<T, N> sign) {
-  static_assert(IsFloat<T>(), "Only makes sense for floating-point");
-  const DFromV<decltype(magn)> d;
-  return BitwiseIfThenElse(SignBit(d), sign, magn);
-}
-
 // ------------------------------ CopySignToAbs
 template <typename T, size_t N>
 HWY_API Vec128<T, N> CopySignToAbs(Vec128<T, N> abs, Vec128<T, N> sign) {
@@ -3164,6 +3136,21 @@ HWY_API MFromD<DTo> RebindMask(DTo /* tag */, Mask128<TFrom, NFrom> m) {
 
 // ------------------------------ IfThenElse
 
+// Workaround for incorrect codegen.
+#if HWY_ARCH_ARM_V7
+
+template <class V, class D = DFromV<V>>
+HWY_API V IfThenElse(MFromD<D> mask, V yes, V no) {
+  const RebindToUnsigned<D> du;
+  using VU = VFromD<decltype(du)>;
+  const VU no_u = BitCast(du, no);
+  const VU diff_u = BitCast(du, yes) ^ no_u;
+  const VU mask_u = BitCast(du, VecFromMask(D(), mask));
+  return BitCast(D(), no_u ^ (diff_u & mask_u));
+}
+
+#else  // normal VBSL instruction
+
 #define HWY_NEON_BUILD_TPL_HWY_IF
 #define HWY_NEON_BUILD_RET_HWY_IF(type, size) Vec128<type##_t, size>
 #define HWY_NEON_BUILD_PARAM_HWY_IF(type, size)                         \
@@ -3172,6 +3159,8 @@ HWY_API MFromD<DTo> RebindMask(DTo /* tag */, Mask128<TFrom, NFrom> m) {
 #define HWY_NEON_BUILD_ARG_HWY_IF mask.raw, yes.raw, no.raw
 
 HWY_NEON_DEF_FUNCTION_ALL_TYPES(IfThenElse, vbsl, _, HWY_IF)
+
+#endif  // HWY_ARCH_ARM_V7
 
 #if HWY_HAVE_FLOAT16
 #define HWY_NEON_IF_EMULATED_IF_THEN_ELSE(V) HWY_IF_BF16(TFromV<V>)
@@ -3226,6 +3215,33 @@ HWY_API Vec128<T, N> IfNegativeThenElse(Vec128<T, N> v, Vec128<T, N> yes,
 
   Mask128<T, N> m = MaskFromVec(BitCast(d, BroadcastSignBit(BitCast(di, v))));
   return IfThenElse(m, yes, no);
+}
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> IfVecThenElse(Vec128<T, N> mask, Vec128<T, N> yes,
+                                   Vec128<T, N> no) {
+  return IfThenElse(MaskFromVec(mask), yes, no);
+}
+
+// ------------------------------ BitwiseIfThenElse
+
+#ifdef HWY_NATIVE_BITWISE_IF_THEN_ELSE
+#undef HWY_NATIVE_BITWISE_IF_THEN_ELSE
+#else
+#define HWY_NATIVE_BITWISE_IF_THEN_ELSE
+#endif
+
+template <class V>
+HWY_API V BitwiseIfThenElse(V mask, V yes, V no) {
+  return IfVecThenElse(mask, yes, no);
+}
+
+// ------------------------------ CopySign (BitwiseIfThenElse)
+template <typename T, size_t N>
+HWY_API Vec128<T, N> CopySign(Vec128<T, N> magn, Vec128<T, N> sign) {
+  static_assert(IsFloat<T>(), "Only makes sense for floating-point");
+  const DFromV<decltype(magn)> d;
+  return BitwiseIfThenElse(SignBit(d), sign, magn);
 }
 
 // ------------------------------ Mask logical
