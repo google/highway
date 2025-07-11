@@ -245,8 +245,8 @@ struct TestIntegerDivMod {
       Vec<D> vb) {
     using T = TFromD<D>;
 
-    const auto v1 = Set(d, static_cast<T>(1));
-    const auto vneg1 = Set(d, static_cast<T>(-1));
+    const auto v1 = Set(d, static_cast<T>(hwy::Unpredictable1()));
+    const auto vneg1 = Neg(v1);
 
     const auto neg_a = Neg(va);
     const auto neg_b = Neg(vb);

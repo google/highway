@@ -200,8 +200,8 @@ struct TestMaskedAbs {
     const MFromD<D> first_five = FirstN(d, 5);
 
     const Vec<D> v0 = Zero(d);
-    const Vec<D> vp1 = Set(d, ConvertScalarTo<T>(1));
-    const Vec<D> vn1 = Set(d, ConvertScalarTo<T>(-1));
+    const Vec<D> vp1 = Set(d, ConvertScalarTo<T>(hwy::Unpredictable1()));
+    const Vec<D> vn1 = Neg(vp1);
     const Vec<D> vp2 = Set(d, ConvertScalarTo<T>(0.01));
     const Vec<D> vn2 = Set(d, ConvertScalarTo<T>(-0.01));
 

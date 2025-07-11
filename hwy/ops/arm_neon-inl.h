@@ -7486,6 +7486,31 @@ HWY_API VFromD<D> Combine(D d, VFromD<Half<D>> hi, VFromD<Half<D>> lo) {
 
 // ------------------------------ RearrangeToOddPlusEven (Combine)
 
+namespace detail {
+// Armv7 only provides 64-bit (half-vector) pairwise operations.
+#define HWY_NEON_DEF_PAIRWISE_OP(T, name, prefix, suffix)      \
+  HWY_INLINE Vec64<T> Pairwise##name(Vec64<T> a, Vec64<T> b) { \
+    return Vec64<T>(prefix##_##suffix(a.raw, b.raw));          \
+  }
+
+// Note that Armv7 also lacks [u]int64 instructions, which are handled by
+// generic_ops-inl.h SumOfLanes etc., hence no 64-bit overloads here.
+#define HWY_NEON_DEF_PAIRWISE_OPS(name, prefix)         \
+  HWY_NEON_DEF_PAIRWISE_OP(uint32_t, name, prefix, u32) \
+  HWY_NEON_DEF_PAIRWISE_OP(uint16_t, name, prefix, u16) \
+  HWY_NEON_DEF_PAIRWISE_OP(uint8_t, name, prefix, u8)   \
+  HWY_NEON_DEF_PAIRWISE_OP(int32_t, name, prefix, s32)  \
+  HWY_NEON_DEF_PAIRWISE_OP(int16_t, name, prefix, s16)  \
+  HWY_NEON_DEF_PAIRWISE_OP(int8_t, name, prefix, s8)    \
+  HWY_NEON_DEF_PAIRWISE_OP(float32_t, name, prefix, f32)
+
+HWY_NEON_DEF_PAIRWISE_OPS(Sum, vpadd)
+HWY_NEON_DEF_PAIRWISE_OPS(Min, vpmin)
+HWY_NEON_DEF_PAIRWISE_OPS(Max, vpmax)
+#undef HWY_NEON_DEF_PAIRWISE_OPS
+#undef HWY_NEON_DEF_PAIRWISE_OP
+}  // namespace detail
+
 template <size_t N>
 HWY_API Vec128<float, N> RearrangeToOddPlusEven(Vec128<float, N> sum0,
                                                 Vec128<float, N> sum1) {
@@ -7505,18 +7530,18 @@ HWY_API Vec128<int32_t> RearrangeToOddPlusEven(Vec128<int32_t> sum0,
 #else
   const Full128<int32_t> d;
   const Half<decltype(d)> d64;
-  const Vec64<int32_t> hi(
-      vpadd_s32(LowerHalf(d64, sum1).raw, UpperHalf(d64, sum1).raw));
+  const Vec64<int32_t> hi =
+      detail::PairwiseSum(LowerHalf(d64, sum1), UpperHalf(d64, sum1));
   const Vec64<int32_t> lo(
-      vpadd_s32(LowerHalf(d64, sum0).raw, UpperHalf(d64, sum0).raw));
-  return Combine(Full128<int32_t>(), hi, lo);
+      detail::PairwiseSum(LowerHalf(d64, sum0), UpperHalf(d64, sum0)));
+  return Combine(d, hi, lo);
 #endif
 }
 
 HWY_API Vec64<int32_t> RearrangeToOddPlusEven(Vec64<int32_t> sum0,
                                               Vec64<int32_t> sum1) {
   // vmlal_s16 multiplied the lower half into sum0 and upper into sum1.
-  return Vec64<int32_t>(vpadd_s32(sum0.raw, sum1.raw));
+  return detail::PairwiseSum(sum0, sum1);
 }
 
 HWY_API Vec32<int32_t> RearrangeToOddPlusEven(Vec32<int32_t> sum0,
@@ -7533,18 +7558,18 @@ HWY_API Vec128<uint32_t> RearrangeToOddPlusEven(Vec128<uint32_t> sum0,
 #else
   const Full128<uint32_t> d;
   const Half<decltype(d)> d64;
-  const Vec64<uint32_t> hi(
-      vpadd_u32(LowerHalf(d64, sum1).raw, UpperHalf(d64, sum1).raw));
-  const Vec64<uint32_t> lo(
-      vpadd_u32(LowerHalf(d64, sum0).raw, UpperHalf(d64, sum0).raw));
-  return Combine(Full128<uint32_t>(), hi, lo);
+  const Vec64<uint32_t> hi =
+      detail::PairwiseSum(LowerHalf(d64, sum1), UpperHalf(d64, sum1));
+  const Vec64<uint32_t> lo =
+      detail::PairwiseSum(LowerHalf(d64, sum0), UpperHalf(d64, sum0));
+  return Combine(d, hi, lo);
 #endif
 }
 
 HWY_API Vec64<uint32_t> RearrangeToOddPlusEven(Vec64<uint32_t> sum0,
                                                Vec64<uint32_t> sum1) {
   // vmlal_u16 multiplied the lower half into sum0 and upper into sum1.
-  return Vec64<uint32_t>(vpadd_u32(sum0.raw, sum1.raw));
+  return detail::PairwiseSum(sum0, sum1);
 }
 
 HWY_API Vec32<uint32_t> RearrangeToOddPlusEven(Vec32<uint32_t> sum0,
@@ -8828,71 +8853,47 @@ HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
 // On Armv7 we define SumOfLanes and generic_ops defines ReduceSum via GetLane.
 #else  // !HWY_ARCH_ARM_A64
 
-// Armv7 lacks N=2 and 8-bit x4, so enable generic versions of those.
+// Armv7 lacks N=2 (except 32-bit) and 8-bit x4, so enable them in generic_ops.
 #undef HWY_IF_SUM_OF_LANES_D
 #define HWY_IF_SUM_OF_LANES_D(D)                                        \
-  hwy::EnableIf<(HWY_MAX_LANES_D(D) == 2) ||                            \
+  hwy::EnableIf<(sizeof(TFromD<D>) != 4 && HWY_MAX_LANES_D(D) == 2) ||  \
                 (sizeof(TFromD<D>) == 1 && HWY_MAX_LANES_D(D) == 4)>* = \
       nullptr
 #undef HWY_IF_MINMAX_OF_LANES_D
 #define HWY_IF_MINMAX_OF_LANES_D(D)                                     \
-  hwy::EnableIf<(HWY_MAX_LANES_D(D) == 2) ||                            \
+  hwy::EnableIf<(sizeof(TFromD<D>) != 4 && HWY_MAX_LANES_D(D) == 2) ||  \
                 (sizeof(TFromD<D>) == 1 && HWY_MAX_LANES_D(D) == 4)>* = \
       nullptr
 
 // For arm7, we implement reductions using a series of pairwise operations. This
 // produces the full vector result, so we express Reduce* in terms of *OfLanes.
-#define HWY_NEON_BUILD_TYPE_T(type, size) type##x##size##_t
-#define HWY_NEON_DEF_PAIRWISE_REDUCTION(type, size, name, prefix, suffix)    \
-  template <class D, HWY_IF_LANES_D(D, size)>                                \
-  HWY_API Vec128<type##_t, size> name##OfLanes(D /* d */,                    \
-                                               Vec128<type##_t, size> v) {   \
-    HWY_NEON_BUILD_TYPE_T(type, size) tmp = prefix##_##suffix(v.raw, v.raw); \
-    if ((size / 2) > 1) tmp = prefix##_##suffix(tmp, tmp);                   \
-    if ((size / 4) > 1) tmp = prefix##_##suffix(tmp, tmp);                   \
-    return Vec128<type##_t, size>(tmp);                                      \
+
+#define HWY_NEON_DEF_PAIRWISE_REDUCTION(name)                               \
+  /* generic_ops-inl.h handles 64-bit types. */                             \
+  template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_NOT_T_SIZE_D(D, 8)>      \
+  HWY_API VFromD<D> name##OfLanes(D d, VFromD<D> v) {                       \
+    HWY_LANES_CONSTEXPR size_t N = Lanes(d);                                \
+    VFromD<D> tmp = detail::Pairwise##name(v, v);                           \
+    if ((N / 2) > 1) tmp = detail::Pairwise##name(tmp, tmp);                \
+    if ((N / 4) > 1) tmp = detail::Pairwise##name(tmp, tmp);                \
+    return tmp;                                                             \
+  }                                                                         \
+  /* Armv7 lacks q (full-vector) instructions, so first reduce 128-bit v */ \
+  /* into a half-vector, then reduce that. */                               \
+  template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_NOT_T_SIZE_D(D, 8)>     \
+  HWY_API VFromD<D> name##OfLanes(D d, VFromD<D> v) {                       \
+    const Half<D> dh;                                                       \
+    VFromD<decltype(dh)> upper = UpperHalf(dh, v);                          \
+    VFromD<decltype(dh)> lower = LowerHalf(dh, v);                          \
+    VFromD<decltype(dh)> half = detail::Pairwise##name(upper, lower);       \
+    half = name##OfLanes(dh, half);                                         \
+    return Combine(d, half, half);                                          \
   }
 
-// For the wide versions, the pairwise operations produce a half-length vector.
-// We produce that `tmp` and then Combine.
-#define HWY_NEON_DEF_WIDE_PAIRWISE_REDUCTION(type, size, half, name, prefix, \
-                                             suffix)                         \
-  template <class D, HWY_IF_LANES_D(D, size)>                                \
-  HWY_API Vec128<type##_t, size> name##OfLanes(D /* d */,                    \
-                                               Vec128<type##_t, size> v) {   \
-    HWY_NEON_BUILD_TYPE_T(type, half) tmp;                                   \
-    tmp = prefix##_##suffix(vget_high_##suffix(v.raw),                       \
-                            vget_low_##suffix(v.raw));                       \
-    if ((size / 2) > 1) tmp = prefix##_##suffix(tmp, tmp);                   \
-    if ((size / 4) > 1) tmp = prefix##_##suffix(tmp, tmp);                   \
-    if ((size / 8) > 1) tmp = prefix##_##suffix(tmp, tmp);                   \
-    return Vec128<type##_t, size>(vcombine_##suffix(tmp, tmp));              \
-  }
-
-#define HWY_NEON_DEF_PAIRWISE_REDUCTIONS(name, prefix)                  \
-  HWY_NEON_DEF_PAIRWISE_REDUCTION(uint32, 2, name, prefix, u32)         \
-  HWY_NEON_DEF_PAIRWISE_REDUCTION(uint16, 4, name, prefix, u16)         \
-  HWY_NEON_DEF_PAIRWISE_REDUCTION(uint8, 8, name, prefix, u8)           \
-  HWY_NEON_DEF_PAIRWISE_REDUCTION(int32, 2, name, prefix, s32)          \
-  HWY_NEON_DEF_PAIRWISE_REDUCTION(int16, 4, name, prefix, s16)          \
-  HWY_NEON_DEF_PAIRWISE_REDUCTION(int8, 8, name, prefix, s8)            \
-  HWY_NEON_DEF_PAIRWISE_REDUCTION(float32, 2, name, prefix, f32)        \
-  HWY_NEON_DEF_WIDE_PAIRWISE_REDUCTION(uint32, 4, 2, name, prefix, u32) \
-  HWY_NEON_DEF_WIDE_PAIRWISE_REDUCTION(uint16, 8, 4, name, prefix, u16) \
-  HWY_NEON_DEF_WIDE_PAIRWISE_REDUCTION(uint8, 16, 8, name, prefix, u8)  \
-  HWY_NEON_DEF_WIDE_PAIRWISE_REDUCTION(int32, 4, 2, name, prefix, s32)  \
-  HWY_NEON_DEF_WIDE_PAIRWISE_REDUCTION(int16, 8, 4, name, prefix, s16)  \
-  HWY_NEON_DEF_WIDE_PAIRWISE_REDUCTION(int8, 16, 8, name, prefix, s8)   \
-  HWY_NEON_DEF_WIDE_PAIRWISE_REDUCTION(float32, 4, 2, name, prefix, f32)
-
-HWY_NEON_DEF_PAIRWISE_REDUCTIONS(Sum, vpadd)
-HWY_NEON_DEF_PAIRWISE_REDUCTIONS(Min, vpmin)
-HWY_NEON_DEF_PAIRWISE_REDUCTIONS(Max, vpmax)
-
-#undef HWY_NEON_DEF_PAIRWISE_REDUCTIONS
-#undef HWY_NEON_DEF_WIDE_PAIRWISE_REDUCTION
+HWY_NEON_DEF_PAIRWISE_REDUCTION(Sum)
+HWY_NEON_DEF_PAIRWISE_REDUCTION(Min)
+HWY_NEON_DEF_PAIRWISE_REDUCTION(Max)
 #undef HWY_NEON_DEF_PAIRWISE_REDUCTION
-#undef HWY_NEON_BUILD_TYPE_T
 
 // GetLane(SumsOf4(v)) is more efficient on ArmV7 NEON than the default
 // N=4 I8/U8 ReduceSum implementation in generic_ops-inl.h

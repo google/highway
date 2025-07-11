@@ -415,7 +415,7 @@ struct TestMaskedReduceMin {
         }
       }
 
-      const auto mask_i = Load(di, bool_lanes.get());
+      const Vec<decltype(di)> mask_i = Load(di, bool_lanes.get());
       const Mask<D> mask = RebindMask(d, Gt(mask_i, Zero(di)));
 
       // If all elements are disabled, the result is implementation defined.
