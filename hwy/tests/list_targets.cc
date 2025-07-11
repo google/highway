@@ -25,16 +25,22 @@
 namespace {
 
 void PrintCompiler() {
-  if (HWY_COMPILER_CLANG) {
-    fprintf(stderr, "Compiler: Clang %d\n", HWY_COMPILER_CLANG);
+  if (HWY_COMPILER_ICX) {
+    // HWY_COMPILER_ICX needs to be checked first as ICX is clang-based and as
+    // it is also possible for both HWY_COMPILER_CLANGCL and HWY_COMPILER_CLANG
+    // to be nonzero when compiling with ICX on Windows.
+    fprintf(stderr, "Compiler: ISX %d\n", HWY_COMPILER_ICX);
   } else if (HWY_COMPILER_CLANGCL) {
+    // HWY_COMPILER_CLANGCL needs to be checked before HWY_COMPILER_CLANG as
+    // HWY_COMPILER_CLANG and HWY_COMPILER_CLANGCL are usually both nonzero if
+    // compiling with clang-cl.
     fprintf(stderr, "Compiler: Clang-cl %d\n", HWY_COMPILER_CLANGCL);
+  } else if (HWY_COMPILER_CLANG) {
+    fprintf(stderr, "Compiler: Clang %d\n", HWY_COMPILER_CLANG);
   } else if (HWY_COMPILER_GCC_ACTUAL) {
     fprintf(stderr, "Compiler: GCC %d\n", HWY_COMPILER_GCC_ACTUAL);
   } else if (HWY_COMPILER_ICC) {
     fprintf(stderr, "Compiler: ICC %d\n", HWY_COMPILER_ICC);
-  } else if (HWY_COMPILER_ICX) {
-    fprintf(stderr, "Compiler: ISX %d\n", HWY_COMPILER_ICX);
   } else if (HWY_COMPILER_MSVC) {
     fprintf(stderr, "Compiler: MSVC %d\n", HWY_COMPILER_MSVC);
   } else {
