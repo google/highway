@@ -58,6 +58,7 @@ layouts, and aligned/padded allocations.
 
 We recommend these resources for getting started:
 
+-   [SIMD programming with Highway talk](https://www.youtube.com/watch?v=R57biOOhnJM)
 -   [SIMD for C++ Developers](http://const.me/articles/simd/simd.pdf)
 -   [Algorithms for Modern Hardware](https://en.algorithmica.org/hpc/)
 -   [Optimizing software in C++](https://agner.org/optimize/optimizing_cpp.pdf)
