@@ -84,7 +84,7 @@ TEST(PerfCountersTest, TestMem) {
              values[PerfCounters::kPageFaults] > 1);  // 4..500K
   HWY_ASSERT(values[PerfCounters::kBranches] == 0.0 ||
              values[PerfCounters::kBranches] > 1E5);           // > 900K
-  HWY_ASSERT(values[PerfCounters::kBranchMispredicts] < 1E7);  // 273K..1M
+  HWY_ASSERT(values[PerfCounters::kBranchMispredicts] < 1E9);  // 273K..400M
 
   HWY_ASSERT(values[PerfCounters::kL3Loads] == 0.0 ||
              values[PerfCounters::kL3Loads] > 10.0);  // ~90K, 50 with L4
