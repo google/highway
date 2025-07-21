@@ -504,6 +504,7 @@ else()
       -march=armv7-a
       -mfpu=neon-vfpv4
       -mfloat-abi=hard  # must match the toolchain specified as CXX=
+      -DHWY_HAVE_SCALAR_F16_TYPE=0  # See #2625
     )
     if(${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
       # using GCC
