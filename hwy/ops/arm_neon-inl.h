@@ -900,7 +900,7 @@ namespace detail {
 #define HWY_NEON_BUILD_ARG_HWY_SET t
 
 HWY_NEON_DEF_FUNCTION_ALL_TYPES(NativeSet, vdup, _n_, HWY_SET)
-#if !HWY_HAVE_FLOAT16 && HWY_NEON_HAVE_F16C
+#if !HWY_HAVE_FLOAT16 && HWY_NEON_HAVE_F16C && HWY_HAVE_SCALAR_F16_TYPE
 HWY_NEON_DEF_FUNCTION_FLOAT_16_UNCONDITIONAL(NativeSet, vdup, _n_, HWY_SET)
 #endif
 HWY_NEON_DEF_FUNCTION_BFLOAT_16(NativeSet, vdup, _n_, HWY_SET)
@@ -1188,7 +1188,8 @@ HWY_API VFromD<D> Dup128VecFromValues(D d, TFromD<D> t0, TFromD<D> t1,
                      BitCastScalar<int16_t>(t6), BitCastScalar<int16_t>(t7)));
 }
 
-#if (HWY_COMPILER_GCC || HWY_COMPILER_CLANGCL) && HWY_NEON_HAVE_F16C
+#if (HWY_COMPILER_GCC || HWY_COMPILER_CLANGCL) && HWY_NEON_HAVE_F16C && \
+    HWY_HAVE_SCALAR_F16_TYPE
 template <class D, HWY_IF_F16_D(D), HWY_IF_V_SIZE_LE_D(D, 8)>
 HWY_API VFromD<D> Dup128VecFromValues(D d, TFromD<D> t0, TFromD<D> t1,
                                       TFromD<D> t2, TFromD<D> t3,
