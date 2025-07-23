@@ -14,9 +14,9 @@ cmake .. -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON -DCMAKE_BUILD_TYPE=Release
 make -j && ctest -j && cd .. && rm -rf build
 
 #######################################
-echo DEBUG Clang 15
+echo DEBUG Clang 17
 rm -rf build_dbg && mkdir build_dbg && cd build_dbg
-CXX=clang++-15 CC=clang-15 cmake .. -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON -DCMAKE_BUILD_TYPE=Debug
+CXX=clang++-17 CC=clang-17 cmake .. -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON -DCMAKE_BUILD_TYPE=Debug
 make -j && ctest -j && cd .. && rm -rf build_dbg
 
 #######################################
@@ -59,7 +59,7 @@ clear && make -j && ctest -j && cd .. && rm -rf build_ppc_gcc
 echo POWER clang
 export QEMU_LD_PREFIX=/usr/powerpc64le-linux-gnu
 rm -rf build_ppc_clang && mkdir build_ppc_clang && cd build_ppc_clang
-CC=clang-15 CXX=clang++-15 cmake .. -DCMAKE_BUILD_TYPE=Release -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON -DCMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/qemu-ppc64le-static -DCMAKE_C_COMPILER_TARGET="powerpc64le-linux-gnu" -DCMAKE_CXX_COMPILER_TARGET="powerpc64le-linux-gnu" -DCMAKE_CROSSCOMPILING=true -DCMAKE_SYSTEM_NAME=Linux
+CC=clang-17 CXX=clang++-17 cmake .. -DCMAKE_BUILD_TYPE=Release -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON -DCMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/qemu-ppc64le-static -DCMAKE_C_COMPILER_TARGET="powerpc64le-linux-gnu" -DCMAKE_CXX_COMPILER_TARGET="powerpc64le-linux-gnu" -DCMAKE_CROSSCOMPILING=true -DCMAKE_SYSTEM_NAME=Linux
 
 clear && make -j && ctest -j && cd .. && rm -rf build_ppc_clang
 

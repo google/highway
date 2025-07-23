@@ -1710,9 +1710,12 @@ HWY_F16_CONSTEXPR inline std::partial_ordering operator<=>(
 #endif
 
 // x86 compiler supports __bf16, not necessarily with operators.
+// Disable in debug builds due to clang miscompiles as of 2025-07-22: casting
+// bf16 <-> f32 in convert_test results in 0x2525 for 1.0 instead of 0x3f80.
 #ifndef HWY_SSE2_HAVE_SCALAR_BF16_TYPE
-#if HWY_ARCH_X86 && defined(__SSE2__) &&                      \
-    ((HWY_COMPILER_CLANG >= 1700 && !HWY_COMPILER_CLANGCL) || \
+#if HWY_ARCH_X86 && defined(__SSE2__) &&                     \
+    ((HWY_COMPILER_CLANG >= 1700 && !HWY_COMPILER_CLANGCL && \
+      !HWY_IS_DEBUG_BUILD) ||                                \
      HWY_COMPILER_GCC_ACTUAL >= 1300)
 #define HWY_SSE2_HAVE_SCALAR_BF16_TYPE 1
 #else
@@ -1949,21 +1952,21 @@ static HWY_INLINE HWY_MAYBE_UNUSED constexpr uint32_t F32BitsToBF16RoundIncr(
                                    : 0u);
 }
 
+// If f32_bits is the bit representation of a NaN F32 value, make sure that
+// bit 6 of the BF16 result is set to convert SNaN F32 values to QNaN BF16
+// values and to prevent NaN F32 values from being converted to an infinite
+// BF16 value
+static HWY_INLINE constexpr uint32_t BF16BitsIfSNAN(uint32_t f32_bits) {
+  return ((f32_bits & 0x7FFFFFFFu) > 0x7F800000u) ? (uint32_t{1} << 6) : 0;
+}
+
 // Converts f32_bits (which is the bits of a F32 value) to BF16 bits,
 // rounded to the nearest F16 value
 static HWY_INLINE HWY_MAYBE_UNUSED constexpr uint16_t F32BitsToBF16Bits(
     const uint32_t f32_bits) {
-  // Round f32_bits to the nearest BF16 by first adding
-  // F32BitsToBF16RoundIncr(f32_bits) to f32_bits and then right shifting
-  // f32_bits + F32BitsToBF16RoundIncr(f32_bits) by 16
-
-  // If f32_bits is the bit representation of a NaN F32 value, make sure that
-  // bit 6 of the BF16 result is set to convert SNaN F32 values to QNaN BF16
-  // values and to prevent NaN F32 values from being converted to an infinite
-  // BF16 value
   return static_cast<uint16_t>(
-      ((f32_bits + F32BitsToBF16RoundIncr(f32_bits)) >> 16) |
-      (static_cast<uint32_t>((f32_bits & 0x7FFFFFFFu) > 0x7F800000u) << 6));
+      BF16BitsIfSNAN(f32_bits) |
+      ((f32_bits + F32BitsToBF16RoundIncr(f32_bits)) >> 16));
 }
 
 }  // namespace detail
