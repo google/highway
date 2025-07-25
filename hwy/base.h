@@ -1168,6 +1168,7 @@ HWY_API HWY_BITCASTSCALAR_CONSTEXPR To BitCastScalar(const From& val) {
 
 #pragma pack(push, 1)
 
+#ifndef HWY_NEON_HAVE_F16C  // allow override
 // Compiler supports __fp16 and load/store/conversion NEON intrinsics, which are
 // included in Armv8 and VFPv4 (except with MSVC). On Armv7 Clang requires
 // __ARM_FP & 2 whereas Armv7 GCC requires -mfp16-format=ieee.
@@ -1178,6 +1179,7 @@ HWY_API HWY_BITCASTSCALAR_CONSTEXPR To BitCastScalar(const From& val) {
 #else
 #define HWY_NEON_HAVE_F16C 0
 #endif
+#endif  // HWY_NEON_HAVE_F16C
 
 // RVV with f16 extension supports _Float16 and f16 vector ops. If set, implies
 // HWY_HAVE_FLOAT16.
@@ -1197,7 +1199,7 @@ HWY_API HWY_BITCASTSCALAR_CONSTEXPR To BitCastScalar(const From& val) {
 #define HWY_SSE2_HAVE_F16_TYPE 0
 #endif
 
-#ifndef HWY_HAVE_SCALAR_F16_TYPE
+#ifndef HWY_HAVE_SCALAR_F16_TYPE  // allow override
 // Compiler supports _Float16, not necessarily with operators.
 #if HWY_NEON_HAVE_F16C || HWY_RVV_HAVE_F16_VEC || HWY_SSE2_HAVE_F16_TYPE || \
     __SPIRV_DEVICE__

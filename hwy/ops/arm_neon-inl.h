@@ -884,6 +884,249 @@ using DFromM = Simd<typename M::PrivateT, M::kPrivateN, 0>;
 template <class V>
 using TFromV = typename V::PrivateT;
 
+// TODO(janwas): ForDemoteVectors, in convert_test and demote_test, appear to
+// instantiate this with D = double x 4. The cause is unknown. Previously,
+// defining this in terms of Set rejected that via SFINAE because only
+// V_SIZE = 16 and V_SIZE <= 8 overloads were defined. As a workaround,
+// truncate the lane count to 128 bits.
+template <class D>
+using VFromD =
+    Vec128<TFromD<D>, HWY_MIN(16 / sizeof(TFromD<D>), MaxLanes(D()))>;
+
+// ------------------------------ BitCast
+
+namespace detail {
+
+// Converts from Vec128<T, N> to Vec128<uint8_t, N * sizeof(T)> using the
+// vreinterpret*_u8_*() set of functions.
+#define HWY_NEON_BUILD_TPL_HWY_CAST_TO_U8
+#define HWY_NEON_BUILD_RET_HWY_CAST_TO_U8(type, size) \
+  Vec128<uint8_t, size * sizeof(type##_t)>
+#define HWY_NEON_BUILD_PARAM_HWY_CAST_TO_U8(type, size) Vec128<type##_t, size> v
+#define HWY_NEON_BUILD_ARG_HWY_CAST_TO_U8 v.raw
+
+// Special case of u8 to u8 since vreinterpret*_u8_u8 is obviously not defined.
+template <size_t N>
+HWY_INLINE Vec128<uint8_t, N> BitCastToByte(Vec128<uint8_t, N> v) {
+  return v;
+}
+
+HWY_NEON_DEF_FUNCTION_ALL_FLOATS(BitCastToByte, vreinterpret, _u8_,
+                                 HWY_CAST_TO_U8)
+HWY_NEON_DEF_FUNCTION_BFLOAT_16(BitCastToByte, vreinterpret, _u8_,
+                                HWY_CAST_TO_U8)
+
+HWY_NEON_DEF_FUNCTION_INTS(BitCastToByte, vreinterpret, _u8_, HWY_CAST_TO_U8)
+HWY_NEON_DEF_FUNCTION_UINT_16(BitCastToByte, vreinterpret, _u8_, HWY_CAST_TO_U8)
+HWY_NEON_DEF_FUNCTION_UINT_32(BitCastToByte, vreinterpret, _u8_, HWY_CAST_TO_U8)
+HWY_NEON_DEF_FUNCTION_UINT_64(BitCastToByte, vreinterpret, _u8_, HWY_CAST_TO_U8)
+
+#if !HWY_HAVE_FLOAT16
+#if HWY_NEON_HAVE_F16C
+HWY_NEON_DEF_FUNCTION_FLOAT_16_UNCONDITIONAL(BitCastToByte, vreinterpret, _u8_,
+                                             HWY_CAST_TO_U8)
+#else
+template <size_t N>
+HWY_INLINE Vec128<uint8_t, N * 2> BitCastToByte(Vec128<float16_t, N> v) {
+  return BitCastToByte(Vec128<uint16_t, N>(v.raw));
+}
+#endif  // HWY_NEON_HAVE_F16C
+#endif  // !HWY_HAVE_FLOAT16
+
+#if !HWY_NEON_HAVE_BFLOAT16
+template <size_t N>
+HWY_INLINE Vec128<uint8_t, N * 2> BitCastToByte(Vec128<bfloat16_t, N> v) {
+  return BitCastToByte(Vec128<uint16_t, N>(v.raw));
+}
+#endif  // !HWY_NEON_HAVE_BFLOAT16
+
+#undef HWY_NEON_BUILD_TPL_HWY_CAST_TO_U8
+#undef HWY_NEON_BUILD_RET_HWY_CAST_TO_U8
+#undef HWY_NEON_BUILD_PARAM_HWY_CAST_TO_U8
+#undef HWY_NEON_BUILD_ARG_HWY_CAST_TO_U8
+
+template <class D, HWY_IF_U8_D(D)>
+HWY_INLINE VFromD<D> BitCastFromByte(D /* tag */, VFromD<D> v) {
+  return v;
+}
+
+// 64-bit or less:
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_I8_D(D)>
+HWY_INLINE VFromD<D> BitCastFromByte(D /* tag */,
+                                     VFromD<RebindToUnsigned<D>> v) {
+  return VFromD<D>(vreinterpret_s8_u8(v.raw));
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U16_D(D)>
+HWY_INLINE VFromD<D> BitCastFromByte(D /* tag */,
+                                     VFromD<Repartition<uint8_t, D>> v) {
+  return VFromD<D>(vreinterpret_u16_u8(v.raw));
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_I16_D(D)>
+HWY_INLINE VFromD<D> BitCastFromByte(D /* tag */,
+                                     VFromD<Repartition<uint8_t, D>> v) {
+  return VFromD<D>(vreinterpret_s16_u8(v.raw));
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U32_D(D)>
+HWY_INLINE VFromD<D> BitCastFromByte(D /* tag */,
+                                     VFromD<Repartition<uint8_t, D>> v) {
+  return VFromD<D>(vreinterpret_u32_u8(v.raw));
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_I32_D(D)>
+HWY_INLINE VFromD<D> BitCastFromByte(D /* tag */,
+                                     VFromD<Repartition<uint8_t, D>> v) {
+  return VFromD<D>(vreinterpret_s32_u8(v.raw));
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U64_D(D)>
+HWY_INLINE Vec64<uint64_t> BitCastFromByte(D /* tag */, Vec64<uint8_t> v) {
+  return Vec64<uint64_t>(vreinterpret_u64_u8(v.raw));
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_I64_D(D)>
+HWY_INLINE Vec64<int64_t> BitCastFromByte(D /* tag */, Vec64<uint8_t> v) {
+  return Vec64<int64_t>(vreinterpret_s64_u8(v.raw));
+}
+
+// Cannot use HWY_NEON_IF_EMULATED_D due to the extra HWY_NEON_HAVE_F16C.
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F16_D(D)>
+HWY_INLINE VFromD<D> BitCastFromByte(D, VFromD<Repartition<uint8_t, D>> v) {
+#if HWY_HAVE_FLOAT16 || HWY_NEON_HAVE_F16C
+  return VFromD<D>(vreinterpret_f16_u8(v.raw));
+#else
+  const RebindToUnsigned<D> du;
+  return VFromD<D>(BitCastFromByte(du, v).raw);
+#endif
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_BF16_D(D)>
+HWY_INLINE VFromD<D> BitCastFromByte(D, VFromD<Repartition<uint8_t, D>> v) {
+#if HWY_NEON_HAVE_BFLOAT16
+  return VFromD<D>(vreinterpret_bf16_u8(v.raw));
+#else
+  const RebindToUnsigned<D> du;
+  return VFromD<D>(BitCastFromByte(du, v).raw);
+#endif
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F32_D(D)>
+HWY_INLINE VFromD<D> BitCastFromByte(D /* tag */,
+                                     VFromD<Repartition<uint8_t, D>> v) {
+  return VFromD<D>(vreinterpret_f32_u8(v.raw));
+}
+
+#if HWY_HAVE_FLOAT64
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F64_D(D)>
+HWY_INLINE Vec64<double> BitCastFromByte(D /* tag */, Vec64<uint8_t> v) {
+  return Vec64<double>(vreinterpret_f64_u8(v.raw));
+}
+#endif  // HWY_HAVE_FLOAT64
+
+// 128-bit full:
+
+template <class D, HWY_IF_I8_D(D)>
+HWY_INLINE Vec128<int8_t> BitCastFromByte(D /* tag */, Vec128<uint8_t> v) {
+  return Vec128<int8_t>(vreinterpretq_s8_u8(v.raw));
+}
+template <class D, HWY_IF_U16_D(D)>
+HWY_INLINE Vec128<uint16_t> BitCastFromByte(D /* tag */, Vec128<uint8_t> v) {
+  return Vec128<uint16_t>(vreinterpretq_u16_u8(v.raw));
+}
+template <class D, HWY_IF_I16_D(D)>
+HWY_INLINE Vec128<int16_t> BitCastFromByte(D /* tag */, Vec128<uint8_t> v) {
+  return Vec128<int16_t>(vreinterpretq_s16_u8(v.raw));
+}
+template <class D, HWY_IF_U32_D(D)>
+HWY_INLINE Vec128<uint32_t> BitCastFromByte(D /* tag */, Vec128<uint8_t> v) {
+  return Vec128<uint32_t>(vreinterpretq_u32_u8(v.raw));
+}
+template <class D, HWY_IF_I32_D(D)>
+HWY_INLINE Vec128<int32_t> BitCastFromByte(D /* tag */, Vec128<uint8_t> v) {
+  return Vec128<int32_t>(vreinterpretq_s32_u8(v.raw));
+}
+template <class D, HWY_IF_U64_D(D)>
+HWY_INLINE Vec128<uint64_t> BitCastFromByte(D /* tag */, Vec128<uint8_t> v) {
+  return Vec128<uint64_t>(vreinterpretq_u64_u8(v.raw));
+}
+template <class D, HWY_IF_I64_D(D)>
+HWY_INLINE Vec128<int64_t> BitCastFromByte(D /* tag */, Vec128<uint8_t> v) {
+  return Vec128<int64_t>(vreinterpretq_s64_u8(v.raw));
+}
+
+template <class D, HWY_IF_F32_D(D)>
+HWY_INLINE Vec128<float> BitCastFromByte(D /* tag */, Vec128<uint8_t> v) {
+  return Vec128<float>(vreinterpretq_f32_u8(v.raw));
+}
+
+#if HWY_HAVE_FLOAT64
+template <class D, HWY_IF_F64_D(D)>
+HWY_INLINE Vec128<double> BitCastFromByte(D /* tag */, Vec128<uint8_t> v) {
+  return Vec128<double>(vreinterpretq_f64_u8(v.raw));
+}
+#endif  // HWY_HAVE_FLOAT64
+
+// Cannot use HWY_NEON_IF_EMULATED_D due to the extra HWY_NEON_HAVE_F16C.
+template <class D, HWY_IF_F16_D(D)>
+HWY_INLINE VFromD<D> BitCastFromByte(D, Vec128<uint8_t> v) {
+#if HWY_HAVE_FLOAT16 || HWY_NEON_HAVE_F16C
+  return VFromD<D>(vreinterpretq_f16_u8(v.raw));
+#else
+  return VFromD<D>(BitCastFromByte(RebindToUnsigned<D>(), v).raw);
+#endif
+}
+
+template <class D, HWY_IF_BF16_D(D)>
+HWY_INLINE VFromD<D> BitCastFromByte(D, Vec128<uint8_t> v) {
+#if HWY_NEON_HAVE_BFLOAT16
+  return VFromD<D>(vreinterpretq_bf16_u8(v.raw));
+#else
+  return VFromD<D>(BitCastFromByte(RebindToUnsigned<D>(), v).raw);
+#endif
+}
+
+}  // namespace detail
+
+template <class D, class FromT>
+HWY_API VFromD<D> BitCast(D d,
+                          Vec128<FromT, Repartition<FromT, D>().MaxLanes()> v) {
+  return detail::BitCastFromByte(d, detail::BitCastToByte(v));
+}
+
+// ------------------------------ ResizeBitCast
+
+// <= 8 byte vector to <= 8 byte vector
+template <class D, class FromV, HWY_IF_V_SIZE_LE_V(FromV, 8),
+          HWY_IF_V_SIZE_LE_D(D, 8)>
+HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
+  const Repartition<uint8_t, decltype(d)> du8;
+  return BitCast(d, VFromD<decltype(du8)>{detail::BitCastToByte(v).raw});
+}
+
+// 16-byte vector to 16-byte vector: same as BitCast
+template <class D, class FromV, HWY_IF_V_SIZE_V(FromV, 16),
+          HWY_IF_V_SIZE_D(D, 16)>
+HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
+  return BitCast(d, v);
+}
+
+// 16-byte vector to <= 8-byte vector
+template <class D, class FromV, HWY_IF_V_SIZE_V(FromV, 16),
+          HWY_IF_V_SIZE_LE_D(D, 8)>
+HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
+  const DFromV<decltype(v)> d_from;
+  const Half<decltype(d_from)> dh_from;
+  return ResizeBitCast(d, LowerHalf(dh_from, v));
+}
+
+// <= 8-bit vector to 16-byte vector
+template <class D, class FromV, HWY_IF_V_SIZE_LE_V(FromV, 8),
+          HWY_IF_V_SIZE_D(D, 16)>
+HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
+  const Full64<TFromV<FromV>> d_full64_from;
+  const Full128<TFromV<FromV>> d_full128_from;
+  return BitCast(d, Combine(d_full128_from, Zero(d_full64_from),
+                            ResizeBitCast(d_full64_from, v)));
+}
+
 // ------------------------------ Set
 
 namespace detail {
@@ -905,11 +1148,21 @@ HWY_NEON_DEF_FUNCTION_FLOAT_16_UNCONDITIONAL(NativeSet, vdup, _n_, HWY_SET)
 #endif
 HWY_NEON_DEF_FUNCTION_BFLOAT_16(NativeSet, vdup, _n_, HWY_SET)
 
-template <class D, HWY_NEON_IF_EMULATED_D(D)>
-HWY_API Vec128<TFromD<D>, MaxLanes(D())> NativeSet(D d, TFromD<D> t) {
+#if !HWY_NEON_HAVE_F16C || !HWY_HAVE_SCALAR_F16_TYPE
+template <class D, HWY_IF_F16_D(D)>
+HWY_API VFromD<D> NativeSet(D d, TFromD<D> t) {
   const uint16_t tu = BitCastScalar<uint16_t>(t);
-  return Vec128<TFromD<D>, d.MaxLanes()>(Set(RebindToUnsigned<D>(), tu).raw);
+  return BitCast(d, Set(RebindToUnsigned<D>(), tu));
 }
+#endif
+
+#if !HWY_NEON_HAVE_BFLOAT16
+template <class D, HWY_IF_BF16_D(D)>
+HWY_API VFromD<D> NativeSet(D d, TFromD<D> t) {
+  const uint16_t tu = BitCastScalar<uint16_t>(t);
+  return BitCast(d, Set(RebindToUnsigned<D>(), tu));
+}
+#endif
 
 #undef HWY_NEON_BUILD_TPL_HWY_SET
 #undef HWY_NEON_BUILD_RET_HWY_SET
@@ -918,24 +1171,20 @@ HWY_API Vec128<TFromD<D>, MaxLanes(D())> NativeSet(D d, TFromD<D> t) {
 
 }  // namespace detail
 
-// Full vector. Cannot yet use VFromD because that is defined in terms of Set.
+// Full vector.
 // Do not use a typename T = TFromD<D> argument because T will be deduced from
 // the actual argument type, which can differ from TFromD<D>.
 template <class D, HWY_IF_V_SIZE_D(D, 16), typename T>
-HWY_INLINE Vec128<TFromD<D>> Set(D /* tag */, T t) {
+HWY_INLINE VFromD<D> Set(D /* tag */, T t) {
   return detail::NativeSet(Full128<TFromD<D>>(), static_cast<TFromD<D>>(t));
 }
 
 // Partial vector: create 64-bit and return wrapper.
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), typename T>
-HWY_API Vec128<TFromD<D>, MaxLanes(D())> Set(D /* tag */, T t) {
+HWY_API VFromD<D> Set(D /* tag */, T t) {
   const Full64<TFromD<D>> dfull;
-  return Vec128<TFromD<D>, MaxLanes(D())>(
-      detail::NativeSet(dfull, static_cast<TFromD<D>>(t)).raw);
+  return VFromD<D>(detail::NativeSet(dfull, static_cast<TFromD<D>>(t)).raw);
 }
-
-template <class D>
-using VFromD = decltype(Set(D(), TFromD<D>()));
 
 template <class D>
 HWY_API VFromD<D> Zero(D d) {
@@ -1380,240 +1629,6 @@ HWY_API Vec128<double> Combine(D /* tag */, Vec64<double> hi,
   return Vec128<double>(vcombine_f64(lo.raw, hi.raw));
 }
 #endif  // HWY_HAVE_FLOAT64
-
-// ------------------------------ BitCast
-
-namespace detail {
-
-// Converts from Vec128<T, N> to Vec128<uint8_t, N * sizeof(T)> using the
-// vreinterpret*_u8_*() set of functions.
-#define HWY_NEON_BUILD_TPL_HWY_CAST_TO_U8
-#define HWY_NEON_BUILD_RET_HWY_CAST_TO_U8(type, size) \
-  Vec128<uint8_t, size * sizeof(type##_t)>
-#define HWY_NEON_BUILD_PARAM_HWY_CAST_TO_U8(type, size) Vec128<type##_t, size> v
-#define HWY_NEON_BUILD_ARG_HWY_CAST_TO_U8 v.raw
-
-// Special case of u8 to u8 since vreinterpret*_u8_u8 is obviously not defined.
-template <size_t N>
-HWY_INLINE Vec128<uint8_t, N> BitCastToByte(Vec128<uint8_t, N> v) {
-  return v;
-}
-
-HWY_NEON_DEF_FUNCTION_ALL_FLOATS(BitCastToByte, vreinterpret, _u8_,
-                                 HWY_CAST_TO_U8)
-HWY_NEON_DEF_FUNCTION_BFLOAT_16(BitCastToByte, vreinterpret, _u8_,
-                                HWY_CAST_TO_U8)
-
-HWY_NEON_DEF_FUNCTION_INTS(BitCastToByte, vreinterpret, _u8_, HWY_CAST_TO_U8)
-HWY_NEON_DEF_FUNCTION_UINT_16(BitCastToByte, vreinterpret, _u8_, HWY_CAST_TO_U8)
-HWY_NEON_DEF_FUNCTION_UINT_32(BitCastToByte, vreinterpret, _u8_, HWY_CAST_TO_U8)
-HWY_NEON_DEF_FUNCTION_UINT_64(BitCastToByte, vreinterpret, _u8_, HWY_CAST_TO_U8)
-
-#if !HWY_HAVE_FLOAT16
-#if HWY_NEON_HAVE_F16C
-HWY_NEON_DEF_FUNCTION_FLOAT_16_UNCONDITIONAL(BitCastToByte, vreinterpret, _u8_,
-                                             HWY_CAST_TO_U8)
-#else
-template <size_t N>
-HWY_INLINE Vec128<uint8_t, N * 2> BitCastToByte(Vec128<float16_t, N> v) {
-  return BitCastToByte(Vec128<uint16_t, N>(v.raw));
-}
-#endif  // HWY_NEON_HAVE_F16C
-#endif  // !HWY_HAVE_FLOAT16
-
-#if !HWY_NEON_HAVE_BFLOAT16
-template <size_t N>
-HWY_INLINE Vec128<uint8_t, N * 2> BitCastToByte(Vec128<bfloat16_t, N> v) {
-  return BitCastToByte(Vec128<uint16_t, N>(v.raw));
-}
-#endif  // !HWY_NEON_HAVE_BFLOAT16
-
-#undef HWY_NEON_BUILD_TPL_HWY_CAST_TO_U8
-#undef HWY_NEON_BUILD_RET_HWY_CAST_TO_U8
-#undef HWY_NEON_BUILD_PARAM_HWY_CAST_TO_U8
-#undef HWY_NEON_BUILD_ARG_HWY_CAST_TO_U8
-
-template <class D, HWY_IF_U8_D(D)>
-HWY_INLINE VFromD<D> BitCastFromByte(D /* tag */, VFromD<D> v) {
-  return v;
-}
-
-// 64-bit or less:
-
-template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_I8_D(D)>
-HWY_INLINE VFromD<D> BitCastFromByte(D /* tag */,
-                                     VFromD<RebindToUnsigned<D>> v) {
-  return VFromD<D>(vreinterpret_s8_u8(v.raw));
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U16_D(D)>
-HWY_INLINE VFromD<D> BitCastFromByte(D /* tag */,
-                                     VFromD<Repartition<uint8_t, D>> v) {
-  return VFromD<D>(vreinterpret_u16_u8(v.raw));
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_I16_D(D)>
-HWY_INLINE VFromD<D> BitCastFromByte(D /* tag */,
-                                     VFromD<Repartition<uint8_t, D>> v) {
-  return VFromD<D>(vreinterpret_s16_u8(v.raw));
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U32_D(D)>
-HWY_INLINE VFromD<D> BitCastFromByte(D /* tag */,
-                                     VFromD<Repartition<uint8_t, D>> v) {
-  return VFromD<D>(vreinterpret_u32_u8(v.raw));
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_I32_D(D)>
-HWY_INLINE VFromD<D> BitCastFromByte(D /* tag */,
-                                     VFromD<Repartition<uint8_t, D>> v) {
-  return VFromD<D>(vreinterpret_s32_u8(v.raw));
-}
-
-template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U64_D(D)>
-HWY_INLINE Vec64<uint64_t> BitCastFromByte(D /* tag */, Vec64<uint8_t> v) {
-  return Vec64<uint64_t>(vreinterpret_u64_u8(v.raw));
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_I64_D(D)>
-HWY_INLINE Vec64<int64_t> BitCastFromByte(D /* tag */, Vec64<uint8_t> v) {
-  return Vec64<int64_t>(vreinterpret_s64_u8(v.raw));
-}
-
-// Cannot use HWY_NEON_IF_EMULATED_D due to the extra HWY_NEON_HAVE_F16C.
-template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F16_D(D)>
-HWY_INLINE VFromD<D> BitCastFromByte(D, VFromD<Repartition<uint8_t, D>> v) {
-#if HWY_HAVE_FLOAT16 || HWY_NEON_HAVE_F16C
-  return VFromD<D>(vreinterpret_f16_u8(v.raw));
-#else
-  const RebindToUnsigned<D> du;
-  return VFromD<D>(BitCastFromByte(du, v).raw);
-#endif
-}
-
-template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_BF16_D(D)>
-HWY_INLINE VFromD<D> BitCastFromByte(D, VFromD<Repartition<uint8_t, D>> v) {
-#if HWY_NEON_HAVE_BFLOAT16
-  return VFromD<D>(vreinterpret_bf16_u8(v.raw));
-#else
-  const RebindToUnsigned<D> du;
-  return VFromD<D>(BitCastFromByte(du, v).raw);
-#endif
-}
-
-template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F32_D(D)>
-HWY_INLINE VFromD<D> BitCastFromByte(D /* tag */,
-                                     VFromD<Repartition<uint8_t, D>> v) {
-  return VFromD<D>(vreinterpret_f32_u8(v.raw));
-}
-
-#if HWY_HAVE_FLOAT64
-template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F64_D(D)>
-HWY_INLINE Vec64<double> BitCastFromByte(D /* tag */, Vec64<uint8_t> v) {
-  return Vec64<double>(vreinterpret_f64_u8(v.raw));
-}
-#endif  // HWY_HAVE_FLOAT64
-
-// 128-bit full:
-
-template <class D, HWY_IF_I8_D(D)>
-HWY_INLINE Vec128<int8_t> BitCastFromByte(D /* tag */, Vec128<uint8_t> v) {
-  return Vec128<int8_t>(vreinterpretq_s8_u8(v.raw));
-}
-template <class D, HWY_IF_U16_D(D)>
-HWY_INLINE Vec128<uint16_t> BitCastFromByte(D /* tag */, Vec128<uint8_t> v) {
-  return Vec128<uint16_t>(vreinterpretq_u16_u8(v.raw));
-}
-template <class D, HWY_IF_I16_D(D)>
-HWY_INLINE Vec128<int16_t> BitCastFromByte(D /* tag */, Vec128<uint8_t> v) {
-  return Vec128<int16_t>(vreinterpretq_s16_u8(v.raw));
-}
-template <class D, HWY_IF_U32_D(D)>
-HWY_INLINE Vec128<uint32_t> BitCastFromByte(D /* tag */, Vec128<uint8_t> v) {
-  return Vec128<uint32_t>(vreinterpretq_u32_u8(v.raw));
-}
-template <class D, HWY_IF_I32_D(D)>
-HWY_INLINE Vec128<int32_t> BitCastFromByte(D /* tag */, Vec128<uint8_t> v) {
-  return Vec128<int32_t>(vreinterpretq_s32_u8(v.raw));
-}
-template <class D, HWY_IF_U64_D(D)>
-HWY_INLINE Vec128<uint64_t> BitCastFromByte(D /* tag */, Vec128<uint8_t> v) {
-  return Vec128<uint64_t>(vreinterpretq_u64_u8(v.raw));
-}
-template <class D, HWY_IF_I64_D(D)>
-HWY_INLINE Vec128<int64_t> BitCastFromByte(D /* tag */, Vec128<uint8_t> v) {
-  return Vec128<int64_t>(vreinterpretq_s64_u8(v.raw));
-}
-
-template <class D, HWY_IF_F32_D(D)>
-HWY_INLINE Vec128<float> BitCastFromByte(D /* tag */, Vec128<uint8_t> v) {
-  return Vec128<float>(vreinterpretq_f32_u8(v.raw));
-}
-
-#if HWY_HAVE_FLOAT64
-template <class D, HWY_IF_F64_D(D)>
-HWY_INLINE Vec128<double> BitCastFromByte(D /* tag */, Vec128<uint8_t> v) {
-  return Vec128<double>(vreinterpretq_f64_u8(v.raw));
-}
-#endif  // HWY_HAVE_FLOAT64
-
-// Cannot use HWY_NEON_IF_EMULATED_D due to the extra HWY_NEON_HAVE_F16C.
-template <class D, HWY_IF_F16_D(D)>
-HWY_INLINE VFromD<D> BitCastFromByte(D, Vec128<uint8_t> v) {
-#if HWY_HAVE_FLOAT16 || HWY_NEON_HAVE_F16C
-  return VFromD<D>(vreinterpretq_f16_u8(v.raw));
-#else
-  return VFromD<D>(BitCastFromByte(RebindToUnsigned<D>(), v).raw);
-#endif
-}
-
-template <class D, HWY_IF_BF16_D(D)>
-HWY_INLINE VFromD<D> BitCastFromByte(D, Vec128<uint8_t> v) {
-#if HWY_NEON_HAVE_BFLOAT16
-  return VFromD<D>(vreinterpretq_bf16_u8(v.raw));
-#else
-  return VFromD<D>(BitCastFromByte(RebindToUnsigned<D>(), v).raw);
-#endif
-}
-
-}  // namespace detail
-
-template <class D, class FromT>
-HWY_API VFromD<D> BitCast(D d,
-                          Vec128<FromT, Repartition<FromT, D>().MaxLanes()> v) {
-  return detail::BitCastFromByte(d, detail::BitCastToByte(v));
-}
-
-// ------------------------------ ResizeBitCast
-
-// <= 8 byte vector to <= 8 byte vector
-template <class D, class FromV, HWY_IF_V_SIZE_LE_V(FromV, 8),
-          HWY_IF_V_SIZE_LE_D(D, 8)>
-HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
-  const Repartition<uint8_t, decltype(d)> du8;
-  return BitCast(d, VFromD<decltype(du8)>{detail::BitCastToByte(v).raw});
-}
-
-// 16-byte vector to 16-byte vector: same as BitCast
-template <class D, class FromV, HWY_IF_V_SIZE_V(FromV, 16),
-          HWY_IF_V_SIZE_D(D, 16)>
-HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
-  return BitCast(d, v);
-}
-
-// 16-byte vector to <= 8-byte vector
-template <class D, class FromV, HWY_IF_V_SIZE_V(FromV, 16),
-          HWY_IF_V_SIZE_LE_D(D, 8)>
-HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
-  const DFromV<decltype(v)> d_from;
-  const Half<decltype(d_from)> dh_from;
-  return ResizeBitCast(d, LowerHalf(dh_from, v));
-}
-
-// <= 8-bit vector to 16-byte vector
-template <class D, class FromV, HWY_IF_V_SIZE_LE_V(FromV, 8),
-          HWY_IF_V_SIZE_D(D, 16)>
-HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
-  const Full64<TFromV<FromV>> d_full64_from;
-  const Full128<TFromV<FromV>> d_full128_from;
-  return BitCast(d, Combine(d_full128_from, Zero(d_full64_from),
-                            ResizeBitCast(d_full64_from, v)));
-}
 
 // ------------------------------ GetLane
 
