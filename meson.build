@@ -665,7 +665,7 @@ if get_option('enable_tests')
             link_args: test_exe_link_args,
         )
         
-        test(exe_name, test_exe, suite:'hwy')
+        test(exe_name, test_exe, protocol:'gtest')
     endforeach
 
     if get_option('enable_contrib')
@@ -702,7 +702,7 @@ if get_option('enable_tests')
                 link_args: test_exe_link_args,
             )
         
-            test(exe_name, test_exe, suite:['hwy','hwy-contrib'])
+            test(exe_name, test_exe, protocol:'gtest', suite:'contrib')
         endforeach
     endif
 endif

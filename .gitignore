@@ -10,3 +10,5 @@ docs/md/*
 docs/rst/*
 
 subprojects/googletest-1.17.0/
+
+subprojects/packagecache/
