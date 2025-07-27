@@ -490,8 +490,6 @@ if get_option('enable_contrib')
         hwy_contrib_lib,
         description: 'Additions to Highway: dot product, image, math, sort',
         name: 'libhwy-contrib',
-        #extra_cflags: hwy_dep_args + contrib_args,
-        #libs: contrib_link_with,
     )
 
     install_headers(hwy_contrib_headers, preserve_path:true)
