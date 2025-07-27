@@ -3079,7 +3079,7 @@ class Divisor64 {
     unsigned __int64 remainder;  // unused
     return _udiv128(hi, uint64_t{0}, div, &remainder);
 #else
-    using u128 = unsigned __int128;
+    __extension__ using u128 = unsigned __int128;
     const u128 hi128 = static_cast<u128>(hi) << 64;
     return static_cast<uint64_t>(hi128 / static_cast<u128>(div));
 #endif
@@ -3089,7 +3089,7 @@ class Divisor64 {
 #if HWY_COMPILER_MSVC >= 1920 && HWY_ARCH_X86_64
     return __umulh(a, b);
 #else
-    using u128 = unsigned __int128;
+    __extension__ using u128 = unsigned __int128;
     const u128 a128 = static_cast<u128>(a);
     const u128 b128 = static_cast<u128>(b);
     return static_cast<uint64_t>((a128 * b128) >> 64);
