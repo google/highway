@@ -32,17 +32,17 @@ void Spin(const double min_time) {
   }
 }
 
-HWY_NOINLINE void Spin10() {
+HWY_NOINLINE void Spin10us() {
   PROFILER_FUNC;
   Spin(10E-6);
 }
 
-HWY_NOINLINE void Spin20() {
+HWY_NOINLINE void Spin20us() {
   PROFILER_FUNC;
   Spin(20E-6);
 }
 
-HWY_NOINLINE void Spin3060() {
+HWY_NOINLINE void CallTwoSpin() {
   {
     PROFILER_ZONE("spin30");
     Spin(30E-6);
@@ -53,39 +53,54 @@ HWY_NOINLINE void Spin3060() {
   }
 }
 
-HWY_NOINLINE void Level3() {
-  ThreadPool pool(3);
-  pool.Run(0, 5, [](uint64_t /*task*/, HWY_MAYBE_UNUSED size_t thread) {
-    PROFILER_ZONE2(static_cast<uint8_t>(thread), "Level3");
-    for (int rep = 0; rep < 10; ++rep) {
-      double total = 0.0;
-      for (int i = 0; i < 100 - rep; ++i) {
-        total += std::pow(0.9, i);
-      }
-      if (std::abs(total - 9.999) > 1E-2) {
-        HWY_ABORT("unexpected total %f", total);
-      }
+HWY_NOINLINE void Compute(HWY_MAYBE_UNUSED size_t thread) {
+  PROFILER_ZONE2(static_cast<uint8_t>(thread), "Compute");
+  for (int rep = 0; rep < 100; ++rep) {
+    double total = 0.0;
+    for (int i = 0; i < 200 - rep; ++i) {
+      total += std::pow(0.9, i);
     }
-  });
+    if (std::abs(total - 10.0) > 1E-2) {
+      HWY_ABORT("unexpected total %f", total);
+    }
+  }
 }
 
-HWY_NOINLINE void Level2() {
-  PROFILER_FUNC;
-  Level3();
+HWY_NOINLINE void TestThreads() {
+  PROFILER_ZONE("Create pools and run");
+  {
+    ThreadPool pool(3);
+    pool.Run(0, 5, [](uint64_t /*task*/, HWY_MAYBE_UNUSED size_t thread) {
+      Compute(thread);
+    });
+  }
+
+  {
+    ThreadPool pool(8);
+    pool.Run(0, 8, [](uint64_t /*task*/, HWY_MAYBE_UNUSED size_t thread) {
+      Compute(thread);
+    });
+  }
 }
 
-HWY_NOINLINE void Level1() {
+HWY_NOINLINE void CallPlus20us() {
   PROFILER_FUNC;
-  Level2();
+  TestThreads();
+  Spin(20E-6);
+}
+
+HWY_NOINLINE void CallPlus10us() {
+  PROFILER_FUNC;
+  CallPlus20us();
+  Spin(10E-6);
 }
 
 void ProfilerExample() {
   {
-    PROFILER_FUNC;
-    Spin10();
-    Spin20();
-    Spin3060();
-    Level1();
+    Spin10us();
+    Spin20us();
+    CallTwoSpin();
+    CallPlus10us();
   }
   PROFILER_PRINT_RESULTS();
 }

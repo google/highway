@@ -24,6 +24,7 @@
 
 #include <algorithm>  // std::sort
 #include <atomic>
+#include <vector>
 
 #include "hwy/aligned_allocator.h"
 #include "hwy/base.h"
@@ -35,20 +36,19 @@
 namespace hwy {
 
 // Upper bounds for fixed-size data structures (guarded via HWY_DASSERT):
-static constexpr size_t kMaxDepth = 64;   // Maximum nesting of zones.
+static constexpr size_t kMaxDepth = 32;   // Maximum nesting of zones.
 static constexpr size_t kMaxZones = 256;  // Total number of zones.
 
 // How many threads can actually enter a zone (those that don't do not count).
-// Memory use is about kMaxThreads * PROFILER_THREAD_STORAGE MiB.
 // WARNING: a fiber library can spawn hundreds of threads.
-static constexpr size_t kMaxThreads = 256;
+static constexpr size_t kMaxThreads = 256;  // enough for Turin cores
 
 // How many mebibytes to allocate (if PROFILER_ENABLED) per thread that
-// enters at least one zone. Once this buffer is full, the thread will analyze
-// and discard packets, thus temporarily adding some observer overhead.
-// Each zone occupies 16 bytes.
+// enters at least one zone. After every root `ThreadPool::Run`, or in the
+// unlikely event the buffer fills before then, the thread will analyze and
+// discard packets, thus temporarily adding some observer overhead.
 #ifndef PROFILER_THREAD_STORAGE
-#define PROFILER_THREAD_STORAGE 200ULL
+#define PROFILER_THREAD_STORAGE size_t{4}
 #endif
 
 static constexpr bool kPrintOverhead = false;
@@ -63,8 +63,8 @@ inline T ClampedSubtract(const T minuend, const T subtrahend) {
 
 // Overwrites "to" while attempting to bypass the cache (read-for-ownership).
 // Both pointers must be aligned.
-static void StreamCacheLine(const uint64_t* HWY_RESTRICT from,
-                            uint64_t* HWY_RESTRICT to) {
+static HWY_INLINE void StreamCacheLine(const uint64_t* HWY_RESTRICT from,
+                                       uint64_t* HWY_RESTRICT to) {
 #if HWY_COMPILER_CLANG
   for (size_t i = 0; i < HWY_ALIGNMENT / sizeof(uint64_t); ++i) {
     __builtin_nontemporal_store(from[i], to + i);
@@ -84,22 +84,24 @@ static constexpr uint32_t kZoneExit = 0;
 // integers identifying the calling thread and zone.
 class Packet {
  public:
-  static constexpr size_t kZoneBits = 16;
+  static constexpr size_t kThreadBits = CeilLog2(kMaxThreads);
+  static constexpr uint64_t kThreadMask = (1ULL << kThreadBits) - 1;
+
+  static constexpr size_t kZoneBits = CeilLog2(kMaxZones);
   static constexpr uint64_t kZoneMask = (1ULL << kZoneBits) - 1;
 
   // We need full-resolution timestamps; at an effective rate of 5 GHz,
-  // this permits 3 minute zone durations. If zone durations are longer than
-  // that, split them into multiple zones. Wraparound is handled by masking.
-  static constexpr size_t kTimestampBits = 40;
+  // this permits ~15 hour zone durations. Wraparound is handled by masking.
+  static constexpr size_t kTimestampBits = 64 - kThreadBits - kZoneBits;
+  static_assert(kTimestampBits >= 40, "Want at least 3min @ 5 GHz");
   static constexpr uint64_t kTimestampMask = (1ULL << kTimestampBits) - 1;
 
   Packet() : bits_(0) {}
-  // `zone_id` 0 means exiting the zone.
-  Packet(const size_t thread_id, const uint32_t zone_id,
-         const uint64_t timestamp) {
+  Packet(size_t thread_id, uint32_t zone_id, uint64_t timestamp) {
+    HWY_DASSERT(thread_id <= kThreadMask);
     HWY_DASSERT(zone_id <= kZoneMask);
 
-    bits_ = ((thread_id & 0xFF) << kZoneBits) + zone_id;
+    bits_ = (thread_id << kZoneBits) + zone_id;
     bits_ <<= kTimestampBits;
     bits_ |= (timestamp & kTimestampMask);
 
@@ -109,7 +111,9 @@ class Packet {
   }
 
   size_t ThreadId() const { return bits_ >> (kZoneBits + kTimestampBits); }
-  size_t ZoneId() const { return (bits_ >> kTimestampBits) & kZoneMask; }
+  uint32_t ZoneId() const {
+    return static_cast<uint32_t>((bits_ >> kTimestampBits) & kZoneMask);
+  }
   uint64_t Timestamp() const { return bits_ & kTimestampMask; }
 
  private:
@@ -125,67 +129,127 @@ struct Node {
 };
 static_assert(sizeof(Node) == 16, "Wrong Node size");
 
-// Holds statistics for all zones with the same `zone_id`.
-struct Accumulator {
-  Accumulator() : zone_id(kZoneExit), num_calls(0), duration(0) {}
-  Accumulator(size_t thread_id, uint32_t zone_id, uint64_t num_calls,
-              uint64_t duration)
-      : zone_id(zone_id),
-        num_calls(static_cast<uint32_t>(num_calls)),
-        duration(duration) {
-    HWY_DASSERT(zone_id != kZoneExit);  // must be a valid name
-    HWY_DASSERT(zone_id <= Packet::kZoneMask);
-    HWY_DASSERT(num_calls <= 0xFFFFFFFFu);
+#pragma pack(pop)
 
-    // Capping at 128 enables 32-byte size which is convenient for indexing and
-    // copying. This means we overestimate the real time for massively parallel
-    // sections, which is fine because we are mainly interested in finding
-    // serial sections. Turin CPUs actually have 256 cores, and we will divide
-    // the total duration by 128 instead of 256, which is fine because serial
-    // code will still be relatively more prominent (only divided by 1).
-    if (HWY_LIKELY(thread_id < 128)) {
-      threads[thread_id / 64].Set(thread_id % 64);
-    }
+static const char* s_ptrs[kMaxZones];
+static std::atomic<uint32_t> s_next_ptr{kZoneExit + 1};  // will be zone_id
+static char s_chars[kMaxZones * 64];
+static std::atomic<uint32_t> s_next_char{0};
+
+// Returns a copy of the `name` passed to `ProfilerAddZone` that returned the
+// given `zone_id`.
+static const char* ZoneName(uint32_t zone_id) {
+  HWY_ASSERT(zone_id < kMaxZones);
+  return s_ptrs[zone_id];
+}
+
+HWY_DLLEXPORT uint32_t ProfilerAddZone(const char* name) {
+  // Linear search whether it already exists.
+  const uint32_t num_zones = s_next_ptr.load(std::memory_order_relaxed);
+  HWY_ASSERT(num_zones < kMaxZones);
+  for (uint32_t i = kZoneExit + 1; i < num_zones; ++i) {
+    if (!strcmp(s_ptrs[i], name)) return i;
   }
 
-  void Assimilate(const Accumulator& other) {
-    HWY_DASSERT(zone_id == other.zone_id);
+  // Reserve the next `zone_id` (index in `s_ptrs`). `AnalyzePackets` relies on
+  // these being contiguous.
+  const uint32_t zone_id = s_next_ptr.fetch_add(1, std::memory_order_relaxed);
+  HWY_ASSERT(zone_id != kZoneExit);
+
+  // Copy into `name` into `s_chars`.
+  const size_t len = strlen(name) + 1;
+  const uint64_t pos = s_next_char.fetch_add(len, std::memory_order_relaxed);
+  HWY_ASSERT(pos + len <= sizeof(s_chars));
+  strcpy(s_chars + pos, name);  // NOLINT
+
+  s_ptrs[zone_id] = s_chars + pos;
+  HWY_DASSERT(!strcmp(ZoneName(zone_id), name));
+  return zone_id;
+}
+
+// Holds number of calls and duration for a zone, plus which threads entered it.
+// Stored in an array indexed by `zone_id`.
+struct Accumulator {
+  Accumulator() : zone_id(kZoneExit), num_calls(0), duration(0) {}
+
+  void Add(size_t thread_id, uint32_t new_zone_id, uint64_t self_duration) {
+    HWY_DASSERT(thread_id < kMaxThreads);
+    HWY_DASSERT(zone_id == kZoneExit || zone_id == new_zone_id);
+    zone_id = new_zone_id;
+    num_calls += 1;
+    duration += self_duration;
+    threads[thread_id / 64].Set(thread_id % 64);  // index into BitSet64
+  }
+
+  void Assimilate(Accumulator& other) {
+    // Not called if `other` was not visited, but `*this` may not have been
+    // visited yet, hence set its zone_id to the other's.
+    HWY_DASSERT(zone_id == other.zone_id || zone_id == kZoneExit);
+    zone_id = other.zone_id;
+
     num_calls += other.num_calls;
+    other.num_calls = 0;
+
     duration += other.duration;
-    threads[0].SetNonzeroBitsFrom64(other.threads[0].Get64());
-    threads[1].SetNonzeroBitsFrom64(other.threads[1].Get64());
+    other.duration = 0;
+
+    for (size_t i = 0; i < DivCeil(kMaxThreads, 64); ++i) {
+      threads[i].SetNonzeroBitsFrom64(other.threads[i].Get64());
+      other.threads[i] = BitSet64();
+    }
   }
 
   uint32_t zone_id;
   uint32_t num_calls;
   uint64_t duration;
-  BitSet64 threads[2];
+  BitSet64 threads[DivCeil(kMaxThreads, 64)];
 };
-static_assert(sizeof(Accumulator) == 32, "Wrong Accumulator size");
 
-#pragma pack(pop)
+// Reduced version of `hwy::Stats`: we are not interested in the geomean, nor
+// the variance/kurtosis/skewness. Because concurrency is a small integer, we
+// can simply compute sums rather than online moments.
+class ConcurrencyStats {
+ public:
+  ConcurrencyStats() { Reset(); }
 
-static char s_chars[16384];
-static std::atomic<uint32_t> s_next{kZoneExit + 1};
+  void Notify(const size_t x) {
+    ++n_;
+    min_ = HWY_MIN(min_, x);
+    max_ = HWY_MAX(max_, x);
+    sum_ += x;
+  }
 
-static_assert(sizeof(s_chars) <= (1ULL << Packet::kZoneBits),
-              "s_chars too large");
+  void Assimilate(const ConcurrencyStats& other) {
+    n_ += other.n_;
+    min_ = HWY_MIN(min_, other.min_);
+    max_ = HWY_MAX(max_, other.max_);
+    sum_ += other.sum_;
+  }
 
-HWY_DLLEXPORT uint32_t ProfilerAddZone(const char* name) {
-  const size_t len = strlen(name) + 1;
-  HWY_ASSERT(s_next + len <= sizeof(s_chars));
-  const uint32_t pos = s_next.fetch_add(len, std::memory_order_relaxed);
-  HWY_ASSERT(pos != kZoneExit);
-  strcpy(s_chars + pos, name);  // NOLINT
-  return pos;
-}
+  size_t Count() const { return n_; }
+  size_t Min() const { return min_; }
+  size_t Max() const { return max_; }
+  double Mean() const { return static_cast<double>(sum_) / n_; }
 
-// Returns a copy of the `name` passed to `ProfilerAddZone` that returned the
-// given `zone_id`.
-static const char* ZoneName(uint32_t zone_id) {
-  HWY_ASSERT(zone_id < sizeof(s_chars));
-  return s_chars + zone_id;
-}
+  void Reset() {
+    n_ = 0;
+    min_ = hwy::HighestValue<size_t>();
+    max_ = hwy::LowestValue<size_t>();
+    sum_ = 0;
+  }
+
+ private:
+  size_t n_;
+  size_t min_;
+  size_t max_;
+  uint64_t sum_;
+};
+
+// Global, only updated by the main thread after the root `ThreadPool::Run` and
+// during `ProfilerPrintResults`.
+static ConcurrencyStats s_concurrency[kMaxZones];
+
+using ZoneSet = BitSet4096<kMaxZones>;
 
 // Per-thread call graph (stack) and Accumulator for each zone.
 class Results {
@@ -194,21 +258,24 @@ class Results {
   // This has no observable effect apart from increasing "analyze_elapsed_".
   uint64_t ZoneDuration(const Packet* packets) {
     HWY_DASSERT(depth_ == 0);
-    HWY_DASSERT(num_zones_ == 0);
     AnalyzePackets(packets, 2);
-    const uint64_t duration = zones_[0].duration;
-    const uint32_t zone_id = kZoneExit + 1;
-    zones_[0] = Accumulator(0, zone_id, 0, 0);
     HWY_DASSERT(depth_ == 0);
-    num_zones_ = 0;
+
+    // Extract duration and reset the zone. ComputeOverhead created the second,
+    // though the first user Zone from which we are called has not yet exited.
+    HWY_DASSERT(visited_zones_.Count() == 1);
+    const uint32_t zone_id = visited_zones_.First();
+    HWY_DASSERT(zone_id == 2);
+    HWY_DASSERT(visited_zones_.Get(zone_id));
+    const uint64_t duration = zones_[zone_id].duration;
+    zones_[zone_id] = Accumulator();
+    visited_zones_.Clear(zone_id);
+
     return duration;
   }
 
-  void SetSelfOverhead(const uint64_t self_overhead) {
+  void SetOverheads(uint64_t self_overhead, uint64_t child_overhead) {
     self_overhead_ = self_overhead;
-  }
-
-  void SetChildOverhead(const uint64_t child_overhead) {
     child_overhead_ = child_overhead;
   }
 
@@ -236,13 +303,14 @@ class Results {
       const uint64_t self_duration = ClampedSubtract(
           duration, self_overhead_ + child_overhead_ + node.child_total);
 
-      const Accumulator acc(node.packet.ThreadId(), node.packet.ZoneId(),
-                            /*num_calls=*/1, self_duration);
-      UpdateOrAdd(acc);
+      const uint32_t zone_id = node.packet.ZoneId();
+      zones_[zone_id].Add(node.packet.ThreadId(), zone_id, self_duration);
+      // For faster Assimilate() - this is usually sparse.
+      visited_zones_.Set(zone_id);
       --depth_;
 
       // Deduct this nested node's time from its parent's self_duration.
-      if (depth_ != 0) {
+      if (HWY_LIKELY(depth_ != 0)) {
         nodes_[depth_ - 1].child_total += duration + child_overhead_;
       }
     }
@@ -251,121 +319,109 @@ class Results {
     analyze_elapsed_ += t1 - t0;
   }
 
-  // Incorporates results from another thread. Call after all threads have
-  // exited any zones.
+  // Incorporates results from another thread and resets its accumulators.
+  // Must be called from the main thread.
   void Assimilate(Results& other) {
     const uint64_t t0 = timer::Start();
-    HWY_DASSERT(depth_ == 0);
-    HWY_DASSERT(other.depth_ == 0);
 
-    for (size_t i = 0; i < other.num_zones_; ++i) {
-      UpdateOrAdd(other.zones_[i]);
-    }
-    other.num_zones_ = 0;
+    other.visited_zones_.Foreach([&](size_t zone_id) {
+      zones_[zone_id].Assimilate(other.zones_[zone_id]);
+      visited_zones_.Set(zone_id);
+      other.zones_[zone_id] = Accumulator();
+    });
+    // OK to reset even if `other` still has active zones, because we set
+    // `visited_zones_` when exiting the zone.
+    other.visited_zones_ = ZoneSet();
+
     const uint64_t t1 = timer::Stop();
     analyze_elapsed_ += t1 - t0 + other.analyze_elapsed_;
+    other.analyze_elapsed_ = 0;
+  }
+
+  // Adds the number of unique `thread_id` as a data point to `s_concurrency`,
+  // then resets the `thread_id` bitset.
+  void UpdateConcurrency(uint32_t zone_id) {
+    Accumulator& z = zones_[zone_id];
+    HWY_DASSERT(z.zone_id == zone_id);
+
+    size_t total_threads = 0;
+    for (size_t i = 0; i < DivCeil(kMaxThreads, 64); ++i) {
+      total_threads += z.threads[i].Count();
+      z.threads[i] = BitSet64();
+    }
+    if (HWY_LIKELY(total_threads != 0)) {
+      s_concurrency[z.zone_id].Notify(total_threads);
+    }
+  }
+
+  void UpdateAllConcurrency() {
+    visited_zones_.Foreach([&](size_t zone_id) {
+      UpdateConcurrency(static_cast<uint32_t>(zone_id));
+    });
   }
 
   // Single-threaded.
   void Print() {
     const uint64_t t0 = timer::Start();
-    MergeDuplicates();
-
-    // Sort by decreasing total (self) cost.
-    std::sort(zones_, zones_ + num_zones_, [](Accumulator& a, Accumulator& b) {
-      return a.duration > b.duration;
-    });
-
     const double inv_freq = 1.0 / platform::InvariantTicksPerSecond();
 
-    for (size_t i = 0; i < num_zones_; ++i) {
-      const Accumulator& z = zones_[i];
+    // Sort by decreasing total (self) cost. `zones_` are sparse, so sort an
+    // index vector instead.
+    std::vector<uint32_t> indices;
+    indices.reserve(visited_zones_.Count());
+    visited_zones_.Foreach([&](size_t zone_id) {
+      indices.push_back(static_cast<uint32_t>(zone_id));
+      // In case the zone exited after ProfilerEndRootRun.
+      UpdateConcurrency(static_cast<uint32_t>(zone_id));
+    });
+    std::sort(indices.begin(), indices.end(), [&](uint32_t a, uint32_t b) {
+      return zones_[a].duration > zones_[b].duration;
+    });
+
+    for (uint32_t zone_id : indices) {
+      Accumulator& z = zones_[zone_id];  // cleared after printing
+      HWY_DASSERT(z.zone_id == zone_id);
+      HWY_DASSERT(z.num_calls != 0);  // otherwise visited_zones_ is wrong
+
+      ConcurrencyStats& concurrency = s_concurrency[zone_id];
+
       const double duration = static_cast<double>(z.duration);
       const double per_call = z.duration / z.num_calls;
       // Durations are per-CPU, but end to end performance is defined by wall
       // time. Assuming fork-join parallelism, zones are entered by multiple
       // threads concurrently, which means the total number of unique threads is
       // also the degree of concurrency, so we can estimate wall time as CPU
-      // time divided by the number of unique threads seen. Note that this can
-      // be inaccurate if the same zone is entered by varying number of threads.
-      // However, that would be visible as a lower average number of threads
-      // for that zone.
-      const size_t num_threads = z.threads[0].Count() + z.threads[1].Count();
-      printf("%-40s: %10u x %15.0f / %3zu = %9.6f\n", ZoneName(z.zone_id),
-             z.num_calls, per_call, num_threads,
-             duration * inv_freq / num_threads);
+      // time divided by the number of unique threads seen. Varying thread
+      // counts per call site are supported because `ProfilerEndRootRun`
+      // calls UpdateAllConcurrency() after each top-level `ThreadPool::Run`.
+      const double num_threads = HWY_MAX(1.0, concurrency.Mean());
+      printf("%-40s: %10.0f x %15.0f / %5.1f (%5zu %3zu-%3zu) = %9.6f\n",
+             ZoneName(zone_id), static_cast<double>(z.num_calls), per_call,
+             num_threads, concurrency.Count(), concurrency.Min(),
+             concurrency.Max(), duration * inv_freq / num_threads);
+
+      z = Accumulator();
+      concurrency.Reset();
     }
-    num_zones_ = 0;
+    visited_zones_ = ZoneSet();
 
     const uint64_t t1 = timer::Stop();
     analyze_elapsed_ += t1 - t0;
     printf("Total analysis [s]: %f\n",
            static_cast<double>(analyze_elapsed_) * inv_freq);
+    analyze_elapsed_ = 0;
   }
 
  private:
-  // Updates an existing Accumulator (uniquely identified by zone_id) or
-  // adds one if this is the first time this thread analyzed that zone.
-  // Uses a self-organizing list data structure, which avoids dynamic memory
-  // allocations and is far faster than unordered_map.
-  void UpdateOrAdd(const Accumulator& other) {
-    // Special case for first zone: (maybe) update, without swapping.
-    if (num_zones_ != 0 && zones_[0].zone_id == other.zone_id) {
-      zones_[0].Assimilate(other);
-      return;
-    }
-
-    // Look for a zone with the same offset.
-    for (size_t i = 1; i < num_zones_; ++i) {
-      if (zones_[i].zone_id == other.zone_id) {
-        zones_[i].Assimilate(other);
-        // Swap with predecessor (more conservative than move to front,
-        // but at least as successful).
-        const Accumulator prev = zones_[i - 1];
-        zones_[i - 1] = zones_[i];
-        zones_[i] = prev;
-        return;
-      }
-    }
-
-    // Not found; create a new Accumulator.
-    HWY_DASSERT(num_zones_ < kMaxZones);
-    zones_[num_zones_] = other;
-    ++num_zones_;
-  }
-
-  // Each instantiation of a function template gets its own zone_id. Merge all
-  // Accumulator with the same name. An N^2 search for duplicates is fine
-  // because we only expect a few dozen zones.
-  void MergeDuplicates() {
-    for (size_t i = 0; i < num_zones_; ++i) {
-      const char* name = ZoneName(zones_[i].zone_id);
-
-      // Add any subsequent duplicates to num_calls and total_duration.
-      for (size_t j = i + 1; j < num_zones_;) {
-        Accumulator& other = zones_[j];
-        if (!strcmp(name, ZoneName(other.zone_id))) {
-          zones_[i].Assimilate(other);
-          // j was the last zone, so we are done.
-          if (j == num_zones_ - 1) break;
-          // Replace current zone with the last one, and check it next.
-          other = zones_[--num_zones_];
-        } else {  // Name differed, try next Accumulator.
-          ++j;
-        }
-      }
-    }
-  }
-
   uint64_t analyze_elapsed_ = 0;
   uint64_t self_overhead_ = 0;
   uint64_t child_overhead_ = 0;
 
-  size_t depth_ = 0;      // Number of active zones.
-  size_t num_zones_ = 0;  // Number of retired zones.
+  size_t depth_ = 0;       // Number of currently active zones in `nodes_`.
+  ZoneSet visited_zones_;  // Which `zones_` have been active on this thread.
 
   alignas(HWY_ALIGNMENT) Node nodes_[kMaxDepth];         // Stack
-  alignas(HWY_ALIGNMENT) Accumulator zones_[kMaxZones];  // Self-organizing list
+  alignas(HWY_ALIGNMENT) Accumulator zones_[kMaxZones];
 };
 
 class PerThread {
@@ -392,7 +448,7 @@ class PerThread {
         for (size_t idx_duration = 0; idx_duration < kNumDurations;
              ++idx_duration) {
           {
-            PROFILER_ZONE("Dummy Zone (never shown)");
+            PROFILER_ZONE("internal Zone (never shown)");
           }
           const uint64_t duration = results_.ZoneDuration(buffer_);
           buffer_size_ = 0;
@@ -408,7 +464,6 @@ class PerThread {
       HWY_IF_CONSTEXPR(kPrintOverhead) {
         printf("Overhead: %.0f\n", static_cast<double>(self_overhead));
       }
-      results_.SetSelfOverhead(self_overhead);
     }
 
     // Delay before capturing start timestamp / after end timestamp.
@@ -425,7 +480,7 @@ class PerThread {
         std::atomic_thread_fence(std::memory_order_seq_cst);
         const uint64_t t0 = timer::Start();
         for (size_t i = 0; i < kReps; ++i) {
-          PROFILER_ZONE("Dummy");
+          PROFILER_ZONE("internal Zone2 (never shown)");
         }
         FlushStream();
         const uint64_t t1 = timer::Stop();
@@ -444,15 +499,15 @@ class PerThread {
     HWY_IF_CONSTEXPR(kPrintOverhead) {
       printf("Child overhead: %.0f\n", static_cast<double>(child_overhead));
     }
-    results_.SetChildOverhead(child_overhead);
+    results_.SetOverheads(self_overhead, child_overhead);
   }
 
-  void WriteEntry(size_t thread_id, uint32_t zone_id,
-                  const uint64_t timestamp) {
+  HWY_INLINE void WriteEntry(const size_t thread_id, const uint32_t zone_id,
+                             const uint64_t timestamp) {
     Write(Packet(thread_id, zone_id, timestamp));
   }
 
-  void WriteExit(const uint64_t timestamp) {
+  HWY_INLINE void WriteExit(const uint64_t timestamp) {
     Write(Packet(0, kZoneExit, timestamp));
   }
 
@@ -461,13 +516,14 @@ class PerThread {
     FlushStream();
 
     // Storage full => empty it.
-    if (num_packets_ + buffer_size_ > max_packets_) {
+    if (HWY_UNLIKELY(num_packets_ + buffer_size_ > max_packets_)) {
       results_.AnalyzePackets(packets_.get(), num_packets_);
       num_packets_ = 0;
     }
     CopyBytes(buffer_, packets_.get() + num_packets_,
               buffer_size_ * sizeof(Packet));
     num_packets_ += buffer_size_;
+    buffer_size_ = 0;
 
     results_.AnalyzePackets(packets_.get(), num_packets_);
     num_packets_ = 0;
@@ -476,23 +532,24 @@ class PerThread {
   Results& GetResults() { return results_; }
 
  private:
-  // Write packet to buffer/storage, emptying them as needed.
-  void Write(const Packet packet) {
-    // Buffer full => copy to storage.
-    if (buffer_size_ == kBufferCapacity) {
-      // Storage full => empty it.
-      if (num_packets_ + kBufferCapacity > max_packets_) {
-        results_.AnalyzePackets(packets_.get(), num_packets_);
-        num_packets_ = 0;
-      }
-      // This buffering halves observer overhead and decreases the overall
-      // runtime by about 3%. Casting is safe because the first member is u64.
-      StreamCacheLine(
-          reinterpret_cast<const uint64_t*>(buffer_),
-          reinterpret_cast<uint64_t*>(packets_.get() + num_packets_));
-      num_packets_ += kBufferCapacity;
-      buffer_size_ = 0;
+  HWY_NOINLINE void FlushBuffer() {
+    // Storage full => empty it.
+    if (HWY_UNLIKELY(num_packets_ + kBufferCapacity > max_packets_)) {
+      results_.AnalyzePackets(packets_.get(), num_packets_);
+      num_packets_ = 0;
     }
+    // Copy buffer to storage without polluting caches.
+    // This buffering halves observer overhead and decreases the overall
+    // runtime by about 3%. Casting is safe because the first member is u64.
+    StreamCacheLine(reinterpret_cast<const uint64_t*>(buffer_),
+                    reinterpret_cast<uint64_t*>(packets_.get() + num_packets_));
+    num_packets_ += kBufferCapacity;
+    buffer_size_ = 0;
+  }
+
+  // Write packet to buffer/storage, emptying them as needed.
+  HWY_INLINE void Write(const Packet packet) {
+    if (HWY_UNLIKELY(buffer_size_ == kBufferCapacity)) FlushBuffer();
     buffer_[buffer_size_] = packet;
     ++buffer_size_;
   }
@@ -514,27 +571,83 @@ alignas(HWY_ALIGNMENT) static PerThread s_threads[kMaxThreads];
 std::atomic<size_t> s_num_threads{0};
 static thread_local PerThread* HWY_RESTRICT s_thread;
 
-HWY_DLLEXPORT Zone::Zone(size_t thread_id, uint32_t zone_id) {
-  HWY_FENCE;
-  if (HWY_UNLIKELY(s_thread == nullptr)) {
-    // Ensure the CPU supports our timer.
-    char cpu[100];
-    if (!platform::HaveTimerStop(cpu)) {
-      HWY_ABORT("CPU %s is too old for PROFILER_ENABLED=1, exiting", cpu);
-    }
+// Returns false in the unlikely event that no zone has been entered yet,
+// which means `PerThread` has not yet been initialized.
+static bool AssimilateResultsIntoMainThread() {
+  const size_t num_threads = s_num_threads.load(std::memory_order_acquire);
+  if (HWY_UNLIKELY(num_threads == 0)) return false;
 
-    const size_t idx = s_num_threads.fetch_add(1, std::memory_order_relaxed);
-    HWY_DASSERT(idx < kMaxThreads);
-    s_thread = &s_threads[idx];
+  PerThread* main = &s_threads[0];
+  main->AnalyzeRemainingPackets();
 
-    // After setting s_thread, because ComputeOverhead re-enters Zone().
-    s_thread->ComputeOverhead();
+  for (size_t i = 1; i < num_threads; ++i) {
+    PerThread* thread = &s_threads[i];
+    thread->AnalyzeRemainingPackets();
+    main->GetResults().Assimilate(thread->GetResults());
   }
+  return true;
+}
+
+// We want to report the concurrency of each separate 'invocation' of a zone.
+// A unique per-call identifier (could be approximated with the line number and
+// return address) is not sufficient because the caller may in turn be called
+// from differing parallel sections. A per-`ThreadPool::Run` counter also
+// under-reports concurrency because each pool in nested parallelism (over
+// packages and CCXes) would be considered separate invocations.
+//
+// The alternative of detecting overlapping zones via timestamps is not 100%
+// reliable because timers may not be synchronized across sockets or perhaps
+// even cores. "Invariant" x86 TSCs are indeed synchronized across cores, but
+// not across sockets unless the RESET# signal reaches each at the same time.
+// Linux seems to make an effort to correct this, and Arm's "generic timer"
+// broadcasts to "all cores", but there is no universal guarantee.
+//
+// Under the assumption that all concurrency is via our `ThreadPool`, we can
+// record all `thread_id` for each outermost (root) `ThreadPool::Run`. This
+// collapses all nested pools into one 'invocation'. We then compute per-zone
+// concurrency as the number of unique `thread_id` seen.
+static std::atomic_flag s_run_active = ATOMIC_FLAG_INIT;
+
+HWY_DLLEXPORT bool ProfilerIsRootRun() {
+  // We are not the root if a Run was already active.
+  return !s_run_active.test_and_set(std::memory_order_acquire);
+}
+
+HWY_DLLEXPORT void ProfilerEndRootRun() {
+  // We know that only the main thread is running, so this is thread-safe, but
+  // but some zones may still be active. Their concurrency will be updated when
+  // Print() is called.
+
+  if (HWY_LIKELY(AssimilateResultsIntoMainThread())) {
+    s_thread[0].GetResults().UpdateAllConcurrency();
+  }
+
+  s_run_active.clear(std::memory_order_release);
+}
+
+static HWY_NOINLINE void InitThread() {
+  // Ensure the CPU supports our timer.
+  char cpu[100];
+  if (HWY_UNLIKELY(!platform::HaveTimerStop(cpu))) {
+    HWY_ABORT("CPU %s is too old for PROFILER_ENABLED=1, exiting", cpu);
+  }
+
+  const size_t idx = s_num_threads.fetch_add(1, std::memory_order_relaxed);
+  HWY_DASSERT(idx < kMaxThreads);
+  s_thread = &s_threads[idx];
+
+  // After setting s_thread, because ComputeOverhead re-enters Zone().
+  s_thread->ComputeOverhead();
+}
+
+HWY_DLLEXPORT Zone::Zone(size_t thread_id, uint32_t zone_id) {
+  if (HWY_UNLIKELY(s_thread == nullptr)) InitThread();
 
   // (Capture timestamp ASAP, not inside WriteEntry.)
   HWY_FENCE;
   const uint64_t timestamp = timer::Start();
   s_thread->WriteEntry(thread_id, zone_id, timestamp);
+  HWY_FENCE;
 }
 
 HWY_DLLEXPORT Zone::~Zone() {
@@ -545,19 +658,8 @@ HWY_DLLEXPORT Zone::~Zone() {
 }
 
 HWY_DLLEXPORT void ProfilerPrintResults() {
-  const size_t num_threads = s_num_threads.load(std::memory_order_acquire);
-
-  PerThread* main = &s_threads[0];
-  main->AnalyzeRemainingPackets();
-
-  for (size_t i = 1; i < num_threads; ++i) {
-    PerThread* ts = &s_threads[i];
-    ts->AnalyzeRemainingPackets();
-    main->GetResults().Assimilate(ts->GetResults());
-  }
-
-  if (num_threads != 0) {
-    main->GetResults().Print();
+  if (AssimilateResultsIntoMainThread()) {
+    s_threads[0].GetResults().Print();
   }
 }
 

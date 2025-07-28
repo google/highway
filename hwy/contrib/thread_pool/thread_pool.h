@@ -42,6 +42,7 @@
 #include "hwy/contrib/thread_pool/futex.h"
 #include "hwy/contrib/thread_pool/spin.h"
 #include "hwy/contrib/thread_pool/topology.h"
+#include "hwy/profiler.h"
 #include "hwy/stats.h"
 #include "hwy/timer.h"
 
@@ -1131,6 +1132,8 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
     }
 
     SetBusy();
+    const bool is_root = PROFILER_IS_ROOT_RUN();
+
     tasks_.Set(begin, end, closure);
 
     // More than one task per worker: use work stealing.
@@ -1143,12 +1146,18 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
     AutoTuneT& auto_tuner = AutoTuner();
     if (HWY_LIKELY(auto_tuner.Best())) {
       CallWithConfig(config_, main_adapter_);
+      if (is_root) {
+        PROFILER_END_ROOT_RUN();
+      }
       ClearBusy();
     } else {
       const uint64_t t0 = timer::Start();
       CallWithConfig(config_, main_adapter_);
       const uint64_t t1 = have_timer_stop_ ? timer::Stop() : timer::Start();
       auto_tuner.NotifyCost(t1 - t0);
+      if (is_root) {
+        PROFILER_END_ROOT_RUN();
+      }
       ClearBusy();              // before `SendConfig`
       if (auto_tuner.Best()) {  // just finished
         HWY_IF_CONSTEXPR(pool::kVerbosity >= 1) {
@@ -1178,26 +1187,6 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
         SendConfig(auto_tuner.NextConfig());
       }
     }
-  }
-
-  // Can pass this as init_closure when no initialization is needed.
-  // DEPRECATED, better to call the Run() overload without the init_closure arg.
-  static bool NoInit(size_t /*num_threads*/) { return true; }  // DEPRECATED
-
-  // DEPRECATED equivalent of NumWorkers. Note that this is not the same as the
-  // ctor argument because num_threads = 0 has the same effect as 1.
-  size_t NumThreads() const { return NumWorkers(); }  // DEPRECATED
-
-  // DEPRECATED prior interface with 32-bit tasks and first calling
-  // `init_closure(num_threads)`. Instead, perform any init before this, calling
-  // NumWorkers() for an upper bound on the worker index, then call the other
-  // overload of Run().
-  template <class InitClosure, class RunClosure>
-  bool Run(uint64_t begin, uint64_t end, const InitClosure& init_closure,
-           const RunClosure& run_closure) {
-    if (!init_closure(NumThreads())) return false;
-    Run(begin, end, run_closure);
-    return true;
   }
 
  private:

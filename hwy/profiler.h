@@ -41,8 +41,8 @@
 
 namespace hwy {
 
-// Copies `name` into the string table and returns its offset, which is used as
-// the unique identifier for the zone.
+// Copies `name` into the string table and returns its unique `zone_id`. Uses
+// linear search, which is fine because this is called during static init.
 HWY_DLLEXPORT uint32_t ProfilerAddZone(const char* name);
 #define PROFILER_ADD_ZONE(name) hwy::ProfilerAddZone(name)
 
@@ -65,6 +65,16 @@ class Zone {
 // Creates a zone for an entire function when placed at its beginning.
 #define PROFILER_FUNC2(thread_id) PROFILER_ZONE2(thread_id, __func__)
 
+// For reporting average concurrency. Called by `ThreadPool::Run`, returns true
+// if this is the first call since the last `ProfilerEndRootRun()`.
+HWY_DLLEXPORT bool ProfilerIsRootRun();
+#define PROFILER_IS_ROOT_RUN hwy::ProfilerIsRootRun
+
+// Must be called if `ProfilerIsRootRun()` returned true. Resets the state
+// such that the next call to `ProfilerIsRootRun()` will again return true.
+HWY_DLLEXPORT void ProfilerEndRootRun();
+#define PROFILER_END_ROOT_RUN hwy::ProfilerEndRootRun
+
 // Prints results. Must be called exactly once after all threads have exited
 // all zones.
 HWY_DLLEXPORT void ProfilerPrintResults();
@@ -76,7 +86,10 @@ HWY_DLLEXPORT void ProfilerPrintResults();
 #define PROFILER_ADD_ZONE(name) 0
 #define PROFILER_ZONE2(thread_id, name)
 #define PROFILER_FUNC2(thread_id)
+#define PROFILER_IS_ROOT_RUN() false
+#define PROFILER_END_ROOT_RUN()
 #define PROFILER_PRINT_RESULTS()
+
 #endif  // PROFILER_ENABLED || HWY_IDE
 
 // For compatibility with old callers that do not pass thread_id.

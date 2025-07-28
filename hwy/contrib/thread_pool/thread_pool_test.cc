@@ -294,13 +294,6 @@ TEST(ThreadPoolTest, TestTasks) {
   }
 }
 
-// Ensures old code with 32-bit tasks and InitClosure still compiles.
-TEST(ThreadPoolTest, TestDeprecated) {
-  hwy::ThreadPool pool(0);
-  pool.Run(1, 10, &ThreadPool::NoInit,
-           [&](const uint64_t /*task*/, size_t /*thread*/) {});
-}
-
 // Ensures task parameter is in bounds, every parameter is reached,
 // pool can be reused (multiple consecutive Run calls), pool can be destroyed
 // (joining with its threads), num_threads=0 works (runs on current thread).
