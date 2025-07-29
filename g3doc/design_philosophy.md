@@ -41,9 +41,9 @@
     sizes increase, and matches the direction taken by
     [Arm SVE](https://alastairreid.github.io/papers/sve-ieee-micro-2017.pdf) and
     RiscV V as well as Agner Fog's
-    [ForwardCom instruction set proposal](https://goo.gl/CFizWu). However, some
-    applications may require fixed sizes, so we also guarantee support for <=
-    128-bit vectors in each instruction set.
+    [ForwardCom instruction set proposal](https://www.agner.org/optimize/forwardcom.pdf).
+    However, some applications may require fixed sizes, so we also guarantee
+    support for <= 128-bit vectors in each instruction set.
 
 *   The API and its implementation should be usable and efficient with commonly
     used compilers, including MSVC. For example, we write `ShiftLeft<3>(v)`
