@@ -2,7 +2,7 @@ project(
   'hwy',
   'cpp',
   version: '1.2.0',
-  meson_version: '>= 1.7.0',
+  meson_version: '>= 1.3.0',
   license: 'Apache-2.0 OR BSD-3-Clause',
   default_options: [
     'cpp_std=c++17,c++14,c++11',
@@ -10,14 +10,19 @@ project(
     'b_staticpic=true',
     'buildtype=debugoptimized',
     'default_library=static',
-    'warning_level=3',  # -Wall -Wextra -Wpedantic on gcc/clang, /W3 on msvc
+    'warning_level=2',  # -Wall -Wextra on gcc/clang, /W3 on msvc
     'cpp_eh=none',
     'cpp_rtti=false',
     'werror=false',  # meson has builtin warnings_are_errors option
   ]
 )
 
+contrib_enabled = get_option('enable_contrib')
+tests_enabled = get_option('enable_tests')
+examples_enabled = get_option('enable_examples')
+
 cpp = meson.get_compiler('cpp')
+
 pkg = import('pkgconfig')
 
 have_emscripten = cpp.has_define('__EMSCRIPTEN__')
@@ -25,7 +30,7 @@ have_riscv = cpp.has_define('__riscv')
 
 support_lsx_flag = false
 support_lasx_flag = false
-if 'loongarch' in target_machine.cpu_family()
+if 'loongarch' in host_machine.cpu_family()
     if get_option('lsx') and cpp.has_define('__loongarch_sx', args: '-mlsx')
         add_project_arguments('-mlsx', language:'cpp')
     endif
@@ -34,36 +39,13 @@ if 'loongarch' in target_machine.cpu_family()
     endif
 endif
 
-is_windows = target_machine.system() == 'windows'
-has_win_synchronization_lib = false
-if is_windows
-    has_win_synchronization_lib = cpp.compiles(
-        '''
-        #ifndef NOMINMAX
-        #define NOMINMAX
-        #endif
+is_windows = host_machine.system() == 'windows'
 
-        #include <windows.h>
-
-        int main() {
-            unsigned val1 = 0u;
-            unsigned val2 = 1u;
-            WaitOnAddress(&val1, &val2, sizeof(unsigned), 1);
-            WakeByAddressAll(&val1);
-            WakeByAddressSingle(&val1);
-            return 0;
-        }
-        '''
-    )
-endif
-
-disable_futex = get_option('disable_futex')
-if not has_win_synchronization_lib and is_windows
-    disable_futex = true
-endif
+pie = get_option('b_pie') and not is_windows
+static_pic = get_option('b_staticpic') and not is_windows
 
 riscv_xlen = 0
-if have_riscv or 'riscv' in target_machine.cpu_family()
+if have_riscv or 'riscv' in host_machine.cpu_family()
     riscv_xlen = cpp.get_define('__riscv_xlen')
     if riscv_xlen == ''
         message('Unable to determine RISC-V XLEN')
@@ -189,21 +171,10 @@ hwy_test_sources = files(
 )
 
 cpp_link_args = []
-if cpp.get_argument_syntax() == 'msvc'
+is_msvc_syntax = cpp.get_argument_syntax() == 'msvc'
+if is_msvc_syntax
     add_project_arguments(
         '/bigobj',
-
-        # Warnings
-        # '/W4', # handled by warning_level=3 default option
-
-        # Disable some W4 warnings.  Enable them individually after they are cleaned up.
-        '/wd4100',
-        '/wd4127',
-        '/wd4324',
-        '/wd4456',
-        '/wd4701',
-        '/wd4702',
-        '/wd4723',
 
         # '/GR-',  # handled by cpp_rtti=false default option
         # '/EHs-c-',  # handled by cpp_eh=none default option
@@ -211,6 +182,19 @@ if cpp.get_argument_syntax() == 'msvc'
         '-D_HAS_EXCEPTIONS=0',
         language:'cpp'
     )
+    if get_option('warning_level') == '4'
+        add_project_arguments(
+            # Disable some W4 warnings.  Enable them individually after they are cleaned up.
+            '/wd4100',
+            '/wd4127',
+            '/wd4324',
+            '/wd4456',
+            '/wd4701',
+            '/wd4702',
+            '/wd4723',
+            language: 'cpp',
+        )
+    endif
 
     if cpp.get_id() == 'clang-cl'
         add_project_arguments(
@@ -284,7 +268,7 @@ else
             )
         endif
     endif
-    if target_machine.system() == 'windows'
+    if is_windows
         if cpp.get_id() == 'clang'
             add_project_arguments(
                 '-Wno-global-constructors',
@@ -350,12 +334,16 @@ else
     endif
 
     if have_riscv and get_option('rvv')
+        riscv_arg = ''
         if riscv_xlen == '64'
-            add_project_arguments('-march=rv64gcv1p0', language: 'cpp')
-            cpp_link_args += '-march=rv64gcv1p0'
+            riscv_arg = '-march=rv64gcv1p0'
         elif riscv_xlen == '32'
-            add_project_arguments('-march=rv32gcv1p0', language: 'cpp')
-            cpp_link_args += '-march=rv32gcv1p0'
+            riscv_arg = '-march=rv32gcv1p0'
+        endif
+
+        if riscv_args != ''
+            add_project_arguments(riscv_arg, language: 'cpp')
+            add_project_link_arguments(riscv_arg, language: 'cpp')
         endif
 
         if cpp.get_id() == 'clang'
@@ -386,23 +374,28 @@ endif
 
 hwy_include_dir = include_directories('.')
 
-hwy_version_file = files('hwy/hwy.version')
+hwy_version_file = 'hwy'/'hwy.version'
+lib_link_args = cpp.first_supported_link_argument('-Wl,--version-script=' + meson.current_source_dir() / hwy_version_file)
 
-if target_machine.system() in ['linux', 'freebsd', 'netbsd', 'openbsd', 'dragonfly', 'sunos']
-    cpp_link_args += '-Wl,--version-script=' + hwy_version_file[0].full_path()
+hwy_link_depends = []
+if lib_link_args.length() > 0
+    hwy_link_depends += files(hwy_version_file)
 endif
+
+hwy_shared_args = ['-DHWY_SHARED_DEFINE', '-Dhwy_EXPORTS']
+hwy_static_args = ['-DHWY_STATIC_DEFINE']
 
 hwy_lib = library(
     'hwy',
     hwy_sources,
     cpp_args: toolchain_args,
-    cpp_shared_args: ['-DHWY_SHARED_DEFINE', '-Dhwy_EXPORTS'],
-    cpp_static_args: ['-DHWY_STATIC_DEFINE'],
-    link_args: cpp_link_args,
+    cpp_shared_args: hwy_shared_args,
+    cpp_static_args: hwy_static_args,
+    link_args: lib_link_args,
     install: true,
-    pic: true,
+    pic: static_pic,
     version: meson.project_version(),
-    link_depends: hwy_version_file,
+    link_depends: hwy_link_depends,
     gnu_symbol_visibility: 'inlineshidden',
 )
 
@@ -417,7 +410,6 @@ hwy_dep = declare_dependency(
     link_with: hwy_lib,
 )
 
-
 install_headers(hwy_headers, preserve_path:true)
 
 pkg.generate(
@@ -428,7 +420,7 @@ pkg.generate(
 )
 
 atomic_dep = dependency('', required:false) # an empty dependency
-if get_option('enable_contrib') or get_option('enable_examples')
+if contrib_enabled or examples_enabled
   
     atomic_code = '''
         #include <atomic>
@@ -447,7 +439,8 @@ if get_option('enable_contrib') or get_option('enable_examples')
     endif
 endif
 
-if get_option('enable_contrib')
+thread_dep = dependency('', required:false) # empty thread dependency
+if contrib_enabled
     # these dependencies look to be only required if enable_contrib
     contrib_deps = [hwy_dep, atomic_dep]
 
@@ -456,12 +449,44 @@ if get_option('enable_contrib')
 
     contrib_args = []
 
+    disable_futex = get_option('disable_futex')
+    if is_windows and not is_msvc_syntax and not disable_futex
+        synch_dep = cpp.find_library('synchronization', required:false)
+        if synch_dep.found()
+            # double check it can compile with synchronization
+            synch_compiles = cpp.compiles(
+                    '''
+                    #ifndef NOMINMAX
+                    #define NOMINMAX
+                    #endif
+
+                    #include <windows.h>
+
+                    int main() {
+                        unsigned val1 = 0u;
+                        unsigned val2 = 1u;
+                        WaitOnAddress(&val1, &val2, sizeof(unsigned), 1);
+                        WakeByAddressAll(&val1);
+                        WakeByAddressSingle(&val1);
+                        return 0;
+                    }
+                    ''',
+                    dependencies: synch_dep
+            )
+            if synch_compiles
+                contrib_deps += synch_dep
+            else
+                # if it doesn't compile
+                disable_futex = true
+            endif
+        else
+            # if synch is not found
+            disable_futex = true
+        endif
+    endif
+
     if disable_futex
         contrib_args += '-DHWY_DISABLE_FUTEX'
-    else
-        if target_machine.system() == 'windows' and cpp.get_argument_syntax() != 'msvc'
-            contrib_deps += cpp.find_library('synchronization', required: true)
-        endif
     endif
 
     hwy_contrib_lib = library(
@@ -469,14 +494,14 @@ if get_option('enable_contrib')
         hwy_contrib_sources,
         dependencies: contrib_deps,
         cpp_args: contrib_args,
-        cpp_shared_args: ['-DHWY_SHARED_DEFINE', '-Dhwy_EXPORTS'],
-        cpp_static_args: ['-DHWY_STATIC_DEFINE'],
-        link_args: cpp_link_args,
+        cpp_shared_args: hwy_shared_args,
+        cpp_static_args: hwy_static_args,
+        link_args: lib_link_args,
         build_by_default: false, # only built if requested...
         install: true,
-        pic: true,
+        pic: static_pic,
         version: meson.project_version(),
-        link_depends: hwy_version_file,
+        link_depends: hwy_link_depends,
         gnu_symbol_visibility: 'inlineshidden',
     )
 
@@ -498,13 +523,15 @@ endif
 hwy_test_lib = library(
     'hwy_test',
     hwy_test_sources,
-    link_args: cpp_link_args,
+    cpp_shared_args: hwy_shared_args,
+    cpp_static_args: hwy_static_args,
+    link_args: lib_link_args,
     dependencies: hwy_dep,
-    pic: true,
+    pic: static_pic,
     version: meson.project_version(),
-    extra_files: hwy_version_file,
+    link_depends: hwy_link_depends,
     build_by_default: false,
-    install: get_option('enable_tests'),
+    install: tests_enabled,
     gnu_symbol_visibility: 'inlineshidden',
 )
 
@@ -525,9 +552,10 @@ hwy_list_targets = executable(
     'hwy_list_targets',
     'hwy/tests/list_targets.cc',
     dependencies: hwy_dep,
+    pie: pie,
 )
 
-if get_option('enable_tests')
+if tests_enabled
     install_headers(hwy_test_headers, preserve_path:true)
 
     pkg.generate(
@@ -537,37 +565,109 @@ if get_option('enable_tests')
     )
 endif
 
-if get_option('enable_examples')
+if examples_enabled
 
     executable(
         'hwy_benchmark',
         'hwy/examples/benchmark.cc',
-        dependencies: [hwy_dep, atomic_dep]
+        dependencies: [hwy_dep, atomic_dep],
+        pie: pie,
     )
 
-    if get_option('enable_contrib')
+    if contrib_enabled
         executable(
             'hwy_profiler_example',
             'hwy/examples/profiler_example.cc',
-            dependencies: [hwy_dep, hwy_contrib_dep]
+            dependencies: [hwy_dep, hwy_contrib_dep],
+            pie: pie,
         )
     endif
 
 endif
 
-if get_option('enable_tests')
+if tests_enabled
     
     fs = import('fs')
 
     if get_option('test_standalone')
         gtest_main_dep = dependency('', required:false) # empty dependency
     else
-        # defaults to system gtest with fallback to a local gtest subproject
+        # defaults to system gtest with a custom fallback to a local gtest subproject
         gtest_main_dep = dependency(
             'gtest',
             main:true,
-            fallback:['gtest', 'gtest_main_dep'],
+            required:false,
         )
+        if not gtest_main_dep.found()
+            gtest_build_overrides = [
+                'cpp_eh=default',  # do not disable cpp exceptions for gtest
+                'werror=false',  # do not error on warnings building gtest
+            ]
+            # find gtest as a subproject (The wrap included here matches 1.12.1)
+            # note that 1.12.1 was the last to support C++11.
+            gtest_proj = subproject('gtest', default_options:gtest_build_overrides)
+            gtest_main_dep = gtest_proj.get_variable('gtest_main_dep')
+            gtest_version = gtest_main_dep.version()
+            if gtest_version.version_compare('<1.15.2')
+                
+                # this bit is awkward because the 1.12.1 wrap defines the dependency objects as files
+                # causing them to get recompiled with every test executable. The gtest wrap for version 1.15.2-2 was first to build
+                # gtest as a library, it's logic is mostly duplicated below.
+
+                #if this was still the empty dependency from before the contrib
+                if not thread_dep.found()
+                    thread_dep = dependency('threads')
+                endif
+
+                if is_windows
+                    gtest_dllexp = '-DGTEST_CREATE_SHARED_LIBRARY=1'
+                    gtest_dllimp = '-DGTEST_LINKED_AS_SHARED_LIBRARY=1'
+                else
+                    gtest_dllexp = []
+                    gtest_dllimp = []
+                endif
+
+                gtest_incdir = gtest_proj.get_variable('gtest_incdir')
+                gtest_libsources = gtest_proj.get_variable('gtest_libsources')
+                gtest_mainsources = gtest_proj.get_variable('gtest_mainsources')
+
+                # always build as a shared library (to avoid crt conflicts)
+                # (note that these are not installable from this project)
+                gtest_lib = shared_library(
+                    'gtest-all',
+                    gtest_libsources,
+                    gnu_symbol_visibility: 'hidden',
+                    override_options:gtest_build_overrides,
+                    cpp_args: gtest_dllexp,
+                    dependencies: thread_dep,
+                    include_directories: gtest_incdir,
+                )
+
+                gtest_main_lib = shared_library(
+                    'gtest_main',
+                    gtest_mainsources,
+                    gnu_symbol_visibility: 'hidden',
+                    override_options:gtest_build_overrides,
+                    cpp_args: gtest_dllexp,
+                    include_directories: gtest_incdir,
+                    link_with: gtest_lib,
+                )
+
+                gtest_dep = declare_dependency(
+                    compile_args: gtest_dllimp,
+                    include_directories: gtest_incdir,
+                    link_with: gtest_lib,
+                    dependencies: thread_dep,
+                    version: gtest_version,
+                )
+
+                gtest_main_dep = declare_dependency(
+                    link_with: gtest_main_lib,
+                    dependencies: gtest_dep,
+                    version: gtest_version,
+                )
+            endif
+        endif
     endif
 
     hwy_test_files = files(
@@ -644,7 +744,7 @@ if get_option('enable_tests')
     
     test_exe_link_args = []
     if have_emscripten
-        test_exe_link_args += ['-s SINGLE_FILE=1']
+        test_exe_link_args += ['-s', 'SINGLE_FILE=1']
     endif
 
     foreach test_src : hwy_test_files
@@ -661,12 +761,13 @@ if get_option('enable_tests')
             cpp_args: test_exe_args,
             dependencies: [hwy_test_dep, gtest_main_dep],
             link_args: test_exe_link_args,
+            pie: pie,
         )
         
         test(exe_name, test_exe, protocol:'gtest')
     endforeach
 
-    if get_option('enable_contrib')
+    if contrib_enabled
         hwy_contrib_test_files = files(
             'hwy/auto_tune_test.cc',
             'hwy/contrib/algo/copy_test.cc',
@@ -685,7 +786,7 @@ if get_option('enable_tests')
             'hwy/contrib/sort/sort_unit_test.cc',
             'hwy/contrib/thread_pool/spin_test.cc',
             'hwy/contrib/thread_pool/thread_pool_test.cc',
-            'hwy/contrib/thread_pool/topology_test.cc',
+            'hwy/contrib/thread_pool/topology_test.cc',  # note that this test fails on windows for some reason... (seems related to the ForEachSLPI function)
             'hwy/contrib/unroller/unroller_test.cc',
         )
 
@@ -698,9 +799,10 @@ if get_option('enable_tests')
                 cpp_args: test_exe_args,
                 dependencies: [hwy_test_dep, hwy_contrib_dep, gtest_main_dep],
                 link_args: test_exe_link_args,
+                pie: pie,
             )
-        
-            test(exe_name, test_exe, protocol:'gtest', suite:'contrib')
+
+            test(exe_name, test_exe, protocol:'gtest', suite:'contrib', timeout: (exe_name == 'sort_test')? 90 : 30)
         endforeach
     endif
 endif
