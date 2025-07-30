@@ -68,5 +68,10 @@ void VQSelect(float* HWY_RESTRICT keys, const size_t n, const size_t k,
   HWY_DYNAMIC_DISPATCH(SelectF32Asc)(keys, n, k);
 }
 
+void Sorter::operator()(float* HWY_RESTRICT keys, size_t n,
+                        SortAscending tag) const {
+  VQSort(keys, n, tag);
+}
+
 }  // namespace hwy
 #endif  // HWY_ONCE
