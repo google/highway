@@ -18,8 +18,15 @@ project(
 )
 
 contrib_enabled = get_option('enable_contrib')
-tests_enabled = get_option('enable_tests')
-examples_enabled = get_option('enable_examples')
+
+# logic here for both examples and tests is to enable them by default when this
+# is a project, but disable them by default if this is included as a subproject in another
+# project.
+tests_enabled = get_option('enable_tests').disable_auto_if(meson.is_subproject())
+tests_enabled = not tests_enabled.disabled()
+
+examples_enabled = get_option('enable_examples').disable_auto_if(meson.is_subproject())
+examples_enabled = not examples_enabled.disabled()
 
 cpp = meson.get_compiler('cpp')
 
