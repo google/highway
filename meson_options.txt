@@ -1,6 +1,6 @@
-option('enable_contrib', type : 'boolean', value : true, description: 'Include contrib/')
-option('enable_examples', type : 'feature', value : 'auto', description: 'Build examples')
-option('enable_tests', type : 'feature', value : 'auto', description: 'Enable HWY tests')
+option('contrib', type : 'feature', value : 'auto', description: 'Include contrib/')
+option('examples', type : 'feature', value : 'auto', description: 'Build examples')
+option('tests', type : 'feature', value : 'auto', description: 'Enable HWY tests')
 
 option('test_standalone', type : 'boolean', value : false, description: 'Disable use of googletest')
 

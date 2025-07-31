@@ -17,15 +17,15 @@ project(
   ]
 )
 
-contrib_enabled = get_option('enable_contrib')
+contrib_enabled = not get_option('contrib').disabled()
 
 # logic here for both examples and tests is to enable them by default when this
 # is a project, but disable them by default if this is included as a subproject in another
 # project.
-tests_enabled = get_option('enable_tests').disable_auto_if(meson.is_subproject())
+tests_enabled = get_option('tests').disable_auto_if(meson.is_subproject())
 tests_enabled = not tests_enabled.disabled()
 
-examples_enabled = get_option('enable_examples').disable_auto_if(meson.is_subproject())
+examples_enabled = get_option('examples').disable_auto_if(meson.is_subproject())
 examples_enabled = not examples_enabled.disabled()
 
 cpp = meson.get_compiler('cpp')
@@ -385,7 +385,8 @@ else
 
 endif
 
-if get_option('header_only')
+hwy_hdr_only = get_option('header_only')
+if hwy_hdr_only
     add_project_arguments('-DHWY_HEADER_ONLY', language:'cpp')
 endif
 
@@ -422,6 +423,7 @@ hwy_lib = library(
     link_args: lib_link_args,
     install: true,
     pic: static_pic,
+    build_by_default: not hwy_hdr_only,
     version: meson.project_version(),
     link_depends: hwy_link_depends,
     gnu_symbol_visibility: 'inlineshidden',
@@ -433,10 +435,10 @@ if get_option('default_library') != 'static'
 endif
 
 hwy_dep = declare_dependency(
-    compile_args: hwy_dep_args,
+    compile_args: hwy_hdr_only? '-DHWY_HEADER_ONLY' : hwy_dep_args,
     include_directories: hwy_include_dir,
     dependencies: atomic_dep,
-    link_with: hwy_lib,
+    link_with: hwy_hdr_only? [] : hwy_lib,
 )
 
 install_headers(hwy_headers, preserve_path:true)
@@ -556,6 +558,7 @@ hwy_list_targets = executable(
     'hwy/tests/list_targets.cc',
     dependencies: hwy_dep,
     pie: pie,
+    build_by_default: not meson.is_subproject(),
 )
 
 if tests_enabled
