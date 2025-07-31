@@ -17,16 +17,15 @@ project(
   ]
 )
 
-contrib_enabled = not get_option('contrib').disabled()
+contrib_enabled = get_option('contrib').allowed()
 
 # logic here for both examples and tests is to enable them by default when this
 # is a project, but disable them by default if this is included as a subproject in another
 # project.
-tests_enabled = get_option('tests').disable_auto_if(meson.is_subproject())
-tests_enabled = not tests_enabled.disabled()
+is_subproj = meson.is_subproject()
+tests_enabled = get_option('tests').disable_auto_if(is_subproj).allowed()
+examples_enabled = get_option('examples').disable_auto_if(is_subproj).allowed()
 
-examples_enabled = get_option('examples').disable_auto_if(meson.is_subproject())
-examples_enabled = not examples_enabled.disabled()
 
 cpp = meson.get_compiler('cpp')
 
@@ -535,7 +534,7 @@ hwy_test_lib = library(
     pic: static_pic,
     version: meson.project_version(),
     link_depends: hwy_link_depends,
-    build_by_default: not meson.is_subproject(),
+    build_by_default: not is_subproj,
     install: tests_enabled,
     gnu_symbol_visibility: 'inlineshidden',
 )
@@ -558,7 +557,7 @@ hwy_list_targets = executable(
     'hwy/tests/list_targets.cc',
     dependencies: hwy_dep,
     pie: pie,
-    build_by_default: not meson.is_subproject(),
+    build_by_default: not is_subproj,
 )
 
 if tests_enabled
