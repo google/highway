@@ -1,0 +1,15 @@
+[wrap-file]
+directory = googletest-release-1.12.1
+source_url = https://github.com/google/googletest/archive/release-1.12.1.tar.gz
+source_filename = gtest-1.12.1.tar.gz
+source_hash = 81964fe578e9bd7c94dfdb09c8e4d6e6759e19967e397dbea48d1c10e45d0df2
+patch_filename = gtest_1.12.1-1_patch.zip
+patch_url = https://wrapdb.mesonbuild.com/v2/gtest_1.12.1-1/get_patch
+patch_hash = 75143f11e174952bc768699fde3176511fe8e33b25dc6f6347d89e41648e99cf
+wrapdb_version = 1.12.1-1
+
+[provide]
+gtest = gtest_dep
+gtest_main = gtest_main_dep
+gmock = gmock_dep
+gmock_main = gmock_main_dep
