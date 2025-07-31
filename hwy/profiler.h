@@ -55,11 +55,12 @@ class Zone {
 
 // Registers `zone_id` using static initializers and creates a zone starting
 // from here until the end of the current scope.
-#define PROFILER_ZONE2(thread_id, name)                                \
-  HWY_FENCE;                                                           \
-  static const uint32_t HWY_CONCAT(ProfilerZone, __LINE__) =           \
-      hwy::ProfilerAddZone(name);                                      \
-  const hwy::Zone zone(thread_id, HWY_CONCAT(ProfilerZone, __LINE__)); \
+#define PROFILER_ZONE2(thread_id, name)                        \
+  HWY_FENCE;                                                   \
+  static const uint32_t HWY_CONCAT(ProfilerZoneId, __LINE__) = \
+      hwy::ProfilerAddZone(name);                              \
+  const hwy::Zone HWY_CONCAT(zone, __LINE__)(                  \
+      thread_id, HWY_CONCAT(ProfilerZoneId, __LINE__));        \
   HWY_FENCE
 
 // Creates a zone for an entire function when placed at its beginning.
