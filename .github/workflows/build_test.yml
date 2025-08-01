@@ -241,3 +241,22 @@ jobs:
           path: ~/.cache/bazel
           key: bazel-${{ runner.os }}
       - run: bazel build //...
+
+  meson:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit  # cannot be block - runner does git checkout
+
+      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.0.0
+
+      - name: Install deps
+        run: sudo apt-get install meson
+
+      - name: Build and test
+        run: |
+          meson setup builddir -Dwerror=true -Dbuildtype=release -Dauto_features=enabled
+          meson compile -C builddir -j2
+          meson test -C builddir -j2

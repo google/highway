@@ -1,0 +1,5 @@
+option('contrib', type: 'feature', description: 'Include contrib/')
+
+option('examples', type: 'feature', description: 'Install library')
+
+option('tests', type: 'feature', description: 'Enable HWY tests')
