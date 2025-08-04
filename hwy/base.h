@@ -1714,6 +1714,7 @@ HWY_F16_CONSTEXPR inline std::partial_ordering operator<=>(
 // x86 compiler supports __bf16, not necessarily with operators.
 // Disable in debug builds due to clang miscompiles as of 2025-07-22: casting
 // bf16 <-> f32 in convert_test results in 0x2525 for 1.0 instead of 0x3f80.
+// Reported at https://github.com/llvm/llvm-project/issues/151692.
 #ifndef HWY_SSE2_HAVE_SCALAR_BF16_TYPE
 #if HWY_ARCH_X86 && defined(__SSE2__) &&                     \
     ((HWY_COMPILER_CLANG >= 1700 && !HWY_COMPILER_CLANGCL && \
