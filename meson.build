@@ -361,13 +361,16 @@ hwy_lib = library(
     gnu_symbol_visibility: 'inlineshidden',
 )
 
+
 hwy_dep_args = []
-if get_option('default_library') != 'static'
-    hwy_dep_args += '-DHWY_SHARED_DEFINE'
+if hwy_hdr_only
+    hwy_dep_args += '-DHWY_HEADER_ONLY'
+elif get_option('default_library') != 'static'
+    hwy_dep_args += hwy_shared_import_args
 endif
 
 hwy_dep = declare_dependency(
-    compile_args: hwy_hdr_only? '-DHWY_HEADER_ONLY' : hwy_dep_args,
+    compile_args: hwy_dep_args,
     include_directories: hwy_include_dir,
     dependencies: atomic_dep,
     link_with: hwy_hdr_only? [] : hwy_lib,
