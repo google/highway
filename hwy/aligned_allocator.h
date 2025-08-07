@@ -40,6 +40,7 @@ namespace hwy {
 // access pairs of lines, and M1 L2 and POWER8 lines are also 128 bytes.
 #define HWY_ALIGNMENT 128
 
+// `align` is in bytes.
 template <typename T>
 HWY_API constexpr bool IsAligned(T* ptr, size_t align = HWY_ALIGNMENT) {
   return reinterpret_cast<uintptr_t>(ptr) % align == 0;

@@ -383,6 +383,7 @@ class alignas(HWY_ALIGNMENT) Worker {  // HWY_ALIGNMENT bytes
   uint32_t num_victims_;  // <= kPoolMaxVictims
   std::array<uint32_t, kMaxVictims> victims_;
 
+  // Written and read by the same thread, hence not atomic.
   Config latched_;
 
   const size_t worker_;
@@ -596,15 +597,17 @@ struct WaitBlock {
   // Wakes all workers by storing the current `epoch`.
   void WakeWorkers(Worker* workers, const uint32_t epoch) const {
     HWY_DASSERT(epoch != 0);
-    workers[0].StoreWaiter(epoch);
-    WakeAll(workers[0].MutableWaiter());  // futex: expensive syscall
+    workers[1].StoreWaiter(epoch);
+    WakeAll(workers[1].MutableWaiter());  // futex: expensive syscall
   }
 
   // Waits until `WakeWorkers(_, epoch)` has been called.
   template <class Spin>
   void UntilWoken(const Worker* worker, const Spin& /*spin*/,
                   const uint32_t epoch) const {
-    BlockUntilDifferent(epoch - 1, worker->AllWorkers()->Waiter());
+    HWY_DASSERT(worker->Index() != 0);  // main is 0
+    const Worker* workers = worker->AllWorkers();
+    BlockUntilDifferent(epoch - 1, workers[1].Waiter());
   }
 };
 
@@ -615,13 +618,15 @@ struct WaitSpin1 {
   WaitType Type() const { return WaitType::kSpin1; }
 
   void WakeWorkers(Worker* workers, const uint32_t epoch) const {
-    workers[0].StoreWaiter(epoch);
+    workers[1].StoreWaiter(epoch);
   }
 
   template <class Spin>
   void UntilWoken(const Worker* worker, const Spin& spin,
                   const uint32_t epoch) const {
-    (void)spin.UntilEqual(epoch, worker->AllWorkers()->Waiter());
+    HWY_DASSERT(worker->Index() != 0);  // main is 0
+    const Worker* workers = worker->AllWorkers();
+    (void)spin.UntilEqual(epoch, workers[1].Waiter());
     // TODO: store reps in stats.
   }
 };
@@ -633,13 +638,14 @@ struct WaitSpinSeparate {
 
   void WakeWorkers(Worker* workers, const uint32_t epoch) const {
     for (size_t thread = 0; thread < workers->NumThreads(); ++thread) {
-      workers[thread].StoreWaiter(epoch);
+      workers[1 + thread].StoreWaiter(epoch);
     }
   }
 
   template <class Spin>
   void UntilWoken(const Worker* worker, const Spin& spin,
                   const uint32_t epoch) const {
+    HWY_DASSERT(worker->Index() != 0);  // main is 0
     (void)spin.UntilEqual(epoch, worker->Waiter());
     // TODO: store reps in stats.
   }
@@ -670,10 +676,10 @@ class BarrierCounter {
   template <class Spin>
   void WorkerReached(Worker* worker, const Spin& /*spin*/,
                      uint32_t /*epoch*/) const {
+    Worker* workers = worker->AllWorkers();
     const size_t shard = worker->Index() & (kShards - 1);
     const auto kAcqRel = std::memory_order_acq_rel;
-    worker->AllWorkers()[kMaxThreads - shard].MutableBarrier().fetch_add(
-        1, kAcqRel);
+    workers[kMaxThreads - shard].MutableBarrier().fetch_add(1, kAcqRel);
   }
 
   template <class Spin>
@@ -681,7 +687,7 @@ class BarrierCounter {
                     uint32_t /*epoch*/) const {
     HWY_IF_CONSTEXPR(kShards == 1) {
       (void)spin.UntilEqual(static_cast<uint32_t>(num_threads),
-                            workers[kMaxThreads].Barrier());
+                            workers[kMaxThreads - 0].Barrier());
     }
     HWY_IF_CONSTEXPR(kShards == 2) {
       const auto kAcq = std::memory_order_acquire;
@@ -718,6 +724,7 @@ class BarrierOrdered {
 
   template <class Spin>
   void WorkerReached(Worker* worker, const Spin&, uint32_t epoch) const {
+    HWY_DASSERT(worker->Index() != 0);  // main is 0
     worker->StoreBarrier(epoch);
   }
 
@@ -725,7 +732,7 @@ class BarrierOrdered {
   void UntilReached(size_t num_threads, const Worker* workers, const Spin& spin,
                     uint32_t epoch) const {
     for (size_t i = 0; i < num_threads; ++i) {
-      (void)spin.UntilEqual(epoch, workers[i].Barrier());
+      (void)spin.UntilEqual(epoch, workers[1 + i].Barrier());
     }
   }
 };
@@ -742,12 +749,22 @@ class BarrierGroup {
 
   template <class Spin>
   void WorkerReached(Worker* worker, const Spin& spin, uint32_t epoch) const {
-    const size_t thread = worker->Index();
-    // Leaders wait for all others in their group before marking themselves.
-    if (thread % kGroupSize == 0) {
-      for (size_t i = thread + 1;
-           i < HWY_MIN(thread + kGroupSize, worker->NumThreads()); ++i) {
-        (void)spin.UntilEqual(epoch, worker->AllWorkers()[i].Barrier());
+    const size_t w_idx = worker->Index();
+    HWY_DASSERT(w_idx != 0);  // main is 0
+    // NOTE: the first worker is 1, but our leader election scheme requires a
+    // 0-based index.
+    const size_t rel_idx = w_idx - 1;
+
+    Worker* workers = worker->AllWorkers();
+    const size_t num_workers = 1 + workers->NumThreads();
+
+    // Leaders (the first worker of each group) wait for all others in their
+    // group before marking themselves.
+    if (rel_idx % kGroupSize == 0) {
+      for (size_t i = w_idx + 1; i < HWY_MIN(w_idx + kGroupSize, num_workers);
+           ++i) {
+        // No + 1 here: i is derived from w_idx which is the actual index.
+        (void)spin.UntilEqual(epoch, workers[i].Barrier());
       }
     }
     worker->StoreBarrier(epoch);
@@ -757,7 +774,7 @@ class BarrierGroup {
   void UntilReached(size_t num_threads, const Worker* workers, const Spin& spin,
                     uint32_t epoch) const {
     for (size_t i = 0; i < num_threads; i += kGroupSize) {
-      (void)spin.UntilEqual(epoch, workers[i].Barrier());
+      (void)spin.UntilEqual(epoch, workers[1 + i].Barrier());
     }
   }
 };
@@ -880,7 +897,9 @@ HWY_INLINE void CallWithSpinBarrier(const Config& config, Func&& func) {
 
 class MainAdapter {
  public:
-  MainAdapter(Worker* main, const Tasks* tasks) : main_(main), tasks_(tasks) {}
+  MainAdapter(Worker* main, const Tasks* tasks) : main_(main), tasks_(tasks) {
+    HWY_DASSERT(main_ == main->AllWorkers());  // main is first.
+  }
 
   void SetEpoch(uint32_t epoch) { epoch_ = epoch; }
 
@@ -940,7 +959,7 @@ class WorkerAdapter {
       BarrierType>()>
   operator()(const Spin& spin, const Param2& wait_or_barrier) const {
     // Use tag dispatch to work around template argument deduction error with
-    // MSVC 2019
+    // MSVC 2019.
 
     constexpr size_t kType =
         hwy::IsSame<
@@ -948,7 +967,7 @@ class WorkerAdapter {
             WaitType>() ? 1 : 2;
 
     // Using this->CallImpl below ensures that WorkerAdapter::CallImpl is
-    // selected and avoids unwanted argument dependent lookup
+    // selected and avoids unwanted argument dependent lookup.
     this->CallImpl(hwy::SizeTag<kType>(), spin, wait_or_barrier);
   }
 
@@ -970,11 +989,12 @@ class ThreadFunc {
   }
 
   HWY_POOL_PROFILE void operator()() {
-    SetThreadName("worker%03zu", static_cast<int>(worker_->Index()));
-
     // Ensure main thread's writes are visible (synchronizes with fence in
     // `WorkerLifecycle::Init`).
     std::atomic_thread_fence(std::memory_order_acquire);
+
+    HWY_DASSERT(worker_->Index() != 0);  // main is 0
+    SetThreadName("worker%03zu", static_cast<int>(worker_->Index() - 1));
 
     // Initialization must match pre-increment in `MainAdapter::SetEpoch`.
     // Loop termination is triggered by `~ThreadPool`.
@@ -1043,10 +1063,11 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
   explicit ThreadPool(size_t num_threads)
       : have_timer_stop_(platform::HaveTimerStop(cpu100_)),
         num_threads_(ClampedNumThreads(num_threads)),
-        div_workers_(num_threads_ + 1),
+        div_workers_(1 + num_threads_),
         workers_(pool::WorkerLifecycle::Init(worker_bytes_, num_threads_,
                                              div_workers_)),
-        main_adapter_(workers_ + num_threads_, &tasks_) {
+        // Assign main thread the first worker slot (it used to be the last).
+        main_adapter_(workers_ + 0, &tasks_) {
     // Leaves the default wait mode as `kBlock`, which means futex, because
     // spinning only makes sense when threads are pinned and wake latency is
     // important, so it must explicitly be requested by calling `SetWaitMode`.
@@ -1060,7 +1081,7 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
     threads_.reserve(num_threads_);
     for (size_t thread = 0; thread < num_threads_; ++thread) {
       threads_.emplace_back(
-          pool::ThreadFunc(workers_ + thread, &tasks_, config_));
+          pool::ThreadFunc(workers_ + 1 + thread, &tasks_, config_));
     }
 
     // No barrier is required here because wakeup works regardless of the
@@ -1231,6 +1252,7 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
       HWY_DASSERT(task == worker);  // one task per worker
       workers_[worker].LatchConfig(copy);
     };
+
     tasks_.Set(0, NumWorkers(), closure);
     // Same config as workers are *currently* using.
     main_adapter_.SetEpoch(++epoch_);
