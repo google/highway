@@ -1,0 +1,308 @@
+permissions: read-all
+name: Meson build / test
+on: [push, pull_request]
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  meson_setup_args: -Dwarning_level=2 -Dbuildtype=debugoptimized
+
+jobs:
+  meson_ubuntu_jammy_x86_64:
+    name: Meson build and test ${{ matrix.compiler }} (C++${{ matrix.cxx_standard }}) on Jammy x86_64
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        compiler: [Clang-15, GCC-12]
+        cxx_standard: [11, 20]
+        include:
+          - compiler: Clang-15
+            extra_deps: clang-15
+            c_compiler: clang-15
+            cxx_compiler: clang++-15
+            cxx_flags: -DHWY_DISABLED_TARGETS=0x59d8  # disable every x86 target except AVX2
+
+          - compiler: GCC-12
+            extra_deps: g++-12
+            c_compiler: gcc-12
+            cxx_compiler: g++-12
+            cxx_flags: -ftrapv -DHWY_DISABLED_TARGETS=0x59d8 
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit  # cannot be block - runner does git checkout
+
+      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.0.0
+
+        # meson on jammy is at version 0.61.2, so install through pipx
+      - name: Install build requirements
+        run: pipx install meson
+
+      - name: Install deps
+        run: sudo apt-get install libgtest-dev ${{ matrix.extra_deps }}
+
+      - name: Configure Build
+        run: meson setup out -Dwerror=true -Dcpp_std=c++${{ matrix.cxx_standard }} ${{env.meson_setup_args}} ${{ matrix.extra_setup_args }}
+        env:
+          CXX: ${{matrix.cxx_compiler}}
+          CC: ${{matrix.c_compiler}}
+          CXXFLAGS: ${{ matrix.cxx_flags }}
+
+      - name: Report Targets
+        run: |
+          meson compile -C out hwy_list_targets
+          out/hwy_list_targets
+
+      - name: Build
+        run: meson compile -C out -j 2 -v
+
+      - name: Test
+        run: meson test -C out -j 2 --print-errorlogs
+
+  meson_ubuntu_noble_x86_64:
+    name: Meson build and test ${{ matrix.compiler }} (C++${{ matrix.cxx_standard }}) on Noble x86_64
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        compiler: [Clang-18, GCC-13]
+        cxx_standard: [17, 23]
+        include:
+            - compiler: Clang-18
+              extra_deps: clang-18
+              c_compiler: clang-18
+              cxx_compiler: clang++-18
+              cxx_flags: -DHWY_DISABLED_TARGETS=0x59d8
+            
+            - compiler: GCC-13
+              c_compiler: gcc-13
+              cxx_compiler: g++-13
+              cxx_flags: -ftrapv -DHWY_DISABLED_TARGETS=0x59d8
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit  # cannot be block - runner does git checkout
+
+      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.0.0
+
+        # meson on noble is at 1.3.2
+      - name: Install deps
+        run: sudo apt-get install ninja-build meson libgtest-dev ${{ matrix.extra_deps }}
+
+      - name: Configure Build
+        run: meson setup out -Dcpp_std=c++${{ matrix.cxx_standard }} ${{env.meson_setup_args}} ${{ matrix.extra_setup_args }}
+        env:
+          CXX: ${{matrix.cxx_compiler}}
+          CC: ${{matrix.c_compiler}}
+          CXXFLAGS: ${{ matrix.cxx_flags }}
+
+      - name: Report Targets
+        run: |
+          meson compile -C out hwy_list_targets
+          out/hwy_list_targets
+
+      - name: Build
+        run: meson compile -C out -j 2 -v
+
+      - name: Test
+        run: meson test -C out -j 2 --print-errorlogs
+
+  meson_ubuntu_noble_arm:
+    name: Meson build and test ${{ matrix.compiler }} (C++${{ matrix.cxx_standard}}) on Noble AArch64
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      matrix:
+        compiler: [Clang-18, GCC-14]
+        cxx_standard: [17]
+        include:
+          - compiler: Clang-18
+            extra_deps: clang-18
+            c_compiler: clang-18
+            cxx_compiler: clang++-18
+            cxx_flags: -DHWY_DISABLED_TARGETS=0x318c0000  # Only target HWY_NEON_BF16
+
+          - compiler: GCC-14
+            extra_deps: g++-14
+            c_compiler: gcc-14
+            cxx_compiler: g++-14
+            cxx_flags: -ftrapv -DHWY_DISABLED_TARGETS=0x318c0000  # Only target HWY_NEON_BF16
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit  # cannot be block - runner does git checkout
+
+      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.0.0
+
+      - name: Install deps
+        run: sudo apt-get install ninja-build meson libgtest-dev ${{ matrix.extra_deps }}
+
+      - name: Configure Build
+        run: meson setup out -Dcpp_std=c++${{ matrix.cxx_standard }} ${{env.meson_setup_args}} ${{ matrix.extra_setup_args }}
+        env:
+          CXX: ${{matrix.cxx_compiler}}
+          CC: ${{matrix.c_compiler}}
+          CXXFLAGS: ${{ matrix.cxx_flags }}
+      
+      - name: Report Targets
+        run: |
+          meson compile -C out hwy_list_targets
+          out/hwy_list_targets
+
+      - name: Build
+        run: meson compile -C out -j 2 -v
+
+      - name: Test
+        run: meson test -C out -j 2 --print-errorlogs
+
+  meson_macos:
+    name: Meson build and test ${{ matrix.compiler }} (C++${{ matrix.cxx_standard }}) on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    strategy:
+      matrix:
+        include:
+
+          - os: macos-15
+            compiler: AppleLLVM
+            c_compiler: clang
+            cxx_compiler: clang++
+            cxx_flags: -DHWY_DISABLED_TARGETS=0x258c0000  # only target NEON
+            cxx_standard: 17
+
+          - os: macos-13
+            compiler: AppleLLVM
+            c_compiler: clang
+            cxx_compiler: clang++
+            cxx_flags: -DHWY_DISABLED_TARGETS=0x59d8  # only target AVX2
+            cxx_standard: 17
+
+          - os: macos-15
+            compiler: LLVM
+            extra_deps: llvm@20 lld@20
+            c_compiler: $(brew --prefix llvm@20)/bin/clang
+            cxx_compiler: $(brew --prefix llvm@20)/bin/clang++
+            cxx_flags: -DHWY_DISABLED_TARGETS=0x258c0000  # only target NEON
+            cxx_standard: 17
+
+          - os: macos-13
+            compiler: LLVM
+            extra_deps: llvm@20 lld@20
+            c_compiler: $(brew --prefix llvm@20)/bin/clang
+            cxx_compiler: $(brew --prefix llvm@20)/bin/clang++
+            extra_setup_args: -Ddisable_futex=True
+            cxx_flags: -DHWY_DISABLED_TARGETS=0x59d8  # only target AVX2
+            cxx_standard: 17
+            
+          - os: macos-15
+            compiler: GNU
+            extra_deps: gcc@15
+            c_compiler: gcc-15
+            cxx_compiler: g++-15
+            cxx_flags: -DHWY_DISABLED_TARGETS=0x258c0000  # only target NEON
+            cxx_standard: 17
+            
+          - os: macos-13
+            compiler: GNU
+            extra_deps: gcc@15
+            c_compiler: gcc-15
+            cxx_compiler: g++-15
+            cxx_flags: -DHWY_DISABLED_TARGETS=0x59d8  # only target AVX2
+            cxx_standard: 17
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit  # cannot be block - runner does git checkout
+
+      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.0.0
+
+      - name: Install deps
+        run: |
+            brew install meson ${{ matrix.extra_deps }}
+
+      - name: Configure Build
+        run: |
+            export CC=${{ matrix.c_compiler }}
+            export CXX=${{ matrix.cxx_compiler }}
+            meson setup out -Dcpp_std=c++${{ matrix.cxx_standard }} ${{env.meson_setup_args}} ${{ matrix.extra_setup_args }}
+        env:
+          CXXFLAGS: ${{ matrix.cxx_flags }}
+      
+      - name: Report Targets
+        run: |
+          meson compile -C out hwy_list_targets
+          out/hwy_list_targets
+
+      - name: Build
+        run: meson compile -C out -j 2 -v
+
+      - name: Test
+        run: meson test -C out -j 2 --print-errorlogs
+
+  meson_win:
+    name: Meson build and test ${{ matrix.compiler }} (C++${{matrix.cxx_standard}}) on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    strategy:
+      matrix:
+        include:
+          # these compilers currently default to what is installed on the runner images
+          - os: windows-2022
+            compiler: LLVM  # @ 20.1.8
+            c_compiler: clang-cl
+            cxx_compiler: clang-cl
+            extra_setup_args: -Dvsenv=true
+            cxx_flags: /DHWY_DISABLED_TARGETS=0x59d8
+            cxx_standard: 17
+
+          - os: windows-2022
+            compiler: MSVC  # @ 17.14.36015.10
+            c_compiler: cl
+            cxx_compiler: cl
+            extra_setup_args: -Dvsenv=true -Dcontrib=disabled  # MSVC usually chokes on compiling vqsort on CI
+            cxx_flags: /DHWY_DISABLED_TARGETS=0x59d8
+            cxx_standard: 17
+          
+          - os: windows-11-arm
+            compiler: LLVM  # @ 20.1.8
+            c_compiler: clang-cl
+            cxx_compiler: clang-cl
+            extra_setup_args: -Dvsenv=true
+            cxx_standard: 17
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit  # cannot be block - runner does git checkout
+
+      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.0.0
+
+        # update the meson gtest wrap because we're going to use a c++17 standard
+      - name: Install deps
+        run: |
+            pipx install meson
+
+      - name: Configure Build
+        run: meson setup out -Dcpp_std=c++${{ matrix.cxx_standard }} ${{env.meson_setup_args}} ${{ matrix.extra_setup_args }}
+        env:
+          CXX: ${{matrix.cxx_compiler}}
+          CC: ${{matrix.c_compiler}}
+          CXXFLAGS: ${{ matrix.cxx_flags }}
+          
+      - name: Report Targets
+        run: |
+          meson compile -C out hwy_list_targets
+          out\hwy_list_targets
+
+      - name: Build
+        run: meson compile -C out -j 2 -v
+
+      - name: Test
+        run: meson test -C out -j 2 --print-errorlogs
