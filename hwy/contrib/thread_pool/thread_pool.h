@@ -995,6 +995,7 @@ class ThreadFunc {
 
     HWY_DASSERT(worker_->Index() != 0);  // main is 0
     SetThreadName("worker%03zu", static_cast<int>(worker_->Index() - 1));
+    hwy::Profiler::InitThread();
 
     // Initialization must match pre-increment in `MainAdapter::SetEpoch`.
     // Loop termination is triggered by `~ThreadPool`.

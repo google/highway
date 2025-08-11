@@ -31,6 +31,7 @@
 #include "hwy/base.h"  // PopCount
 #include "hwy/contrib/thread_pool/spin.h"
 #include "hwy/contrib/thread_pool/topology.h"
+#include "hwy/profiler.h"
 #include "hwy/tests/hwy_gtest.h"
 #include "hwy/tests/test_util-inl.h"  // AdjustedReps
 
@@ -238,10 +239,10 @@ TEST(ThreadPoolTest, TestWaiter) {
 
   // Not actual threads, but we allocate and loop over this many workers.
   for (size_t num_threads = 1; num_threads < 6; ++num_threads) {
-    const Divisor64 div_workers(1 + num_threads);
-    auto storage = hwy::AllocateAligned<uint8_t>(div_workers.GetDivisor() *
-                                                 sizeof(Worker));
+    const size_t num_workers = 1 + num_threads;
+    auto storage = hwy::AllocateAligned<uint8_t>(num_workers * sizeof(Worker));
     HWY_ASSERT(storage);
+    const Divisor64 div_workers(num_workers);
 
     for (WaitType wait_type :
          {WaitType::kBlock, WaitType::kSpin1, WaitType::kSpinSeparate}) {
@@ -253,16 +254,18 @@ TEST(ThreadPoolTest, TestWaiter) {
 
       // This thread acts as the "main thread", which will wake the actual main
       // and all its worker instances.
-      std::thread thread(
-          [&]() { CallWithConfig(config, DoWakeWorkers(workers, epoch)); });
+      std::thread thread([&]() {
+        hwy::Profiler::InitThread();
+        CallWithConfig(config, DoWakeWorkers(workers, epoch));
+      });
 
       // main is 0
-      for (size_t worker = 1; worker < div_workers.GetDivisor(); ++worker) {
+      for (size_t worker = 1; worker < num_workers; ++worker) {
         CallWithConfig(config, DoWait(workers + 1, epoch));
       }
       thread.join();
 
-      pool::WorkerLifecycle::Destroy(workers, div_workers.GetDivisor());
+      pool::WorkerLifecycle::Destroy(workers, num_workers);
     }
   }
 }

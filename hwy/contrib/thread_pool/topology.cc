@@ -224,23 +224,19 @@ HWY_CONTRIB_DLLEXPORT size_t TotalLogicalProcessors() {
 #endif
 
   if (HWY_UNLIKELY(total_lps == 0)) {  // Failed to detect.
-    HWY_IF_CONSTEXPR(HWY_IS_DEBUG_BUILD) {
-      HWY_WARN(
-          "Unknown TotalLogicalProcessors, assuming 1. "
-          "HWY_OS_: WIN=%d LINUX=%d APPLE=%d;\n"
-          "HWY_ARCH_: WASM=%d X86=%d PPC=%d ARM=%d RISCV=%d S390X=%d\n",
-          HWY_OS_WIN, HWY_OS_LINUX, HWY_OS_APPLE, HWY_ARCH_WASM, HWY_ARCH_X86,
-          HWY_ARCH_PPC, HWY_ARCH_ARM, HWY_ARCH_RISCV, HWY_ARCH_S390X);
-    }
+    HWY_WARN(
+        "Unknown TotalLogicalProcessors, assuming 1. "
+        "HWY_OS_: WIN=%d LINUX=%d APPLE=%d;\n"
+        "HWY_ARCH_: WASM=%d X86=%d PPC=%d ARM=%d RISCV=%d S390X=%d\n",
+        HWY_OS_WIN, HWY_OS_LINUX, HWY_OS_APPLE, HWY_ARCH_WASM, HWY_ARCH_X86,
+        HWY_ARCH_PPC, HWY_ARCH_ARM, HWY_ARCH_RISCV, HWY_ARCH_S390X);
     return 1;
   }
 
   // Warn that we are clamping.
   if (HWY_UNLIKELY(total_lps > kMaxLogicalProcessors)) {
-    HWY_IF_CONSTEXPR(HWY_IS_DEBUG_BUILD) {
-      HWY_WARN("OS reports %zu processors but clamping to %zu\n", total_lps,
-               kMaxLogicalProcessors);
-    }
+    HWY_WARN("OS reports %zu processors but clamping to %zu\n", total_lps,
+             kMaxLogicalProcessors);
     total_lps = kMaxLogicalProcessors;
   }
 
@@ -374,9 +370,7 @@ class File {
       if (fd_ > 0) return;           // success
       if (errno == EINTR) continue;  // signal: retry
       if (errno == ENOENT) return;   // not found, give up
-      if (HWY_IS_DEBUG_BUILD) {
-        HWY_WARN("Unexpected error opening %s: %d\n", path, errno);
-      }
+      HWY_WARN("Unexpected error opening %s: %d\n", path, errno);
       return;  // unknown error, give up
     }
   }
@@ -387,9 +381,7 @@ class File {
         const int ret = close(fd_);
         if (ret == 0) break;           // success
         if (errno == EINTR) continue;  // signal: retry
-        if (HWY_IS_DEBUG_BUILD) {
-          HWY_WARN("Unexpected error closing file: %d\n", errno);
-        }
+        HWY_WARN("Unexpected error closing file: %d\n", errno);
         return;  // unknown error, ignore
       }
     }
@@ -408,9 +400,7 @@ class File {
       }
       if (bytes_read == -1) {
         if (errno == EINTR) continue;  // signal: retry
-        if (HWY_IS_DEBUG_BUILD) {
-          HWY_WARN("Unexpected error reading file: %d\n", errno);
-        }
+        HWY_WARN("Unexpected error reading file: %d\n", errno);
         return 0;
       }
       pos += static_cast<size_t>(bytes_read);

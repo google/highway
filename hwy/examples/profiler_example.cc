@@ -14,7 +14,8 @@
 
 #include <cmath>
 
-#include "hwy/base.h"  // Abort
+#include "hwy/base.h"           // Abort
+#include "hwy/cache_control.h"  // Pause
 #include "hwy/contrib/thread_pool/thread_pool.h"
 #include "hwy/profiler.h"
 #include "hwy/timer.h"
@@ -22,9 +23,10 @@
 namespace hwy {
 namespace {
 
-void Spin(const double min_time) {
+HWY_INLINE void Spin(const double min_time) {
   const double t0 = hwy::platform::Now();
   for (;;) {
+    hwy::Pause();
     const double elapsed = hwy::platform::Now() - t0;
     if (elapsed > min_time) {
       break;
@@ -43,6 +45,7 @@ HWY_NOINLINE void Spin20us() {
 }
 
 HWY_NOINLINE void CallTwoSpin() {
+  PROFILER_ZONE("NearZeroBecauseOfChildZones");
   {
     PROFILER_ZONE("spin30");
     Spin(30E-6);
@@ -53,8 +56,9 @@ HWY_NOINLINE void CallTwoSpin() {
   }
 }
 
-HWY_NOINLINE void Compute(HWY_MAYBE_UNUSED size_t thread) {
-  PROFILER_ZONE2(static_cast<uint8_t>(thread), "Compute");
+HWY_NOINLINE void Compute(Profiler& p, HWY_MAYBE_UNUSED size_t thread) {
+  static const auto zone = p.AddZone("Compute");
+  PROFILER_ZONE3(p, static_cast<uint8_t>(thread), zone);
   for (int rep = 0; rep < 100; ++rep) {
     double total = 0.0;
     for (int i = 0; i < 200 - rep; ++i) {
@@ -66,49 +70,55 @@ HWY_NOINLINE void Compute(HWY_MAYBE_UNUSED size_t thread) {
   }
 }
 
-HWY_NOINLINE void TestThreads() {
-  PROFILER_ZONE("Create pools and run");
+HWY_NOINLINE void TestThreads(Profiler& p) {
+  PROFILER_ZONE("NearZeroBecauseOfThreadedChildZones");
   {
+    PROFILER_ZONE("Create pool1");
     ThreadPool pool(3);
-    pool.Run(0, 5, [](uint64_t /*task*/, HWY_MAYBE_UNUSED size_t thread) {
-      Compute(thread);
+    pool.Run(0, 5, [&p](uint64_t /*task*/, HWY_MAYBE_UNUSED size_t thread) {
+      Compute(p, thread);
     });
   }
 
   {
+    PROFILER_ZONE("Create pool2");
     ThreadPool pool(8);
-    pool.Run(0, 8, [](uint64_t /*task*/, HWY_MAYBE_UNUSED size_t thread) {
-      Compute(thread);
+    pool.Run(0, 8, [&p](uint64_t /*task*/, HWY_MAYBE_UNUSED size_t thread) {
+      Compute(p, thread);
     });
   }
 }
 
-HWY_NOINLINE void CallPlus20us() {
+HWY_NOINLINE void CallTestThreadPlus20us(Profiler& p) {
   PROFILER_FUNC;
-  TestThreads();
+  TestThreads(p);
   Spin(20E-6);
 }
 
-HWY_NOINLINE void CallPlus10us() {
+HWY_NOINLINE void CallCallTestThreadPlus10us(Profiler& p) {
   PROFILER_FUNC;
-  CallPlus20us();
+  CallTestThreadPlus20us(p);
   Spin(10E-6);
 }
 
-void ProfilerExample() {
+void ProfilerExample(Profiler& p) {
+  PROFILER_ZONE("NearZeroDespiteInclusiveChildZone");
   {
-    Spin10us();
+    static const auto zone =
+        p.AddZone("Inclusive 10+20", ProfilerFlags::kInclusive);
+    PROFILER_ZONE3(p, 0, zone);
     Spin20us();
-    CallTwoSpin();
-    CallPlus10us();
+    Spin10us();
   }
-  PROFILER_PRINT_RESULTS();
+  CallTwoSpin();
+  CallCallTestThreadPlus10us(p);
 }
 
 }  // namespace
 }  // namespace hwy
 
 int main(int /*argc*/, char* /*argv*/[]) {
-  hwy::ProfilerExample();
+  hwy::ProfilerExample(hwy::Profiler::Get());
+  PROFILER_PRINT_RESULTS();  // after all zones have exited
   return 0;
 }
