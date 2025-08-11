@@ -34,8 +34,6 @@ pkg = import('pkgconfig')
 have_emscripten = cpp.has_define('__EMSCRIPTEN__')
 have_riscv = cpp.has_define('__riscv')
 
-support_lsx_flag = false
-support_lasx_flag = false
 if 'loongarch' in host_machine.cpu_family()
     if get_option('lsx') and cpp.has_define('__loongarch_sx', args: '-mlsx')
         hwy_cpp_args += '-mlsx'
@@ -71,7 +69,7 @@ if not cpp.compiles(atomic_code)
 endif
 
 
-riscv_xlen = 0
+riscv_xlen = ''
 if have_riscv or 'riscv' in host_machine.cpu_family()
     riscv_xlen = cpp.get_define('__riscv_xlen')
     if riscv_xlen == ''
@@ -318,7 +316,6 @@ endif
 
 have_sys_auxv_h = cpp.has_header('sys/auxv.h')
 have_asm_hwcap_h = cpp.has_header('asm/hwcap.h')
-toolchain_args = []
 if not have_sys_auxv_h
     hwy_cpp_args += '-DTOOLCHAIN_MISS_SYS_AUXV_H'
 endif
@@ -349,7 +346,6 @@ hwy_lib = library(
     'hwy',
     hwy_sources,
     dependencies: atomic_dep,
-    cpp_args: toolchain_args,
     cpp_shared_args: hwy_shared_export_args,
     cpp_static_args: hwy_static_args,
     link_args: lib_link_args,
