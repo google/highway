@@ -2470,12 +2470,13 @@ HWY_API VFromD<D> LoadDup128(D d, const TFromD<D>* HWY_RESTRICT p) {
 #define HWY_NATIVE_STORE_TRUNCATED
 #endif
 
-#define HWY_SVE_STORE_TRUNCATED(BASE, CHAR, BITS, HALF, NAME, OP, TO_BITS)    \
-  template <size_t N, int kPow2>                                              \
-  HWY_API void NAME(HWY_SVE_V(BASE, BITS) v,                                  \
-                    const HWY_SVE_D(BASE, BITS, N, kPow2) d,                  \
-                    HWY_SVE_T(BASE, TO_BITS) * HWY_RESTRICT p) {              \
-    sv##OP##_##CHAR##BITS(detail::PTrue(d), detail::NativeLanePointer(p), v); \
+#define HWY_SVE_STORE_TRUNCATED(BASE, CHAR, BITS, HALF, NAME, OP, TO_BITS)   \
+  template <size_t N, int kPow2>                                             \
+  HWY_API void NAME(HWY_SVE_V(BASE, BITS) v,                                 \
+                    const HWY_SVE_D(BASE, BITS, N, kPow2) d,                 \
+                    HWY_SVE_T(BASE, TO_BITS) * HWY_RESTRICT p) {             \
+    sv##OP##_##CHAR##BITS(detail::MakeMask(d), detail::NativeLanePointer(p), \
+                          v);                                                \
   }
 
 #define HWY_SVE_STORE_TRUNCATED_BYTE(BASE, CHAR, BITS, HALF, NAME, OP) \
