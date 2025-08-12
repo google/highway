@@ -115,6 +115,12 @@ class ZoneHandle {
     return (bits_ & static_cast<uint32_t>(ProfilerFlags::kInclusive)) != 0;
   }
 
+  // Returns a mask to zero/ignore child totals for inclusive zones.
+  uint64_t ChildTotalMask() const {
+    // Without this function, clang tends to generate a branch.
+    return IsInclusive() ? 0 : ~uint64_t{0};
+  }
+
  private:
   uint32_t bits_;
 };
@@ -421,62 +427,53 @@ static_assert(sizeof(Overheads) == 16, "Wrong Overheads size");
 // Reacts to zone enter/exit events. Builds a stack of active zones and
 // accumulates self/child duration for each.
 class ZoneSummarizer {
-  // Used to deduct child duration from parent's self time (unless inclusive).
-  struct Active {
-    uint64_t t_enter;
-    uint32_t thread;
-    ZoneHandle zone;
-    uint64_t child_total = 0;
-  };
-  static_assert(sizeof(Active) == 24, "Wrong Active size");
-
  public:
   template <typename T>
   static T ClampedSubtract(const T minuend, const T subtrahend) {
-    if (subtrahend > minuend) {
-      return 0;
-    }
-    return minuend - subtrahend;
+    static_assert(IsUnsigned<T>(), "");
+    const T difference = minuend - subtrahend;
+    // Clang output for this is verified to CMOV rather than branch.
+    const T no_underflow = (subtrahend > minuend) ? T{0} : ~T{0};
+    return difference & no_underflow;
   }
 
   void SetOverheads(const Overheads& overheads) { overheads_ = overheads; }
 
-  // Entering a zone: push on to stack.
-  void Enter(const size_t thread, const ZoneHandle zone,
-             const uint64_t timestamp) {
-    HWY_DASSERT(depth_ < kMaxDepth);
-    active_[depth_].thread = static_cast<uint32_t>(thread);
-    active_[depth_].zone = zone;
-    active_[depth_].t_enter = timestamp;
-    active_[depth_].child_total = 0;
-    ++depth_;
-    any_ = 1;
+  // Entering a zone: push onto stack.
+  void Enter(const uint64_t timestamp) {
+    const size_t depth = depth_;
+    HWY_DASSERT(depth < kMaxDepth);
+    t_enter_[depth] = timestamp;
+    child_total_[1 + depth] = 0;
+    depth_ = 1 + depth;
+    HWY_IF_CONSTEXPR(HWY_IS_DEBUG_BUILD) { any_ = 1; }
   }
 
   // Exiting the most recently entered zone (top of stack).
-  void Exit(const uint64_t t_exit) {
+  void Exit(const ZoneHandle zone, const uint64_t t_exit) {
     HWY_DASSERT(depth_ > 0);
-    const Active& node = active_[depth_ - 1];
-    const ZoneHandle zone = node.zone;
+    const size_t depth = depth_ - 1;
     const size_t zone_idx = zone.ZoneIdx();
+    const uint64_t duration = t_exit - t_enter_[depth];
+    // Clang output for this is verified not to branch. This is 0 if inclusive,
+    // otherwise the child total.
+    const uint64_t child_total =
+        child_total_[1 + depth] & zone.ChildTotalMask();
 
-    const uint64_t duration = t_exit - node.t_enter;
-    const uint64_t child_total = zone.IsInclusive() ? 0 : node.child_total;
     const uint64_t self_duration = ClampedSubtract(
         duration, overheads_.self + overheads_.child + child_total);
     zones_[zone_idx].Add(zone, self_duration);
     // For faster Assimilate() - not all zones are encountered.
     visited_zones_.Set(zone_idx);
-    --depth_;
 
-    // Adding this nested node's time to the parent's `child_total` will
+    // Adding this nested time to the parent's `child_total` will
     // cause it to be later subtracted from the parent's `self_duration`.
-    if (HWY_LIKELY(depth_ != 0)) {
-      active_[depth_ - 1].child_total += duration + overheads_.child;
-    }
+    child_total_[1 + depth - 1] += duration + overheads_.child;
+
+    depth_ = depth;
   }
 
-  bool HadAnyZones() const { return any_ != 0; }
+  bool HadAnyZones() const { return HWY_IS_DEBUG_BUILD ? (any_ != 0) : false; }
 
   // Returns the duration of one enter/exit pair and resets all state. Called
   // via `DetectSelfOverhead`.
@@ -510,15 +507,21 @@ class ZoneSummarizer {
 
  private:
   // 48 bytes:
-  uint64_t depth_ = 0;     // Number of currently active zones in `nodes_`.
+  uint64_t depth_ = 0;     // Current nesting level for active zones.
   ZoneSet visited_zones_;  // Which `zones_` have been active on this thread.
   Overheads overheads_;
   uint64_t any_ = 0;
 
-  Active active_[kMaxDepth];      // 768 bytes
-  Accumulator zones_[kMaxZones];  // 2048 bytes
+  uint64_t t_enter_[kMaxDepth];
+  // Used to deduct child duration from parent's self time (unless inclusive).
+  // Shifting by one avoids bounds-checks for depth_ = 0 (root zone).
+  uint64_t child_total_[1 + kMaxDepth] = {0};
+  Accumulator zones_[kMaxZones];
+  // Enables shift rather than multiplication.
+  HWY_MAYBE_UNUSED uint8_t padding[4096 - 48 - sizeof(t_enter_) -
+                                   sizeof(child_total_) - sizeof(zones_)];
 };
-static_assert(sizeof(ZoneSummarizer) == 48 + 768 + 2048, "Wrong size");
+static_assert(sizeof(ZoneSummarizer) == 4096, "Wrong size");
 
 }  // namespace profiler
 
@@ -668,20 +671,21 @@ class Zone {
     const uint64_t timestamp = timer::Start();
     HWY_FENCE;
     summarizer_ = profiler.Summarizer(thread);
-    summarizer_->Enter(thread, zone, timestamp);
+    zone_ = zone;
+    summarizer_->Enter(timestamp);
     HWY_FENCE;
   }
 
   ~Zone() {
     HWY_FENCE;
     const uint64_t timestamp = timer::Stop();
-    HWY_FENCE;
-    summarizer_->Exit(timestamp);
+    summarizer_->Exit(zone_, timestamp);
     HWY_FENCE;
   }
 
  private:
   ZoneSummarizer* summarizer_;
+  ZoneHandle zone_;
 };
 
 }  // namespace profiler

@@ -2311,6 +2311,11 @@ constexpr bool IsSigned<hwy::K32V32>() {
   return false;
 }
 
+template <typename T>
+HWY_API constexpr bool IsUnsigned() {
+  return IsInteger<T>() && !IsSigned<T>();
+}
+
 template <typename T, bool = IsInteger<T>() && !IsIntegerLaneType<T>()>
 struct MakeLaneTypeIfIntegerT {
   using type = T;
