@@ -28,18 +28,35 @@
 // the name of the current function:
 //   void FuncToMeasure() { PROFILER_FUNC; /*code*/ }.
 // You can reduce the overhead by passing a thread ID:
-//   `PROFILER_ZONE2(thread, name)`. To pass flags, such as requesting
-// inclusive time: `static const auto zone = profiler.AddZone("name", flags);`
-// and then `PROFILER_ZONE3(profiler, thread, zone)`.
+//   `PROFILER_ZONE2(thread, name)`. The new and preferred API also allows
+// passing flags, such as requesting inclusive time:
+// `static const auto zone = profiler.AddZone("name", flags);` and then
+// `PROFILER_ZONE3(profiler, thread, zone)`.
 //
 // After all threads exit all zones, call `Profiler::Get().PrintResults()` to
 // print call counts and average durations [CPU cycles] to stdout, sorted in
 // descending order of total duration.
 
-// If zero, this file has no effect and no measurements will be recorded.
+// If zero, mock `Profiler` and `profiler::Zone` will be defined.
 #ifndef PROFILER_ENABLED
 #define PROFILER_ENABLED 0
 #endif
+
+#if PROFILER_ENABLED
+#include <stdio.h>
+#include <string.h>  // strcmp, strlen
+
+#include <algorithm>  // std::sort
+#include <atomic>
+#include <vector>
+
+#include "hwy/aligned_allocator.h"
+#include "hwy/base.h"
+#include "hwy/bit_set.h"
+#include "hwy/timer.h"
+#endif  // PROFILER_ENABLED
+
+namespace hwy {
 
 // Flags: we want type-safety (enum class) to catch mistakes such as confusing
 // zone with flags. Base type (`uint32_t`) ensures it is safe to cast. Defined
@@ -52,21 +69,7 @@ enum class ProfilerFlags : uint32_t {
   kInclusive = 1
 };
 
-#if PROFILER_ENABLED || HWY_IDE
-
-#include <stdio.h>
-#include <string.h>  // strcmp, strlen
-
-#include <algorithm>  // std::sort
-#include <atomic>
-#include <vector>
-
-#include "hwy/aligned_allocator.h"
-#include "hwy/base.h"
-#include "hwy/bit_set.h"
-#include "hwy/timer.h"
-
-namespace hwy {
+#if PROFILER_ENABLED
 
 // Implementation details.
 namespace profiler {
@@ -99,9 +102,6 @@ class ZoneHandle {
 
   bool operator==(const ZoneHandle other) const { return bits_ == other.bits_; }
   bool operator!=(const ZoneHandle other) const { return bits_ != other.bits_; }
-
-  // TODO(janwas): remove this after user code is updated.
-  operator uint32_t() const { return bits_; }
 
   size_t ZoneIdx() const {
     HWY_DASSERT(bits_ != 0);
@@ -689,15 +689,10 @@ class Zone {
 };
 
 }  // namespace profiler
-}  // namespace hwy
 #else   // profiler disabled: stub implementation
 
-namespace hwy {
 namespace profiler {
-struct ZoneHandle {
-  // TODO(janwas): remove this after user code is updated.
-  operator uint32_t() const { return 0; }
-};
+struct ZoneHandle {};
 }  // namespace profiler
 
 struct Profiler {
@@ -725,8 +720,9 @@ struct Zone {
 };
 
 }  // namespace profiler
-}  // namespace hwy
 #endif  // PROFILER_ENABLED || HWY_IDE
+
+}  // namespace hwy
 
 // Creates a `Zone` lvalue with a line-dependent name, which records the elapsed
 // time from here until the end of the current scope. `p` is from
@@ -751,10 +747,13 @@ struct Zone {
 #define PROFILER_ZONE(name) PROFILER_ZONE2(hwy::Profiler::Thread(), name)
 #define PROFILER_FUNC PROFILER_FUNC2(hwy::Profiler::Thread())
 
-// DEPRECATED: Use `Profiler::Get()` directly instead.
+// DEPRECATED: Use `hwy::Profiler::Get()` directly instead.
 #define PROFILER_ADD_ZONE(name) hwy::Profiler::Get().AddZone(name)
 #define PROFILER_IS_ROOT_RUN() hwy::Profiler::Get().IsRootRun()
 #define PROFILER_END_ROOT_RUN() hwy::Profiler::Get().EndRootRun()
 #define PROFILER_PRINT_RESULTS() hwy::Profiler::Get().PrintResults()
+
+// TODO(janwas): remove this after user code is updated.
+using ::hwy::ProfilerFlags;
 
 #endif  // HIGHWAY_HWY_PROFILER_H_
