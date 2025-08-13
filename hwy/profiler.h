@@ -76,13 +76,15 @@ namespace profiler {
 
 HWY_INLINE_VAR constexpr size_t kNumFlags = 1;
 
-// Upper bounds for fixed-size data structures, guarded via HWY_DASSERT.
-HWY_INLINE_VAR constexpr size_t kMaxDepth = 32;  // Maximum nesting of zones.
-// Chosen such that `zone` (including flags) can be written as a u8.
+// Upper bounds for fixed-size data structures, guarded via HWY_DASSERT:
+
+// Maximum nesting of zones, chosen such that PerThread is 256 bytes.
+HWY_INLINE_VAR constexpr size_t kMaxDepth = 13;
+// Reports with more than ~50 are anyway difficult to read.
 HWY_INLINE_VAR constexpr size_t kMaxZones = 128;
 // Upper bound on threads that call `InitThread`, and `thread` arguments. Note
-// that fiber libraries can spawn hundreds of threads.
-HWY_INLINE_VAR constexpr size_t kMaxThreads = 256;  // enough for 2x Turin cores
+// that fiber libraries can spawn hundreds of threads. Enough for Turin cores.
+HWY_INLINE_VAR constexpr size_t kMaxThreads = 256;
 
 // Type-safe wrapper for zone index plus flags, returned by `AddZone`.
 class ZoneHandle {
@@ -419,14 +421,33 @@ class Results {
 // with frequency throttling disabled, this has a multimodal distribution,
 // including 32, 34, 48, 52, 59, 62.
 struct Overheads {
-  uint64_t self = 0;
-  uint64_t child = 0;
+  uint32_t self = 0;
+  uint32_t child = 0;
 };
-static_assert(sizeof(Overheads) == 16, "Wrong Overheads size");
+static_assert(sizeof(Overheads) == 8, "Wrong Overheads size");
+
+class Accumulators {
+  // We generally want to group threads together because they are often
+  // accessed together during a zone, but also want to avoid threads sharing a
+  // cache line. Hence interleave 8 zones per thread.
+  static constexpr size_t kPerLine = HWY_ALIGNMENT / sizeof(Accumulator);
+
+ public:
+  Accumulator& Get(const size_t thread, const size_t zone_idx) {
+    HWY_DASSERT(thread < kMaxThreads);
+    HWY_DASSERT(zone_idx < kMaxZones);
+    const size_t line = zone_idx / kPerLine;
+    const size_t offset = zone_idx % kPerLine;
+    return zones_[(line * kMaxThreads + thread) * kPerLine + offset];
+  }
+
+ private:
+  Accumulator zones_[kMaxZones * kMaxThreads];
+};
 
 // Reacts to zone enter/exit events. Builds a stack of active zones and
 // accumulates self/child duration for each.
-class ZoneSummarizer {
+class PerThread {
  public:
   template <typename T>
   static T ClampedSubtract(const T minuend, const T subtrahend) {
@@ -440,17 +461,18 @@ class ZoneSummarizer {
   void SetOverheads(const Overheads& overheads) { overheads_ = overheads; }
 
   // Entering a zone: push onto stack.
-  void Enter(const uint64_t timestamp) {
+  void Enter(const uint64_t t_enter) {
     const size_t depth = depth_;
     HWY_DASSERT(depth < kMaxDepth);
-    t_enter_[depth] = timestamp;
+    t_enter_[depth] = t_enter;
     child_total_[1 + depth] = 0;
     depth_ = 1 + depth;
     HWY_IF_CONSTEXPR(HWY_IS_DEBUG_BUILD) { any_ = 1; }
   }
 
   // Exiting the most recently entered zone (top of stack).
-  void Exit(const ZoneHandle zone, const uint64_t t_exit) {
+  void Exit(const uint64_t t_exit, const size_t thread, const ZoneHandle zone,
+            Accumulators& accumulators) {
     HWY_DASSERT(depth_ > 0);
     const size_t depth = depth_ - 1;
     const size_t zone_idx = zone.ZoneIdx();
@@ -462,7 +484,7 @@ class ZoneSummarizer {
 
     const uint64_t self_duration = ClampedSubtract(
         duration, overheads_.self + overheads_.child + child_total);
-    zones_[zone_idx].Add(zone, self_duration);
+    accumulators.Get(thread, zone_idx).Add(zone, self_duration);
     // For faster Assimilate() - not all zones are encountered.
     visited_zones_.Set(zone_idx);
 
@@ -477,7 +499,7 @@ class ZoneSummarizer {
 
   // Returns the duration of one enter/exit pair and resets all state. Called
   // via `DetectSelfOverhead`.
-  uint64_t GetFirstDurationAndReset() {
+  uint64_t GetFirstDurationAndReset(size_t thread, Accumulators& accumulators) {
     HWY_DASSERT(depth_ == 0);
 
     HWY_DASSERT(visited_zones_.Count() == 1);
@@ -486,17 +508,19 @@ class ZoneSummarizer {
     HWY_DASSERT(visited_zones_.Get(zone_idx));
     visited_zones_.Clear(zone_idx);
 
-    const uint64_t duration = zones_[zone_idx].duration;
-    zones_[zone_idx] = Accumulator();
+    Accumulator& zone = accumulators.Get(thread, zone_idx);
+    const uint64_t duration = zone.duration;
+    zone = Accumulator();
     return duration;
   }
 
   // Adds all data to `results` and resets it here. Called from the main thread.
-  void MoveTo(const size_t thread, Results& results) {
+  void MoveTo(const size_t thread, Accumulators& accumulators,
+              Results& results) {
     const uint64_t t0 = timer::Start();
 
     visited_zones_.Foreach([&](size_t zone_idx) {
-      results.Assimilate(thread, zone_idx, zones_[zone_idx]);
+      results.Assimilate(thread, zone_idx, accumulators.Get(thread, zone_idx));
     });
     // OK to reset even if we have active zones, because we set `visited_zones_`
     // when exiting the zone.
@@ -506,22 +530,20 @@ class ZoneSummarizer {
   }
 
  private:
-  // 48 bytes:
-  uint64_t depth_ = 0;     // Current nesting level for active zones.
+  // 40 bytes:
   ZoneSet visited_zones_;  // Which `zones_` have been active on this thread.
-  Overheads overheads_;
+  uint64_t depth_ = 0;     // Current nesting level for active zones.
   uint64_t any_ = 0;
+  Overheads overheads_;
 
   uint64_t t_enter_[kMaxDepth];
   // Used to deduct child duration from parent's self time (unless inclusive).
   // Shifting by one avoids bounds-checks for depth_ = 0 (root zone).
   uint64_t child_total_[1 + kMaxDepth] = {0};
-  Accumulator zones_[kMaxZones];
-  // Enables shift rather than multiplication.
-  HWY_MAYBE_UNUSED uint8_t padding[4096 - 48 - sizeof(t_enter_) -
-                                   sizeof(child_total_) - sizeof(zones_)];
 };
-static_assert(sizeof(ZoneSummarizer) == 4096, "Wrong size");
+
+// Enables shift rather than multiplication.
+static_assert(sizeof(PerThread) == 256, "Wrong size");
 
 }  // namespace profiler
 
@@ -609,19 +631,20 @@ class Profiler {
   }
 
   // Only for use by Zone; called from any thread.
-  profiler::ZoneSummarizer* Summarizer(size_t thread) {
+  profiler::PerThread& GetThread(size_t thread) {
     HWY_DASSERT(thread < profiler::kMaxThreads);
-    return &threads_[thread];
+    return threads_[thread];
   }
+  profiler::Accumulators& Accumulators() { return accumulators_; }
 
  private:
-  // Initializes memory, computes self-overhead, and checks timer support.
+  // Sets main thread index, computes self-overhead, and checks timer support.
   Profiler();
 
   // Called from the main thread.
   void UpdateResults() {
     for (size_t thread = 0; thread < max_threads_; ++thread) {
-      threads_[thread].MoveTo(thread, results_);
+      threads_[thread].MoveTo(thread, accumulators_, results_);
     }
 
     // Check that all other threads did not have any zones.
@@ -637,13 +660,15 @@ class Profiler {
   static std::atomic<size_t> s_num_threads;
   size_t max_threads_ = profiler::kMaxThreads;
 
+  std::atomic_flag run_active_ = ATOMIC_FLAG_INIT;
+
   // To avoid locking, each thread has its own working set. We could access this
   // through `thread_local` pointers, but that is slow to read on x86. Because
   // our `ThreadPool` anyway passes a `thread` argument, we can instead pass
   // that through the `PROFILER_ZONE2/PROFILER_ZONE3` macros.
-  hwy::AlignedUniquePtr<profiler::ZoneSummarizer[]> threads_;
+  profiler::PerThread threads_[profiler::kMaxThreads];
 
-  std::atomic_flag run_active_ = ATOMIC_FLAG_INIT;
+  profiler::Accumulators accumulators_;
 
   // Updated by the main thread after the root `ThreadPool::Run` and during
   // `PrintResults`.
@@ -666,25 +691,28 @@ class Zone {
   //   a nested pool's `thread` argument.
   // - obtained from `Profiler::Thread()`, or
   // - 0 if only a single thread is active.
-  Zone(Profiler& profiler, size_t thread, ZoneHandle zone) {
+  Zone(Profiler& profiler, size_t thread, ZoneHandle zone)
+      : profiler_(profiler) {
     HWY_FENCE;
-    const uint64_t timestamp = timer::Start();
+    const uint64_t t_enter = timer::Start();
     HWY_FENCE;
-    summarizer_ = profiler.Summarizer(thread);
+    thread_ = static_cast<uint32_t>(thread);
     zone_ = zone;
-    summarizer_->Enter(timestamp);
+    profiler.GetThread(thread).Enter(t_enter);
     HWY_FENCE;
   }
 
   ~Zone() {
     HWY_FENCE;
-    const uint64_t timestamp = timer::Stop();
-    summarizer_->Exit(zone_, timestamp);
+    const uint64_t t_exit = timer::Stop();
+    profiler_.GetThread(thread_).Exit(t_exit, thread_, zone_,
+                                      profiler_.Accumulators());
     HWY_FENCE;
   }
 
  private:
-  ZoneSummarizer* summarizer_;
+  Profiler& profiler_;
+  uint32_t thread_;
   ZoneHandle zone_;
 };
 
@@ -752,8 +780,5 @@ struct Zone {
 #define PROFILER_IS_ROOT_RUN() hwy::Profiler::Get().IsRootRun()
 #define PROFILER_END_ROOT_RUN() hwy::Profiler::Get().EndRootRun()
 #define PROFILER_PRINT_RESULTS() hwy::Profiler::Get().PrintResults()
-
-// TODO(janwas): remove this after user code is updated.
-using ::hwy::ProfilerFlags;
 
 #endif  // HIGHWAY_HWY_PROFILER_H_

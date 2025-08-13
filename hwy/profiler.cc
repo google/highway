@@ -23,7 +23,6 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "hwy/aligned_allocator.h"
 #include "hwy/base.h"
 #include "hwy/robust_statistics.h"
 #include "hwy/timer.h"
@@ -42,8 +41,7 @@ constexpr bool kPrintOverhead = true;
 /*static*/ std::atomic<size_t> Profiler::s_num_threads{0};
 
 // Detects duration of a zero-length zone: timer plus packet overhead.
-static uint64_t DetectSelfOverhead(Profiler& profiler,
-                                   profiler::ZoneSummarizer& summarizer) {
+static uint64_t DetectSelfOverhead(Profiler& profiler, size_t thread) {
   profiler::Results results;
   const size_t kNumSamples = 25;
   uint32_t samples[kNumSamples];
@@ -58,8 +56,9 @@ static uint64_t DetectSelfOverhead(Profiler& profiler,
             profiler.AddZone("DetectSelfOverhead");
         PROFILER_ZONE3(profiler, /*thread=*/0, zone);
       }
-      durations[idx_duration] =
-          static_cast<uint32_t>(summarizer.GetFirstDurationAndReset());
+      durations[idx_duration] = static_cast<uint32_t>(
+          profiler.GetThread(thread).GetFirstDurationAndReset(
+              thread, profiler.Accumulators()));
     }
     samples[idx_sample] = robust_statistics::Mode(durations, kNumDurations);
   }
@@ -69,8 +68,7 @@ static uint64_t DetectSelfOverhead(Profiler& profiler,
 // Detects average duration of a zero-length zone, after deducting self
 // overhead. This accounts for the delay before/after capturing start/end
 // timestamps, for example due to fence instructions in timer::Start/Stop.
-static uint64_t DetectChildOverhead(Profiler& profiler,
-                                    profiler::ZoneSummarizer& summarizer,
+static uint64_t DetectChildOverhead(Profiler& profiler, size_t thread,
                                     uint64_t self_overhead) {
   // Enough for stable measurements, but only about 50 ms startup cost.
   const size_t kMaxSamples = 30;
@@ -93,12 +91,12 @@ static uint64_t DetectChildOverhead(Profiler& profiler,
       HWY_FENCE;
       // We are measuring the total, not individual zone durations, to include
       // cross-zone overhead.
-      (void)summarizer.GetFirstDurationAndReset();
+      (void)profiler.GetThread(thread).GetFirstDurationAndReset(
+          thread, profiler.Accumulators());
 
       const uint64_t avg_duration = (t1 - t0 + kReps / 2) / kReps;
-      durations[d] =
-          static_cast<uint32_t>(profiler::ZoneSummarizer::ClampedSubtract(
-              avg_duration, self_overhead));
+      durations[d] = static_cast<uint32_t>(
+          profiler::PerThread::ClampedSubtract(avg_duration, self_overhead));
     }
     samples[num_samples] = robust_statistics::Mode(durations, kNumDurations);
     // Overhead is nonzero, but we often measure zero; skip them to prevent
@@ -113,8 +111,6 @@ Profiler::Profiler() {
 
   InitThread();
 
-  threads_ =
-      MakeUniqueAlignedArray<profiler::ZoneSummarizer>(profiler::kMaxThreads);
   char cpu[100];
   if (HWY_UNLIKELY(!platform::HaveTimerStop(cpu))) {
     HWY_ABORT("CPU %s is too old for PROFILER_ENABLED=1, exiting", cpu);
@@ -123,8 +119,9 @@ Profiler::Profiler() {
   profiler::Overheads overheads;
   // WARNING: must pass in Profiler& and use `PROFILER_ZONE3` to avoid calling
   // `Profiler::Get()` here, because that would re-enter the magic static init.
-  overheads.self = DetectSelfOverhead(*this, threads_[0]);
-  overheads.child = DetectChildOverhead(*this, threads_[0], overheads.self);
+  constexpr size_t kThread = 0;
+  overheads.self = DetectSelfOverhead(*this, kThread);
+  overheads.child = DetectChildOverhead(*this, kThread, overheads.self);
   for (size_t thread = 0; thread < profiler::kMaxThreads; ++thread) {
     threads_[thread].SetOverheads(overheads);
   }
