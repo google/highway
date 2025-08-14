@@ -6962,7 +6962,11 @@ HWY_API Vec128<T, N> Broadcast(const Vec128<T, N> v) {
 template <int kLane, typename T, size_t N, HWY_IF_UI32(T)>
 HWY_API Vec128<T, N> Broadcast(const Vec128<T, N> v) {
   static_assert(0 <= kLane && kLane < N, "Invalid lane");
-  return Vec128<T, N>{_mm_shuffle_epi32(v.raw, 0x55 * kLane)};
+  HWY_IF_CONSTEXPR(N == 1){
+    return Vec128<T, N>{v};  // Workaround for MSVC compiler bug on single lane integer broadcast
+  }else{
+    return Vec128<T, N>{_mm_shuffle_epi32(v.raw, 0x55 * kLane)};
+  }
 }
 
 template <int kLane, typename T, size_t N, HWY_IF_UI64(T)>
