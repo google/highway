@@ -192,6 +192,18 @@
 #define HWY_IF_CONSTEXPR if
 #endif
 
+// Use for constexpr variables at namespace scope in headers. Constexpr is
+// separate to allow using `HWY_CXX14_CONSTEXPR` if required.
+#ifndef HWY_INLINE_VAR
+#if __cplusplus > 201402L
+// C++17: mark as COMDAT to ensure linkers de-duplicate it. See
+// https://quuxplusone.github.io/blog/2022/07/08/inline-constexpr/
+#define HWY_INLINE_VAR inline
+#else
+#define HWY_INLINE_VAR
+#endif
+#endif
+
 //------------------------------------------------------------------------------
 // Architecture
 

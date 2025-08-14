@@ -82,13 +82,16 @@ class Stats {
     // Logarithmic transform avoids/delays underflow and overflow.
     sum_log_ += std::log(static_cast<double>(x));
 
-    // Online moments. Reference: https://goo.gl/9ha694
+    // Online moments.
+	// Reference: https://www.thinkbrg.com/media/publication/720_McCrary_ImplementingAlgorithms_Whitepaper_20151119_WEB.pdf
     const double d = x - m1_;
     const double d_div_n = d / static_cast<double>(n_);
     const double d2n1_div_n = d * (static_cast<double>(n_) - 1) * d_div_n;
     const int64_t n_poly = n_ * n_ - 3 * n_ + 3;
     m1_ += d_div_n;
-    m4_ += d_div_n * (d_div_n * (d2n1_div_n * static_cast<double>(n_poly) + 6.0 * m2_) - 4.0 * m3_);
+    m4_ += d_div_n *
+           (d_div_n * (d2n1_div_n * static_cast<double>(n_poly) + 6.0 * m2_) -
+            4.0 * m3_);
     m3_ += d_div_n * (d2n1_div_n * (static_cast<double>(n_) - 2) - 3.0 * m2_);
     m2_ += d2n1_div_n;
   }

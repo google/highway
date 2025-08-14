@@ -380,7 +380,7 @@
 // because it affects the fallback target, which must always be enabled. If 1,
 // we instead choose HWY_SCALAR even without HWY_COMPILE_ONLY_SCALAR being set.
 #if !defined(HWY_BROKEN_EMU128)  // allow overriding
-#if (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1400) || \
+#if (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1600) || \
     defined(HWY_NO_LIBCXX)
 #define HWY_BROKEN_EMU128 1
 #else

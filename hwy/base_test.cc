@@ -135,6 +135,7 @@ struct TestIsUnsigned {
   HWY_NOINLINE void operator()(T /*unused*/) const {
     static_assert(!IsFloat<T>(), "Expected !IsFloat");
     static_assert(!IsSigned<T>(), "Expected !IsSigned");
+    static_assert(IsUnsigned<T>(), "Expected IsUnsigned");
     static_assert(IsInteger<T>(), "Expected IsInteger");
   }
 };
@@ -144,6 +145,7 @@ struct TestIsSigned {
   HWY_NOINLINE void operator()(T /*unused*/) const {
     static_assert(!IsFloat<T>(), "Expected !IsFloat");
     static_assert(IsSigned<T>(), "Expected IsSigned");
+    static_assert(!IsUnsigned<T>(), "Expected !IsUnsigned");
     static_assert(IsInteger<T>(), "Expected IsInteger");
   }
 };
@@ -152,8 +154,9 @@ struct TestIsFloat {
   template <class T>
   HWY_NOINLINE void operator()(T /*unused*/) const {
     static_assert(IsFloat<T>(), "Expected IsFloat");
-    static_assert(!IsInteger<T>(), "Expected !IsInteger");
     static_assert(IsSigned<T>(), "Floats are also considered signed");
+    static_assert(!IsUnsigned<T>(), "Expected !IsUnsigned");
+    static_assert(!IsInteger<T>(), "Expected !IsInteger");
   }
 };
 

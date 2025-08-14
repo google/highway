@@ -89,5 +89,10 @@ void VQSelect(float16_t* HWY_RESTRICT keys, const size_t n, const size_t k,
   HWY_DYNAMIC_DISPATCH(SelectF16Desc)(keys, n, k);
 }
 
+void Sorter::operator()(float16_t* HWY_RESTRICT keys, size_t n,
+                        SortDescending tag) const {
+  VQSort(keys, n, tag);
+}
+
 }  // namespace hwy
 #endif  // HWY_ONCE

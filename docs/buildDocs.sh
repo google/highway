@@ -17,10 +17,14 @@ set -x
 ###################
   
 apt-get update
-apt-get -y install git rsync pandoc python3-sphinx python3-sphinx-rtd-theme python3-stemmer python3-git python3-pip python3-virtualenv python3-setuptools
-  
-python3 -m pip install --upgrade rinohtype pygments sphinx-rtd-theme sphinx-tabs docutils==0.16 pandoc
-python3 -m pip list
+apt-get -y install git rsync pandoc python3-sphinx python3-sphinx-rtd-theme python3-stemmer python3-git python3-pip python3-venv python3-virtualenv python3-setuptools
+
+python3_venv_dir=`mktemp -d`
+
+python3 -m venv "$python3_venv_dir"
+
+"${python3_venv_dir}/bin/python" -m pip install --upgrade rinohtype pygments sphinx sphinx-rtd-theme sphinx-tabs stemmer GitPython docutils==0.16 pandoc
+"${python3_venv_dir}/bin/python" -m pip list
 
 # get rid of all these safe dir warnings
 git config --global --add safe.directory '*'
@@ -41,7 +45,9 @@ export REPO_NAME="${GITHUB_REPOSITORY##*/}"
 ##############
 # BUILD DOCS #
 ##############
-  
+
+export SPHINXBUILD="${python3_venv_dir}/bin/sphinx-build"
+
 # first, cleanup any old builds' static assets
 make -C docs clean
 
@@ -56,7 +62,7 @@ for current_version in ${versions}; do
   
    echo "INFO: Building sites for ${current_version}"
 
-   cd docs && python3 mm-converter.py
+   cd docs && "${python3_venv_dir}/bin/python" mm-converter.py
    cd ..
   
    # skip this branch if it doesn't have our docs dir & sphinx config
@@ -77,7 +83,7 @@ for current_version in ${versions}; do
       echo "INFO: Building for ${current_language}"
   
       # HTML #
-      sphinx-build -b html docs/ docs/_build/html/${current_language}/${current_version} -D language="${current_language}"
+      "$SPHINXBUILD" -b html docs/ docs/_build/html/${current_language}/${current_version} -D language="${current_language}"
     
       # copy the static assets produced by the above build into our docroot
       rsync -av "docs/_build/html/" "${docroot}/"

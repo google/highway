@@ -248,13 +248,15 @@ namespace hwy {
 #define HWY_ASSUME(expr) static_cast<void>(0)
 #endif
 
-// Compile-time fence to prevent undesirable code reordering. On Clang x86, the
-// typical asm volatile("" : : : "memory") has no effect, whereas atomic fence
-// does, without generating code.
-#if HWY_ARCH_X86 && !defined(HWY_NO_LIBCXX)
-#define HWY_FENCE std::atomic_thread_fence(std::memory_order_acq_rel)
+// Compile-time fence to prevent undesirable code reordering. On Clang, the
+// typical `asm volatile("" : : : "memory")` seems to be ignored. Note that
+// `std::atomic_thread_fence` affects other threads, hence might generate a
+// barrier instruction, but this does not.
+#if !defined(HWY_NO_LIBCXX)
+#define HWY_FENCE std::atomic_signal_fence(std::memory_order_seq_cst)
+#elif HWY_COMPILER_GCC
+#define HWY_FENCE asm volatile("" : : : "memory")
 #else
-// TODO(janwas): investigate alternatives. On Arm, the above generates barriers.
 #define HWY_FENCE
 #endif
 
@@ -1714,6 +1716,7 @@ HWY_F16_CONSTEXPR inline std::partial_ordering operator<=>(
 // x86 compiler supports __bf16, not necessarily with operators.
 // Disable in debug builds due to clang miscompiles as of 2025-07-22: casting
 // bf16 <-> f32 in convert_test results in 0x2525 for 1.0 instead of 0x3f80.
+// Reported at https://github.com/llvm/llvm-project/issues/151692.
 #ifndef HWY_SSE2_HAVE_SCALAR_BF16_TYPE
 #if HWY_ARCH_X86 && defined(__SSE2__) &&                     \
     ((HWY_COMPILER_CLANG >= 1700 && !HWY_COMPILER_CLANGCL && \
@@ -2306,6 +2309,11 @@ constexpr bool IsSigned<hwy::K64V64>() {
 template <>
 constexpr bool IsSigned<hwy::K32V32>() {
   return false;
+}
+
+template <typename T>
+HWY_API constexpr bool IsUnsigned() {
+  return IsInteger<T>() && !IsSigned<T>();
 }
 
 template <typename T, bool = IsInteger<T>() && !IsIntegerLaneType<T>()>
