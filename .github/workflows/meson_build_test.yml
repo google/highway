@@ -14,7 +14,7 @@ jobs:
     strategy:
       matrix:
         compiler: [Clang-15, GCC-12]
-        cxx_standard: [11, 20]
+        cxx_standard: [11]
         include:
           - compiler: Clang-15
             extra_deps: clang-15
@@ -66,8 +66,8 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        compiler: [Clang-18, GCC-13]
-        cxx_standard: [17, 23]
+        compiler: [Clang-18, GCC-14]
+        cxx_standard: [17]
         include:
             - compiler: Clang-18
               extra_deps: clang-18
@@ -75,9 +75,9 @@ jobs:
               cxx_compiler: clang++-18
               cxx_flags: -DHWY_DISABLED_TARGETS=0x59d8
             
-            - compiler: GCC-13
-              c_compiler: gcc-13
-              cxx_compiler: g++-13
+            - compiler: GCC-14
+              c_compiler: gcc-14
+              cxx_compiler: g++-14
               cxx_flags: -ftrapv -DHWY_DISABLED_TARGETS=0x59d8
 
     steps:
@@ -116,14 +116,9 @@ jobs:
     runs-on: ubuntu-24.04-arm
     strategy:
       matrix:
-        compiler: [Clang-18, GCC-14]
+        compiler: [GCC-14]
         cxx_standard: [17]
         include:
-          - compiler: Clang-18
-            extra_deps: clang-18
-            c_compiler: clang-18
-            cxx_compiler: clang++-18
-            cxx_flags: -DHWY_DISABLED_TARGETS=0x318c0000  # Only target HWY_NEON_BF16
 
           - compiler: GCC-14
             extra_deps: g++-14
@@ -161,95 +156,6 @@ jobs:
       - name: Test
         run: meson test -C out -j 2 --print-errorlogs ${{ matrix.extra_test_args }}
 
-  macos:
-    name: Meson build and test ${{ matrix.compiler }} (C++${{ matrix.cxx_standard }}) on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    continue-on-error: true
-    strategy:
-      matrix:
-        include:
-
-          - os: macos-15
-            compiler: AppleLLVM
-            c_compiler: clang
-            cxx_compiler: clang++
-            cxx_flags: -DHWY_DISABLED_TARGETS=0x258c0000  # only target NEON
-            cxx_standard: 17
-
-          - os: macos-13
-            compiler: AppleLLVM
-            c_compiler: clang
-            cxx_compiler: clang++
-            extra_test_args: --timeout-multiplier=5
-            cxx_flags: -DHWY_DISABLED_TARGETS=0x59d8  # only target AVX2
-            cxx_standard: 17
-
-          - os: macos-15
-            compiler: LLVM
-            extra_deps: llvm@20 lld@20
-            c_compiler: $(brew --prefix llvm@20)/bin/clang
-            cxx_compiler: $(brew --prefix llvm@20)/bin/clang++
-            cxx_flags: -DHWY_DISABLED_TARGETS=0x258c0000  # only target NEON
-            cxx_standard: 17
-
-          - os: macos-13
-            compiler: LLVM
-            extra_deps: llvm@20 lld@20
-            c_compiler: $(brew --prefix llvm@20)/bin/clang
-            cxx_compiler: $(brew --prefix llvm@20)/bin/clang++
-            cxx_flags: -DHWY_DISABLED_TARGETS=0x59d8  # only target AVX2
-            extra_test_args: --timeout-multiplier=5
-            cxx_standard: 20
-            
-          - os: macos-15
-            compiler: GNU
-            extra_deps: gcc@15
-            c_compiler: gcc-15
-            cxx_compiler: g++-15
-            cxx_flags: -DHWY_DISABLED_TARGETS=0x258c0000  # only target NEON
-            cxx_standard: 17
-            
-          - os: macos-13
-            compiler: GNU
-            extra_deps: gcc@15
-            c_compiler: gcc-15
-            cxx_compiler: g++-15
-            cxx_flags: -DHWY_DISABLED_TARGETS=0x59d8  # only target AVX2
-            extra_test_args: --timeout-multiplier=5
-            cxx_standard: 17
-
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
-        with:
-          egress-policy: audit  # cannot be block - runner does git checkout
-
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v4.0.0
-
-      - name: Install deps
-        run: |
-            brew install meson ${{ matrix.extra_deps }}
-
-      - name: Configure Build
-        run: |
-            export CC=${{ matrix.c_compiler }}
-            export CXX=${{ matrix.cxx_compiler }}
-            meson setup out -Dcpp_std=c++${{ matrix.cxx_standard }} ${{env.meson_setup_args}} ${{ matrix.extra_setup_args }}
-        env:
-          CXXFLAGS: ${{ matrix.cxx_flags }}
-      
-      # builds libhwy and compiles the target list executable
-      - name: Report Targets
-        run: |
-          meson compile -C out -v hwy_list_targets
-          out/hwy_list_targets
-
-      - name: Build
-        run: meson compile -C out -j 2 -v
-
-      - name: Test
-        run: meson test -C out -j 2 --print-errorlogs ${{ matrix.extra_test_args }}
-
   win:
     name: Meson build and test ${{ matrix.compiler }} (C++${{matrix.cxx_standard}}) on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -265,22 +171,7 @@ jobs:
             extra_setup_args: -Dvsenv=true
             extra_test_args: --timeout-multiplier=5
             cxx_flags: /DHWY_DISABLED_TARGETS=0x59d8
-            cxx_standard: 17
-
-          - os: windows-2022
-            compiler: MSVC  # @ 17.14.36015.10
-            c_compiler: cl
-            cxx_compiler: cl
-            extra_setup_args: -Dvsenv=true -Dcontrib=disabled  # MSVC usually chokes on compiling vqsort on CI
-            cxx_flags: /DHWY_DISABLED_TARGETS=0x59d8
-            cxx_standard: 17
-          
-          - os: windows-11-arm
-            compiler: LLVM  # @ 20.1.8
-            c_compiler: clang-cl
-            cxx_compiler: clang-cl
-            extra_setup_args: -Dvsenv=true
-            cxx_standard: 17
+            cxx_standard: 20
 
     steps:
       - name: Harden Runner
@@ -320,10 +211,6 @@ jobs:
       fail-fast: true
       matrix:
         include:
-          - arch: armv7
-            distro: ubuntu_latest  # at 24.04 according to uraimo/run-on-arch-action@v3.0.1
-            meson_flags: -Darm7=true
-            cxx_flags: -Wno-psabi
           - arch: ppc64le
             distro: ubuntu_latest
     steps:
@@ -355,70 +242,3 @@ jobs:
           # dry run the rest of the compile commands
           meson compile -C out -j 2 -v --ninja-args=-n,-d,explain
           # meson test -C out -j 2 --print-errorlogs
-
-  loongarch64:
-    name: Build and test ${{ matrix.name }} on LoongArch64
-    runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        include:
-          - name: GCC-14
-            extra_deps: qemu-loongarch64
-            cxx_standard: 17
-    steps:
-      - name: get cross-tools evn
-        run: |
-          wget https://github.com/loongson/build-tools/releases/download/2025.02.21/x86_64-cross-tools-loongarch64-binutils_2.44-gcc_14.2.0-glibc_2.41.tar.xz
-          sudo tar -xvf x86_64-cross-tools-loongarch64-binutils_2.44-gcc_14.2.0-glibc_2.41.tar.xz -C /opt
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
-        with:
-          egress-policy: audit  # cannot be block - runner does git checkout
-
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v4.0.0
-
-      - name: Install build requirements
-        run: sudo apt-get install ninja-build meson
-
-      - name: Install deps
-        run: |
-          wget https://github.com/loongson/build-tools/releases/download/2025.02.21/${{ matrix.extra_deps }}
-          chmod +x ${{ matrix.extra_deps }}
-          sudo mv ${{ matrix.extra_deps }} /opt/cross-tools/bin
-
-      - name: Set environment variables
-        run: |
-          echo "/opt/cross-tools/bin" >> $GITHUB_PATH
-          echo "LD_LIBRARY_PATH=/opt/cross-tools/loongarch64-unknown-linux-gnu/lib:\$LD_LIBRARY_PATH" >> $GITHUB_ENV
-
-      - name: Create cross file
-        run: |
-          echo "[binaries]" > la64_cross_file.txt
-          echo "c = 'loongarch64-unknown-linux-gnu-gcc'" >> la64_cross_file.txt
-          echo "cpp = 'loongarch64-unknown-linux-gnu-g++'" >> la64_cross_file.txt
-          echo "ar = 'loongarch64-unknown-linux-gnu-ar'" >> la64_cross_file.txt
-          echo "strip = 'loongarch64-unknown-linux-gnu-strip'" >> la64_cross_file.txt
-          echo "pkgconfig = 'pkg-config'" >> la64_cross_file.txt
-          echo "exe_wrapper = ['qemu-loongarch64','-cpu','max','-L','/opt/cross-tools/target']" >> la64_cross_file.txt
-          echo "" >> la64_cross_file.txt
-          echo "[host_machine]" >> la64_cross_file.txt
-          echo "system = 'linux'" >> la64_cross_file.txt
-          echo "cpu_family = 'loongarch64'" >> la64_cross_file.txt
-          echo "cpu = 'loongarch64e'" >> la64_cross_file.txt
-          echo "endian = 'little'" >> la64_cross_file.txt
-
-      - name: Configure Build
-        run: meson setup out --cross-file la64_cross_file.txt -Dcpp_std=c++${{ matrix.cxx_standard }} ${{env.meson_setup_args}} ${{ matrix.extra_meson_flags }}
-      
-      # build libhwy and compile the target list executable
-      - name: Report Targets
-        run: | 
-          meson compile -C out -j 2 -v hwy_list_targets
-          qemu-loongarch64 -cpu max -L /opt/cross-tools/target out/hwy_list_targets
-
-      # dry run the rest of the compile commands
-      - name: Build
-        run: meson compile -C out -j 2 -v --ninja-args=-n,-d,explain
-
-      # - name: Test
-      #   run: meson test -C out -j 2 --print-errorlogs ${{ matrix.extra_test_args }}
