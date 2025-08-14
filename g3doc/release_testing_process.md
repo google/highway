@@ -14,7 +14,8 @@ Clang, GCC; Arm, PPC cross-compile: `./run_tests.sh`
 
 Manual test of WASM and WASM_EMU256 targets.
 
-Check libjxl build actions at https://github.com/libjxl/libjxl/pull/2269.
+Check libjxl build actions at https://github.com/libjxl/libjxl/pull/2269. (As of
+2025-08-14 this is currently paused and requires a token update)
 
 ### Version updates
 
@@ -31,5 +32,6 @@ Prepend to debian/changelog and update mentions of the current version in:
 *   `gpg --armor --detach-sign highway-X.Y.Z.tar.gz`
 *   Edit release and attach the resulting `highway-X.Y.Z.tar.gz.asc` and .gz.
 
-(See https://wiki.debian.org/Creating%20signed%20GitHub%20releases and search
-hkps://keys.openpgp.org for janwas@google.com to obtain the key)
+(See https://wiki.debian.org/Creating%20signed%20GitHub%20releases and to obtain
+the key, search hkps://keys.openpgp.org for janwas@google.com or since 1.3.0
+jan.wassenberg@gmail.com)
