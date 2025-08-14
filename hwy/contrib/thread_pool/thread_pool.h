@@ -63,7 +63,8 @@ static inline void SetThreadName(const char* format, int thread) {
 #if HWY_OS_LINUX && (!defined(__ANDROID__) || __ANDROID_API__ >= 19)
   HWY_ASSERT(0 == pthread_setname_np(pthread_self(), buf));
 #elif HWY_OS_FREEBSD
-  HWY_ASSERT(0 == pthread_set_name_np(pthread_self(), buf));
+  // Note that pthread_set_name_np does not return a value (#2669).
+  HWY_ASSERT(0 == pthread_setname_np(pthread_self(), buf));
 #elif HWY_OS_APPLE
   // Different interface: single argument, current thread only.
   HWY_ASSERT(0 == pthread_setname_np(buf));
