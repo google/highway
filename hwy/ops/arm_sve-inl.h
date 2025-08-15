@@ -407,6 +407,20 @@ HWY_API svbool_t MaskFalse(const D /*d*/) {
   return detail::PFalse();
 }
 
+#ifdef HWY_NATIVE_SET_MASK
+#undef HWY_NATIVE_SET_MASK
+#else
+#define HWY_NATIVE_SET_MASK
+#endif
+
+template <class D>
+HWY_API svbool_t SetMask(D d, bool val) {
+  // The SVE svdup_n_b* intrinsics are equivalent to the FirstN op below if
+  // detail::IsFull(d) is true since svdup_n_b* is simply a wrapper around the
+  // SVE whilelo instruction.
+  return FirstN(d, size_t{0} - static_cast<size_t>(val));
+}
+
 // ================================================== INIT
 
 // ------------------------------ Set
