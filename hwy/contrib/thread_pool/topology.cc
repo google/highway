@@ -15,6 +15,7 @@
 
 #include "hwy/contrib/thread_pool/topology.h"
 
+#include <ctype.h>  // isspace
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -559,6 +560,9 @@ std::vector<size_t> ExpandList(const char* list, size_t list_end,
   std::vector<size_t> expanded;
   constexpr size_t kNotFound = ~size_t{0};
   size_t pos = 0;
+
+  // Gracefully handle empty lists, happens on GH200 systems (#2668).
+  if (isspace(list[0]) && list_end <= 2) return expanded;
 
   // Returns first `found_pos >= pos` where `list[found_pos] == c`, or
   // `kNotFound`.
