@@ -272,7 +272,7 @@ class Config {  // 8 bytes
   SpinType spin_type;
   WaitType wait_type;
   BarrierType barrier_type;
-  bool exit;
+  uint8_t exit;
   uint32_t reserved = 0;
 };
 static_assert(sizeof(Config) == 8, "");
