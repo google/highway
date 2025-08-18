@@ -1388,6 +1388,11 @@ encoding depends on the platform).
     `Dup128MaskFromMaskBits(D(), 0)`, but `MaskFalse(D())` is usually more
     efficient.
 
+*   <code>M **SetMask**(D, bool val)</code>: equivalent to
+    `RebindMask(d, MaskFromVec(Set(RebindToSigned<D>(),
+    -static_cast<MakeSigned<TFromD<D>>>(val))))`,
+    but `SetMask(d, val)` is usually more efficient.
+
 #### Convert mask
 
 *   <code>M1 **RebindMask**(D, M2 m)</code>: returns same mask bits as `m`, but

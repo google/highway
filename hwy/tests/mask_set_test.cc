@@ -293,6 +293,54 @@ HWY_NOINLINE void TestAllDup128MaskFromMaskBits() {
   ForAllTypes(ForPartialVectors<TestDup128MaskFromMaskBits>());
 }
 
+struct TestSetMask {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto expected_false_mask = MaskFalse(d);
+
+    const auto false_mask_1 =
+        SetMask(d, static_cast<bool>(hwy::Unpredictable1() - 1));
+    HWY_ASSERT(AllFalse(d, false_mask_1));
+    HWY_ASSERT(!AllTrue(d, false_mask_1));
+    HWY_ASSERT(CountTrue(d, false_mask_1) == 0);
+    HWY_ASSERT(FindFirstTrue(d, false_mask_1) == -1);
+    HWY_ASSERT(FindLastTrue(d, false_mask_1) == -1);
+    HWY_ASSERT_MASK_EQ(d, expected_false_mask, false_mask_1);
+
+    const auto false_mask_2 = SetMask(d, false);
+    HWY_ASSERT(AllFalse(d, false_mask_2));
+    HWY_ASSERT(!AllTrue(d, false_mask_2));
+    HWY_ASSERT(CountTrue(d, false_mask_2) == 0);
+    HWY_ASSERT(FindFirstTrue(d, false_mask_2) == -1);
+    HWY_ASSERT(FindLastTrue(d, false_mask_2) == -1);
+    HWY_ASSERT_MASK_EQ(d, expected_false_mask, false_mask_2);
+
+    const size_t N = Lanes(d);
+    const auto expected_true_mask = MaskTrue(d);
+
+    const auto true_mask_1 =
+        SetMask(d, static_cast<bool>(hwy::Unpredictable1()));
+    HWY_ASSERT(!AllFalse(d, true_mask_1));
+    HWY_ASSERT(AllTrue(d, true_mask_1));
+    HWY_ASSERT(CountTrue(d, true_mask_1) == N);
+    HWY_ASSERT(FindFirstTrue(d, true_mask_1) == 0);
+    HWY_ASSERT(FindLastTrue(d, true_mask_1) == static_cast<intptr_t>(N - 1));
+    HWY_ASSERT_MASK_EQ(d, expected_true_mask, true_mask_1);
+
+    const auto true_mask_2 = SetMask(d, true);
+    HWY_ASSERT(!AllFalse(d, true_mask_2));
+    HWY_ASSERT(AllTrue(d, true_mask_2));
+    HWY_ASSERT(CountTrue(d, true_mask_2) == N);
+    HWY_ASSERT(FindFirstTrue(d, true_mask_2) == 0);
+    HWY_ASSERT(FindLastTrue(d, true_mask_2) == static_cast<intptr_t>(N - 1));
+    HWY_ASSERT_MASK_EQ(d, expected_true_mask, true_mask_2);
+  }
+};
+
+HWY_NOINLINE void TestAllSetMask() {
+  ForAllTypes(ForPartialVectors<TestSetMask>());
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -310,6 +358,7 @@ HWY_EXPORT_AND_TEST_P(HwyMaskSetTest, TestAllSetAtOrBeforeFirst);
 HWY_EXPORT_AND_TEST_P(HwyMaskSetTest, TestAllSetOnlyFirst);
 HWY_EXPORT_AND_TEST_P(HwyMaskSetTest, TestAllSetAtOrAfterFirst);
 HWY_EXPORT_AND_TEST_P(HwyMaskSetTest, TestAllDup128MaskFromMaskBits);
+HWY_EXPORT_AND_TEST_P(HwyMaskSetTest, TestAllSetMask);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy

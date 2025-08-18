@@ -310,6 +310,17 @@ HWY_API Mask1<T> FirstN(D /*tag*/, size_t n) {
   return Mask1<T>::FromBool(n != 0);
 }
 
+#ifdef HWY_NATIVE_SET_MASK
+#undef HWY_NATIVE_SET_MASK
+#else
+#define HWY_NATIVE_SET_MASK
+#endif
+
+template <class D>
+HWY_API MFromD<D> SetMask(D /*d*/, bool val) {
+  return MFromD<D>::FromBool(val);
+}
+
 // ------------------------------ IfVecThenElse
 template <typename T>
 HWY_API Vec1<T> IfVecThenElse(Vec1<T> mask, Vec1<T> yes, Vec1<T> no) {
