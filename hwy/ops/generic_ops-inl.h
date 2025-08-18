@@ -245,6 +245,22 @@ HWY_API Mask<D> MaskFalse(D d) {
 
 #endif  // HWY_NATIVE_MASK_FALSE
 
+// ------------------------------ SetMask
+#if (defined(HWY_NATIVE_SET_MASK) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_SET_MASK
+#undef HWY_NATIVE_SET_MASK
+#else
+#define HWY_NATIVE_SET_MASK
+#endif
+
+template <class D>
+HWY_API Mask<D> SetMask(D d, bool val) {
+  const Repartition<int32_t, decltype(d)> di32;
+  return MaskFromVec(ResizeBitCast(d, Set(di32, -static_cast<int32_t>(val))));
+}
+
+#endif  // HWY_NATIVE_SET_MASK
+
 // ------------------------------ IfNegativeThenElseZero
 #if (defined(HWY_NATIVE_IF_NEG_THEN_ELSE_ZERO) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_IF_NEG_THEN_ELSE_ZERO
@@ -5474,17 +5490,15 @@ HWY_API V RoundingShiftRight(V v) {
 template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
 HWY_API V RoundingShiftRightSame(V v, int shift_amt) {
   const DFromV<V> d;
-  using T = TFromD<decltype(d)>;
 
-  const int shift_amt_is_zero_mask = -static_cast<int>(shift_amt == 0);
-
+  const bool shift_amt_is_zero = (shift_amt == 0);
   const auto scaled_down_v = ShiftRightSame(
       v, static_cast<int>(static_cast<unsigned>(shift_amt) +
-                          static_cast<unsigned>(~shift_amt_is_zero_mask)));
+                          static_cast<unsigned>(shift_amt_is_zero) - 1u));
 
   return AverageRound(
       scaled_down_v,
-      And(scaled_down_v, Set(d, static_cast<T>(shift_amt_is_zero_mask))));
+      IfThenElseZero(SetMask(d, shift_amt_is_zero), scaled_down_v));
 }
 
 template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>

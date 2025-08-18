@@ -60,8 +60,8 @@ namespace hwy {
 
 // Flags: we want type-safety (enum class) to catch mistakes such as confusing
 // zone with flags. Base type (`uint32_t`) ensures it is safe to cast. Defined
-// outside the `#if` because callers pass them to `PROFILER_ZONE3`. Keep in
-// sync with `kNumFlags` below.
+// outside the `#if` because callers pass them to `PROFILER_ZONE3`. When adding
+// flags, also update `kNumFlags` and `ChildTotalMask`.
 enum class ProfilerFlags : uint32_t {
   kDefault = 0,
   // The zone should report cumulative time, including all child zones. If not
@@ -119,8 +119,11 @@ class ZoneHandle {
 
   // Returns a mask to zero/ignore child totals for inclusive zones.
   uint64_t ChildTotalMask() const {
-    // Without this function, clang tends to generate a branch.
-    return IsInclusive() ? 0 : ~uint64_t{0};
+    // With a ternary operator, clang tends to generate a branch.
+    // return IsInclusive() ? 0 : ~uint64_t{0};
+    const uint32_t bit =
+        bits_ & static_cast<uint32_t>(ProfilerFlags::kInclusive);
+    return uint64_t{bit} - 1;
   }
 
  private:
@@ -128,13 +131,13 @@ class ZoneHandle {
 };
 
 // Storage for zone names.
-class Names {
+class Zones {
   static constexpr std::memory_order kRel = std::memory_order_relaxed;
 
  public:
   // Returns a copy of the `name` passed to `AddZone` that returned the
   // given `zone`.
-  const char* Get(ZoneHandle zone) const { return ptrs_[zone.ZoneIdx()]; }
+  const char* Name(ZoneHandle zone) const { return ptrs_[zone.ZoneIdx()]; }
 
   ZoneHandle AddZone(const char* name, ProfilerFlags flags) {
     // Linear search whether it already exists.
@@ -157,7 +160,7 @@ class Names {
 
     ptrs_[zone_idx] = chars_ + pos;
     const ZoneHandle zone(zone_idx, flags);
-    HWY_DASSERT(!strcmp(Get(zone), name));
+    HWY_DASSERT(!strcmp(Name(zone), name));
     return zone;
   }
 
@@ -168,8 +171,8 @@ class Names {
   std::atomic<size_t> next_char_{0};
 };
 
-// Holds total duration and number of calls. "Which thread entered it" is
-// unnecessary because these are per-thread.
+// Holds total duration and number of calls. Thread is implicit in the index of
+// this class within the `Accumulators` array.
 struct Accumulator {
   void Add(ZoneHandle new_zone, uint64_t self_duration) {
     duration += self_duration;
@@ -358,10 +361,7 @@ class Results {
         [&](size_t zone_idx) { CountThreadsAndReset(zone_idx); });
   }
 
-  void AddAnalysisTime(uint64_t t0) { analyze_elapsed_ += timer::Stop() - t0; }
-
-  void Print(const Names& names) {
-    const uint64_t t0 = timer::Start();
+  void Print(const Zones& zones) {
     const double inv_freq = 1.0 / platform::InvariantTicksPerSecond();
 
     // Sort by decreasing total (self) cost. `totals_` are sparse, so sort an
@@ -391,7 +391,7 @@ class Results {
       // Avoid division by zero.
       const double concurrency_divisor = HWY_MAX(1.0, avg_concurrency);
       printf("%s%-40s: %10.0f x %15.0f / %5.1f (%5zu %3zu-%3zu) = %9.6f\n",
-             total.zone.IsInclusive() ? "(I)" : "   ", names.Get(total.zone),
+             total.zone.IsInclusive() ? "(I)" : "   ", zones.Name(total.zone),
              static_cast<double>(total.num_calls), per_call, avg_concurrency,
              concurrency.Count(), concurrency.Min(), concurrency.Max(),
              duration * inv_freq / concurrency_divisor);
@@ -401,15 +401,9 @@ class Results {
       // `threads_` was already reset by `CountThreadsAndReset`.
     }
     visited_zones_ = ZoneSet();
-
-    AddAnalysisTime(t0);
-    printf("Total analysis [s]: %f\n",
-           static_cast<double>(analyze_elapsed_) * inv_freq);
-    analyze_elapsed_ = 0;
   }
 
  private:
-  uint64_t analyze_elapsed_ = 0;
   // Indicates which of the array entries are in use.
   ZoneSet visited_zones_;
   Accumulator totals_[kMaxZones];
@@ -421,10 +415,10 @@ class Results {
 // with frequency throttling disabled, this has a multimodal distribution,
 // including 32, 34, 48, 52, 59, 62.
 struct Overheads {
-  uint32_t self = 0;
-  uint32_t child = 0;
+  uint64_t self = 0;
+  uint64_t child = 0;
 };
-static_assert(sizeof(Overheads) == 8, "Wrong Overheads size");
+static_assert(sizeof(Overheads) == 16, "Wrong Overheads size");
 
 class Accumulators {
   // We generally want to group threads together because they are often
@@ -467,7 +461,6 @@ class PerThread {
     t_enter_[depth] = t_enter;
     child_total_[1 + depth] = 0;
     depth_ = 1 + depth;
-    HWY_IF_CONSTEXPR(HWY_IS_DEBUG_BUILD) { any_ = 1; }
   }
 
   // Exiting the most recently entered zone (top of stack).
@@ -495,8 +488,6 @@ class PerThread {
     depth_ = depth;
   }
 
-  bool HadAnyZones() const { return HWY_IS_DEBUG_BUILD ? (any_ != 0) : false; }
-
   // Returns the duration of one enter/exit pair and resets all state. Called
   // via `DetectSelfOverhead`.
   uint64_t GetFirstDurationAndReset(size_t thread, Accumulators& accumulators) {
@@ -517,23 +508,18 @@ class PerThread {
   // Adds all data to `results` and resets it here. Called from the main thread.
   void MoveTo(const size_t thread, Accumulators& accumulators,
               Results& results) {
-    const uint64_t t0 = timer::Start();
-
     visited_zones_.Foreach([&](size_t zone_idx) {
       results.Assimilate(thread, zone_idx, accumulators.Get(thread, zone_idx));
     });
     // OK to reset even if we have active zones, because we set `visited_zones_`
     // when exiting the zone.
     visited_zones_ = ZoneSet();
-
-    results.AddAnalysisTime(t0);
   }
 
  private:
   // 40 bytes:
   ZoneSet visited_zones_;  // Which `zones_` have been active on this thread.
   uint64_t depth_ = 0;     // Current nesting level for active zones.
-  uint64_t any_ = 0;
   Overheads overheads_;
 
   uint64_t t_enter_[kMaxDepth];
@@ -541,7 +527,6 @@ class PerThread {
   // Shifting by one avoids bounds-checks for depth_ = 0 (root zone).
   uint64_t child_total_[1 + kMaxDepth] = {0};
 };
-
 // Enables shift rather than multiplication.
 static_assert(sizeof(PerThread) == 256, "Wrong size");
 
@@ -573,15 +558,18 @@ class Profiler {
     HWY_ASSERT(max_threads <= profiler::kMaxThreads);
     max_threads_ = max_threads;
   }
+  size_t MaxThreads() const { return max_threads_; }
 
-  const char* Name(profiler::ZoneHandle zone) const { return names_.Get(zone); }
+  const char* Name(profiler::ZoneHandle zone) const {
+    return zones_.Name(zone);
+  }
 
   // Copies `name` into the string table and returns its unique `zone`. Uses
   // linear search, which is fine because this is called during static init.
   // Called via static initializer and the result is passed to the `Zone` ctor.
   profiler::ZoneHandle AddZone(const char* name,
                                ProfilerFlags flags = ProfilerFlags::kDefault) {
-    return names_.AddZone(name, flags);
+    return zones_.AddZone(name, flags);
   }
 
   // For reporting average concurrency. Called by `ThreadPool::Run` on the main
@@ -627,32 +615,25 @@ class Profiler {
     UpdateResults();
     // `CountThreadsAndReset` is fused into `Print`, so do not call it here.
 
-    results_.Print(names_);
+    results_.Print(zones_);
   }
 
   // Only for use by Zone; called from any thread.
   profiler::PerThread& GetThread(size_t thread) {
-    HWY_DASSERT(thread < profiler::kMaxThreads);
+    HWY_DASSERT(thread < max_threads_);
     return threads_[thread];
   }
+
   profiler::Accumulators& Accumulators() { return accumulators_; }
 
  private:
   // Sets main thread index, computes self-overhead, and checks timer support.
   Profiler();
 
-  // Called from the main thread.
+  // Moves accumulators into Results. Called from the main thread.
   void UpdateResults() {
     for (size_t thread = 0; thread < max_threads_; ++thread) {
       threads_[thread].MoveTo(thread, accumulators_, results_);
-    }
-
-    // Check that all other threads did not have any zones.
-    HWY_IF_CONSTEXPR(HWY_IS_DEBUG_BUILD) {
-      for (size_t thread = max_threads_; thread < profiler::kMaxThreads;
-           ++thread) {
-        HWY_ASSERT(!threads_[thread].HadAnyZones());
-      }
     }
   }
 
@@ -674,9 +655,9 @@ class Profiler {
   // `PrintResults`.
   profiler::ConcurrencyStats concurrency_[profiler::kMaxZones];
 
-  profiler::Names names_;
-
   profiler::Results results_;
+
+  profiler::Zones zones_;
 };
 
 namespace profiler {

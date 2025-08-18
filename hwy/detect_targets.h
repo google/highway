@@ -194,6 +194,15 @@
 #endif
 #endif  // HWY_BROKEN_MSVC
 
+#ifndef HWY_BROKEN_AVX10_2  // allow override
+// AVX10_2 requires clang >= 20.1 or gcc >= 15.2 with binutils 2.44.
+#if (HWY_COMPILER_CLANG < 2001) && (HWY_COMPILER_GCC_ACTUAL < 1502)
+#define HWY_BROKEN_AVX10_2 HWY_AVX10_2
+#else
+#define HWY_BROKEN_AVX10_2 0
+#endif
+#endif  // HWY_BROKEN_AVX10_2
+
 #ifndef HWY_BROKEN_AVX3_DL_ZEN4  // allow override
 // AVX3_DL and AVX3_ZEN4 require clang >= 7 (ensured above), gcc >= 8.1 or ICC
 // 2021.
@@ -360,12 +369,12 @@
 // Allow the user to override this without any guarantee of success.
 #ifndef HWY_BROKEN_TARGETS
 
-#define HWY_BROKEN_TARGETS                                     \
-  (HWY_BROKEN_CLANG6 | HWY_BROKEN_32BIT | HWY_BROKEN_MSVC |    \
-   HWY_BROKEN_AVX3_DL_ZEN4 | HWY_BROKEN_AVX3_SPR |             \
-   HWY_BROKEN_ARM7_BIG_ENDIAN | HWY_BROKEN_ARM7_WITHOUT_VFP4 | \
-   HWY_BROKEN_NEON_BF16 | HWY_BROKEN_SVE | HWY_BROKEN_SVE2 |   \
-   HWY_BROKEN_PPC10 | HWY_BROKEN_PPC_32BIT | HWY_BROKEN_RVV |  \
+#define HWY_BROKEN_TARGETS                                              \
+  (HWY_BROKEN_CLANG6 | HWY_BROKEN_32BIT | HWY_BROKEN_MSVC |             \
+   HWY_BROKEN_AVX10_2 | HWY_BROKEN_AVX3_DL_ZEN4 | HWY_BROKEN_AVX3_SPR | \
+   HWY_BROKEN_ARM7_BIG_ENDIAN | HWY_BROKEN_ARM7_WITHOUT_VFP4 |          \
+   HWY_BROKEN_NEON_BF16 | HWY_BROKEN_SVE | HWY_BROKEN_SVE2 |            \
+   HWY_BROKEN_PPC10 | HWY_BROKEN_PPC_32BIT | HWY_BROKEN_RVV |           \
    HWY_BROKEN_LOONGARCH | HWY_BROKEN_Z14)
 
 #endif  // HWY_BROKEN_TARGETS
@@ -642,8 +651,7 @@
 #define HWY_BASELINE_AVX3_SPR 0
 #endif
 
-#if HWY_BASELINE_AVX3_SPR != 0 && defined(__AVX10_2__) && \
-    (HWY_COMPILER_GCC_ACTUAL >= 1500 || HWY_COMPILER_CLANG >= 2001)
+#if HWY_BASELINE_AVX3_SPR != 0 && defined(__AVX10_2__)
 #define HWY_BASELINE_AVX10_2 HWY_AVX10_2
 #else
 #define HWY_BASELINE_AVX10_2 0
