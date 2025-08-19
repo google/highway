@@ -1,0 +1,16 @@
+option('contrib', type : 'feature', value : 'auto', description: 'Include contrib/')
+option('examples', type : 'feature', value : 'auto', description: 'Build examples')
+option('tests', type : 'feature', value : 'auto', description: 'Enable HWY tests')
+
+option('test_standalone', type : 'boolean', value : false, description: 'Disable use of googletest')
+
+option('disable_futex', type : 'boolean', value : false, description: 'Disable futex for thread_pool')
+
+option('arm7', type : 'boolean', value : false, description: 'Set copts for Armv7 with NEON (requires vfpv4)?')
+option('lsx', type : 'boolean', value : true, description: 'Add -mlsx flag?')
+option('lasx', type : 'boolean', value : true, description: 'Add -mlasx flag?')
+option('sse2', type : 'boolean', value : false, description: 'Set SSE2 as baseline for 32-bit x86?')
+option('rvv', type : 'boolean', value : true, description: 'Set copts for RISCV with RVV?')
+
+# Experimental
+option('header_only', type : 'boolean', value : false, description: 'Change to header-only?')
