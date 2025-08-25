@@ -154,11 +154,9 @@ enum class WaitType : uint8_t {
   kSpinSeparate,
   kSentinel  // Must be last.
 };
+// Our barriers support a `HasReached` predicate; counters are not suitable.
 enum class BarrierType : uint8_t {
   kOrdered,
-  kCounter1,
-  kCounter2,
-  kCounter4,
   kGroup2,
   kGroup4,
   kSentinel  // Must be last.
@@ -184,12 +182,6 @@ static inline const char* ToString(BarrierType type) {
   switch (type) {
     case BarrierType::kOrdered:
       return "Ordered";
-    case BarrierType::kCounter1:
-      return "Counter1";
-    case BarrierType::kCounter2:
-      return "Counter2";
-    case BarrierType::kCounter4:
-      return "Counter4";
     case BarrierType::kGroup2:
       return "Group2";
     case BarrierType::kGroup4:
@@ -238,7 +230,6 @@ class Config {  // 8 bytes
       const BarrierType barrier_type = static_cast<BarrierType>(barrier);
       if (barrier_type == BarrierType::kSentinel) break;
       // If <= 2 workers, group size of 4 is the same as 2.
-      if (num_threads <= 1 && barrier_type == BarrierType::kCounter4) continue;
       if (num_threads <= 1 && barrier_type == BarrierType::kGroup4) continue;
       barrier_types.push_back(barrier_type);
     }
@@ -360,9 +351,12 @@ class alignas(HWY_ALIGNMENT) Worker {  // HWY_ALIGNMENT bytes
 
   // ------------------------ Barrier: Main thread waits for workers
 
+  // Used for loads and UntilEqual.
   const std::atomic<uint32_t>& Barrier() const { return barrier_epoch_; }
-  std::atomic<uint32_t>& MutableBarrier() { return barrier_epoch_; }
   void StoreBarrier(uint32_t epoch) { barrier_epoch_.store(epoch, kRel); }
+  // Only used by `BarrierGroup` - `Barrier` suffices for `BarrierOrdered`.
+  const std::atomic<uint32_t>& Reached() const { return reached_epoch_; }
+  void StoreReached(uint32_t epoch) { reached_epoch_.store(epoch, kRel); }
 
  private:
   // Atomics first because arm7 clang otherwise makes them unaligned.
@@ -373,7 +367,8 @@ class alignas(HWY_ALIGNMENT) Worker {  // HWY_ALIGNMENT bytes
 
   // Use u32 to match futex.h.
   alignas(4) std::atomic<uint32_t> wait_epoch_{0};
-  alignas(4) std::atomic<uint32_t> barrier_epoch_{0};  // is reset
+  alignas(4) std::atomic<uint32_t> barrier_epoch_{0};
+  alignas(4) std::atomic<uint32_t> reached_epoch_{0};
 
   uint32_t num_victims_;  // <= kPoolMaxVictims
   std::array<uint32_t, kMaxVictims> victims_;
@@ -648,65 +643,6 @@ struct WaitSpinSeparate {
 
 // ------------------------------ Barrier: Main thread waits for workers
 
-// Single atomic counter. TODO: remove if not competitive?
-template <size_t kShards>
-class BarrierCounter {
-  static_assert(kShards == 1 || kShards == 2 || kShards == 4, "");  // pow2
-
- public:
-  BarrierType Type() const {
-    return kShards == 1   ? BarrierType::kCounter1
-           : kShards == 2 ? BarrierType::kCounter2
-                          : BarrierType::kCounter4;
-  }
-
-  void Reset(Worker* workers) const {
-    for (size_t i = 0; i < kShards; ++i) {
-      // Use last worker(s) to avoid contention with other stores to the Worker.
-      // Note that there are kMaxThreads + 1 workers, hence i == 0 is the last.
-      workers[kMaxThreads - i].StoreBarrier(0);
-    }
-  }
-
-  template <class Spin>
-  void WorkerReached(Worker* worker, const Spin& /*spin*/,
-                     uint32_t /*epoch*/) const {
-    Worker* workers = worker->AllWorkers();
-    const size_t shard = worker->Index() & (kShards - 1);
-    const auto kAcqRel = std::memory_order_acq_rel;
-    workers[kMaxThreads - shard].MutableBarrier().fetch_add(1, kAcqRel);
-  }
-
-  template <class Spin>
-  void UntilReached(size_t num_threads, const Worker* workers, const Spin& spin,
-                    uint32_t /*epoch*/) const {
-    HWY_IF_CONSTEXPR(kShards == 1) {
-      (void)spin.UntilEqual(static_cast<uint32_t>(num_threads),
-                            workers[kMaxThreads - 0].Barrier());
-    }
-    HWY_IF_CONSTEXPR(kShards == 2) {
-      const auto kAcq = std::memory_order_acquire;
-      for (;;) {
-        hwy::Pause();
-        const uint64_t sum = workers[kMaxThreads - 0].Barrier().load(kAcq) +
-                             workers[kMaxThreads - 1].Barrier().load(kAcq);
-        if (sum == num_threads) break;
-      }
-    }
-    HWY_IF_CONSTEXPR(kShards == 4) {
-      const auto kAcq = std::memory_order_acquire;
-      for (;;) {
-        hwy::Pause();
-        const uint64_t sum = workers[kMaxThreads - 0].Barrier().load(kAcq) +
-                             workers[kMaxThreads - 1].Barrier().load(kAcq) +
-                             workers[kMaxThreads - 2].Barrier().load(kAcq) +
-                             workers[kMaxThreads - 3].Barrier().load(kAcq);
-        if (sum == num_threads) break;
-      }
-    }
-  }
-};
-
 // As with the wait, a store-release of the same local epoch counter serves as a
 // "have arrived" flag that does not require resetting.
 
@@ -715,17 +651,24 @@ class BarrierOrdered {
  public:
   BarrierType Type() const { return BarrierType::kOrdered; }
 
-  void Reset(Worker* /*workers*/) const {}
-
   template <class Spin>
   void WorkerReached(Worker* worker, const Spin&, uint32_t epoch) const {
     HWY_DASSERT(worker->Index() != 0);  // main is 0
     worker->StoreBarrier(epoch);
   }
 
+  // Returns true if `worker` (can be the main thread) reached the barrier.
+  bool HasReached(const Worker* worker, uint32_t epoch) const {
+    const uint32_t barrier = worker->Barrier().load(std::memory_order_acquire);
+    HWY_DASSERT(barrier <= epoch);
+    return barrier == epoch;
+  }
+
   template <class Spin>
-  void UntilReached(size_t num_threads, const Worker* workers, const Spin& spin,
+  void UntilReached(size_t num_threads, Worker* workers, const Spin& spin,
                     uint32_t epoch) const {
+    workers[0].StoreBarrier(epoch);  // for main thread HasReached.
+
     for (size_t i = 0; i < num_threads; ++i) {
       (void)spin.UntilEqual(epoch, workers[1 + i].Barrier());
     }
@@ -740,8 +683,6 @@ class BarrierGroup {
     return kGroupSize == 2 ? BarrierType::kGroup2 : BarrierType::kGroup4;
   }
 
-  void Reset(Worker* /*workers*/) const {}
-
   template <class Spin>
   void WorkerReached(Worker* worker, const Spin& spin, uint32_t epoch) const {
     const size_t w_idx = worker->Index();
@@ -752,6 +693,11 @@ class BarrierGroup {
 
     Worker* workers = worker->AllWorkers();
     const size_t num_workers = 1 + workers->NumThreads();
+
+    // Must be set before spinning, hence we require two separate flags.
+    // Reached() means we arrived, whereas Barrier() is what the main thread
+    // checks, hence it is set after all others in the group have arrived.
+    worker->StoreReached(epoch);
 
     // Leaders (the first worker of each group) wait for all others in their
     // group before marking themselves.
@@ -765,9 +711,19 @@ class BarrierGroup {
     worker->StoreBarrier(epoch);
   }
 
+  // Returns true if `worker` (can be the main thread) reached the barrier.
+  bool HasReached(const Worker* worker, uint32_t epoch) const {
+    // Unlike BarrierOrdered, we check Reached(), not Barrier().
+    const uint32_t barrier = worker->Reached().load(std::memory_order_acquire);
+    HWY_DASSERT(barrier <= epoch);
+    return barrier == epoch;
+  }
+
   template <class Spin>
-  void UntilReached(size_t num_threads, const Worker* workers, const Spin& spin,
+  void UntilReached(size_t num_threads, Worker* workers, const Spin& spin,
                     uint32_t epoch) const {
+    workers[0].StoreReached(epoch);  // for main thread HasReached.
+
     for (size_t i = 0; i < num_threads; i += kGroupSize) {
       (void)spin.UntilEqual(epoch, workers[1 + i].Barrier());
     }
@@ -820,12 +776,6 @@ class FunctorAddBarrier {
     switch (barrier_type_) {
       case BarrierType::kOrdered:
         return func_(wait, BarrierOrdered());
-      case BarrierType::kCounter1:
-        return func_(wait, BarrierCounter<1>());
-      case BarrierType::kCounter2:
-        return func_(wait, BarrierCounter<2>());
-      case BarrierType::kCounter4:
-        return func_(wait, BarrierCounter<4>());
       case BarrierType::kGroup2:
         return func_(wait, BarrierGroup<2>());
       case BarrierType::kGroup4:
@@ -839,12 +789,6 @@ class FunctorAddBarrier {
     switch (barrier_type_) {
       case BarrierType::kOrdered:
         return func_(spin, wait, BarrierOrdered());
-      case BarrierType::kCounter1:
-        return func_(spin, wait, BarrierCounter<1>());
-      case BarrierType::kCounter2:
-        return func_(spin, wait, BarrierCounter<2>());
-      case BarrierType::kCounter4:
-        return func_(spin, wait, BarrierCounter<4>());
       case BarrierType::kGroup2:
         return func_(spin, wait, BarrierGroup<2>());
       case BarrierType::kGroup4:
@@ -903,7 +847,12 @@ class MainAdapter {
                                    const Barrier& barrier) const {
     Worker* workers = main_->AllWorkers();
     const size_t num_threads = main_->NumThreads();
-    barrier.Reset(workers);
+
+    HWY_IF_CONSTEXPR(HWY_IS_DEBUG_BUILD) {
+      for (size_t i = 0; i < 1 + num_threads; ++i) {
+        HWY_DASSERT(!barrier.HasReached(workers + i, epoch_));
+      }
+    }
 
     wait.WakeWorkers(workers, epoch_);
     // Threads might still be starting up and wake up late, but we wait for
@@ -916,6 +865,12 @@ class MainAdapter {
     // it is here) called `WorkerReached`. All `barrier` types use spinning.
 
     barrier.UntilReached(num_threads, workers, spin, epoch_);
+
+    HWY_IF_CONSTEXPR(HWY_IS_DEBUG_BUILD) {
+      for (size_t i = 0; i < 1 + num_threads; ++i) {
+        HWY_DASSERT(barrier.HasReached(workers + i, epoch_));
+      }
+    }
 
     // Threads may already be waiting `UntilWoken`, which serves as the
     // 'release' phase of the barrier.
