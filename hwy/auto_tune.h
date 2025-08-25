@@ -22,10 +22,10 @@
 
 #include <cmath>
 #include <vector>
+#include <algorithm>  // std::sort
 
 #include "hwy/aligned_allocator.h"  // Span
 #include "hwy/base.h"               // HWY_MIN
-#include "hwy/contrib/sort/vqsort.h"
 
 // Infrastructure for auto-tuning (choosing optimal parameters at runtime).
 
@@ -104,14 +104,9 @@ class CostDistribution {
  private:
   static double Median(double* to_sort, size_t n) {
     HWY_DASSERT(n >= 2);
-// F64 is supported everywhere except Armv7.
-#if !HWY_ARCH_ARM_V7
-    VQSort(to_sort, n, SortAscending());
-#else
-    // Values are known to be finite and non-negative, hence sorting as U64 is
-    // equivalent.
-    VQSort(reinterpret_cast<uint64_t*>(to_sort), n, SortAscending());
-#endif
+
+    std::sort(to_sort, to_sort + n);
+
     if (n & 1) return to_sort[n / 2];
     // Even length: average of two middle elements.
     return (to_sort[n / 2] + to_sort[n / 2 - 1]) * 0.5;
