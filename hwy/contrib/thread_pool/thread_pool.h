@@ -41,6 +41,10 @@
 #include "hwy/stats.h"
 #include "hwy/timer.h"
 
+#if HWY_OS_APPLE
+#include <AvailabilityMacros.h>
+#endif
+
 // Define to HWY_NOINLINE to see profiles of `WorkerRun*` and waits.
 #define HWY_POOL_PROFILE
 
@@ -59,9 +63,12 @@ static inline void SetThreadName(const char* format, int thread) {
     HWY_OS_FREEBSD
   // Note that FreeBSD pthread_set_name_np does not return a value (#2669).
   HWY_ASSERT(0 == pthread_setname_np(pthread_self(), buf));
-#elif HWY_OS_APPLE
+#elif HWY_OS_APPLE && (MAC_OS_X_VERSION_MIN_REQUIRED >= 1060)
   // Different interface: single argument, current thread only.
   HWY_ASSERT(0 == pthread_setname_np(buf));
+#else
+  (void)format;
+  (void)thread;
 #endif
 }
 
