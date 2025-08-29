@@ -554,7 +554,12 @@
 #endif
 
 #if HWY_TARGET == HWY_NEON_WITHOUT_AES
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1400
+// Prevents inadvertent use of SVE by GCC 13.4 and earlier, see #2689.
+#define HWY_TARGET_STR "+nosve"
+#else
 // Do not define HWY_TARGET_STR (no pragma).
+#endif  // HWY_COMPILER_GCC_ACTUAL
 #elif HWY_TARGET == HWY_NEON
 #define HWY_TARGET_STR HWY_TARGET_STR_NEON
 #elif HWY_TARGET == HWY_NEON_BF16
