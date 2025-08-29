@@ -31,6 +31,14 @@
 
 #include "hwy/base.h"
 
+#if HWY_OS_APPLE
+#include <AvailabilityMacros.h>
+// __ulock* were added in OS X 10.12 (Sierra, 2016).
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101200 && !defined(HWY_DISABLE_FUTEX)
+#define HWY_DISABLE_FUTEX
+#endif
+#endif  // HWY_OS_APPLE
+
 #if HWY_OS_WIN
 // Need to include <windows.h> on Windows, even if HWY_DISABLE_FUTEX is defined,
 // since hwy::NanoSleep uses Windows API's that are defined in windows.h.
