@@ -27,6 +27,13 @@
 #include "hwy/aligned_allocator.h"  // Span
 #include "hwy/base.h"               // HWY_MIN
 
+// configuration to allow using auto_tune independently of hwy/contrib/sort
+#ifdef HWY_AUTOTUNE_USE_VQSORT
+#include "hwy/contrib/sort/vqsort.h"
+#else
+#include <algorithm> // std::sort
+#endif
+
 // Infrastructure for auto-tuning (choosing optimal parameters at runtime).
 
 namespace hwy {
@@ -105,7 +112,18 @@ class CostDistribution {
   static double Median(double* to_sort, size_t n) {
     HWY_DASSERT(n >= 2);
 
+#ifdef HWY_AUTOTUNE_USE_VQSORT
+// F64 is supported everywhere except Armv7.
+#if !HWY_ARCH_ARM_V7
+    VQSort(to_sort, n, SortAscending());
+#else
+    // Values are known to be finite and non-negative, hence sorting as U64 is
+    // equivalent.
+    VQSort(reinterpret_cast<uint64_t*>(to_sort), n, SortAscending());
+#endif
+#else
     std::sort(to_sort, to_sort + n);
+#endif
 
     if (n & 1) return to_sort[n / 2];
     // Even length: average of two middle elements.
