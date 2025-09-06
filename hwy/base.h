@@ -57,7 +57,7 @@
 
 #endif  // !HWY_IDE
 
-#if (HWY_ARCH_X86 && !defined(HWY_NO_LIBCXX)) || HWY_COMPILER_MSVC
+#if !defined(HWY_NO_LIBCXX) || HWY_COMPILER_MSVC
 #include <atomic>
 #endif
 
