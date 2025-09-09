@@ -22,7 +22,6 @@
 
 #include <cmath>
 #include <vector>
-#include <algorithm>  // std::sort
 
 #include "hwy/aligned_allocator.h"  // Span
 #include "hwy/base.h"               // HWY_MIN
