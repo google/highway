@@ -720,9 +720,15 @@
 #if HWY_TARGET == HWY_LSX
 #define HWY_ALIGN alignas(16)
 #define HWY_MAX_BYTES 16
+#ifndef __loongarch_sx
+#define HWY_TARGET_STR "lsx"
+#endif
 #else
 #define HWY_ALIGN alignas(32)
 #define HWY_MAX_BYTES 32
+#ifndef __loongarch_asx
+#define HWY_TARGET_STR "lsx,lasx"
+#endif
 #endif
 
 #define HWY_LANES(T) (HWY_MAX_BYTES / sizeof(T))

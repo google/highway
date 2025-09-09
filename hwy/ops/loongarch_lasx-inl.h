@@ -15,10 +15,27 @@
 // 256-bit LASX vectors and operations.
 // External include guard in highway.h - see comment there.
 
-#include <lasxintrin.h>
-
 #include "hwy/ops/loongarch_lsx-inl.h"
 #include "hwy/ops/shared-inl.h"
+
+#ifndef __loongarch_asx
+// If LASX is to be runtime dispatched (instead of in baseline), we need
+// to enable it *and* define __loongarch_asx or the intrinsic header will
+// fail to compile.
+//
+// For consistency, the same pattern as the lsxintrin.h handling in
+// loongarch_lsx-inl.h is used (instead of moving lasxintrin.h after
+// HWY_BEFORE_NAMESPACE).
+HWY_PUSH_ATTRIBUTES("lsx,lasx")
+#define __loongarch_asx
+#include <lasxintrin.h>
+#undef __loongarch_asx
+// Prevent "unused push_attribute" warning from Clang.
+HWY_MAYBE_UNUSED static void HWY_CONCAT(hwy_lasx_dummy, __COUNTER__) () {}
+HWY_POP_ATTRIBUTES
+#else
+#include <lasxintrin.h>
+#endif
 
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
