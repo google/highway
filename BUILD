@@ -265,6 +265,7 @@ cc_library(
     copts = COPTS,
     deps = [
         ":hwy",
+        "//hwy/contrib/sort:vqsort",
     ],
 )
 

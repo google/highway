@@ -559,7 +559,6 @@ if tests_enabled
     hwy_test_files = files(
         'hwy/abort_test.cc',
         'hwy/aligned_allocator_test.cc',
-        'hwy/auto_tune_test.cc',
         'hwy/base_test.cc',
         'hwy/bit_set_test.cc',
         'hwy/highway_test.cc',
@@ -627,6 +626,12 @@ if tests_enabled
         'hwy/tests/widen_mul_test.cc',
     )
 
+    if not contrib_enabled
+        hwy_test_files += files(           
+            'hwy/auto_tune_test.cc',
+        )
+    endif
+
     test_exe_args = ['-DHWY_IS_TEST=1']
     
     test_exe_link_args = []
@@ -642,20 +647,26 @@ if tests_enabled
             test_srcs += files('hwy/examples/skeleton.cc')
         endif
 
+        extra_defines = []
+        if exe_name == 'auto_tune_test'
+            extra_defines += '-DHWY_AUTOTUNE_STDSORT'
+        endif
+
         test_exe = executable(
             exe_name,
             test_srcs,
-            cpp_args: test_exe_args,
+            cpp_args: test_exe_args + extra_defines,
             dependencies: [hwy_test_dep, gtest_main_dep],
             link_args: test_exe_link_args,
             pie: pie,
         )
-        
+
         test(exe_name, test_exe, protocol:'gtest')
     endforeach
 
     if contrib_enabled
         hwy_contrib_test_files = files(
+            'hwy/auto_tune_test.cc',
             'hwy/contrib/algo/copy_test.cc',
             'hwy/contrib/algo/find_test.cc',
             'hwy/contrib/algo/transform_test.cc',
