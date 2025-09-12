@@ -13,8 +13,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <lsxintrin.h>
 #include <stdio.h>
+
+#ifndef __loongarch_sx
+// If LSX is to be runtime dispatched (instead of in baseline), we need
+// to enable it *and* define __loongarch_sx or the intrinsic header will
+// fail to compile.
+//
+// We cannot simply move lsxintrin.h after HWY_BEFORE_NAMESPACE because
+// doing so may cause the first (the only effective) inclusion of
+// lsxintrin.h to be compiled with both LSX and LASX enabled.  Then when
+// we call the inline functions in the header with only LSX enabled,
+// we'll get an "always_inline function requires lasx but would be inlined
+// into a function that is compiled without suport for lasx" error.
+HWY_PUSH_ATTRIBUTES("lsx")
+#define __loongarch_sx
+#include <lsxintrin.h>
+#undef __loongarch_sx
+// Prevent "unused push_attribute" warning from Clang.
+HWY_MAYBE_UNUSED static void HWY_CONCAT(hwy_lsx_dummy, __COUNTER__) () {}
+HWY_POP_ATTRIBUTES
+#else
+#include <lsxintrin.h>
+#endif
 
 #include "hwy/base.h"
 #include "hwy/ops/shared-inl.h"
