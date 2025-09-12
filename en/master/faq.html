@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Frequently Asked Questions &mdash; HIGHWAY nightly documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css" />
+      <link rel="stylesheet" type="text/css" href="_static/css/toggle.css" />
+
+  
+    <link rel="shortcut icon" href="_static/logo-32x32.ico"/>
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+        <script src="_static/js/toggle.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Highway implementation details" href="impl_details.html" />
+    <link rel="prev" title="Design philosophy" href="design_philosophy.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            HIGHWAY
+              <img src="_static/logo.png" class="logo" alt="Logo"/>
+          </a>
+              <div class="version">
+                master
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="README.html">Efficient and performance-portable vector software</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quick_reference.html">API synopsis / quick reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="design_philosophy.html">Design philosophy</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Frequently Asked Questions</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#getting-started">Getting started</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#documentation">Documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#correctness">Correctness</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#api-design">API design</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#portability">Portability</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#boilerplate">Boilerplate</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#efficiency">Efficiency</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="impl_details.html">Highway implementation details</a></li>
+<li class="toctree-l1"><a class="reference internal" href="release_testing_process.html">Release testing process</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">HIGHWAY</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Frequently Asked Questions</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/google/highway/blob/master/docs/faq.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <div class="section" id="frequently-asked-questions">
+<h1>Frequently Asked Questions<a class="headerlink" href="#frequently-asked-questions" title="Permalink to this heading"></a></h1>
+<div class="section" id="getting-started">
+<h2>Getting started<a class="headerlink" href="#getting-started" title="Permalink to this heading"></a></h2>
+<p>Q0.0: How do I <strong>get the Highway library</strong>?</p>
+<p>A: Highway is available in numerous package managers, e.g. under the
+name libhwy-dev. After installing, you can add it to your CMake-based
+build via <code class="docutils literal notranslate"><span class="pre">find_package(HWY</span> <span class="pre">1.3.0)</span></code> and
+<code class="docutils literal notranslate"><span class="pre">target_link_libraries(your_project</span> <span class="pre">PRIVATE</span> <span class="pre">hwy)</span></code>.</p>
+<p>Alternatively, if using Git for version control, you can use Highway as
+a ‘submodule’ by adding the following to .gitmodules:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">submodule</span> <span class="s2">&quot;highway&quot;</span><span class="p">]</span>
+    <span class="n">path</span> <span class="o">=</span> <span class="n">highway</span>
+    <span class="n">url</span> <span class="o">=</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">google</span><span class="o">/</span><span class="n">highway</span>
+</pre></div>
+</div>
+<p>Then, anyone who runs <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">clone</span> <span class="pre">--recursive</span></code> on your repository will
+also get Highway. If not using Git, you can also manually download the
+<a class="reference external" href="https://github.com/google/highway/releases">Highway code</a> and add it
+to your source tree.</p>
+<p>For building Highway yourself, the two best-supported build systems are
+CMake and Bazel. For the former, insert <code class="docutils literal notranslate"><span class="pre">add_subdirectory(highway)</span></code>
+into your CMakeLists.txt. For the latter, we provide a BUILD file and
+your project can reference it by adding
+<code class="docutils literal notranslate"><span class="pre">deps</span> <span class="pre">=</span> <span class="pre">[&quot;//path/highway:hwy&quot;]</span></code>.</p>
+<p>If you use another build system, add <code class="docutils literal notranslate"><span class="pre">hwy/per_target.cc</span></code> and
+<code class="docutils literal notranslate"><span class="pre">hwy/targets.cc</span></code> to your list of files to compile and link. As of
+writing, all other files are headers typically included via highway.h.</p>
+<p>If you are interested in a single-header version of Highway, please
+raise an issue so we can understand your use-case.</p>
+<p>Q0.1: What’s the <strong>easiest way to start using Highway</strong>?</p>
+<p>A: Copy an existing file such as <code class="docutils literal notranslate"><span class="pre">hwy/examples/benchmark.cc</span></code> or
+<code class="docutils literal notranslate"><span class="pre">skeleton.cc</span></code> or another source already using Highway. This ensures
+that the ‘boilerplate’ (namespaces, include order) are correct.</p>
+<p>Then, in the function <code class="docutils literal notranslate"><span class="pre">RunBenchmarks</span></code> (for benchmark.cc) or
+<code class="docutils literal notranslate"><span class="pre">FloorLog2</span></code> (for skeleton.cc), you can insert your own code. For
+starters it can be written entirely in normal C++. This can still be
+beneficial because your code will be compiled with the appropriate flags
+for SIMD, which may allow the compiler to autovectorize your C++ code
+especially if it is straightforward integer code without conditional
+statements/branches.</p>
+<p>Next, you can wrap your code in
+<code class="docutils literal notranslate"><span class="pre">#if</span> <span class="pre">HWY_TARGET</span> <span class="pre">==</span> <span class="pre">HWY_SCALAR</span> <span class="pre">||</span> <span class="pre">HWY_TARGET</span> <span class="pre">==</span> <span class="pre">HWY_EMU128</span></code> and into
+the <code class="docutils literal notranslate"><span class="pre">#else</span></code> branch, put a vectorized version of your code using the
+Highway intrinsics (see Documentation section below). If you also create
+a test by copying one of the source files in <code class="docutils literal notranslate"><span class="pre">hwy/tests/</span></code>, the Highway
+infrastructure will run your test for all supported targets. Because one
+of the targets SCALAR or EMU128 are always supported, this will ensure
+that your vector code behaves the same as your original code.</p>
+</div>
+<div class="section" id="documentation">
+<h2>Documentation<a class="headerlink" href="#documentation" title="Permalink to this heading"></a></h2>
+<p>Q1.1: How do I <strong>find the Highway op name</strong> corresponding to an existing
+intrinsic?</p>
+<p>A: Search for the intrinsic in (for example)
+<a class="reference external" href="https://github.com/google/highway/blob/master/hwy/ops/x86_128-inl.h">x86_128-inl.h</a>.
+The Highway op is typically the name of the function that calls the
+intrinsic. See also the <a class="reference external" href="https://github.com/google/highway/blob/master/g3doc/quick_reference.md">quick
+reference</a>
+which lists all of the Highway ops.</p>
+<p>Q1.2: Are there <strong>examples of porting intrinsics to Highway</strong>?</p>
+<p>A: See <a class="reference external" href="https://github.com/google/highway#examples">https://github.com/google/highway#examples</a>.</p>
+<p>Q1.3: Where do I find documentation for each <strong>platform’s intrinsics</strong>?</p>
+<p>A: See Intel
+<a class="reference external" href="https://www.intel.com/content/www/us/en/docs/intrinsics-guide">guide</a>,
+Arm
+<a class="reference external" href="https://developer.arm.com/architectures/instruction-sets/intrinsics">guide</a>
+and <a class="reference external" href="https://dougallj.github.io/asil/">SVE</a>, RISC-V V
+<a class="reference external" href="https://github.com/riscv/riscv-v-spec/blob/master/v-spec.adoc">spec</a>
+and <a class="reference external" href="https://dzaima.github.io/intrinsics-viewer/#">guide</a>,
+<a class="reference external" href="https://nemequ.github.io/waspr/intrinsics">WebAssembly</a>, PPC
+<a class="reference external" href="https://openpowerfoundation.org/specifications/isa/">ISA</a> and
+<a class="reference external" href="https://openpowerfoundation.org/specifications/vectorintrinsicprogrammingreference/">intrinsics</a>.</p>
+<p>Q1.4: Where do I find <strong>instruction latency/throughput</strong>?</p>
+<p>A: For x86, a combination of
+<a class="reference external" href="https://www.uops.info/table.html">uops.info</a> and
+<a class="reference external" href="https://agner.org/optimize/">https://agner.org/optimize/</a>, plus Intel’s above intrinsics guide and
+<a class="reference external" href="https://www.amd.com/system/files/TechDocs/56665.zip">AMD’s sheet (zip
+file)</a>. For Arm,
+the
+<a class="reference external" href="https://developer.arm.com/documentation/pjdoc466751330-9685/latest/">Software_Optimization_Guide</a>
+for Neoverse V1 etc. For RISC-V, the vendor’s tables (typically not
+publicly available).</p>
+<p>Q1.5: Where can I find <strong>inspiration for SIMD-friendly algorithms</strong>? A:</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://en.algorithmica.org/hpc/">Algorithms for Modern Hardware online
+book</a></p></li>
+<li><p><a class="reference external" href="http://const.me/articles/simd/simd.pdf">SIMD for C++ developers</a></p></li>
+<li><p><a class="reference external" href="https://graphics.stanford.edu/~seander/bithacks.html">Bit twiddling
+collection</a></p></li>
+<li><p><a class="reference external" href="http://aggregate.org/MAGIC/">SIMD-within-a-register</a></p></li>
+<li><p>Hacker’s Delight book, which has a huge collection of bitwise
+identities, but is written for hypothetical RISC CPUs, which differ
+in some ways from the SIMD capabilities of current CPUs.</p></li>
+</ul>
+<p>Q1.6: How do I <strong>predict performance</strong>?</p>
+<p>A: The best approach by far is end-to-end application benchmarking.
+Typical microbenchmarks are subject to numerous pitfalls including
+unrealistic cache and branch predictor hit rates (unless the benchmark
+randomizes its behavior). But sometimes we would like a quick indication
+of whether a short piece of code runs efficiently on a given CPU.
+Intel’s IACA used to serve this purpose but has been discontinued. We
+now recommend llvm-mca, <a class="reference external" href="https://gcc.godbolt.org/z/n-KcQ-">integrated into Compiler
+Explorer</a>. This shows the predicted
+throughput and the pressure on the various functional units, but does
+not cover dynamic behavior including frontend and cache. For a bit more
+detail, see <a class="reference external" href="https://en.algorithmica.org/hpc/profiling/mca/">https://en.algorithmica.org/hpc/profiling/mca/</a>. chriselrod
+mentioned the recently published <a class="reference external" href="https://uica.uops.info/">uica</a>,
+which is reportedly more accurate
+(<a class="reference external" href="https://arxiv.org/pdf/2107.14210.pdf">paper</a>).</p>
+</div>
+<div class="section" id="correctness">
+<h2>Correctness<a class="headerlink" href="#correctness" title="Permalink to this heading"></a></h2>
+<p>Q2.1: <strong>Which targets are covered</strong> by my tests?</p>
+<p>A: Tests execute for every target supported by the current CPU. The CPU
+may vary across runs in a cloud environment, so you may want to specify
+constraints to ensure the CPU is as recent as possible.</p>
+<p>Q2.2: Why do <strong>floating-point results differ</strong> on some platforms?</p>
+<p>A: It is commonly believed that floating-point reproducibility across
+platforms is infeasible. That is somewhat pessimistic, but not entirely
+wrong. Although IEEE-754 guarantees certain properties, including the
+rounding of each operation, commonly used compiler flags can invalidate
+them. In particular, clang/GCC -ffp-contract and MSVC /fp:contract can
+change results of anything involving multiply followed by add. This is
+usually helpful (fusing both operations into a single FMA, with only a
+single rounding), but depending on the computation typically changes the
+end results by around 10^-5. Using Highway’s <code class="docutils literal notranslate"><span class="pre">MulAdd</span></code> op can have the
+same effect: SSE4, NEON and WASM may not support FMA, but most other
+platforms do. A common workaround is to use a tolerance when comparing
+expected values. For robustness across both large and small values, we
+recommend both a relative and absolute (L1 norm) tolerance. The
+-ffast-math flag can have more subtle and dangerous effects. It allows
+reordering operations (which can also change results), but also removes
+guarantees about NaN, thus we do not recommend using it.</p>
+<p>Q2.3: How do I make my code <strong>safe for asan and msan</strong>?</p>
+<p>A: The main challenge is dealing with the remainders in arrays not
+divisible by the vector length. Using <code class="docutils literal notranslate"><span class="pre">LoadU</span></code>, or even <code class="docutils literal notranslate"><span class="pre">MaskedLoad</span></code>
+with the mask set to <code class="docutils literal notranslate"><span class="pre">FirstN(d,</span> <span class="pre">remaining_lanes)</span></code>, may trigger page
+faults or asan errors. We instead recommend using
+<code class="docutils literal notranslate"><span class="pre">hwy/contrib/algo/transform-inl.h</span></code>. Rather than having to write a loop
+plus remainder handling, you simply define a templated (lambda) function
+implementing one loop iteration. The <code class="docutils literal notranslate"><span class="pre">Generate</span></code> or <code class="docutils literal notranslate"><span class="pre">Transform*</span></code>
+functions then take care of remainder handling.</p>
+</div>
+<div class="section" id="api-design">
+<h2>API design<a class="headerlink" href="#api-design" title="Permalink to this heading"></a></h2>
+<p>Q3.1: Are the <strong>``d`` arguments optimized out</strong>?</p>
+<p>A: Yes, <code class="docutils literal notranslate"><span class="pre">d</span></code> is an lvalue of the zero-sized type <code class="docutils literal notranslate"><span class="pre">Simd&lt;&gt;</span></code>, typically
+obtained via <code class="docutils literal notranslate"><span class="pre">ScalableTag&lt;T&gt;</span></code>. These only serve to select overloaded
+functions and do not occupy any storage at runtime.</p>
+<p>Q3.2: Why do <strong>only some functions have a ``d`` argument</strong>?</p>
+<p>A: Ops which receive and return vectors typically do not require a <code class="docutils literal notranslate"><span class="pre">d</span></code>
+argument because the type information on vectors (either built-in or
+wrappers) is sufficient for C++ overload resolution. The <code class="docutils literal notranslate"><span class="pre">d</span></code> argument
+is required for:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>-   Influencing the number of lanes loaded/stored from/to memory. The
+    arguments to `Simd&lt;&gt;` include an upper bound `N`, and a shift count
+    `kPow2` to divide the actual number of lanes by a power of two.
+-   Indicating the desired vector or mask type to return from &#39;factory&#39;
+    functions such as `Set` or `FirstN`, `BitCast`, or conversions such as
+    `PromoteTo`.
+-   Disambiguating the argument type to ops such as `VecFromMask` or
+    `AllTrue`, because masks may be generic types shared between multiple
+    lane types.
+-   Determining the actual number of lanes for certain ops, in particular
+    those defined in terms of the upper half of a vector (`UpperHalf`, but
+    also `Combine` or `ConcatUpperLower`) and reductions such as
+    `MaxOfLanes`.
+</pre></div>
+</div>
+<p>Q3.3: What’s the policy for <strong>adding new ops</strong>?</p>
+<p>A: Please reach out, we are happy to discuss via Github issue. The
+general guideline is that there should be concrete plans to use the op,
+and it should be efficiently implementable on all platforms without
+major performance cliffs. In particular, each implementation should be
+at least as efficient as what is achievable on any platform using
+portable code without the op. See also the <a class="reference external" href="op_wishlist.md">wishlist for
+ops</a>.</p>
+<p>Q3.4: <code class="docutils literal notranslate"><span class="pre">auto</span></code> is discouraged, <strong>what vector type</strong> should we use?</p>
+<p>A: You can use <code class="docutils literal notranslate"><span class="pre">Vec&lt;D&gt;</span></code> or <code class="docutils literal notranslate"><span class="pre">Mask&lt;D&gt;</span></code>, where <code class="docutils literal notranslate"><span class="pre">D</span></code> is the type of
+<code class="docutils literal notranslate"><span class="pre">d</span></code> (in fact we often use <code class="docutils literal notranslate"><span class="pre">decltype(d)</span></code> for that). To keep code
+short, you can define typedefs/aliases, for example
+<code class="docutils literal notranslate"><span class="pre">using</span> <span class="pre">V</span> <span class="pre">=</span> <span class="pre">Vec&lt;decltype(d)&gt;</span></code>. Note that the Highway implementation
+uses <code class="docutils literal notranslate"><span class="pre">VFromD&lt;D&gt;</span></code>, which is equivalent but currently necessary because
+<code class="docutils literal notranslate"><span class="pre">Vec</span></code> is defined after the Highway implementations in hwy/ops/<a href="#id1"><span class="problematic" id="id2">*</span></a>.</p>
+<p>Q3.5: <strong>Why is base.h separate</strong> from highway.h?</p>
+<p>A: It can be useful for files that just want compiler-dependent macros,
+for example <code class="docutils literal notranslate"><span class="pre">HWY_RESTRICT</span></code> in public headers. This avoids the expense
+of including the full <code class="docutils literal notranslate"><span class="pre">highway.h</span></code>, which can be large because some
+platform headers declare thousands of intrinsics.</p>
+<p>Q3.6: What are <strong>restrict pointers</strong> and when to use <code class="docutils literal notranslate"><span class="pre">HWY_RESTRICT</span></code>?</p>
+<p>This relates to aliasing. If a function has two pointer arguments of the
+same type, and perhaps also extern/static variables of that type, the
+compiler might have to be very conservative about caching the variables
+or pointer accesses because their value could change after writes to the
+pointer.</p>
+<p><code class="docutils literal notranslate"><span class="pre">float*</span> <span class="pre">HWY_RESTRICT</span> <span class="pre">p</span></code> means a pointer to float, and this pointer is
+the only way to access the pointed-to object/array. In particular, this
+promises that <code class="docutils literal notranslate"><span class="pre">p</span></code> does not alias other pointers. This usually improves
+codegen when there are multiple pointers, at least one of which is
+const. Beware that the generated code might not behave as expected if
+you break the promise.</p>
+</div>
+<div class="section" id="portability">
+<h2>Portability<a class="headerlink" href="#portability" title="Permalink to this heading"></a></h2>
+<p>Q4.1: How do I <strong>only generate code for a single instruction set</strong>
+(static dispatch)?</p>
+<p>A: Suppose we know that all target CPUs support a given baseline (for
+example SSE4). Then we can reduce binary size and compilation time by
+only generating code for its instruction set. This is actually the
+default for Highway code that does not use foreach_target.h. Highway
+detects via predefined macros which instruction sets the compiler is
+allowed to use, which is governed by compiler flags. This
+<a class="reference external" href="https://gcc.godbolt.org/z/rGnjMevKG">example</a> documents which flags
+are required on x86.</p>
+<p>Q4.2: Why does my working x86 code <strong>not compile on SVE or RISC-V</strong>?</p>
+<p>A: Assuming the code uses only documented identifiers (not, for example,
+the AVX2-specific <code class="docutils literal notranslate"><span class="pre">Vec256</span></code>), the problem is likely due to compiler
+limitations related to sizeless vectors. Code that works on x86 or NEON
+but not other platforms is likely breaking one of the following rules:</p>
+<ul class="simple">
+<li><p>Use functions (Eq, Lt) instead of overloaded operators (<code class="docutils literal notranslate"><span class="pre">==</span></code>,
+<code class="docutils literal notranslate"><span class="pre">&lt;</span></code>);</p></li>
+<li><p>Prefix Highway ops with <code class="docutils literal notranslate"><span class="pre">hwy::HWY_NAMESPACE</span></code>, or an alias
+(<code class="docutils literal notranslate"><span class="pre">hn::Load</span></code>) or ensure your code resides inside
+<code class="docutils literal notranslate"><span class="pre">namespace</span> <span class="pre">hwy::HWY_NAMESPACE</span></code>;</p></li>
+<li><p>Avoid arrays of vectors and static/thread_local/member vectors;
+instead use arrays of the lane type (T).</p></li>
+<li><p>Avoid pointer arithmetic on vectors; instead increment pointers to
+lanes by the vector length (<code class="docutils literal notranslate"><span class="pre">Lanes(d)</span></code>).</p></li>
+</ul>
+<p>Q4.3: Why are <strong>class members not allowed</strong>?</p>
+<p>A: This is a limitation of clang and GCC, which disallow sizeless types
+(including SVE and RISC-V vectors) as members. This is because it is not
+known at compile time how large the vectors are. MSVC does not yet
+support SVE nor RISC-V V, so the issue has not yet come up there.</p>
+<p>Q4.4: Why are <strong>overloaded operators not allowed</strong>?</p>
+<p>A: C++ disallows overloading functions for built-in types, and vectors
+on some platforms (SVE, RISC-V) are indeed built-in types precisely due
+to the above limitation. Discussions are ongoing whether the compiler
+could add builtin <code class="docutils literal notranslate"><span class="pre">operator&lt;(unspecified_vector,</span> <span class="pre">unspecified_vector)</span></code>.
+When(if) that becomes widely supported, this limitation can be lifted.</p>
+<p>Q4.5: Can I declare <strong>arrays of lanes on the stack</strong>?</p>
+<p>A: This mostly works, but is not necessarily safe nor portable. On
+RISC-V, vectors can be quite large (64 KiB for LMUL=8), which can exceed
+the stack size. It is better to use
+<code class="docutils literal notranslate"><span class="pre">hwy::AllocateAligned&lt;T&gt;(Lanes(d))</span></code>.</p>
+</div>
+<div class="section" id="boilerplate">
+<h2>Boilerplate<a class="headerlink" href="#boilerplate" title="Permalink to this heading"></a></h2>
+<p>Q5.1: What is <strong>boilerplate</strong>?</p>
+<p>A: We use this to refer to reusable infrastructure which mostly serves
+to support runtime dispatch. We strongly recommend starting a SIMD
+project by copying from an existing one, because the ordering of code
+matters and the vector-specific boilerplate may be unfamiliar. See
+hwy/examples/skeleton.cc and <a class="reference external" href="https://github.com/google/highway#examples">https://github.com/google/highway#examples</a>.</p>
+<p>Q5.2: What’s the difference between <strong>``HWY_BEFORE_NAMESPACE`` and
+``HWY_ATTR``</strong>?</p>
+<p>A: Both are ways of enabling SIMD code generation in clang/gcc. The
+former is a pragma that applies to all subsequent namespace-scope and
+member functions, but not lambda functions. It can be more convenient
+than specifying <code class="docutils literal notranslate"><span class="pre">HWY_ATTR</span></code> for every function. However, <code class="docutils literal notranslate"><span class="pre">HWY_ATTR</span></code>
+is still necessary for lambda functions that use SIMD.</p>
+<p>Q5.3: <strong>Why use ``HWY_NAMESPACE``</strong>?</p>
+<p>A: This is only required when using foreach_target.h to generate code
+for multiple targets and dispatch to the best one at runtime. The
+namespace name changes for each target to avoid ODR violations. This
+would not be necessary for binaries built for a single target
+instruction set. However, we recommend placing your code in a
+<code class="docutils literal notranslate"><span class="pre">HWY_NAMESPACE</span></code> namespace (nested under your project’s namespace)
+regardless so that it will be ready for runtime dispatch if you want
+that later.</p>
+<p>Q5.4: What are these <strong>unusual include guards</strong>?</p>
+<p>A: Suppose you want to share vector code between several translation
+units, and ensure it is inlined. With normal code we would use a header.
+However, foreach_target.h wants to re-compile (via repeated preprocessor
+<code class="docutils literal notranslate"><span class="pre">#include</span></code>) a translation unit once per target. A conventional include
+guard would strip out the header contents after the first target. By
+convention, we use header files named *-inl.h with a special include
+guard of the form:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1">#if defined(MYPROJECT_FILE_INL_H_TARGET) == defined(HWY_TARGET_TOGGLE)</span>
+<span class="c1">#ifdef MYPROJECT_FILE_INL_H_TARGET</span>
+<span class="c1">#undef MYPROJECT_FILE_INL_H_TARGET</span>
+<span class="c1">#else</span>
+<span class="c1">#define MYPROJECT_FILE_INL_H_TARGET</span>
+<span class="c1">#endif</span>
+</pre></div>
+</div>
+<p>Highway takes care of defining and un-defining <code class="docutils literal notranslate"><span class="pre">HWY_TARGET_TOGGLE</span></code>
+after each recompilation such that the guarded header is included
+exactly once per target. Again, this effort is only necessary when using
+foreach_target.h. However, we recommend using the special include guards
+already so your code is ready for runtime dispatch.</p>
+<p>Q5.5: How do I <strong>prevent lint warnings for the include guard</strong>?</p>
+<p>A: The linter wishes to see a normal include guard at the start of the
+file. We can simply insert an empty guard, followed by our per-target
+guard.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">//</span> <span class="n">Start</span> <span class="n">of</span> <span class="n">file</span><span class="p">:</span> <span class="n">empty</span> <span class="n">include</span> <span class="n">guard</span> <span class="n">to</span> <span class="n">avoid</span> <span class="n">lint</span> <span class="n">errors</span>
+<span class="c1">#ifndef MYPROJECT_FILE_INL_H_</span>
+<span class="c1">#define MYPROJECT_FILE_INL_H_</span>
+<span class="c1">#endif</span>
+<span class="o">//</span> <span class="n">Followed</span> <span class="n">by</span> <span class="n">the</span> <span class="n">actual</span> <span class="n">per</span><span class="o">-</span><span class="n">target</span> <span class="n">guard</span> <span class="k">as</span> <span class="n">above</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="efficiency">
+<h2>Efficiency<a class="headerlink" href="#efficiency" title="Permalink to this heading"></a></h2>
+<p>Q6.1: I heard that modern CPUs support unaligned loads efficiently. Why
+does Highway <strong>differentiate unaligned and aligned loads/stores</strong>?</p>
+<p>A: It is true that Intel CPUs since Haswell have greatly reduced the
+penalty for unaligned loads. Indeed the <code class="docutils literal notranslate"><span class="pre">LDDQU</span></code> instruction intended
+to reduce their performance penalty is no longer necessary because
+normal loads (<code class="docutils literal notranslate"><span class="pre">MOVDQU</span></code>) now behave in the same way, splitting
+unaligned loads into two aligned loads. However, this comes at a cost:
+using two (both) load ports per cycle. This can slow down
+low-arithmetic-intensity algorithms such as dot products that mainly
+load without performing much arithmetic. Also, unaligned stores are
+typically more expensive on any platform. Thus we recommend using
+aligned stores where possible, and testing your code on x86 (which may
+raise faults if your pointers are actually unaligned). Note that the
+more specialized memory operations apart from Load/Store
+(e.g. <code class="docutils literal notranslate"><span class="pre">CompressStore</span></code> or <code class="docutils literal notranslate"><span class="pre">BlendedStore</span></code>) are not specialized for
+aligned pointers; this is to avoid doubling the number of memory ops.</p>
+<p>Q6.2: <strong>When does ``Prefetch`` help</strong>?</p>
+<p>A: Prefetching reduces apparent memory latency by starting the process
+of loading from cache or DRAM before the data is actually required. In
+some cases, this can be a 10-20% improvement if the application is
+indeed latency sensitive. However, the CPU may already be triggering
+prefetches by analyzing your access patterns. Depending on the platform,
+one or two separate instances of continuous forward or backward scans
+are usually automatically detected. If so, then additional prefetches
+may actually degrade performance. Also, applications will not see much
+benefit if they are bottlenecked by something else such as vector
+execution resources. Finally, a prefetch only helps if it comes
+sufficiently before the subsequent load, but not so far ahead that it
+again falls out of the cache. Thus prefetches are typically applied to
+future loop iterations. Unfortunately, the prefetch distance (gap
+between current position and where we want to prefetch) is highly
+platform- and microarchitecture dependent, so it can be difficult to
+choose a value appropriate for all platforms.</p>
+<p>Q6.3: Is <strong>CPU clock throttling</strong> really an issue?</p>
+<p>A: Early Intel implementations of AVX2 and especially AVX-512 reduced
+their clock frequency once certain instructions are executed. A
+<a class="reference external" href="https://lemire.me/blog/2018/08/15/the-dangers-of-avx-512-throttling-a-3-impact/">microbenchmark</a>
+specifically designed to reveal the worst case (with only few AVX-512
+instructions) shows a 3-4% slowdown on Skylake. Note that this is for a
+single core; the effect depends on the number of cores using SIMD, and
+the CPU type (Bronze/Silver are more heavily affected than
+Gold/Platinum). However, the throttling is defined relative to an
+arbitrary base frequency; what actually matters is the measured
+performance. Because throttling or SIMD usage can affect the entire
+system, it is important to measure end-to-end application performance
+rather than rely on microbenchmarks. In practice, we find the speedup
+from sustained SIMD usage (not just sporadic instructions amid mostly
+scalar code) is much larger than the impact of throttling. For JPEG XL
+image decompression, we observe a 1.4-1.6x end to end speedup from
+AVX-512 vs. AVX2, even on multiple cores of a Xeon Gold. For <a class="reference external" href="https://github.com/google/highway/blob/master/hwy/contrib/sort/README.md#study-of-avx-512-downclocking">vectorized
+Quicksort</a>,
+we find that throttling is not detectable on a single Skylake core, and
+the AVX-512 startup overhead is worthwhile for inputs &gt;= 80 KiB. Note
+that throttling is <a class="reference external" href="https://travisdowns.github.io/blog/2020/08/19/icl-avx512-freq.html#summary">no longer a concern on recent
+Intel</a>
+implementations of AVX-512 (Icelake and Rocket Lake client), and AMD
+CPUs do not throttle AVX2 or AVX-512.</p>
+<p>Q6.4: Why does my CPU sometimes only execute <strong>one vector instruction
+per cycle</strong> even though the specs say it could do 2-4?</p>
+<p>A: CPUs and fast food restaurants assume there will be a mix of
+instructions/food types. If everyone orders only french fries, that unit
+will be the bottleneck. Instructions such as permutes/swizzles and
+comparisons are assumed to be less common, and thus can typically only
+execute one per cycle. Check the platform’s optimization guide for the
+per-instruction “throughput”. For example, Intel Skylake executes
+swizzles on port 5, and thus only one per cycle. Similarly, Arm V1 can
+only execute one predicate-setting instruction (including comparisons)
+per cycle. As a workaround, consider replacing equality comparisons with
+the OR-sum of XOR differences.</p>
+<p>Q6.5: How <strong>expensive are Gather/Scatter</strong>?</p>
+<p>A: Platforms that support it typically process one lane per cycle. This
+can be far slower than normal Load/Store (which can typically handle two
+or even three entire <em>vectors</em> per cycle), so avoid them where possible.
+However, some algorithms such as rANS entropy coding and hash tables
+require gathers, and it is still usually better to use them than to
+avoid vectorization entirely.</p>
+</div>
+<div class="section" id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permalink to this heading"></a></h2>
+<p>Q7.1: When building with clang-16, I see errors such as
+<code class="docutils literal notranslate"><span class="pre">DWARF</span> <span class="pre">error:</span> <span class="pre">invalid</span> <span class="pre">or</span> <span class="pre">unhandled</span> <span class="pre">FORM</span> <span class="pre">value:</span> <span class="pre">0x25</span></code> or
+<code class="docutils literal notranslate"><span class="pre">undefined</span> <span class="pre">reference</span> <span class="pre">to</span> <span class="pre">__extendhfsf2</span></code>.</p>
+<p>A: This can happen if clang has been updated but compiler-rt has not.
+Action: When installing Clang 16 from apt.llvm.org, ensure
+libclang-rt-16-dev is also installed. This was caused by LLVM 16
+changing the ABI of <code class="docutils literal notranslate"><span class="pre">__extendhfsf2</span></code> to match the GCC ABI, which
+requires the entire toolchain to be updated. See #1709 for more
+information.</p>
+<p>Q7.2: I see build errors mentioning
+<code class="docutils literal notranslate"><span class="pre">inlining</span> <span class="pre">failed</span> <span class="pre">in</span> <span class="pre">call</span> <span class="pre">to</span> <span class="pre">‘always_inline’</span> <span class="pre">‘hwy::PreventElision&lt;int&amp;&gt;(int&amp;)void’:</span> <span class="pre">target</span> <span class="pre">specific</span> <span class="pre">option</span> <span class="pre">mismatch</span></code>.</p>
+<p>A: This is caused by a conflict between <code class="docutils literal notranslate"><span class="pre">-m</span></code> compiler flags and
+Highway’s dynamic dispatch mode, and is typically triggered by defining
+<code class="docutils literal notranslate"><span class="pre">HWY_IS_TEST</span></code> (set by our CMake/Bazel builds for tests) or
+<code class="docutils literal notranslate"><span class="pre">HWY_COMPILE_ALL_ATTAINABLE</span></code>. See below for a workaround; first some
+background. The goal of dynamic dispatch is to compile multiple versions
+of the code, one per target. When <code class="docutils literal notranslate"><span class="pre">-m</span></code> compiler flags are used to
+force a certain baseline, it can be that non-SIMD, forceinline functions
+such as <code class="docutils literal notranslate"><span class="pre">PreventElision</span></code> are compiled for a newer CPU baseline than
+the minimum target that Highway sets via <code class="docutils literal notranslate"><span class="pre">#pragma</span></code>. The compiler
+enforces a safety check: inlining higher-baseline functions into a
+normal function raises an error. This would not occur in most
+applications because Highway only enables targets at or above the
+baseline set by <code class="docutils literal notranslate"><span class="pre">-m</span></code> flags. However, Highway’s tests aim to cover all
+targets by defining <code class="docutils literal notranslate"><span class="pre">HWY_IS_TEST</span></code>. When that or
+<code class="docutils literal notranslate"><span class="pre">HWY_COMPILE_ALL_ATTAINABLE</span></code> are defined, then older targets are also
+compiled and the incompatibility arises. One possible solution is to
+disable these modes by defining <code class="docutils literal notranslate"><span class="pre">HWY_COMPILE_ONLY_STATIC</span></code>, which is
+checked first. Then, only the baseline target is used and dynamic
+dispatch is effectively disabled. If you still want to dispatch, but
+just avoid targets superseded by the baseline, define
+<code class="docutils literal notranslate"><span class="pre">HWY_SKIP_NON_BEST_BASELINE</span></code>. A third option is to avoid <code class="docutils literal notranslate"><span class="pre">-m</span></code> flags
+entirely, because they contradict the goals of test coverage and dynamic
+dispatch, or only set the ones that correspond to the oldest target
+Highway supports. See #1460, #1570, and #1707 for more information.</p>
+</div>
+</div>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="design_philosophy.html" class="btn btn-neutral float-left" title="Design philosophy" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="impl_details.html" class="btn btn-neutral float-right" title="Highway implementation details" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright Apache 2.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+
+  <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      <span class="fa fa-book"> Read the Docs</span>
+      
+      
+     <span class="fa fa-element">
+     <input class="container_toggle" type="checkbox" id="switch" name="mode">
+     <label for="switch"></label>
+     </span>
+      
+      v: master
+      <span class="fa fa-caret-down"></span>
+    </span>
+    <div class="rst-other-versions">
+      
+      <dl>
+        <dt>Languages</dt>
+        
+           <strong> 
+          <dd><a href="/highway/en/master/">en</a></dd>
+           </strong> 
+        
+          
+          <dd><a href="/highway/zh/master/">zh</a></dd>
+          
+        
+      </dl>
+      
+      
+      <dl>
+        <dt>Versions</dt>
+        
+          
+          <dd><a href="/highway/en/disable_w32_warning/">disable_w32_warning</a></dd>
+          
+        
+           <strong> 
+          <dd><a href="/highway/en/master/">master</a></dd>
+           </strong> 
+        
+      </dl>
+      
+      
+      <dl>
+        <dt>Downloads</dt>
+        
+          <dd><a href="/highway/en/master/highway_en_master.epub">epub</a></dd>
+        
+      </dl>
+      
+      
+      <hr/>
+      Free document hosting provided by <a href="https://pages.github.com/">GitHub Pages</a>.
+ 
+    </div>
+  </div>
+
+ <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>  
+
+  <style>
+         .wy-nav-content { max-width: none; }
+  </style>
+
+
+
+</body>
+</html>
