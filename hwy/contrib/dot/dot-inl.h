@@ -174,21 +174,12 @@ struct Dot {
         (kAssumptions & kMultipleOfVector) != 0;
     constexpr bool kIsPaddedToVector = (kAssumptions & kPaddedToVector) != 0;
 
-    // Won't be able to do a full vector load without padding => scalar loop.
+    // Won't be able to do a full vector load without padding => partial load.
     if (!kIsAtLeastOneVector && !kIsMultipleOfVector && !kIsPaddedToVector &&
         HWY_UNLIKELY(num_elements < NF)) {
-      // Only 2x unroll to avoid excessive code size.
-      float sum0 = 0.0f;
-      float sum1 = 0.0f;
-      size_t i = 0;
-      for (; i + 2 <= num_elements; i += 2) {
-        sum0 += pa[i + 0] * ConvertScalarTo<float>(pb[i + 0]);
-        sum1 += pa[i + 1] * ConvertScalarTo<float>(pb[i + 1]);
-      }
-      for (; i < num_elements; ++i) {
-        sum1 += pa[i] * ConvertScalarTo<float>(pb[i]);
-      }
-      return sum0 + sum1;
+      const VF a = LoadN(df, pa, num_elements);
+      const VF b = PromoteTo(df, LoadN(dbfh, pb, num_elements));
+      return ReduceSum(df, Mul(a, b));
     }
 
     // Compiler doesn't make independent sum* accumulators, so unroll manually.
@@ -279,19 +270,14 @@ struct Dot {
         (kAssumptions & kMultipleOfVector) != 0;
     constexpr bool kIsPaddedToVector = (kAssumptions & kPaddedToVector) != 0;
 
-    // Won't be able to do a full vector load without padding => scalar loop.
+    // Won't be able to do a full vector load without padding => partial load.
     if (!kIsAtLeastOneVector && !kIsMultipleOfVector && !kIsPaddedToVector &&
         HWY_UNLIKELY(num_elements < N)) {
-      float sum0 = 0.0f;  // Only 2x unroll to avoid excessive code size for..
-      float sum1 = 0.0f;  // this unlikely(?) case.
-      for (; i + 2 <= num_elements; i += 2) {
-        sum0 += F32FromBF16(pa[i + 0]) * F32FromBF16(pb[i + 0]);
-        sum1 += F32FromBF16(pa[i + 1]) * F32FromBF16(pb[i + 1]);
-      }
-      if (i < num_elements) {
-        sum1 += F32FromBF16(pa[i]) * F32FromBF16(pb[i]);
-      }
-      return sum0 + sum1;
+      const auto a = LoadN(d, pa, num_elements);
+      const auto b = LoadN(d, pb, num_elements);
+      V sum1 = Zero(df32);
+      V sum0 = ReorderWidenMulAccumulate(df32, a, b, Zero(df32), sum1);
+      return ReduceSum(df32, Add(sum0, sum1));
     }
 
     // See comment in the other Compute() overload. Unroll 2x, but we need
