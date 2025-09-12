@@ -147,7 +147,8 @@ static_assert(SortConstants::MaxBufBytes<2>(64) <= 1664, "Unexpectedly high");
 
 #if (HWY_COMPILER_MSVC && !HWY_IS_DEBUG_BUILD) ||                   \
     (HWY_ARCH_ARM_V7 && HWY_IS_DEBUG_BUILD) ||                      \
-    (HWY_ARCH_ARM_A64 && HWY_COMPILER_GCC_ACTUAL && HWY_IS_ASAN)
+    (HWY_ARCH_ARM_A64 && HWY_COMPILER_GCC_ACTUAL && HWY_IS_ASAN) || \
+    (HWY_ARCH_RISCV && HWY_COMPILER_GCC_ACTUAL < 1400)
 #define VQSORT_COMPILER_COMPATIBLE 0
 #else
 #define VQSORT_COMPILER_COMPATIBLE 1
