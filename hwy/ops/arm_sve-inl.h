@@ -5318,7 +5318,7 @@ HWY_API V AverageRound(const V a, const V b) {
 // `p` points to at least 8 readable bytes, not all of which need be valid.
 template <class D, HWY_IF_T_SIZE_D(D, 1)>
 HWY_INLINE svbool_t LoadMaskBits(D d, const uint8_t* HWY_RESTRICT bits) {
-#if HWY_COMPILER_CLANG >= 1901 || HWY_COMPILER_GCC_ACTUAL >= 1200
+#if HWY_COMPILER_CLANG >= 2200 || HWY_COMPILER_GCC_ACTUAL >= 1200
   typedef svbool_t UnalignedSveMaskT
       __attribute__((__aligned__(1), __may_alias__));
   (void)d;

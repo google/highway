@@ -65,15 +65,21 @@
 #define HWY_COMPILER_GCC 0
 #endif
 
-// Clang or clang-cl, not GCC.
-#ifdef __clang__
+#ifndef HWY_COMPILER_CLANG  // Allow user override.
+#ifdef __clang__            // Clang or clang-cl, not GCC.
 // In case of Apple LLVM (whose version number is unrelated to that of LLVM) or
 // an invalid version number, deduce it from the presence of warnings.
 // Originally based on
 // https://github.com/simd-everywhere/simde/blob/47d6e603de9d04ee05cdfbc57cf282a02be1bf2a/simde/simde-detect-clang.h#L59.
 // Please send updates below to them as well, thanks!
 #if defined(__apple_build_version__) || __clang_major__ >= 999
-#if __has_warning("-Woverriding-option")
+#if __has_builtin(__builtin_structured_binding_size)
+#define HWY_COMPILER_CLANG 2101
+#elif __has_builtin(__builtin_common_type)
+#define HWY_COMPILER_CLANG 2001
+#elif __has_warning("-Wreturn-mismatch")
+#define HWY_COMPILER_CLANG 1901
+#elif __has_warning("-Woverriding-option")
 #define HWY_COMPILER_CLANG 1801
 // No new warnings in 17.0, and Apple LLVM 15.3, which should be 1600, already
 // has the unsafe_buffer_usage attribute, so we instead check for new builtins.
@@ -108,7 +114,6 @@
 #else  // Anything older than 7.0 is not recommended for Highway.
 #define HWY_COMPILER_CLANG 600
 #endif  // __has_warning chain
-#define HWY_COMPILER3_CLANG (HWY_COMPILER_CLANG * 100)
 #else  // use normal version
 #define HWY_COMPILER_CLANG (__clang_major__ * 100 + __clang_minor__)
 #define HWY_COMPILER3_CLANG \
@@ -117,6 +122,12 @@
 #else  // Not clang
 #define HWY_COMPILER_CLANG 0
 #define HWY_COMPILER3_CLANG 0
+#endif  // __clang__
+#endif  // HWY_COMPILER_CLANG
+
+// User-defined or deduced HWY_COMPILER_CLANG: derive HWY_COMPILER3_CLANG.
+#ifndef HWY_COMPILER3_CLANG
+#define HWY_COMPILER3_CLANG (HWY_COMPILER_CLANG * 100)
 #endif
 
 #if HWY_COMPILER_GCC && !HWY_COMPILER_CLANG && !HWY_COMPILER_ICC && \

@@ -74,9 +74,17 @@ void PrintConfig() {
 #else
   const int is_test = 0;
 #endif
+#ifdef HWY_TARGET_STR
+  const char* target_str = HWY_TARGET_STR;
+#else
+  const char* target_str = "";
+#endif
   fprintf(stderr,
-          "Config: emu128:%d scalar:%d static:%d all_attain:%d is_test:%d\n",
-          only_emu128, only_scalar, only_static, all_attain, is_test);
+          "Target attributes: %s\nConfig: emu128:%d scalar:%d static:%d "
+          "all_attain:%d "
+          "is_test:%d\n",
+          target_str, only_emu128, only_scalar, only_static, all_attain,
+          is_test);
 }
 
 void PrintHave() {
