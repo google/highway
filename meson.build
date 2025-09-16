@@ -34,15 +34,6 @@ pkg = import('pkgconfig')
 have_emscripten = cpp.has_define('__EMSCRIPTEN__')
 have_riscv = cpp.has_define('__riscv')
 
-if 'loongarch' in host_machine.cpu_family()
-    if get_option('lsx') and cpp.has_define('__loongarch_sx', args: '-mlsx')
-        hwy_cpp_args += '-mlsx'
-    endif
-    if get_option('lasx') and cpp.has_define('__loongarch_asx', args: '-mlasx')
-        hwy_cpp_args +='-mlasx'
-    endif
-endif
-
 is_windows = host_machine.system() == 'windows'
 
 pie = get_option('b_pie') and not is_windows
