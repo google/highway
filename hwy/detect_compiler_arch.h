@@ -73,9 +73,7 @@
 // https://github.com/simd-everywhere/simde/blob/47d6e603de9d04ee05cdfbc57cf282a02be1bf2a/simde/simde-detect-clang.h#L59.
 // Please send updates below to them as well, thanks!
 #if defined(__apple_build_version__) || __clang_major__ >= 999
-#if __has_builtin(__builtin_elementwise_fshl)
-#define HWY_COMPILER_CLANG 2201
-#elif __has_builtin(__builtin_structured_binding_size)
+#if __has_builtin(__builtin_structured_binding_size)
 #define HWY_COMPILER_CLANG 2101
 #elif __has_builtin(__builtin_common_type)
 #define HWY_COMPILER_CLANG 2001
