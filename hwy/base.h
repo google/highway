@@ -399,11 +399,19 @@ HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
 #endif
 
 // For enabling HWY_DASSERT and shortening tests in slower debug builds
+//
+// Note: `HWY_IS_UBSAN` is specifically excluded from engaging debug
+// builds. This is in service of Chromium's `-fsanitize=array-bounds` by
+// default, where we don't want Highway to unconditionally build in
+// debug mode.
+//
+// See also:
+// https://docs.google.com/document/d/1eCtY4AZF-SiFHxhIYWzEytdIx3C24de7ccD6Y5Gn2H8/edit?tab=t.9zkn85hr82ms#heading=h.efcshvfql42c
 #if !defined(HWY_IS_DEBUG_BUILD)
 // Clang does not define NDEBUG, but it and GCC define __OPTIMIZE__, and recent
 // MSVC defines NDEBUG (if not, could instead check _DEBUG).
-#if (!defined(__OPTIMIZE__) && !defined(NDEBUG)) || HWY_IS_SANITIZER || \
-    defined(__clang_analyzer__)
+#if (!defined(__OPTIMIZE__) && !defined(NDEBUG)) || \
+    (HWY_IS_SANITIZER && !HWY_IS_UBSAN) || defined(__clang_analyzer__)
 #define HWY_IS_DEBUG_BUILD 1
 #else
 #define HWY_IS_DEBUG_BUILD 0
