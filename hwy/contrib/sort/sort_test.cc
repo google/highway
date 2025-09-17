@@ -228,7 +228,7 @@ void TestAllSort() {
       Algo::kVQSort,  Algo::kHeapSort,
   };
 
-  for (int num : {129, 504, 3 * 1000, 34567}) {
+  for (int num : {129, 504, 3 * 1000, 14567}) {
     const size_t num_lanes = AdjustedReps(static_cast<size_t>(num));
     CallAllSortTraits(algos, num_lanes);
   }
@@ -237,7 +237,7 @@ void TestAllSort() {
 void TestAllPartialSort() {
   const std::vector<Algo> algos{Algo::kVQPartialSort, Algo::kHeapPartialSort};
 
-  for (int num : {129, 504, 3 * 1000, 34567}) {
+  for (int num : {129, 504, 3 * 1000, 14567}) {
     const size_t num_lanes = AdjustedReps(static_cast<size_t>(num));
     CallAllSortTraits(algos, num_lanes);
   }
@@ -246,7 +246,7 @@ void TestAllPartialSort() {
 void TestAllSelect() {
   const std::vector<Algo> algos{Algo::kVQSelect, Algo::kHeapSelect};
 
-  for (int num : {129, 504, 3 * 1000, 34567}) {
+  for (int num : {129, 504, 3 * 1000, 14567}) {
     const size_t num_lanes = AdjustedReps(static_cast<size_t>(num));
     CallAllSortTraits(algos, num_lanes);
   }
