@@ -189,8 +189,7 @@ static inline const char* ToString(WaitType type) {
 // also be fine because this does not go through futex.
 class Config {  // 4 bytes
  public:
-  static std::vector<Config> AllCandidates(PoolWaitMode wait_mode,
-                                           size_t num_threads) {
+  static std::vector<Config> AllCandidates(PoolWaitMode wait_mode) {
     std::vector<SpinType> spin_types(size_t{1}, DetectSpin());
     // Monitor-based spin may be slower, so also try Pause.
     if (spin_types[0] != SpinType::kPause) {
@@ -857,7 +856,7 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
     for (PoolWaitMode mode : {PoolWaitMode::kSpin, PoolWaitMode::kBlock}) {
       wait_mode_ = mode;  // for AutoTuner
       AutoTuner().SetCandidates(
-          pool::Config::AllCandidates(mode, num_threads_));
+          pool::Config::AllCandidates(mode));
     }
     config_ = AutoTuner().Candidates()[0];
 
