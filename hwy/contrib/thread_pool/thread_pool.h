@@ -66,6 +66,8 @@ static inline void SetThreadName(const char* format, int thread) {
 #elif HWY_OS_APPLE && (MAC_OS_X_VERSION_MIN_REQUIRED >= 1060)
   // Different interface: single argument, current thread only.
   HWY_ASSERT(0 == pthread_setname_np(buf));
+#elif defined(__EMSCRIPTEN__)
+  emscripten_set_thread_name(pthread_self(), buf);
 #else
   (void)format;
   (void)thread;
@@ -87,7 +89,7 @@ static constexpr int kVerbosity = HWY_POOL_VERBOSITY;
 // large pool, we assume applications create multiple pools, ideally per
 // cluster (cores sharing a cache), because this improves locality and barrier
 // latency. In that case, this is a generous upper bound.
-static constexpr size_t kMaxThreads = 63;
+static constexpr size_t kMaxThreads = 127;
 
 // Generates a random permutation of [0, size). O(1) storage.
 class ShuffledIota {
@@ -161,13 +163,6 @@ enum class WaitType : uint8_t {
   kSpinSeparate,
   kSentinel  // Must be last.
 };
-// Our barriers support a `HasReached` predicate; counters are not suitable.
-enum class BarrierType : uint8_t {
-  kOrdered,
-  kGroup2,
-  kGroup4,
-  kSentinel  // Must be last.
-};
 
 // For printing which is in use.
 static inline const char* ToString(WaitType type) {
@@ -185,30 +180,14 @@ static inline const char* ToString(WaitType type) {
   }
 }
 
-static inline const char* ToString(BarrierType type) {
-  switch (type) {
-    case BarrierType::kOrdered:
-      return "Ordered";
-    case BarrierType::kGroup2:
-      return "Group2";
-    case BarrierType::kGroup4:
-      return "Group4";
-    case BarrierType::kSentinel:
-      return nullptr;
-    default:
-      HWY_UNREACHABLE;
-  }
-}
-
 // We want predictable struct/class sizes so we can reason about cache lines.
 #pragma pack(push, 1)
 
 // Parameters governing the main and worker thread behavior. Can be updated at
 // runtime via `SetWaitMode`. Both have copies which are carefully synchronized
-// (two-phase barrier). 64-bit allows adding fields (e.g. for load-balancing)
-// without having to bit-pack members, and is fine because this is only moved
-// with relaxed stores, hence we do not have to fit it in the 32 futex bits.
-class Config {  // 8 bytes
+// (two-phase barrier). 32 bits leave room for one future field. 64 bits would
+// also be fine because this does not go through futex.
+class Config {  // 4 bytes
  public:
   static std::vector<Config> AllCandidates(PoolWaitMode wait_mode,
                                            size_t num_threads) {
@@ -230,24 +209,11 @@ class Config {  // 8 bytes
       wait_types.push_back(WaitType::kBlock);
     }
 
-    std::vector<BarrierType> barrier_types;
-    // Note that casting an integer is UB if there is no matching enumerator,
-    // but we define a sentinel to prevent this.
-    for (size_t barrier = 0;; ++barrier) {
-      const BarrierType barrier_type = static_cast<BarrierType>(barrier);
-      if (barrier_type == BarrierType::kSentinel) break;
-      // If <= 2 workers, group size of 4 is the same as 2.
-      if (num_threads <= 1 && barrier_type == BarrierType::kGroup4) continue;
-      barrier_types.push_back(barrier_type);
-    }
-
     std::vector<Config> candidates;
     candidates.reserve(50);
     for (const SpinType spin_type : spin_types) {
       for (const WaitType wait_type : wait_types) {
-        for (const BarrierType barrier_type : barrier_types) {
-          candidates.emplace_back(spin_type, wait_type, barrier_type);
-        }
+        candidates.emplace_back(spin_type, wait_type);
       }
     }
     return candidates;
@@ -255,25 +221,21 @@ class Config {  // 8 bytes
 
   std::string ToString() const {
     char buf[128];
-    snprintf(buf, sizeof(buf), "%14s %9s %9s", hwy::ToString(spin_type),
-             pool::ToString(wait_type), pool::ToString(barrier_type));
+    snprintf(buf, sizeof(buf), "%-14s %-9s", hwy::ToString(spin_type),
+             pool::ToString(wait_type));
     return buf;
   }
 
   Config() {}
-  Config(SpinType spin_type, WaitType wait_type, BarrierType barrier_type)
-      : spin_type(spin_type),
-        wait_type(wait_type),
-        barrier_type(barrier_type),
-        exit(false) {}
+  Config(SpinType spin_type, WaitType wait_type)
+      : spin_type(spin_type), wait_type(wait_type), exit(false) {}
 
   SpinType spin_type;
   WaitType wait_type;
-  BarrierType barrier_type;
   uint8_t exit;
-  uint32_t reserved = 0;
+  HWY_MAYBE_UNUSED uint8_t reserved;
 };
-static_assert(sizeof(Config) == 8, "");
+static_assert(sizeof(Config) == 4, "");
 
 // Per-worker state used by both main and worker threads. `ThreadFunc`
 // (threads) and `ThreadPool` (main) have a few additional members of their own.
@@ -286,9 +248,7 @@ class alignas(HWY_ALIGNMENT) Worker {  // HWY_ALIGNMENT bytes
  public:
   Worker(const size_t worker, const size_t num_threads,
          const Divisor64& div_workers)
-      : worker_(worker), num_threads_(num_threads), workers_(this - worker) {
-    (void)padding_;
-
+      : workers_(this - worker), worker_(worker), num_threads_(num_threads) {
     HWY_DASSERT(IsAligned(this, HWY_ALIGNMENT));
     HWY_DASSERT(worker <= num_threads);
     const size_t num_workers = static_cast<size_t>(div_workers.GetDivisor());
@@ -366,16 +326,18 @@ class alignas(HWY_ALIGNMENT) Worker {  // HWY_ALIGNMENT bytes
   void StoreReached(uint32_t epoch) { reached_epoch_.store(epoch, kRel); }
 
  private:
-  // Atomics first because arm7 clang otherwise makes them unaligned.
-
   // Set by `SetRange`:
-  alignas(8) std::atomic<uint64_t> my_begin_;
-  alignas(8) std::atomic<uint64_t> my_end_;
+  std::atomic<uint64_t> my_begin_;
+  std::atomic<uint64_t> my_end_;
+
+  Worker* const workers_;
+  const size_t worker_;
+  const size_t num_threads_;
 
   // Use u32 to match futex.h.
-  alignas(4) std::atomic<uint32_t> wait_epoch_{0};
-  alignas(4) std::atomic<uint32_t> barrier_epoch_{0};
-  alignas(4) std::atomic<uint32_t> reached_epoch_{0};
+  std::atomic<uint32_t> wait_epoch_{0};
+  std::atomic<uint32_t> barrier_epoch_{0};
+  std::atomic<uint32_t> reached_epoch_{0};
 
   uint32_t num_victims_;  // <= kPoolMaxVictims
   std::array<uint32_t, kMaxVictims> victims_;
@@ -383,11 +345,7 @@ class alignas(HWY_ALIGNMENT) Worker {  // HWY_ALIGNMENT bytes
   // Written and read by the same thread, hence not atomic.
   Config latched_;
 
-  const size_t worker_;
-  const size_t num_threads_;
-  Worker* const workers_;
-
-  uint8_t padding_[HWY_ALIGNMENT - 64 - sizeof(victims_)];
+  HWY_MAYBE_UNUSED uint8_t padding_[HWY_ALIGNMENT - 60 - sizeof(victims_)];
 };
 static_assert(sizeof(Worker) == HWY_ALIGNMENT, "");
 
@@ -653,13 +611,11 @@ struct WaitSpinSeparate {
 // As with the wait, a store-release of the same local epoch counter serves as a
 // "have arrived" flag that does not require resetting.
 
-// Main thread loops over each worker.
+// Main thread loops over each worker. A "group of 2 or 4" barrier was not
+// competitive on Skylake, Granite Rapids and Zen5.
 class BarrierOrdered {
  public:
-  BarrierType Type() const { return BarrierType::kOrdered; }
-
-  template <class Spin>
-  void WorkerReached(Worker* worker, const Spin&, uint32_t epoch) const {
+  void WorkerReached(Worker* worker, uint32_t epoch) const {
     HWY_DASSERT(worker->Index() != 0);  // main is 0
     worker->StoreBarrier(epoch);
   }
@@ -677,61 +633,6 @@ class BarrierOrdered {
     workers[0].StoreBarrier(epoch);  // for main thread HasReached.
 
     for (size_t i = 0; i < num_threads; ++i) {
-      (void)spin.UntilEqual(epoch, workers[1 + i].Barrier());
-    }
-  }
-};
-
-// Leader threads wait for others in the group, main thread loops over leaders.
-template <size_t kGroupSize>
-class BarrierGroup {
- public:
-  BarrierType Type() const {
-    return kGroupSize == 2 ? BarrierType::kGroup2 : BarrierType::kGroup4;
-  }
-
-  template <class Spin>
-  void WorkerReached(Worker* worker, const Spin& spin, uint32_t epoch) const {
-    const size_t w_idx = worker->Index();
-    HWY_DASSERT(w_idx != 0);  // main is 0
-    // NOTE: the first worker is 1, but our leader election scheme requires a
-    // 0-based index.
-    const size_t rel_idx = w_idx - 1;
-
-    Worker* workers = worker->AllWorkers();
-    const size_t num_workers = 1 + workers->NumThreads();
-
-    // Must be set before spinning, hence we require two separate flags.
-    // Reached() means we arrived, whereas Barrier() is what the main thread
-    // checks, hence it is set after all others in the group have arrived.
-    worker->StoreReached(epoch);
-
-    // Leaders (the first worker of each group) wait for all others in their
-    // group before marking themselves.
-    if (rel_idx % kGroupSize == 0) {
-      for (size_t i = w_idx + 1; i < HWY_MIN(w_idx + kGroupSize, num_workers);
-           ++i) {
-        // No + 1 here: i is derived from w_idx which is the actual index.
-        (void)spin.UntilEqual(epoch, workers[i].Barrier());
-      }
-    }
-    worker->StoreBarrier(epoch);
-  }
-
-  // Returns true if `worker` (can be the main thread) reached the barrier.
-  bool HasReached(const Worker* worker, uint32_t epoch) const {
-    // Unlike BarrierOrdered, we check Reached(), not Barrier().
-    const uint32_t barrier = worker->Reached().load(std::memory_order_acquire);
-    HWY_DASSERT(barrier <= epoch);
-    return barrier == epoch;
-  }
-
-  template <class Spin>
-  void UntilReached(size_t num_threads, Worker* workers, const Spin& spin,
-                    uint32_t epoch) const {
-    workers[0].StoreReached(epoch);  // for main thread HasReached.
-
-    for (size_t i = 0; i < num_threads; i += kGroupSize) {
       (void)spin.UntilEqual(epoch, workers[1 + i].Barrier());
     }
   }
@@ -772,52 +673,12 @@ class FunctorAddWait {
   WaitType wait_type_;
 };
 
-template <class Func>
-class FunctorAddBarrier {
- public:
-  FunctorAddBarrier(BarrierType barrier_type, Func&& func)
-      : func_(std::forward<Func>(func)), barrier_type_(barrier_type) {}
-
-  template <class Wait>
-  HWY_INLINE void operator()(const Wait& wait) {
-    switch (barrier_type_) {
-      case BarrierType::kOrdered:
-        return func_(wait, BarrierOrdered());
-      case BarrierType::kGroup2:
-        return func_(wait, BarrierGroup<2>());
-      case BarrierType::kGroup4:
-        return func_(wait, BarrierGroup<4>());
-      default:
-        HWY_UNREACHABLE;
-    }
-  }
-  template <class Spin, class Wait>
-  HWY_INLINE void operator()(const Spin& spin, const Wait& wait) {
-    switch (barrier_type_) {
-      case BarrierType::kOrdered:
-        return func_(spin, wait, BarrierOrdered());
-      case BarrierType::kGroup2:
-        return func_(spin, wait, BarrierGroup<2>());
-      case BarrierType::kGroup4:
-        return func_(spin, wait, BarrierGroup<4>());
-      default:
-        HWY_UNREACHABLE;
-    }
-  }
-
- private:
-  Func&& func_;
-  BarrierType barrier_type_;
-};
-
 // Calls unrolled code selected by all 3 enums.
 template <class Func>
 HWY_INLINE void CallWithConfig(const Config& config, Func&& func) {
   CallWithSpin(
       config.spin_type,
-      FunctorAddWait<FunctorAddBarrier<Func>>(
-          config.wait_type, FunctorAddBarrier<Func>(config.barrier_type,
-                                                    std::forward<Func>(func))));
+      FunctorAddWait<Func>(config.wait_type, std::forward<Func>(func)));
 }
 
 // For `WorkerAdapter`, `Spin` and `Wait`.
@@ -826,14 +687,6 @@ HWY_INLINE void CallWithSpinWait(const Config& config, Func&& func) {
   CallWithSpin(
       config.spin_type,
       FunctorAddWait<Func>(config.wait_type, std::forward<Func>(func)));
-}
-
-// For `WorkerAdapter`, only `Spin` and `Barrier`.
-template <class Func>
-HWY_INLINE void CallWithSpinBarrier(const Config& config, Func&& func) {
-  CallWithSpin(
-      config.spin_type,
-      FunctorAddBarrier<Func>(config.barrier_type, std::forward<Func>(func)));
 }
 
 // ------------------------------ Adapters
@@ -849,9 +702,9 @@ class MainAdapter {
 
   void SetEpoch(uint32_t epoch) { epoch_ = epoch; }
 
-  template <class Spin, class Wait, class Barrier>
-  HWY_POOL_PROFILE void operator()(const Spin& spin, const Wait& wait,
-                                   const Barrier& barrier) const {
+  template <class Spin, class Wait>
+  HWY_POOL_PROFILE void operator()(const Spin& spin, const Wait& wait) const {
+    const BarrierOrdered barrier;
     Worker* workers = main_->AllWorkers();
     const size_t num_threads = main_->NumThreads();
 
@@ -895,37 +748,9 @@ class WorkerAdapter {
 
   void SetEpoch(uint32_t epoch) { epoch_ = epoch; }
 
- private:
   template <class Spin, class Wait>
-  HWY_INLINE void CallImpl(hwy::SizeTag<1> /* second_param_type_tag */,
-                           const Spin& spin, const Wait& wait) const {
+  void operator()(const Spin& spin, const Wait& wait) const {
     wait.UntilWoken(worker_, spin, epoch_);
-  }
-  template <class Spin, class Barrier>
-  HWY_INLINE void CallImpl(hwy::SizeTag<2> /* second_param_type_tag */,
-                           const Spin& spin, const Barrier& barrier) const {
-    barrier.WorkerReached(worker_, spin, epoch_);
-  }
-
- public:
-  // Split into separate wait/barrier functions because `ThreadFunc` latches
-  // the config in between them.
-  template <class Spin, class Param2>
-  hwy::EnableIf<hwy::IsSameEither<
-      hwy::RemoveCvRef<decltype(hwy::RemoveCvRef<Param2>().Type())>, WaitType,
-      BarrierType>()>
-  operator()(const Spin& spin, const Param2& wait_or_barrier) const {
-    // Use tag dispatch to work around template argument deduction error with
-    // MSVC 2019.
-
-    constexpr size_t kType =
-        hwy::IsSame<
-            hwy::RemoveCvRef<decltype(hwy::RemoveCvRef<Param2>().Type())>,
-            WaitType>() ? 1 : 2;
-
-    // Using this->CallImpl below ensures that WorkerAdapter::CallImpl is
-    // selected and avoids unwanted argument dependent lookup.
-    this->CallImpl(hwy::SizeTag<kType>(), spin, wait_or_barrier);
   }
 
  private:
@@ -966,7 +791,7 @@ class ThreadFunc {
       tasks_->WorkerRun(worker_);
 
       // Notify barrier after `WorkerRun`.
-      CallWithSpinBarrier(config_, worker_adapter_);
+      BarrierOrdered().WorkerReached(worker_, epoch);
 
       // Check after notifying the barrier, otherwise the main thread deadlocks.
       if (HWY_UNLIKELY(config_.exit)) break;
@@ -1154,14 +979,17 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
             s_ratio.Notify(static_cast<float>(cost / best_cost));
           }
 
-          fprintf(stderr, "  %s %5.0f +/- %4.0f. Gain %.2fx [%.2fx, %.2fx]\n",
-                  auto_tuner.Best()->ToString().c_str(), best_cost, AT.Stddev(),
-                  s_ratio.GeometricMean(), s_ratio.Min(), s_ratio.Max());
+          fprintf(stderr,
+                  "Pool %3zu: %s %8.0f +/- %6.0f. Gain %.2fx [%.2fx, %.2fx]\n",
+                  NumWorkers(), auto_tuner.Best()->ToString().c_str(),
+                  best_cost, AT.Stddev(), s_ratio.GeometricMean(),
+                  s_ratio.Min(), s_ratio.Max());
         }
         SendConfig(*auto_tuner.Best());
       } else {
         HWY_IF_CONSTEXPR(pool::kVerbosity >= 2) {
-          fprintf(stderr, "  %s %5lu\n", config_.ToString().c_str(), t1 - t0);
+          fprintf(stderr, "Pool %3zu: %s %9lu\n", NumWorkers(),
+                  config_.ToString().c_str(), t1 - t0);
         }
         SendConfig(auto_tuner.NextConfig());
       }
@@ -1219,12 +1047,9 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
 
     // No-op task; will not be called because begin == end.
     tasks_.Set(0, 0, [](uint64_t /*task*/, size_t /*worker*/) {});
-    // Threads are waiting using the old config, but will switch after waking,
-    // which means we must already use the new barrier.
-    pool::Config new_barrier = config_;
-    new_barrier.barrier_type = copy.barrier_type;
+    // Threads are waiting using the old config, but will switch after waking.
     main_adapter_.SetEpoch(++epoch_);
-    CallWithConfig(new_barrier, main_adapter_);
+    CallWithConfig(config_, main_adapter_);
     // All have woken and are, or will be, waiting per the *new* config. Now we
     // can entirely switch the main thread's config for the next wake.
     config_ = copy;

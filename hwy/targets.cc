@@ -395,7 +395,7 @@ static int64_t DetectTargets() {
     // https://github.com/simdutf/simdutf/pull/236.
 
     // In addition to the bug that is there on macOS 12.1 or earlier, bits 5, 6,
-    // and 7 can be set to 0 on x86_64 CPU's with AVX3 support on macOS until
+    // and 7 can be set to 0 on x86_64 CPUs with AVX3 support on macOS until
     // the first AVX512 instruction is executed as macOS only preserves
     // ZMM16-ZMM31, the upper 256 bits of the ZMM registers, and K0-K7 across a
     // context switch on threads that have executed an AVX512 instruction.

@@ -206,8 +206,8 @@ class DoWait {
  public:
   DoWait(Worker* worker, uint32_t epoch) : worker_(worker), epoch_(epoch) {}
 
-  template <class Spin, class Wait, class Barrier>
-  void operator()(const Spin& spin, const Wait& wait, const Barrier&) const {
+  template <class Spin, class Wait>
+  void operator()(const Spin& spin, const Wait& wait) const {
     wait.UntilWoken(worker_, spin, epoch_);
   }
 
@@ -221,8 +221,8 @@ class DoWakeWorkers {
   DoWakeWorkers(Worker* workers, uint32_t epoch)
       : workers_(workers), epoch_(epoch) {}
 
-  template <class Spin, class Wait, class Barrier>
-  void operator()(const Spin&, const Wait& wait, const Barrier&) const {
+  template <class Spin, class Wait>
+  void operator()(const Spin&, const Wait& wait) const {
     wait.WakeWorkers(workers_, epoch_);
   }
 
@@ -249,8 +249,7 @@ TEST(ThreadPoolTest, TestWaiter) {
       Worker* workers =
           pool::WorkerLifecycle::Init(storage.get(), num_threads, div_workers);
 
-      alignas(8) const Config config(SpinType::kPause, wait_type,
-                                     BarrierType::kGroup4);
+      alignas(8) const Config config(SpinType::kPause, wait_type);
 
       // This thread acts as the "main thread", which will wake the actual main
       // and all its worker instances.

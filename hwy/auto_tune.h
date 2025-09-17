@@ -33,9 +33,9 @@
 #endif
 
 #ifdef HWY_AUTOTUNE_STDSORT
-#include <algorithm> // std::sort
+#include <algorithm>  // std::sort
 #else
-#include "hwy/contrib/sort/vqsort.h" // VQSort
+#include "hwy/contrib/sort/vqsort.h"  // VQSort
 #endif
 
 // Infrastructure for auto-tuning (choosing optimal parameters at runtime).
@@ -263,15 +263,11 @@ class CostDistribution {
       OnlineNotify(copy[i]);
     }
     HWY_DASSERT(IsOnline());
-
-#if SIZE_MAX == 0xFFFFFFFFu
-    (void)padding_;
-#endif
   }
 
   size_t num_values_ = 0;  // size of `values_` <= `kMaxValues`
 #if SIZE_MAX == 0xFFFFFFFFu
-  uint32_t padding_ = 0;
+  HWY_MAYBE_UNUSED uint32_t padding_ = 0;
 #endif
 
   double online_n_ = 0.0;  // number of calls to `OnlineNotify`.
@@ -422,10 +418,9 @@ class AutoTune {
   const Config* Best() const { return best_; }
 
   // If false, caller must call `SetCandidates` before `NextConfig`.
-  bool HasCandidates() const {
-    HWY_DASSERT(!Best());
-    return !candidates_.empty();
-  }
+  // NOTE: also called after Best() is non-null.
+  bool HasCandidates() const { return !candidates_.empty(); }
+
   // WARNING: invalidates `Best()`, do not call if that is non-null.
   void SetCandidates(std::vector<Config> candidates) {
     HWY_DASSERT(!Best() && !HasCandidates());
