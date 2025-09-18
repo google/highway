@@ -682,6 +682,16 @@
 #define HWY_BASELINE_LOONGARCH 0
 #endif
 
+// Workaround for libaom, which unconditionally defines HWY_BASELINE_TARGETS
+// even when that would be disabled/broken. If so, at least use AVX2.
+#if defined(HWY_BASELINE_TARGETS)
+#if HWY_BASELINE_TARGETS == HWY_AVX3_DL && \
+    ((HWY_BROKEN_TARGETS | HWY_DISABLED_TARGETS) & HWY_AVX3_DL)
+#undef HWY_BASELINE_TARGETS
+#define HWY_BASELINE_TARGETS HWY_AVX2
+#endif
+#endif  // HWY_BASELINE_TARGETS
+
 // Allow the user to override this without any guarantee of success. If the
 // compiler invocation considers that target to be broken/disabled, then
 // `HWY_ENABLED_BASELINE` will be 0 and users will have to check for that and
