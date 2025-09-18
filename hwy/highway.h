@@ -677,6 +677,19 @@ struct AddExport {
 #define HWY_HIGHWAY_PER_TARGET
 #endif
 
+// No SIMD target enabled, skip header inclusion.
+#if HWY_ENABLED_BASELINE == 0
+
+// We would expect that HWY_TARGET and HWY_STATIC_TARGET are now both 0.
+#if HWY_TARGET != 0
+#error "Why is HWY_TARGET not 0 when HWY_ENABLED_BASELINE == 0?"
+#endif
+#if HWY_STATIC_TARGET != 0
+#error "Why is HWY_STATIC_TARGET not 0 when HWY_ENABLED_BASELINE == 0?"
+#endif
+
+#else
+
 // These define ops inside namespace hwy::HWY_NAMESPACE.
 #if HWY_TARGET == HWY_SSE2 || HWY_TARGET == HWY_SSSE3 || HWY_TARGET == HWY_SSE4
 #include "hwy/ops/x86_128-inl.h"
@@ -712,5 +725,7 @@ struct AddExport {
 #endif  // HWY_TARGET
 
 #include "hwy/ops/generic_ops-inl.h"
+
+#endif  // HWY_ENABLED_BASELINE
 
 #endif  // HWY_HIGHWAY_PER_TARGET

@@ -682,7 +682,10 @@
 #define HWY_BASELINE_LOONGARCH 0
 #endif
 
-// Allow the user to override this without any guarantee of success.
+// Allow the user to override this without any guarantee of success. If the
+// compiler invocation considers that target to be broken/disabled, then
+// `HWY_ENABLED_BASELINE` will be 0 and users will have to check for that and
+// skip their code.
 #ifndef HWY_BASELINE_TARGETS
 #define HWY_BASELINE_TARGETS                                               \
   (HWY_BASELINE_SCALAR | HWY_BASELINE_WASM | HWY_BASELINE_PPC8 |           \
@@ -699,7 +702,11 @@
 
 #define HWY_ENABLED_BASELINE HWY_ENABLED(HWY_BASELINE_TARGETS)
 #if HWY_ENABLED_BASELINE == 0
-#error "At least one baseline target must be defined and enabled"
+#pragma message                                                            \
+    "All baseline targets are disabled or considered broken."              \
+    "This is typically due to very restrictive HWY_BASELINE_TARGETS, or "  \
+    "too expansive HWY_BROKEN_TARGETS or HWY_DISABLED_TAREGTS. User code " \
+    "must also check for this and skip any usage of SIMD."
 #endif
 
 // Best baseline, used for static dispatch. This is the least-significant 1-bit
@@ -943,7 +950,7 @@
 // HWY_ONCE and the multiple-inclusion mechanism rely on HWY_STATIC_TARGET being
 // one of the dynamic targets. This also implies HWY_TARGETS != 0 and
 // (HWY_TARGETS & HWY_ENABLED_BASELINE) != 0.
-#if (HWY_TARGETS & HWY_STATIC_TARGET) == 0
+#if (HWY_TARGETS & HWY_STATIC_TARGET) == 0 && HWY_ENABLED_BASELINE != 0
 #error "Logic error: best baseline should be included in dynamic targets"
 #endif
 
