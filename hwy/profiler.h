@@ -284,7 +284,8 @@ class ThreadSet {
 // Assuming fork-join parallelism, zones are entered by multiple threads
 // concurrently, which means the total number of unique threads is also the
 // degree of concurrency, so we can estimate wall time as CPU time divided by
-// the number of unique threads seen, tracked via `ThreadSet`.
+// the number of unique threads seen. This is facilitated by unique thread IDs
+// passed in by callers, or taken from thread-local storage.
 //
 // We also want to support varying thread counts per call site, because the same
 // function/zone may be called from multiple pools. `EndRootRun` calls
@@ -294,6 +295,15 @@ class ThreadSet {
 // geomean/variance/kurtosis/skewness. Because concurrency is a small integer,
 // we can simply compute sums rather than online moments. There is also only one
 // instance across all threads, hence we do not require `Assimilate`.
+//
+// Note that subsequently discovered prior work estimates the number of active
+// and idle processors by updating atomic counters whenever they start/finish a
+// task: https://homes.cs.washington.edu/~tom/pubs/quartz.pdf and "Effective
+// performance measurement and analysis of multithreaded applications". We
+// instead accumulate zone durations into per-thread storage.
+// `CountThreadsAndReset` then checks how many were nonzero, which avoids
+// expensive atomic updates and ensures accurate counts per-zone, rather than
+// estimates of current activity at each sample.
 class ConcurrencyStats {
  public:
   ConcurrencyStats() { Reset(); }
