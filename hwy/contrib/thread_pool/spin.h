@@ -302,23 +302,23 @@ static inline SpinType DetectSpin(int disabled = 0) {
   return SpinType::kPause;
 }
 
-// Calls `func(spin)` for the given `spin_type`.
-template <class Func>
-HWY_INLINE void CallWithSpin(SpinType spin_type, Func&& func) {
+// Calls `func(spin, args)` for the given `spin_type`.
+template <class Func, typename... Args>
+HWY_INLINE void CallWithSpin(SpinType spin_type, Func&& func, Args&&... args) {
   switch (spin_type) {
 #if HWY_ENABLE_MONITORX
     case SpinType::kMonitorX:
-      func(SpinMonitorX());
+      func(SpinMonitorX(), std::forward<Args>(args)...);
       break;
 #endif
 #if HWY_ENABLE_UMONITOR
     case SpinType::kUMonitor:
-      func(SpinUMonitor());
+      func(SpinUMonitor(), std::forward<Args>(args)...);
       break;
 #endif
     case SpinType::kPause:
     default:
-      func(SpinPause());
+      func(SpinPause(), std::forward<Args>(args)...);
       break;
   }
 }

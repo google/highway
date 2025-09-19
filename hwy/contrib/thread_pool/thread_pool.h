@@ -155,7 +155,7 @@ class ShuffledIota {
 };
 
 // 'Policies' suitable for various worker counts and locality. To define a
-// new class, add an enum and update `ToString` plus `FunctorAddWait`. The
+// new class, add an enum and update `ToString` plus `CallWithConfig`. The
 // enumerators must be contiguous so we can iterate over them.
 enum class WaitType : uint8_t {
   kBlock,
@@ -187,8 +187,7 @@ static inline const char* ToString(WaitType type) {
 // runtime via `SetWaitMode`. Both have copies which are carefully synchronized
 // (two-phase barrier). 32 bits leave room for two future fields. 64 bits would
 // also be fine because this does not go through futex.
-class Config {  // 4 bytes
- public:
+struct Config {  // 4 bytes
   static std::vector<Config> AllCandidates(PoolWaitMode wait_mode) {
     std::vector<SpinType> spin_types(size_t{1}, DetectSpin());
     // Monitor-based spin may be slower, so also try Pause.
@@ -285,7 +284,7 @@ class alignas(HWY_ALIGNMENT) Worker {  // HWY_ALIGNMENT bytes
   void SetExit(uint32_t exit) { exit_ = exit; }
 
   uint32_t WorkerEpoch() const { return worker_epoch_; }
-  void SetWorkerEpoch(uint32_t epoch) { worker_epoch_ = epoch; }
+  uint32_t AdvanceWorkerEpoch() { return ++worker_epoch_; }
 
   // ------------------------ Task assignment
 
@@ -335,9 +334,10 @@ class alignas(HWY_ALIGNMENT) Worker {  // HWY_ALIGNMENT bytes
   const size_t worker_;
   const size_t num_threads_;
 
-  // Use u32 to match futex.h.
-  std::atomic<uint32_t> wait_epoch_{0};
-  std::atomic<uint32_t> barrier_epoch_{0};
+  // Use u32 to match futex.h. These must start at the initial value of
+  // `worker_epoch_`.
+  std::atomic<uint32_t> wait_epoch_{1};
+  std::atomic<uint32_t> barrier_epoch_{1};
 
   uint32_t num_victims_;  // <= kPoolMaxVictims
   std::array<uint32_t, kMaxVictims> victims_;
@@ -345,7 +345,8 @@ class alignas(HWY_ALIGNMENT) Worker {  // HWY_ALIGNMENT bytes
   // Written and read by the same thread, hence not atomic.
   Config next_config_;
   uint32_t exit_ = 0;
-  uint32_t worker_epoch_ = 0;
+  // thread_pool_test requires nonzero epoch.
+  uint32_t worker_epoch_ = 1;
 
   HWY_MAYBE_UNUSED uint8_t padding_[HWY_ALIGNMENT - 64 - sizeof(victims_)];
 };
@@ -560,10 +561,10 @@ struct WaitBlock {
 
   // Waits until `WakeWorkers(_, epoch)` has been called.
   template <class Spin>
-  void UntilWoken(const Worker* worker, const Spin& /*spin*/,
-                  const uint32_t epoch) const {
-    HWY_DASSERT(worker->Index() != 0);  // main is 0
-    const Worker* workers = worker->AllWorkers();
+  void UntilWoken(const Worker& worker, const Spin& /*spin*/) const {
+    HWY_DASSERT(worker.Index() != 0);  // main is 0
+    const uint32_t epoch = worker.WorkerEpoch();
+    const Worker* workers = worker.AllWorkers();
     BlockUntilDifferent(epoch - 1, workers[1].Waiter());
   }
 };
@@ -579,10 +580,10 @@ struct WaitSpin1 {
   }
 
   template <class Spin>
-  void UntilWoken(const Worker* worker, const Spin& spin,
-                  const uint32_t epoch) const {
-    HWY_DASSERT(worker->Index() != 0);  // main is 0
-    const Worker* workers = worker->AllWorkers();
+  void UntilWoken(const Worker& worker, const Spin& spin) const {
+    HWY_DASSERT(worker.Index() != 0);  // main is 0
+    const Worker* workers = worker.AllWorkers();
+    const uint32_t epoch = worker.WorkerEpoch();
     (void)spin.UntilEqual(epoch, workers[1].Waiter());
     // TODO: store reps in stats.
   }
@@ -600,26 +601,41 @@ struct WaitSpinSeparate {
   }
 
   template <class Spin>
-  void UntilWoken(const Worker* worker, const Spin& spin,
-                  const uint32_t epoch) const {
-    HWY_DASSERT(worker->Index() != 0);  // main is 0
-    (void)spin.UntilEqual(epoch, worker->Waiter());
+  void UntilWoken(const Worker& worker, const Spin& spin) const {
+    HWY_DASSERT(worker.Index() != 0);  // main is 0
+    const uint32_t epoch = worker.WorkerEpoch();
+    (void)spin.UntilEqual(epoch, worker.Waiter());
     // TODO: store reps in stats.
   }
 };
 
+// Calls unrolled code selected by all config enums.
+template <class Func, typename... Args>
+HWY_INLINE void CallWithConfig(const Config& config, Func&& func,
+                               Args&&... args) {
+  switch (config.wait_type) {
+    case WaitType::kBlock:
+      return func(SpinPause(), WaitBlock(), std::forward<Args>(args)...);
+    case WaitType::kSpin1:
+      return CallWithSpin(config.spin_type, func, WaitSpin1(),
+                          std::forward<Args>(args)...);
+    case WaitType::kSpinSeparate:
+      return CallWithSpin(config.spin_type, func, WaitSpinSeparate(),
+                          std::forward<Args>(args)...);
+    default:
+      HWY_UNREACHABLE;
+  }
+}
+
 // ------------------------------ Barrier: Main thread waits for workers
 
-// As with the wait, a store-release of the same local epoch counter serves as a
-// "have arrived" flag that does not require resetting.
-
-// Main thread loops over each worker. A "group of 2 or 4" barrier was not
-// competitive on Skylake, Granite Rapids and Zen5.
-class BarrierOrdered {
+// Similar to `WaitSpinSeparate`, a store-release of the same local epoch
+// counter serves as a "have arrived" flag that does not require resetting.
+class Barrier {
  public:
-  void WorkerReached(Worker* worker, uint32_t epoch) const {
-    HWY_DASSERT(worker->Index() != 0);  // main is 0
-    worker->StoreBarrier(epoch);
+  void WorkerReached(Worker& worker, uint32_t epoch) const {
+    HWY_DASSERT(worker.Index() != 0);  // main is 0
+    worker.StoreBarrier(epoch);
   }
 
   // Returns true if `worker` (can be the main thread) reached the barrier.
@@ -629,6 +645,8 @@ class BarrierOrdered {
     return barrier == epoch;
   }
 
+  // Main thread loops over each worker. A "group of 2 or 4" barrier was not
+  // competitive on Skylake, Granite Rapids and Zen5.
   template <class Spin>
   void UntilReached(size_t num_threads, Worker* workers, const Spin& spin,
                     uint32_t epoch) const {
@@ -638,150 +656,6 @@ class BarrierOrdered {
       (void)spin.UntilEqual(epoch, workers[1 + i].Barrier());
     }
   }
-};
-
-// ------------------------------ Inlining policy classes
-
-// We want to inline the various spin/wait policy classes into larger code
-// sections. In addition to `CallWithSpin` from `spin.h`, we also want to
-// add a `Wait` argument, hence implement a composable adapter. C++11 lacks
-// generic lambdas, so we implement these as classes.
-template <class Func>
-class FunctorAddWait {
- public:
-  FunctorAddWait(WaitType wait_type, Func&& func)
-      : func_(std::forward<Func>(func)), wait_type_(wait_type) {}
-
-  template <class Spin>
-  HWY_INLINE void operator()(const Spin& spin) {
-    switch (wait_type_) {
-      case WaitType::kBlock:
-        return func_(spin, WaitBlock());
-      case WaitType::kSpin1:
-        return func_(spin, WaitSpin1());
-      case WaitType::kSpinSeparate:
-        return func_(spin, WaitSpinSeparate());
-      default:
-        HWY_UNREACHABLE;
-    }
-  }
-
- private:
-  Func&& func_;
-  WaitType wait_type_;
-};
-
-// Calls unrolled code selected by all config enums.
-template <class Func>
-HWY_INLINE void CallWithConfig(const Config& config, Func&& func) {
-  CallWithSpin(
-      config.spin_type,
-      FunctorAddWait<Func>(config.wait_type, std::forward<Func>(func)));
-}
-
-// ------------------------------ Adapters
-
-// Logic of the main and worker threads, again packaged as classes because
-// C++11 lacks generic lambdas, called by `CallWith*`.
-
-class MainAdapter {
- public:
-  MainAdapter(Worker* main, const Tasks* tasks) : main_(main), tasks_(tasks) {
-    HWY_DASSERT(main_ == main->AllWorkers());  // main is first.
-  }
-
-  template <class Spin, class Wait>
-  HWY_POOL_PROFILE void operator()(const Spin& spin, const Wait& wait) const {
-    const BarrierOrdered barrier;
-    Worker* workers = main_->AllWorkers();
-    const size_t num_threads = main_->NumThreads();
-    const uint32_t epoch_ = main_->WorkerEpoch();
-
-    HWY_IF_CONSTEXPR(HWY_IS_DEBUG_BUILD) {
-      for (size_t i = 0; i < 1 + num_threads; ++i) {
-        HWY_DASSERT(!barrier.HasReached(workers + i, epoch_));
-      }
-    }
-
-    wait.WakeWorkers(workers, epoch_);
-    // Threads might still be starting up and wake up late, but we wait for
-    // them at the barrier below.
-
-    // Also perform work on the main thread before the barrier.
-    tasks_->WorkerRun(main_);
-
-    // Spin-waits until all *threads* (not the main thread, because it already
-    // knows it is here) called `WorkerReached`.
-    barrier.UntilReached(num_threads, workers, spin, epoch_);
-    HWY_IF_CONSTEXPR(HWY_IS_DEBUG_BUILD) {
-      for (size_t i = 0; i < 1 + num_threads; ++i) {
-        HWY_DASSERT(barrier.HasReached(workers + i, epoch_));
-      }
-    }
-
-    // Threads may already be waiting `UntilWoken`, which serves as the
-    // 'release' phase of the barrier.
-  }
-
- private:
-  Worker* const main_;
-  const Tasks* const tasks_;
-};
-
-// TODO: replace with function pointer.
-class WorkerAdapter {
- public:
-  explicit WorkerAdapter(Worker* worker) : worker_(worker) {}
-
-  template <class Spin, class Wait>
-  void operator()(const Spin& spin, const Wait& wait) const {
-    wait.UntilWoken(worker_, spin, worker_->WorkerEpoch());
-  }
-
- private:
-  Worker* const worker_;
-};
-
-// Could also be a lambda in ThreadPool ctor, but this allows annotating with
-// `HWY_POOL_PROFILE` so we can more easily inspect the generated code.
-class ThreadFunc {
- public:
-  ThreadFunc(Worker* worker, Tasks* tasks, Config config)
-      : worker_(worker), tasks_(tasks), worker_adapter_(worker_) {
-    worker->SetNextConfig(config);
-  }
-
-  HWY_POOL_PROFILE void operator()() {
-    // Ensure main thread's writes are visible (synchronizes with fence in
-    // `WorkerLifecycle::Init`).
-    std::atomic_thread_fence(std::memory_order_acquire);
-
-    HWY_DASSERT(worker_->Index() != 0);  // main is 0
-    SetThreadName("worker%03zu", static_cast<int>(worker_->Index() - 1));
-    hwy::Profiler::InitThread();
-
-    // Initialization must match pre-increment in `Run`.
-    // Loop termination via `GetExit` is triggered by `~ThreadPool`.
-    for (uint32_t epoch = 1;; ++epoch) {
-      worker_->SetWorkerEpoch(epoch);
-      // Uses the initial config, or the last one set during WorkerRun.
-      CallWithConfig(worker_->NextConfig(), worker_adapter_);
-
-      tasks_->WorkerRun(worker_);
-
-      // Notify barrier after `WorkerRun`.
-      BarrierOrdered().WorkerReached(worker_, epoch);
-
-      // Check after notifying the barrier, otherwise the main thread deadlocks.
-      if (HWY_UNLIKELY(worker_->GetExit())) break;
-    }
-  }
-
- private:
-  Worker* const worker_;
-  Tasks* const tasks_;
-
-  WorkerAdapter worker_adapter_;
 };
 
 }  // namespace pool
@@ -819,6 +693,56 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
     return static_cast<size_t>(std::thread::hardware_concurrency() - 1);
   }
 
+  // Called by `std::thread`. Could also be a lambda, but annotating with
+  // `HWY_POOL_PROFILE` makes it easier to inspect the generated code.
+  class ThreadFunc {
+    // Functor called by `CallWithConfig`.
+    // TODO: loop until config changes.
+    struct WorkerWait {
+      template <class Spin, class Wait>
+      void operator()(const Spin& spin, const Wait& wait,
+                      pool::Worker& worker) const {
+        wait.UntilWoken(worker, spin);
+      }
+    };
+
+   public:
+    ThreadFunc(pool::Worker& worker, pool::Tasks& tasks, pool::Config config)
+        : worker_(worker), tasks_(tasks) {
+      worker.SetNextConfig(config);
+    }
+
+    HWY_POOL_PROFILE void operator()() {
+      // Ensure main thread's writes are visible (synchronizes with fence in
+      // `WorkerLifecycle::Init`).
+      std::atomic_thread_fence(std::memory_order_acquire);
+
+      HWY_DASSERT(worker_.Index() != 0);  // main is 0
+      SetThreadName("worker%03zu", static_cast<int>(worker_.Index() - 1));
+      hwy::Profiler::InitThread();
+
+      // Loop termination via `GetExit` is triggered by `~ThreadPool`.
+      do {
+        // Main worker also calls this, so their epochs match.
+        const uint32_t epoch = worker_.AdvanceWorkerEpoch();
+        // Uses the initial config, or the last one set during WorkerRun.
+        CallWithConfig(worker_.NextConfig(), WorkerWait(), worker_);
+
+        tasks_.WorkerRun(&worker_);
+
+        // Notify barrier after `WorkerRun`.
+        pool::Barrier().WorkerReached(worker_, epoch);
+
+        // Check after notifying the barrier, otherwise the main thread
+        // deadlocks.
+      } while (!worker_.GetExit());
+    }
+
+   private:
+    pool::Worker& worker_;
+    pool::Tasks& tasks_;
+  };
+
   // `num_threads` is the number of *additional* threads to spawn, which should
   // not exceed `MaxThreads()`. Note that the main thread also performs work.
   explicit ThreadPool(size_t num_threads)
@@ -826,9 +750,7 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
         num_threads_(ClampedNumThreads(num_threads)),
         div_workers_(1 + num_threads_),
         workers_(pool::WorkerLifecycle::Init(worker_bytes_, num_threads_,
-                                             div_workers_)),
-        // Assign main thread the first worker slot (it used to be the last).
-        main_adapter_(workers_ + 0, &tasks_) {
+                                             div_workers_)) {
     // Leaves the default wait mode as `kBlock`, which means futex, because
     // spinning only makes sense when threads are pinned and wake latency is
     // important, so it must explicitly be requested by calling `SetWaitMode`.
@@ -841,8 +763,7 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
 
     threads_.reserve(num_threads_);
     for (size_t thread = 0; thread < num_threads_; ++thread) {
-      threads_.emplace_back(
-          pool::ThreadFunc(workers_ + 1 + thread, &tasks_, config_));
+      threads_.emplace_back(ThreadFunc(workers_[1 + thread], tasks_, config_));
     }
 
     // No barrier is required here because wakeup works regardless of the
@@ -964,6 +885,45 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
   void SetBusy() { HWY_DASSERT(!busy_.test_and_set()); }
   void ClearBusy() { HWY_IF_CONSTEXPR(HWY_IS_DEBUG_BUILD) busy_.clear(); }
 
+  // Called via `CallWithConfig`.
+  struct MainWakeAndBarrier {
+    template <class Spin, class Wait>
+    HWY_POOL_PROFILE void operator()(const Spin& spin, const Wait& wait,
+                                     pool::Worker& main,
+                                     const pool::Tasks& tasks) const {
+      const pool::Barrier barrier;
+      pool::Worker* workers = main.AllWorkers();
+      HWY_DASSERT(&main == main.AllWorkers());  // main is first.
+      const size_t num_threads = main.NumThreads();
+      const uint32_t epoch = main.WorkerEpoch();
+
+      HWY_IF_CONSTEXPR(HWY_IS_DEBUG_BUILD) {
+        for (size_t i = 0; i < 1 + num_threads; ++i) {
+          HWY_DASSERT(!barrier.HasReached(workers + i, epoch));
+        }
+      }
+
+      wait.WakeWorkers(workers, epoch);
+      // Threads might still be starting up and wake up late, but we wait for
+      // them at the barrier below.
+
+      // Also perform work on the main thread before the barrier.
+      tasks.WorkerRun(&main);
+
+      // Spin-waits until all *threads* (not the main thread, because it already
+      // knows it is here) called `WorkerReached`.
+      barrier.UntilReached(num_threads, workers, spin, epoch);
+      HWY_IF_CONSTEXPR(HWY_IS_DEBUG_BUILD) {
+        for (size_t i = 0; i < 1 + num_threads; ++i) {
+          HWY_DASSERT(barrier.HasReached(workers + i, epoch));
+        }
+      }
+
+      // Threads may already be waiting `UntilWoken`, which serves as the
+      // 'release' phase of the barrier.
+    }
+  };
+
   // Returns whether threads were used. If not, there is no need to update
   // the autotuner config.
   template <class Closure>
@@ -991,9 +951,11 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
       pool::Tasks::DivideRangeAmongWorkers(begin, end, div_workers_, workers_);
     }
 
-    workers_[0].SetWorkerEpoch(++epoch_);
+    pool::Worker& main = workers_[0];
+    const HWY_MAYBE_UNUSED uint32_t epoch = main.AdvanceWorkerEpoch();
 
-    CallWithConfig(config_, main_adapter_);
+    // Assign main thread the first worker slot (it used to be the last).
+    CallWithConfig(config_, MainWakeAndBarrier(), main, tasks_);
     if (is_root) {
       PROFILER_END_ROOT_RUN();
     }
@@ -1034,12 +996,9 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
   const Divisor64 div_workers_;
   pool::Worker* const workers_;  // points into `worker_bytes_`
 
-  pool::MainAdapter main_adapter_;
-
   // The only mutable state:
   pool::Tasks tasks_;    // written by `Run` and read by workers.
   pool::Config config_;  // for use by the next `Run`. Updated via `SendConfig`.
-  uint32_t epoch_ = 0;   // passed to `MainAdapter`.
 
   // In debug builds, detects if functions are re-entered.
   std::atomic_flag busy_ = ATOMIC_FLAG_INIT;

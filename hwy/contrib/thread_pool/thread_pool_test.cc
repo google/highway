@@ -204,38 +204,33 @@ TEST(ThreadPoolTest, TestMultiplePermutations) {
 
 class DoWait {
  public:
-  DoWait(Worker* worker, uint32_t epoch) : worker_(worker), epoch_(epoch) {}
+  explicit DoWait(Worker& worker) : worker_(worker) {}
 
   template <class Spin, class Wait>
   void operator()(const Spin& spin, const Wait& wait) const {
-    wait.UntilWoken(worker_, spin, epoch_);
+    wait.UntilWoken(worker_, spin);
   }
 
  private:
-  Worker* const worker_;
-  const uint32_t epoch_;
+  Worker& worker_;
 };
 
 class DoWakeWorkers {
  public:
-  DoWakeWorkers(Worker* workers, uint32_t epoch)
-      : workers_(workers), epoch_(epoch) {}
+  explicit DoWakeWorkers(Worker* workers) : workers_(workers) {}
 
   template <class Spin, class Wait>
   void operator()(const Spin&, const Wait& wait) const {
-    wait.WakeWorkers(workers_, epoch_);
+    wait.WakeWorkers(workers_, workers_[0].WorkerEpoch());
   }
 
  private:
   Worker* const workers_;
-  const uint32_t epoch_;
 };
 
 // Verifies that waiter(s) can be woken by another thread.
 TEST(ThreadPoolTest, TestWaiter) {
   if (!hwy::HaveThreadingSupport()) return;
-
-  const uint32_t epoch = 1;
 
   // Not actual threads, but we allocate and loop over this many workers.
   for (size_t num_threads = 1; num_threads < 6; ++num_threads) {
@@ -255,12 +250,12 @@ TEST(ThreadPoolTest, TestWaiter) {
       // and all its worker instances.
       std::thread thread([&]() {
         hwy::Profiler::InitThread();
-        CallWithConfig(config, DoWakeWorkers(workers, epoch));
+        CallWithConfig(config, DoWakeWorkers(workers));
       });
 
       // main is 0
       for (size_t worker = 1; worker < num_workers; ++worker) {
-        CallWithConfig(config, DoWait(workers + 1, epoch));
+        CallWithConfig(config, DoWait(workers[1]));
       }
       thread.join();
 
