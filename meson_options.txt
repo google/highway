@@ -7,8 +7,6 @@ option('test_standalone', type : 'boolean', value : false, description: 'Disable
 option('disable_futex', type : 'boolean', value : false, description: 'Disable futex for thread_pool')
 
 option('arm7', type : 'boolean', value : false, description: 'Set copts for Armv7 with NEON (requires vfpv4)?')
-option('lsx', type : 'boolean', value : true, description: 'Add -mlsx flag?')
-option('lasx', type : 'boolean', value : true, description: 'Add -mlasx flag?')
 option('sse2', type : 'boolean', value : false, description: 'Set SSE2 as baseline for 32-bit x86?')
 option('rvv', type : 'boolean', value : true, description: 'Set copts for RISCV with RVV?')
 
