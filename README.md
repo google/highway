@@ -29,7 +29,7 @@ functions that map well to CPU instructions without extensive compiler
 transformations. The resulting code is more predictable and robust to code
 changes/compiler updates than autovectorization.
 
-**Works on widely-used platforms**: Highway supports five architectures; the
+**Works on widely-used platforms**: Highway supports seven architectures; the
 same application code can target various instruction sets, including those with
 'scalable' vectors (size unknown at compile time). Highway only requires C++11
 and supports four families of compilers. If you would like to use Highway on
@@ -144,12 +144,13 @@ See also the list at https://repology.org/project/highway-simd-library/versions
 
 ### Targets
 
-Highway supports 24 targets, listed in alphabetical order of platform:
+Highway supports 27 targets, listed in alphabetical order of platform:
 
 -   Any: `EMU128`, `SCALAR`;
 -   Armv7+: `NEON_WITHOUT_AES`, `NEON`, `NEON_BF16`, `SVE`, `SVE2`, `SVE_256`,
     `SVE2_128`;
 -   IBM Z: `Z14`, `Z15`;
+-   LoongArch: `LSX`, `LASX`;
 -   POWER: `PPC8` (v2.07), `PPC9` (v3.0), `PPC10` (v3.1B, not yet supported due
     to compiler bugs, see #1207; also requires QEMU 7.2);
 -   RISC-V: `RVV` (1.0);
@@ -168,6 +169,7 @@ Highway supports 24 targets, listed in alphabetical order of platform:
         by defining `HWY_WANT_AVX3_ZEN4` if compiling for static dispatch, but
         enabled by default for runtime dispatch),
     -   `AVX3_SPR` (~Sapphire Rapids, includes AVX-512FP16)
+    -   `AVX10_2` (~Diamond Rapids)
 
 Our policy is that unless otherwise specified, targets will remain supported as
 long as they can be (cross-)compiled with currently supported Clang or GCC, and
