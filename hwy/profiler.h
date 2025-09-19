@@ -304,6 +304,10 @@ class ThreadSet {
 // `CountThreadsAndReset` then checks how many were nonzero, which avoids
 // expensive atomic updates and ensures accurate counts per-zone, rather than
 // estimates of current activity at each sample.
+// D. Vyukov's https://github.com/dvyukov/perf-load, also integrated into Linux
+// perf, also corrects for parallelism without using atomic counters by tracing
+// context switches. Note that we often pin threads, which avoids migrations,
+// but reduces the number of context switch events to mainly preemptions.
 class ConcurrencyStats {
  public:
   ConcurrencyStats() { Reset(); }
