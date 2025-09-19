@@ -16,14 +16,13 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include <cfloat>  // FLT_MAX
 #include <cmath>   // std::abs
 
 #include "hwy/base.h"
 
 // clang-format off
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "hwy/contrib/math/math_test.cc"
+#define HWY_TARGET_INCLUDE "hwy/contrib/math/math_trig_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
 #include "hwy/contrib/math/math-inl.h"
@@ -156,28 +155,67 @@ HWY_NOINLINE void TestMath(const char* name, T (*fx1)(T),
   };                                                                      \
   DEFINE_MATH_TEST_FUNC(NAME)
 
+// The discrepancy is unacceptably large for MSYS2 (less accurate libm?), so
+// only increase the error tolerance there.
+constexpr uint64_t Cos64ULP() {
+#if defined(__MINGW32__)
+  return 23;
+#else
+  return 3;
+#endif
+}
+
+template <class D>
+static Vec<D> SinCosSin(const D d, VecArg<Vec<D>> x) {
+  Vec<D> s, c;
+  CallSinCos(d, x, s, c);
+  return s;
+}
+
+template <class D>
+static Vec<D> SinCosCos(const D d, VecArg<Vec<D>> x) {
+  Vec<D> s, c;
+  CallSinCos(d, x, s, c);
+  return c;
+}
+
+// on targets without FMA the result is less inaccurate
+constexpr uint64_t SinCosSin32ULP() {
+#if !(HWY_NATIVE_FMA)
+  return 256;
+#else
+  return 3;
+#endif
+}
+
+constexpr uint64_t SinCosCos32ULP() {
+#if !(HWY_NATIVE_FMA)
+  return 64;
+#else
+  return 3;
+#endif
+}
+
 // clang-format off
-DEFINE_MATH_TEST(Exp,
-  std::exp,   CallExp,   -FLT_MAX,   +104.0f,     1,
-  std::exp,   CallExp,   -DBL_MAX,   +104.0,      1)
-DEFINE_MATH_TEST(Exp2,
-  std::exp2,  CallExp2,  -FLT_MAX,   +128.0f,     2,
-  std::exp2,  CallExp2,  -DBL_MAX,   +128.0,      2)
-DEFINE_MATH_TEST(Expm1,
-  std::expm1, CallExpm1, -FLT_MAX,   +104.0f,     4,
-  std::expm1, CallExpm1, -DBL_MAX,   +104.0,      4)
-DEFINE_MATH_TEST(Log,
-  std::log,   CallLog,   +FLT_MIN,   +FLT_MAX,    1,
-  std::log,   CallLog,   +DBL_MIN,   +DBL_MAX,    1)
-DEFINE_MATH_TEST(Log10,
-  std::log10, CallLog10, +FLT_MIN,   +FLT_MAX,    2,
-  std::log10, CallLog10, +DBL_MIN,   +DBL_MAX,    2)
-DEFINE_MATH_TEST(Log1p,
-  std::log1p, CallLog1p, +0.0f,      +1e37f,      3,  // NEON is 3 instead of 2
-  std::log1p, CallLog1p, +0.0,       +DBL_MAX,    2)
-DEFINE_MATH_TEST(Log2,
-  std::log2,  CallLog2,  +FLT_MIN,   +FLT_MAX,    2,
-  std::log2,  CallLog2,  +DBL_MIN,   +DBL_MAX,    2)
+DEFINE_MATH_TEST(Acos,
+  std::acos,  CallAcos,  -1.0f,      +1.0f,       3,  // NEON is 3 instead of 2
+  std::acos,  CallAcos,  -1.0,       +1.0,        2)
+DEFINE_MATH_TEST(Asin,
+  std::asin,  CallAsin,  -1.0f,      +1.0f,       4,  // 4 ulp on Armv7, not 2
+  std::asin,  CallAsin,  -1.0,       +1.0,        2)
+// NEON has ULP 4 instead of 3
+DEFINE_MATH_TEST(Cos,
+  std::cos,   CallCos,   -39000.0f,  +39000.0f,   3,
+  std::cos,   CallCos,   -39000.0,   +39000.0,    Cos64ULP())
+DEFINE_MATH_TEST(Sin,
+  std::sin,   CallSin,   -39000.0f,  +39000.0f,   3,
+  std::sin,   CallSin,   -39000.0,   +39000.0,    4)  // MSYS is 4 instead of 3
+DEFINE_MATH_TEST(SinCosSin,
+  std::sin,   SinCosSin,   -39000.0f,  +39000.0f,   SinCosSin32ULP(),
+  std::sin,   SinCosSin,   -39000.0,   +39000.0,    1)
+DEFINE_MATH_TEST(SinCosCos,
+  std::cos,   SinCosCos,   -39000.0f,  +39000.0f,   SinCosCos32ULP(),
+  std::cos,   SinCosCos,   -39000.0,   +39000.0,    1)
 // clang-format on
 
 }  // namespace
@@ -189,14 +227,13 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 namespace hwy {
 namespace {
-HWY_BEFORE_TEST(HwyMathTest);
-HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExp);
-HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExp2);
-HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExpm1);
-HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog);
-HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog10);
-HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog1p);
-HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog2);
+HWY_BEFORE_TEST(HwyMathTrigTest);
+HWY_EXPORT_AND_TEST_P(HwyMathTrigTest, TestAllAcos);
+HWY_EXPORT_AND_TEST_P(HwyMathTrigTest, TestAllAsin);
+HWY_EXPORT_AND_TEST_P(HwyMathTrigTest, TestAllCos);
+HWY_EXPORT_AND_TEST_P(HwyMathTrigTest, TestAllSin);
+HWY_EXPORT_AND_TEST_P(HwyMathTrigTest, TestAllSinCosSin);
+HWY_EXPORT_AND_TEST_P(HwyMathTrigTest, TestAllSinCosCos);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy

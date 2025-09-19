@@ -23,7 +23,7 @@
 
 // clang-format off
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "hwy/contrib/math/math_test.cc"
+#define HWY_TARGET_INCLUDE "hwy/contrib/math/math_hyper_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
 #include "hwy/contrib/math/math-inl.h"
@@ -156,28 +156,37 @@ HWY_NOINLINE void TestMath(const char* name, T (*fx1)(T),
   };                                                                      \
   DEFINE_MATH_TEST_FUNC(NAME)
 
+// Floating point values closest to but less than 1.0. Avoid variables with
+// static initializers inside HWY_BEFORE_NAMESPACE/HWY_AFTER_NAMESPACE to
+// ensure target-specific code does not leak into startup code.
+float kNearOneF() { return BitCastScalar<float>(0x3F7FFFFF); }
+double kNearOneD() { return BitCastScalar<double>(0x3FEFFFFFFFFFFFFFULL); }
+
+constexpr uint64_t ACosh32ULP() {
+#if defined(__MINGW32__)
+  return 8;
+#else
+  return 3;
+#endif
+}
+
 // clang-format off
-DEFINE_MATH_TEST(Exp,
-  std::exp,   CallExp,   -FLT_MAX,   +104.0f,     1,
-  std::exp,   CallExp,   -DBL_MAX,   +104.0,      1)
-DEFINE_MATH_TEST(Exp2,
-  std::exp2,  CallExp2,  -FLT_MAX,   +128.0f,     2,
-  std::exp2,  CallExp2,  -DBL_MAX,   +128.0,      2)
-DEFINE_MATH_TEST(Expm1,
-  std::expm1, CallExpm1, -FLT_MAX,   +104.0f,     4,
-  std::expm1, CallExpm1, -DBL_MAX,   +104.0,      4)
-DEFINE_MATH_TEST(Log,
-  std::log,   CallLog,   +FLT_MIN,   +FLT_MAX,    1,
-  std::log,   CallLog,   +DBL_MIN,   +DBL_MAX,    1)
-DEFINE_MATH_TEST(Log10,
-  std::log10, CallLog10, +FLT_MIN,   +FLT_MAX,    2,
-  std::log10, CallLog10, +DBL_MIN,   +DBL_MAX,    2)
-DEFINE_MATH_TEST(Log1p,
-  std::log1p, CallLog1p, +0.0f,      +1e37f,      3,  // NEON is 3 instead of 2
-  std::log1p, CallLog1p, +0.0,       +DBL_MAX,    2)
-DEFINE_MATH_TEST(Log2,
-  std::log2,  CallLog2,  +FLT_MIN,   +FLT_MAX,    2,
-  std::log2,  CallLog2,  +DBL_MIN,   +DBL_MAX,    2)
+DEFINE_MATH_TEST(Acosh,
+  std::acosh, CallAcosh, +1.0f,      +FLT_MAX,    ACosh32ULP(),
+  std::acosh, CallAcosh, +1.0,       +DBL_MAX,    3)
+DEFINE_MATH_TEST(Asinh,
+  std::asinh, CallAsinh, -FLT_MAX,   +FLT_MAX,    3,
+  std::asinh, CallAsinh, -DBL_MAX,   +DBL_MAX,    3)
+// NEON has ULP 4 instead of 3
+DEFINE_MATH_TEST(Atanh,
+  std::atanh, CallAtanh, -kNearOneF(), +kNearOneF(),  4,
+  std::atanh, CallAtanh, -kNearOneD(), +kNearOneD(),  3)
+DEFINE_MATH_TEST(Sinh,
+  std::sinh,  CallSinh,  -80.0f,     +80.0f,      4,
+  std::sinh,  CallSinh,  -709.0,     +709.0,      4)
+DEFINE_MATH_TEST(Tanh,
+  std::tanh,  CallTanh,  -FLT_MAX,   +FLT_MAX,    4,
+  std::tanh,  CallTanh,  -DBL_MAX,   +DBL_MAX,    4)
 // clang-format on
 
 }  // namespace
@@ -189,14 +198,12 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 namespace hwy {
 namespace {
-HWY_BEFORE_TEST(HwyMathTest);
-HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExp);
-HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExp2);
-HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExpm1);
-HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog);
-HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog10);
-HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog1p);
-HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog2);
+HWY_BEFORE_TEST(HwyMathHyperTest);
+HWY_EXPORT_AND_TEST_P(HwyMathHyperTest, TestAllAcosh);
+HWY_EXPORT_AND_TEST_P(HwyMathHyperTest, TestAllAsinh);
+HWY_EXPORT_AND_TEST_P(HwyMathHyperTest, TestAllAtanh);
+HWY_EXPORT_AND_TEST_P(HwyMathHyperTest, TestAllSinh);
+HWY_EXPORT_AND_TEST_P(HwyMathHyperTest, TestAllTanh);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy

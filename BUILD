@@ -554,6 +554,21 @@ HWY_CONTRIB_TESTS = (
         (":math",),
     ),
     (
+        "hwy/contrib/math/",
+        "math_hyper_test",
+        (":math",),
+    ),
+    (
+        "hwy/contrib/math/",
+        "math_tan_test",
+        (":math",),
+    ),
+    (
+        "hwy/contrib/math/",
+        "math_trig_test",
+        (":math",),
+    ),
+    (
         "hwy/contrib/random/",
         "random_test",
         (":random",),
