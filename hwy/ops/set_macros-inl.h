@@ -141,10 +141,18 @@
 #define HWY_TARGET_STR_AVX2 \
   HWY_TARGET_STR_SSE4 ",avx,avx2" HWY_TARGET_STR_BMI2_FMA HWY_TARGET_STR_F16C
 
+#ifndef HWY_HAVE_EVEX512
 // evex512 has been removed from clang 22, see
 // https://github.com/llvm/llvm-project/pull/157034
 #if (1400 <= HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1600) || \
     (1800 <= HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 2200)
+#define HWY_HAVE_EVEX512 1
+#else
+#define HWY_HAVE_EVEX512 0
+#endif
+#endif
+
+#if (HWY_HAVE_EVEX512 == 1)
 #define HWY_TARGET_STR_AVX3_VL512 ",evex512"
 #else
 #define HWY_TARGET_STR_AVX3_VL512
