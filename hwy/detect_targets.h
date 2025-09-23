@@ -195,10 +195,10 @@
 #endif  // HWY_BROKEN_MSVC
 
 #ifndef HWY_BROKEN_AVX10_2  // allow override
-// AVX10_2 requires clang >= 20.1 (postpone to 22 due to "avx10.2-512" remnant,
+// AVX10_2 requires clang >= 20.1 (postpone to 23 due to "avx10.2-512" remnant,
 // only removed in https://github.com/llvm/llvm-project/pull/157034) or
 // gcc >= 15.2 with binutils 2.44.
-#if (HWY_COMPILER_CLANG < 2200) && (HWY_COMPILER_GCC_ACTUAL < 1502)
+#if (HWY_COMPILER_CLANG < 2300) && (HWY_COMPILER_GCC_ACTUAL < 1502)
 #define HWY_BROKEN_AVX10_2 HWY_AVX10_2
 #else
 #define HWY_BROKEN_AVX10_2 0

@@ -20,9 +20,16 @@
 #include <stdio.h>
 
 #include "hwy/detect_compiler_arch.h"
+#include "hwy/timer.h"  // GetCpuString
+
+#undef HWY_TARGET_INCLUDE
+#define HWY_TARGET_INCLUDE "hwy/tests/list_targets.cc"
+#include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
 
-namespace {
+HWY_BEFORE_NAMESPACE();
+namespace hwy {
+namespace HWY_NAMESPACE {
 
 void PrintCompiler() {
   if (HWY_COMPILER_ICX) {
@@ -80,9 +87,8 @@ void PrintConfig() {
   const char* target_str = "";
 #endif
   fprintf(stderr,
-          "Target attributes: %s\nConfig: emu128:%d scalar:%d static:%d "
-          "all_attain:%d "
-          "is_test:%d\n",
+          "Target attributes: %s\n"
+          "Config: emu128:%d scalar:%d static:%d all_attain:%d is_test:%d\n",
           target_str, only_emu128, only_scalar, only_static, all_attain,
           is_test);
 }
@@ -99,8 +105,7 @@ void PrintHave() {
 void PrintTargets(const char* msg, int64_t targets) {
   fprintf(stderr, "%s", msg);
   // For each bit other than the sign bit:
-  for (int64_t x = targets & hwy::LimitsMax<int64_t>(); x != 0;
-       x = x & (x - 1)) {
+  for (int64_t x = targets & 0x7FFFFFFFFFFFFFFFLL; x != 0; x = x & (x - 1)) {
     // Extract value of least-significant bit.
     fprintf(stderr, " %s", hwy::TargetName(x & (~x + 1)));
   }
@@ -116,9 +121,7 @@ void TestVisitor() {
   }
 }
 
-}  // namespace
-
-int main() {
+void PrintAll() {
   PrintCompiler();
   PrintConfig();
   PrintHave();
@@ -129,7 +132,30 @@ int main() {
   PrintTargets("HWY_STATIC_TARGET:     ", HWY_STATIC_TARGET);
   PrintTargets("HWY_BROKEN_TARGETS:    ", HWY_BROKEN_TARGETS);
   PrintTargets("HWY_DISABLED_TARGETS:  ", HWY_DISABLED_TARGETS);
-  PrintTargets("Current CPU supports:  ", hwy::SupportedTargets());
+  PrintTargets("CPU supports:          ", hwy::SupportedTargets());
+
+  char cpu100[100];
+  (void)platform::GetCpuString(cpu100);
+  fprintf(stderr, "CPU: %s\n", cpu100);
+
   TestVisitor();
+}
+
+// NOLINTNEXTLINE(google-readability-namespace-comments)
+}  // namespace HWY_NAMESPACE
+}  // namespace hwy
+HWY_AFTER_NAMESPACE();
+
+#if HWY_ONCE
+namespace hwy {
+namespace {
+HWY_EXPORT(PrintAll);
+void CallPrintAll() { HWY_DYNAMIC_DISPATCH(PrintAll)(); }
+}  // namespace
+}  // namespace hwy
+
+int main() {
+  hwy::CallPrintAll();
   return 0;
 }
+#endif  // HWY_ONCE

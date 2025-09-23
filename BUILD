@@ -502,7 +502,10 @@ cc_test(
     name = "list_targets",
     size = "small",
     srcs = ["hwy/tests/list_targets.cc"],
-    deps = [":hwy"],
+    deps = [
+        ":hwy",
+        ":timer",
+    ],
 )
 
 cc_test(
