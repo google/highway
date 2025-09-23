@@ -82,30 +82,39 @@ us via the below email.
 *   Audio: [Zimtohrli perceptual metric](https://github.com/google/zimtohrli)
 *   Browsers: Chromium (+Vivaldi), Firefox (+floorp / foxhound / librewolf /
     Waterfox)
-*   Computational biology: [RNA analysis](https://github.com/bnprks/BPCells)
-*   Computer graphics: [Sparse voxel renderer](https://github.com/rools/voxl)
+*   Computational biology: [RNA analysis](https://github.com/bnprks/BPCells),
+    [long-sequence preprocessing](https://github.com/OpenGene/fastplong)
+*   Computer graphics: ghostty-org/ghostty,
+    [Sparse voxel renderer](https://github.com/rools/voxl),
+    [tgfx 2D Graphics library](https://github.com/Tencent/tgfx)
 *   Cryptography: google/distributed_point_functions, google/shell-encryption
 *   Data structures: bkille/BitLib
 *   Image codecs: eustas/2im,
     [Grok JPEG 2000](https://github.com/GrokImageCompression/grok),
     [JPEG XL](https://github.com/libjxl/libjxl),
     [JPEGenc](https://github.com/osamu620/JPEGenc),
-    [Jpegli](https://github.com/google/jpegli), OpenHTJ2K
-*   Image processing: cloudinary/ssimulacra2, m-ab-s/media-autobuild_suite,
-    [libvips](https://github.com/libvips/libvips)
+    [Jpegli](https://github.com/google/jpegli),
+    [libaom](https://aomedia.googlesource.com/aom/),
+    [OpenHTJ2K](https://github.com/osamu620/OpenHTJ2K)
+*   Image processing: awxkee/aire, cloudinary/ssimulacra2,
+    [libvips](https://github.com/libvips/libvips), m-ab-s/media-autobuild_suite,
 *   Image viewers: AlienCowEatCake/ImageViewer, diffractor/diffractor,
-    mirillis/jpegxl-wic,
-    [Lux panorama/image viewer](https://bitbucket.org/kfj/pv/)
+    [Lux panorama/image viewer](https://bitbucket.org/kfj/pv/),
+    mirillis/jpegxl-wic
 *   Information retrieval:
     [iresearch database index](https://github.com/iresearch-toolkit/iresearch),
     michaeljclark/zvec,
     [nebula interactive analytics / OLAP](https://github.com/varchar-io/nebula),
-    [ScaNN Scalable Nearest Neighbors](https://github.com/google-research/google-research/tree/7a269cb2ce0ae1db591fe11b62cbc0be7d72532a/scann),
-    [vectorlite vector search](https://github.com/1yefuwang1/vectorlite/)
-*   Machine learning: [gemma.cpp](https://github.com/google/gemma.cpp),
-    Tensorflow, Numpy, zpye/SimpleInfer
+    [`ScaNN` Scalable Nearest Neighbors](https://github.com/google-research/google-research/tree/7a269cb2ce0ae1db591fe11b62cbc0be7d72532a/scann),
+*   Machine learning: array2d/deepx,
+    [gemma.cpp](https://github.com/google/gemma.cpp), Tensorflow, Numpy,
+    zpye/SimpleInfer
+*   Programming languages:
+    [AOT-compiled python](https://github.com/exaloop/codon), oven-sh/bun, V8/V8,
+    yinqiwen/rapidudf
 *   Robotics:
     [MIT Model-Based Design and Verification](https://github.com/RobotLocomotion/drake)
+*   Vector search: 1yefuwang1/vectorlite, vespa-engine/vespa
 
 Other
 
