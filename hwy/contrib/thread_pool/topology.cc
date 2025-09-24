@@ -507,53 +507,12 @@ class Remapper {
 // For internal use by `DetectPackages`.
 struct PerPackage {
   Remapper clusters;
+  // We might assign sub-NUMA clusters, hence use this to count them.
+  LogicalProcessorSet cluster_bits;
   Remapper cores;
   // We rely on this zero-init and increment it below.
   uint8_t smt_per_core[kMaxLogicalProcessors] = {0};
 };
-
-// Initializes `lps` and returns a PackageSizes vector (empty on failure)
-// indicating the number of clusters and cores per package.
-std::vector<PackageSizes> DetectPackages(std::vector<Topology::LP>& lps) {
-  std::vector<PackageSizes> empty;
-
-  Remapper packages;
-  for (size_t lp = 0; lp < lps.size(); ++lp) {
-    if (!packages(kPackage, lp, &lps[lp].package)) {
-      HWY_WARN("Failed to read sysfs package for LP %zu\n", lp);
-      return empty;
-    }
-  }
-  std::vector<PerPackage> per_package(packages.Num());
-  HWY_ASSERT(!per_package.empty());
-
-  for (size_t lp = 0; lp < lps.size(); ++lp) {
-    PerPackage& pp = per_package[lps[lp].package];
-    // Not a failure: some CPUs lack a (shared) L3 cache.
-    if (!pp.clusters(kCluster, lp, &lps[lp].cluster)) {
-      lps[lp].cluster = 0;
-    }
-
-    if (!pp.cores(kCore, lp, &lps[lp].core)) {
-      HWY_WARN("Failed to read sysfs core for LP %zu\n", lp);
-      return empty;
-    }
-
-    // SMT ID is how many LP we have already seen assigned to the same core.
-    HWY_ASSERT(lps[lp].core < kMaxLogicalProcessors);
-    lps[lp].smt = pp.smt_per_core[lps[lp].core]++;
-    HWY_ASSERT(lps[lp].smt < 16);
-  }
-
-  std::vector<PackageSizes> package_sizes(per_package.size());
-  for (size_t p = 0; p < package_sizes.size(); ++p) {
-    // Was zero if the package has no shared L3, see above.
-    package_sizes[p].num_clusters = HWY_MAX(1, per_package[p].clusters.Num());
-    package_sizes[p].num_cores = per_package[p].cores.Num();
-    HWY_ASSERT(package_sizes[p].num_cores != 0);
-  }
-  return package_sizes;
-}
 
 std::vector<size_t> ExpandList(const char* list, size_t list_end,
                                size_t max_lp) {
@@ -637,6 +596,84 @@ void SetNodes(std::vector<Topology::LP>& lps) {
       lps[lp].node = static_cast<uint8_t>(node);
     }
   }
+}
+
+// Initializes `lps` and returns a PackageSizes vector (empty on failure)
+// indicating the number of clusters and cores per package.
+std::vector<PackageSizes> DetectPackages(std::vector<Topology::LP>& lps) {
+  std::vector<PackageSizes> empty;
+
+  bool all_cluster_0 = true;
+
+  Remapper packages;
+  for (size_t lp = 0; lp < lps.size(); ++lp) {
+    if (!packages(kPackage, lp, &lps[lp].package)) {
+      HWY_WARN("Failed to read sysfs package for LP %zu\n", lp);
+      return empty;
+    }
+  }
+  std::vector<PerPackage> per_package(packages.Num());
+  HWY_ASSERT(!per_package.empty());
+
+  SetNodes(lps);
+
+  for (size_t lp = 0; lp < lps.size(); ++lp) {
+    PerPackage& pp = per_package[lps[lp].package];
+    if (!pp.clusters(kCluster, lp, &lps[lp].cluster)) {
+      // Not a failure: some CPUs lack a (shared) L3 cache.
+      lps[lp].cluster = 0;
+    }
+    all_cluster_0 &= lps[lp].cluster == 0;
+
+    if (!pp.cores(kCore, lp, &lps[lp].core)) {
+      HWY_WARN("Failed to read sysfs core for LP %zu\n", lp);
+      return empty;
+    }
+
+    // SMT ID is how many LP we have already seen assigned to the same core.
+    HWY_ASSERT(lps[lp].core < kMaxLogicalProcessors);
+    lps[lp].smt = pp.smt_per_core[lps[lp].core]++;
+    HWY_ASSERT(lps[lp].smt < 16);
+  }
+
+  // Looks like all LPs are in the same cluster: sysfs did not report any
+  // shared L3 cache. Check for sub-NUMA clusters:
+  if (all_cluster_0) {
+    LogicalProcessorSet nodes;
+    for (const Topology::LP& lp : lps) {
+      nodes.Set(lp.node);
+      per_package[lp.package].cluster_bits.Set(lp.cluster);
+    }
+    const size_t num_nodes = nodes.Count();
+
+    const size_t nodes_per_package = num_nodes / per_package.size();
+    if (HWY_UNLIKELY(nodes_per_package == 0)) {
+      HWY_WARN("Why fewer NUMA nodes (%zu) than packages (%zu)?", num_nodes,
+               per_package.size());
+    }
+    if (nodes_per_package > 1) {
+      for (PerPackage& pp : per_package) {
+        pp.cluster_bits = LogicalProcessorSet();
+      }
+      // Sub-NUMA clusters: assign cluster from per-package nodes.
+      for (Topology::LP& lp : lps) {
+        HWY_ASSERT(lp.package == lp.node / nodes_per_package);
+        lp.cluster = lp.node % nodes_per_package;
+        per_package[lp.package].cluster_bits.Set(lp.cluster);
+      }
+    }  // else: for traditional NUMA (node == package), cluster remains 0.
+  }
+
+  std::vector<PackageSizes> package_sizes(per_package.size());
+  for (size_t pkg_idx = 0; pkg_idx < per_package.size(); ++pkg_idx) {
+    const PerPackage& pp = per_package[pkg_idx];
+    HWY_ASSERT(pp.cluster_bits.Count() != 0);
+    package_sizes[pkg_idx].num_clusters = pp.cluster_bits.Count();
+    package_sizes[pkg_idx].num_cores = pp.cores.Num();
+    HWY_ASSERT(package_sizes[pkg_idx].num_cores != 0);
+  }
+
+  return package_sizes;
 }
 
 void SetClusterCacheSizes(std::vector<Topology::Package>& packages) {
@@ -725,34 +762,6 @@ size_t MaxCoresPerCluster(const size_t max_lps_per_core,
   return max_cores_per_cluster;
 }
 
-// Initializes `lps` and returns a `PackageSizes` vector (empty on failure)
-// indicating the number of clusters and cores per package.
-std::vector<PackageSizes> DetectPackages(std::vector<Topology::LP>& lps) {
-  const size_t max_lps_per_core = MaxLpsPerCore(lps);
-  const size_t max_cores_per_cluster =
-      MaxCoresPerCluster(max_lps_per_core, lps);
-
-  std::vector<PackageSizes> packages;
-  size_t package_idx = 0;
-  (void)ForEachSLPI(RelationProcessorPackage, [&](const SLPI& info) {
-    const PROCESSOR_RELATIONSHIP& p = info.Processor;
-    const size_t lps_per_package = NumBits(p.GroupCount, p.GroupMask);
-    PackageSizes ps;  // avoid designated initializers for MSVC
-    ps.num_clusters = max_cores_per_cluster;
-    // `max_lps_per_core` is an upper bound, hence round up.
-    ps.num_cores = DivCeil(lps_per_package, max_lps_per_core);
-    packages.push_back(ps);
-
-    ForeachBit(p.GroupCount, p.GroupMask, lps, __LINE__,
-               [package_idx](size_t lp, std::vector<Topology::LP>& lps) {
-                 lps[lp].package = static_cast<uint8_t>(package_idx);
-               });
-    ++package_idx;
-  });
-
-  return packages;
-}
-
 // Sets LP.node for all `lps`.
 void SetNodes(std::vector<Topology::LP>& lps) {
   // Zero-initialize all nodes in case the below fails.
@@ -775,6 +784,36 @@ void SetNodes(std::vector<Topology::LP>& lps) {
                  lps[lp].node = node;
                });
   });
+}
+
+// Initializes `lps` and returns a `PackageSizes` vector (empty on failure)
+// indicating the number of clusters and cores per package.
+std::vector<PackageSizes> DetectPackages(std::vector<Topology::LP>& lps) {
+  const size_t max_lps_per_core = MaxLpsPerCore(lps);
+  const size_t max_cores_per_cluster =
+      MaxCoresPerCluster(max_lps_per_core, lps);
+
+  SetNodes(lps);
+
+  std::vector<PackageSizes> packages;
+  size_t package_idx = 0;
+  (void)ForEachSLPI(RelationProcessorPackage, [&](const SLPI& info) {
+    const PROCESSOR_RELATIONSHIP& p = info.Processor;
+    const size_t lps_per_package = NumBits(p.GroupCount, p.GroupMask);
+    PackageSizes ps;  // avoid designated initializers for MSVC
+    ps.num_clusters = max_cores_per_cluster;
+    // `max_lps_per_core` is an upper bound, hence round up.
+    ps.num_cores = DivCeil(lps_per_package, max_lps_per_core);
+    packages.push_back(ps);
+
+    ForeachBit(p.GroupCount, p.GroupMask, lps, __LINE__,
+               [package_idx](size_t lp, std::vector<Topology::LP>& lps) {
+                 lps[lp].package = static_cast<uint8_t>(package_idx);
+               });
+    ++package_idx;
+  });
+
+  return packages;
 }
 
 #elif HWY_OS_APPLE
@@ -812,19 +851,13 @@ std::vector<PackageSizes> DetectPackages(std::vector<Topology::LP>& lps) {
     lps[lp].core = static_cast<uint16_t>(lp / lp_per_core);
     lps[lp].smt = static_cast<uint8_t>(lp % lp_per_core);
     lps[lp].cluster = static_cast<uint16_t>(lps[lp].core / cores_per_cluster);
+    lps[lp].node = 0;  // no NUMA
   }
 
   PackageSizes ps;
   ps.num_clusters = DivCeil(total_cores, cores_per_cluster);
   ps.num_cores = total_cores;
   return std::vector<PackageSizes>{ps};
-}
-
-// Sets LP.node for all `lps`.
-void SetNodes(std::vector<Topology::LP>& lps) {
-  for (size_t lp = 0; lp < lps.size(); ++lp) {
-    lps[lp].node = 0;  // no NUMA
-  }
 }
 
 #endif  // HWY_OS_*
@@ -857,7 +890,6 @@ HWY_CONTRIB_DLLEXPORT Topology::Topology() {
   lps.resize(TotalLogicalProcessors());
   const std::vector<PackageSizes>& package_sizes = DetectPackages(lps);
   if (package_sizes.empty()) return;
-  SetNodes(lps);
 
   // Allocate per-package/cluster/core vectors. This indicates to callers that
   // detection succeeded.
