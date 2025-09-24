@@ -99,8 +99,6 @@ static inline const char* ToString(SpinType type) {
       return "Pause";
     case SpinType::kSentinel:
       return nullptr;
-    default:
-      HWY_UNREACHABLE;
   }
 }
 

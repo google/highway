@@ -24,6 +24,7 @@
 #include <functional>  // std::less, std::greater
 #include <vector>
 
+#include "hwy/base.h"
 #include "hwy/contrib/sort/vqsort.h"
 #include "hwy/highway.h"
 #include "hwy/print.h"
@@ -606,9 +607,6 @@ void Run(Algo algo, KeyType* inout, size_t num_keys, SharedState& shared,
       return CallHeapPartialSort(inout, num_keys, k_keys, Order());
     case Algo::kHeapSelect:
       return CallHeapSelect(inout, num_keys, k_keys, Order());
-
-    default:
-      HWY_ABORT("Not implemented");
   }
 }
 

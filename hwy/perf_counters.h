@@ -82,7 +82,7 @@ class PerfCounters {
       case kMigrations:
         return "migration";
       default:
-        HWY_ABORT("Bug: unknown counter %d", c);
+        HWY_UNREACHABLE;
     }
   }
 

@@ -175,8 +175,6 @@ static inline const char* ToString(WaitType type) {
       return "Separate";
     case WaitType::kSentinel:
       return nullptr;
-    default:
-      HWY_UNREACHABLE;
   }
 }
 
@@ -226,8 +224,8 @@ struct Config {  // 4 bytes
     return buf;
   }
 
-  Config(SpinType spin_type, WaitType wait_type)
-      : spin_type(spin_type), wait_type(wait_type) {}
+  Config(SpinType spin_type_in, WaitType wait_type_in)
+      : spin_type(spin_type_in), wait_type(wait_type_in) {}
   // Workers initially spin until ThreadPool sends them their actual config.
   Config() : Config(SpinType::kPause, WaitType::kSpinSeparate) {}
 

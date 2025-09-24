@@ -360,7 +360,6 @@ enum class BenchmarkModes {
 std::vector<size_t> SizesToBenchmark(BenchmarkModes mode) {
   std::vector<size_t> sizes;
   switch (mode) {
-    default:
     case BenchmarkModes::kDefault:
 #if HAVE_PARALLEL_IPS4O || SORT_100M
       sizes.push_back(100 * 1000 * size_t{1000});

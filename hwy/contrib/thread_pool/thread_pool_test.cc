@@ -337,10 +337,11 @@ TEST(ThreadPoolTest, TestPool) {
     mementos[task - begin].store(1000 + task);
 
     // Re-entering Run is fine on a 0-worker pool.
-    inner.Run(begin, end, [begin, end](uint64_t task, size_t worker) {
-      HWY_ASSERT(worker == 0);
-      HWY_ASSERT(begin <= task && task < end);
-    });
+    inner.Run(begin, end,
+              [begin, end](uint64_t inner_task, size_t inner_worker) {
+                HWY_ASSERT(inner_worker == 0);
+                HWY_ASSERT(begin <= inner_task && inner_task < end);
+              });
   };
 
   for (size_t num_threads = 0; num_threads <= 6; num_threads += 3) {

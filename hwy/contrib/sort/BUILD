@@ -175,6 +175,7 @@ cc_library(
         ":vxsort",  # required if HAVE_VXSORT
         "//:algo",
         "//:hwy",
+        "//:nanobenchmark",
     ],
 )
 
@@ -201,6 +202,7 @@ cc_library(
     deps = [
         "//:algo",
         "//:hwy",
+        "//:nanobenchmark",
     ],
 )
 

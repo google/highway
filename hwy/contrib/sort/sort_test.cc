@@ -20,6 +20,10 @@
 #include <random>
 #include <vector>
 
+#if !defined(HWY_DISABLED_TARGETS) && HWY_IS_DEBUG_BUILD
+#define HWY_DISABLED_TARGETS (HWY_SSE2 | HWY_SSSE3)
+#endif
+
 #include "hwy/aligned_allocator.h"  // IsAligned
 #include "hwy/base.h"
 #include "hwy/contrib/sort/vqsort.h"
