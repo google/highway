@@ -41,7 +41,7 @@ runtime. Alternatively, developers may choose to target a single instruction set
 without any runtime overhead. In both cases, the application code is the same
 except for swapping `HWY_STATIC_DISPATCH` with `HWY_DYNAMIC_DISPATCH` plus one
 line of code. See also @kfjahnke's
-[introduction to dispatching](https://github.com/kfjahnke/zimt/blob/multi_isa/examples/multi_isa_example/multi_simd_isa.md).
+[introduction to dispatching](https://github.com/kfjahnke/zimt/blob/main/examples/multi_isa_example/multi_simd_isa.md).
 
 **Suitable for a variety of domains**: Highway provides an extensive set of
 operations, used for image processing (floating-point), compression, video
