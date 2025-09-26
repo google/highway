@@ -1746,7 +1746,11 @@ HWY_F16_CONSTEXPR inline std::partial_ordering operator<=>(
 #ifndef HWY_HAVE_SCALAR_BF16_OPERATORS
 // Recent enough compiler also has operators. aarch64 clang 18 hits internal
 // compiler errors on bf16 ToString, hence only enable on GCC for now.
-#if HWY_HAVE_SCALAR_BF16_TYPE && (HWY_COMPILER_GCC_ACTUAL >= 1300)
+// GCC >= 13 will insert a function call to the __extendbfsf2 helper function
+// for scalar conversions from __bf16 to float. This is prohibitively expensive,
+// so refrain from using scalar BF16 operators on these compiler versions.
+// See https://gcc.gnu.org/bugzilla/show_bug.cgi?id=121853
+#if HWY_HAVE_SCALAR_BF16_TYPE && (HWY_COMPILER_GCC_ACTUAL >= 1700)
 #define HWY_HAVE_SCALAR_BF16_OPERATORS 1
 #else
 #define HWY_HAVE_SCALAR_BF16_OPERATORS 0
