@@ -410,8 +410,9 @@ HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
 #if !defined(HWY_IS_DEBUG_BUILD)
 // Clang does not define NDEBUG, but it and GCC define __OPTIMIZE__, and recent
 // MSVC defines NDEBUG (if not, could instead check _DEBUG).
-#if (!defined(__OPTIMIZE__) && !defined(NDEBUG)) || \
-    (HWY_IS_SANITIZER && !HWY_IS_UBSAN) || defined(__clang_analyzer__)
+#if (!defined(__OPTIMIZE__) && !defined(NDEBUG)) ||         \
+    (HWY_IS_ASAN || (HWY_IS_SANITIZER && !HWY_IS_UBSAN)) || \
+    defined(__clang_analyzer__)
 #define HWY_IS_DEBUG_BUILD 1
 #else
 #define HWY_IS_DEBUG_BUILD 0
