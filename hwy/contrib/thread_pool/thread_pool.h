@@ -231,7 +231,7 @@ struct Config {  // 4 bytes
 
   SpinType spin_type;
   WaitType wait_type;
-  HWY_MAYBE_UNUSED uint8_t reserved[2];
+  HWY_MEMBER_VAR_MAYBE_UNUSED uint8_t reserved[2];
 };
 static_assert(sizeof(Config) == 4, "");
 
@@ -352,7 +352,8 @@ class alignas(HWY_ALIGNMENT) Worker {  // HWY_ALIGNMENT bytes
   // thread_pool_test requires nonzero epoch.
   uint32_t worker_epoch_ = 1;
 
-  HWY_MAYBE_UNUSED uint8_t padding_[HWY_ALIGNMENT - 64 - sizeof(victims_)];
+  HWY_MEMBER_VAR_MAYBE_UNUSED uint8_t
+      padding_[HWY_ALIGNMENT - 64 - sizeof(victims_)];
 };
 static_assert(sizeof(Worker) == HWY_ALIGNMENT, "");
 
@@ -992,7 +993,8 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
   // passed to `ThreadFunc`. Padding ensures that the workers' cache lines are
   // not unnecessarily invalidated when the main thread writes other members.
   alignas(HWY_ALIGNMENT) pool::Tasks tasks_;
-  HWY_MAYBE_UNUSED char padding_[HWY_ALIGNMENT - sizeof(pool::Tasks)];
+  HWY_MEMBER_VAR_MAYBE_UNUSED char
+      padding_[HWY_ALIGNMENT - sizeof(pool::Tasks)];
 
   // In debug builds, detects if functions are re-entered.
   std::atomic_flag busy_ = ATOMIC_FLAG_INIT;
