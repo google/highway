@@ -98,6 +98,7 @@ static inline const char* ToString(SpinType type) {
     case SpinType::kPause:
       return "Pause";
     case SpinType::kSentinel:
+    default:
       return nullptr;
   }
 }

@@ -148,6 +148,21 @@
 
 #endif  // !HWY_COMPILER_MSVC
 
+#if (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1200) || \
+    (HWY_COMPILER_ICC && !HWY_COMPILER_ICX)
+// The use of __attribute__((unused)) in private class member variables triggers
+// a compiler warning with GCC 11 and earlier and ICC
+
+// GCC 11 and earlier and ICC also do not emit -Wunused-private-field warnings
+// for unused private class member variables
+#define HWY_MEMBER_VAR_MAYBE_UNUSED
+#else
+// Clang and ICX need __attribute__((unused)) in unused private class member
+// variables to suppress -Wunused-private-field warnings unless this warning is
+// ignored by using HWY_DIAGNOSTICS_OFF
+#define HWY_MEMBER_VAR_MAYBE_UNUSED HWY_MAYBE_UNUSED
+#endif
+
 //------------------------------------------------------------------------------
 // Builtin/attributes (no more #include after this point due to namespace!)
 
