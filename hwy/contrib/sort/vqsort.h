@@ -65,7 +65,6 @@ HWY_CONTRIB_DLLEXPORT void VQSort(int64_t* HWY_RESTRICT keys, size_t n,
 HWY_CONTRIB_DLLEXPORT void VQSort(int64_t* HWY_RESTRICT keys, size_t n,
                                   SortDescending);
 
-// These two must only be called if hwy::HaveFloat16() is true.
 HWY_CONTRIB_DLLEXPORT void VQSort(float16_t* HWY_RESTRICT keys, size_t n,
                                   SortAscending);
 HWY_CONTRIB_DLLEXPORT void VQSort(float16_t* HWY_RESTRICT keys, size_t n,
@@ -76,7 +75,6 @@ HWY_CONTRIB_DLLEXPORT void VQSort(float* HWY_RESTRICT keys, size_t n,
 HWY_CONTRIB_DLLEXPORT void VQSort(float* HWY_RESTRICT keys, size_t n,
                                   SortDescending);
 
-// These two must only be called if hwy::HaveFloat64() is true.
 HWY_CONTRIB_DLLEXPORT void VQSort(double* HWY_RESTRICT keys, size_t n,
                                   SortAscending);
 HWY_CONTRIB_DLLEXPORT void VQSort(double* HWY_RESTRICT keys, size_t n,
@@ -128,7 +126,6 @@ HWY_CONTRIB_DLLEXPORT void VQPartialSort(int64_t* HWY_RESTRICT keys, size_t n,
 HWY_CONTRIB_DLLEXPORT void VQPartialSort(int64_t* HWY_RESTRICT keys, size_t n,
                                          size_t k, SortDescending);
 
-// These two must only be called if hwy::HaveFloat16() is true.
 HWY_CONTRIB_DLLEXPORT void VQPartialSort(float16_t* HWY_RESTRICT keys, size_t n,
                                          size_t k, SortAscending);
 HWY_CONTRIB_DLLEXPORT void VQPartialSort(float16_t* HWY_RESTRICT keys, size_t n,
@@ -139,7 +136,6 @@ HWY_CONTRIB_DLLEXPORT void VQPartialSort(float* HWY_RESTRICT keys, size_t n,
 HWY_CONTRIB_DLLEXPORT void VQPartialSort(float* HWY_RESTRICT keys, size_t n,
                                          size_t k, SortDescending);
 
-// These two must only be called if hwy::HaveFloat64() is true.
 HWY_CONTRIB_DLLEXPORT void VQPartialSort(double* HWY_RESTRICT keys, size_t n,
                                          size_t k, SortAscending);
 HWY_CONTRIB_DLLEXPORT void VQPartialSort(double* HWY_RESTRICT keys, size_t n,
@@ -190,7 +186,6 @@ HWY_CONTRIB_DLLEXPORT void VQSelect(int64_t* HWY_RESTRICT keys, size_t n,
 HWY_CONTRIB_DLLEXPORT void VQSelect(int64_t* HWY_RESTRICT keys, size_t n,
                                     size_t k, SortDescending);
 
-// These two must only be called if hwy::HaveFloat16() is true.
 HWY_CONTRIB_DLLEXPORT void VQSelect(float16_t* HWY_RESTRICT keys, size_t n,
                                     size_t k, SortAscending);
 HWY_CONTRIB_DLLEXPORT void VQSelect(float16_t* HWY_RESTRICT keys, size_t n,
@@ -201,7 +196,6 @@ HWY_CONTRIB_DLLEXPORT void VQSelect(float* HWY_RESTRICT keys, size_t n,
 HWY_CONTRIB_DLLEXPORT void VQSelect(float* HWY_RESTRICT keys, size_t n,
                                     size_t k, SortDescending);
 
-// These two must only be called if hwy::HaveFloat64() is true.
 HWY_CONTRIB_DLLEXPORT void VQSelect(double* HWY_RESTRICT keys, size_t n,
                                     size_t k, SortAscending);
 HWY_CONTRIB_DLLEXPORT void VQSelect(double* HWY_RESTRICT keys, size_t n,
@@ -250,14 +244,12 @@ class HWY_CONTRIB_DLLEXPORT Sorter {
   void operator()(int64_t* HWY_RESTRICT keys, size_t n, SortAscending) const;
   void operator()(int64_t* HWY_RESTRICT keys, size_t n, SortDescending) const;
 
-  // These two must only be called if hwy::HaveFloat16() is true.
   void operator()(float16_t* HWY_RESTRICT keys, size_t n, SortAscending) const;
   void operator()(float16_t* HWY_RESTRICT keys, size_t n, SortDescending) const;
 
   void operator()(float* HWY_RESTRICT keys, size_t n, SortAscending) const;
   void operator()(float* HWY_RESTRICT keys, size_t n, SortDescending) const;
 
-  // These two must only be called if hwy::HaveFloat64() is true.
   void operator()(double* HWY_RESTRICT keys, size_t n, SortAscending) const;
   void operator()(double* HWY_RESTRICT keys, size_t n, SortDescending) const;
 

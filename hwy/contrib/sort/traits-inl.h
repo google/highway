@@ -27,6 +27,7 @@
 
 #include "hwy/contrib/sort/order.h"       // SortDescending
 #include "hwy/contrib/sort/shared-inl.h"  // SortConstants
+#include "hwy/contrib/sort/order-emulate-inl.h"   // Soft float
 #include "hwy/highway.h"
 
 HWY_BEFORE_NAMESPACE();
@@ -539,6 +540,42 @@ struct OrderDescendingKV64 : public KeyValue64 {
     return Add(v, Set(d, uint64_t{1} << 32));
   }
 };
+
+#if !HWY_HAVE_FLOAT16
+template <>
+struct OrderAscending<hwy::float16_t> :
+  public OrderEmulate<KeyLane<uint16_t, hwy::float16_t>, SortAscending> {
+    using Order = SortAscending;
+    using OrderForSortingNetwork = OrderAscending<hwy::float16_t>;
+    static constexpr bool IsKV() { return false; }
+};
+
+template <>
+struct OrderDescending<hwy::float16_t> :
+  public OrderEmulate<KeyLane<uint16_t, hwy::float16_t>, SortDescending> {
+    using Order = SortDescending;
+    using OrderForSortingNetwork = OrderDescending<hwy::float16_t>;
+    static constexpr bool IsKV() { return false; }
+};
+#endif
+
+
+#if !HWY_HAVE_FLOAT64
+template <>
+struct OrderAscending<hwy::float64_t> :
+  public OrderEmulate<KeyLane<uint64_t, hwy::float64_t>, SortAscending> {
+    using Order = SortAscending;
+    using OrderForSortingNetwork = OrderAscending<hwy::float64_t>;
+    static constexpr bool IsKV() { return false; }
+};
+template <>
+struct OrderDescending<hwy::float64_t> :
+  public OrderEmulate<KeyLane<uint64_t, hwy::float64_t>, SortDescending> {
+    using Order = SortDescending;
+    using OrderForSortingNetwork = OrderDescending<hwy::float64_t>;
+    static constexpr bool IsKV() { return false; }
+};
+#endif
 
 // Shared code that depends on Order.
 template <class Base>

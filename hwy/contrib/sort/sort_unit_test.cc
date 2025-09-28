@@ -54,81 +54,114 @@ using detail::Traits128;
 
 #if VQSORT_ENABLED || HWY_IDE
 
+template <class Func>
+void ForSortFloatTypesDynamic(const Func& func) {
+  func(hwy::float16_t());
+  func(float());
+  func(double());
+}
+
 // Verify the corner cases of LargerSortValue/SmallerSortValue, used to
 // implement PrevValue/NextValue.
 struct TestFloatLargerSmaller {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T, D d) {
-    const Vec<D> p0 = Zero(d);
-    const Vec<D> p1 = Set(d, ConvertScalarTo<T>(1));
-    const Vec<D> pinf = Inf(d);
-    const Vec<D> peps = Set(d, hwy::Epsilon<T>());
-    const Vec<D> pmax = Set(d, hwy::HighestValue<T>());
+  template <typename TF, class DF>
+  HWY_NOINLINE void operator()(TF, DF) {
+    TraitsLane<detail::OrderAscending<TF>> st_smaller;
+    TraitsLane<detail::OrderDescending<TF>> st_larger;
 
-    const Vec<D> n0 = Neg(p0);
-    const Vec<D> n1 = Neg(p1);
-    const Vec<D> ninf = Neg(pinf);
-    const Vec<D> neps = Neg(peps);
-    const Vec<D> nmax = Neg(pmax);
+    using T = typename decltype(st_smaller)::LaneType;
+    using D = Rebind<T, DF>;
+    const RebindToUnsigned<D> du;
+    const D d;
+
+    const Vec<D> p0 = Zero(d);
+    const Vec<D> n0 = BitCast(d, Set(du, SignMask<TF>()));
+    
+    const Vec<D> p1 = Set(d, BitCastScalar<T>(ConvertScalarTo<TF>(1)));
+    const Vec<D> pinf = BitCast(d, Set(du, ExponentMask<TF>()));
+    const Vec<D> peps = Set(d, BitCastScalar<T>(hwy::Epsilon<TF>()));
+    const Vec<D> pmax = Set(d, BitCastScalar<T>(hwy::HighestValue<TF>()));
+    const Vec<D> epsp1 = Set(d, BitCastScalar<T>(ConvertScalarTo<TF>(1) + hwy::Epsilon<TF>()));
+    const Vec<D> epsn1 = Or(epsp1, n0);
+
+    const Vec<D> n1 = Or(p1, n0);
+    const Vec<D> ninf = Or(pinf, n0);
+    const Vec<D> neps = Or(peps, n0);
+    const Vec<D> nmax = Or(pmax, n0);
 
     // Larger(0) is the smallest subnormal, typically eps * FLT_MIN.
-    const RebindToUnsigned<D> du;
     const Vec<D> psub = BitCast(d, Set(du, 1));
-    const Vec<D> nsub = Neg(psub);
-    HWY_ASSERT(AllTrue(d, Lt(psub, peps)));
-    HWY_ASSERT(AllTrue(d, Gt(nsub, neps)));
+    const Vec<D> nsub = BitCast(d, Set(du, 1 | SignMask<TF>()));
+    HWY_ASSERT(AllTrue(d, st_smaller.Compare(d, psub, peps)));
+    HWY_ASSERT(AllTrue(d, st_larger.Compare(d, nsub, neps)));
 
     // +/-0 moves to +/- smallest subnormal.
-    HWY_ASSERT_VEC_EQ(d, psub, detail::LargerSortValue(d, p0));
-    HWY_ASSERT_VEC_EQ(d, nsub, detail::SmallerSortValue(d, p0));
-    HWY_ASSERT_VEC_EQ(d, psub, detail::LargerSortValue(d, n0));
-    HWY_ASSERT_VEC_EQ(d, nsub, detail::SmallerSortValue(d, n0));
+    HWY_ASSERT_VEC_EQ(d, psub, st_larger.PrevValue(d, p0));
+    HWY_ASSERT_VEC_EQ(d, nsub, st_smaller.PrevValue(d, p0));
+    HWY_ASSERT_VEC_EQ(d, psub, st_larger.PrevValue(d, n0));
+    HWY_ASSERT_VEC_EQ(d, nsub, st_smaller.PrevValue(d, n0));
 
     // The next magnitude larger than 1 is (1 + eps) by definition.
-    HWY_ASSERT_VEC_EQ(d, Add(p1, peps), detail::LargerSortValue(d, p1));
-    HWY_ASSERT_VEC_EQ(d, Add(n1, neps), detail::SmallerSortValue(d, n1));
+    HWY_ASSERT_VEC_EQ(d, epsp1, st_larger.PrevValue(d, p1));
+    HWY_ASSERT_VEC_EQ(d, epsn1, st_smaller.PrevValue(d, n1));
+
     // 1-eps and -1+eps are slightly different, but we can still ensure the
     // next values are less than 1 / greater than -1.
-    HWY_ASSERT(AllTrue(d, Gt(p1, detail::SmallerSortValue(d, p1))));
-    HWY_ASSERT(AllTrue(d, Lt(n1, detail::LargerSortValue(d, n1))));
+    HWY_ASSERT(AllTrue(d, st_larger.Compare(d, p1, st_smaller.PrevValue(d, p1))));
+    HWY_ASSERT(AllTrue(d, st_smaller.Compare(d, n1, st_larger.PrevValue(d, n1))));
 
     // Even for large (finite) values, we can move toward/away from infinity.
-    HWY_ASSERT_VEC_EQ(d, pinf, detail::LargerSortValue(d, pmax));
-    HWY_ASSERT_VEC_EQ(d, ninf, detail::SmallerSortValue(d, nmax));
-    HWY_ASSERT(AllTrue(d, Gt(pmax, detail::SmallerSortValue(d, pmax))));
-    HWY_ASSERT(AllTrue(d, Lt(nmax, detail::LargerSortValue(d, nmax))));
+    HWY_ASSERT_VEC_EQ(d, pinf, st_larger.PrevValue(d, pmax));
+    HWY_ASSERT_VEC_EQ(d, ninf, st_smaller.PrevValue(d, nmax));
+    HWY_ASSERT(AllTrue(d, st_larger.Compare(d, pmax, st_smaller.PrevValue(d, pmax))));
+    HWY_ASSERT(AllTrue(d, st_smaller.Compare(d, nmax, st_larger.PrevValue(d, nmax))));
 
     // For infinities, results are unchanged or the extremal finite value.
-    HWY_ASSERT_VEC_EQ(d, pinf, detail::LargerSortValue(d, pinf));
-    HWY_ASSERT_VEC_EQ(d, pmax, detail::SmallerSortValue(d, pinf));
-    HWY_ASSERT_VEC_EQ(d, nmax, detail::LargerSortValue(d, ninf));
-    HWY_ASSERT_VEC_EQ(d, ninf, detail::SmallerSortValue(d, ninf));
+    HWY_ASSERT_VEC_EQ(d, pinf, st_larger.PrevValue(d, pinf));
+    HWY_ASSERT_VEC_EQ(d, pmax, st_smaller.PrevValue(d, pinf));
+    HWY_ASSERT_VEC_EQ(d, nmax, st_larger.PrevValue(d, ninf));
+    HWY_ASSERT_VEC_EQ(d, ninf, st_smaller.PrevValue(d, ninf));
   }
 };
 HWY_NOINLINE void TestAllFloatLargerSmaller() {
-  ForFloatTypesDynamic(ForPartialVectors<TestFloatLargerSmaller>());
+  ForSortFloatTypesDynamic(ForPartialVectors<TestFloatLargerSmaller>());
 }
+
+template <class TF, class V, class D = DFromV<V>, HWY_IF_FLOAT_D(D)>
+HWY_API Mask<D> IsInfBin(V v) {
+  return IsInf(v);
+} 
+
+template <class TF, class V, class D = DFromV<V>, HWY_IF_UNSIGNED_D(D)>
+HWY_API Mask<D> IsInfBin(V v) {
+  const D d;
+  const V m_exp = Set(d, ExponentMask<TF>());
+  const V m_mant = Set(d, MantissaMask<TF>());
+  return And(Eq(And(v, m_mant), Zero(d)), Eq(And(v, m_exp), m_exp));
+} 
 
 // Previously, LastValue was the largest normal float, so we injected that
 // value into arrays containing only infinities. Ensure that does not happen.
 struct TestFloatInf {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T, D d) {
+  template <typename TF, class DF>
+  HWY_NOINLINE void operator()(TF, DF) {
+    using T = typename TraitsLane<detail::OrderAscending<TF>>::LaneType;
+    const Rebind<T, DF> d;
     const size_t N = Lanes(d);
     const size_t num = N * 3;
     auto in = hwy::AllocateAligned<T>(num);
     HWY_ASSERT(in);
-    Fill(d, GetLane(Inf(d)), num, in.get());
+    Fill(d, BitCastScalar<T>(ExponentMask<TF>()), num, in.get());
     VQSort(in.get(), num, SortAscending());
     for (size_t i = 0; i < num; i += N) {
-      HWY_ASSERT(AllTrue(d, IsInf(LoadU(d, in.get() + i))));
+      HWY_ASSERT(AllTrue(d, IsInfBin<TF>(LoadU(d, in.get() + i))));
     }
   }
 };
 
 HWY_NOINLINE void TestAllFloatInf() {
   // TODO(janwas): bfloat16_t not yet supported.
-  ForFloatTypesDynamic(ForPartialVectors<TestFloatInf>());
+  ForSortFloatTypesDynamic(ForPartialVectors<TestFloatInf>());
 }
 
 template <class Traits>

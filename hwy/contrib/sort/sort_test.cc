@@ -69,9 +69,9 @@ void TestSortIota(hwy::ThreadPool& pool) {
     std::iota(keys, keys + num, Key{0});
     VQSort(keys, num, hwy::SortAscending());
     for (size_t i = 0; i < num; ++i) {
-      if (keys[i] != static_cast<Key>(i)) {
+      if (keys[i] != ConvertScalarTo<Key>(i)) {
         HWY_ABORT("num %zu i %zu: not iota, got %.0f\n", num, i,
-                  static_cast<double>(keys[i]));
+                  ConvertScalarTo<double>(keys[i]));
       }
     }
   });
@@ -86,10 +86,9 @@ void TestAllSortIota() {
     TestSortIota<int64_t>(pool);
     TestSortIota<uint64_t>(pool);
   }
+  TestSortIota<hwy::float16_t>(pool);
   TestSortIota<float>(pool);
-  if (hwy::HaveFloat64()) {
-    TestSortIota<double>(pool);
-  }
+  TestSortIota<double>(pool);
 #endif
 }
 

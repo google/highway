@@ -1921,9 +1921,24 @@ HWY_INLINE bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys,
 
 #endif  // VQSORT_ENABLED
 
-template <class D, class Traits, typename T, HWY_IF_FLOAT(T)>
+
+template <class TF, class V, class D = DFromV<V>, HWY_IF_FLOAT_D(D)>
+HWY_API Mask<D> IsNaNBin(V v) {
+  return IsNaN(v);
+}
+
+template <class TF, class V, class D = DFromV<V>, HWY_IF_UNSIGNED_D(D)>
+HWY_API Mask<D> IsNaNBin(V v) {
+  const D d;
+  const Vec<D> m_exp = Set(d, ExponentMask<TF>());
+  const Vec<D> m_mant = Set(d, MantissaMask<TF>());
+  return AndNot(Eq(And(v, m_mant), Zero(d)), Eq(And(v, m_exp), m_exp));
+}
+
+template <class D, class Traits, typename T, HWY_IF_FLOAT(typename Traits::KeyType)>
 HWY_INLINE size_t CountAndReplaceNaN(D d, Traits st, T* HWY_RESTRICT keys,
                                      size_t num) {
+  using TF = typename Traits::KeyType;
   const size_t N = Lanes(d);
   // Will be sorted to the back of the array.
   const Vec<D> sentinel = st.LastValue(d);
@@ -1931,7 +1946,7 @@ HWY_INLINE size_t CountAndReplaceNaN(D d, Traits st, T* HWY_RESTRICT keys,
   size_t i = 0;
   if (num >= N) {
     for (; i <= num - N; i += N) {
-      const Mask<D> is_nan = IsNaN(LoadU(d, keys + i));
+      const Mask<D> is_nan = IsNaNBin<TF>(LoadU(d, keys + i));
       BlendedStore(sentinel, is_nan, d, keys + i);
       num_nan += CountTrue(d, is_nan);
     }
@@ -1940,14 +1955,14 @@ HWY_INLINE size_t CountAndReplaceNaN(D d, Traits st, T* HWY_RESTRICT keys,
   const size_t remaining = num - i;
   HWY_DASSERT(remaining < N);
   const Vec<D> v = LoadN(d, keys + i, remaining);
-  const Mask<D> is_nan = IsNaN(v);
+  const Mask<D> is_nan = IsNaNBin<TF>(v);
   StoreN(IfThenElse(is_nan, sentinel, v), d, keys + i, remaining);
   num_nan += CountTrue(d, is_nan);
   return num_nan;
 }
 
 // IsNaN is not implemented for non-float, so skip it.
-template <class D, class Traits, typename T, HWY_IF_NOT_FLOAT(T)>
+template <class D, class Traits, typename T, HWY_IF_NOT_FLOAT(typename Traits::KeyType)>
 HWY_INLINE size_t CountAndReplaceNaN(D, Traits, T* HWY_RESTRICT, size_t) {
   return 0;
 }
