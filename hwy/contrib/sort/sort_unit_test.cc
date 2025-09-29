@@ -128,12 +128,12 @@ HWY_NOINLINE void TestAllFloatLargerSmaller() {
 }
 
 template <class TF, class V, class D = DFromV<V>, HWY_IF_FLOAT_D(D)>
-HWY_API Mask<D> IsInfBin(V v) {
+HWY_API Mask<D> IsInfWrapper(V v) {
   return IsInf(v);
 } 
 
 template <class TF, class V, class D = DFromV<V>, HWY_IF_UNSIGNED_D(D)>
-HWY_API Mask<D> IsInfBin(V v) {
+HWY_API Mask<D> IsInfWrapper(V v) {
   const D d;
   const V m_exp = Set(d, ExponentMask<TF>());
   const V m_mant = Set(d, MantissaMask<TF>());
@@ -151,10 +151,10 @@ struct TestFloatInf {
     const size_t num = N * 3;
     auto in = hwy::AllocateAligned<T>(num);
     HWY_ASSERT(in);
-    Fill(d, BitCastScalar<T>(ExponentMask<TF>()), num, in.get());
+    Fill(d, BitCastScalar<T>(PositiveInfOrHighestValue<TF>()), num, in.get());
     VQSort(in.get(), num, SortAscending());
     for (size_t i = 0; i < num; i += N) {
-      HWY_ASSERT(AllTrue(d, IsInfBin<TF>(LoadU(d, in.get() + i))));
+      HWY_ASSERT(AllTrue(d, IsInfWrapper<TF>(LoadU(d, in.get() + i))));
     }
   }
 };

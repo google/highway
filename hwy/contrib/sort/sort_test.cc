@@ -61,12 +61,27 @@ using detail::OrderDescendingKV128;
 using detail::Traits128;
 #endif  // !HAVE_INTEL && HWY_TARGET != HWY_SCALAR
 
+template <typename T>
+inline void IotaWrapper(T *first, T *last, T val) {
+  std::iota(first, last, val);
+}
+// Emulate std::iota for hwy::float16_t, some compliers mostly on ARM & Longarch
+// complain about operator++ on that type.
+template <>
+inline void IotaWrapper<hwy::float16_t>(hwy::float16_t *first, hwy::float16_t *last, 
+                                        hwy::float16_t val) {
+  float v = ConvertScalarTo<float>(val);
+  for (; first != last; ++first, ++v) {
+    *first = ConvertScalarTo<hwy::float16_t>(v);
+  }
+}
+
 template <typename Key>
 void TestSortIota(hwy::ThreadPool& pool) {
   pool.Run(128, 300, [](uint64_t task, size_t /*thread*/) {
     const size_t num = static_cast<size_t>(task);
     Key keys[300];
-    std::iota(keys, keys + num, Key{0});
+    IotaWrapper(keys, keys + num, ConvertScalarTo<Key>(0));
     VQSort(keys, num, hwy::SortAscending());
     for (size_t i = 0; i < num; ++i) {
       if (keys[i] != ConvertScalarTo<Key>(i)) {

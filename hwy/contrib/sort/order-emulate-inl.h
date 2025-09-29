@@ -118,12 +118,12 @@ struct OrderEmulate : public Base {
 
   template <class D>
   HWY_INLINE Vec<D> FirstValue(D d) const {
-    return Set(d, ExponentMask<TF>() | SignMask<TF>());
+    return Set(d, BitCastScalar<T>(NegativeInfOrLowestValue<TF>()));
   }
 
   template <class D>
   HWY_INLINE Vec<D> LastValue(D d) const {
-    return Set(d, ExponentMask<TF>());
+    return Set(d, BitCastScalar<T>(PositiveInfOrHighestValue<TF>()));
   }
 
   // Returns the next distinct smaller value unless already -inf.

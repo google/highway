@@ -1923,12 +1923,12 @@ HWY_INLINE bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys,
 
 
 template <class TF, class V, class D = DFromV<V>, HWY_IF_FLOAT_D(D)>
-HWY_API Mask<D> IsNaNBin(V v) {
+HWY_API Mask<D> IsNaNWrapper(V v) {
   return IsNaN(v);
 }
 
 template <class TF, class V, class D = DFromV<V>, HWY_IF_UNSIGNED_D(D)>
-HWY_API Mask<D> IsNaNBin(V v) {
+HWY_API Mask<D> IsNaNWrapper(V v) {
   const D d;
   const Vec<D> m_exp = Set(d, ExponentMask<TF>());
   const Vec<D> m_mant = Set(d, MantissaMask<TF>());
@@ -1946,7 +1946,7 @@ HWY_INLINE size_t CountAndReplaceNaN(D d, Traits st, T* HWY_RESTRICT keys,
   size_t i = 0;
   if (num >= N) {
     for (; i <= num - N; i += N) {
-      const Mask<D> is_nan = IsNaNBin<TF>(LoadU(d, keys + i));
+      const Mask<D> is_nan = IsNaNWrapper<TF>(LoadU(d, keys + i));
       BlendedStore(sentinel, is_nan, d, keys + i);
       num_nan += CountTrue(d, is_nan);
     }
@@ -1955,7 +1955,7 @@ HWY_INLINE size_t CountAndReplaceNaN(D d, Traits st, T* HWY_RESTRICT keys,
   const size_t remaining = num - i;
   HWY_DASSERT(remaining < N);
   const Vec<D> v = LoadN(d, keys + i, remaining);
-  const Mask<D> is_nan = IsNaNBin<TF>(v);
+  const Mask<D> is_nan = IsNaNWrapper<TF>(v);
   StoreN(IfThenElse(is_nan, sentinel, v), d, keys + i, remaining);
   num_nan += CountTrue(d, is_nan);
   return num_nan;

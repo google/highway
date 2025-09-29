@@ -583,6 +583,15 @@ struct TraitsLane : public Base {
   using TraitsForSortingNetwork =
       TraitsLane<typename Base::OrderForSortingNetwork>;
 
+  static constexpr bool IsEmulatedMinMax() {
+    using LaneType = typename Base::LaneType;
+    using KeyType = typename Base::KeyType;
+    return (
+        (HWY_AVX3 < HWY_TARGET && HWY_TARGET <= HWY_SSSE3 && sizeof(LaneType) == 8) ||
+        (!IsFloat<LaneType>() && IsFloat<KeyType>()) // emulated float
+    );
+  }
+
   // For each lane i: replaces a[i] with the first and b[i] with the second
   // according to Base.
   // Corresponds to a conditional swap, which is one "node" of a sorting
@@ -590,45 +599,35 @@ struct TraitsLane : public Base {
   template <class D>
   HWY_INLINE void Sort2(D d, Vec<D>& a, Vec<D>& b) const {
     const Base* base = static_cast<const Base*>(this);
-
     const Vec<D> a_copy = a;
     // Prior to AVX3, there is no native 64-bit Min/Max, so they compile to 4
     // instructions. We can reduce it to a compare + 2 IfThenElse.
-#if HWY_AVX3 < HWY_TARGET && HWY_TARGET <= HWY_SSSE3
-    if (sizeof(TFromD<D>) == 8) {
+    HWY_IF_CONSTEXPR (IsEmulatedMinMax()) {
       const Mask<D> cmp = base->Compare(d, a, b);
       a = IfThenElse(cmp, a, b);
       b = IfThenElse(cmp, b, a_copy);
-      return;
     }
-#endif
-    a = base->First(d, a, b);
-    b = base->Last(d, a_copy, b);
+    else {
+      a = base->First(d, a, b);
+      b = base->Last(d, a_copy, b);
+    }
   }
 
   // Conditionally swaps even-numbered lanes with their odd-numbered neighbor.
-  template <class D, HWY_IF_T_SIZE_D(D, 8)>
+  template <class D>
   HWY_INLINE Vec<D> SortPairsDistance1(D d, Vec<D> v) const {
     const Base* base = static_cast<const Base*>(this);
     Vec<D> swapped = base->ReverseKeys2(d, v);
     // Further to the above optimization, Sort2+OddEvenKeys compile to four
     // instructions; we can save one by combining two blends.
-#if HWY_AVX3 < HWY_TARGET && HWY_TARGET <= HWY_SSSE3
-    const Vec<D> cmp = VecFromMask(d, base->Compare(d, v, swapped));
-    return IfVecThenElse(DupOdd(cmp), swapped, v);
-#else
-    Sort2(d, v, swapped);
-    return base->OddEvenKeys(swapped, v);
-#endif
-  }
-
-  // (See above - we use Sort2 for non-64-bit types.)
-  template <class D, HWY_IF_NOT_T_SIZE_D(D, 8)>
-  HWY_INLINE Vec<D> SortPairsDistance1(D d, Vec<D> v) const {
-    const Base* base = static_cast<const Base*>(this);
-    Vec<D> swapped = base->ReverseKeys2(d, v);
-    Sort2(d, v, swapped);
-    return base->OddEvenKeys(swapped, v);
+    HWY_IF_CONSTEXPR (IsEmulatedMinMax()) {
+      const Vec<D> cmp = VecFromMask(d, base->Compare(d, v, swapped));
+      return IfVecThenElse(DupOdd(cmp), swapped, v);
+    }
+    else {
+      Sort2(d, v, swapped);
+      return base->OddEvenKeys(swapped, v);
+    }
   }
 
   // Swaps with the vector formed by reversing contiguous groups of 4 keys.
