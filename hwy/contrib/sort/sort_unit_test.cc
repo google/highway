@@ -61,6 +61,15 @@ void ForSortFloatTypesDynamic(const Func& func) {
   func(double());
 }
 
+template <typename T>
+inline T AddWrapper(T a, T b) {
+  return a + b;
+}
+template <>
+inline hwy::float16_t AddWrapper(hwy::float16_t a, hwy::float16_t b) {
+  return ConvertScalarTo<hwy::float16_t>(ConvertScalarTo<float>(a) + ConvertScalarTo<float>(b));
+}
+
 // Verify the corner cases of LargerSortValue/SmallerSortValue, used to
 // implement PrevValue/NextValue.
 struct TestFloatLargerSmaller {
@@ -81,8 +90,6 @@ struct TestFloatLargerSmaller {
     const Vec<D> pinf = BitCast(d, Set(du, ExponentMask<TF>()));
     const Vec<D> peps = Set(d, BitCastScalar<T>(hwy::Epsilon<TF>()));
     const Vec<D> pmax = Set(d, BitCastScalar<T>(hwy::HighestValue<TF>()));
-    const Vec<D> epsp1 = Set(d, BitCastScalar<T>(ConvertScalarTo<TF>(1) + hwy::Epsilon<TF>()));
-    const Vec<D> epsn1 = Or(epsp1, n0);
 
     const Vec<D> n1 = Or(p1, n0);
     const Vec<D> ninf = Or(pinf, n0);
@@ -102,8 +109,11 @@ struct TestFloatLargerSmaller {
     HWY_ASSERT_VEC_EQ(d, nsub, st_smaller.PrevValue(d, n0));
 
     // The next magnitude larger than 1 is (1 + eps) by definition.
-    HWY_ASSERT_VEC_EQ(d, epsp1, st_larger.PrevValue(d, p1));
-    HWY_ASSERT_VEC_EQ(d, epsn1, st_smaller.PrevValue(d, n1));
+    const Vec<D> one_plus_eps = Set(d, BitCastScalar<T>(
+      AddWrapper(ConvertScalarTo<TF>(1), hwy::Epsilon<TF>())
+    ));
+    HWY_ASSERT_VEC_EQ(d, one_plus_eps, st_larger.PrevValue(d, p1));
+    HWY_ASSERT_VEC_EQ(d, Or(one_plus_eps, n0), st_smaller.PrevValue(d, n1));
 
     // 1-eps and -1+eps are slightly different, but we can still ensure the
     // next values are less than 1 / greater than -1.
