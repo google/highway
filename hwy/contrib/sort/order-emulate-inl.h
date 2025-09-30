@@ -165,49 +165,50 @@ struct OrderEmulate : public Base {
 
 template <class Base>
 struct OrderEmulate<Base, SortDescending> : public OrderEmulate<Base, SortAscending> {
-  using _AscBase = OrderEmulate<Base, SortAscending>;
-  using _Asc = const _AscBase*;
   using T = typename Base::LaneType;
-  using TF = typename Base::KeyType;
+
+  HWY_INLINE const OrderEmulate<Base, SortAscending>& AscBase() const {
+    return *this;
+  }
 
   HWY_INLINE bool Compare1(const T* a, const T* b) const {
-    return reinterpret_cast<_Asc>(this)->Compare1(b, a);
+    return AscBase().Compare1(b, a);
   }
   template <class D>
   HWY_INLINE Mask<D> Compare(D d, Vec<D> a, Vec<D> b) const {
-    return reinterpret_cast<_Asc>(this)->Compare(d, b, a);
+    return AscBase().Compare(d, b, a);
   }
 
   template <class D>
   HWY_INLINE Vec<D> First(D d, const Vec<D> a, const Vec<D> b) const {
-    return reinterpret_cast<_Asc>(this)->Last(d, a, b);
+    return AscBase().Last(d, a, b);
   }
 
   template <class D>
   HWY_INLINE Vec<D> Last(D d, const Vec<D> a, const Vec<D> b) const {
-    return reinterpret_cast<_Asc>(this)->First(d, a, b);
+    return AscBase().First(d, a, b);
   }
 
   template <class D>
   HWY_INLINE Vec<D> FirstOfLanes(D d, Vec<D> v,
                                  T* HWY_RESTRICT b) const {
-    return reinterpret_cast<_Asc>(this)->LastOfLanes(d, v, b);
+    return AscBase().LastOfLanes(d, v, b);
   }
 
   template <class D>
   HWY_INLINE Vec<D> LastOfLanes(D d, Vec<D> v,
                                 T* HWY_RESTRICT b) const {
-    return reinterpret_cast<_Asc>(this)->FirstOfLanes(d, v, b);
+    return AscBase().FirstOfLanes(d, v, b);
   }
 
   template <class D>
   HWY_INLINE Vec<D> FirstValue(D d) const {
-    return reinterpret_cast<_Asc>(this)->LastValue(d);
+    return AscBase().LastValue(d);
   }
 
   template <class D>
   HWY_INLINE Vec<D> LastValue(D d) const {
-    return reinterpret_cast<_Asc>(this)->FirstValue(d);
+    return AscBase().FirstValue(d);
   }
 
   template <class D, class V = Vec<D>>
