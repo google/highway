@@ -77,6 +77,41 @@ static inline void SetThreadName(const char* format, int thread) {
 // Whether workers should block or spin.
 enum class PoolWaitMode : uint8_t { kBlock = 1, kSpin };
 
+// Upper bound on non-empty `ThreadPool` (single-worker pools do not count).
+// Turin has 16 clusters. Add one for the across-cluster pool.
+HWY_INLINE_VAR constexpr size_t kMaxClusters = 32 + 1;
+
+// Use the last slot so that `PoolWorkerMapping` does not have to know the
+// total number of clusters.
+HWY_INLINE_VAR constexpr size_t kAllClusters = kMaxClusters - 1;
+
+// Argument to `ThreadPool`: how to map local worker_idx to global.
+class PoolWorkerMapping {
+ public:
+  // Backward-compatible mode: returns local worker index.
+  PoolWorkerMapping() : cluster_idx_(0), workers_per_cluster_(0) {}
+  PoolWorkerMapping(size_t cluster_idx, size_t workers_per_cluster)
+      : cluster_idx_(cluster_idx), workers_per_cluster_(workers_per_cluster) {
+    HWY_DASSERT(cluster_idx <= kAllClusters);
+    // Only use this ctor for the new global worker index mode. If this were
+    // zero, we would still return local indices.
+    HWY_DASSERT(workers_per_cluster != 0);
+  }
+
+  // Returns global_idx, or unchanged local worker_idx if default-constructed.
+  size_t operator()(size_t worker_idx) const {
+    if (cluster_idx_ == kAllClusters) {
+      // Main thread, plus the first core of each subsequent cluster.
+      return worker_idx * workers_per_cluster_ + 0;
+    }
+    return cluster_idx_ * workers_per_cluster_ + worker_idx;
+  }
+
+ private:
+  size_t cluster_idx_;
+  size_t workers_per_cluster_;
+};
+
 namespace pool {
 
 #ifndef HWY_POOL_VERBOSITY
@@ -245,8 +280,16 @@ class alignas(HWY_ALIGNMENT) Worker {  // HWY_ALIGNMENT bytes
 
  public:
   Worker(const size_t worker, const size_t num_threads,
-         const Divisor64& div_workers)
-      : workers_(this - worker), worker_(worker), num_threads_(num_threads) {
+         const PoolWorkerMapping mapping, const Divisor64& div_workers,
+         Profiler& profiler)
+      : workers_(this - worker),
+        worker_(worker),
+        num_threads_(num_threads),
+        profiler_(profiler),
+        // If `num_threads == 0`, we might be in an inner pool and must use
+        // the `global_idx` we are currently running on.
+        global_idx_(num_threads == 0 ? Profiler::GlobalIdx()
+                                     : mapping(worker)) {
     HWY_DASSERT(IsAligned(this, HWY_ALIGNMENT));
     HWY_DASSERT(worker <= num_threads);
     const size_t num_workers = static_cast<size_t>(div_workers.GetDivisor());
@@ -264,6 +307,14 @@ class alignas(HWY_ALIGNMENT) Worker {  // HWY_ALIGNMENT bytes
       victims_[i] = shuffled_iota.Next(victims_[i - 1], div_workers);
       HWY_DASSERT(victims_[i] != worker);
     }
+
+    // Skip for the main thread, profiler.cc already called ReserveWorker(0).
+    if (HWY_LIKELY(global_idx_ != 0)) profiler_.ReserveWorker(global_idx_);
+  }
+
+  ~Worker() {
+    // Only newly created threads reserved a slot; do not free the main worker.
+    if (HWY_LIKELY(global_idx_ != 0)) profiler_.FreeWorker(global_idx_);
   }
 
   // Placement-newed by `WorkerLifecycle`, we do not expect any copying.
@@ -275,6 +326,22 @@ class alignas(HWY_ALIGNMENT) Worker {  // HWY_ALIGNMENT bytes
   Worker* AllWorkers() { return workers_; }
   const Worker* AllWorkers() const { return workers_; }
   size_t NumThreads() const { return num_threads_; }
+
+  size_t GlobalIdx() const { return global_idx_; }
+  void SetProfilerGlobalIdx(size_t global_idx) {
+    profiler_.SetGlobalIdx(global_idx);
+  }
+  profiler::Zone MakeZone(profiler::ZoneHandle zone) const {
+    return profiler::Zone(profiler_, global_idx_, zone);
+  }
+
+  void SetStartTime() { t0_ = timer::Start(); }
+  uint64_t ElapsedTime() {
+    const uint64_t t1 = timer::Stop();
+    const uint64_t elapsed = t1 - t0_;
+    t0_ = t1;
+    return elapsed;
+  }
 
   // ------------------------ Per-worker storage for `SendConfig`
 
@@ -338,6 +405,10 @@ class alignas(HWY_ALIGNMENT) Worker {  // HWY_ALIGNMENT bytes
   const size_t worker_;
   const size_t num_threads_;
 
+  Profiler& profiler_;
+  const size_t global_idx_;
+  uint64_t t0_ = 0;  // Set by `SetStartTime`.
+
   // Use u32 to match futex.h. These must start at the initial value of
   // `worker_epoch_`.
   std::atomic<uint32_t> wait_epoch_{1};
@@ -353,7 +424,7 @@ class alignas(HWY_ALIGNMENT) Worker {  // HWY_ALIGNMENT bytes
   uint32_t worker_epoch_ = 1;
 
   HWY_MEMBER_VAR_MAYBE_UNUSED uint8_t
-      padding_[HWY_ALIGNMENT - 64 - sizeof(victims_)];
+      padding_[HWY_ALIGNMENT - 56 - 5 * sizeof(void*) - sizeof(victims_)];
 };
 static_assert(sizeof(Worker) == HWY_ALIGNMENT, "");
 
@@ -364,10 +435,13 @@ class WorkerLifecycle {  // 0 bytes
   // Placement new for `Worker` into `storage` because its ctor requires
   // the worker index. Returns array of all workers.
   static Worker* Init(uint8_t* storage, size_t num_threads,
-                      const Divisor64& div_workers) {
-    Worker* workers = new (storage) Worker(0, num_threads, div_workers);
+                      PoolWorkerMapping mapping, const Divisor64& div_workers,
+                      Profiler& profiler) {
+    Worker* workers =
+        new (storage) Worker(0, num_threads, mapping, div_workers, profiler);
     for (size_t worker = 1; worker <= num_threads; ++worker) {
-      new (Addr(storage, worker)) Worker(worker, num_threads, div_workers);
+      new (Addr(storage, worker))
+          Worker(worker, num_threads, mapping, div_workers, profiler);
       // Ensure pointer arithmetic is the same (will be used in Destroy).
       HWY_DASSERT(reinterpret_cast<uintptr_t>(workers + worker) ==
                   reinterpret_cast<uintptr_t>(Addr(storage, worker)));
@@ -654,6 +728,120 @@ class Barrier {
   }
 };
 
+struct Zones {
+  explicit Zones(Profiler& profiler)
+      : run_and_autotune(profiler.AddZone("Pool.Run+Tune")),
+        run(profiler.AddZone("Pool.Run")) {}
+
+  profiler::ZoneHandle run_and_autotune;
+  profiler::ZoneHandle run;
+};
+
+// Accumulates timings from main thread and workers.
+class Stats {
+ public:
+  Stats() { Reset(); }
+
+  // Called concurrently by non-main worker threads after their `WorkerRun` and
+  // before the barrier.
+  void NotifyWorkerRun(size_t worker_idx, uint64_t before_run,
+                       uint64_t after_run) {
+    HWY_DASSERT(worker_idx != 0);  // Not called by main thread.
+    const size_t u64_idx = (worker_idx - 1) * kU64PerLine;
+    HWY_DASSERT(worker_run_[u64_idx] == 0);
+    worker_run_[u64_idx] = Elapsed(before_run, after_run, __LINE__);
+  }
+
+  // Called by the main thread after the barrier, whose store-release and
+  // load-acquire publishes all prior writes. Note: only the main thread can
+  // store `after_barrier`. If workers did, which by definition happens after
+  // the barrier, then they would race with this function's reads.
+  void NotifyMainTimestamps(size_t num_threads, uint64_t before_wake,
+                            uint64_t before_run, uint64_t after_run,
+                            uint64_t after_barrier) {
+    HWY_DASSERT(num_threads <= kMaxThreads);
+    HWY_DASSERT(before_wake != 0 && after_barrier != 0);
+
+    for (size_t i = 0; i < num_threads; ++i) {
+      uint64_t& worker_run = worker_run_[i * kU64PerLine];
+      t_sum_active_workers_ += worker_run != 0;
+      t_sum_run_ += worker_run;
+      worker_run = 0;
+    }
+
+    num_notify_++;
+    m_sum_wake_ += Elapsed(before_wake, before_run, __LINE__);
+    m_sum_run_ += Elapsed(before_run, after_run, __LINE__);
+    m_sum_barrier_ += Elapsed(after_run, after_barrier, __LINE__);
+  }
+
+  void PrintAndReset(size_t num_threads, uint64_t thread_total) {
+    // This is unconditionally called via `ProfilerFunc`. If the pool was unused
+    // in this invocation, skip it.
+    if (num_notify_ == 0) return;
+
+    const double inv_notify = 1.0 / static_cast<double>(num_notify_);
+    const auto avg = [inv_notify](double sum) { return sum * inv_notify; };
+    const auto us = [](double sec) { return sec * 1E6; };
+    const auto ns = [](double sec) { return sec * 1E9; };
+
+    // These are non-main workers, hence compare with threads.
+    const double sum_active = static_cast<double>(t_sum_active_workers_);
+    const double t_sum_run = Sec(t_sum_run_);
+    const double t_total = Sec(thread_total);
+    printf(
+        "%5.1f/%3zu workers, %6d, wake %.3f ns, barrier %6.3f us; "
+        "threads run %6.3f s (%.1f%% of total %6.3f s), main run %5.3f s\n",
+        avg(sum_active), num_threads, static_cast<int>(num_notify_),
+        ns(avg(Sec(m_sum_wake_))), us(avg(Sec(m_sum_barrier_))), t_sum_run,
+        t_sum_run / t_total * 100.0, t_total, Sec(m_sum_run_));
+
+    Reset(num_threads);
+  }
+
+  void Reset(size_t num_threads = kMaxThreads) {
+    num_notify_ = 0;
+    t_sum_active_workers_ = 0;
+    t_sum_run_ = 0;
+    m_sum_wake_ = 0;
+    m_sum_run_ = 0;
+    m_sum_barrier_ = 0;
+    for (size_t i = 0; i < num_threads; ++i) {
+      worker_run_[i * kU64PerLine] = 0;
+    }
+  }
+
+ private:
+  static uint64_t Elapsed(uint64_t t0, uint64_t t1, int line) {
+    if constexpr (HWY_IS_DEBUG_BUILD) {
+      HWY_DASSERT(t0 != 0);
+      if (t0 > t1)
+        Abort(__FILE__, line, "t0 %g > t1 %g", static_cast<double>(t0),
+              static_cast<double>(t1));
+    }
+    return t1 - t0;
+  }
+
+  static double Sec(uint64_t ticks) {
+    return static_cast<double>(ticks) /
+           hwy::platform::InvariantTicksPerSecond();
+  }
+
+  static constexpr size_t kU64PerLine = HWY_ALIGNMENT / sizeof(uint64_t);
+
+  int64_t num_notify_;
+  uint64_t t_sum_active_workers_;
+  uint64_t t_sum_run_;
+  uint64_t m_sum_wake_;
+  uint64_t m_sum_run_;
+  uint64_t m_sum_barrier_;
+  HWY_MEMBER_VAR_MAYBE_UNUSED uint64_t padding_[kU64PerLine - 6];
+  // One cache line per timestamp/worker to avoid false sharing.
+  uint64_t worker_run_[kMaxThreads * kU64PerLine];
+};
+// Enables shift rather than multiplication.
+static_assert(sizeof(Stats) == (kMaxThreads + 1) * HWY_ALIGNMENT, "Wrong size");
+
 }  // namespace pool
 
 // Highly efficient parallel-for, intended for workloads with thousands of
@@ -691,8 +879,8 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
     };
 
    public:
-    ThreadFunc(pool::Worker& worker, pool::Tasks& tasks)
-        : worker_(worker), tasks_(tasks) {}
+    ThreadFunc(pool::Worker& worker, pool::Tasks& tasks, pool::Stats& stats)
+        : worker_(worker), tasks_(tasks), stats_(stats) {}
 
     HWY_POOL_PROFILE void operator()() {
       // Ensure main thread's writes are visible (synchronizes with fence in
@@ -701,7 +889,12 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
 
       HWY_DASSERT(worker_.Index() != 0);  // main is 0
       SetThreadName("worker%03zu", static_cast<int>(worker_.Index() - 1));
-      hwy::Profiler::InitThread();
+
+      worker_.SetStartTime();
+      worker_.SetProfilerGlobalIdx(worker_.GlobalIdx());
+      // No Zone here because it would only exit after `GetExit`, which may be
+      // after the main thread's `PROFILER_END_ROOT_RUN`, and thus too late to
+      // be counted. Instead, `ProfilerFunc` records the elapsed time.
 
       // Loop termination via `GetExit` is triggered by `~ThreadPool`.
       do {
@@ -710,19 +903,28 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
         // Uses the initial config, or the last one set during WorkerRun.
         CallWithConfig(worker_.NextConfig(), WorkerWait(), worker_);
 
+        const size_t before_run = timer::Start();
         tasks_.WorkerRun(&worker_);
+        stats_.NotifyWorkerRun(worker_.Index(), before_run, timer::Stop());
 
-        // Notify barrier after `WorkerRun`.
+        // Notify barrier after `WorkerRun`. Note that we cannot send an
+        // after-barrier timestamp, see above.
         pool::Barrier().WorkerReached(worker_, epoch);
 
         // Check after notifying the barrier, otherwise the main thread
         // deadlocks.
       } while (!worker_.GetExit());
+
+      worker_.SetProfilerGlobalIdx(~size_t{0});
+
+      // Defer `FreeWorker` until workers are destroyed to ensure the profiler
+      // is not still using the worker.
     }
 
    private:
     pool::Worker& worker_;
     pool::Tasks& tasks_;
+    pool::Stats& stats_;
   };
 
   // Used to initialize `num_threads_` from the ctor argument.
@@ -751,11 +953,15 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
 
   // `num_threads` is the number of *additional* threads to spawn, which should
   // not exceed `MaxThreads()`. Note that the main thread also performs work.
-  explicit ThreadPool(size_t num_threads)
+  // `mapping` indicates how to map local worker_idx to global.
+  ThreadPool(size_t num_threads,
+             PoolWorkerMapping mapping = PoolWorkerMapping())
       : num_threads_(ClampedNumThreads(num_threads)),
         div_workers_(1 + num_threads_),
+        profiler_(Profiler::Get()),  // on first call, calls ReserveWorker(0)!
         workers_(pool::WorkerLifecycle::Init(worker_bytes_, num_threads_,
-                                             div_workers_)),
+                                             mapping, div_workers_, profiler_)),
+        zones_(profiler_),
         have_timer_stop_(platform::HaveTimerStop(cpu100_)) {
     // Leaves the default wait mode as `kBlock`, which means futex, because
     // spinning only makes sense when threads are pinned and wake latency is
@@ -766,9 +972,26 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
           pool::Config::AllCandidates(mode));
     }
 
+    profiler_.AddFunc(this, [this, num_threads]() {
+      // Obtain total run time from all threads.
+      std::atomic<uint64_t> thread_sum{0};
+      (void)RunWithoutAutotune(
+          0, NumWorkers(),
+          [this, &thread_sum](HWY_MAYBE_UNUSED uint64_t task, size_t worker) {
+            HWY_DASSERT(task == worker);
+            // Do not call for the main thread because it did not init `t0_`.
+            if (worker != 0) {
+              thread_sum.fetch_add(workers_[worker].ElapsedTime(),
+                                   std::memory_order_acq_rel);
+            }
+          });
+      const uint64_t thread_total = thread_sum.load(std::memory_order_acquire);
+      stats_.PrintAndReset(num_threads, thread_total);
+    });
+
     threads_.reserve(num_threads_);
     for (size_t thread = 0; thread < num_threads_; ++thread) {
-      threads_.emplace_back(ThreadFunc(workers_[1 + thread], tasks_));
+      threads_.emplace_back(ThreadFunc(workers_[1 + thread], tasks_, stats_));
     }
 
     // Threads' `Config` defaults to spinning. Change to `kBlock` (see above).
@@ -792,6 +1015,8 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
       HWY_DASSERT(thread.joinable());
       thread.join();
     }
+
+    profiler_.RemoveFunc(this);
 
     pool::WorkerLifecycle::Destroy(workers_, num_threads_);
   }
@@ -830,6 +1055,9 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
   // forbidden unless `NumWorkers() == 1` or `end <= begin + 1`.
   template <class Closure>
   void Run(uint64_t begin, uint64_t end, const Closure& closure) {
+    const profiler::Zone zone = workers_[0].MakeZone(zones_.run_and_autotune);
+    (void)zone;
+
     AutoTuneT& auto_tuner = AutoTuner();
     // Already finished tuning: run without time measurement.
     if (HWY_LIKELY(auto_tuner.Best())) {
@@ -887,7 +1115,8 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
     template <class Spin, class Wait>
     HWY_POOL_PROFILE void operator()(const Spin& spin, const Wait& wait,
                                      pool::Worker& main,
-                                     const pool::Tasks& tasks) const {
+                                     const pool::Tasks& tasks,
+                                     pool::Stats& stats) const {
       const pool::Barrier barrier;
       pool::Worker* workers = main.AllWorkers();
       HWY_DASSERT(&main == main.AllWorkers());  // main is first.
@@ -900,14 +1129,20 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
         }
       }
 
+      const uint64_t t_before_wake = timer::Start();
       wait.WakeWorkers(workers, epoch);
 
       // Also perform work on the main thread before the barrier.
+      const uint64_t t_before_run = timer::Start();
       tasks.WorkerRun(&main);
+      const uint64_t t_after_run = timer::Stop();
 
       // Spin-waits until all worker *threads* (not `main`, because it already
       // knows it is here) called `WorkerReached`.
       barrier.UntilReached(num_threads, workers, spin, epoch);
+      stats.NotifyMainTimestamps(main.NumThreads(), t_before_wake, t_before_run,
+                                 t_after_run, timer::Stop());
+
       HWY_IF_CONSTEXPR(HWY_IS_DEBUG_BUILD) {
         for (size_t i = 0; i < 1 + num_threads; ++i) {
           HWY_DASSERT(barrier.HasReached(workers + i, epoch));
@@ -924,6 +1159,10 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
   template <class Closure>
   bool RunWithoutAutotune(uint64_t begin, uint64_t end,
                           const Closure& closure) {
+    pool::Worker& main = workers_[0];
+    const profiler::Zone zone = main.MakeZone(zones_.run);
+    (void)zone;
+
     const size_t num_tasks = static_cast<size_t>(end - begin);
     const size_t num_workers = NumWorkers();
 
@@ -947,7 +1186,7 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
     }
 
     // Runs `MainWakeAndBarrier` with the first worker slot.
-    CallWithConfig(config(), MainWakeAndBarrier(), workers_[0], tasks_);
+    CallWithConfig(config(), MainWakeAndBarrier(), main, tasks_, stats_);
 
     if (is_root) {
       PROFILER_END_ROOT_RUN();
@@ -985,7 +1224,10 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
 
   const size_t num_threads_;  // not including main thread
   const Divisor64 div_workers_;
+  Profiler& profiler_;
   pool::Worker* const workers_;  // points into `worker_bytes_`
+  const pool::Zones zones_;
+
   const bool have_timer_stop_;
   char cpu100_[100];  // write-only for `HaveTimerStop` in ctor.
 
@@ -995,6 +1237,8 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
   alignas(HWY_ALIGNMENT) pool::Tasks tasks_;
   HWY_MEMBER_VAR_MAYBE_UNUSED char
       padding_[HWY_ALIGNMENT - sizeof(pool::Tasks)];
+
+  pool::Stats stats_;
 
   // In debug builds, detects if functions are re-entered.
   std::atomic_flag busy_ = ATOMIC_FLAG_INIT;
