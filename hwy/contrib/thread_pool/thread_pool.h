@@ -903,7 +903,7 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
         // Uses the initial config, or the last one set during WorkerRun.
         CallWithConfig(worker_.NextConfig(), WorkerWait(), worker_);
 
-        const size_t before_run = timer::Start();
+        const uint64_t before_run = timer::Start();
         tasks_.WorkerRun(&worker_);
         stats_.NotifyWorkerRun(worker_.Index(), before_run, timer::Stop());
 
