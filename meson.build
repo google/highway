@@ -23,11 +23,14 @@ is_subproj = meson.is_subproject()
 tests_enabled = get_option('tests').disable_auto_if(is_subproj).allowed()
 examples_enabled = get_option('examples').disable_auto_if(is_subproj).allowed()
 
-hwy_nowarn_args = []
+cpp = meson.get_compiler('cpp')
+
+hwy_nowarn_args = cpp.get_supported_arguments([
+  '-Wno-gnu-zero-variadic-macro-arguments', # Disable gnu variadic macro warning.
+])
+
 hwy_cpp_args = []
 hwy_link_args = []
-
-cpp = meson.get_compiler('cpp')
 
 pkg = import('pkgconfig')
 
