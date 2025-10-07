@@ -235,6 +235,7 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/sort/sorting_networks-inl.h
     hwy/contrib/sort/traits-inl.h
     hwy/contrib/sort/traits128-inl.h
+    hwy/contrib/sort/order-emulate-inl.h
     hwy/contrib/sort/vqsort-inl.h
     hwy/contrib/sort/vqsort.cc
     hwy/contrib/sort/vqsort.h
