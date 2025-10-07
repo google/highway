@@ -441,7 +441,7 @@ class AutoTune {
 
   // Returns the current `Config` to measure.
   const Config& NextConfig() const {
-    HWY_DASSERT(!Best() && HasCandidates());
+    HWY_DASSERT(HasCandidates());
     return candidates_[config_idx_];
   }
 

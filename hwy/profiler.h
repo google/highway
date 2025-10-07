@@ -53,7 +53,6 @@
 
 #include <algorithm>  // std::sort
 #include <atomic>
-#include <map>
 #include <utility>
 #include <vector>
 
@@ -213,28 +212,71 @@ class Zones {
 // Allows other classes such as `ThreadPool` to register/unregister a function
 // to call during `PrintResults`. This allows us to gather data from the worker
 // threads without having to wait until they exit, and decouples the profiler
-// from other modules.
+// from other modules. Thread-safe.
 class Funcs {
+  static constexpr auto kAcq = std::memory_order_acquire;
+  static constexpr auto kRel = std::memory_order_release;
+
  public:
-  // Pass `this` as `owner`.
-  void Add(void* owner, ProfilerFunc func) {
-    const auto ib = funcs_.insert(std::make_pair(owner, std::move(func)));
-    HWY_ASSERT(ib.second);  // inserted, not already present
+  // Can be called concurrently with distinct keys.
+  void Add(intptr_t key, ProfilerFunc func) {
+    HWY_ASSERT(key != 0 && key != kPending);  // reserved values
+    HWY_ASSERT(func);                         // not empty
+
+    for (size_t i = 0; i < kMaxFuncs; ++i) {
+      intptr_t expected = 0;
+      // Lost a race with a concurrent `Add`, try the next slot.
+      if (!keys_[i].compare_exchange_strong(expected, kPending, kRel)) {
+        continue;
+      }
+      // We own the slot: move func there.
+      funcs_[i] = std::move(func);
+      keys_[i].store(key, kRel);  // publishes the `func` write.
+      return;
+    }
+
+    HWY_ABORT("Funcs::Add: no free slot, increase kMaxFuncs.");
   }
 
-  void Remove(void* key) {
-    const size_t num_erased = funcs_.erase(key);
-    HWY_ASSERT(num_erased == 1);
+  // Can be called concurrently with distinct keys. It is an error to call this
+  // without a prior `Add` of the same key.
+  void Remove(intptr_t key) {
+    HWY_ASSERT(key != 0 && key != kPending);  // reserved values
+
+    for (size_t i = 0; i < kMaxFuncs; ++i) {
+      intptr_t actual = keys_[i].load(kAcq);
+      if (actual == key) {
+        // In general, concurrent removal is fine, but in this specific context,
+        // owners are expected to remove their key exactly once, from the same
+        // thread that added it. In that case, CAS should not fail.
+        if (!keys_[i].compare_exchange_strong(actual, kPending, kRel)) {
+          HWY_WARN("Funcs: CAS failed, why is there a concurrent Remove?");
+        }
+        funcs_[i] = ProfilerFunc();
+        keys_[i].store(0, kRel);  // publishes the `func` write.
+        return;
+      }
+    }
+    HWY_ABORT("Funcs::Remove: failed to find key %p.",
+              reinterpret_cast<void*>(key));
   }
 
-  void CallAll() {
-    for (const auto& pair : funcs_) {
-      pair.second();
+  void CallAll() const {
+    for (size_t i = 0; i < kMaxFuncs; ++i) {
+      intptr_t key = keys_[i].load(kAcq);  // ensures `funcs_` is visible.
+      // Safely handles concurrent Add/Remove.
+      if (key != 0 && key != kPending) {
+        funcs_[i]();
+      }
     }
   }
 
  private:
-  std::map<void*, ProfilerFunc> funcs_;
+  static constexpr size_t kMaxFuncs = 64;
+  static constexpr intptr_t kPending = -1;
+
+  ProfilerFunc funcs_[kMaxFuncs];  // non-atomic
+  std::atomic<intptr_t> keys_[kMaxFuncs] = {};
 };
 
 // Holds total duration and number of calls. Worker index is implicit in the
@@ -596,8 +638,12 @@ class Profiler {
     return zones_.AddZone(name, flags);
   }
 
-  void AddFunc(void* owner, ProfilerFunc func) { funcs_.Add(owner, func); }
-  void RemoveFunc(void* owner) { funcs_.Remove(owner); }
+  void AddFunc(void* owner, ProfilerFunc func) {
+    funcs_.Add(reinterpret_cast<intptr_t>(owner), func);
+  }
+  void RemoveFunc(void* owner) {
+    funcs_.Remove(reinterpret_cast<intptr_t>(owner));
+  }
 
   // For reporting average concurrency. Called by `ThreadPool::Run` on the main
   // thread, returns true if this is the first call since the last `EndRootRun`.

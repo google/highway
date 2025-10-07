@@ -589,7 +589,7 @@ HWY_CONTRIB_TESTS = (
     (
         "hwy/contrib/thread_pool/",
         "thread_pool_test",
-        (":topology", ":thread_pool", ":profiler"),
+        (":topology", ":thread_pool"),
     ),
     (
         "hwy/contrib/thread_pool/",

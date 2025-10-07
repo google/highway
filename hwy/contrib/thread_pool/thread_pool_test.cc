@@ -31,7 +31,6 @@
 #include "hwy/base.h"  // PopCount
 #include "hwy/contrib/thread_pool/spin.h"
 #include "hwy/contrib/thread_pool/topology.h"
-#include "hwy/profiler.h"
 #include "hwy/tests/hwy_gtest.h"
 #include "hwy/tests/test_util-inl.h"  // AdjustedReps
 
@@ -238,13 +237,12 @@ TEST(ThreadPoolTest, TestWaiter) {
     auto storage = hwy::AllocateAligned<uint8_t>(num_workers * sizeof(Worker));
     HWY_ASSERT(storage);
     const Divisor64 div_workers(num_workers);
-    Profiler& profiler = Profiler::Get();  // already calls ReserveWorker(0).
+    Shared shared;  // already calls ReserveWorker(0).
 
     for (WaitType wait_type :
          {WaitType::kBlock, WaitType::kSpin1, WaitType::kSpinSeparate}) {
-      Worker* workers = pool::WorkerLifecycle::Init(storage.get(), num_threads,
-                                                    PoolWorkerMapping(),
-                                                    div_workers, profiler);
+      Worker* workers = pool::WorkerLifecycle::Init(
+          storage.get(), num_threads, PoolWorkerMapping(), div_workers, shared);
 
       alignas(8) const Config config(SpinType::kPause, wait_type);
 
@@ -271,9 +269,9 @@ TEST(ThreadPoolTest, TestTasks) {
     auto storage = hwy::AllocateAligned<uint8_t>(num_workers * sizeof(Worker));
     HWY_ASSERT(storage);
     const Divisor64 div_workers(num_workers);
-    Worker* workers =
-        WorkerLifecycle::Init(storage.get(), num_threads, PoolWorkerMapping(),
-                              div_workers, Profiler::Get());
+    Shared shared;
+    Worker* workers = WorkerLifecycle::Init(
+        storage.get(), num_threads, PoolWorkerMapping(), div_workers, shared);
 
     constexpr uint64_t kMaxTasks = 20;
     uint64_t mementos[kMaxTasks];  // non-atomic, no threads involved.
