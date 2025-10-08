@@ -963,7 +963,7 @@ HWY_INLINE void CallWithConfig(const Config& config, Func&& func,
     case WaitType::kSpinSeparate:
       return CallWithSpin(config.spin_type, func, WaitSpinSeparate(),
                           std::forward<Args>(args)...);
-    default:
+    case WaitType::kSentinel:
       HWY_UNREACHABLE;
   }
 }
