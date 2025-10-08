@@ -390,6 +390,12 @@ HWY_API svbool_t PFalse() { return svpfalse_b(); }
 //
 // This is used in functions that load/store memory; other functions (e.g.
 // arithmetic) can ignore d and use PTrue instead.
+//
+// Always use FirstN(N) for HWY_TARGET == HWY_SVE2_128 to avoid vector length
+// information loss when using PTrue(d) predicates in memory intrinsics.
+//
+// SVE2_256 is untested due to unavailable hardware and cannot assume
+// equal minimum and maximum vector lengths as SVE2_128 can.
 template <class D>
 svbool_t MakeMask(D d) {
 #if (HWY_TARGET == HWY_SVE2_128)
