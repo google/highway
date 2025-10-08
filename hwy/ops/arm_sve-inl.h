@@ -1,4 +1,5 @@
 // Copyright 2021 Google LLC
+// Copyright 2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -389,8 +390,17 @@ HWY_API svbool_t PFalse() { return svpfalse_b(); }
 //
 // This is used in functions that load/store memory; other functions (e.g.
 // arithmetic) can ignore d and use PTrue instead.
+//
+// Always use FirstN(N) for HWY_TARGET == HWY_SVE2_128 to avoid vector length
+// information loss when using PTrue(d) predicates in memory intrinsics.
+//
+// SVE2_256 is untested due to unavailable hardware and cannot assume
+// equal minimum and maximum vector lengths as SVE2_128 can.
 template <class D>
 svbool_t MakeMask(D d) {
+#if (HWY_TARGET == HWY_SVE2_128)
+  return FirstN(d, Lanes(d));
+#endif
   return IsFull(d) ? PTrue(d) : FirstN(d, Lanes(d));
 }
 
