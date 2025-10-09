@@ -113,6 +113,7 @@ class ZoneHandle {
 
   bool operator==(const ZoneHandle other) const { return bits_ == other.bits_; }
   bool operator!=(const ZoneHandle other) const { return bits_ != other.bits_; }
+  bool IsEmpty() const { return bits_ == 0; }
 
   size_t ZoneIdx() const {
     HWY_DASSERT(bits_ != 0);
