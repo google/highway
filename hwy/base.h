@@ -201,9 +201,15 @@ namespace hwy {
 #define HWY_PUSH_ATTRIBUTES(targets_str)
 #define HWY_POP_ATTRIBUTES
 #elif HWY_COMPILER_CLANG
-#define HWY_PUSH_ATTRIBUTES(targets_str)                                \
-  HWY_PRAGMA(clang attribute push(__attribute__((target(targets_str))), \
-                                  apply_to = function))
+// Ignore any -Wpragma-clang-attribute warnings that might be emitted by Clang
+// if there are no functions defined in between HWY_PUSH_ATTRIBUTES(targets_str)
+// and HWY_POP_ATTRIBUTES
+#define HWY_PUSH_ATTRIBUTES(targets_str)                                  \
+  HWY_DIAGNOSTICS(push)                                                   \
+  HWY_DIAGNOSTICS_OFF(disable : 4157, ignored "-Wpragma-clang-attribute") \
+  HWY_PRAGMA(clang attribute push(__attribute__((target(targets_str))),   \
+                                  apply_to = function))                   \
+  HWY_DIAGNOSTICS(pop)
 #define HWY_POP_ATTRIBUTES HWY_PRAGMA(clang attribute pop)
 #elif HWY_COMPILER_GCC_ACTUAL
 #define HWY_PUSH_ATTRIBUTES(targets_str) \
