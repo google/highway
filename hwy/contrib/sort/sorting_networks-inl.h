@@ -891,6 +891,16 @@ HWY_NOINLINE void SortingNetwork(Traits st, T* HWY_RESTRICT buf, size_t cols) {
 #else
 template <class Base>
 struct SharedTraits : public Base {};
+
+namespace detail {
+
+// Empty function to avoid a possible -Wpragma-clang-attribute warning if
+// compiling with Clang
+static HWY_INLINE HWY_MAYBE_UNUSED void HWY_CONCAT(UnusedSortingNetworksFunc,
+                                                   __LINE__)() {}
+
+}  // namespace detail
+
 #endif  // VQSORT_ENABLED
 
 }  // namespace detail

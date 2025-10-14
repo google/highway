@@ -154,7 +154,8 @@ static_assert(SortConstants::MaxBufBytes<2>(64) <= 1664, "Unexpectedly high");
 #define VQSORT_COMPILER_COMPATIBLE 1
 #endif
 
-#if (HWY_TARGET == HWY_SCALAR) || !VQSORT_COMPILER_COMPATIBLE
+#if (HWY_TARGET == HWY_SCALAR) || !VQSORT_COMPILER_COMPATIBLE || \
+    defined(HWY_DISABLE_VQSORT)
 #define VQSORT_ENABLED 0
 #else
 #define VQSORT_ENABLED 1
