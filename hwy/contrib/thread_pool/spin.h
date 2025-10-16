@@ -82,19 +82,27 @@ struct SpinResult {
 // `HWY_TARGET` and its runtime dispatch mechanism. Returned by `Type()`, also
 // used by callers to set the `disabled` argument for `DetectSpin`.
 enum class SpinType : uint8_t {
+#if HWY_ENABLE_MONITORX
   kMonitorX = 1,  // AMD
-  kUMonitor,      // Intel
-  kPause,
+#endif
+#if HWY_ENABLE_UMONITOR
+  kUMonitor = 2,  // Intel
+#endif
+  kPause = 3,
   kSentinel  // for iterating over all enumerators. Must be last.
 };
 
 // For printing which is in use.
 static inline const char* ToString(SpinType type) {
   switch (type) {
+#if HWY_ENABLE_MONITORX
     case SpinType::kMonitorX:
       return "MonitorX_C1";
+#endif
+#if HWY_ENABLE_UMONITOR
     case SpinType::kUMonitor:
       return "UMonitor_C0.2";
+#endif
     case SpinType::kPause:
       return "Pause";
     case SpinType::kSentinel:

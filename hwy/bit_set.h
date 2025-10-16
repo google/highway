@@ -20,6 +20,8 @@
 
 #include <stddef.h>
 
+#include <atomic>
+
 #include "hwy/base.h"
 
 namespace hwy {
