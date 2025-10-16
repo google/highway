@@ -494,7 +494,8 @@ static int64_t DetectTargets() {
     if ((HasCpuFeature("hw.optional.AdvSIMD_HPFPCvt") ||
          HasCpuFeature("hw.optional.arm.AdvSIMD_HPFPCvt")) &&
         HasCpuFeature("hw.optional.arm.FEAT_DotProd") &&
-        HasCpuFeature("hw.optional.arm.FEAT_BF16")) {
+        HasCpuFeature("hw.optional.arm.FEAT_BF16") &&
+        HasCpuFeature("hw.optional.arm.FEAT_I8MM")) {
       bits |= HWY_NEON_BF16;
     }
   }

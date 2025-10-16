@@ -617,6 +617,8 @@
 #define HWY_HAVE_SCALABLE 1
 #endif
 
+#define HWY_TARGET_STR_I8MM "+i8mm"
+
 // Can use pragmas instead of -march compiler flag
 #if HWY_HAVE_RUNTIME_DISPATCH
 #if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
@@ -628,7 +630,7 @@
 #define HWY_TARGET_STR "+sve2,+sve" HWY_TARGET_STR_I8MM
 #endif
 #else  // not SVE2 target
-#define HWY_TARGET_STR "+sve" HWY_TARGET_STR_I8MM
+#define HWY_TARGET_STR "+sve"
 #endif
 #else  // !HWY_HAVE_RUNTIME_DISPATCH
 // HWY_TARGET_STR remains undefined
