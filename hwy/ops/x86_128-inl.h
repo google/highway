@@ -10025,12 +10025,21 @@ HWY_API VFromD<DI32> SumOfMulQuadAccumulate(
 #else
 #define HWY_NATIVE_I8_I8_SUMOFMULQUADACCUMULATE
 #endif
+
+#if HWY_X86_HAVE_AVX10_2_OPS
+template <class DI32, HWY_IF_I32_D(DI32), HWY_IF_V_SIZE_LE_D(DI32, 16)>
+HWY_API VFromD<DI32> SumOfMulQuadAccumulate(DI32 /*di32*/,
+                                            VFromD<Repartition<int8_t, DI32>> a,
+                                            VFromD<Repartition<int8_t, DI32>> b,
+                                            VFromD<DI32> sum) {
+  return VFromD<DI32>{_mm_dpbssd_epi32(sum.raw, a.raw, b.raw)};
+}
+#else   // !HWY_X86_HAVE_AVX10_2_OPS
 template <class DI32, HWY_IF_I32_D(DI32)>
 HWY_API VFromD<DI32> SumOfMulQuadAccumulate(DI32 di32,
                                             VFromD<Repartition<int8_t, DI32>> a,
                                             VFromD<Repartition<int8_t, DI32>> b,
                                             VFromD<DI32> sum) {
-  // TODO(janwas): AVX-VNNI-INT8 has dpbssd.
   const Repartition<uint8_t, decltype(di32)> du8;
 
   const auto a_u = BitCast(du8, a);
@@ -10039,17 +10048,26 @@ HWY_API VFromD<DI32> SumOfMulQuadAccumulate(DI32 di32,
       SumOfMulQuadAccumulate(di32, ShiftRight<7>(a_u), b, Zero(di32)));
   return result_sum_0 - result_sum_1;
 }
+#endif  // HWY_X86_HAVE_AVX10_2_OPS
 
 #ifdef HWY_NATIVE_U8_U8_SUMOFMULQUADACCUMULATE
 #undef HWY_NATIVE_U8_U8_SUMOFMULQUADACCUMULATE
 #else
 #define HWY_NATIVE_U8_U8_SUMOFMULQUADACCUMULATE
 #endif
+
+#if HWY_X86_HAVE_AVX10_2_OPS
+template <class DU32, HWY_IF_U32_D(DU32), HWY_IF_V_SIZE_LE_D(DU32, 16)>
+HWY_API VFromD<DU32> SumOfMulQuadAccumulate(
+    DU32 /*du32*/, VFromD<Repartition<uint8_t, DU32>> a,
+    VFromD<Repartition<uint8_t, DU32>> b, VFromD<DU32> sum) {
+  return VFromD<DU32>{_mm_dpbuud_epi32(sum.raw, a.raw, b.raw)};
+}
+#else   // !HWY_X86_HAVE_AVX10_2_OPS
 template <class DU32, HWY_IF_U32_D(DU32)>
 HWY_API VFromD<DU32> SumOfMulQuadAccumulate(
     DU32 du32, VFromD<Repartition<uint8_t, DU32>> a,
     VFromD<Repartition<uint8_t, DU32>> b, VFromD<DU32> sum) {
-  // TODO(janwas): AVX-VNNI-INT8 has dpbuud.
   const Repartition<uint8_t, decltype(du32)> du8;
   const RebindToSigned<decltype(du8)> di8;
   const RebindToSigned<decltype(du32)> di32;
@@ -10062,6 +10080,7 @@ HWY_API VFromD<DU32> SumOfMulQuadAccumulate(
 
   return BitCast(du32, result_sum_0 - result_sum_1);
 }
+#endif  // HWY_X86_HAVE_AVX10_2_OPS
 
 #endif  // HWY_TARGET <= HWY_AVX3_DL
 
