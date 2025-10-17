@@ -2113,8 +2113,8 @@ HWY_INLINE Vec256<uint32_t> SumsOf4(hwy::UnsignedTag /*type_tag*/,
 // ------------------------------ SumsOfAdjQuadAbsDiff
 
 template <int kAOffset, int kBOffset>
-static Vec256<uint16_t> SumsOfAdjQuadAbsDiff(Vec256<uint8_t> a,
-                                             Vec256<uint8_t> b) {
+HWY_API Vec256<uint16_t> SumsOfAdjQuadAbsDiff(Vec256<uint8_t> a,
+                                              Vec256<uint8_t> b) {
   static_assert(0 <= kAOffset && kAOffset <= 1,
                 "kAOffset must be between 0 and 1");
   static_assert(0 <= kBOffset && kBOffset <= 3,

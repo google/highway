@@ -6744,22 +6744,30 @@ HWY_API Vec512<uint64_t> CLMulUpper(Vec512<uint64_t> va, Vec512<uint64_t> vb) {
 // SumsOfAdjShufQuadAbsDiff)
 
 template <int kAOffset, int kBOffset>
-static Vec512<uint16_t> SumsOfAdjQuadAbsDiff(Vec512<uint8_t> a,
-                                             Vec512<uint8_t> b) {
+HWY_API Vec512<uint16_t> SumsOfAdjQuadAbsDiff(Vec512<uint8_t> a,
+                                              Vec512<uint8_t> b) {
   static_assert(0 <= kAOffset && kAOffset <= 1,
                 "kAOffset must be between 0 and 1");
   static_assert(0 <= kBOffset && kBOffset <= 3,
                 "kBOffset must be between 0 and 3");
 
+#if HWY_X86_HAVE_AVX10_2_OPS
+  // AVX10.2 now has the _mm512_mpsadbw_epu8 intrinsic available
+  return Vec512<uint16_t>{_mm512_mpsadbw_epu8(
+      a.raw, b.raw,
+      (kAOffset << 5) | (kBOffset << 3) | (kAOffset << 2) | kBOffset)};
+#else
   const DFromV<decltype(a)> d;
   const RepartitionToWideX2<decltype(d)> du32;
 
-  // While AVX3 does not have a _mm512_mpsadbw_epu8 intrinsic, the
-  // SumsOfAdjQuadAbsDiff operation is implementable for 512-bit vectors on
-  // AVX3 using SumsOfShuffledQuadAbsDiff and U32 Broadcast.
+  // The _mm512_mpsadbw_epu8 intrinsic is not available prior to AVX10.2.
+  // The SumsOfAdjQuadAbsDiff operation is implementable for 512-bit vectors on
+  // pre-AVX10.2 targets that support AVX3 using SumsOfShuffledQuadAbsDiff and
+  // U32 Broadcast.
   return SumsOfShuffledQuadAbsDiff<kAOffset + 2, kAOffset + 1, kAOffset + 1,
                                    kAOffset>(
       a, BitCast(d, Broadcast<kBOffset>(BitCast(du32, b))));
+#endif
 }
 
 #if !HWY_IS_MSAN
