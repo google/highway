@@ -208,7 +208,7 @@ AlignedUniquePtr<T[]> MakeUniqueAlignedArrayWithAlloc(
   T* ptr = detail::AllocateAlignedItems<T>(items, alloc, opaque);
   if (ptr != nullptr) {
     for (size_t i = 0; i < items; i++) {
-      new (ptr + i) T(std::forward<Args>(args)...);
+      new (ptr + i) T(args...);
     }
   }
   return AlignedUniquePtr<T[]>(ptr, AlignedDeleter(free, opaque));
