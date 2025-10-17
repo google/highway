@@ -7636,6 +7636,23 @@ HWY_API VFromD<DI32> SumOfMulQuadAccumulate(
   return VFromD<DI32>{_mm512_dpbusd_epi32(sum.raw, a_u.raw, b_i.raw)};
 }
 
+#if HWY_X86_HAVE_AVX10_2_OPS
+template <class DI32, HWY_IF_I32_D(DI32), HWY_IF_V_SIZE_D(DI32, 64)>
+HWY_API VFromD<DI32> SumOfMulQuadAccumulate(DI32 /*di32*/,
+                                            VFromD<Repartition<int8_t, DI32>> a,
+                                            VFromD<Repartition<int8_t, DI32>> b,
+                                            VFromD<DI32> sum) {
+  return VFromD<DI32>{_mm512_dpbssd_epi32(sum.raw, a.raw, b.raw)};
+}
+
+template <class DU32, HWY_IF_U32_D(DU32), HWY_IF_V_SIZE_D(DU32, 64)>
+HWY_API VFromD<DU32> SumOfMulQuadAccumulate(
+    DU32 /*du32*/, VFromD<Repartition<uint8_t, DU32>> a,
+    VFromD<Repartition<uint8_t, DU32>> b, VFromD<DU32> sum) {
+  return VFromD<DU32>{_mm512_dpbuud_epi32(sum.raw, a.raw, b.raw)};
+}
+#endif  // HWY_X86_HAVE_AVX10_2_OPS
+
 #endif
 
 // ------------------------------ Reductions
