@@ -6545,9 +6545,10 @@ HWY_API VFromD<DU32> SumOfMulQuadAccumulate(DU32 /*du32*/, svuint8_t a,
 template <class DI32, HWY_IF_I32_D(DI32)>
 HWY_API VFromD<DI32> SumOfMulQuadAccumulate(DI32 di32, svuint8_t a_u,
                                             svint8_t b_i, svint32_t sum) {
-  // TODO: use svusdot_u32 on SVE targets that require support for both SVE2
-  // and SVE I8MM.
-
+#if HWY_SVE_HAVE_2
+  (void)di32;
+  return svusdot_s32(sum, a_u, b_i);
+#else
   const RebindToUnsigned<decltype(di32)> du32;
   const Repartition<uint8_t, decltype(di32)> du8;
 
@@ -6557,6 +6558,7 @@ HWY_API VFromD<DI32> SumOfMulQuadAccumulate(DI32 di32, svuint8_t a_u,
       ShiftLeft<8>(svdot_u32(Zero(du32), a_u, ShiftRight<7>(b_u)));
 
   return BitCast(di32, Sub(result_sum0, result_sum1));
+#endif
 }
 
 #ifdef HWY_NATIVE_I16_I16_SUMOFMULQUADACCUMULATE
