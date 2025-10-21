@@ -287,19 +287,21 @@ struct Zones {
   profiler::ZoneHandle run;
 };
 
-#if PROFILER_ENABLED
+#if PROFILER_ENABLED || HWY_IDE
 
 // Accumulates timings and stats from main thread and workers.
 class Stats {
-  // Offsets passed to `PerThread`.
-  static constexpr size_t kBeforeRun = 0;
-  static constexpr size_t kDRun = 1;
-  static constexpr size_t kTasksStatic = 2;
-  static constexpr size_t kTasksDynamic = 3;
-  static constexpr size_t kTasksStolen = 4;
-  static constexpr size_t kDFuncStatic = 5;
-  static constexpr size_t kDFuncDynamic = 6;
-  static constexpr size_t kSentinel = 7;
+  // Up to `HWY_ALIGNMENT / 8` slots/offsets, passed to `PerThread`.
+  static constexpr size_t kDWait = 0;
+  static constexpr size_t kWaitReps = 1;
+  static constexpr size_t kTBeforeRun = 2;
+  static constexpr size_t kDRun = 3;
+  static constexpr size_t kTasksStatic = 4;
+  static constexpr size_t kTasksDynamic = 5;
+  static constexpr size_t kTasksStolen = 6;
+  static constexpr size_t kDFuncStatic = 7;
+  static constexpr size_t kDFuncDynamic = 8;
+  static constexpr size_t kSentinel = 9;
 
  public:
   Stats() {
@@ -347,14 +349,18 @@ class Stats {
 
   // Called concurrently by non-main worker threads after their `WorkerRun` and
   // before the barrier.
-  void NotifyThreadRun(size_t worker_idx, Stopwatch& stopwatch) {
+  void NotifyThreadRun(size_t worker_idx, timer::Ticks d_wait, size_t wait_reps,
+                       timer::Ticks t_before_run, timer::Ticks d_run) {
     HWY_DASSERT(worker_idx != 0);  // Not called by main thread.
     const size_t thread_idx = worker_idx - 1;
+    HWY_DASSERT(PerThread(thread_idx, kDWait) == 0);
+    HWY_DASSERT(PerThread(thread_idx, kWaitReps) == 0);
     HWY_DASSERT(PerThread(thread_idx, kBeforeRun) == 0);
     HWY_DASSERT(PerThread(thread_idx, kDRun) == 0);
-    // Also store `Origin` (start time) for computing wake latency.
-    PerThread(thread_idx, kBeforeRun) = stopwatch.Origin();
-    PerThread(thread_idx, kDRun) = stopwatch.Elapsed();
+    PerThread(thread_idx, kDWait) = d_wait;
+    PerThread(thread_idx, kWaitReps) = wait_reps;
+    PerThread(thread_idx, kTBeforeRun) = t_before_run;  // For wake latency.
+    PerThread(thread_idx, kDRun) = d_run;
   }
 
   // Called by the main thread after the barrier, whose store-release and
@@ -362,18 +368,26 @@ class Stats {
   // store `after_barrier`. If workers did, which by definition happens after
   // the barrier, then they would race with this function's reads.
   void NotifyMainRun(size_t num_threads, timer::Ticks t_before_wake,
-                     timer::Ticks d_wake, timer::Ticks d_run,
+                     timer::Ticks d_wake, timer::Ticks d_main_run,
                      timer::Ticks d_barrier) {
     HWY_DASSERT(num_threads <= kMaxThreads);
 
+    timer::Ticks min_d_run = ~timer::Ticks{0};
+    timer::Ticks max_d_run = 0;
+    timer::Ticks sum_d_run = 0;
     for (size_t thread_idx = 0; thread_idx < num_threads; ++thread_idx) {
       sum_tasks_static_ += PerThread(thread_idx, kTasksStatic);
       sum_tasks_dynamic_ += PerThread(thread_idx, kTasksDynamic);
       sum_tasks_stolen_ += PerThread(thread_idx, kTasksStolen);
       sum_d_func_static_ += PerThread(thread_idx, kDFuncStatic);
       sum_d_func_dynamic_ += PerThread(thread_idx, kDFuncDynamic);
-      sum_d_run_ += PerThread(thread_idx, kDRun);
-      const timer::Ticks t_before_run = PerThread(thread_idx, kBeforeRun);
+      sum_d_wait_ += PerThread(thread_idx, kDWait);
+      sum_wait_reps_ += PerThread(thread_idx, kWaitReps);
+      const timer::Ticks d_thread_run = PerThread(thread_idx, kDRun);
+      min_d_run = HWY_MIN(min_d_run, d_thread_run);
+      max_d_run = HWY_MAX(max_d_run, d_thread_run);
+      sum_d_run += d_thread_run;
+      const timer::Ticks t_before_run = PerThread(thread_idx, kTBeforeRun);
 
       for (size_t offset = 0; offset < kSentinel; ++offset) {
         PerThread(thread_idx, offset) = 0;
@@ -384,14 +398,22 @@ class Stats {
       sum_wake_latency_ += d_latency;
       max_wake_latency_ = HWY_MAX(max_wake_latency_, d_latency);
     }
+    const double inv_avg_d_run =
+        static_cast<double>(num_threads) / static_cast<double>(sum_d_run);
+    // Ratios of min and max run times to the average, for this pool.Run.
+    const double r_min = static_cast<double>(min_d_run) * inv_avg_d_run;
+    const double r_max = static_cast<double>(max_d_run) * inv_avg_d_run;
 
     num_run_++;  // `num_run_*` are incremented by `NotifyRun*`.
+    sum_d_run_ += sum_d_run;
+    sum_r_min_ += r_min;  // For average across all pool.Run.
+    sum_r_max_ += r_max;
 
     sum_d_wake_ += d_wake;  // `*wake_latency_` are updated above.
     sum_d_barrier_ += d_barrier;
 
-    sum_d_run_ += d_run;
-    sum_d_run_main_ += d_run;
+    sum_d_run_ += d_main_run;
+    sum_d_run_main_ += d_main_run;
   }
 
   void PrintAndReset(size_t num_threads, timer::Ticks d_thread_lifetime_ticks) {
@@ -402,14 +424,26 @@ class Stats {
 
     const double d_func_static = Seconds(sum_d_func_static_);
     const double d_func_dynamic = Seconds(sum_d_func_dynamic_);
-    const double d_run = Seconds(sum_d_run_);
-    const double d_run_main = Seconds(sum_d_run_main_);
+    const double sum_d_run = Seconds(sum_d_run_);
+    const double func_div_run = (d_func_static + d_func_dynamic) / sum_d_run;
+    if (!(0.95 <= func_div_run && func_div_run <= 1.0)) {
+      HWY_WARN("Func time %f should be similar to total run %f.",
+               d_func_static + d_func_dynamic, sum_d_run);
+    }
+    const double sum_d_run_main = Seconds(sum_d_run_main_);
+    const double max_wake_latency = Seconds(max_wake_latency_);
+    const double sum_d_wait = Seconds(sum_d_wait_);
     const double d_thread_lifetime = Seconds(d_thread_lifetime_ticks);
 
     const double inv_run = 1.0 / static_cast<double>(num_run_);
     const auto per_run = [inv_run](double sum) { return sum * inv_run; };
-    const auto us = [](double sec) { return sec * 1E6; };
-    const auto ns = [](double sec) { return sec * 1E9; };
+    const double avg_d_wake = per_run(Seconds(sum_d_wake_));
+    const double avg_wake_latency = per_run(Seconds(sum_wake_latency_));
+    const double avg_d_wait = per_run(sum_d_wait);
+    const double avg_wait_reps = per_run(static_cast<double>(sum_wait_reps_));
+    const double avg_d_barrier = per_run(Seconds(sum_d_barrier_));
+    const double avg_r_min = per_run(sum_r_min_);
+    const double avg_r_max = per_run(sum_r_max_);
 
     const size_t num_workers = 1 + num_threads;
     const double avg_tasks_static =
@@ -418,20 +452,25 @@ class Stats {
         Avg(sum_tasks_dynamic_, num_run_dynamic_ * num_workers);
     const double avg_steals =
         Avg(sum_tasks_stolen_, num_run_dynamic_ * num_workers);
+    const double avg_d_run = sum_d_run / num_workers;
 
+    const double pc_wait = sum_d_wait / d_thread_lifetime * 100.0;
+    const double pc_run = sum_d_run / d_thread_lifetime * 100.0;
+    const double pc_main = sum_d_run_main / avg_d_run * 100.0;
+
+    const auto us = [](double sec) { return sec * 1E6; };
+    const auto ns = [](double sec) { return sec * 1E9; };
     printf(
-        "%3zu: static %5d, %.2f tasks; dyn %5d, %4.1f tasks, %.2f steals; "
+        "%3zu: %5d x %.2f/%5d x %4.1f tasks, %.2f steals; "
         "wake %7.3f ns, latency %6.3f < %7.3f us, barrier %7.3f us; "
-        "func: static %6.3f + dyn %7.3f = %.1f%% of total run %7.3f s, "
-        "%.1f%% of thread time %7.3f s; main run share %5.1f%%\n",
-        num_threads, static_cast<int>(num_run_static_), avg_tasks_static,
-        static_cast<int>(num_run_dynamic_), avg_tasks_dynamic, avg_steals,
-        ns(per_run(Seconds(sum_d_wake_))),
-        us(per_run(Seconds(sum_wake_latency_))), us(Seconds(max_wake_latency_)),
-        us(per_run(Seconds(sum_d_barrier_))), d_func_static, d_func_dynamic,
-        (d_func_static + d_func_dynamic) / d_run * 100.0, d_run,
-        d_run / d_thread_lifetime * 100.0, d_thread_lifetime,
-        d_run_main * 100.0 / (d_run / (1 + num_threads)));
+        "wait %.1f us (%5.0f reps, %4.1f%%), balance %4.1f%%-%5.1f%%, "
+        "func: %6.3f + %7.3f, "
+        "%.1f%% of thread time %7.3f s; main:worker %5.1f%%\n",
+        num_threads, num_run_static_, avg_tasks_static, num_run_dynamic_,
+        avg_tasks_dynamic, avg_steals, ns(avg_d_wake), us(avg_wake_latency),
+        us(max_wake_latency), us(avg_d_barrier), us(avg_d_wait), avg_wait_reps,
+        pc_wait, avg_r_min * 100.0, avg_r_max * 100.0, d_func_static,
+        d_func_dynamic, pc_run, d_thread_lifetime, pc_main);
 
     Reset(num_threads);
   }
@@ -441,17 +480,21 @@ class Stats {
     num_run_static_ = 0;
     num_run_dynamic_ = 0;
 
+    sum_tasks_stolen_ = 0;
     sum_tasks_static_ = 0;
     sum_tasks_dynamic_ = 0;
-    sum_tasks_stolen_ = 0;
 
     sum_d_wake_ = 0;
     sum_wake_latency_ = 0;
     max_wake_latency_ = 0;
+    sum_d_wait_ = 0;
+    sum_wait_reps_ = 0;
     sum_d_barrier_ = 0;
 
     sum_d_func_static_ = 0;
     sum_d_func_dynamic_ = 0;
+    sum_r_min_ = 0.0;
+    sum_r_max_ = 0.0;
     sum_d_run_ = 0;
     sum_d_run_main_ = 0;
     // ctor and `NotifyMainRun` already reset `PerThread`.
@@ -471,25 +514,28 @@ class Stats {
     return per_thread_[thread_idx * kU64PerLine + offset];
   }
 
-  int64_t num_run_;
-  int64_t num_run_static_;
-  int64_t num_run_dynamic_;
+  int32_t num_run_;
+  int32_t num_run_static_;
+  int32_t num_run_dynamic_;
 
+  int32_t sum_tasks_stolen_;
   int64_t sum_tasks_static_;
   int64_t sum_tasks_dynamic_;
-  int64_t sum_tasks_stolen_;
 
   timer::Ticks sum_d_wake_;
   timer::Ticks sum_wake_latency_;
   timer::Ticks max_wake_latency_;
+  timer::Ticks sum_d_wait_;
+  uint64_t sum_wait_reps_;
   timer::Ticks sum_d_barrier_;
 
   timer::Ticks sum_d_func_static_;
   timer::Ticks sum_d_func_dynamic_;
+  double sum_r_min_;
+  double sum_r_max_;
   timer::Ticks sum_d_run_;
   timer::Ticks sum_d_run_main_;
 
-  HWY_MEMBER_VAR_MAYBE_UNUSED uint64_t padding_[kU64PerLine - 14];
   // One cache line per pool thread to avoid false sharing.
   uint64_t per_thread_[kMaxThreads * kU64PerLine];
 };
@@ -501,7 +547,8 @@ static_assert(sizeof(Stats) == (kMaxThreads + 1) * HWY_ALIGNMENT, "Wrong size");
 struct Stats {
   void NotifyRunStatic(size_t, timer::Ticks) {}
   void NotifyRunDynamic(size_t, size_t, size_t, timer::Ticks) {}
-  void NotifyThreadRun(size_t, Stopwatch&) {}
+  void NotifyThreadRun(size_t, timer::Ticks, size_t, timer::Ticks,
+                       timer::Ticks) {}
   void NotifyMainRun(size_t, timer::Ticks, timer::Ticks, timer::Ticks,
                      timer::Ticks) {}
   void PrintAndReset(size_t, timer::Ticks) {}
@@ -1261,12 +1308,16 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
           // Main worker also calls this, so their epochs match.
           const uint32_t epoch = worker.AdvanceWorkerEpoch();
 
-          // TODO: log number of spin-wait iterations.
-          (void)wait.UntilWoken(worker, spin);
-
           Stopwatch stopwatch = worker.MakeStopwatch();
+
+          const size_t wait_reps = wait.UntilWoken(worker, spin);
+          const timer::Ticks d_wait = stopwatch.Elapsed();
+          const timer::Ticks t_before_run = stopwatch.Origin();
+
           tasks.WorkerRun(&worker);
-          shared.stats.NotifyThreadRun(worker.Index(), stopwatch);
+          const timer::Ticks d_run = stopwatch.Elapsed();
+          shared.stats.NotifyThreadRun(worker.Index(), d_wait, wait_reps,
+                                       t_before_run, d_run);
 
           // Notify barrier after `WorkerRun`. Note that we cannot send an
           // after-barrier timestamp, see above.
