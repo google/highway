@@ -35,7 +35,7 @@ struct TestMaskFromVec {
     auto lanes = AllocateAligned<T>(N);
     HWY_ASSERT(lanes);
 
-    memset(lanes.get(), 0, N * sizeof(T));
+    ZeroBytes(lanes.get(), N * sizeof(T));
     const Mask<D> actual_false = MaskFromVec(Load(d, lanes.get()));
     HWY_ASSERT_MASK_EQ(d, MaskFalse(d), actual_false);
 

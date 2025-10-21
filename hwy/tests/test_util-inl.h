@@ -16,7 +16,6 @@
 // Target-specific helper functions for use by *_test.cc.
 
 #include <stdio.h>
-#include <string.h>  // memset
 
 // IWYU pragma: begin_exports
 #include <stddef.h>
@@ -178,8 +177,8 @@ HWY_NOINLINE void AssertMaskEqual(D d, VecArg<Mask<D>> a, VecArg<Mask<D>> b,
   auto bits_a = AllocateAligned<uint8_t>(HWY_MAX(size_t{8}, N8));
   auto bits_b = AllocateAligned<uint8_t>(size_t{HWY_MAX(8, N8)});
   HWY_ASSERT(bits_a && bits_b);
-  memset(bits_a.get(), 0, N8);
-  memset(bits_b.get(), 0, N8);
+  ZeroBytes(bits_a.get(), N8);
+  ZeroBytes(bits_b.get(), N8);
   const size_t num_bytes_a = StoreMaskBits(d, a, bits_a.get());
   const size_t num_bytes_b = StoreMaskBits(d, b, bits_b.get());
   AssertEqual(num_bytes_a, num_bytes_b, target_name, filename, line);

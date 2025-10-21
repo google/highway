@@ -1018,7 +1018,7 @@ bool InitCachesSysfs(Caches& caches) {
 // and their properties. It's OK to return false; callers are responsible for
 // assuming reasonable defaults.
 #ifndef __ANDROID__
-    HWY_WARN("sysfs detected L1=%u L2=%u, err %x\n", caches[1].size_kib,
+    HWY_WARN("sysfs detected L1=%u L2=%u, err %d\n", caches[1].size_kib,
              caches[2].size_kib, errno);
 #endif
     return false;

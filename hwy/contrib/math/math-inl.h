@@ -342,7 +342,6 @@ HWY_NOINLINE V CallTanh(const D d, VecArg<V> x) {
  * Valid Lane Types: float32, float64
  *        Max Error: ULP = 1
  *      Valid Range: [-39000, +39000]
- * @return sine and cosine of 'x'
  */
 template <class D, class V>
 HWY_INLINE void SinCos(D d, V x, V& s, V& c);

@@ -1241,8 +1241,9 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
         fprintf(stderr,
                 "Pool %3zu: %s %8.0f +/- %6.0f. Gain %.2fx [%.2fx, %.2fx]\n",
                 NumWorkers(), auto_tuner.Best()->ToString().c_str(), best_cost,
-                AT.Stddev(), s_ratio.GeometricMean(), s_ratio.Min(),
-                s_ratio.Max());
+                AT.Stddev(), s_ratio.GeometricMean(),
+                static_cast<double>(s_ratio.Min()),
+                static_cast<double>(s_ratio.Max()));
       }
     }
     SendConfig(next);

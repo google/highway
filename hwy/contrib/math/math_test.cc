@@ -88,7 +88,7 @@ HWY_NOINLINE void TestMath(const char* name, T (*fx1)(T),
   // two pieces, [+0, max] and [-0, min], otherwise [min, max].
   int range_count = 1;
   UintT ranges[2][2] = {{min_bits, max_bits}, {0, 0}};
-  if ((min < 0.0) && (max > 0.0)) {
+  if ((min < T{0}) && (max > T{0})) {
     ranges[0][0] = BitCastScalar<UintT>(ConvertScalarTo<T>(+0.0));
     ranges[0][1] = max_bits;
     ranges[1][0] = BitCastScalar<UintT>(ConvertScalarTo<T>(-0.0));
@@ -122,9 +122,9 @@ HWY_NOINLINE void TestMath(const char* name, T (*fx1)(T),
       max_ulp = HWY_MAX(max_ulp, ulp);
       if (ulp > max_error_ulp) {
         fprintf(stderr, "%s: %s(%f) expected %E actual %E ulp %g max ulp %u\n",
-                hwy::TypeName(T(), Lanes(d)).c_str(), name, value, expected,
-                actual, static_cast<double>(ulp),
-                static_cast<uint32_t>(max_error_ulp));
+                hwy::TypeName(T(), Lanes(d)).c_str(), name, value,
+                static_cast<double>(expected), static_cast<double>(actual),
+                static_cast<double>(ulp), static_cast<uint32_t>(max_error_ulp));
       }
     }
   }
@@ -139,21 +139,20 @@ HWY_NOINLINE void TestMath(const char* name, T (*fx1)(T),
   }
 
 #undef DEFINE_MATH_TEST
-#define DEFINE_MATH_TEST(NAME, F32x1, F32xN, F32_MIN, F32_MAX, F32_ERROR, \
-                         F64x1, F64xN, F64_MIN, F64_MAX, F64_ERROR)       \
-  struct Test##NAME {                                                     \
-    template <class T, class D>                                           \
-    HWY_NOINLINE void operator()(T, D d) {                                \
-      if (sizeof(T) == 4) {                                               \
-        TestMath<T, D>(HWY_STR(NAME), F32x1, F32xN, d, F32_MIN, F32_MAX,  \
-                       F32_ERROR);                                        \
-      } else {                                                            \
-        TestMath<T, D>(HWY_STR(NAME), F64x1, F64xN, d,                    \
-                       static_cast<T>(F64_MIN), static_cast<T>(F64_MAX),  \
-                       F64_ERROR);                                        \
-      }                                                                   \
-    }                                                                     \
-  };                                                                      \
+#define DEFINE_MATH_TEST(NAME, F32x1, F32xN, F32_MIN, F32_MAX, F32_ERROR,     \
+                         F64x1, F64xN, F64_MIN, F64_MAX, F64_ERROR)           \
+  struct Test##NAME {                                                         \
+    template <class T, class D, HWY_IF_T_SIZE(T, 4)>                          \
+    HWY_NOINLINE void operator()(T, D d) {                                    \
+      TestMath<T, D>(HWY_STR(NAME), F32x1, F32xN, d, F32_MIN, F32_MAX,        \
+                     F32_ERROR);                                              \
+    }                                                                         \
+    template <class T, class D, HWY_IF_T_SIZE(T, 8)>                          \
+    HWY_NOINLINE void operator()(T, D d) {                                    \
+      TestMath<T, D>(HWY_STR(NAME), F64x1, F64xN, d, static_cast<T>(F64_MIN), \
+                     static_cast<T>(F64_MAX), F64_ERROR);                     \
+    }                                                                         \
+  };                                                                          \
   DEFINE_MATH_TEST_FUNC(NAME)
 
 // clang-format off

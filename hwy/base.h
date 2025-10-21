@@ -217,7 +217,9 @@ namespace hwy {
 //------------------------------------------------------------------------------
 // Macros
 
-#define HWY_API static HWY_INLINE HWY_FLATTEN HWY_MAYBE_UNUSED
+// Note: it is safe to remove `static` for users who want to use modules, but
+// that might be a breaking change for some users, hence we do not by default.
+#define HWY_API static HWY_INLINE HWY_FLATTEN
 
 #define HWY_CONCAT_IMPL(a, b) a##b
 #define HWY_CONCAT(a, b) HWY_CONCAT_IMPL(a, b)
@@ -2762,7 +2764,7 @@ HWY_API constexpr TTo ConvertScalarTo(TFrom in) {
 template <typename T1, typename T2>
 constexpr inline T1 DivCeil(T1 a, T2 b) {
 #if HWY_CXX_LANG >= 201703L
-  HWY_DASSERT(b != 0);
+  HWY_DASSERT(b != T2{0});
 #endif
   return (a + b - 1) / b;
 }
@@ -2985,9 +2987,10 @@ HWY_INLINE constexpr T AddWithWraparound(T t, T2 n) {
 // 64 x 64 = 128 bit multiplication
 HWY_API uint64_t Mul128(uint64_t a, uint64_t b, uint64_t* HWY_RESTRICT upper) {
 #if defined(__SIZEOF_INT128__)
-  __uint128_t product = (__uint128_t)a * (__uint128_t)b;
-  *upper = (uint64_t)(product >> 64);
-  return (uint64_t)(product & 0xFFFFFFFFFFFFFFFFULL);
+  __uint128_t product =
+      static_cast<__uint128_t>(a) * static_cast<__uint128_t>(b);
+  *upper = static_cast<uint64_t>(product >> 64);
+  return static_cast<uint64_t>(product & 0xFFFFFFFFFFFFFFFFULL);
 #elif HWY_COMPILER_MSVC && HWY_ARCH_X86_64
   return _umul128(a, b, upper);
 #else
@@ -3004,9 +3007,9 @@ HWY_API uint64_t Mul128(uint64_t a, uint64_t b, uint64_t* HWY_RESTRICT upper) {
 
 HWY_API int64_t Mul128(int64_t a, int64_t b, int64_t* HWY_RESTRICT upper) {
 #if defined(__SIZEOF_INT128__)
-  __int128_t product = (__int128_t)a * (__int128_t)b;
-  *upper = (int64_t)(product >> 64);
-  return (int64_t)(product & 0xFFFFFFFFFFFFFFFFULL);
+  __int128_t product = static_cast<__int128_t>(a) * static_cast<__int128_t>(b);
+  *upper = static_cast<int64_t>(product >> 64);
+  return static_cast<int64_t>(product & 0xFFFFFFFFFFFFFFFFULL);
 #elif HWY_COMPILER_MSVC && HWY_ARCH_X86_64
   return _mul128(a, b, upper);
 #else

@@ -548,7 +548,7 @@ struct TestBlocks {
 };
 
 HWY_NOINLINE void TestAllBlocks() {
-  ForAllTypes(ForPartialVectors<TestDFromV>());
+  ForAllTypes(ForPartialVectors<TestBlocks>());
 }
 
 struct TestBlockDFromD {

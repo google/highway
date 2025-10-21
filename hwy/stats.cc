@@ -69,7 +69,7 @@ std::string Stats::ToString(int exclude) const {
   if (Count() == 0) return std::string("(none)");
 
   char buf[300];
-  int pos = 0;
+  size_t pos = 0;
   int ret;  // snprintf - bytes written or negative for error.
 
   if ((exclude & kNoCount) == 0) {
@@ -93,8 +93,8 @@ std::string Stats::ToString(int exclude) const {
   }
 
   if ((exclude & kNoMinMax) == 0) {
-    ret = snprintf(buf + pos, sizeof(buf) - pos, "Min=%8.5e Max=%8.5e ", Min(),
-                   Max());
+    ret = snprintf(buf + pos, sizeof(buf) - pos, "Min=%8.5e Max=%8.5e ",
+                   static_cast<double>(Min()), static_cast<double>(Max()));
     HWY_ASSERT(ret > 0);
     pos += ret;
   }
@@ -113,7 +113,7 @@ std::string Stats::ToString(int exclude) const {
     pos += ret;
   }
 
-  HWY_ASSERT(pos < static_cast<int>(sizeof(buf)));
+  HWY_ASSERT(pos < sizeof(buf));
   return buf;
 }
 

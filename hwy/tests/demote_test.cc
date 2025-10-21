@@ -511,8 +511,8 @@ class TestReorderDemote2To {
       const auto sum_expected = ReduceSum(d32, Add(f0, f1));
       const auto sum_actual = ReduceSum(d32, Add(promoted0, promoted1));
 
-      HWY_ASSERT(sum_expected - 1E-4 <= sum_actual &&
-                 sum_actual <= sum_expected + 1E-4);
+      HWY_ASSERT(sum_expected - 1E-4f <= sum_actual &&
+                 sum_actual <= sum_expected + 1E-4f);
 
       // Ensure values are the same after sorting to undo the Reorder
       Store(f0, d32, expected.get() + 0);
