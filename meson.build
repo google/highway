@@ -150,6 +150,7 @@ hwy_contrib_headers = files(
 hwy_contrib_sources = files(
     'hwy/contrib/image/image.cc',
     'hwy/contrib/sort/vqsort.cc',
+    'hwy/contrib/thread_pool/thread_pool.cc',
     'hwy/contrib/thread_pool/topology.cc',
     # plus all of the vqsort_*.cc....
     # note meson doesn't directly support glob (by design).

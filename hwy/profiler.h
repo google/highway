@@ -17,7 +17,9 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>  // strcmp, strlen
 
+#include <atomic>
 #include <functional>
 
 #include "hwy/highway_export.h"
@@ -49,10 +51,8 @@
 
 #if PROFILER_ENABLED
 #include <stdio.h>
-#include <string.h>  // strcmp, strlen
 
 #include <algorithm>  // std::sort
-#include <atomic>
 #include <utility>
 #include <vector>
 
@@ -77,6 +77,75 @@ enum class ProfilerFlags : uint32_t {
 
 // Called during `PrintResults` to print results from other modules.
 using ProfilerFunc = std::function<void(void)>;
+
+template <size_t kMaxStrings>
+class StringTable {
+  static constexpr std::memory_order kRelaxed = std::memory_order_relaxed;
+  static constexpr std::memory_order kAcq = std::memory_order_acquire;
+  static constexpr std::memory_order kRel = std::memory_order_release;
+
+ public:
+  // Returns a copy of the `name` passed to `Add` that returned the
+  // given `idx`.
+  const char* Name(size_t idx) const {
+    // `kRelaxed` is sufficient because pointers are immutable once published
+    // via a `kRelease` store.
+    return ptrs_[idx].load(kRelaxed);
+  }
+
+  // Returns `idx < kMaxStrings`. Can be called concurrently. Calls with the
+  // same `name` return the same `idx`.
+  size_t Add(const char* name) {
+    // Linear search if it already exists. `kAcq` ensures we see prior stores.
+    const size_t num_strings = next_ptr_.load(kAcq);
+    HWY_ASSERT(num_strings < kMaxStrings);
+    for (size_t idx = 1; idx < num_strings; ++idx) {
+      const char* existing = ptrs_[idx].load(kAcq);
+      // `next_ptr_` was published after writing `ptr_`, hence it is non-null.
+      HWY_ASSERT(existing != nullptr);
+      if (HWY_UNLIKELY(!strcmp(existing, name))) {
+        return idx;
+      }
+    }
+
+    // Copy `name` into `chars_` before publishing the pointer.
+    const size_t len = strlen(name) + 1;
+    const size_t pos = next_char_.fetch_add(len, kRelaxed);
+    HWY_ASSERT(pos + len <= sizeof(chars_));
+    strcpy(chars_ + pos, name);  // NOLINT
+
+    for (;;) {
+      size_t idx = next_ptr_.load(kRelaxed);
+      HWY_ASSERT(idx < kMaxStrings);
+
+      // Attempt to claim the next `idx` via CAS.
+      const char* expected = nullptr;
+      if (HWY_LIKELY(ptrs_[idx].compare_exchange_weak(expected, chars_ + pos,
+                                                      kRel, kRelaxed))) {
+        // Publish the new count and make the `ptrs_` write visible.
+        next_ptr_.store(idx + 1, kRel);
+        HWY_DASSERT(!strcmp(Name(idx), name));
+        return idx;
+      }
+
+      // We lost the race. `expected` has been updated.
+      if (HWY_UNLIKELY(!strcmp(expected, name))) {
+        // Done, another thread added the same name. Note that we waste the
+        // extra space in `chars_`, which is fine because it is rare.
+        HWY_DASSERT(!strcmp(Name(idx), name));
+        return idx;
+      }
+
+      // Other thread added a different name. Retry with the next slot.
+    }
+  }
+
+ private:
+  std::atomic<const char*> ptrs_[kMaxStrings];
+  std::atomic<size_t> next_ptr_{1};  // next idx
+  std::atomic<size_t> next_char_{0};
+  char chars_[kMaxStrings * 55];
+};
 
 #if PROFILER_ENABLED
 
@@ -141,72 +210,21 @@ class ZoneHandle {
 
 // Storage for zone names.
 class Zones {
-  static constexpr std::memory_order kRelaxed = std::memory_order_relaxed;
-  static constexpr std::memory_order kAcq = std::memory_order_acquire;
-  static constexpr std::memory_order kRel = std::memory_order_release;
-
  public:
   // Returns a copy of the `name` passed to `AddZone` that returned the
   // given `zone`.
   const char* Name(ZoneHandle zone) const {
-    // `kRelaxed` is sufficient because pointers are immutable once published
-    // via a `kRelease` store.
-    return ptrs_[zone.ZoneIdx()].load(kRelaxed);
+    return strings_.Name(zone.ZoneIdx());
   }
 
-  // Thread-safe.
+  // Can be called concurrently. Calls with the same `name` return the same
+  // `ZoneHandle.ZoneIdx()`.
   ZoneHandle AddZone(const char* name, ProfilerFlags flags) {
-    // Linear search if it already exists. `kAcq` ensures we see prior stores.
-    const size_t num_zones = next_ptr_.load(kAcq);
-    HWY_ASSERT(num_zones < kMaxZones);
-    for (size_t zone_idx = 1; zone_idx < num_zones; ++zone_idx) {
-      const char* existing = ptrs_[zone_idx].load(kAcq);
-      // `next_ptr_` was published after writing `ptr_`, hence it is non-null.
-      HWY_ASSERT(existing != nullptr);
-      if (HWY_UNLIKELY(!strcmp(existing, name))) {
-        return ZoneHandle(zone_idx, flags);
-      }
-    }
-
-    // Copy `name` into `chars_` before publishing the pointer.
-    const size_t len = strlen(name) + 1;
-    const size_t pos = next_char_.fetch_add(len, kRelaxed);
-    HWY_ASSERT(pos + len <= sizeof(chars_));
-    strcpy(chars_ + pos, name);  // NOLINT
-
-    for (;;) {
-      size_t zone_idx = next_ptr_.load(kRelaxed);
-      HWY_ASSERT(zone_idx < kMaxZones);
-
-      // Attempt to claim the next `zone_idx` via CAS.
-      const char* expected = nullptr;
-      if (HWY_LIKELY(ptrs_[zone_idx].compare_exchange_weak(
-              expected, chars_ + pos, kRel, kRelaxed))) {
-        // Publish the new count and make the `ptrs_` write visible.
-        next_ptr_.store(zone_idx + 1, kRel);
-        const ZoneHandle zone(zone_idx, flags);
-        HWY_DASSERT(!strcmp(Name(zone), name));
-        return zone;
-      }
-
-      // We lost the race. `expected` has been updated.
-      if (HWY_UNLIKELY(!strcmp(expected, name))) {
-        // Done, another thread added the same zone. Note that we waste the
-        // extra space in `chars_`, which is fine because it is rare.
-        const ZoneHandle zone(zone_idx, flags);
-        HWY_DASSERT(!strcmp(Name(zone), name));
-        return zone;
-      }
-
-      // Other thread added a different zone. Retry with the next slot.
-    }
+    return ZoneHandle(strings_.Add(name), flags);
   }
 
  private:
-  std::atomic<const char*> ptrs_[kMaxZones];
-  std::atomic<size_t> next_ptr_{1};  // next zone_idx
-  char chars_[kMaxZones * 70];
-  std::atomic<size_t> next_char_{0};
+  StringTable<kMaxZones> strings_;
 };
 
 // Allows other classes such as `ThreadPool` to register/unregister a function
