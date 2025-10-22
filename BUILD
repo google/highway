@@ -360,6 +360,9 @@ cc_library(
 
 cc_library(
     name = "thread_pool",
+    srcs = [
+        "hwy/contrib/thread_pool/thread_pool.cc",
+    ],
     hdrs = [
         "hwy/contrib/thread_pool/futex.h",
         "hwy/contrib/thread_pool/spin.h",

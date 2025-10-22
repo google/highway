@@ -237,7 +237,7 @@ TEST(ThreadPoolTest, TestWaiter) {
     auto storage = hwy::AllocateAligned<uint8_t>(num_workers * sizeof(Worker));
     HWY_ASSERT(storage);
     const Divisor64 div_workers(num_workers);
-    Shared shared;  // already calls ReserveWorker(0).
+    Shared& shared = Shared::Get();  // already calls ReserveWorker(0).
 
     for (WaitType wait_type :
          {WaitType::kBlock, WaitType::kSpin1, WaitType::kSpinSeparate}) {
@@ -269,7 +269,8 @@ TEST(ThreadPoolTest, TestTasks) {
     auto storage = hwy::AllocateAligned<uint8_t>(num_workers * sizeof(Worker));
     HWY_ASSERT(storage);
     const Divisor64 div_workers(num_workers);
-    Shared shared;
+    Shared& shared = Shared::Get();
+    Stats stats;
     Worker* workers = WorkerLifecycle::Init(
         storage.get(), num_threads, PoolWorkerMapping(), div_workers, shared);
 
@@ -293,7 +294,7 @@ TEST(ThreadPoolTest, TestTasks) {
         Tasks::DivideRangeAmongWorkers(begin, end, div_workers, workers);
         // The `tasks < workers` special case requires running by all workers.
         for (size_t worker = 0; worker < num_workers; ++worker) {
-          tasks.WorkerRun(workers + worker);
+          tasks.WorkerRun(workers + worker, shared, stats);
         }
 
         // Ensure all tasks were run.

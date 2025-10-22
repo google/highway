@@ -139,8 +139,8 @@ Profiler::Profiler() {
 
 // Even if disabled, we want to export the symbol.
 HWY_DLLEXPORT Profiler& Profiler::Get() {
-  static Profiler profiler;
-  return profiler;
+  static Profiler* profiler = new Profiler();
+  return *profiler;
 }
 
 }  // namespace hwy
