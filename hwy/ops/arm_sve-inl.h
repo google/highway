@@ -398,10 +398,10 @@ HWY_API svbool_t PFalse() { return svpfalse_b(); }
 // equal minimum and maximum vector lengths as SVE2_128 can.
 template <class D>
 svbool_t MakeMask(D d) {
-#if (HWY_TARGET == HWY_SVE2_128)
-  return FirstN(d, Lanes(d));
+#if HWY_TARGET != HWY_SVE2_128
+  HWY_IF_CONSTEXPR(IsFull(d)) { return PTrue(d); }
 #endif
-  return IsFull(d) ? PTrue(d) : FirstN(d, Lanes(d));
+  return FirstN(d, Lanes(d));
 }
 
 }  // namespace detail
