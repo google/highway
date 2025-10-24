@@ -1744,9 +1744,9 @@ HWY_F16_CONSTEXPR inline std::partial_ordering operator<=>(
 // bf16 <-> f32 in convert_test results in 0x2525 for 1.0 instead of 0x3f80.
 // Reported at https://github.com/llvm/llvm-project/issues/151692.
 #ifndef HWY_SSE2_HAVE_SCALAR_BF16_TYPE
-#if HWY_ARCH_X86 && defined(__SSE2__) &&                     \
-    ((HWY_COMPILER_CLANG >= 1700 && !HWY_COMPILER_CLANGCL && \
-      !HWY_IS_DEBUG_BUILD) ||                                \
+#if HWY_ARCH_X86 && defined(__SSE2__) &&                         \
+    ((HWY_COMPILER_CLANG >= 1700 && !HWY_COMPILER_CLANGCL &&     \
+      (!HWY_IS_DEBUG_BUILD || HWY_COMPILER3_CLANG >= 220101)) || \
      HWY_COMPILER_GCC_ACTUAL >= 1300)
 #define HWY_SSE2_HAVE_SCALAR_BF16_TYPE 1
 #else
