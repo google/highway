@@ -1605,7 +1605,7 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
   // Returns whether threads were used. If not, there is no need to update
   // the autotuner config.
   template <class Closure>
-  bool RunWithoutAutotune(uint64_t begin, uint64_t end, pool::Caller caller,
+  bool RunWithoutAutotune(uint64_t begin, uint64_t end, HWY_MAYBE_UNUSED pool::Caller caller,
                           const Closure& closure) {
     pool::Worker& main = workers_[0];
 
