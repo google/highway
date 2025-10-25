@@ -827,7 +827,7 @@
 
 // Clang <9 requires this be invoked at file scope, before any namespace.
 #undef HWY_BEFORE_NAMESPACE
-#if defined(HWY_TARGET_STR)
+#if defined(HWY_TARGET_STR) && !defined(HWY_COMPILE_ONLY_STATIC)
 #define HWY_BEFORE_NAMESPACE()        \
   HWY_PUSH_ATTRIBUTES(HWY_TARGET_STR) \
   static_assert(true, "For requiring trailing semicolon")
@@ -839,7 +839,7 @@
 
 // Clang <9 requires any namespaces be closed before this macro.
 #undef HWY_AFTER_NAMESPACE
-#if defined(HWY_TARGET_STR)
+#if defined(HWY_TARGET_STR) && !defined(HWY_COMPILE_ONLY_STATIC)
 #define HWY_AFTER_NAMESPACE() \
   HWY_POP_ATTRIBUTES          \
   static_assert(true, "For requiring trailing semicolon")
@@ -850,7 +850,7 @@
 #endif
 
 #undef HWY_ATTR
-#if defined(HWY_TARGET_STR) && HWY_HAS_ATTRIBUTE(target)
+#if defined(HWY_TARGET_STR) && HWY_HAS_ATTRIBUTE(target) && !defined(HWY_COMPILE_ONLY_STATIC)
 #define HWY_ATTR __attribute__((target(HWY_TARGET_STR)))
 #else
 #define HWY_ATTR
