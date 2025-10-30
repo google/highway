@@ -141,7 +141,7 @@
 #define HWY_TARGET_STR_AVX2 \
   HWY_TARGET_STR_SSE4 ",avx,avx2" HWY_TARGET_STR_BMI2_FMA HWY_TARGET_STR_F16C
 
-#ifndef HWY_HAVE_EVEX512
+#ifndef HWY_HAVE_EVEX512  // allow override
 // evex512 has been removed from clang 22, see
 // https://github.com/llvm/llvm-project/pull/157034
 #if (1400 <= HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1600) || \
@@ -167,15 +167,21 @@
   ",vpclmulqdq,avx512vbmi,avx512vbmi2,vaes,avx512vnni,avx512bitalg," \
   "avx512vpopcntdq,gfni"
 
-// Force-disable for compilers that do not properly support avx512bf16.
-#if !defined(HWY_AVX3_DISABLE_AVX512BF16) &&                        \
+// Opt-out for compilers that do not properly support avx512bf16.
+#ifndef HWY_AVX3_ENABLE_AVX512BF16  // allow override
+// Default is to disable if the DISABLE macro is defined, or if old compiler.
+// clang-cl 21.1.4 reportedly works; feel free to define this to 1 there.
+#if defined(HWY_AVX3_DISABLE_AVX512BF16) ||                         \
     (HWY_COMPILER_CLANGCL ||                                        \
      (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1000) || \
      (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 900))
-#define HWY_AVX3_DISABLE_AVX512BF16
+#define HWY_AVX3_ENABLE_AVX512BF16 0
+#else
+#define HWY_AVX3_ENABLE_AVX512BF16 1
 #endif
+#endif  // HWY_AVX3_ENABLE_AVX512BF16
 
-#if !defined(HWY_AVX3_DISABLE_AVX512BF16)
+#if HWY_AVX3_ENABLE_AVX512BF16
 #define HWY_TARGET_STR_AVX3_ZEN4 HWY_TARGET_STR_AVX3_DL ",avx512bf16"
 #else
 #define HWY_TARGET_STR_AVX3_ZEN4 HWY_TARGET_STR_AVX3_DL
@@ -338,7 +344,7 @@
 #define HWY_HAVE_FLOAT64 1
 #define HWY_MEM_OPS_MIGHT_FAULT 0
 #define HWY_NATIVE_FMA 1
-#if (HWY_TARGET <= HWY_AVX3_ZEN4) && !defined(HWY_AVX3_DISABLE_AVX512BF16)
+#if (HWY_TARGET <= HWY_AVX3_ZEN4) && HWY_AVX3_ENABLE_AVX512BF16
 #define HWY_NATIVE_DOT_BF16 1
 #else
 #define HWY_NATIVE_DOT_BF16 0

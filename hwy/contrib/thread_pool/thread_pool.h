@@ -458,7 +458,7 @@ class Stats {
     printf(
         "%3zu: %5d x %.2f/%5d x %4.1f tasks, %.2f steals; "
         "wake %7.3f ns, latency %6.3f < %7.3f us, barrier %7.3f us; "
-        "wait %.1f us (%5.0f reps, %4.1f%%), balance %4.1f%%-%5.1f%%, "
+        "wait %.1f us (%6.0f reps, %4.1f%%), balance %4.1f%%-%5.1f%%, "
         "func: %6.3f + %7.3f, "
         "%.1f%% of thread time %7.3f s; main:worker %5.1f%%\n",
         num_threads, num_run_static_, avg_tasks_static, num_run_dynamic_,
@@ -589,7 +589,7 @@ class CallerAccumulator {
     const double task_len = avg_elapsed / avg_tasks_per_worker;
     printf(
         "%40s: %7.0f x (%3.0f%%) %2zu clusters, %4.1f workers @ "
-        "%5.1f tasks (%u-%u), "
+        "%5.1f tasks (%5u-%5u), "
         "%5.0f us wait, %6.1E us run (task len %6.1E us), total %6.2f s\n",
         caller, static_cast<double>(calls_), pc_root, active_clusters,
         avg_workers, avg_tasks_per_worker, static_cast<uint32_t>(min_tasks_),
@@ -1605,7 +1605,7 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
   // Returns whether threads were used. If not, there is no need to update
   // the autotuner config.
   template <class Closure>
-  bool RunWithoutAutotune(uint64_t begin, uint64_t end, HWY_MAYBE_UNUSED pool::Caller caller,
+  bool RunWithoutAutotune(uint64_t begin, uint64_t end, pool::Caller caller,
                           const Closure& closure) {
     pool::Worker& main = workers_[0];
 
@@ -1649,6 +1649,8 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
       PROFILER_END_ROOT_RUN();
       shared_.LastRootEnd().Reset();
     }
+#else
+    (void)caller;
 #endif
 
     busy_.Clear();
