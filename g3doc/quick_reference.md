@@ -2801,7 +2801,15 @@ must test the macros of the target *we will call*, e.g. via `hwy::HaveFloat64()`
 instead of `HWY_HAVE_FLOAT64`, which describes the current target.
 
 *   `HWY_IDE` is 0 except when parsed by IDEs; adding it to conditions such as
-    `#if HWY_TARGET != HWY_SCALAR || HWY_IDE` avoids code appearing greyed out.
+    `#if HWY_TARGET != HWY_SCALAR || HWY_IDE` avoids code appearing greyed out.\
+    Note for clangd users: [there is no predefined macros in clangd](https://github.com/clangd/clangd/issues/581),
+    so you must manually add `__CLANGD__` macro so we can detect the presence of
+    clangd. This can be easily done by adding these two lines to your project's 
+    `.clangd` file:
+    ```
+    CompileFlags:
+      Add: [-D__CLANGD__]
+    ```
 
 The following indicate full support for certain lane types and expand to 1 or 0.
 
