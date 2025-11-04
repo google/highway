@@ -21,8 +21,8 @@
 
 // Add to #if conditions to prevent IDE from graying out code.
 // Note for clangd users: There is no predefined macro in clangd, so you must
-// manually create a `.clangd` file in your project root and add these two
-// lines (without the preceding '// '):
+// manually add these two lines (without the preceding '// ') to your project's
+// `.clangd` file:
 // CompileFlags:
 //   Add: [-D__CLANGD__]
 #if (defined __CDT_PARSER__) || (defined __INTELLISENSE__) || \
