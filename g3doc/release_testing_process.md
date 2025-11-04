@@ -23,6 +23,7 @@ Prepend to debian/changelog and update mentions of the current version in:
 
 *   base.h
 *   CMakeLists.txt
+*   meson.build
 *   MODULE.bazel
 *   g3doc/faq.md
 
