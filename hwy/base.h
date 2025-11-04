@@ -33,7 +33,8 @@
 #include "hwy/detect_compiler_arch.h"
 #include "hwy/highway_export.h"
 
-// API version (https://semver.org/); keep in sync with CMakeLists.txt.
+// API version (https://semver.org/); keep in sync with CMakeLists.txt and
+// meson.build.
 #define HWY_MAJOR 1
 #define HWY_MINOR 3
 #define HWY_PATCH 0
