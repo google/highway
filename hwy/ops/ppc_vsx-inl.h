@@ -560,6 +560,19 @@ HWY_API Vec128<T, N> operator^(Vec128<T, N> a, Vec128<T, N> b) {
   return Xor(a, b);
 }
 
+// ------------------------------ PopulationCount
+
+#ifdef HWY_NATIVE_POPCNT
+#undef HWY_NATIVE_POPCNT
+#else
+#define HWY_NATIVE_POPCNT
+#endif
+
+template <typename T, size_t N, HWY_IF_UNSIGNED(T)>
+HWY_API Vec128<T, N> PopulationCount(Vec128<T, N> v) {
+  return Vec128<T, N>{vec_popcnt(v.raw)};
+}
+
 // ================================================== SIGN
 
 // ------------------------------ Neg

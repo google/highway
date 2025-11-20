@@ -5266,18 +5266,6 @@ HWY_API VFromD<D> Dup128VecFromValues(D d, TFromD<D> t0, TFromD<D> t1,
                               detail::Vec64ValsWrapper<TFromD<D>>{{t2, t3}})));
 }
 
-// ------------------------------ PopulationCount (ShiftRight)
-
-// Handles LMUL < 2 or capped vectors, which generic_ops-inl cannot.
-template <typename V, class D = DFromV<V>, HWY_IF_U8_D(D),
-          hwy::EnableIf<D().Pow2() < 1 || D().MaxLanes() < 16>* = nullptr>
-HWY_API V PopulationCount(V v) {
-  // See https://arxiv.org/pdf/1611.07612.pdf, Figure 3
-  v = Sub(v, detail::AndS(ShiftRight<1>(v), 0x55));
-  v = Add(detail::AndS(ShiftRight<2>(v), 0x33), detail::AndS(v, 0x33));
-  return detail::AndS(Add(v, ShiftRight<4>(v)), 0x0F);
-}
-
 // ------------------------------ LoadDup128
 
 template <class D>
