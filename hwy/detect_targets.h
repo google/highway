@@ -256,9 +256,10 @@
 #endif  // HWY_BROKEN_ARM7_WITHOUT_VFP4
 
 #ifndef HWY_BROKEN_NEON_BF16  // allow override
-// HWY_NEON_BF16 requires recent compilers.
+// Broken on older compilers:
 #if (HWY_COMPILER_CLANG != 0 && HWY_COMPILER_CLANG < 1700) || \
-    (HWY_COMPILER_GCC_ACTUAL != 0 && HWY_COMPILER_GCC_ACTUAL < 1302)
+    (HWY_COMPILER_GCC_ACTUAL != 0 && HWY_COMPILER_GCC_ACTUAL < 1302) || \
+    (defined(__apple_build_version__) && __apple_build_version__ <= 17000000)
 #define HWY_BROKEN_NEON_BF16 (HWY_NEON_BF16)
 #else
 #define HWY_BROKEN_NEON_BF16 0
