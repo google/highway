@@ -24,7 +24,7 @@ jobs:
             distro: ubuntu_latest
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5.0.1
+      uses: actions/checkout@v6.0.0
     - name: Build and test
       uses: uraimo/run-on-arch-action@v3.0.1
       id: build
@@ -72,7 +72,7 @@ jobs:
         with:
           egress-policy: audit  # cannot be block - runner does git checkout
 
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v4.0.0
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v4.0.0
 
       - name: Install deps
         run: sudo apt-get install ${{ matrix.extra_deps }}
@@ -106,7 +106,7 @@ jobs:
         with:
           egress-policy: audit  # cannot be block - runner does git checkout
 
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v4.0.0
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v4.0.0
 
       - name: Install deps
         run: |
