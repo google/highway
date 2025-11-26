@@ -28,37 +28,17 @@ namespace HWY_NAMESPACE {
 namespace {
 
 void SortF64Desc(double* HWY_RESTRICT keys, const size_t num) {
-#if HWY_HAVE_FLOAT64
   return VQSortStatic(keys, num, SortDescending());
-#else
-  (void)keys;
-  (void)num;
-  HWY_ASSERT(0);
-#endif
 }
 
 void PartialSortF64Desc(double* HWY_RESTRICT keys, const size_t num,
                         const size_t k) {
-#if HWY_HAVE_FLOAT64
   return VQPartialSortStatic(keys, num, k, SortDescending());
-#else
-  (void)keys;
-  (void)num;
-  (void)k;
-  HWY_ASSERT(0);
-#endif
 }
 
 void SelectF64Desc(double* HWY_RESTRICT keys, const size_t num,
                    const size_t k) {
-#if HWY_HAVE_FLOAT64
   return VQSelectStatic(keys, num, k, SortDescending());
-#else
-  (void)keys;
-  (void)num;
-  (void)k;
-  HWY_ASSERT(0);
-#endif
 }
 
 }  // namespace

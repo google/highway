@@ -29,37 +29,17 @@ namespace HWY_NAMESPACE {
 namespace {
 
 void SortF16Asc(float16_t* HWY_RESTRICT keys, const size_t num) {
-#if HWY_HAVE_FLOAT16
   return VQSortStatic(keys, num, SortAscending());
-#else
-  (void)keys;
-  (void)num;
-  if (Unpredictable1()) HWY_ASSERT(0);
-#endif
 }
 
 void PartialSortF16Asc(float16_t* HWY_RESTRICT keys, const size_t num,
                        const size_t k) {
-#if HWY_HAVE_FLOAT16
   return VQPartialSortStatic(keys, num, k, SortAscending());
-#else
-  (void)keys;
-  (void)num;
-  (void)k;
-  if (Unpredictable1()) HWY_ASSERT(0);
-#endif
 }
 
 void SelectF16Asc(float16_t* HWY_RESTRICT keys, const size_t num,
                   const size_t k) {
-#if HWY_HAVE_FLOAT16
   return VQSelectStatic(keys, num, k, SortAscending());
-#else
-  (void)keys;
-  (void)num;
-  (void)k;
-  if (Unpredictable1()) HWY_ASSERT(0);
-#endif
 }
 
 }  // namespace
