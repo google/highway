@@ -221,6 +221,8 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/dot/dot-inl.h
     hwy/contrib/image/image.cc
     hwy/contrib/image/image.h
+    hwy/contrib/intdiv/intdiv.h
+    hwy/contrib/intdiv/intdiv-inl.h
     hwy/contrib/math/math-inl.h
     hwy/contrib/matvec/matvec-inl.h
     hwy/contrib/random/random-inl.h
@@ -880,6 +882,7 @@ list(APPEND HWY_TEST_FILES
   hwy/contrib/bit_pack/bit_pack_test.cc
   hwy/contrib/dot/dot_test.cc
   hwy/contrib/matvec/matvec_test.cc
+  hwy/contrib/intdiv/intdiv_test.cc
   hwy/contrib/image/image_test.cc
   # Disabled due to SIGILL in clang7 debug build during gtest discovery phase,
   # not reproducible locally. Still tested via bazel build.
