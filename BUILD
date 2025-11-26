@@ -537,6 +537,22 @@ cc_library(
     local_defines = ["HWY_HEADER_ONLY"],
 )
 
+cc_library(
+    name = "intdiv",
+    compatible_with = [],
+    copts = COPTS,
+    hdrs = [
+        "hwy/contrib/intdiv/intdiv.h",
+    ],
+    textual_hdrs = [
+        "hwy/contrib/intdiv/intdiv-inl.h",
+    ],
+    deps = [
+        ":hwy",
+    ],
+)
+
+
 cc_test(
     name = "list_targets",
     size = "small",
@@ -640,6 +656,17 @@ cc_test(
     deps = HWY_TEST_DEPS + [
         ":math",
     ],
+)
+
+cc_test(
+    name = "intdiv_test",
+    size = "medium",
+    timeout = "long",
+    srcs = ["hwy/contrib/intdiv/intdiv_test.cc"],
+    copts = COPTS + HWY_TEST_COPTS,
+    local_defines = ["HWY_IS_TEST"],
+    tags = ["hwy_ops_test"],
+    deps = HWY_TEST_DEPS + [":intdiv"],
 )
 
 # For manually building the tests we define here (:all does not work in --config=msvc)

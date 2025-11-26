@@ -129,6 +129,8 @@ hwy_contrib_headers = files(
     'hwy/contrib/dot/dot-inl.h',
     'hwy/contrib/image/image.h',
     'hwy/contrib/math/fast_math-inl.h',
+    'hwy/contrib/intdiv/intdiv.h',
+    'hwy/contrib/intdiv/intdiv-inl.h',
     'hwy/contrib/math/math-inl.h',
     'hwy/contrib/matvec/matvec-inl.h',
     'hwy/contrib/random/random-inl.h',
@@ -692,6 +694,7 @@ if tests_enabled
             'hwy/contrib/thread_pool/thread_pool_test.cc',
             'hwy/contrib/thread_pool/topology_test.cc',
             'hwy/contrib/unroller/unroller_test.cc',
+            'hwy/contrib/intdiv/intdiv_test.cc',
         )
 
         foreach test_src : hwy_contrib_test_files
