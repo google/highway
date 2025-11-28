@@ -28,6 +28,10 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
 
+#ifndef HWY_NATIVE_MASK
+#error "Bug in set_macros-inl.h, did not set HWY_NATIVE_MASK"
+#endif
+
 struct TestMaskFromVec {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {

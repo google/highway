@@ -44,6 +44,7 @@
 #undef HWY_MEM_OPS_MIGHT_FAULT
 #undef HWY_NATIVE_FMA
 #undef HWY_NATIVE_DOT_BF16
+#undef HWY_NATIVE_MASK
 #undef HWY_CAP_GE256
 #undef HWY_CAP_GE512
 
@@ -251,6 +252,7 @@
 #define HWY_MEM_OPS_MIGHT_FAULT 1
 #define HWY_NATIVE_FMA 0
 #define HWY_NATIVE_DOT_BF16 0
+#define HWY_NATIVE_MASK 0  // a few actually are
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -271,6 +273,7 @@
 #define HWY_MEM_OPS_MIGHT_FAULT 1
 #define HWY_NATIVE_FMA 0
 #define HWY_NATIVE_DOT_BF16 0
+#define HWY_NATIVE_MASK 0  // a few actually are
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -292,6 +295,7 @@
 #define HWY_MEM_OPS_MIGHT_FAULT 1
 #define HWY_NATIVE_FMA 0
 #define HWY_NATIVE_DOT_BF16 0
+#define HWY_NATIVE_MASK 0  // a few actually are
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -318,6 +322,7 @@
 #define HWY_NATIVE_FMA 1
 #endif
 #define HWY_NATIVE_DOT_BF16 0
+#define HWY_NATIVE_MASK 0  // a few actually are
 
 #define HWY_CAP_GE256 1
 #define HWY_CAP_GE512 0
@@ -349,6 +354,7 @@
 #else
 #define HWY_NATIVE_DOT_BF16 0
 #endif
+#define HWY_NATIVE_MASK 1
 #define HWY_CAP_GE256 1
 
 #if HWY_MAX_BYTES >= 64
@@ -401,6 +407,7 @@
 #define HWY_MEM_OPS_MIGHT_FAULT 1
 #define HWY_NATIVE_FMA 1
 #define HWY_NATIVE_DOT_BF16 0
+#define HWY_NATIVE_MASK 0
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -438,6 +445,7 @@
 #define HWY_MEM_OPS_MIGHT_FAULT 1
 #define HWY_NATIVE_FMA 1
 #define HWY_NATIVE_DOT_BF16 0
+#define HWY_NATIVE_MASK 0
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -513,6 +521,8 @@
 #else
 #define HWY_NATIVE_DOT_BF16 0
 #endif
+
+#define HWY_NATIVE_MASK 0
 
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
@@ -603,6 +613,7 @@
 #else
 #define HWY_NATIVE_DOT_BF16 0
 #endif
+#define HWY_NATIVE_MASK 1
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -658,6 +669,7 @@
 #define HWY_MEM_OPS_MIGHT_FAULT 1
 #define HWY_NATIVE_FMA 0
 #define HWY_NATIVE_DOT_BF16 0
+#define HWY_NATIVE_MASK 0
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -680,6 +692,7 @@
 #define HWY_MEM_OPS_MIGHT_FAULT 1
 #define HWY_NATIVE_FMA 0
 #define HWY_NATIVE_DOT_BF16 0
+#define HWY_NATIVE_MASK 0
 #define HWY_CAP_GE256 1
 #define HWY_CAP_GE512 0
 
@@ -708,6 +721,7 @@
 #define HWY_MEM_OPS_MIGHT_FAULT 0
 #define HWY_NATIVE_FMA 1
 #define HWY_NATIVE_DOT_BF16 0
+#define HWY_NATIVE_MASK 1
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -753,6 +767,7 @@
 #define HWY_MEM_OPS_MIGHT_FAULT 1
 #define HWY_NATIVE_FMA 1
 #define HWY_NATIVE_DOT_BF16 0
+#define HWY_NATIVE_MASK 0
 
 #if HWY_TARGET == HWY_LSX
 #define HWY_CAP_GE256 0
@@ -785,6 +800,7 @@
 #define HWY_MEM_OPS_MIGHT_FAULT 1
 #define HWY_NATIVE_FMA 0
 #define HWY_NATIVE_DOT_BF16 0
+#define HWY_NATIVE_MASK 0
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -807,6 +823,7 @@
 #define HWY_MEM_OPS_MIGHT_FAULT 0
 #define HWY_NATIVE_FMA 0
 #define HWY_NATIVE_DOT_BF16 0
+#define HWY_NATIVE_MASK 0
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
