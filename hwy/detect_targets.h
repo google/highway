@@ -504,7 +504,8 @@
 #if defined(__ARM_FEATURE_AES) &&                    \
     defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC) && \
     defined(__ARM_FEATURE_DOTPROD) &&                \
-    defined(__ARM_FEATURE_BF16_VECTOR_ARITHMETIC)
+    defined(__ARM_FEATURE_BF16_VECTOR_ARITHMETIC) && \
+    defined(__ARM_FEATURE_MATMUL_INT8)
 #define HWY_BASELINE_NEON HWY_ALL_NEON
 #elif defined(__ARM_FEATURE_AES)
 #define HWY_BASELINE_NEON (HWY_NEON_WITHOUT_AES | HWY_NEON)
