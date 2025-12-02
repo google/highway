@@ -2948,6 +2948,15 @@ ignored because the flags are tested in the order listed. As an exception,
 `HWY_SKIP_NON_BEST_BASELINE` overrides the effect of
 `HWY_COMPILE_ALL_ATTAINABLE` and `HWY_IS_TEST`.
 
+As a workaround, you can define `HWY_DISABLE_ATTR` to prevent `HWY_ATTR` and
+`HWY_BEFORE_NAMESPACE` from attaching target attributes to functions. This is
+useful for older GCC on POWER targets. For example, the `-mcpu=power10` flag
+conflicts with our attributes. Unlike most other platforms, POWER has some
+'inverted' attributes that take away features rather than adding.
+`HWY_DISABLE_ATTR` prevents the resulting inlining error; GCC 13 also appears to
+fix the issue. When specifying this, you must also pass all `-m` compiler flags
+required for any targets that the above `HWY_COMPILE_*` policies enable.
+
 ## Compiler support
 
 Clang and GCC require opting into SIMD intrinsics, e.g. via `-mavx2` flags.
