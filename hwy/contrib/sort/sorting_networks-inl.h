@@ -197,6 +197,7 @@ HWY_INLINE void Sort16(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4, V& v5,
 // st.SortPairsDistance1 to compile. `if constexpr` in the caller would also
 // work, but is not available in C++11. We write out the (unused) argument types
 // rather than `...` because GCC 9 (but not 10) fails to compile with `...`.
+// TODO: use C++17.
 
 template <size_t kKeysPerVector, class D, class Traits, class V,
           HWY_IF_LANES_LE(kKeysPerVector, 1)>

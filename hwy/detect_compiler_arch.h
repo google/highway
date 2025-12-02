@@ -198,11 +198,8 @@
 #define HWY_CXX17_CONSTEXPR
 #endif
 
-#if defined(__cpp_constexpr) && __cpp_constexpr >= 201304L
+// C++14 is now required.
 #define HWY_CXX14_CONSTEXPR constexpr
-#else
-#define HWY_CXX14_CONSTEXPR
-#endif
 
 #if HWY_CXX_LANG >= 201703L
 #define HWY_IF_CONSTEXPR if constexpr

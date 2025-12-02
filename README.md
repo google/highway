@@ -31,9 +31,9 @@ changes/compiler updates than autovectorization.
 
 **Works on widely-used platforms**: Highway supports seven architectures; the
 same application code can target various instruction sets, including those with
-'scalable' vectors (size unknown at compile time). Highway only requires C++11
-and supports four families of compilers. If you would like to use Highway on
-other platforms, please raise an issue.
+'scalable' vectors (size unknown at compile time). Highway only requires C++17
+(language features, not necessarily the library) and supports four families of
+compilers. If you want to use Highway on other platforms, please raise an issue.
 
 **Flexible to deploy**: Applications using Highway can run on heterogeneous
 clouds or client devices, choosing the best available instruction set at
