@@ -2857,7 +2857,8 @@ supported for the `HWY_SCALAR` target.
     corresponding mask element is false. This is the case on ASAN/MSAN builds,
     AMD x86 prior to AVX-512, and Arm NEON. If so, users can prevent faults by
     ensuring memory addresses are aligned to the vector size or at least padded
-    (allocation size increased by at least `Lanes(d)`).
+    (allocation size increased by at least `Lanes(d)`). Note that `LoadN` and
+    `StoreN` never fault, regardless of the value of this macro.
 
 *   `HWY_NATIVE_FMA` expands to 1 if the `MulAdd` etc. ops use native fused
     multiply-add for floating-point inputs. Otherwise, `MulAdd(f, m, a)` is
@@ -2868,15 +2869,24 @@ supported for the `HWY_SCALAR` target.
     If so, the masking is zero-cost, otherwise they typically involve an extra
     AND operation.
 
+*   `HWY_NATIVE_DOT_BF16` expands to 1 if `ReorderWidenMulAccumulate` uses a
+    native instruction rather than masking and f32 `MulAdd`.
+
 *   `HWY_IS_LITTLE_ENDIAN` expands to 1 on little-endian targets and to 0 on
     big-endian targets.
 
 *   `HWY_IS_BIG_ENDIAN` expands to 1 on big-endian targets and to 0 on
     little-endian targets.
 
-The following were used to signal the maximum number of lanes for certain
-operations, but this is no longer necessary (nor possible on SVE/RVV), so they
-are DEPRECATED:
+*   `HWY_MAX_BYTES` is an upper bound on the size of a full vector, suitable for
+    use in `#if` expressions. Except for the `HWY_SCALAR` target, it is equal to
+    the vector size if `!HWY_HAVE_SCALABLE`.
+
+*   `HWY_MIN_BYTES` is a lower bound on the size of a full vector, suitable for
+    use in `#if` expressions. Except for the `HWY_SCALAR` target, it is equal to
+    the vector size if `!HWY_HAVE_SCALABLE`.
+
+The following are DEPRECATED in favor of `HWY_MIN_BYTES`:
 
 *   `HWY_CAP_GE256`: the current target supports vectors of >= 256 bits.
 *   `HWY_CAP_GE512`: the current target supports vectors of >= 512 bits.
