@@ -75,7 +75,7 @@ jobs:
       - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v4.0.0
 
       - name: Install deps
-        run: sudo apt-get install ${{ matrix.extra_deps }}
+        run: sudo apt-get update && sudo apt-get install ${{ matrix.extra_deps }}
 
       - name: Build and test
         run: |
