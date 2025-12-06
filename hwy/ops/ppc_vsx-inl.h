@@ -5382,9 +5382,21 @@ HWY_INLINE uint64_t ExtractSignBits(Vec128<uint8_t, N> sign_bits,
   // vec_vbpermq: unsigned or signed, so cast to avoid a warning.
   using VU64 = detail::Raw128<uint64_t>::type;
 #if HWY_S390X_HAVE_Z14
+
+#if HWY_COMPILER_GCC_ACTUAL >= 1500 || HWY_COMPILER_CLANG >= 2100
+  // GCC 15 and Clang 20 have added the vec_bperm intrinsic
+
+  // Need to use vec_bperm instead of vec_bperm_u128 with GCC 15 and later to
+  // avoid compiler warning
+  using VU128 = __vector unsigned __int128;
+  const Vec128<uint64_t> extracted{reinterpret_cast<VU64>(
+      vec_bperm(reinterpret_cast<VU128>(sign_bits.raw), bit_shuffle))};
+#else   // !(HWY_COMPILER_GCC_ACTUAL >= 1500 || HWY_COMPILER_CLANG >= 2100)
   const Vec128<uint64_t> extracted{
       reinterpret_cast<VU64>(vec_bperm_u128(sign_bits.raw, bit_shuffle))};
-#else
+#endif  // HWY_COMPILER_GCC_ACTUAL >= 1500 || HWY_COMPILER_CLANG >= 2100
+
+#else  // !HWY_S390X_HAVE_Z14
   const Vec128<uint64_t> extracted{
       reinterpret_cast<VU64>(vec_vbpermq(sign_bits.raw, bit_shuffle))};
 #endif
@@ -6393,8 +6405,13 @@ HWY_INLINE V Per128BitBlkRevLanesOnBe(V v) {
 template <class V>
 HWY_INLINE V I128Subtract(V a, V b) {
 #if HWY_S390X_HAVE_Z14
-#if HWY_COMPILER_CLANG
+#if HWY_COMPILER_CLANG || HWY_COMPILER_GCC_ACTUAL >= 1500
   // Workaround for bug in vec_sub_u128 in Clang vecintrin.h
+
+  // The vec_sub_u128 intrinsic is also now deprecated in GCC 15 and later.
+  // The built-in U128x1 vector subtraction operator should be used instead of
+  // vec_sub_u128 with GCC 15 and later to avoid compiler warnings.
+
   typedef __uint128_t VU128 __attribute__((__vector_size__(16)));
   const V diff_i128{reinterpret_cast<typename detail::Raw128<TFromV<V>>::type>(
       reinterpret_cast<VU128>(a.raw) - reinterpret_cast<VU128>(b.raw))};
@@ -6922,8 +6939,18 @@ template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T),
 HWY_INLINE Vec128<T> SumOfU32OrU64LanesAsU128(Vec128<T> v) {
   const DFromV<decltype(v)> d;
   const RebindToUnsigned<decltype(d)> du;
+#if HWY_COMPILER_GCC_ACTUAL >= 1500 || HWY_COMPILER_CLANG >= 2100
+  // GCC 15 and Clang 20 have new vec_sum intrinsics that replaced the
+  // vec_sum_u128 intrinsic
+
+  // vec_sum needs to be used instead of vec_sum_u128 with GCC 15 or later to
+  // avoid compiler warnings
+  return Vec128<T>{reinterpret_cast<typename detail::Raw128<T>::type>(
+      vec_sum(BitCast(du, v).raw, Zero(du).raw))};
+#else
   return BitCast(
       d, Vec128<uint8_t>{vec_sum_u128(BitCast(du, v).raw, Zero(du).raw)});
+#endif
 }
 #endif
 
@@ -7166,8 +7193,21 @@ HWY_API V BitShuffle(V v, VI idx) {
 #endif
 
 #if HWY_S390X_HAVE_Z14
+
+#if HWY_COMPILER_GCC_ACTUAL >= 1500 || HWY_COMPILER_CLANG >= 2100
+  // GCC 15 and Clang 20 have added the vec_bperm intrinsic
+
+  // Need to use vec_bperm instead of vec_bperm_u128 with GCC 15 and later to
+  // avoid compiler warning
+  using RawVU128 = __vector unsigned __int128;
+
+  const VFromD<decltype(d_full_u64)> bit_shuf_result{reinterpret_cast<RawVU64>(
+      vec_bperm(reinterpret_cast<RawVU128>(v.raw), bit_idx.raw))};
+#else
   const VFromD<decltype(d_full_u64)> bit_shuf_result{reinterpret_cast<RawVU64>(
       vec_bperm_u128(BitCast(du8, v).raw, bit_idx.raw))};
+#endif  // !(HWY_COMPILER_GCC_ACTUAL >= 1500 || HWY_COMPILER_CLANG >= 2100)
+
 #elif defined(__SIZEOF_INT128__)
   using RawVU128 = __vector unsigned __int128;
   const VFromD<decltype(d_full_u64)> bit_shuf_result{reinterpret_cast<RawVU64>(
