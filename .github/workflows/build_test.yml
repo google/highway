@@ -30,31 +30,31 @@ jobs:
             extra_deps: clang-11
             c_compiler: clang-11
             cxx_compiler: clang++-11
-            cxx_standard: 11
+            cxx_standard: 17
 
           - name: Clang-12
             extra_deps: clang-12
             c_compiler: clang-12
             cxx_compiler: clang++-12
-            cxx_standard: 11
+            cxx_standard: 17
 
           - name: Clang-13
             extra_deps: clang-13
             c_compiler: clang-13
             cxx_compiler: clang++-13
-            cxx_standard: 11
+            cxx_standard: 17
 
           - name: Clang-14
             extra_deps: clang-14
             c_compiler: clang-14
             cxx_compiler: clang++-14
-            cxx_standard: 11
+            cxx_standard: 17
 
           - name: Clang-15
             extra_deps: clang-15
             c_compiler: clang-15
             cxx_compiler: clang++-15
-            cxx_standard: 11
+            cxx_standard: 17
 
           - name: Clang-15 (C++20)
             extra_deps: clang-15
@@ -76,21 +76,21 @@ jobs:
             c_compiler: gcc-9
             cxx_compiler: g++-9
             cxx_flags: -ftrapv
-            cxx_standard: 11
+            cxx_standard: 17
 
           - name: GCC-10
             extra_deps: g++-10
             c_compiler: gcc-10
             cxx_compiler: g++-10
             cxx_flags: -ftrapv
-            cxx_standard: 11
+            cxx_standard: 17
 
           - name: GCC-11
             extra_deps: g++-11
             c_compiler: gcc-11
             cxx_compiler: g++-11
             cxx_flags: -ftrapv
-            cxx_standard: 11
+            cxx_standard: 17
 
           - name: GCC-11 (C++20)
             extra_deps: g++-11
@@ -131,7 +131,7 @@ jobs:
       - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v4.0.0
 
       - name: Install deps
-        run: sudo apt-get install ${{ matrix.extra_deps }}
+        run: sudo apt-get update && sudo apt-get install ${{ matrix.extra_deps }}
 
       - name: Build and test
         run: |
@@ -180,7 +180,7 @@ jobs:
             cxx_flags: -DHWY_DISABLED_TARGETS=0x58
             cxx_standard: 17
 
-          - name: Clang-18 (VQSort disabled)
+          - name: Clang-18 (C++23)
             extra_deps: clang-18
             c_compiler: clang-18
             cxx_compiler: clang++-18
@@ -188,13 +188,35 @@ jobs:
             # Clang 16 or later to work around crashes that occur with Clang 16
             # or later when some of the Google Highway tests are compiled with
             # all x86 targets enabled
+            cxx_flags: -DHWY_DISABLED_TARGETS=0x58
+            cxx_standard: 23
+
+          - name: Clang-19
+            extra_deps: clang-19
+            c_compiler: clang-19
+            cxx_compiler: clang++-19
+            # Disable AVX3_SPR/AVX3_ZEN4 targets in GitHub workflow build with
+            # Clang 16 or later to work around crashes that occur with Clang 16
+            # or later when some of the Google Highway tests are compiled with
+            # all x86 targets enabled
+            cxx_flags: -DHWY_DISABLED_TARGETS=0x58
+            cxx_standard: 17
+
+          - name: Clang-19 (VQSort disabled)
+            extra_deps: clang-19
+            c_compiler: clang-19
+            cxx_compiler: clang++-19
+            # Disable AVX3_SPR/AVX3_ZEN4 targets in GitHub workflow build with
+            # Clang 16 or later to work around crashes that occur with Clang 16
+            # or later when some of the Google Highway tests are compiled with
+            # all x86 targets enabled
             cxx_flags: -DHWY_DISABLED_TARGETS=0x58 -DHWY_DISABLE_VQSORT=1
             cxx_standard: 17
 
-          - name: Clang-18 (C++23)
-            extra_deps: clang-18
-            c_compiler: clang-18
-            cxx_compiler: clang++-18
+          - name: Clang-19 (C++23)
+            extra_deps: clang-19
+            c_compiler: clang-19
+            cxx_compiler: clang++-19
             # Disable AVX3_SPR/AVX3_ZEN4 targets in GitHub workflow build with
             # Clang 16 or later to work around crashes that occur with Clang 16
             # or later when some of the Google Highway tests are compiled with
@@ -216,6 +238,20 @@ jobs:
             cxx_flags: -ftrapv
             cxx_standard: 23
 
+          - name: GCC-14
+            extra_deps: g++-14
+            c_compiler: gcc-14
+            cxx_compiler: g++-14
+            cxx_flags: -ftrapv
+            cxx_standard: 17
+
+          - name: GCC-14 (C++23)
+            extra_deps: g++-14
+            c_compiler: gcc-14
+            cxx_compiler: g++-14
+            cxx_flags: -ftrapv
+            cxx_standard: 23
+
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@df199fb7be9f65074067a9eb93f12bb4c5547cf2 # v2.13.3
@@ -225,7 +261,7 @@ jobs:
       - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v4.0.0
 
       - name: Install deps
-        run: sudo apt-get install ${{ matrix.extra_deps }}
+        run: sudo apt-get update && sudo apt-get install ${{ matrix.extra_deps }}
 
       - name: Build and test
         run: |
