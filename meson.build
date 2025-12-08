@@ -5,7 +5,7 @@ project(
   meson_version: '>= 1.3.0',
   license: 'Apache-2.0 OR BSD-3-Clause',
   default_options: [
-    'cpp_std=c++17,c++14,c++11',
+    'cpp_std=c++17,c++14',
     'b_pie=true',
     'b_staticpic=true',
     'default_library=static',

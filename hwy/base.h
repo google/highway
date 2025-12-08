@@ -1118,8 +1118,11 @@ HWY_API constexpr bool IsInteger() {
 #define HWY_BITCASTSCALAR_CONSTEXPR
 #endif
 
-// C++14 is now required.
+#if __cpp_constexpr >= 201304L
 #define HWY_BITCASTSCALAR_CXX14_CONSTEXPR HWY_BITCASTSCALAR_CONSTEXPR
+#else
+#define HWY_BITCASTSCALAR_CXX14_CONSTEXPR
+#endif
 
 #if HWY_HAS_BUILTIN(__builtin_bit_cast) || HWY_COMPILER_MSVC >= 1926
 namespace detail {
