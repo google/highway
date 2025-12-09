@@ -81,19 +81,14 @@ std::string Stats::ToString(int exclude) const {
 
   if ((exclude & kNoMeanSD) == 0) {
     const float sd = StandardDeviation();
-    if (sd > 100) {
-      ret = snprintf(buf + pos, sizeof(buf) - pos, "Mean=%8.2e SD=%7.1e ",
-                     Mean(), sd);
-    } else {
-      ret = snprintf(buf + pos, sizeof(buf) - pos, "Mean=%8.6e SD=%7.5e ",
-                     Mean(), sd);
-    }
+    ret = snprintf(buf + pos, sizeof(buf) - pos, "Mean=%10.3e SD=%8.2e ",
+                   Mean(), sd);
     HWY_ASSERT(ret > 0);
     pos += ret;
   }
 
   if ((exclude & kNoMinMax) == 0) {
-    ret = snprintf(buf + pos, sizeof(buf) - pos, "Min=%8.5e Max=%8.5e ",
+    ret = snprintf(buf + pos, sizeof(buf) - pos, "Min=%10.3e Max=%10.3e ",
                    static_cast<double>(Min()), static_cast<double>(Max()));
     HWY_ASSERT(ret > 0);
     pos += ret;
