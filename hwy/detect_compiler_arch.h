@@ -27,7 +27,7 @@
 //   Add: [-D__CLANGD__]
 #if (defined __CDT_PARSER__) || (defined __INTELLISENSE__) || \
     (defined Q_CREATOR_RUN) || (defined __CLANGD__) ||        \
-    (defined GROK_ELLIPSIS_BUILD)
+    (defined GROK_ELLIPSIS_BUILD) || (defined __JETBRAINS_IDE__)
 #define HWY_IDE 1
 #else
 #define HWY_IDE 0
