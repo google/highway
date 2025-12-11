@@ -155,6 +155,7 @@ HWY_TESTS = HWY_CONTRIB_TESTS + (
     ("hwy/tests/", "mul_by_pow2_test", []),
     ("hwy/tests/", "mul_pairwise_test", []),
     ("hwy/tests/", "mul_test", []),
+    ("hwy/tests/", "neg_test", []),
     ("hwy/tests/", "reduction_test", []),
     ("hwy/tests/", "resize_test", []),
     ("hwy/tests/", "reverse_test", []),

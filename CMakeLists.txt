@@ -846,6 +846,7 @@ set(HWY_TEST_FILES
   hwy/tests/mul_by_pow2_test.cc
   hwy/tests/mul_pairwise_test.cc
   hwy/tests/mul_test.cc
+  hwy/tests/neg_test.cc
   hwy/tests/reduction_test.cc
   hwy/tests/resize_test.cc
   hwy/tests/reverse_test.cc
