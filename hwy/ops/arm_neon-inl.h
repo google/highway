@@ -1,5 +1,5 @@
 // Copyright 2019 Google LLC
-// Copyright 2024 Arm Limited and/or its affiliates <open-source-office@arm.com>
+// Copyright 2024-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: BSD-3-Clause
 //
@@ -7662,6 +7662,8 @@ HWY_API VFromD<DU32> SumOfMulQuadAccumulate(
 #define HWY_NATIVE_U8_I8_SUMOFMULQUADACCUMULATE
 #endif
 
+#ifdef __ARM_FEATURE_MATMUL_INT8
+
 template <class DI32, HWY_IF_I32_D(DI32), HWY_IF_V_SIZE_LE_D(DI32, 8)>
 HWY_API VFromD<DI32> SumOfMulQuadAccumulate(
     DI32 /*di32*/, VFromD<Repartition<uint8_t, DI32>> a_u,
@@ -7675,6 +7677,26 @@ HWY_API VFromD<DI32> SumOfMulQuadAccumulate(
     VFromD<Repartition<int8_t, DI32>> b_i, VFromD<DI32> sum) {
   return VFromD<DI32>(vusdotq_s32(sum.raw, a_u.raw, b_i.raw));
 }
+
+#else
+
+template <class DI32, HWY_IF_I32_D(DI32)>
+HWY_API VFromD<DI32> SumOfMulQuadAccumulate(
+    DI32 di32, VFromD<Repartition<uint8_t, DI32>> a_u,
+    VFromD<Repartition<int8_t, DI32>> b_i, VFromD<DI32> sum) {
+  const RebindToUnsigned<decltype(di32)> du32;
+  const Repartition<uint8_t, decltype(di32)> du8;
+
+  const auto b_u = BitCast(du8, b_i);
+  const auto result_sum0 =
+      SumOfMulQuadAccumulate(du32, a_u, b_u, BitCast(du32, sum));
+  const auto result_sum1 = ShiftLeft<8>(
+      SumOfMulQuadAccumulate(du32, a_u, ShiftRight<7>(b_u), Zero(du32)));
+
+  return BitCast(di32, Sub(result_sum0, result_sum1));
+}
+
+#endif // __ARM_FEATURE_MATMUL_INT8
 
 #endif  // HWY_TARGET == HWY_NEON_BF16
 

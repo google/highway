@@ -1,4 +1,5 @@
 // Copyright 2019 Google LLC
+// Copyright 2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -445,10 +446,6 @@ static int64_t DetectTargets() {
 #elif HWY_ARCH_ARM && HWY_HAVE_RUNTIME_DISPATCH
 namespace arm {
 
-#ifndef HWCAP2_I8MM
-#define HWCAP2_I8MM (1 << 13)
-#endif
-
 #if HWY_ARCH_ARM_A64 && !HWY_OS_APPLE &&        \
     (HWY_COMPILER_GCC || HWY_COMPILER_CLANG) && \
     ((HWY_TARGETS & HWY_ALL_SVE) != 0)
@@ -494,8 +491,7 @@ static int64_t DetectTargets() {
     if ((HasCpuFeature("hw.optional.AdvSIMD_HPFPCvt") ||
          HasCpuFeature("hw.optional.arm.AdvSIMD_HPFPCvt")) &&
         HasCpuFeature("hw.optional.arm.FEAT_DotProd") &&
-        HasCpuFeature("hw.optional.arm.FEAT_BF16") &&
-        HasCpuFeature("hw.optional.arm.FEAT_I8MM")) {
+        HasCpuFeature("hw.optional.arm.FEAT_BF16")) {
       bits |= HWY_NEON_BF16;
     }
   }
@@ -508,7 +504,7 @@ static int64_t DetectTargets() {
 #if defined(HWCAP_ASIMDHP) && defined(HWCAP_ASIMDDP) && defined(HWCAP2_BF16)
     const CapBits hw2 = getauxval(AT_HWCAP2);
     constexpr CapBits kGroupF16Dot = HWCAP_ASIMDHP | HWCAP_ASIMDDP;
-    constexpr CapBits kGroupBF16 = HWCAP2_BF16 | HWCAP2_I8MM;
+    constexpr CapBits kGroupBF16 = HWCAP2_BF16;
     if ((hw & kGroupF16Dot) == kGroupF16Dot &&
         (hw2 & kGroupBF16) == kGroupBF16) {
       bits |= HWY_NEON_BF16;
@@ -529,11 +525,7 @@ static int64_t DetectTargets() {
 #ifndef HWCAP2_SVEAES
 #define HWCAP2_SVEAES (1 << 2)
 #endif
-#ifndef HWCAP2_SVEI8MM
-#define HWCAP2_SVEI8MM (1 << 9)
-#endif
-  constexpr CapBits kGroupSVE2 =
-      HWCAP2_SVE2 | HWCAP2_SVEAES | HWCAP2_SVEI8MM | HWCAP2_I8MM;
+  constexpr CapBits kGroupSVE2 = HWCAP2_SVE2 | HWCAP2_SVEAES;
   const CapBits hw2 = getauxval(AT_HWCAP2);
   if ((hw2 & kGroupSVE2) == kGroupSVE2) {
     bits |= HWY_SVE2;
