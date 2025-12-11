@@ -88,9 +88,9 @@ class StringTable {
   // Returns a copy of the `name` passed to `Add` that returned the
   // given `idx`.
   const char* Name(size_t idx) const {
-    // `kRelaxed` is sufficient because pointers are immutable once published
-    // via a `kRelease` store.
-    return ptrs_[idx].load(kRelaxed);
+    // `kAcq` so that the string contents are also visible after the pointer is
+    // published via `kRelease` store.
+    return ptrs_[idx].load(kAcq);
   }
 
   // Returns `idx < kMaxStrings`. Can be called concurrently. Calls with the
