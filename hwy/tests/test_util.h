@@ -192,12 +192,21 @@ HWY_TEST_DLLEXPORT void AssertArrayEqual(const TypeInfo& info,
 
 }  // namespace detail
 
+#if HWY_ARCH_ARM_A64 && \
+    (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1600)
+// The N argument to TypeName from Lanes() is a "poly constant" which triggers
+// a GCC bug that can be worked around by disabling cloning. See #2813.
+#define HWY_TYPENAME_ATTR __attribute__((noclone))
+#else
+#define HWY_TYPENAME_ATTR
+#endif  // HWY_ARCH_ARM_A64 && HWY_COMPILER_GCC_ACTUAL
+
 // Returns a name for the vector/part/scalar. The type prefix is u/i/f for
 // unsigned/signed/floating point, followed by the number of bits per lane;
 // then 'x' followed by the number of lanes. Example: u8x16. This is useful for
 // understanding which instantiation of a generic test failed.
 template <typename T>
-std::string TypeName(T /*unused*/, size_t N) {
+HWY_TYPENAME_ATTR std::string TypeName(T /*unused*/, size_t N) {
   char string100[100];
   detail::TypeName(detail::MakeTypeInfo<T>(), N, string100);
   return string100;
@@ -264,7 +273,7 @@ HWY_INLINE void AssertArrayEqual(const T* expected, const T* actual,
                            line);
 }
 
-namespace {
+namespace internal {
 // Compare with tolerance due to FMA and f16 precision.
 template <typename T>
 HWY_INLINE bool CompareArraySimilarAndMaybeAbort(const T* expected,
@@ -313,7 +322,7 @@ HWY_INLINE bool CompareArraySimilarAndMaybeAbort(const T* expected,
   }
   return true;
 }
-}  // namespace
+}  // namespace internal
 
 // Compare with tolerance due to FMA and f16 precision.
 template <typename T>
@@ -324,8 +333,8 @@ HWY_INLINE void AssertArraySimilar(const T* expected, const T* actual,
       (hwy::IsSame<RemoveCvRef<T>, float16_t>() ? 128.0 : 1.0) /
       (uint64_t{1} << MantissaBits<T>());
 
-  CompareArraySimilarAndMaybeAbort(expected, actual, count, tolerance,
-                                   target_name, filename, line, true);
+  (void)internal::CompareArraySimilarAndMaybeAbort(
+      expected, actual, count, tolerance, target_name, filename, line, true);
 }
 
 // Compare with tolerance due to FMA and f16 precision.
@@ -334,8 +343,8 @@ HWY_INLINE bool CompareArraySimilar(const T* expected, const T* actual,
                                     size_t count, double tolerance,
                                     const char* target_name,
                                     const char* filename, int line) {
-  return CompareArraySimilarAndMaybeAbort(expected, actual, count, tolerance,
-                                          target_name, filename, line, false);
+  return internal::CompareArraySimilarAndMaybeAbort(
+      expected, actual, count, tolerance, target_name, filename, line, false);
 }
 
 }  // namespace hwy
