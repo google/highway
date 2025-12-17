@@ -7352,6 +7352,9 @@ static HWY_INLINE bfloat16x8_t BitCastToRawNeonBF16(bfloat16x8_t raw) {
 // The uint16x4_t or uint16x8_t vector neets to be bitcasted to a bfloat16x4_t
 // or a bfloat16x8_t vector for the vbfdot_f32 and vbfdotq_f32 intrinsics if
 // HWY_NEON_HAVE_F32_TO_BF16C && !HWY_NEON_HAVE_BFLOAT16 is true
+
+// NOTE: vbfdot uses round to odd unless the additional FEAT_EBF16 feature is
+// available and enabled.
 static HWY_INLINE bfloat16x4_t BitCastToRawNeonBF16(uint16x4_t raw) {
   return vreinterpret_bf16_u16(raw);
 }

@@ -6456,9 +6456,6 @@ HWY_API VFromD<DI32> SatWidenMulAccumFixedPoint(DI32 /*di32*/,
 
 #if HWY_SVE_HAVE_BF16_FEATURE
 
-// NOTE: we currently do not use SVE BFDOT for bf16 ReorderWidenMulAccumulate
-// because, apparently unlike NEON, it uses round to odd unless the additional
-// FEAT_EBF16 feature is available and enabled.
 #ifdef HWY_NATIVE_MUL_EVEN_BF16
 #undef HWY_NATIVE_MUL_EVEN_BF16
 #else
@@ -6477,7 +6474,19 @@ HWY_API svfloat32_t MulOddAdd(Simd<float, N, kPow2> /* d */, VBF16 a, VBF16 b,
   return svbfmlalt_f32(c, a, b);
 }
 
-#endif  // HWY_SVE_HAVE_BF16_FEATURE
+// NOTE: svbfdot uses round to odd unless the additional FEAT_EBF16 feature is
+// available and enabled.
+template <size_t N, int kPow2>
+HWY_API svfloat32_t ReorderWidenMulAccumulate(Simd<float, N, kPow2> d32,
+                                              svbfloat16_t a, svbfloat16_t b,
+                                              const svfloat32_t sum0,
+                                              svfloat32_t& sum1) {
+  (void)d32;
+  (void)sum1;
+  return svbfdot_f32(sum0, a, b);
+}
+
+#endif // HWY_SVE_HAVE_BF16_FEATURE
 
 template <size_t N, int kPow2>
 HWY_API svint32_t ReorderWidenMulAccumulate(Simd<int32_t, N, kPow2> d32,
