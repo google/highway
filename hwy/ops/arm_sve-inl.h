@@ -6564,7 +6564,7 @@ HWY_API VFromD<DU32> SumOfMulQuadAccumulate(DU32 /*du32*/, svuint8_t a,
 template <class DI32, HWY_IF_I32_D(DI32)>
 HWY_API VFromD<DI32> SumOfMulQuadAccumulate(DI32 di32, svuint8_t a_u,
                                             svint8_t b_i, svint32_t sum) {
-#if HWY_SVE_HAVE_2
+#if HWY_SVE_HAVE_2 && __ARM_FEATURE_MATMUL_INT8
   (void)di32;
   return svusdot_s32(sum, a_u, b_i);
 #else

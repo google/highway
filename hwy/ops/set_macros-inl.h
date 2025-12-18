@@ -1,5 +1,5 @@
 // Copyright 2020 Google LLC
-// Copyright 2024 Arm Limited and/or its affiliates <open-source-office@arm.com>
+// Copyright 2024-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: BSD-3-Clause
 //
@@ -555,8 +555,6 @@
 #define HWY_TARGET_STR_FP16 "+fp16"
 #endif
 
-#define HWY_TARGET_STR_I8MM "+i8mm"
-
 #if HWY_TARGET == HWY_NEON_WITHOUT_AES
 #if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1400
 // Prevents inadvertent use of SVE by GCC 13.4 and earlier, see #2689.
@@ -568,7 +566,7 @@
 #define HWY_TARGET_STR HWY_TARGET_STR_NEON
 #elif HWY_TARGET == HWY_NEON_BF16
 #define HWY_TARGET_STR \
-  HWY_TARGET_STR_FP16 HWY_TARGET_STR_I8MM "+bf16+dotprod" HWY_TARGET_STR_NEON
+  HWY_TARGET_STR_FP16 "+bf16+dotprod" HWY_TARGET_STR_NEON
 #else
 #error "Logic error, missing case"
 #endif  // HWY_TARGET
@@ -619,17 +617,15 @@
 #define HWY_HAVE_SCALABLE 1
 #endif
 
-#define HWY_TARGET_STR_I8MM "+i8mm"
-
 // Can use pragmas instead of -march compiler flag
 #if HWY_HAVE_RUNTIME_DISPATCH
 #if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
 // Static dispatch with -march=armv8-a+sve2+aes, or no baseline, hence dynamic
 // dispatch, which checks for AES support at runtime.
 #if defined(__ARM_FEATURE_SVE2_AES) || (HWY_BASELINE_SVE2 == 0)
-#define HWY_TARGET_STR "+sve2+sve2-aes,+sve" HWY_TARGET_STR_I8MM
+#define HWY_TARGET_STR "+sve2+sve2-aes,+sve"
 #else  // SVE2 without AES
-#define HWY_TARGET_STR "+sve2,+sve" HWY_TARGET_STR_I8MM
+#define HWY_TARGET_STR "+sve2,+sve"
 #endif
 #else  // not SVE2 target
 #define HWY_TARGET_STR "+sve"
