@@ -267,6 +267,9 @@ When building for Armv7, a limitation of current compilers requires you to add
 `-DHWY_CMAKE_ARM7:BOOL=ON` to the CMake command line; see #834 and #1032. We
 understand that work is underway to remove this limitation.
 
+To benefit from Armv8/v9 vusdot and vusdotq instructions, you can add "+i8mm" to
+the -march compiler flag, assuming the target CPU(s) support that.
+
 Building on 32-bit x86 is not officially supported, and AVX2/3 are disabled by
 default there. Note that johnplatts has successfully built and run the Highway
 tests on 32-bit x86, including AVX2/3, on GCC 7/8 and Clang 8/11/12. On Ubuntu
