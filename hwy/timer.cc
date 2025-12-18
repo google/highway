@@ -26,15 +26,17 @@
 
 namespace hwy {
 
+namespace detail {
 #if HWY_ARCH_X86
 namespace x86 {
 
-static bool HasRDTSCP() {
+HWY_HEADER_ONLY_FUN
+bool HasRDTSCP() {
   uint32_t abcd[4];
-  Cpuid(0x80000001U, 0, abcd);                    // Extended feature flags
+  hwy::x86::Cpuid(0x80000001U, 0, abcd);                    // Extended feature flags
   if ((abcd[3] & (1u << 27)) == 0) return false;  // RDTSCP
 
-  Cpuid(0x80000007U, 0, abcd);
+  hwy::x86::Cpuid(0x80000007U, 0, abcd);
   if ((abcd[3] & (1u << 8)) == 0) {
     HWY_WARN("TSC not constant/invariant, may vary frequency or jump.");
   }
@@ -48,7 +50,8 @@ static bool HasRDTSCP() {
 // frequency encoded in x86 GetCpuString because it is misleading on M1 Rosetta,
 // and not reported by AMD. CPUID 0x15 is also not yet widely supported. Also
 // used on RISC-V and aarch64.
-static HWY_MAYBE_UNUSED double MeasureNominalClockRate() {
+HWY_HEADER_ONLY_FUN
+HWY_MAYBE_UNUSED double MeasureNominalClockRate() {
   double max_ticks_per_sec = 0.0;
   // Arbitrary, enough to ignore 2 outliers without excessive init time.
   for (int rep = 0; rep < 3; ++rep) {
@@ -79,7 +82,8 @@ static HWY_MAYBE_UNUSED double MeasureNominalClockRate() {
 #if HWY_ARCH_PPC && defined(__GLIBC__) && defined(__powerpc64__)
 namespace ppc {
 
-static HWY_INLINE double GetTimebaseFreq() {
+HWY_HEADER_ONLY_FUN
+HWY_INLINE double GetTimebaseFreq() {
   const auto timebase_freq = __ppc_get_timebase_freq();
   // If timebase_freq is greater than 0, then return timebase_freq.
 
@@ -93,21 +97,24 @@ static HWY_INLINE double GetTimebaseFreq() {
 }  // namespace ppc
 #endif
 
+} // namespace detail
+
 namespace platform {
 
+HWY_HEADER_ONLY_FUN
 HWY_DLLEXPORT bool GetCpuString(char* cpu100) {
 #if HWY_ARCH_X86
   uint32_t abcd[4];
 
   // Check if brand string is supported (it is on all reasonable Intel/AMD)
-  x86::Cpuid(0x80000000U, 0, abcd);
+   hwy::x86::Cpuid(0x80000000U, 0, abcd);
   if (abcd[0] < 0x80000004U) {
     cpu100[0] = '\0';
     return false;
   }
 
   for (size_t i = 0; i < 3; ++i) {
-    x86::Cpuid(static_cast<uint32_t>(0x80000002U + i), 0, abcd);
+     hwy::x86::Cpuid(static_cast<uint32_t>(0x80000002U + i), 0, abcd);
     CopyBytes<sizeof(abcd)>(&abcd[0], cpu100 + i * 16);  // not same size
   }
   cpu100[48] = '\0';
@@ -119,14 +126,16 @@ HWY_DLLEXPORT bool GetCpuString(char* cpu100) {
 #endif
 }
 
+HWY_HEADER_ONLY_FUN
 HWY_DLLEXPORT double Now() {
   static const double mul = 1.0 / InvariantTicksPerSecond();
   return static_cast<double>(timer::Start()) * mul;
 }
 
+HWY_HEADER_ONLY_FUN
 HWY_DLLEXPORT bool HaveTimerStop(char* cpu100) {
 #if HWY_ARCH_X86
-  if (!x86::HasRDTSCP()) {
+  if (!detail::x86::HasRDTSCP()) {
     (void)GetCpuString(cpu100);
     return false;
   }
@@ -135,13 +144,14 @@ HWY_DLLEXPORT bool HaveTimerStop(char* cpu100) {
   return true;
 }
 
+HWY_HEADER_ONLY_FUN
 HWY_DLLEXPORT double InvariantTicksPerSecond() {
 #if HWY_ARCH_PPC && defined(__GLIBC__) && defined(__powerpc64__)
-  static const double freq = ppc::GetTimebaseFreq();
+  static const double freq = detail::ppc::GetTimebaseFreq();
   return freq;
 #elif HWY_ARCH_X86 || HWY_ARCH_RISCV || (HWY_ARCH_ARM_A64 && !HWY_COMPILER_MSVC)
   // We assume the x86 TSC is invariant; it is on all recent Intel/AMD CPUs.
-  static const double freq = MeasureNominalClockRate();
+  static const double freq = detail::MeasureNominalClockRate();
   return freq;
 #elif defined(_WIN32) || defined(_WIN64)
   LARGE_INTEGER freq;
@@ -157,6 +167,7 @@ HWY_DLLEXPORT double InvariantTicksPerSecond() {
 #endif
 }
 
+HWY_HEADER_ONLY_FUN
 HWY_DLLEXPORT uint64_t TimerResolution() {
   char cpu100[100];
   bool can_use_stop = HaveTimerStop(cpu100);
