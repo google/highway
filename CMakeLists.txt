@@ -285,6 +285,7 @@ set(HWY_SOURCES
     hwy/x86_cpuid.h
 )
 
+
 if (NOT HWY_CMAKE_HEADER_ONLY)
   list(APPEND HWY_SOURCES
     hwy/abort.cc
@@ -500,10 +501,6 @@ if (HWY_DISABLE_FUTEX)
   list(APPEND HWY_FLAGS -DHWY_DISABLE_FUTEX)
 endif()
 
-if (HWY_CMAKE_HEADER_ONLY)
-  list(APPEND HWY_FLAGS -DHWY_HEADER_ONLY)
-endif()
-
 include(CheckIncludeFile)
 check_include_file(sys/auxv.h  HAVE_SYS_AUXV_H)
 check_include_file(asm/hwcap.h HAVE_ASM_HWCAP_H)
@@ -531,33 +528,77 @@ else()
   set(DLLEXPORT_TO_DEFINE "HWY_STATIC_DEFINE")
 endif()
 
-add_library(hwy ${HWY_LIBRARY_TYPE} ${HWY_SOURCES})
-if(NOT HAVE_SYS_AUXV_H)
-  target_compile_definitions(hwy PUBLIC TOOLCHAIN_MISS_SYS_AUXV_H)
-endif()
-if(NOT HAVE_ASM_HWCAP_H)
-  target_compile_definitions(hwy PUBLIC TOOLCHAIN_MISS_ASM_HWCAP_H)
-endif()
-target_compile_definitions(hwy PUBLIC "${DLLEXPORT_TO_DEFINE}")
-target_compile_options(hwy PRIVATE ${HWY_FLAGS})
-set_property(TARGET hwy PROPERTY POSITION_INDEPENDENT_CODE ON)
-set_target_properties(hwy PROPERTIES VERSION ${LIBRARY_VERSION} SOVERSION ${LIBRARY_SOVERSION})
-target_include_directories(hwy PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-target_compile_features(hwy PUBLIC cxx_std_11)
-if (NOT HWY_CXX_STD_TGT_COMPILE_FEATURE STREQUAL "cxx_std_11")
-  target_compile_features(hwy PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
-endif()
-set_target_properties(hwy PROPERTIES
-  LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version)
-# For GCC __atomic_store_8, see #887
-target_link_libraries(hwy PRIVATE ${ATOMICS_LIBRARIES})
-# not supported by MSVC/Clang, safe to skip (we use DLLEXPORT annotations)
-if(UNIX AND NOT APPLE)
-  set_property(TARGET hwy APPEND_STRING PROPERTY
-    LINK_FLAGS " -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version")
-endif()
+if (NOT HWY_CMAKE_HEADER_ONLY)
+  add_library(hwy ${HWY_LIBRARY_TYPE} ${HWY_SOURCES})
+  if (NOT HAVE_SYS_AUXV_H)
+    target_compile_definitions(hwy PUBLIC TOOLCHAIN_MISS_SYS_AUXV_H)
+  endif ()
+  if (NOT HAVE_ASM_HWCAP_H)
+    target_compile_definitions(hwy PUBLIC TOOLCHAIN_MISS_ASM_HWCAP_H)
+  endif ()
+  target_compile_definitions(hwy PUBLIC "${DLLEXPORT_TO_DEFINE}")
+  target_compile_options(hwy PRIVATE ${HWY_FLAGS})
+  set_property(TARGET hwy PROPERTY POSITION_INDEPENDENT_CODE ON)
+  set_target_properties(hwy PROPERTIES VERSION ${LIBRARY_VERSION} SOVERSION ${LIBRARY_SOVERSION})
+  target_include_directories(hwy PUBLIC
+          $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
+          $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+  target_compile_features(hwy PUBLIC cxx_std_11)
+  if (NOT HWY_CXX_STD_TGT_COMPILE_FEATURE STREQUAL "cxx_std_11")
+    target_compile_features(hwy PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
+  endif ()
+  set_target_properties(hwy PROPERTIES
+          LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version)
+  # For GCC __atomic_store_8, see #887
+  target_link_libraries(hwy PRIVATE ${ATOMICS_LIBRARIES})
+  # not supported by MSVC/Clang, safe to skip (we use DLLEXPORT annotations)
+  if (UNIX AND NOT APPLE)
+    set_property(TARGET hwy APPEND_STRING PROPERTY
+            LINK_FLAGS " -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version")
+  endif ()
+else()
+  # to uncomment this, finally
+#  add_library(hwy INTERFACE)
+#  target_compile_definitions(hwy INTERFACE -DHWY_HEADER_ONLY)
+#  if (HWY_WARNINGS_ARE_ERRORS)
+#    target_include_directories(hwy INTERFACE
+#            $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
+#            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+#  else()
+#    target_include_directories(hwy SYSTEM INTERFACE
+#            $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
+#            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+#  endif ()
+#  target_link_libraries(hwy INTERFACE ${ATOMICS_LIBRARIES})
+
+  add_library(hwy STATIC)
+  target_compile_features(hwy PUBLIC cxx_std_11)
+  if (NOT HWY_CXX_STD_TGT_COMPILE_FEATURE STREQUAL "cxx_std_11")
+    target_compile_features(hwy PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
+  endif ()
+  target_compile_definitions(hwy PUBLIC -DHWY_HEADER_ONLY)
+  if (HWY_WARNINGS_ARE_ERRORS)
+    target_include_directories(hwy PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
+            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+  else ()
+    target_include_directories(hwy SYSTEM PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
+            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+  endif ()
+  target_link_libraries(hwy PRIVATE ${ATOMICS_LIBRARIES})
+  target_sources(hwy PRIVATE
+#          hwy/abort.cc
+#          hwy/aligned_allocator.cc
+#          hwy/nanobenchmark.cc
+          hwy/per_target.cc
+#          hwy/perf_counters.cc
+#          hwy/print.cc
+#          hwy/profiler.cc
+#          hwy/targets.cc
+#          hwy/timer.cc
+  )
+endif ()
 
 if (HWY_ENABLE_CONTRIB)
 add_library(hwy_contrib ${HWY_LIBRARY_TYPE} ${HWY_CONTRIB_SOURCES})

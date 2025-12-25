@@ -33,14 +33,12 @@ namespace hwy {
 
 #if PROFILER_ENABLED
 
-static constexpr bool kPrintOverhead = true;
-
-// Must zero-init because `ThreadFunc` calls `SetGlobalIdx()` potentially after
-// this is first used in the `pool::Worker` ctor.
-/*static*/ thread_local size_t Profiler::s_global_idx = 0;
+namespace detail {
+constexpr bool kPrintOverhead = true;
 
 // Detects duration of a zero-length zone: timer plus packet overhead.
-static uint64_t DetectSelfOverhead(Profiler& profiler, size_t global_idx) {
+HWY_HEADER_ONLY_FUN
+uint64_t DetectSelfOverhead(Profiler& profiler, size_t global_idx) {
   static const profiler::ZoneHandle zone = profiler.AddZone("DetectSelf");
   profiler::Results results;
   const size_t kNumSamples = 25;
@@ -56,7 +54,7 @@ static uint64_t DetectSelfOverhead(Profiler& profiler, size_t global_idx) {
       }
       durations[idx_duration] =
           static_cast<uint32_t>(profiler.GetFirstDurationAndReset(global_idx));
-    }
+         }
     samples[idx_sample] = robust_statistics::Mode(durations, kNumDurations);
   }
   return robust_statistics::Mode(samples, kNumSamples);
@@ -65,7 +63,8 @@ static uint64_t DetectSelfOverhead(Profiler& profiler, size_t global_idx) {
 // Detects average duration of a zero-length zone, after deducting self
 // overhead. This accounts for the delay before/after capturing start/end
 // timestamps, for example due to fence instructions in timer::Start/Stop.
-static uint64_t DetectChildOverhead(Profiler& profiler, size_t global_idx,
+HWY_HEADER_ONLY_FUN
+uint64_t DetectChildOverhead(Profiler& profiler, size_t global_idx,
                                     uint64_t self_overhead) {
   static const profiler::ZoneHandle zone = profiler.AddZone("DetectChild");
   // Enough for stable measurements, but only about 50 ms startup cost.
@@ -100,7 +99,18 @@ static uint64_t DetectChildOverhead(Profiler& profiler, size_t global_idx,
   }
   return num_samples == 0 ? 0 : robust_statistics::Mode(samples, num_samples);
 }
+// Must zero-init because `ThreadFunc` calls `SetGlobalIdx()` potentially after
+// this is first used in the `pool::Worker` ctor.
+HWY_HEADER_ONLY_FUN
+size_t& GetProfilerGlobalIdx() {
+  thread_local size_t s_global_idx = 0;
+  return s_global_idx;
+}
 
+
+}  // namespace detail
+
+HWY_HEADER_ONLY_FUN
 Profiler::Profiler() {
   const uint64_t t0 = timer::Start();
 
@@ -120,13 +130,13 @@ Profiler::Profiler() {
   profiler::Overheads overheads;
   // WARNING: must pass in `*this` and use `PROFILER_ZONE3` to avoid calling
   // `Profiler::Get()`, because that would re-enter the magic static init.
-  overheads.self = DetectSelfOverhead(*this, kMain);
-  overheads.child = DetectChildOverhead(*this, kMain, overheads.self);
+  overheads.self = detail::DetectSelfOverhead(*this, kMain);
+  overheads.child = detail::DetectChildOverhead(*this, kMain, overheads.self);
   for (size_t worker = 0; worker < profiler::kMaxWorkers; ++worker) {
     workers_[worker].SetOverheads(overheads);
   }
 
-  HWY_IF_CONSTEXPR(kPrintOverhead) {
+  HWY_IF_CONSTEXPR(detail::kPrintOverhead) {
     printf("Self overhead: %.0f; child: %.0f; elapsed %.1f ms\n",
            static_cast<double>(overheads.self),
            static_cast<double>(overheads.child),
@@ -135,9 +145,17 @@ Profiler::Profiler() {
   }
 }
 
+HWY_HEADER_ONLY_FUN
+size_t Profiler::Thread() { return detail::GetProfilerGlobalIdx(); }
+HWY_HEADER_ONLY_FUN
+size_t Profiler::GlobalIdx() { return detail::GetProfilerGlobalIdx(); }
+HWY_HEADER_ONLY_FUN
+void Profiler::SetGlobalIdx(size_t global_idx) { detail::GetProfilerGlobalIdx() = global_idx; }
+
 #endif  // PROFILER_ENABLED
 
 // Even if disabled, we want to export the symbol.
+HWY_HEADER_ONLY_FUN
 HWY_DLLEXPORT Profiler& Profiler::Get() {
   static Profiler* profiler = new Profiler();
   return *profiler;

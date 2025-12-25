@@ -23,6 +23,7 @@
 namespace hwy {
 namespace detail {
 
+HWY_HEADER_ONLY_FUN
 HWY_DLLEXPORT void TypeName(const TypeInfo& info, size_t N, char* string100) {
   const char prefix = info.is_float ? 'f' : (info.is_signed ? 'i' : 'u');
   // Omit the xN suffix for scalars.
@@ -39,6 +40,7 @@ HWY_DLLEXPORT void TypeName(const TypeInfo& info, size_t N, char* string100) {
 
 // The NOLINT are to suppress the warning about passing 100 instead of
 // `sizeof(string100)`, which is a pointer.
+HWY_HEADER_ONLY_FUN
 HWY_DLLEXPORT void ToString(const TypeInfo& info, const void* ptr,
                             char* string100) {
   if (info.sizeof_t == 1) {
@@ -111,6 +113,7 @@ HWY_DLLEXPORT void ToString(const TypeInfo& info, const void* ptr,
   }
 }
 
+HWY_HEADER_ONLY_FUN
 HWY_DLLEXPORT void PrintArray(const TypeInfo& info, const char* caption,
                               const void* array_void, size_t N, size_t lane_u,
                               size_t max_lanes) {
