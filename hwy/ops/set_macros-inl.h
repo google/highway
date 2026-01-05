@@ -1,5 +1,6 @@
 // Copyright 2020 Google LLC
-// Copyright 2024-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+// Copyright 2024-2025 Arm Limited and/or its affiliates
+// <open-source-office@arm.com>
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: BSD-3-Clause
 //

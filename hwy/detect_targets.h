@@ -819,6 +819,9 @@
 // Allow opting out, and without a guarantee of success, opting-in.
 #ifndef HWY_HAVE_RUNTIME_DISPATCH
 // Clang, GCC and MSVC allow OS-independent runtime dispatch on x86.
+// Wasm does not, because browsers reject a binary containing any SIMD
+// instructions when the browser does not support them. Typical practice there
+// is to build two binaries, one with the -msimd128 flag.
 #if HWY_ARCH_X86 || HWY_HAVE_RUNTIME_DISPATCH_RVV ||                          \
     HWY_HAVE_RUNTIME_DISPATCH_APPLE || HWY_HAVE_RUNTIME_DISPATCH_LOONGARCH || \
     HWY_HAVE_RUNTIME_DISPATCH_LINUX
