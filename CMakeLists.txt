@@ -756,9 +756,10 @@ endif()  # HWY_ENABLE_CONTRIB
 endif()  # HWY_ENABLE_EXAMPLES
 # -------------------------------------------------------- Tests
 
+if(HWY_ENABLE_TESTS)
 include(CTest)
 
-if(BUILD_TESTING AND HWY_ENABLE_TESTS)
+if(BUILD_TESTING)
 enable_testing()
 include(GoogleTest)
 
@@ -952,6 +953,7 @@ endforeach ()
 target_sources(skeleton_test PRIVATE hwy/examples/skeleton.cc)
 
 endif()  # BUILD_TESTING
+endif()  # HWY_ENABLE_TESTS
 
 if (HWY_ENABLE_INSTALL)
   # write hwy-config file to handle `Config` mode
