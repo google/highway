@@ -1295,12 +1295,10 @@ HWY_API VFromD<RebindToSigned<DFromV<V>>> FloorInt(V v) {
 template <class V, HWY_IF_FLOAT_V(V)>
 HWY_API V MulByPow2(V v, VFromD<RebindToSigned<DFromV<V>>> exp) {
   const DFromV<decltype(v)> df;
-  const RebindToUnsigned<decltype(df)> du;
   const RebindToSigned<decltype(df)> di;
 
   using TF = TFromD<decltype(df)>;
   using TI = TFromD<decltype(di)>;
-  using TU = TFromD<decltype(du)>;
 
   using VF = VFromD<decltype(df)>;
   using VI = VFromD<decltype(di)>;
@@ -1322,85 +1320,43 @@ HWY_API V MulByPow2(V v, VFromD<RebindToSigned<DFromV<V>>> exp) {
   using TExpMinMax = TI;
 #endif
 
-#if HWY_TARGET == HWY_EMU128 || HWY_TARGET == HWY_SCALAR
-  using TExpSatSub = TU;
-#elif HWY_TARGET <= HWY_SSE2 || HWY_TARGET == HWY_WASM || \
-    HWY_TARGET == HWY_WASM_EMU256
-  using TExpSatSub = If<(sizeof(TF) == 4), uint8_t, uint16_t>;
-#elif HWY_TARGET_IS_PPC
-  using TExpSatSub = If<(sizeof(TF) >= 4), uint32_t, TU>;
-#else
-  using TExpSatSub = If<(sizeof(TF) == 4), uint8_t, TU>;
-#endif
-
   static_assert(kExpBias <= static_cast<TI>(LimitsMax<TExpMinMax>() / 3),
                 "kExpBias <= LimitsMax<TExpMinMax>() / 3 must be true");
 
   const Repartition<TExpMinMax, decltype(df)> d_exp_min_max;
-  const Repartition<TExpSatSub, decltype(df)> d_sat_exp_sub;
 
-  constexpr int kNumOfExpBits = ExponentBits<TF>();
   constexpr int kNumOfMantBits = MantissaBits<TF>();
 
-  // The sign bit of BitCastScalar<TU>(a[i]) >> kNumOfMantBits can be zeroed out
-  // using SaturatedSub if kZeroOutSignUsingSatSub is true.
-
-  // If kZeroOutSignUsingSatSub is true, then val_for_exp_sub will be bitcasted
-  // to a vector that has a smaller lane size than TU for the SaturatedSub
-  // operation below.
-  constexpr bool kZeroOutSignUsingSatSub =
-      ((sizeof(TExpSatSub) * 8) == static_cast<size_t>(kNumOfExpBits));
-
-  // If kZeroOutSignUsingSatSub is true, then the upper
-  // (sizeof(TU) - sizeof(TExpSatSub)) * 8 bits of kExpDecrBy1Bits will be all
-  // ones and the lower sizeof(TExpSatSub) * 8 bits of kExpDecrBy1Bits will be
-  // equal to 1.
-
-  // Otherwise, if kZeroOutSignUsingSatSub is false, kExpDecrBy1Bits will be
-  // equal to 1.
-  constexpr TU kExpDecrBy1Bits = static_cast<TU>(
-      TU{1} - (static_cast<TU>(kZeroOutSignUsingSatSub) << kNumOfExpBits));
-
-  VF val_for_exp_sub = v;
-  HWY_IF_CONSTEXPR(!kZeroOutSignUsingSatSub) {
-    // If kZeroOutSignUsingSatSub is not true, zero out the sign bit of
-    // val_for_exp_sub[i] using Abs
-    val_for_exp_sub = Abs(val_for_exp_sub);
-  }
-
-  // min_exp1_plus_min_exp2[i] is the smallest exponent such that
-  // min_exp1_plus_min_exp2[i] >= 2 - kExpBias * 2 and
-  // std::ldexp(v[i], min_exp1_plus_min_exp2[i]) is a normal floating-point
-  // number if v[i] is a normal number
-  const VI min_exp1_plus_min_exp2 = BitCast(
-      di,
-      Max(BitCast(
-              d_exp_min_max,
-              Neg(BitCast(
-                  di,
-                  SaturatedSub(
-                      BitCast(d_sat_exp_sub, ShiftRight<kNumOfMantBits>(
-                                                 BitCast(du, val_for_exp_sub))),
-                      BitCast(d_sat_exp_sub, Set(du, kExpDecrBy1Bits)))))),
-          BitCast(d_exp_min_max,
-                  Set(di, static_cast<TI>(2 - kExpBias - kExpBias)))));
+  const VI exp_bias = Set(di, kExpBias);
 
   const VI clamped_exp =
-      Max(Min(exp, Set(di, static_cast<TI>(kExpBias * 3))),
-          Add(min_exp1_plus_min_exp2, Set(di, static_cast<TI>(1 - kExpBias))));
+      Clamp(exp, Set(di, 3 - 3 * kExpBias), Set(di, 3 * kExpBias));
 
-  const VI exp1_plus_exp2 = BitCast(
-      di, Max(Min(BitCast(d_exp_min_max,
-                          Sub(clamped_exp, ShiftRight<2>(clamped_exp))),
-                  BitCast(d_exp_min_max,
-                          Set(di, static_cast<TI>(kExpBias + kExpBias)))),
-              BitCast(d_exp_min_max, min_exp1_plus_min_exp2)));
+  const auto min_scale_factor_exp =
+      BitCast(d_exp_min_max, Set(di, 1 - kExpBias));
+  const auto max_scale_factor_exp = BitCast(d_exp_min_max, exp_bias);
 
-  const VI exp1 = ShiftRight<1>(exp1_plus_exp2);
-  const VI exp2 = Sub(exp1_plus_exp2, exp1);
-  const VI exp3 = Sub(clamped_exp, exp1_plus_exp2);
+  // If clamped_exp[i] < 0, ensure that 1 - kExpBias <= exp1[i] <= 0,
+  // 1 - kExpBias <= exp2[i] <= 0, and 1 - kExpBias <= exp3[i] <= 0 are
+  // true.
 
-  const VI exp_bias = Set(di, kExpBias);
+  // In addition, if clamped_exp[i] < 1 - kExpBias, ensure that
+  // exp3[i] == 1 - kExpBias to ensure results are correctly rounded if the
+  // exact value of |x[i] * factor1[i] * factor2[i] * factor3[i]| is less than
+  // the smallest positive normal value.
+
+  // Otherwise, if clamped_exp[i] >= 0, ensure that 0 <= exp1[i] <= kExpBias,
+  // 0 <= exp2[i] <= kExpBias, and 0 <= exp3[i] <= kExpBias are all true.
+
+  const VI exp3 =
+      BitCast(di, Clamp(BitCast(d_exp_min_max, clamped_exp),
+                        min_scale_factor_exp, max_scale_factor_exp));
+
+  const VI clamped_exp_minus_exp3 = Sub(clamped_exp, exp3);
+  const VI exp2 =
+      BitCast(di, Clamp(BitCast(d_exp_min_max, clamped_exp_minus_exp3),
+                        min_scale_factor_exp, max_scale_factor_exp));
+  const VI exp1 = Sub(clamped_exp_minus_exp3, exp2);
 
   const VF factor1 =
       BitCast(df, ShiftLeft<kNumOfMantBits>(Add(exp1, exp_bias)));
@@ -1408,6 +1364,37 @@ HWY_API V MulByPow2(V v, VFromD<RebindToSigned<DFromV<V>>> exp) {
       BitCast(df, ShiftLeft<kNumOfMantBits>(Add(exp2, exp_bias)));
   const VF factor3 =
       BitCast(df, ShiftLeft<kNumOfMantBits>(Add(exp3, exp_bias)));
+
+  // If exp2[i] < 0, then clamped_exp[i] < 1 - kExpBias and
+  // exp3[i] == 1 - kExpBias will both be true. factor3[i] will be equal to the
+  // smallest positive normal value if exp3[i] == 1 - kExpBias.
+
+  // If exp2[i] >= 0, then exp1[i] >= 0 and factor1[i] * factor2[i] >= 1.
+
+  // If exp2[i] < 0 and the exact value of |v[i] * factor1[i] * factor2[i]| is
+  // less than the smallest positive normal value, then the exact value of
+  // |v[i] * factor1[i] * factor2[i] * factor3[i]| will be much smaller than
+  // half of the smallest positive denormal value (since factor3[i] will be
+  // equal to the smallest positive normal value in this case), resulting in a
+  // correctly rounded result in this case.
+
+  // If kExpBias >= kNumOfMantBits + 3 and exp3[i] == 1 - kExpBias are both
+  // true, then factor3[i] will be small enough such that
+  // v[i] * factor1[i] * factor2[i] * factor3[i] will be correctly rounded,
+  // even if the exact value of |v[i] * factor1[i] * factor2[i]| is smaller than
+  // the smallest positive normal value.
+
+  // kExpBias >= kNumOfMantBits + 3 is true for the F16, F32, and F64
+  // floating-point types.
+
+  // Otherwise, either exp2[i] >= 0, the exact value of
+  // |v[i] * factor1[i] * factor2[i]| is greater than or equal to the smallest
+  // positive normal value, or v[i] is NaN. In these cases,
+  // v[i] * factor1[i] * factor2[i] will either be exact or overflow to
+  // infinity (if clamped_exp[i] > 0 and v[i] is a non-zero finite value),
+  // resulting in a correctly rounded result if the exact value of
+  // |v[i] * factor1[i] * factor2[i] * factor3[i]| is less than the smallest
+  // positive normal value.
 
   return Mul(Mul(Mul(v, factor1), factor2), factor3);
 }
