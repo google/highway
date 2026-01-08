@@ -25,7 +25,7 @@
 #include "hwy/base.h"
 
 namespace hwy {
-namespace {
+namespace detail {
 
 #if HWY_ARCH_RISCV && defined(__riscv_v_intrinsic) && \
     __riscv_v_intrinsic >= 11000
@@ -54,6 +54,7 @@ struct AllocationHeader {
 #pragma pack(pop)
 
 // Returns a 'random' (cyclical) offset for AllocateAlignedBytes.
+HWY_HEADER_ONLY_FUN
 size_t NextAlignedOffset() {
   static std::atomic<size_t> next{0};
   static_assert(kAlias % kAlignment == 0, "kAlias must be a multiple");
@@ -66,8 +67,10 @@ size_t NextAlignedOffset() {
 
 }  // namespace
 
+HWY_HEADER_ONLY_FUN
 HWY_DLLEXPORT void* AllocateAlignedBytes(const size_t payload_size,
                                          AllocPtr alloc_ptr, void* opaque_ptr) {
+  using namespace hwy::detail;
   HWY_ASSERT(payload_size != 0);  // likely a bug in caller
   if (payload_size >= std::numeric_limits<size_t>::max() / 2) {
     HWY_DASSERT(false && "payload_size too large");
@@ -114,8 +117,10 @@ HWY_DLLEXPORT void* AllocateAlignedBytes(const size_t payload_size,
   return HWY_ASSUME_ALIGNED(reinterpret_cast<void*>(payload), kAlignment);
 }
 
+HWY_HEADER_ONLY_FUN
 HWY_DLLEXPORT void FreeAlignedBytes(const void* aligned_pointer,
                                     FreePtr free_ptr, void* opaque_ptr) {
+  using namespace hwy::detail;
   if (aligned_pointer == nullptr) return;
 
   const uintptr_t payload = reinterpret_cast<uintptr_t>(aligned_pointer);
@@ -131,10 +136,12 @@ HWY_DLLEXPORT void FreeAlignedBytes(const void* aligned_pointer,
 }
 
 // static
+HWY_HEADER_ONLY_FUN
 HWY_DLLEXPORT void AlignedDeleter::DeleteAlignedArray(void* aligned_pointer,
                                                       FreePtr free_ptr,
                                                       void* opaque_ptr,
                                                       ArrayDeleter deleter) {
+  using namespace hwy::detail;
   if (aligned_pointer == nullptr) return;
 
   const uintptr_t payload = reinterpret_cast<uintptr_t>(aligned_pointer);

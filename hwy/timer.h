@@ -278,4 +278,8 @@ class Stopwatch {
 
 }  // namespace hwy
 
+#ifdef HWY_HEADER_ONLY
+#include "hwy/timer.cc"
+#endif
+
 #endif  // HIGHWAY_HWY_TIMER_H_
