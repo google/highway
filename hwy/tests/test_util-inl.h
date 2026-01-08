@@ -120,10 +120,9 @@ VFromD<D> IotaForSpecial(D d, First first) {
 }
 
 // Compare expected array to vector.
-// TODO(b/287462770): inline to work around incorrect SVE codegen.
 template <class D, typename T = TFromD<D>>
-HWY_INLINE void AssertVecEqual(D d, const T* expected, Vec<D> actual,
-                               const char* filename, const int line) {
+HWY_NOINLINE void AssertVecEqual(D d, const T* expected, Vec<D> actual,
+                                 const char* filename, const int line) {
   const size_t N = Lanes(d);
   auto actual_lanes = AllocateAligned<T>(N);
   HWY_ASSERT(actual_lanes);
@@ -136,10 +135,9 @@ HWY_INLINE void AssertVecEqual(D d, const T* expected, Vec<D> actual,
 }
 
 // Compare expected vector to vector.
-// TODO(b/287462770): inline to work around incorrect SVE codegen.
 template <class D, typename T = TFromD<D>>
-HWY_INLINE void AssertVecEqual(D d, Vec<D> expected, Vec<D> actual,
-                               const char* filename, int line) {
+HWY_NOINLINE void AssertVecEqual(D d, Vec<D> expected, Vec<D> actual,
+                                 const char* filename, int line) {
   const size_t N = Lanes(d);
   auto expected_lanes = AllocateAligned<T>(N);
   auto actual_lanes = AllocateAligned<T>(N);
