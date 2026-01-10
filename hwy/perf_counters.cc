@@ -48,7 +48,7 @@ namespace platform {
 
 namespace detail {
 
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 bool PerfCountersSupported() {
   // This is the documented way.
   struct stat s;
@@ -58,7 +58,7 @@ bool PerfCountersSupported() {
 // If we detect Linux < 6.9 and AMD EPYC, use cycles instead of ref-cycles
 // because the latter is not supported and returns 0, see
 // https://lwn.net/Articles/967791/.
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 uint64_t RefCyclesOrCycles() {
   const uint32_t ref_cycles = PERF_COUNT_HW_REF_CPU_CYCLES;
 
@@ -83,7 +83,7 @@ struct CounterConfig {  // for perf_event_open
   PerfCounters::Counter c;
 };
 
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 std::vector<CounterConfig> AllCounterConfigs() {
   constexpr uint32_t kHW = PERF_TYPE_HARDWARE;
   constexpr uint32_t kSW = PERF_TYPE_SOFTWARE;
@@ -110,7 +110,7 @@ std::vector<CounterConfig> AllCounterConfigs() {
           {PERF_COUNT_HW_CACHE_MISSES, kHW, PerfCounters::kCacheMisses}};
 }
 
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 size_t& PackedIdx(PerfCounters::Counter c) {
   static size_t packed_idx[64];
   return packed_idx[static_cast<size_t>(c)];
@@ -346,7 +346,7 @@ class PMU {
 };
 
 // Monostate, see header.
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 PMU& GetPMU() {
   static PMU& pmu = *new PMU();  // avoids exit-dtor warning (no dtor required)
   return pmu;
@@ -354,15 +354,15 @@ PMU& GetPMU() {
 
 }  // namespace
 
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT bool PerfCounters::Init() { return detail::GetPMU().Init(); }
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT bool PerfCounters::StartAll() { return detail::GetPMU().StartAll(); }
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT void PerfCounters::StopAllAndReset() {
   detail::GetPMU().StopAllAndReset();
 }
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT PerfCounters::PerfCounters() {
   if (HWY_UNLIKELY(!detail::GetPMU().Read(valid_, max_extrapolate_, values_))) {
     valid_ = BitSet64();
@@ -370,21 +370,21 @@ HWY_DLLEXPORT PerfCounters::PerfCounters() {
     hwy::ZeroBytes(values_, sizeof(values_));
   }
 }
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT size_t PerfCounters::IndexForCounter(Counter c) {
   return detail::PackedIdx(c);
 }
 #else
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT bool PerfCounters::Init() { return false; }
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT bool PerfCounters::StartAll() { return false; }
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT void PerfCounters::StopAllAndReset() {}
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT PerfCounters::PerfCounters()
     : max_extrapolate_(1.0), values_{0.0} {}
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT size_t PerfCounters::IndexForCounter(Counter) { return 0; }
 #endif  // HWY_OS_LINUX || HWY_IDE
 

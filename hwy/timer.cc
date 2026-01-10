@@ -30,7 +30,7 @@ namespace detail {
 #if HWY_ARCH_X86
 namespace x86 {
 
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 bool HasRDTSCP() {
   uint32_t abcd[4];
   hwy::x86::Cpuid(0x80000001U, 0, abcd);                    // Extended feature flags
@@ -50,7 +50,7 @@ bool HasRDTSCP() {
 // frequency encoded in x86 GetCpuString because it is misleading on M1 Rosetta,
 // and not reported by AMD. CPUID 0x15 is also not yet widely supported. Also
 // used on RISC-V and aarch64.
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 HWY_MAYBE_UNUSED double MeasureNominalClockRate() {
   double max_ticks_per_sec = 0.0;
   // Arbitrary, enough to ignore 2 outliers without excessive init time.
@@ -82,7 +82,7 @@ HWY_MAYBE_UNUSED double MeasureNominalClockRate() {
 #if HWY_ARCH_PPC && defined(__GLIBC__) && defined(__powerpc64__)
 namespace ppc {
 
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 HWY_INLINE double GetTimebaseFreq() {
   const auto timebase_freq = __ppc_get_timebase_freq();
   // If timebase_freq is greater than 0, then return timebase_freq.
@@ -101,7 +101,7 @@ HWY_INLINE double GetTimebaseFreq() {
 
 namespace platform {
 
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT bool GetCpuString(char* cpu100) {
 #if HWY_ARCH_X86
   uint32_t abcd[4];
@@ -126,13 +126,13 @@ HWY_DLLEXPORT bool GetCpuString(char* cpu100) {
 #endif
 }
 
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT double Now() {
   static const double mul = 1.0 / InvariantTicksPerSecond();
   return static_cast<double>(timer::Start()) * mul;
 }
 
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT bool HaveTimerStop(char* cpu100) {
 #if HWY_ARCH_X86
   if (!detail::x86::HasRDTSCP()) {
@@ -144,7 +144,7 @@ HWY_DLLEXPORT bool HaveTimerStop(char* cpu100) {
   return true;
 }
 
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT double InvariantTicksPerSecond() {
 #if HWY_ARCH_PPC && defined(__GLIBC__) && defined(__powerpc64__)
   static const double freq = detail::ppc::GetTimebaseFreq();
@@ -167,7 +167,7 @@ HWY_DLLEXPORT double InvariantTicksPerSecond() {
 #endif
 }
 
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT uint64_t TimerResolution() {
   char cpu100[100];
   bool can_use_stop = HaveTimerStop(cpu100);

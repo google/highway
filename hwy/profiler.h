@@ -868,7 +868,7 @@ struct Zone {
 #define PROFILER_END_ROOT_RUN() hwy::Profiler::Get().EndRootRun()
 #define PROFILER_PRINT_RESULTS() hwy::Profiler::Get().PrintResults()
 
-#ifdef HWY_HEADER_ONLY
+#if HWY_HEADER_ONLY
 #include "hwy/profiler.cc"
 #endif
 #endif  // HIGHWAY_HWY_PROFILER_H_

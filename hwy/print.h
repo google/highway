@@ -72,7 +72,7 @@ HWY_NOINLINE void PrintArray(const T* value, size_t count) {
 
 }  // namespace hwy
 
-#ifdef HWY_HEADER_ONLY
+#if HWY_HEADER_ONLY
 #include "hwy/print.cc"
 #endif
 #endif  // HWY_PRINT_H_

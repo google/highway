@@ -28,7 +28,7 @@
 
 namespace hwy {
 namespace detail {
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 const timer::Ticks& GetTimerResolution() {
   static const timer::Ticks timer_resolution = platform::TimerResolution();
   return timer_resolution;
@@ -106,7 +106,7 @@ timer::Ticks SampleUntilStable(const double max_rel_mad, double* rel_mad,
 using InputVec = std::vector<FuncInput>;
 
 // Returns vector of unique input values.
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 InputVec UniqueInputs(const FuncInput* inputs, const size_t num_inputs) {
   InputVec unique(inputs, inputs + num_inputs);
   std::sort(unique.begin(), unique.end());
@@ -115,7 +115,7 @@ InputVec UniqueInputs(const FuncInput* inputs, const size_t num_inputs) {
 }
 
 // Returns how often we need to call func for sufficient precision.
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 size_t NumSkip(const Func func, const uint8_t* arg, const InputVec& unique,
                const Params& p) {
   // Min elapsed ticks for any input.
@@ -145,7 +145,7 @@ size_t NumSkip(const Func func, const uint8_t* arg, const InputVec& unique,
 }
 
 // Replicates inputs until we can omit "num_skip" occurrences of an input.
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 InputVec ReplicateInputs(const FuncInput* inputs, const size_t num_inputs,
                          const size_t num_unique, const size_t num_skip,
                          const Params& p) {
@@ -166,7 +166,7 @@ InputVec ReplicateInputs(const FuncInput* inputs, const size_t num_inputs,
 
 // Copies the "full" to "subset" in the same order, but with "num_skip"
 // randomly selected occurrences of "input_to_skip" removed.
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 void FillSubset(const InputVec& full, const FuncInput input_to_skip,
                 const size_t num_skip, InputVec* subset) {
   const size_t count =
@@ -206,7 +206,7 @@ void FillSubset(const InputVec& full, const FuncInput input_to_skip,
 }
 
 // Returns total ticks elapsed for all inputs.
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 timer::Ticks TotalDuration(const Func func, const uint8_t* arg,
                            const InputVec* inputs, const Params& p,
                            double* max_rel_mad) {
@@ -228,7 +228,7 @@ static HWY_NOINLINE FuncOutput EmptyFunc(const void* /*arg*/, const FuncInput in
 
 // Returns overhead of accessing inputs[] and calling a function; this will
 // be deducted from future TotalDuration return values.
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 timer::Ticks Overhead(const uint8_t* arg, const InputVec* inputs,
                       const Params& p) {
   double rel_mad;
@@ -242,10 +242,10 @@ timer::Ticks Overhead(const uint8_t* arg, const InputVec* inputs,
 
 }  // namespace detail
 
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT int Unpredictable1() { return timer::Start() != ~0ULL; }
 
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT size_t Measure(const Func func, const uint8_t* arg,
                              const FuncInput* inputs, const size_t num_inputs,
                              Result* results, const Params& p) {

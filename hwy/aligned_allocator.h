@@ -425,7 +425,7 @@ class AlignedNDArray {
 
 }  // namespace hwy
 
-#ifdef HWY_HEADER_ONLY
+#if HWY_HEADER_ONLY
 #include "hwy/aligned_allocator.cc"
 #endif  // HWY_HEADER_ONLY
 #endif  // HIGHWAY_HWY_ALIGNED_ALLOCATOR_H_

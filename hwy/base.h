@@ -21,13 +21,13 @@
 // IWYU pragma: begin_exports
 #include <stddef.h>
 #include <stdint.h>
-#if defined(HWY_HEADER_ONLY)
+#if HWY_HEADER_ONLY
 #include <stdarg.h>
 #include <stdio.h>
 
-#define HWY_HEADER_ONLY_FUN inline
+#define HWY_HEADER_ONLY_FUNC inline
 #else
-#define HWY_HEADER_ONLY_FUN
+#define HWY_HEADER_ONLY_FUNC
 #endif
 
 #if !defined(HWY_NO_LIBCXX)
@@ -3260,7 +3260,7 @@ HWY_API void PreventElision(T&& output) {
 
 }  // namespace hwy
 
-#if defined(HWY_HEADER_ONLY)
+#if HWY_HEADER_ONLY
 #include "hwy/abort.cc"
 #endif  // HWY_HEADER_ONLY
 #endif  // HIGHWAY_HWY_BASE_H_

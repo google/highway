@@ -22,17 +22,17 @@ namespace hwy {
 
 namespace detail {
 
-HWY_HEADER_ONLY_FUN std::atomic<WarnFunc>& AtomicWarnFunc() {
+HWY_HEADER_ONLY_FUNC std::atomic<WarnFunc>& AtomicWarnFunc() {
   static std::atomic<WarnFunc> func;
   return func;
 }
 
-HWY_HEADER_ONLY_FUN std::atomic<AbortFunc>& AtomicAbortFunc() {
+HWY_HEADER_ONLY_FUNC std::atomic<AbortFunc>& AtomicAbortFunc() {
   static std::atomic<AbortFunc> func;
   return func;
 }
 
-HWY_HEADER_ONLY_FUN std::string GetBaseName(std::string const& file_name) {
+HWY_HEADER_ONLY_FUNC std::string GetBaseName(std::string const& file_name) {
   auto last_slash = file_name.find_last_of("/\\");
   return file_name.substr(last_slash + 1);
 }
@@ -43,29 +43,29 @@ HWY_HEADER_ONLY_FUN std::string GetBaseName(std::string const& file_name) {
 // is required to safely implement `SetWarnFunc`. As a workaround, we store a
 // copy here, update it when called, and return a reference to the copy. This
 // has the added benefit of protecting the actual pointer from modification.
-HWY_HEADER_ONLY_FUN HWY_DLLEXPORT WarnFunc& GetWarnFunc() {
+HWY_HEADER_ONLY_FUNC HWY_DLLEXPORT WarnFunc& GetWarnFunc() {
   static WarnFunc func;
   func = detail::AtomicWarnFunc().load();
   return func;
 }
 
-HWY_HEADER_ONLY_FUN HWY_DLLEXPORT AbortFunc& GetAbortFunc() {
+HWY_HEADER_ONLY_FUNC HWY_DLLEXPORT AbortFunc& GetAbortFunc() {
   static AbortFunc func;
   func = detail::AtomicAbortFunc().load();
   return func;
 }
 
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT WarnFunc SetWarnFunc(WarnFunc func) {
   return detail::AtomicWarnFunc().exchange(func);
 }
 
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT AbortFunc SetAbortFunc(AbortFunc func) {
   return detail::AtomicAbortFunc().exchange(func);
 }
 
-HWY_HEADER_ONLY_FUN HWY_DLLEXPORT void HWY_FORMAT(3, 4)
+HWY_HEADER_ONLY_FUNC HWY_DLLEXPORT void HWY_FORMAT(3, 4)
     Warn(const char* file, int line, const char* format, ...) {
   char buf[800];
   va_list args;
@@ -81,7 +81,7 @@ HWY_HEADER_ONLY_FUN HWY_DLLEXPORT void HWY_FORMAT(3, 4)
   }
 }
 
-HWY_HEADER_ONLY_FUN HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
+HWY_HEADER_ONLY_FUNC HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
     Abort(const char* file, int line, const char* format, ...) {
   char buf[800];
   va_list args;

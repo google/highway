@@ -34,10 +34,10 @@ namespace hwy {
 #if PROFILER_ENABLED
 
 namespace detail {
-constexpr bool kPrintOverhead = true;
+HWY_INLINE_VAR constexpr bool kPrintOverhead = true;
 
 // Detects duration of a zero-length zone: timer plus packet overhead.
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 uint64_t DetectSelfOverhead(Profiler& profiler, size_t global_idx) {
   static const profiler::ZoneHandle zone = profiler.AddZone("DetectSelf");
   profiler::Results results;
@@ -63,7 +63,7 @@ uint64_t DetectSelfOverhead(Profiler& profiler, size_t global_idx) {
 // Detects average duration of a zero-length zone, after deducting self
 // overhead. This accounts for the delay before/after capturing start/end
 // timestamps, for example due to fence instructions in timer::Start/Stop.
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 uint64_t DetectChildOverhead(Profiler& profiler, size_t global_idx,
                                     uint64_t self_overhead) {
   static const profiler::ZoneHandle zone = profiler.AddZone("DetectChild");
@@ -101,7 +101,7 @@ uint64_t DetectChildOverhead(Profiler& profiler, size_t global_idx,
 }
 // Must zero-init because `ThreadFunc` calls `SetGlobalIdx()` potentially after
 // this is first used in the `pool::Worker` ctor.
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 size_t& GetProfilerGlobalIdx() {
   thread_local size_t s_global_idx = 0;
   return s_global_idx;
@@ -110,7 +110,7 @@ size_t& GetProfilerGlobalIdx() {
 
 }  // namespace detail
 
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 Profiler::Profiler() {
   const uint64_t t0 = timer::Start();
 
@@ -145,17 +145,17 @@ Profiler::Profiler() {
   }
 }
 
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 size_t Profiler::Thread() { return detail::GetProfilerGlobalIdx(); }
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 size_t Profiler::GlobalIdx() { return detail::GetProfilerGlobalIdx(); }
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 void Profiler::SetGlobalIdx(size_t global_idx) { detail::GetProfilerGlobalIdx() = global_idx; }
 
 #endif  // PROFILER_ENABLED
 
 // Even if disabled, we want to export the symbol.
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT Profiler& Profiler::Get() {
   static Profiler* profiler = new Profiler();
   return *profiler;

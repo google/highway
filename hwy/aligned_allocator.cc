@@ -54,7 +54,7 @@ struct AllocationHeader {
 #pragma pack(pop)
 
 // Returns a 'random' (cyclical) offset for AllocateAlignedBytes.
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 size_t NextAlignedOffset() {
   static std::atomic<size_t> next{0};
   static_assert(kAlias % kAlignment == 0, "kAlias must be a multiple");
@@ -67,7 +67,7 @@ size_t NextAlignedOffset() {
 
 }  // namespace
 
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT void* AllocateAlignedBytes(const size_t payload_size,
                                          AllocPtr alloc_ptr, void* opaque_ptr) {
   using namespace hwy::detail;
@@ -117,7 +117,7 @@ HWY_DLLEXPORT void* AllocateAlignedBytes(const size_t payload_size,
   return HWY_ASSUME_ALIGNED(reinterpret_cast<void*>(payload), kAlignment);
 }
 
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT void FreeAlignedBytes(const void* aligned_pointer,
                                     FreePtr free_ptr, void* opaque_ptr) {
   using namespace hwy::detail;
@@ -136,7 +136,7 @@ HWY_DLLEXPORT void FreeAlignedBytes(const void* aligned_pointer,
 }
 
 // static
-HWY_HEADER_ONLY_FUN
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT void AlignedDeleter::DeleteAlignedArray(void* aligned_pointer,
                                                       FreePtr free_ptr,
                                                       void* opaque_ptr,

@@ -576,7 +576,7 @@ else()
   if (NOT HWY_CXX_STD_TGT_COMPILE_FEATURE STREQUAL "cxx_std_11")
     target_compile_features(hwy PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
   endif ()
-  target_compile_definitions(hwy PUBLIC -DHWY_HEADER_ONLY)
+  target_compile_definitions(hwy PUBLIC -DHWY_HEADER_ONLY=1)
   if (HWY_WARNINGS_ARE_ERRORS)
     target_include_directories(hwy PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
