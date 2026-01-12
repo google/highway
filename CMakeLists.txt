@@ -537,6 +537,7 @@ if (NOT HWY_CMAKE_HEADER_ONLY)
     target_compile_definitions(hwy PUBLIC TOOLCHAIN_MISS_ASM_HWCAP_H)
   endif ()
   target_compile_definitions(hwy PUBLIC "${DLLEXPORT_TO_DEFINE}")
+  target_compile_definitions(hwy PUBLIC -DHWY_HEADER_ONLY=0)
   target_compile_options(hwy PRIVATE ${HWY_FLAGS})
   set_property(TARGET hwy PROPERTY POSITION_INDEPENDENT_CODE ON)
   set_target_properties(hwy PROPERTIES VERSION ${LIBRARY_VERSION} SOVERSION ${LIBRARY_SOVERSION})
@@ -559,7 +560,7 @@ if (NOT HWY_CMAKE_HEADER_ONLY)
 else()
   # to uncomment this, finally
 #  add_library(hwy INTERFACE)
-#  target_compile_definitions(hwy INTERFACE -DHWY_HEADER_ONLY)
+#  target_compile_definitions(hwy INTERFACE -DHWY_HEADER_ONLY=1)
 #  if (HWY_WARNINGS_ARE_ERRORS)
 #    target_include_directories(hwy INTERFACE
 #            $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>

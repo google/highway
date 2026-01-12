@@ -71,7 +71,7 @@ CLANG_GCC_COPTS = [
     "-Wextra-semi",
     "-Wunreachable-code",
     "-Wshadow",
-    # "-Wmissing-declarations",
+    "-Wmissing-declarations",
 ]
 
 # Warnings supported by Clang and Clang-cl
