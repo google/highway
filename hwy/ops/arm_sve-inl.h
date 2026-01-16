@@ -5491,12 +5491,11 @@ HWY_API size_t StoreMaskBits(D d, svbool_t m, uint8_t* bits) {
   HWY_IF_CONSTEXPR(N < 8) {
     // BitsFromMask guarantees upper bits are zero, hence no masking.
     bits[0] = static_cast<uint8_t>(bits64);
+    return 1;
   }
-  else {
-    static_assert(N % 8 == 0, "N is pow2 >= 8, hence divisible");
-    static_assert(HWY_IS_LITTLE_ENDIAN, "");
-    hwy::CopyBytes<N / 8>(&bits64, bits);
-  }
+  static_assert(N < 8 || N % 8 == 0, "N is pow2 >= 8, hence divisible");
+  static_assert(HWY_IS_LITTLE_ENDIAN, "");
+  hwy::CopyBytes<N / 8>(&bits64, bits);
   constexpr size_t num_bytes = hwy::DivCeil(N, size_t{8});
   return num_bytes;
 #else
@@ -6486,7 +6485,7 @@ HWY_API svfloat32_t ReorderWidenMulAccumulate(Simd<float, N, kPow2> d32,
   return svbfdot_f32(sum0, a, b);
 }
 
-#endif // HWY_SVE_HAVE_BF16_FEATURE
+#endif  // HWY_SVE_HAVE_BF16_FEATURE
 
 template <size_t N, int kPow2>
 HWY_API svint32_t ReorderWidenMulAccumulate(Simd<int32_t, N, kPow2> d32,
@@ -6523,11 +6522,30 @@ HWY_API svuint32_t ReorderWidenMulAccumulate(Simd<uint32_t, N, kPow2> d32,
 }
 
 // ------------------------------ RearrangeToOddPlusEven
+
+// Native BF16: no-op for float accumulators.
+#if HWY_SVE_HAVE_BF16_FEATURE
+
+template <class VW, HWY_IF_FLOAT_V(VW)>
+HWY_API VW RearrangeToOddPlusEven(const VW sum0, const VW) {
+  return sum0;
+}
+
+template <class VW, HWY_IF_NOT_FLOAT_V(VW)>
+HWY_API VW RearrangeToOddPlusEven(const VW sum0, const VW sum1) {
+  // sum0 is the sum of bottom/even lanes and sum1 of top/odd lanes.
+  return Add(sum0, sum1);
+}
+
+#else  // both BF16 and I16/U16 cases require addition.
+
 template <class VW>
 HWY_API VW RearrangeToOddPlusEven(const VW sum0, const VW sum1) {
   // sum0 is the sum of bottom/even lanes and sum1 of top/odd lanes.
   return Add(sum0, sum1);
 }
+
+#endif  // HWY_SVE_HAVE_BF16_FEATURE
 
 // ------------------------------ SumOfMulQuadAccumulate
 
