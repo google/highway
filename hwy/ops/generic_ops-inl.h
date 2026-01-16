@@ -850,6 +850,40 @@ HWY_API MFromD<D> MaskedIsNaN(const M m, const V v) {
 }
 #endif  // HWY_NATIVE_MASKED_COMP
 
+// ------------------------------ Xor3
+
+#if (defined(HWY_NATIVE_XOR3) == \
+     defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_XOR3
+#undef HWY_NATIVE_XOR3
+#else
+#define HWY_NATIVE_XOR3
+#endif
+
+template <class V>
+HWY_API V Xor3(V x1, V x2, V x3) {
+  return Xor(x1, Xor(x2, x3));
+}
+
+#endif  // HWY_NATIVE_XOR3
+
+// ------------------------------ XorAndNot
+
+#if (defined(HWY_NATIVE_BCAX) == \
+     defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_BCAX
+#undef HWY_NATIVE_BCAX
+#else
+#define HWY_NATIVE_BCAX
+#endif
+
+template <class V>
+HWY_API V XorAndNot(const V x, const V a1, const V a2) {
+  return Xor(x, AndNot(a1, a2));
+}
+
+#endif  // HWY_NATIVE_BCAX
+
 // ------------------------------ IfNegativeThenNegOrUndefIfZero
 
 #if (defined(HWY_NATIVE_INTEGER_IF_NEGATIVE_THEN_NEG) == \

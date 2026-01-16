@@ -2903,15 +2903,15 @@ HWY_API Vec128<T, N> And(const Vec128<T, N> a, const Vec128<T, N> b) {
 // ------------------------------ AndNot
 
 namespace detail {
-// reversed_andnot returns a & ~b.
-HWY_NEON_DEF_FUNCTION_INTS_UINTS(reversed_andnot, vbic, _, 2)
+// AndNotSwap returns a & ~b, whereas AndNot is defined as ~a & b.
+HWY_NEON_DEF_FUNCTION_INTS_UINTS(AndNotSwap, vbic, _, 2)
 }  // namespace detail
 
 // Returns ~not_mask & mask.
 template <typename T, size_t N, HWY_IF_NOT_FLOAT(T)>
 HWY_API Vec128<T, N> AndNot(const Vec128<T, N> not_mask,
                             const Vec128<T, N> mask) {
-  return detail::reversed_andnot(mask, not_mask);
+  return detail::AndNotSwap(mask, not_mask);
 }
 
 // Uses the u32/64 defined above.
@@ -2921,7 +2921,7 @@ HWY_API Vec128<T, N> AndNot(const Vec128<T, N> not_mask,
   const DFromV<decltype(mask)> d;
   const RebindToUnsigned<decltype(d)> du;
   VFromD<decltype(du)> ret =
-      detail::reversed_andnot(BitCast(du, mask), BitCast(du, not_mask));
+      detail::AndNotSwap(BitCast(du, mask), BitCast(du, not_mask));
   return BitCast(d, ret);
 }
 
@@ -2951,6 +2951,13 @@ HWY_API Vec128<T, N> Xor(const Vec128<T, N> a, const Vec128<T, N> b) {
 
 // ------------------------------ Xor3
 #if HWY_ARCH_ARM_A64 && defined(__ARM_FEATURE_SHA3)
+
+#ifdef HWY_NATIVE_XOR3
+#undef HWY_NATIVE_XOR3
+#else
+#define HWY_NATIVE_XOR3
+#endif
+
 HWY_NEON_DEF_FUNCTION_FULL_UI(Xor3, veor3, _, 3)
 
 // Half vectors are not natively supported. Two Xor are likely more efficient
@@ -2968,11 +2975,6 @@ HWY_API Vec128<T, N> Xor3(const Vec128<T, N> x1, const Vec128<T, N> x2,
   return BitCast(d, Xor3(BitCast(du, x1), BitCast(du, x2), BitCast(du, x3)));
 }
 
-#else
-template <typename T, size_t N>
-HWY_API Vec128<T, N> Xor3(Vec128<T, N> x1, Vec128<T, N> x2, Vec128<T, N> x3) {
-  return Xor(x1, Xor(x2, x3));
-}
 #endif
 
 // ------------------------------ Or3
@@ -2986,6 +2988,45 @@ template <typename T, size_t N>
 HWY_API Vec128<T, N> OrAnd(Vec128<T, N> o, Vec128<T, N> a1, Vec128<T, N> a2) {
   return Or(o, And(a1, a2));
 }
+
+// ------------------------------ XorAndNot
+#if HWY_ARCH_ARM_A64 && defined(__ARM_FEATURE_SHA3)
+
+#ifdef HWY_NATIVE_BCAX
+#undef HWY_NATIVE_BCAX
+#else
+#define HWY_NATIVE_BCAX
+#endif
+
+namespace detail {
+HWY_NEON_DEF_FUNCTION_FULL_UI(XorAndNotSwap, vbcax, _, 3)
+}  // namespace detail
+
+// As with AndNot, swap the last two arguments because our "negated first"
+// convention mismatches the intrinsics, which have the negated arg last.
+template <class V, HWY_IF_V_SIZE_V(V, 16), HWY_IF_NOT_FLOAT_V(V)>
+HWY_API V XorAndNot(V x, V a1, V a2) {
+  return detail::XorAndNotSwap(x, a2, a1);
+}
+
+// Half vectors are not natively supported. Two ops are likely more efficient
+// than Combine to 128-bit.
+template <typename T, size_t N, HWY_IF_V_SIZE_LE(T, N, 8), HWY_IF_NOT_FLOAT(T)>
+HWY_API Vec128<T, N> XorAndNot(Vec128<T, N> x, Vec128<T, N> a1,
+                               Vec128<T, N> a2) {
+  return Xor(x, AndNot(a1, a2));
+}
+
+template <typename T, size_t N, HWY_IF_FLOAT(T)>
+HWY_API Vec128<T, N> XorAndNot(const Vec128<T, N> x, const Vec128<T, N> a1,
+                               const Vec128<T, N> a2) {
+  const DFromV<decltype(x)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d,
+                 XorAndNot(BitCast(du, x), BitCast(du, a1), BitCast(du, a2)));
+}
+
+#endif
 
 // ------------------------------ Operator overloads (internal-only if float)
 
@@ -7699,7 +7740,7 @@ HWY_API VFromD<DI32> SumOfMulQuadAccumulate(
   return BitCast(di32, Sub(result_sum0, result_sum1));
 }
 
-#endif // __ARM_FEATURE_MATMUL_INT8
+#endif  // __ARM_FEATURE_MATMUL_INT8
 
 #endif  // HWY_TARGET == HWY_NEON_BF16
 

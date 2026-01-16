@@ -872,7 +872,30 @@ HWY_API V AndNot(const V a, const V b) {
 
 #if HWY_SVE_HAVE_2
 
+#ifdef HWY_NATIVE_XOR3
+#undef HWY_NATIVE_XOR3
+#else
+#define HWY_NATIVE_XOR3
+#endif
+
+#ifdef HWY_NATIVE_BCAX
+#undef HWY_NATIVE_BCAX
+#else
+#define HWY_NATIVE_BCAX
+#endif
+
 HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGVVV, Xor3, eor3)
+
+// As with AndNot, we follow the x86 convention where the first argument is
+// negated, whereas the intrinsic has it last.
+#define HWY_SVE_RETV_ARGVVV_SWAP(BASE, CHAR, BITS, HALF, NAME, OP) \
+  HWY_API HWY_SVE_V(BASE, BITS)                                    \
+      NAME(HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b,       \
+           HWY_SVE_V(BASE, BITS) c) {                              \
+    return sv##OP##_##CHAR##BITS(a, c, b);                         \
+  }
+HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGVVV_SWAP, XorAndNot, bcax)
+#undef HWY_SVE_RETV_ARGVVV_SWAP
 
 template <class V, HWY_IF_FLOAT_V(V)>
 HWY_API V Xor3(const V x1, const V x2, const V x3) {
@@ -881,12 +904,15 @@ HWY_API V Xor3(const V x1, const V x2, const V x3) {
   return BitCast(df, Xor3(BitCast(du, x1), BitCast(du, x2), BitCast(du, x3)));
 }
 
-#else
-template <class V>
-HWY_API V Xor3(V x1, V x2, V x3) {
-  return Xor(x1, Xor(x2, x3));
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_API V XorAndNot(const V x, const V a1, const V a2) {
+  const DFromV<V> df;
+  const RebindToUnsigned<decltype(df)> du;
+  return BitCast(df,
+                 XorAndNot(BitCast(du, x), BitCast(du, a1), BitCast(du, a2)));
 }
-#endif
+
+#endif  // HWY_SVE_HAVE_2
 
 // ------------------------------ Or3
 template <class V>

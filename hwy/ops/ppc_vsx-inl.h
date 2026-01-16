@@ -459,12 +459,17 @@ HWY_INLINE V TernaryLogic(V a, V b, V c) {
 }
 
 }  // namespace detail
-#endif  // HWY_PPC_HAVE_10
 
 // ------------------------------ Xor3
+
+#ifdef HWY_NATIVE_XOR3
+#undef HWY_NATIVE_XOR3
+#else
+#define HWY_NATIVE_XOR3
+#endif
+
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Xor3(Vec128<T, N> x1, Vec128<T, N> x2, Vec128<T, N> x3) {
-#if HWY_PPC_HAVE_10
 #if defined(__OPTIMIZE__)
   if (static_cast<int>(detail::IsConstantRawAltivecVect(x1.raw)) +
           static_cast<int>(detail::IsConstantRawAltivecVect(x2.raw)) +
@@ -476,10 +481,33 @@ HWY_API Vec128<T, N> Xor3(Vec128<T, N> x1, Vec128<T, N> x2, Vec128<T, N> x3) {
   {
     return detail::TernaryLogic<0x69>(x1, x2, x3);
   }
-#else
-  return Xor(x1, Xor(x2, x3));
-#endif
 }
+
+// ------------------------------ XorAndNot
+
+#ifdef HWY_NATIVE_BCAX
+#undef HWY_NATIVE_BCAX
+#else
+#define HWY_NATIVE_BCAX
+#endif
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> XorAndNot(Vec128<T, N> x, Vec128<T, N> a1,
+                               Vec128<T, N> a2) {
+#if defined(__OPTIMIZE__)
+  if (static_cast<int>(detail::IsConstantRawAltivecVect(x.raw)) +
+          static_cast<int>(detail::IsConstantRawAltivecVect(a1.raw)) +
+          static_cast<int>(detail::IsConstantRawAltivecVect(a2.raw)) >=
+      2) {
+    return Xor(x, AndNot(a1, a2));
+  } else  // NOLINT
+#endif
+  {
+    return detail::TernaryLogic<0x4B>(x, a1, a2);
+  }
+}
+
+#endif  // HWY_PPC_HAVE_10
 
 // ------------------------------ Or3
 template <typename T, size_t N>

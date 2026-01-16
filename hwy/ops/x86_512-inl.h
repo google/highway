@@ -637,16 +637,48 @@ HWY_API VFromD<D> Iota(D d, const T2 first) {
 
 // ================================================== LOGICAL
 
-// ------------------------------ Not
+#if HWY_X86_HAVE_TERNARY_LOGIC
+namespace detail {
 
-template <typename T>
-HWY_API Vec512<T> Not(const Vec512<T> v) {
-  const DFromV<decltype(v)> d;
-  const RebindToUnsigned<decltype(d)> du;
-  using VU = VFromD<decltype(du)>;
-  const __m512i vu = BitCast(du, v).raw;
-  return BitCast(d, VU{_mm512_ternarylogic_epi32(vu, vu, vu, 0x55)});
-}
+// Per-target partial specialization.
+template <uint8_t kTernLogOp>
+struct TernaryLogicImpl<kTernLogOp, 64> {
+  template <class V>
+  HWY_INLINE V operator()(V a, V b, V c) const {
+    const DFromV<decltype(a)> d;
+    const RebindToUnsigned<decltype(d)> du;
+    using VU = VFromD<decltype(du)>;
+    const __m512i ret = _mm512_ternarylogic_epi64(
+        BitCast(du, a).raw, BitCast(du, b).raw, BitCast(du, c).raw, kTernLogOp);
+    return BitCast(d, VU{ret});
+  }
+};
+
+// Same, but with writemask. If !mask, returns a.
+template <uint8_t kTernLogOp>
+struct MaskedTernaryLogicImpl<kTernLogOp, 64> {
+  template <class V, class D = DFromV<V>, HWY_IF_T_SIZE_D(D, 4)>
+  HWY_INLINE V operator()(MFromD<D> mask, V a, V b, V c) const {
+    const D d;
+    const RebindToUnsigned<decltype(d)> du;
+    using VU = VFromD<decltype(du)>;
+    const __m512i ret = _mm512_mask_ternarylogic_epi32(a.raw, mask.raw, b.raw,
+                                                       c.raw, kTernLogOp);
+    return BitCast(d, VU{ret});
+  }
+  template <class V, class D = DFromV<V>, HWY_IF_T_SIZE_D(D, 8)>
+  HWY_INLINE V operator()(MFromD<D> mask, V a, V b, V c) const {
+    const D d;
+    const RebindToUnsigned<decltype(d)> du;
+    using VU = VFromD<decltype(du)>;
+    const __m512i ret = _mm512_mask_ternarylogic_epi64(a.raw, mask.raw, b.raw,
+                                                       c.raw, kTernLogOp);
+    return BitCast(d, VU{ret});
+  }
+};
+
+}  // namespace detail
+#endif  // HWY_X86_HAVE_TERNARY_LOGIC
 
 // ------------------------------ And
 
@@ -716,66 +748,6 @@ HWY_API Vec512<float> Xor(const Vec512<float> a, const Vec512<float> b) {
 }
 HWY_API Vec512<double> Xor(const Vec512<double> a, const Vec512<double> b) {
   return Vec512<double>{_mm512_xor_pd(a.raw, b.raw)};
-}
-
-// ------------------------------ Xor3
-template <typename T>
-HWY_API Vec512<T> Xor3(Vec512<T> x1, Vec512<T> x2, Vec512<T> x3) {
-#if !HWY_IS_MSAN
-  const DFromV<decltype(x1)> d;
-  const RebindToUnsigned<decltype(d)> du;
-  using VU = VFromD<decltype(du)>;
-  const __m512i ret = _mm512_ternarylogic_epi64(
-      BitCast(du, x1).raw, BitCast(du, x2).raw, BitCast(du, x3).raw, 0x96);
-  return BitCast(d, VU{ret});
-#else
-  return Xor(x1, Xor(x2, x3));
-#endif
-}
-
-// ------------------------------ Or3
-template <typename T>
-HWY_API Vec512<T> Or3(Vec512<T> o1, Vec512<T> o2, Vec512<T> o3) {
-#if !HWY_IS_MSAN
-  const DFromV<decltype(o1)> d;
-  const RebindToUnsigned<decltype(d)> du;
-  using VU = VFromD<decltype(du)>;
-  const __m512i ret = _mm512_ternarylogic_epi64(
-      BitCast(du, o1).raw, BitCast(du, o2).raw, BitCast(du, o3).raw, 0xFE);
-  return BitCast(d, VU{ret});
-#else
-  return Or(o1, Or(o2, o3));
-#endif
-}
-
-// ------------------------------ OrAnd
-template <typename T>
-HWY_API Vec512<T> OrAnd(Vec512<T> o, Vec512<T> a1, Vec512<T> a2) {
-#if !HWY_IS_MSAN
-  const DFromV<decltype(o)> d;
-  const RebindToUnsigned<decltype(d)> du;
-  using VU = VFromD<decltype(du)>;
-  const __m512i ret = _mm512_ternarylogic_epi64(
-      BitCast(du, o).raw, BitCast(du, a1).raw, BitCast(du, a2).raw, 0xF8);
-  return BitCast(d, VU{ret});
-#else
-  return Or(o, And(a1, a2));
-#endif
-}
-
-// ------------------------------ IfVecThenElse
-template <typename T>
-HWY_API Vec512<T> IfVecThenElse(Vec512<T> mask, Vec512<T> yes, Vec512<T> no) {
-#if !HWY_IS_MSAN
-  const DFromV<decltype(yes)> d;
-  const RebindToUnsigned<decltype(d)> du;
-  using VU = VFromD<decltype(du)>;
-  return BitCast(d, VU{_mm512_ternarylogic_epi64(BitCast(du, mask).raw,
-                                                 BitCast(du, yes).raw,
-                                                 BitCast(du, no).raw, 0xCA)});
-#else
-  return IfThenElse(MaskFromVec(mask), yes, no);
-#endif
 }
 
 // ------------------------------ Operator overloads (internal-only if float)
@@ -6769,56 +6741,6 @@ HWY_API Vec512<uint16_t> SumsOfAdjQuadAbsDiff(Vec512<uint8_t> a,
       a, BitCast(d, Broadcast<kBOffset>(BitCast(du32, b))));
 #endif
 }
-
-#if !HWY_IS_MSAN
-// ------------------------------ I32/I64 SaturatedAdd (MaskFromVec)
-
-HWY_API Vec512<int32_t> SaturatedAdd(Vec512<int32_t> a, Vec512<int32_t> b) {
-  const DFromV<decltype(a)> d;
-  const auto sum = a + b;
-  const auto overflow_mask = MaskFromVec(
-      Vec512<int32_t>{_mm512_ternarylogic_epi32(a.raw, b.raw, sum.raw, 0x42)});
-  const auto i32_max = Set(d, LimitsMax<int32_t>());
-  const Vec512<int32_t> overflow_result{_mm512_mask_ternarylogic_epi32(
-      i32_max.raw, MaskFromVec(a).raw, i32_max.raw, i32_max.raw, 0x55)};
-  return IfThenElse(overflow_mask, overflow_result, sum);
-}
-
-HWY_API Vec512<int64_t> SaturatedAdd(Vec512<int64_t> a, Vec512<int64_t> b) {
-  const DFromV<decltype(a)> d;
-  const auto sum = a + b;
-  const auto overflow_mask = MaskFromVec(
-      Vec512<int64_t>{_mm512_ternarylogic_epi64(a.raw, b.raw, sum.raw, 0x42)});
-  const auto i64_max = Set(d, LimitsMax<int64_t>());
-  const Vec512<int64_t> overflow_result{_mm512_mask_ternarylogic_epi64(
-      i64_max.raw, MaskFromVec(a).raw, i64_max.raw, i64_max.raw, 0x55)};
-  return IfThenElse(overflow_mask, overflow_result, sum);
-}
-
-// ------------------------------ I32/I64 SaturatedSub (MaskFromVec)
-
-HWY_API Vec512<int32_t> SaturatedSub(Vec512<int32_t> a, Vec512<int32_t> b) {
-  const DFromV<decltype(a)> d;
-  const auto diff = a - b;
-  const auto overflow_mask = MaskFromVec(
-      Vec512<int32_t>{_mm512_ternarylogic_epi32(a.raw, b.raw, diff.raw, 0x18)});
-  const auto i32_max = Set(d, LimitsMax<int32_t>());
-  const Vec512<int32_t> overflow_result{_mm512_mask_ternarylogic_epi32(
-      i32_max.raw, MaskFromVec(a).raw, i32_max.raw, i32_max.raw, 0x55)};
-  return IfThenElse(overflow_mask, overflow_result, diff);
-}
-
-HWY_API Vec512<int64_t> SaturatedSub(Vec512<int64_t> a, Vec512<int64_t> b) {
-  const DFromV<decltype(a)> d;
-  const auto diff = a - b;
-  const auto overflow_mask = MaskFromVec(
-      Vec512<int64_t>{_mm512_ternarylogic_epi64(a.raw, b.raw, diff.raw, 0x18)});
-  const auto i64_max = Set(d, LimitsMax<int64_t>());
-  const Vec512<int64_t> overflow_result{_mm512_mask_ternarylogic_epi64(
-      i64_max.raw, MaskFromVec(a).raw, i64_max.raw, i64_max.raw, 0x55)};
-  return IfThenElse(overflow_mask, overflow_result, diff);
-}
-#endif  // !HWY_IS_MSAN
 
 // ------------------------------ Mask testing
 

@@ -1305,6 +1305,9 @@ them from 2-argument functions:
 *   <code>V **Or3**(V o1, V o2, V o3)</code>: returns `o1[i] | o2[i] | o3[i]`.
     This is less efficient than `Xor3` on some targets; use that where possible.
 *   <code>V **OrAnd**(V o, V a1, V a2)</code>: returns `o[i] | (a1[i] & a2[i])`.
+*   <code>V **XorAndNot**(V x, V a1, V a2)</code>: returns `x[i] ^ (~a1[i] &
+    a2[i])`. This is useful for conditionally flipping bits.
+
 *   <code>V **BitwiseIfThenElse**(V mask, V yes, V no)</code>: returns
     `((mask[i] & yes[i]) | (~mask[i] & no[i]))`. `BitwiseIfThenElse` is
     equivalent to, but potentially more efficient than `Or(And(mask, yes),

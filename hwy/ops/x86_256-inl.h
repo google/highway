@@ -555,78 +555,48 @@ HWY_API Vec256<double> Xor(Vec256<double> a, Vec256<double> b) {
   return Vec256<double>{_mm256_xor_pd(a.raw, b.raw)};
 }
 
-// ------------------------------ Not
-template <typename T>
-HWY_API Vec256<T> Not(const Vec256<T> v) {
-  const DFromV<decltype(v)> d;
-  using TU = MakeUnsigned<T>;
-#if HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
-  const __m256i vu = BitCast(RebindToUnsigned<decltype(d)>(), v).raw;
-  return BitCast(d, Vec256<TU>{_mm256_ternarylogic_epi32(vu, vu, vu, 0x55)});
-#else
-  return Xor(v, BitCast(d, Vec256<TU>{_mm256_set1_epi32(-1)}));
-#endif
-}
+#if HWY_X86_HAVE_TERNARY_LOGIC
+namespace detail {
 
-// ------------------------------ Xor3
-template <typename T>
-HWY_API Vec256<T> Xor3(Vec256<T> x1, Vec256<T> x2, Vec256<T> x3) {
-#if HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
-  const DFromV<decltype(x1)> d;
-  const RebindToUnsigned<decltype(d)> du;
-  using VU = VFromD<decltype(du)>;
-  const __m256i ret = _mm256_ternarylogic_epi64(
-      BitCast(du, x1).raw, BitCast(du, x2).raw, BitCast(du, x3).raw, 0x96);
-  return BitCast(d, VU{ret});
-#else
-  return Xor(x1, Xor(x2, x3));
-#endif
-}
+// Per-target partial specialization.
+template <uint8_t kTernLogOp>
+struct TernaryLogicImpl<kTernLogOp, 32> {
+  template <class V>
+  HWY_INLINE V operator()(V a, V b, V c) const {
+    const DFromV<decltype(a)> d;
+    const RebindToUnsigned<decltype(d)> du;
+    using VU = VFromD<decltype(du)>;
+    const __m256i ret = _mm256_ternarylogic_epi64(
+        BitCast(du, a).raw, BitCast(du, b).raw, BitCast(du, c).raw, kTernLogOp);
+    return BitCast(d, VU{ret});
+  }
+};
 
-// ------------------------------ Or3
-template <typename T>
-HWY_API Vec256<T> Or3(Vec256<T> o1, Vec256<T> o2, Vec256<T> o3) {
-#if HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
-  const DFromV<decltype(o1)> d;
-  const RebindToUnsigned<decltype(d)> du;
-  using VU = VFromD<decltype(du)>;
-  const __m256i ret = _mm256_ternarylogic_epi64(
-      BitCast(du, o1).raw, BitCast(du, o2).raw, BitCast(du, o3).raw, 0xFE);
-  return BitCast(d, VU{ret});
-#else
-  return Or(o1, Or(o2, o3));
-#endif
-}
+// Same, but with writemask. If !mask, returns a.
+template <uint8_t kTernLogOp>
+struct MaskedTernaryLogicImpl<kTernLogOp, 32> {
+  template <class V, class D = DFromV<V>, HWY_IF_T_SIZE_D(D, 4)>
+  HWY_INLINE V operator()(MFromD<D> mask, V a, V b, V c) const {
+    const D d;
+    const RebindToUnsigned<decltype(d)> du;
+    using VU = VFromD<decltype(du)>;
+    const __m256i ret = _mm256_mask_ternarylogic_epi32(a.raw, mask.raw, b.raw,
+                                                       c.raw, kTernLogOp);
+    return BitCast(d, VU{ret});
+  }
+  template <class V, class D = DFromV<V>, HWY_IF_T_SIZE_D(D, 8)>
+  HWY_INLINE V operator()(MFromD<D> mask, V a, V b, V c) const {
+    const D d;
+    const RebindToUnsigned<decltype(d)> du;
+    using VU = VFromD<decltype(du)>;
+    const __m256i ret = _mm256_mask_ternarylogic_epi64(a.raw, mask.raw, b.raw,
+                                                       c.raw, kTernLogOp);
+    return BitCast(d, VU{ret});
+  }
+};
 
-// ------------------------------ OrAnd
-template <typename T>
-HWY_API Vec256<T> OrAnd(Vec256<T> o, Vec256<T> a1, Vec256<T> a2) {
-#if HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
-  const DFromV<decltype(o)> d;
-  const RebindToUnsigned<decltype(d)> du;
-  using VU = VFromD<decltype(du)>;
-  const __m256i ret = _mm256_ternarylogic_epi64(
-      BitCast(du, o).raw, BitCast(du, a1).raw, BitCast(du, a2).raw, 0xF8);
-  return BitCast(d, VU{ret});
-#else
-  return Or(o, And(a1, a2));
-#endif
-}
-
-// ------------------------------ IfVecThenElse
-template <typename T>
-HWY_API Vec256<T> IfVecThenElse(Vec256<T> mask, Vec256<T> yes, Vec256<T> no) {
-#if HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
-  const DFromV<decltype(yes)> d;
-  const RebindToUnsigned<decltype(d)> du;
-  using VU = VFromD<decltype(du)>;
-  return BitCast(d, VU{_mm256_ternarylogic_epi64(BitCast(du, mask).raw,
-                                                 BitCast(du, yes).raw,
-                                                 BitCast(du, no).raw, 0xCA)});
-#else
-  return IfThenElse(MaskFromVec(mask), yes, no);
-#endif
-}
+}  // namespace detail
+#endif  // HWY_X86_HAVE_TERNARY_LOGIC
 
 // ------------------------------ Operator overloads (internal-only if float)
 
@@ -2159,30 +2129,6 @@ HWY_API Vec256<int16_t> SaturatedAdd(Vec256<int16_t> a, Vec256<int16_t> b) {
   return Vec256<int16_t>{_mm256_adds_epi16(a.raw, b.raw)};
 }
 
-#if HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
-HWY_API Vec256<int32_t> SaturatedAdd(Vec256<int32_t> a, Vec256<int32_t> b) {
-  const DFromV<decltype(a)> d;
-  const auto sum = a + b;
-  const auto overflow_mask = MaskFromVec(
-      Vec256<int32_t>{_mm256_ternarylogic_epi32(a.raw, b.raw, sum.raw, 0x42)});
-  const auto i32_max = Set(d, LimitsMax<int32_t>());
-  const Vec256<int32_t> overflow_result{_mm256_mask_ternarylogic_epi32(
-      i32_max.raw, MaskFromVec(a).raw, i32_max.raw, i32_max.raw, 0x55)};
-  return IfThenElse(overflow_mask, overflow_result, sum);
-}
-
-HWY_API Vec256<int64_t> SaturatedAdd(Vec256<int64_t> a, Vec256<int64_t> b) {
-  const DFromV<decltype(a)> d;
-  const auto sum = a + b;
-  const auto overflow_mask = MaskFromVec(
-      Vec256<int64_t>{_mm256_ternarylogic_epi64(a.raw, b.raw, sum.raw, 0x42)});
-  const auto i64_max = Set(d, LimitsMax<int64_t>());
-  const Vec256<int64_t> overflow_result{_mm256_mask_ternarylogic_epi64(
-      i64_max.raw, MaskFromVec(a).raw, i64_max.raw, i64_max.raw, 0x55)};
-  return IfThenElse(overflow_mask, overflow_result, sum);
-}
-#endif  // HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
-
 // ------------------------------ SaturatedSub
 
 // Returns a - b clamped to the destination range.
@@ -2203,35 +2149,8 @@ HWY_API Vec256<int16_t> SaturatedSub(Vec256<int16_t> a, Vec256<int16_t> b) {
   return Vec256<int16_t>{_mm256_subs_epi16(a.raw, b.raw)};
 }
 
-#if HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
-HWY_API Vec256<int32_t> SaturatedSub(Vec256<int32_t> a, Vec256<int32_t> b) {
-  const DFromV<decltype(a)> d;
-  const auto diff = a - b;
-  const auto overflow_mask = MaskFromVec(
-      Vec256<int32_t>{_mm256_ternarylogic_epi32(a.raw, b.raw, diff.raw, 0x18)});
-  const auto i32_max = Set(d, LimitsMax<int32_t>());
-  const Vec256<int32_t> overflow_result{_mm256_mask_ternarylogic_epi32(
-      i32_max.raw, MaskFromVec(a).raw, i32_max.raw, i32_max.raw, 0x55)};
-  return IfThenElse(overflow_mask, overflow_result, diff);
-}
-
-HWY_API Vec256<int64_t> SaturatedSub(Vec256<int64_t> a, Vec256<int64_t> b) {
-  const DFromV<decltype(a)> d;
-  const auto diff = a - b;
-  const auto overflow_mask = MaskFromVec(
-      Vec256<int64_t>{_mm256_ternarylogic_epi64(a.raw, b.raw, diff.raw, 0x18)});
-  const auto i64_max = Set(d, LimitsMax<int64_t>());
-  const Vec256<int64_t> overflow_result{_mm256_mask_ternarylogic_epi64(
-      i64_max.raw, MaskFromVec(a).raw, i64_max.raw, i64_max.raw, 0x55)};
-  return IfThenElse(overflow_mask, overflow_result, diff);
-}
-#endif  // HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
-
 // ------------------------------ Average
 
-// Returns (a + b + 1) / 2
-
-// Unsigned
 HWY_API Vec256<uint8_t> AverageRound(Vec256<uint8_t> a, Vec256<uint8_t> b) {
   return Vec256<uint8_t>{_mm256_avg_epu8(a.raw, b.raw)};
 }
