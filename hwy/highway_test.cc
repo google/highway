@@ -297,8 +297,9 @@ HWY_NOINLINE void TestAllSignBit() {
   ForFloatTypes(ForPartialVectors<TestSignBitFloat>());
 }
 
+// TODO(b/287462770): inline to work around incorrect SVE codegen
 template <class D, class V>
-HWY_NOINLINE void AssertNaN(D d, VecArg<V> v, const char* file, int line) {
+HWY_INLINE void AssertNaN(D d, VecArg<V> v, const char* file, int line) {
   using T = TFromD<D>;
   const size_t N = Lanes(d);
   if (!AllTrue(d, IsNaN(v))) {
