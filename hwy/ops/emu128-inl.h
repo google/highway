@@ -2899,7 +2899,7 @@ HWY_API VFromD<D> ReorderWidenMulAccumulate(D d32, V16 a, V16 b,
 }
 
 // ------------------------------ RearrangeToOddPlusEven
-template <class VW>
+template <class VW, HWY_IF_NOT_FLOAT_V(VW)>
 HWY_API VW RearrangeToOddPlusEven(VW sum0, VW sum1) {
   return Add(sum0, sum1);
 }

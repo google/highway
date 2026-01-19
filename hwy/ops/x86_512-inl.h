@@ -7545,16 +7545,6 @@ HWY_API VFromD<D> ReorderWidenMulAccumulate(D d, Vec512<int16_t> a,
 #endif
 }
 
-HWY_API Vec512<int32_t> RearrangeToOddPlusEven(const Vec512<int32_t> sum0,
-                                               Vec512<int32_t> /*sum1*/) {
-  return sum0;  // invariant already holds
-}
-
-HWY_API Vec512<uint32_t> RearrangeToOddPlusEven(const Vec512<uint32_t> sum0,
-                                                Vec512<uint32_t> /*sum1*/) {
-  return sum0;  // invariant already holds
-}
-
 // ------------------------------ SumOfMulQuadAccumulate
 
 #if HWY_TARGET <= HWY_AVX3_DL

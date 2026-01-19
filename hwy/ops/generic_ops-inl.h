@@ -5569,7 +5569,7 @@ HWY_API VFromD<DF> MulOddAdd(DF df, VBF a, VBF b, VFromD<DF> c) {
 
 // ------------------------------ ReorderWidenMulAccumulate (MulEvenAdd)
 
-// AVX3_SPR/ZEN4, and NEON with bf16 but not(!) SVE override this.
+// AVX3_SPR/ZEN4, NEON with bf16 and SVE override this.
 #if (defined(HWY_NATIVE_REORDER_WIDEN_MUL_ACC_BF16) == \
      defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_REORDER_WIDEN_MUL_ACC_BF16
@@ -5587,6 +5587,13 @@ HWY_API VFromD<DF> ReorderWidenMulAccumulate(DF df, VBF a, VBF b,
   // longer-latency lane-crossing PromoteTo by using PromoteEvenTo.
   sum1 = MulOddAdd(df, a, b, sum1);
   return MulEvenAdd(df, a, b, sum0);
+}
+
+template <class VW, HWY_IF_FLOAT_V(VW)>
+HWY_API VW RearrangeToOddPlusEven(const VW sum0, const VW sum1) {
+  // sum1 contains the odd lanes and sum0 the even, hence their sum is the
+  // desired pairwise sum.
+  return Add(sum0, sum1);
 }
 
 #endif  // HWY_NATIVE_REORDER_WIDEN_MUL_ACC_BF16

@@ -2406,14 +2406,6 @@ HWY_API Vec256<T32> ReorderWidenMulAccumulate(D32 d32, Vec256<T16> a,
   return sum0;
 }
 
-// ------------------------------ RearrangeToOddPlusEven
-template <typename TW>
-HWY_API Vec256<TW> RearrangeToOddPlusEven(Vec256<TW> sum0, Vec256<TW> sum1) {
-  sum0.v0 = RearrangeToOddPlusEven(sum0.v0, sum1.v0);
-  sum0.v1 = RearrangeToOddPlusEven(sum0.v1, sum1.v1);
-  return sum0;
-}
-
 // ------------------------------ Reductions in generic_ops
 
 // ------------------------------ Lt128

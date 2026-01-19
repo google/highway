@@ -4442,11 +4442,6 @@ HWY_API Vec128<uint32_t, N> RearrangeToOddPlusEven(
   return sum0;  // invariant already holds
 }
 
-template <class VW>
-HWY_API VW RearrangeToOddPlusEven(const VW sum0, const VW sum1) {
-  return Add(sum0, sum1);
-}
-
 // ------------------------------ Demotions
 
 // NOTE: hwy::EnableIf<!hwy::IsSame<V, V>()>* = nullptr is used instead of

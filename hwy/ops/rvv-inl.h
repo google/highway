@@ -6259,11 +6259,6 @@ HWY_API vuint32m8_t RearrangeToOddPlusEven(vuint32m8_t sum0, vuint32m8_t sum1) {
   return Combine(d, hi, lo);
 }
 
-template <class VW, HWY_IF_FLOAT_V(VW)>  // vfloat*
-HWY_API VW RearrangeToOddPlusEven(const VW sum0, const VW sum1) {
-  return Add(sum0, sum1);  // invariant already holds
-}
-
 // ------------------------------ Lt128
 #if HWY_COMPILER_CLANG >= 1700 || HWY_COMPILER_GCC_ACTUAL >= 1400
 

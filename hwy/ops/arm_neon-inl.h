@@ -7461,6 +7461,12 @@ HWY_API VFromD<D> ReorderWidenMulAccumulate(
                               detail::BitCastToRawNeonBF16(b.raw)));
 }
 
+template <size_t N>
+HWY_API Vec128<float, N> RearrangeToOddPlusEven(Vec128<float, N> sum0,
+                                                Vec128<float, N>) {
+  return sum0;
+}
+
 #endif  // HWY_NEON_HAVE_F32_TO_BF16C
 
 template <class D, HWY_IF_I32_D(D)>
@@ -7586,17 +7592,6 @@ HWY_NEON_DEF_PAIRWISE_OPS(Max, vpmax)
 #undef HWY_NEON_DEF_PAIRWISE_OPS
 #undef HWY_NEON_DEF_PAIRWISE_OP
 }  // namespace detail
-
-template <size_t N>
-HWY_API Vec128<float, N> RearrangeToOddPlusEven(Vec128<float, N> sum0,
-                                                Vec128<float, N> sum1) {
-#if HWY_NEON_HAVE_BFLOAT16
-  (void)sum1;  // unused by bf16 ReorderWidenMulAccumulate
-  return sum0;
-#else
-  return Add(sum0, sum1);
-#endif
-}
 
 HWY_API Vec128<int32_t> RearrangeToOddPlusEven(Vec128<int32_t> sum0,
                                                Vec128<int32_t> sum1) {

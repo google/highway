@@ -5881,22 +5881,9 @@ HWY_API VFromD<D32> ReorderWidenMulAccumulate(D32 d32, V16 a, V16 b,
 }
 
 // ------------------------------ RearrangeToOddPlusEven
-template <size_t N>
-HWY_API Vec128<int32_t, N> RearrangeToOddPlusEven(
-    const Vec128<int32_t, N> sum0, const Vec128<int32_t, N> /*sum1*/) {
+template <class VW, HWY_IF_NOT_FLOAT_V(VW)>
+HWY_API VW RearrangeToOddPlusEven(const VW sum0, const VW) {
   return sum0;  // invariant already holds
-}
-
-template <size_t N>
-HWY_API Vec128<uint32_t, N> RearrangeToOddPlusEven(
-    const Vec128<uint32_t, N> sum0, const Vec128<uint32_t, N> /*sum1*/) {
-  return sum0;  // invariant already holds
-}
-
-template <size_t N>
-HWY_API Vec128<float, N> RearrangeToOddPlusEven(const Vec128<float, N> sum0,
-                                                const Vec128<float, N> sum1) {
-  return Add(sum0, sum1);
 }
 
 // ------------------------------ Reductions
