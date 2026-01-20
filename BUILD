@@ -1,4 +1,6 @@
-# Placeholder for cc_test, do not remove
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("//:hwy_tests.bzl", "HWY_TESTS")
 load("@rules_license//rules:license.bzl", "license")
