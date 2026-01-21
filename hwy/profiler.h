@@ -613,11 +613,11 @@ class Profiler {
   // global_idx from `ThreadPool::Run` (if constructed with non-default
   // `PoolWorkerMapping`) to `PROFILER_ZONE2/PROFILER_ZONE3`.
   // DEPRECATED: use `GlobalIdx` instead.
-  static size_t Thread() { return s_global_idx; }
-  static size_t GlobalIdx() { return s_global_idx; }
+  static size_t Thread();
+  static size_t GlobalIdx();
   // Must be called from all worker threads, and once also on the main thread,
   // before any use of `PROFILER_ZONE/PROFILER_FUNC`.
-  static void SetGlobalIdx(size_t global_idx) { s_global_idx = global_idx; }
+  static void SetGlobalIdx(size_t global_idx);
 
   void ReserveWorker(size_t global_idx) {
     HWY_ASSERT(!workers_reserved_.Get(global_idx));
@@ -732,8 +732,6 @@ class Profiler {
       workers_[global_idx].MoveTo(global_idx, accumulators_, results_);
     });
   }
-
-  static thread_local size_t s_global_idx;
 
   // These are atomic because `ThreadFunc` reserves its slot(s) and even
   // `ThreadPool::ThreadPool` may be called concurrently. Both have bit `i` set
@@ -870,4 +868,7 @@ struct Zone {
 #define PROFILER_END_ROOT_RUN() hwy::Profiler::Get().EndRootRun()
 #define PROFILER_PRINT_RESULTS() hwy::Profiler::Get().PrintResults()
 
+#if HWY_HEADER_ONLY
+#include "hwy/profiler.cc"
+#endif
 #endif  // HIGHWAY_HWY_PROFILER_H_

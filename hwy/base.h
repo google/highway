@@ -21,9 +21,13 @@
 // IWYU pragma: begin_exports
 #include <stddef.h>
 #include <stdint.h>
-#if defined(HWY_HEADER_ONLY)
+#if HWY_HEADER_ONLY
 #include <stdarg.h>
 #include <stdio.h>
+
+#define HWY_HEADER_ONLY_FUNC inline
+#else
+#define HWY_HEADER_ONLY_FUNC
 #endif
 
 #if !defined(HWY_NO_LIBCXX)
@@ -284,38 +288,6 @@ namespace hwy {
 //------------------------------------------------------------------------------
 // Abort / Warn
 
-#if defined(HWY_HEADER_ONLY)
-HWY_DLLEXPORT inline void HWY_FORMAT(3, 4)
-    Warn(const char* file, int line, const char* format, ...) {
-  char buf[800];
-  va_list args;
-  va_start(args, format);
-  vsnprintf(buf, sizeof(buf), format, args);
-  va_end(args);
-
-  fprintf(stderr, "Warn at %s:%d: %s\n", file, line, buf);
-}
-
-HWY_DLLEXPORT HWY_NORETURN inline void HWY_FORMAT(3, 4)
-    Abort(const char* file, int line, const char* format, ...) {
-  char buf[800];
-  va_list args;
-  va_start(args, format);
-  vsnprintf(buf, sizeof(buf), format, args);
-  va_end(args);
-
-  fprintf(stderr, "Abort at %s:%d: %s\n", file, line, buf);
-
-  fflush(stderr);
-
-// Now terminate the program:
-#if HWY_ARCH_RISCV
-  exit(1);  // trap/abort just freeze Spike.
-#else
-  abort();  // Compile error without this due to HWY_NORETURN.
-#endif
-}
-#else  // !HWY_HEADER_ONLY
 // Interfaces for custom Warn/Abort handlers.
 typedef void (*WarnFunc)(const char* file, int line, const char* message);
 
@@ -349,8 +321,6 @@ HWY_DLLEXPORT void HWY_FORMAT(3, 4)
 
 HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
     Abort(const char* file, int line, const char* format, ...);
-
-#endif  // HWY_HEADER_ONLY
 
 #define HWY_WARN(format, ...) \
   ::hwy::Warn(__FILE__, __LINE__, format, ##__VA_ARGS__)
@@ -3290,4 +3260,7 @@ HWY_API void PreventElision(T&& output) {
 
 }  // namespace hwy
 
+#if HWY_HEADER_ONLY
+#include "hwy/abort.cc"
+#endif  // HWY_HEADER_ONLY
 #endif  // HIGHWAY_HWY_BASE_H_
