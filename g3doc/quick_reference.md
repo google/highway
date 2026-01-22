@@ -390,6 +390,13 @@ You can detect and influence the set of supported targets:
     order to test each supported target. Calling with `b == 0` restores the
     normal `SupportedTargets` behavior.
 
+**Note on `HWY_ARCH_WASM`**. The target is automatically detected and enabled;
+compiler flags such as -msimd128 are not required. This auto-detection
+behavior is consistent with other architectures (e.g., AVX2, NEON).
+Developers wishing to disable the `HWY_ARCH_WASM` target (e.g., to increase
+browser compatibility, or workaround compiler bugs) should use the
+`HWY_DISABLED_TARGETS` macro.
+
 ## Operations
 
 In the following, the argument or return type `V` denotes a vector with `N`
@@ -2908,6 +2915,13 @@ binary will likely crash. This can only happen if:
 *   the baseline does not include the enabled/attainable target(s), which are
     also not supported by the current CPU, and baseline targets (in particular
     `HWY_SCALAR`) were explicitly disabled.
+
+**Note on WebAssembly:**: The browser validates the WebAssembly module during
+instantiation when using `WebAssembly.instantiate` APIs. If SIMD features are
+unsupported, the entire module is rejected. Therefore, dynamic dispatch between
+targets (such as `HWY_SCALAR` and `HWY_WASM`) based on runtime feature detection
+is not feasible, unlike with native targets. Developers should configure the
+`HWY_ARCH_WASM` target at compile time using the `HWY_DISABLED_TARGETS` macro.
 
 ## Advanced configuration macros
 

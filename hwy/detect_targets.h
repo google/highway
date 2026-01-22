@@ -431,7 +431,7 @@
 // Also check HWY_ARCH to ensure that simulating unknown platforms ends up with
 // HWY_TARGET == HWY_BASELINE_SCALAR.
 
-#if HWY_ARCH_WASM && defined(__wasm_simd128__)
+#if HWY_ARCH_WASM
 #if defined(HWY_WANT_WASM2)
 #define HWY_BASELINE_WASM HWY_WASM_EMU256
 #else
