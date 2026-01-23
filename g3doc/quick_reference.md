@@ -2650,22 +2650,27 @@ The following `ReverseN` must not be called if `Lanes(D()) < N`:
     blocks are taken from `a` and the even blocks from `b`. Returns `b` if the
     vector has no more than one block (i.e. is 128 bits or scalar).
 
+The following ops are undefined for vectors with less than two blocks; callers
+must first check `Lanes` before calling these ops:
+
 *   <code>V **SwapAdjacentBlocks**(V v)</code>: returns a vector where blocks of
-    index `2*i` and `2*i+1` are swapped. Results are undefined for vectors with
-    less than two blocks; callers must first check that via `Lanes`. Only
-    available if `HWY_TARGET != HWY_SCALAR`.
+    index `2*i` and `2*i+1` are swapped.
 
-*   <code>V **InterleaveEvenBlocks**(D, V a, V b)</code>: returns alternating
-    blocks: first/lowest the first from A, then the first from B, then the third
-    from A etc. Results are undefined for vectors with less than two blocks;
-    callers must first check that via `Lanes`. Only available if `HWY_TARGET !=
-    HWY_SCALAR`.
+*   <code>V **InterleaveEvenBlocks**(D, V a, V b)</code>: returns blocks,
+    first/lowest the first from A, then the first from B, then the third from A,
+    then the third from B, etc.
 
-*   <code>V **InterleaveOddBlocks**(D, V a, V b)</code>: returns alternating
-    blocks: first/lowest the second from A, then the second from B, then the
-    fourth from A etc. Results are undefined for vectors with less than two
-    blocks; callers must first check that via `Lanes`. Only available if
-    `HWY_TARGET != HWY_SCALAR`.
+*   <code>V **InterleaveOddBlocks**(D, V a, V b)</code>: returns blocks,
+    first/lowest the second from A, then the second from B, then the fourth from
+    A, the fourth from B, etc.
+
+*   <code>V **InterleaveLowerBlocks**(D, V a, V b)</code>: returns blocks,
+    first/lowest the first from A, then the first from B, then the next from A,
+    then the next from B, etc.
+
+*   <code>V **InterleaveUpperBlocks**(D, V a, V b)</code>: returns blocks,
+    first/lowest the first in the upper half of A, then the first in the upper
+    half of B, then the next highest from A, then the next highest from B, etc.
 
 ### Reductions
 
@@ -2875,6 +2880,9 @@ supported for the `HWY_SCALAR` target.
 
 *   `HWY_NATIVE_DOT_BF16` expands to 1 if `ReorderWidenMulAccumulate` uses a
     native instruction rather than masking and f32 `MulAdd`.
+
+*   `HWY_NATIVE_INTERLEAVE_WHOLE` expands to 1 if `InterleaveWholeLower/Upper`
+    are at least as efficient as `InterleaveLower/Upper`.
 
 *   `HWY_IS_LITTLE_ENDIAN` expands to 1 on little-endian targets and to 0 on
     big-endian targets.

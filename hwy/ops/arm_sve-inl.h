@@ -3592,10 +3592,10 @@ HWY_API V InterleaveUpper(D d, const V a, const V b) {
 }
 
 // ------------------------------ InterleaveWholeLower
-#ifdef HWY_NATIVE_INTERLEAVE_WHOLE
-#undef HWY_NATIVE_INTERLEAVE_WHOLE
+#ifdef HWY_TOGGLE_INTERLEAVE_WHOLE
+#undef HWY_TOGGLE_INTERLEAVE_WHOLE
 #else
-#define HWY_NATIVE_INTERLEAVE_WHOLE
+#define HWY_TOGGLE_INTERLEAVE_WHOLE
 #endif
 
 template <class D>
@@ -4126,6 +4126,48 @@ HWY_API V InterleaveOddBlocks(D d, V a, V b) {
 #else
   constexpr size_t kLanesPerBlock = detail::LanesPerBlock(d);
   return OddEvenBlocks(b, SlideDownLanes(d, a, kLanesPerBlock));
+#endif
+}
+
+// ------------------------------ InterleaveLowerBlocks
+// (InterleaveEvenBlocks)
+
+template <class D, class V = VFromD<D>>
+HWY_API V InterleaveLowerBlocks(D d, V a, V b) {
+#if HWY_TARGET == HWY_SVE_256
+  return InterleaveEvenBlocks(d, a, b);
+#elif HWY_TARGET == HWY_SVE2_128
+  (void)d;
+  (void)b;
+  return a;
+#else
+  const Repartition<uint64_t, decltype(d)> du64;
+  const svuint64_t a64 = BitCast(du64, a);
+  const svuint64_t b64 = BitCast(du64, b);
+  svuint64_t even = detail::InterleaveEven(a64, b64);  // a0 b0 a2 b2
+  svuint64_t odd = detail::InterleaveOdd(a64, b64);    // a1 b1 a3 b3
+  return BitCast(d, detail::ZipLowerSame(even, odd));  // a10 b10
+#endif
+}
+
+// ------------------------------ InterleaveUpperBlocks
+// (ConcatUpperUpper, SlideDownLanes, OddEvenBlocks)
+
+template <class D, class V = VFromD<D>>
+HWY_API V InterleaveUpperBlocks(D d, V a, V b) {
+#if HWY_TARGET == HWY_SVE_256
+  return InterleaveOddBlocks(d, a, b);
+#elif HWY_TARGET == HWY_SVE2_128
+  (void)d;
+  (void)b;
+  return a;
+#else
+  const Repartition<uint64_t, decltype(d)> du64;
+  const svuint64_t a64 = BitCast(du64, a);
+  const svuint64_t b64 = BitCast(du64, b);
+  svuint64_t even = detail::InterleaveEven(a64, b64);  // a0 b0 a2 b2
+  svuint64_t odd = detail::InterleaveOdd(a64, b64);    // a1 b1 a3 b3
+  return BitCast(d, detail::ZipUpperSame(even, odd));  // a32 b32
 #endif
 }
 

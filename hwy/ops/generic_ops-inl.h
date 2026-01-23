@@ -482,11 +482,11 @@ HWY_API V RotateLeft(V v) {
 }
 
 // ------------------------------ InterleaveWholeLower/InterleaveWholeUpper
-#if (defined(HWY_NATIVE_INTERLEAVE_WHOLE) == defined(HWY_TARGET_TOGGLE))
-#ifdef HWY_NATIVE_INTERLEAVE_WHOLE
-#undef HWY_NATIVE_INTERLEAVE_WHOLE
+#if (defined(HWY_TOGGLE_INTERLEAVE_WHOLE) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_TOGGLE_INTERLEAVE_WHOLE
+#undef HWY_TOGGLE_INTERLEAVE_WHOLE
 #else
-#define HWY_NATIVE_INTERLEAVE_WHOLE
+#define HWY_TOGGLE_INTERLEAVE_WHOLE
 #endif
 
 #if HWY_TARGET != HWY_SCALAR || HWY_IDE
@@ -513,7 +513,7 @@ HWY_API VFromD<D> InterleaveWholeUpper(D d, VFromD<D> a, VFromD<D> b) {
 // is implemented in wasm_256-inl.h.
 #endif  // HWY_TARGET != HWY_SCALAR
 
-#endif  // HWY_NATIVE_INTERLEAVE_WHOLE
+#endif  // HWY_TOGGLE_INTERLEAVE_WHOLE
 
 #if HWY_TARGET != HWY_SCALAR || HWY_IDE
 // The InterleaveWholeLower without the optional D parameter is generic for all
