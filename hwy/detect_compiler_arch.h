@@ -290,10 +290,6 @@
 #define HWY_ARCH_ARM_OLD 0
 #endif
 
-// Note: The WASM target is auto-detected and enabled; compiler flags like
-// "-msimd128" are not required. This behavior is consistent with other
-// architectures (e.g., AVX2, NEON). To disable HWY_ARCH_WASM, use the
-// HWY_DISABLED_TARGETS macro. For details, see the quick reference manual.
 #if defined(__EMSCRIPTEN__) || defined(__wasm__) || defined(__WASM__)
 #define HWY_ARCH_WASM 1
 #else
