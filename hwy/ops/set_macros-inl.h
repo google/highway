@@ -66,13 +66,6 @@
 #define HWY_TARGET_IS_SVE 0
 #endif
 
-#if HWY_MAX_BYTES <= 16 || HWY_TARGET_IS_SVE || HWY_TARGET == HWY_RVV || \
-    HWY_TARGET == HWY_WASM_256
-#define HWY_NATIVE_INTERLEAVE_WHOLE 1
-#else
-#define HWY_NATIVE_INTERLEAVE_WHOLE 0
-#endif
-
 #undef HWY_TARGET_IS_NEON
 #if HWY_TARGET & HWY_ALL_NEON
 #define HWY_TARGET_IS_NEON 1
@@ -854,4 +847,11 @@
 #define HWY_ATTR __attribute__((target(HWY_TARGET_STR)))
 #else
 #define HWY_ATTR
+#endif
+
+#if (HWY_MAX_BYTES <= 16) || HWY_TARGET_IS_SVE || (HWY_TARGET == HWY_RVV) || \
+    (HWY_TARGET == HWY_WASM_EMU256)
+#define HWY_NATIVE_INTERLEAVE_WHOLE 1
+#else
+#define HWY_NATIVE_INTERLEAVE_WHOLE 0
 #endif
