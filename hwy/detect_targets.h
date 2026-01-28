@@ -1,5 +1,5 @@
 // Copyright 2021 Google LLC
-// Copyright 2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+// Copyright 2025-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -93,7 +93,7 @@
 #define HWY_SVE2 (1LL << 23)
 #define HWY_SVE (1LL << 24)
 // Bit 25 reserved for NEON
-#define HWY_NEON_BF16 (1LL << 26)  // fp16/dot/bf16 (e.g. Neoverse V2/N2)
+#define HWY_NEON_BF16 (1LL << 26)  // fp16/bf16 (e.g. Neoverse V2/N2)
 // Bit 27 reserved for NEON
 #define HWY_NEON (1LL << 28)  // Implies support for AES
 #define HWY_NEON_WITHOUT_AES (1LL << 29)
@@ -515,9 +515,7 @@
 #undef HWY_BASELINE_NEON
 #if defined(__ARM_FEATURE_AES) &&                    \
     defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC) && \
-    defined(__ARM_FEATURE_DOTPROD) &&                \
-    defined(__ARM_FEATURE_BF16_VECTOR_ARITHMETIC) && \
-    defined(__ARM_FEATURE_MATMUL_INT8)
+    defined(__ARM_FEATURE_BF16_VECTOR_ARITHMETIC)
 #define HWY_BASELINE_NEON HWY_ALL_NEON
 #elif defined(__ARM_FEATURE_AES)
 #define HWY_BASELINE_NEON (HWY_NEON_WITHOUT_AES | HWY_NEON)

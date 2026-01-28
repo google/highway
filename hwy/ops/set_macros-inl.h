@@ -1,5 +1,5 @@
 // Copyright 2020 Google LLC
-// Copyright 2024-2025 Arm Limited and/or its affiliates
+// Copyright 2024-2026 Arm Limited and/or its affiliates
 // <open-source-office@arm.com>
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: BSD-3-Clause
@@ -567,7 +567,7 @@
 #define HWY_TARGET_STR HWY_TARGET_STR_NEON
 #elif HWY_TARGET == HWY_NEON_BF16
 #define HWY_TARGET_STR \
-  HWY_TARGET_STR_FP16 "+bf16+dotprod" HWY_TARGET_STR_NEON
+  HWY_TARGET_STR_FP16 "+bf16" HWY_TARGET_STR_NEON
 #else
 #error "Logic error, missing case"
 #endif  // HWY_TARGET
