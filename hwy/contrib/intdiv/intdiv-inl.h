@@ -1,5 +1,5 @@
 // Copyright 2024 Google LLC
-// Copyright 2025 Fujitsu Limited
+// Copyright 2026 Fujitsu Limited
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: BSD-3-Clause
 //
@@ -14,6 +14,71 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+
+/**********************************************************************************
+ ** Integer division
+ **********************************************************************************
+ * Almost all architectures (except Power10) don't support integer vector division,
+ * and the cost of scalar division on architectures like x86 is too high - it can
+ * take 30 to 40 cycles on modern chips and up to 100 on older ones.
+ *
+ * Therefore we use division by multiplying with a precomputed reciprocal. The
+ * method used in this implementation is based on T. Granlund and P. L. Montgomery,
+ * "Division by invariant integers using multiplication" (see [Figure 4.1, 5.1])
+ * https://gmplib.org/~tege/divcnst-pldi94.pdf
+ * https://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.1.2556
+ *
+ * It shows good performance gains for all architectures, especially on x86.
+ * However, computing divisor parameters is expensive, so this implementation
+ * should only be used when the divisor is a scalar and used multiple times.
+ *
+ * We split the work into two steps:
+ *   1) Precompute parameters from the scalar divisor (multiplier + shifts).
+ *  DivisorParams{U,S}<T> ComputeDivisorParams(T divisor);
+ *     Computes the divisor parameters (multiplier + shifts + sign of divisor).
+ *
+ *   2) Use those parameters to replace per-lane division with MulHigh + shifts.
+ *   Vec<D> IntDiv(D d, Vec<D> dividend, const DivisorParams{U,S}<T>& params);
+ *     Performs the actual division using the precomputed parameters.
+ *
+ ** NOTES:
+ *  - For 64-bit division on Aarch64 and IBM/Power, we fall back to scalar division
+ *    since emulating multiply-high is expensive and both architectures have very
+ *    fast hardware dividers.
+ *  - Power-of-two divisors are optimized to simple shifts.
+ *  - Edge cases like INT_MIN / -1 are handled specially.
+ *
+ ***************************************************************
+ ** Figure 4.1: Unsigned division by run-time invariant divisor
+ ***************************************************************
+ * Initialization (given uword d with 1 <= d < 2^N):
+ *    int l   = ceil(log2(d));
+ *    uword m = 2^N * (2^l - d) / d + 1;
+ *    int sh1 = min(l, 1);
+ *    int sh2 = max(l - 1, 0);
+ *
+ * For q = FLOOR(a/d), all uword:
+ *    uword t1 = MULUH(m, a);
+ *    q = SRL(t1 + SRL(a - t1, sh1), sh2);
+ *
+ ************************************************************************************
+ ** Figure 5.1: Signed division by run-time invariant divisor, rounded towards zero
+ ************************************************************************************
+ * Initialization (given constant sword d with d != 0):
+ *    int l       = max(ceil(log2(abs(d))), 1);
+ *    udword m0   = 1 + (2^(N+l-1)) / abs(d);
+ *    sword  m    = m0 - 2^N;
+ *    sword dsign = XSIGN(d);
+ *    int sh      = l - 1;
+ *
+ * For q = TRUNC(a/d), all sword:
+ *    sword q0 = a + MULSH(m, a);
+ *          q0 = SRA(q0, sh) - XSIGN(a);
+ *    q = EOR(q0, dsign) - dsign;
+ *
+ **********************************************************************************/
+
 
 // Per-target include guard
 #if defined(HIGHWAY_HWY_CONTRIB_INTDIV_INTDIV_INL_H_) == defined(HWY_TARGET_TOGGLE)
@@ -196,6 +261,21 @@ HWY_INLINE unsigned LeadingZeroCount64(uint64_t x) {
 #endif
 }
 
+/**
+ * Divides a 128-bit unsigned integer (high:0) by a 64-bit divisor.
+ * Computes: (high << 64) / divisor
+ *
+ * This function is needed to calculate the multiplier for 64-bit integer
+ * division in the Granlund-Montgomery algorithm.
+ *
+ * Minified version based on Donald Knuth's Algorithm D (Division of nonnegative
+ * integers), and generic implementation in Hacker's Delight.
+ *
+ * See https://skanthak.homepage.t-online.de/division.html
+ * with respect to the license of the Hacker's Delight book
+ * (https://web.archive.org/web/20190408122508/http://www.hackersdelight.org/permissions.htm)
+ */
+
 HWY_INLINE uint64_t DivideHighBy(uint64_t high, uint64_t divisor) {
   HWY_DASSERT(divisor != 0);
 
@@ -262,15 +342,9 @@ HWY_INLINE V ShiftRightUniform(D d, V v, int sh) {
   if constexpr (sizeof(T) * 8 > 8) {
     if (sh & 8)  v = ShiftRight<8>(v);
   }
-  if constexpr (sizeof(T) * 8 > 4) {
-    if (sh & 4)  v = ShiftRight<4>(v);
-  }
-  if constexpr (sizeof(T) * 8 > 2) {
-    if (sh & 2)  v = ShiftRight<2>(v);
-  }
-  if constexpr (sizeof(T) * 8 > 1) {
-    if (sh & 1)  v = ShiftRight<1>(v);
-  }
+  if (sh & 4)  v = ShiftRight<4>(v);
+  if (sh & 2)  v = ShiftRight<2>(v);
+  if (sh & 1)  v = ShiftRight<1>(v);
   return v;
 }
 
@@ -623,7 +697,7 @@ HWY_INLINE V IntDiv(D d, V dividend, const DivisorParamsU<T>& params) {
     }
   #endif
 
-if constexpr (sizeof(T) == 1) {
+if constexpr (sizeof(T) <= 2) {
     if constexpr (D::kPrivateLanes < 2) {
       return detail::ScalarDivPerLane(d, dividend, params.divisor);
     } else {
@@ -638,12 +712,14 @@ if constexpr (sizeof(T) == 1) {
       const auto prod_lo = Mul(lo_wide, mul_wide);
       const auto prod_hi = Mul(hi_wide, mul_wide);
       
+      constexpr int kShift = static_cast<int>(sizeof(T) * 8);
+      
       #if defined(HWY_HAVE_ORDEREDDEMOTE2TO)
-        const V t1 = OrderedDemote2To(d, ShiftRight<8>(prod_lo), ShiftRight<8>(prod_hi));
+        const V t1 = OrderedDemote2To(d, ShiftRight<kShift>(prod_lo), ShiftRight<kShift>(prod_hi));
       #else
         const Half<D> d_half;
-        const auto t1_lo = DemoteTo(d_half, ShiftRight<8>(prod_lo));
-        const auto t1_hi = DemoteTo(d_half, ShiftRight<8>(prod_hi));
+        const auto t1_lo = DemoteTo(d_half, ShiftRight<kShift>(prod_lo));
+        const auto t1_hi = DemoteTo(d_half, ShiftRight<kShift>(prod_hi));
         const V t1 = Combine(d, t1_hi, t1_lo);
       #endif
       
@@ -652,45 +728,7 @@ if constexpr (sizeof(T) == 1) {
       const V sum = Add(t1, shifted);
       return detail::ShiftRightUniform(d, sum, params.shift2);
     }
-  
-} else if constexpr (sizeof(T) == 2) {
-    if constexpr (D::kPrivateLanes < 2) {
-      return detail::ScalarDivPerLane(d, dividend, params.divisor);
-    } else {
-      using TWide = MulType_t<T>;
-      const Repartition<TWide, D> d_wide;
-      
-      const auto lo_wide = PromoteLowerTo(d_wide, dividend);
-      const auto hi_wide = PromoteUpperTo(d_wide, dividend);
-      
-      const auto mul_wide = Set(d_wide, static_cast<TWide>(params.multiplier));
-      
-      const auto prod_lo = Mul(lo_wide, mul_wide);
-      const auto prod_hi = Mul(hi_wide, mul_wide);
-      
-      #if defined(HWY_HAVE_ORDEREDDEMOTE2TO)
-        const V t1 = OrderedDemote2To(d, ShiftRight<16>(prod_lo), ShiftRight<16>(prod_hi));
-      #else
-        const Half<D> d_half;
-        const auto t1_lo = DemoteTo(d_half, ShiftRight<16>(prod_lo));
-        const auto t1_hi = DemoteTo(d_half, ShiftRight<16>(prod_hi));
-        const V t1 = Combine(d, t1_hi, t1_lo);
-      #endif
-      
-      const V diff = Sub(dividend, t1);
-      const V shifted = detail::ShiftRightUniform(d, diff, params.shift1);
-      const V sum = Add(t1, shifted);
-      return detail::ShiftRightUniform(d, sum, params.shift2);
-    }
-} else if constexpr (sizeof(T) == 4) {
-    const V multiplier = Set(d, params.multiplier);
-    const V t1 = MulHigh(dividend, multiplier);
-    const V diff = Sub(dividend, t1);
-    const V shifted = detail::ShiftRightUniform(d, diff, params.shift1);
-    const V sum = Add(t1, shifted);
-    return detail::ShiftRightUniform(d, sum, params.shift2);
-    
-  } else {
+} else {
     const V multiplier = Set(d, params.multiplier);
     const V t1 = MulHigh(dividend, multiplier);
     const V diff = Sub(dividend, t1);
@@ -742,34 +780,7 @@ HWY_INLINE V IntDiv(D d, V dividend, const DivisorParamsS<T>& params) {
 
   V q0;
   
-if constexpr (sizeof(T) == 1) {
-  if constexpr (D::kPrivateLanes < 2) {
-      return detail::ScalarDivPerLane(d, dividend, params.divisor);
-    } else {
-      using TWide = MulType_t<T>;
-      const Repartition<TWide, D> d_wide;
-      
-      const auto lo_wide = PromoteLowerTo(d_wide, dividend);
-      const auto hi_wide = PromoteUpperTo(d_wide, dividend);
-      
-      const auto mul_wide = Set(d_wide, static_cast<TWide>(params.multiplier));
-      
-      const auto prod_lo = Mul(lo_wide, mul_wide);
-      const auto prod_hi = Mul(hi_wide, mul_wide);
-      
-      #if defined(HWY_HAVE_ORDEREDDEMOTE2TO)
-        const auto high = OrderedDemote2To(d, ShiftRight<8>(prod_lo), ShiftRight<8>(prod_hi));
-      #else
-        const Half<D> d_half;
-        const auto high_lo = DemoteTo(d_half, ShiftRight<8>(prod_lo));
-        const auto high_hi = DemoteTo(d_half, ShiftRight<8>(prod_hi));
-        const auto high = Combine(d, high_hi, high_lo);
-      #endif
-      
-      q0 = Add(dividend, high);
-    }
-  
-} else if constexpr (sizeof(T) == 2) {
+if constexpr (sizeof(T) <= 2) {
     if constexpr (D::kPrivateLanes < 2) {
       return detail::ScalarDivPerLane(d, dividend, params.divisor);
     } else {
@@ -784,23 +795,20 @@ if constexpr (sizeof(T) == 1) {
       const auto prod_lo = Mul(lo_wide, mul_wide);
       const auto prod_hi = Mul(hi_wide, mul_wide);
       
+      constexpr int kShift = static_cast<int>(sizeof(T) * 8);
+      
       #if defined(HWY_HAVE_ORDEREDDEMOTE2TO)
-        const auto high = OrderedDemote2To(d, ShiftRight<16>(prod_lo), ShiftRight<16>(prod_hi));
+        const auto high = OrderedDemote2To(d, ShiftRight<kShift>(prod_lo), ShiftRight<kShift>(prod_hi));
       #else
         const Half<D> d_half;
-        const auto high_lo = DemoteTo(d_half, ShiftRight<16>(prod_lo));
-        const auto high_hi = DemoteTo(d_half, ShiftRight<16>(prod_hi));
+        const auto high_lo = DemoteTo(d_half, ShiftRight<kShift>(prod_lo));
+        const auto high_hi = DemoteTo(d_half, ShiftRight<kShift>(prod_hi));
         const auto high = Combine(d, high_hi, high_lo);
       #endif
       
       q0 = Add(dividend, high);
     }
-} else if constexpr (sizeof(T) == 4) {
-    const V multiplier = Set(d, params.multiplier);
-    const V mulh = MulHigh(dividend, multiplier);
-    q0 = Add(dividend, mulh);
-    
-  } else {
+} else {
     const V multiplier = Set(d, params.multiplier);
     const V mulh = MulHigh(dividend, multiplier);
     q0 = Add(dividend, mulh);
