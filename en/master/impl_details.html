@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Highway implementation details &mdash; HIGHWAY nightly documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css" />
+      <link rel="stylesheet" type="text/css" href="_static/css/toggle.css" />
+
+  
+    <link rel="shortcut icon" href="_static/logo-32x32.ico"/>
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+        <script src="_static/js/toggle.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Release testing process" href="release_testing_process.html" />
+    <link rel="prev" title="Frequently Asked Questions" href="faq.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            HIGHWAY
+              <img src="_static/logo.png" class="logo" alt="Logo"/>
+          </a>
+              <div class="version">
+                master
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="README.html">Efficient and performance-portable vector software</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quick_reference.html">API synopsis / quick reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="design_philosophy.html">Design philosophy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">Frequently Asked Questions</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Highway implementation details</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#introduction">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#vectors-vs-tags">Vectors vs. tags</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#adding-a-new-target">Adding a new target</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#when-to-use-inl-h">When to use -inl.h</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#use-of-macros">Use of macros</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#code-reuse-across-targets">Code reuse across targets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#adding-a-new-op">Adding a new op</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#reducing-the-number-of-overloads-via-templates">Reducing the number of overloads via templates</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#deducing-the-simd-argument-type">Deducing the Simd&lt;&gt; argument type</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#documentation-of-platform-specific-intrinsics">Documentation of platform-specific intrinsics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#why-scalar-target">Why scalar target</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="release_testing_process.html">Release testing process</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">HIGHWAY</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Highway implementation details</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/google/highway/blob/master/docs/impl_details.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <div class="section" id="highway-implementation-details">
+<h1>Highway implementation details<a class="headerlink" href="#highway-implementation-details" title="Permalink to this heading"></a></h1>
+<div class="section" id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this heading"></a></h2>
+<p>This doc explains some of the Highway implementation details;
+understanding them is mainly useful for extending the library. Bear in
+mind that Highway is a thin wrapper over ‘intrinsic functions’ provided
+by the compiler.</p>
+</div>
+<div class="section" id="vectors-vs-tags">
+<h2>Vectors vs. tags<a class="headerlink" href="#vectors-vs-tags" title="Permalink to this heading"></a></h2>
+<p>The key to understanding Highway is to differentiate between vectors and
+zero-sized tag arguments. The former store actual data and are mapped by
+the compiler to vector registers. The latter (<code class="docutils literal notranslate"><span class="pre">Simd&lt;&gt;</span></code> and
+<code class="docutils literal notranslate"><span class="pre">SizeTag&lt;&gt;</span></code>) are only used to select among the various overloads of
+functions such as <code class="docutils literal notranslate"><span class="pre">Set</span></code>. This allows Highway to use builtin vector
+types without a class wrapper.</p>
+<p>Class wrappers are problematic for SVE and RVV because LLVM (or at least
+Clang) does not allow member variables whose type is ‘sizeless’ (in
+particular, built-in vectors). To our knowledge, Highway is the only C++
+vector library that supports SVE and RISC-V without compiler flags that
+indicate what the runtime vector length will be. Such flags allow the
+compiler to convert the previously sizeless vectors to known-size vector
+types, which can then be wrapped in classes, but this only makes sense
+for use-cases where the exact hardware is known and rarely changes
+(e.g. supercomputers). By contrast, Highway can run on unknown hardware
+such as heterogeneous clouds or client devices without requiring a
+recompile, nor multiple binaries.</p>
+<p>Note that Highway does use class wrappers where possible, in particular
+NEON, WASM and x86. The wrappers (e.g. Vec128) are in fact required on
+some platforms (x86 and perhaps WASM) because Highway assumes the vector
+arguments passed e.g. to <code class="docutils literal notranslate"><span class="pre">Add</span></code> provide sufficient type information to
+identify the appropriate intrinsic. By contrast, x86’s loosely typed
+<code class="docutils literal notranslate"><span class="pre">__m128i</span></code> built-in type could actually refer to any integer lane type.
+Because some targets use wrappers and others do not, incorrect user code
+may compile on some platforms but not others. This is because passing
+class wrappers as arguments triggers argument-dependent lookup, which
+would find the <code class="docutils literal notranslate"><span class="pre">Add</span></code> function even without namespace qualifiers
+because it resides in the same namespace as the wrapper. Correct user
+code qualifies each call to a Highway op, e.g. with a namespace alias
+<code class="docutils literal notranslate"><span class="pre">hn</span></code>, so <code class="docutils literal notranslate"><span class="pre">hn::Add</span></code>. This works for both wrappers and built-in vector
+types.</p>
+</div>
+<div class="section" id="adding-a-new-target">
+<h2>Adding a new target<a class="headerlink" href="#adding-a-new-target" title="Permalink to this heading"></a></h2>
+<p>Adding a target requires updating about ten locations: adding a macro
+constant to identify it, hooking it into static and dynamic dispatch,
+detecting support at runtime, and identifying the target name. The
+easiest and safest way to do this is to search for one of the target
+identifiers such as <code class="docutils literal notranslate"><span class="pre">HWY_AVX3_DL</span></code>, and add corresponding logic for
+your new target. Note the upper limits on the number of targets per
+platform imposed by <code class="docutils literal notranslate"><span class="pre">HWY_MAX_DYNAMIC_TARGETS</span></code>.</p>
+</div>
+<div class="section" id="when-to-use-inl-h">
+<h2>When to use -inl.h<a class="headerlink" href="#when-to-use-inl-h" title="Permalink to this heading"></a></h2>
+<p>By convention, files whose name ends with <code class="docutils literal notranslate"><span class="pre">-inl.h</span></code> contain vector code
+in the form of inlined function templates. In order to support the
+multiple compilation required for dynamic dispatch on platforms which
+provide several targets, such files generally begin with a ‘per-target
+include guard’ of the form:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1">#if defined(HWY_PATH_NAME_INL_H_) == defined(HWY_TARGET_TOGGLE)</span>
+<span class="c1">#ifdef HWY_PATH_NAME_INL_H_</span>
+<span class="c1">#undef HWY_PATH_NAME_INL_H_</span>
+<span class="c1">#else</span>
+<span class="c1">#define HWY_PATH_NAME_INL_H_</span>
+<span class="c1">#endif</span>
+<span class="o">//</span> <span class="n">contents</span> <span class="n">to</span> <span class="n">include</span> <span class="n">once</span> <span class="n">per</span> <span class="n">target</span>
+<span class="c1">#endif  // HWY_PATH_NAME_INL_H_</span>
+</pre></div>
+</div>
+<p>This toggles the include guard between defined and undefined, which is
+sufficient to ‘reset’ the include guard when beginning a new
+‘compilation pass’ for the next target. This is accomplished by simply
+re-#including the user’s translation unit, which may in turn
+<code class="docutils literal notranslate"><span class="pre">#include</span></code> one or more <code class="docutils literal notranslate"><span class="pre">-inl.h</span></code> files. As an exception,
+<code class="docutils literal notranslate"><span class="pre">hwy/ops/*-inl.h</span></code> do not require include guards because they are all
+included from highway.h, which takes care of this in a single location.
+Note that platforms such as RISC-V which currently only offer a single
+target do not require multiple compilation, but the same mechanism is
+used without actually re-#including. For both of those platforms, it is
+possible that additional targets will later be added, which means this
+mechanism will then be required.</p>
+<p>Instead of a -inl.h file, you can also use a normal .cc/.h component,
+where the vector code is hidden inside the .cc file, and the header only
+declares a normal non-template function whose implementation does
+<code class="docutils literal notranslate"><span class="pre">HWY_DYNAMIC_DISPATCH</span></code> into the vector code. For an example of this,
+see <a class="reference external" href="../hwy/contrib/sort/vqsort.cc">vqsort.cc</a>.</p>
+<p>Considerations for choosing between these alternatives are similar to
+those for regular headers. Inlining and thus <code class="docutils literal notranslate"><span class="pre">-inl.h</span></code> makes sense for
+short functions, or when the function must support many input types and
+is defined as a template. Conversely, non-inline <code class="docutils literal notranslate"><span class="pre">.cc</span></code> files make
+sense when the function is very long (such that call overhead does not
+matter), and/or is only required for a small set of input types. <a class="reference external" href="../hwy/contrib/math/math-inl.h">Math
+functions</a> can fall into either case,
+hence we provide both inline functions and <code class="docutils literal notranslate"><span class="pre">Call*</span></code> wrappers.</p>
+</div>
+<div class="section" id="use-of-macros">
+<h2>Use of macros<a class="headerlink" href="#use-of-macros" title="Permalink to this heading"></a></h2>
+<p>Highway ops are implemented for up to 12 lane types, which can make for
+considerable repetition - even more so for RISC-V, which can have seven
+times as many variants (one per LMUL in <code class="docutils literal notranslate"><span class="pre">[1/8,</span> <span class="pre">8]</span></code>). The various
+backends (implementations of one or more targets) differ in their
+strategies for handling this, in increasing order of macro complexity:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">x86_*</span></code> and <code class="docutils literal notranslate"><span class="pre">wasm_*</span></code> simply write out all the overloads, which is
+straightforward but results in 4K-6K line files.</p></li>
+<li><p><a class="reference external" href="../hwy/ops/arm_sve-inl.h">arm_sve-inl.h</a> defines ‘type list’
+macros <code class="docutils literal notranslate"><span class="pre">HWY_SVE_FOREACH*</span></code> to define all overloads for most ops in a
+single line. Such an approach makes sense because SVE ops are quite
+orthogonal (i.e. generally defined for all types and consistent).</p></li>
+<li><p><a class="reference external" href="../hwy/ops/arm_neon-inl.h">arm_neon-inl.h</a> also uses type list
+macros, but with a more general ‘function builder’ which helps to
+define custom function templates required for ‘unusual’ ops such as
+<code class="docutils literal notranslate"><span class="pre">ShiftLeft</span></code>.</p></li>
+<li><p><a class="reference external" href="../hwy/ops/rvv-inl.h">rvv-inl.h</a> has the most complex system
+because it deals with both type lists and LMUL, plus support for
+widening or narrowing operations. The type lists thus have additional
+arguments, and there are also additional lists for LMUL which can be
+extended or truncated.</p></li>
+</ul>
+</div>
+<div class="section" id="code-reuse-across-targets">
+<h2>Code reuse across targets<a class="headerlink" href="#code-reuse-across-targets" title="Permalink to this heading"></a></h2>
+<p>The set of Highway ops is carefully chosen such that most of them map to
+a single platform-specific intrinsic. However, there are some important
+functions such as <code class="docutils literal notranslate"><span class="pre">AESRound</span></code> which may require emulation, and are
+non-trivial enough that we don’t want to copy them into each target’s
+implementation. Instead, we implement such functions in
+<a class="reference external" href="../hwy/ops/generic_ops-inl.h">generic_ops-inl.h</a>, which is included
+into every backend. To allow some targets to override these functions,
+we use the same per-target include guard mechanism,
+e.g. <code class="docutils literal notranslate"><span class="pre">HWY_NATIVE_AES</span></code>.</p>
+<p>The functions there are typically templated on the vector and/or tag
+types. This is necessary because the vector type depends on the target.
+Although <code class="docutils literal notranslate"><span class="pre">Vec128</span></code> is available on most targets, <code class="docutils literal notranslate"><span class="pre">HWY_SCALAR</span></code>,
+<code class="docutils literal notranslate"><span class="pre">HWY_RVV</span></code> and <code class="docutils literal notranslate"><span class="pre">HWY_SVE*</span></code> lack this type. To enable specialized
+overloads (e.g. only for signed integers), we use the <code class="docutils literal notranslate"><span class="pre">HWY_IF</span></code> SFINAE
+helpers. Example:
+<code class="docutils literal notranslate"><span class="pre">template</span> <span class="pre">&lt;class</span> <span class="pre">V,</span> <span class="pre">class</span> <span class="pre">D</span> <span class="pre">=</span> <span class="pre">DFromV&lt;V&gt;,</span> <span class="pre">HWY_IF_SIGNED_D(D)&gt;</span></code>. Note
+that there is a limited set of <code class="docutils literal notranslate"><span class="pre">HWY_IF</span></code> that work directly with
+vectors, identified by their <code class="docutils literal notranslate"><span class="pre">_V</span></code> suffix. However, the functions
+likely use a <code class="docutils literal notranslate"><span class="pre">D</span></code> type anyway, thus it is convenient to obtain one in
+the template arguments and also use that for <code class="docutils literal notranslate"><span class="pre">HWY_IF_*_D</span></code>.</p>
+<p>For x86, we also avoid some duplication by implementing only once the
+functions which are shared between all targets. They reside in
+<a class="reference external" href="../hwy/ops/x86_128-inl.h">x86_128-inl.h</a> and are also templated on
+the vector type.</p>
+</div>
+<div class="section" id="adding-a-new-op">
+<h2>Adding a new op<a class="headerlink" href="#adding-a-new-op" title="Permalink to this heading"></a></h2>
+<p>Adding an op consists of three steps, listed below. As an example,
+consider
+<a class="reference external" href="https://github.com/google/highway/commit/6c285d64ae50e0f48866072ed3a476fc12df5ab6">https://github.com/google/highway/commit/6c285d64ae50e0f48866072ed3a476fc12df5ab6</a>.</p>
+<ol class="arabic simple">
+<li><p>Document the new op in <code class="docutils literal notranslate"><span class="pre">g3doc/quick_reference.md</span></code> with its function
+signature and a description of what the op does.</p></li>
+<li><p>Implement the op in each <code class="docutils literal notranslate"><span class="pre">ops/*-inl.h</span></code> header. There are two
+exceptions, detailed in the previous section: first,
+<code class="docutils literal notranslate"><span class="pre">generic_ops-inl.h</span></code> is not changed in the common case where the op
+has a unique definition for every target. Second, if the op’s
+definition would be duplicated in <code class="docutils literal notranslate"><span class="pre">x86_256-inl.h</span></code> and
+<code class="docutils literal notranslate"><span class="pre">x86_512-inl.h</span></code>, it may be expressed as a template in
+<code class="docutils literal notranslate"><span class="pre">x86_128-inl.h</span></code> with a <code class="docutils literal notranslate"><span class="pre">class</span> <span class="pre">V</span></code> template argument,
+e.g. <code class="docutils literal notranslate"><span class="pre">TableLookupBytesOr0</span></code>.</p></li>
+<li><p>Pick the appropriate <code class="docutils literal notranslate"><span class="pre">hwy/tests/*_test.cc</span></code> and add a test. This is
+also a three step process: first define a functor that implements the
+test logic (e.g. <code class="docutils literal notranslate"><span class="pre">TestPlusMinus</span></code>), then a function
+(e.g. <code class="docutils literal notranslate"><span class="pre">TestAllPlusMinus</span></code>) that invokes this functor for all lane
+types the op supports, and finally a line near the end of the file
+that invokes the function for all targets:
+<code class="docutils literal notranslate"><span class="pre">HWY_EXPORT_AND_TEST_P(HwyArithmeticTest,</span> <span class="pre">TestAllPlusMinus);</span></code>. Note
+the naming convention that the function has the same name as the
+functor except for the <code class="docutils literal notranslate"><span class="pre">TestAll</span></code> prefix.</p></li>
+</ol>
+</div>
+<div class="section" id="reducing-the-number-of-overloads-via-templates">
+<h2>Reducing the number of overloads via templates<a class="headerlink" href="#reducing-the-number-of-overloads-via-templates" title="Permalink to this heading"></a></h2>
+<p>Most ops are supported for many types. Often it is possible to reuse the
+same implementation. When this works for every possible type, we simply
+use a template. C++ provides several mechanisms for constraining the
+types:</p>
+<ul class="simple">
+<li><p>We can extend templates with SFINAE. Highway provides some
+internal-only <code class="docutils literal notranslate"><span class="pre">HWY_IF_*</span></code> macros for this,
+e.g. <code class="docutils literal notranslate"><span class="pre">template</span> <span class="pre">&lt;typename</span> <span class="pre">T,</span> <span class="pre">HWY_IF_FLOAT(T)&gt;</span>&#160;&#160;&#160;&#160; <span class="pre">bool</span> <span class="pre">IsFiniteT(T</span> <span class="pre">t)</span> <span class="pre">{</span></code>.
+Variants of these with <code class="docutils literal notranslate"><span class="pre">_D</span></code> and <code class="docutils literal notranslate"><span class="pre">_V</span></code> suffixes exist for when the
+argument is a tag or vector type. Although convenient and fairly
+readable, this style sometimes encounters limits in compiler support,
+especially with older MSVC.</p></li>
+<li><p>When the implementation is lengthy and only a few types are
+supported, it can make sense to move the implementation into
+namespace detail and provide one non-template overload for each type;
+each calls the implementation.</p></li>
+<li><p>When the implementation only depends on the size in bits of the lane
+type (instead of whether it is signed/float), we sometimes add
+overloads with an additional <code class="docutils literal notranslate"><span class="pre">SizeTag</span></code> argument to namespace
+detail, and call those from the user-visible template. This may avoid
+compiler limitations relating to the otherwise equivalent
+<code class="docutils literal notranslate"><span class="pre">HWY_IF_T_SIZE(T,</span> <span class="pre">1)</span></code>.</p></li>
+</ul>
+</div>
+<div class="section" id="deducing-the-simd-argument-type">
+<h2>Deducing the Simd&lt;&gt; argument type<a class="headerlink" href="#deducing-the-simd-argument-type" title="Permalink to this heading"></a></h2>
+<p>For functions that take a <code class="docutils literal notranslate"><span class="pre">d</span></code> argument such as <code class="docutils literal notranslate"><span class="pre">Load</span></code>, we usually
+deduce it as a <code class="docutils literal notranslate"><span class="pre">class</span> <span class="pre">D</span></code> template argument rather than deducing the
+individual <code class="docutils literal notranslate"><span class="pre">T</span></code>, <code class="docutils literal notranslate"><span class="pre">N</span></code>, <code class="docutils literal notranslate"><span class="pre">kPow2</span></code> arguments to <code class="docutils literal notranslate"><span class="pre">Simd</span></code>. To obtain
+<code class="docutils literal notranslate"><span class="pre">T</span></code> e.g. for the pointer argument to <code class="docutils literal notranslate"><span class="pre">Load</span></code>, use <code class="docutils literal notranslate"><span class="pre">TFromD&lt;D&gt;</span></code>.
+Rather than <code class="docutils literal notranslate"><span class="pre">N</span></code>, e.g. for stack-allocated arrays on targets where
+<code class="docutils literal notranslate"><span class="pre">!HWY_HAVE_SCALABLE</span></code>, use <code class="docutils literal notranslate"><span class="pre">MaxLanes(d)</span></code>, or where no <code class="docutils literal notranslate"><span class="pre">d</span></code> lvalue is
+available, <code class="docutils literal notranslate"><span class="pre">HWY_MAX_LANES_D(D)</span></code>.</p>
+<p>When there are constraints, such as “only enable when the <code class="docutils literal notranslate"><span class="pre">D</span></code> is
+exactly 128 bits”, be careful not to use <code class="docutils literal notranslate"><span class="pre">Full128&lt;T&gt;</span></code> as the function
+argument type, because this will not match
+<code class="docutils literal notranslate"><span class="pre">Simd&lt;T,</span> <span class="pre">8</span> <span class="pre">/</span> <span class="pre">sizeof(T),</span> <span class="pre">1&gt;</span></code>, i.e. twice a half-vector. Instead use
+<code class="docutils literal notranslate"><span class="pre">HWY_IF_V_SIZE_D(D,</span> <span class="pre">16)</span></code>.</p>
+<p>We could perhaps skip the <code class="docutils literal notranslate"><span class="pre">HWY_IF_V_SIZE_D</span></code> if fixed-size vector or
+mask arguments are present, because they already have the same effect of
+overload resolution. For example, when the arguments are <code class="docutils literal notranslate"><span class="pre">Vec256</span></code> the
+overload defined in x86_256 will be selected. However, also verifying
+the <code class="docutils literal notranslate"><span class="pre">D</span></code> matches the other arguments helps prevent erroneous or
+questionable code from compiling. For example, passing a different <code class="docutils literal notranslate"><span class="pre">D</span></code>
+to <code class="docutils literal notranslate"><span class="pre">Store</span></code> than the one used to create the vector argument might point
+to an error; both should match.</p>
+<p>For functions that accept multiple vector types (these are mainly in
+x86_128, and avoid duplicating those functions in x86_256 and x86_512),
+we use <code class="docutils literal notranslate"><span class="pre">VFrom&lt;D&gt;</span></code>.</p>
+</div>
+<div class="section" id="documentation-of-platform-specific-intrinsics">
+<h2>Documentation of platform-specific intrinsics<a class="headerlink" href="#documentation-of-platform-specific-intrinsics" title="Permalink to this heading"></a></h2>
+<p>When adding a new op, it is often necessary to consult the reference for
+each platform’s intrinsics.</p>
+<p>For x86 targets <code class="docutils literal notranslate"><span class="pre">HWY_SSE2</span></code>, <code class="docutils literal notranslate"><span class="pre">HWY_SSSE3</span></code>, <code class="docutils literal notranslate"><span class="pre">HWY_SSE4</span></code>, <code class="docutils literal notranslate"><span class="pre">HWY_AVX2</span></code>,
+<code class="docutils literal notranslate"><span class="pre">HWY_AVX3</span></code>, <code class="docutils literal notranslate"><span class="pre">HWY_AVX3_DL</span></code>, <code class="docutils literal notranslate"><span class="pre">HWY_AVX3_ZEN4</span></code>, <code class="docutils literal notranslate"><span class="pre">HWY_AVX3_SPR</span></code> Intel
+provides a <a class="reference external" href="https://www.intel.com/content/www/us/en/docs/intrinsics-guide">searchable
+reference</a>.</p>
+<p>For Arm targets <code class="docutils literal notranslate"><span class="pre">HWY_NEON</span></code>, <code class="docutils literal notranslate"><span class="pre">HWY_NEON_WITHOUT_AES</span></code>,
+<code class="docutils literal notranslate"><span class="pre">HWY_NEON_BF16</span></code>, <code class="docutils literal notranslate"><span class="pre">HWY_SVE</span></code> (plus its specialization for 256-bit
+vectors <code class="docutils literal notranslate"><span class="pre">HWY_SVE_256</span></code>), <code class="docutils literal notranslate"><span class="pre">HWY_SVE2</span></code> (plus its specialization for
+128-bit vectors <code class="docutils literal notranslate"><span class="pre">HWY_SVE2_128</span></code>), Arm provides a <a class="reference external" href="https://developer.arm.com/architectures/instruction-sets/intrinsics">searchable
+reference</a>.</p>
+<p>For RISC-V target <code class="docutils literal notranslate"><span class="pre">HWY_RVV</span></code>, we refer to the assembly language
+<a class="reference external" href="https://github.com/riscv/riscv-v-spec/blob/master/v-spec.adoc">specification</a>
+plus the separate <a class="reference external" href="https://github.com/riscv-non-isa/rvv-intrinsic-doc">intrinsics
+specification</a>.</p>
+<p>For WebAssembly target <code class="docutils literal notranslate"><span class="pre">HWY_WASM</span></code>, we recommend consulting the
+<a class="reference external" href="https://github.com/llvm/llvm-project/blob/main/clang/lib/Headers/wasm_simd128.h">intrinsics
+header</a>.
+There is also an unofficial <a class="reference external" href="https://nemequ.github.io/waspr/intrinsics">searchable list of
+intrinsics</a>.</p>
+<p>For POWER targets <code class="docutils literal notranslate"><span class="pre">HWY_PPC8</span></code>, <code class="docutils literal notranslate"><span class="pre">HWY_PPC9</span></code>, <code class="docutils literal notranslate"><span class="pre">HWY_PPC10</span></code>, there is
+<a class="reference external" href="https://files.openpower.foundation/s/9nRDmJgfjM8MpR7">documentation of
+intrinsics</a>,
+the <a class="reference external" href="https://files.openpower.foundation/s/dAYSdGzTfW4j2r2">ISA</a>, plus
+a <a class="reference external" href="https://www.ibm.com/docs/en/openxl-c-and-cpp-aix/17.1.1?">searchable
+reference</a>.</p>
+<p>For ZVector targets <code class="docutils literal notranslate"><span class="pre">HWY_Z14</span></code>, <code class="docutils literal notranslate"><span class="pre">HWY_Z15</span></code>, <code class="docutils literal notranslate"><span class="pre">HWY_Z16</span></code>, there is the
+<a class="reference external" href="https://www.ibm.com/support/pages/zarchitecture-principles-operation">ISA</a>
+(requires IBMid login), plus a <a class="reference external" href="https://www.ibm.com/docs/en/zos/2.5.0?topic=topics-using-vector-programming-support">searchable
+reference</a>.</p>
+<p>For LoongArch, there is a <a class="reference external" href="https://jia.je/unofficial-loongarch-intrinsics-guide/lsx/integer_computation/">list of
+intrinsics</a>
+and <a class="reference external" href="https://loongson.github.io/LoongArch-Documentation/LoongArch-Vol1-EN.html">ISA
+reference</a>.</p>
+</div>
+<div class="section" id="why-scalar-target">
+<h2>Why scalar target<a class="headerlink" href="#why-scalar-target" title="Permalink to this heading"></a></h2>
+<p>There can be various reasons to avoid using vector intrinsics:</p>
+<ul class="simple">
+<li><p>The current CPU may not support any instruction sets generated by
+Highway (on x86, we only target S-SSE3 or newer because its
+predecessor SSE3 was introduced in 2004 and it seems unlikely that
+many users will want to support such old CPUs);</p></li>
+<li><p>The compiler may crash or emit incorrect code for certain intrinsics
+or instruction sets;</p></li>
+<li><p>We may want to estimate the speedup from the vector implementation
+compared to scalar code.</p></li>
+</ul>
+<p>Highway provides either the <code class="docutils literal notranslate"><span class="pre">HWY_SCALAR</span></code> or the <code class="docutils literal notranslate"><span class="pre">HWY_EMU128</span></code> target
+for such use-cases. Both implement ops using standard C++ instead of
+intrinsics. They differ in the vector size: the former always uses
+single-lane vectors and thus cannot implement ops such as <code class="docutils literal notranslate"><span class="pre">AESRound</span></code>
+or <code class="docutils literal notranslate"><span class="pre">TableLookupBytes</span></code>. The latter guarantees 16-byte vectors are
+available like all other Highway targets, and supports all ops. Both of
+these alternatives are slower than native vector code, but they allow
+testing your code even when actual vectors are unavailable.</p>
+<p>One of the above targets is used if the CPU does not support any actual
+SIMD target. To avoid compiling any intrinsics, define
+<code class="docutils literal notranslate"><span class="pre">HWY_COMPILE_ONLY_EMU128</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">HWY_SCALAR</span></code> is only enabled/used <code class="docutils literal notranslate"><span class="pre">#ifdef</span> <span class="pre">HWY_COMPILE_ONLY_SCALAR</span></code>
+(or <code class="docutils literal notranslate"><span class="pre">#if</span> <span class="pre">HWY_BROKEN_EMU128</span></code>). Projects that intend to use it may
+require <code class="docutils literal notranslate"><span class="pre">#if</span> <span class="pre">HWY_TARGET</span> <span class="pre">!=</span> <span class="pre">HWY_SCALAR</span></code> around the ops it does not
+support to prevent compile errors.</p>
+</div>
+</div>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="faq.html" class="btn btn-neutral float-left" title="Frequently Asked Questions" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="release_testing_process.html" class="btn btn-neutral float-right" title="Release testing process" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright Apache 2.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+
+  <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      <span class="fa fa-book"> Read the Docs</span>
+      
+      
+     <span class="fa fa-element">
+     <input class="container_toggle" type="checkbox" id="switch" name="mode">
+     <label for="switch"></label>
+     </span>
+      
+      v: master
+      <span class="fa fa-caret-down"></span>
+    </span>
+    <div class="rst-other-versions">
+      
+      <dl>
+        <dt>Languages</dt>
+        
+           <strong> 
+          <dd><a href="/highway/en/master/">en</a></dd>
+           </strong> 
+        
+          
+          <dd><a href="/highway/zh/master/">zh</a></dd>
+          
+        
+      </dl>
+      
+      
+      <dl>
+        <dt>Versions</dt>
+        
+          
+          <dd><a href="/highway/en/disable_w32_warning/">disable_w32_warning</a></dd>
+          
+        
+           <strong> 
+          <dd><a href="/highway/en/master/">master</a></dd>
+           </strong> 
+        
+      </dl>
+      
+      
+      <dl>
+        <dt>Downloads</dt>
+        
+          <dd><a href="/highway/en/master/highway_en_master.epub">epub</a></dd>
+        
+      </dl>
+      
+      
+      <hr/>
+      Free document hosting provided by <a href="https://pages.github.com/">GitHub Pages</a>.
+ 
+    </div>
+  </div>
+
+ <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>  
+
+  <style>
+         .wy-nav-content { max-width: none; }
+  </style>
+
+
+
+</body>
+</html>
