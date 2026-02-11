@@ -1,5 +1,5 @@
 // Copyright 2019 Google LLC
-// Copyright 2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+// Copyright 2025-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -490,7 +490,6 @@ static int64_t DetectTargets() {
     // Check both known variants for compatibility.
     if ((HasCpuFeature("hw.optional.AdvSIMD_HPFPCvt") ||
          HasCpuFeature("hw.optional.arm.AdvSIMD_HPFPCvt")) &&
-        HasCpuFeature("hw.optional.arm.FEAT_DotProd") &&
         HasCpuFeature("hw.optional.arm.FEAT_BF16")) {
       bits |= HWY_NEON_BF16;
     }
