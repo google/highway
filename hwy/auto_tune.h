@@ -28,7 +28,7 @@
 
 // configuration to allow auto_tune to use std::sort instead of VQSort
 // (also enabled in header only mode).
-#if defined(HWY_HEADER_ONLY)
+#if HWY_HEADER_ONLY
 #define HWY_AUTOTUNE_STDSORT
 #endif
 

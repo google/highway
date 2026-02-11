@@ -153,4 +153,7 @@ class PerfCounters {
 }  // namespace platform
 }  // namespace hwy
 
+#if HWY_HEADER_ONLY
+#include "hwy/perf_counters.cc"
+#endif
 #endif  // HIGHWAY_HWY_PERF_COUNTERS_H_
