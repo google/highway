@@ -122,7 +122,7 @@ AlignedUniquePtr<T> MakeUniqueAlignedWithAlloc(AllocPtr alloc, FreePtr free,
   if (HWY_UNLIKELY(ptr == nullptr)) {
     return AlignedUniquePtr<T>(nullptr, AlignedDeleter(free, opaque));
   }
-#if HWY_EXCEPTIONS_ENABLED
+#ifdef HWY_EXCEPTIONS_ENABLED
   try {
     return AlignedUniquePtr<T>(new (ptr) T(std::forward<Args>(args)...),
                                AlignedDeleter(free, opaque));
@@ -144,7 +144,7 @@ AlignedUniquePtr<T> MakeUniqueAligned(Args&&... args) {
   if (HWY_UNLIKELY(ptr == nullptr)) {
     return AlignedUniquePtr<T>(nullptr, AlignedDeleter());
   }
-#if HWY_EXCEPTIONS_ENABLED
+#ifdef HWY_EXCEPTIONS_ENABLED
   try {
     return AlignedUniquePtr<T>(new (ptr) T(std::forward<Args>(args)...),
                                AlignedDeleter());
