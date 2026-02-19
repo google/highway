@@ -119,8 +119,21 @@ template <typename T, typename... Args>
 AlignedUniquePtr<T> MakeUniqueAlignedWithAlloc(AllocPtr alloc, FreePtr free,
                                                void* opaque, Args&&... args) {
   T* ptr = static_cast<T*>(AllocateAlignedBytes(sizeof(T), alloc, opaque));
+  if (HWY_UNLIKELY(ptr == nullptr)) {
+    return AlignedUniquePtr<T>(nullptr, AlignedDeleter(free, opaque));
+  }
+#if HWY_EXCEPTIONS_ENABLED
+  try {
+    return AlignedUniquePtr<T>(new (ptr) T(std::forward<Args>(args)...),
+                               AlignedDeleter(free, opaque));
+  } catch (...) {
+    FreeAlignedBytes(ptr, free, opaque);
+    throw;
+  }
+#else
   return AlignedUniquePtr<T>(new (ptr) T(std::forward<Args>(args)...),
                              AlignedDeleter(free, opaque));
+#endif
 }
 
 // Similar to MakeUniqueAlignedWithAlloc but using the default alloc/free
@@ -128,8 +141,21 @@ AlignedUniquePtr<T> MakeUniqueAlignedWithAlloc(AllocPtr alloc, FreePtr free,
 template <typename T, typename... Args>
 AlignedUniquePtr<T> MakeUniqueAligned(Args&&... args) {
   T* ptr = static_cast<T*>(AllocateAlignedBytes(sizeof(T)));
+  if (HWY_UNLIKELY(ptr == nullptr)) {
+    return AlignedUniquePtr<T>(nullptr, AlignedDeleter());
+  }
+#if HWY_EXCEPTIONS_ENABLED
+  try {
+    return AlignedUniquePtr<T>(new (ptr) T(std::forward<Args>(args)...),
+                               AlignedDeleter());
+  } catch (...) {
+    FreeAlignedBytes(ptr, nullptr, nullptr);
+    throw;
+  }
+#else
   return AlignedUniquePtr<T>(new (ptr) T(std::forward<Args>(args)...),
                              AlignedDeleter());
+#endif
 }
 
 template <class T>
