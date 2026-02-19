@@ -4556,7 +4556,7 @@ HWY_API Vec128<int64_t, N> operator*(Vec128<int64_t, N> a,
 
 // ------------------------------ RotateRight (ShiftRight, Or)
 
-// U8 RotateRight implementation on AVX3_DL is now in x86_512-inl.h as U8
+// U8 RotateRight implementation on AVX3_DL is now in x86_avx3-inl.h as U8
 // RotateRight uses detail::GaloisAffine on AVX3_DL
 
 #if HWY_TARGET > HWY_AVX3_DL

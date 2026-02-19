@@ -18,11 +18,10 @@
 
 // Target-independent helper functions for use by *_test.cc.
 
+#include <stdio.h>
 #include <string.h>
 
 #include <cmath>  // std::isnan
-#include <iomanip>
-#include <sstream>
 #include <string>
 
 #include "hwy/base.h"
@@ -158,24 +157,6 @@ TU ComputeUlpDelta(const T expected, const T actual) {
   return ulp;
 }
 
-template <typename T>
-std::string FormatMismatchedArrays(const T* expected, const T* actual,
-                                   size_t count, double tolerance) {
-  std::stringstream out;
-  const int precision =
-      std::max(6, static_cast<int>(std::ceil(-std::log10(tolerance))) + 2);
-  out << std::setprecision(precision);
-  out << "\nMismatch:\nExpected:";
-  for (size_t i = 0; i < count; ++i) {
-    out << " " << ConvertScalarTo<double>(expected[i]);
-  }
-  out << "\nActual:  ";
-  for (size_t i = 0; i < count; ++i) {
-    out << " " << ConvertScalarTo<double>(actual[i]);
-  }
-  return out.str();
-}
-
 HWY_TEST_DLLEXPORT bool IsEqual(const TypeInfo& info, const void* expected_ptr,
                                 const void* actual_ptr);
 
@@ -274,7 +255,7 @@ HWY_INLINE void AssertArrayEqual(const T* expected, const T* actual,
 }
 
 namespace internal {
-// Compare with tolerance due to FMA and f16 precision.
+// Returns number of mismatches.
 template <typename T>
 HWY_INLINE bool CompareArraySimilarAndMaybeAbort(const T* expected,
                                                  const T* actual, size_t count,
@@ -282,69 +263,69 @@ HWY_INLINE bool CompareArraySimilarAndMaybeAbort(const T* expected,
                                                  const char* target_name,
                                                  const char* filename, int line,
                                                  bool abort_if_mismatch) {
+  size_t num_mismatches = 0;
   for (size_t i = 0; i < count; ++i) {
     const double exp = ConvertScalarTo<double>(expected[i]);
     const double act = ConvertScalarTo<double>(actual[i]);
     const double l1 = ScalarAbs(act - exp);
-    // Cannot divide, so check absolute error.
-    if (exp == 0.0) {
-      if (l1 > tolerance) {
-        std::string array_values =
-            detail::FormatMismatchedArrays(expected, actual, count, tolerance);
-        if (abort_if_mismatch) {
-          HWY_ABORT("%s %s:%d %s mismatch %zu of %zu: %E %E l1 %E tol %E%s\n",
-                    target_name, filename, line, TypeName(T(), 1).c_str(), i,
-                    count, exp, act, l1, tolerance, array_values.c_str());
-        } else {
-          HWY_WARN("%s %s:%d %s mismatch %zu of %zu: %E %E l1 %E tol %E%s\n",
-                   target_name, filename, line, TypeName(T(), 1).c_str(), i,
-                   count, exp, act, l1, tolerance, array_values.c_str());
+    const double max_l1 = HWY_MAX(tolerance, tolerance * ScalarAbs(exp));
+    if (l1 > max_l1) {
+      if (++num_mismatches == 1) {  // Only print once to reduce clutter.
+        const size_t begin = i >= 3 ? i - 3 : 0;
+        const size_t end = HWY_MIN(i + 4, count);
+        fprintf(stderr, "\nFirst mismatch at %zu of %zu:", i, count);
+        fprintf(stderr, "\nExpected [%zu, %zu): ", begin, end);
+        for (size_t k = begin; k < end; ++k) {
+          fprintf(stderr, "%f ", ConvertScalarTo<double>(expected[k]));
         }
-        return false;
-      }
-    } else {  // relative
-      const double rel = l1 / exp;
-      if (rel > tolerance) {
-        std::string array_values =
-            detail::FormatMismatchedArrays(expected, actual, count, tolerance);
-        if (abort_if_mismatch) {
-          HWY_ABORT("%s %s:%d %s mismatch %zu of %zu: %E %E rel %E tol %E%s\n",
-                    target_name, filename, line, TypeName(T(), 1).c_str(), i,
-                    count, exp, act, rel, tolerance, array_values.c_str());
-        } else {
-          HWY_WARN("%s %s:%d %s mismatch %zu of %zu: %E %E rel %E tol %E%s\n",
-                   target_name, filename, line, TypeName(T(), 1).c_str(), i,
-                   count, exp, act, rel, tolerance, array_values.c_str());
+        fprintf(stderr, "\n  Actual [%zu, %zu): ", begin, end);
+        for (size_t k = begin; k < end; ++k) {
+          fprintf(stderr, "%f ", ConvertScalarTo<double>(actual[k]));
         }
-        return false;
-      }
-    }
-  }
-  return true;
+        fprintf(stderr, "\n");
+
+        const char* format = "%s %s:%d %s: %E != %E (l1 %E tol %E max_l1 %E)\n";
+        if (abort_if_mismatch) {
+          HWY_ABORT(format, target_name, filename, line,
+                    TypeName(T(), 1).c_str(), exp, act, l1, tolerance, max_l1);
+        } else {
+          HWY_WARN(format, target_name, filename, line,
+                   TypeName(T(), 1).c_str(), exp, act, l1, tolerance, max_l1);
+        }
+      }  // first mismatch
+    }  // mismatch
+  }  // for i
+  return num_mismatches;
 }
 }  // namespace internal
 
-// Compare with tolerance due to FMA and f16 precision.
+// Compares with internally chosen tolerance (maximum L1 or relative error).
 template <typename T>
 HWY_INLINE void AssertArraySimilar(const T* expected, const T* actual,
                                    size_t count, const char* target_name,
                                    const char* filename, int line) {
-  const double tolerance =
-      (hwy::IsSame<RemoveCvRef<T>, float16_t>() ? 128.0 : 1.0) /
-      (uint64_t{1} << MantissaBits<T>());
+  const double mul = hwy::IsSame<RemoveCvRef<T>, float16_t>() ? 128.0 : 1.0;
+  const double tolerance = mul * ConvertScalarTo<double>(Epsilon<T>());
 
   (void)internal::CompareArraySimilarAndMaybeAbort(
       expected, actual, count, tolerance, target_name, filename, line, true);
 }
 
-// Compare with tolerance due to FMA and f16 precision.
+// Compares with specified tolerance (maximum L1 or relative error): a good
+// starting point is 10 * Epsilon<T>() for simple arithmetic, or perhaps
+// 100 * Epsilon<T>() more complex algorithms or transcendentals.
 template <typename T>
 HWY_INLINE bool CompareArraySimilar(const T* expected, const T* actual,
                                     size_t count, double tolerance,
                                     const char* target_name,
                                     const char* filename, int line) {
-  return internal::CompareArraySimilarAndMaybeAbort(
+  const size_t num_mismatches = internal::CompareArraySimilarAndMaybeAbort(
       expected, actual, count, tolerance, target_name, filename, line, false);
+  if (num_mismatches > 0) {
+    fprintf(stderr, "CompareArraySimilar: %zu mismatches\n", num_mismatches);
+    return false;
+  }
+  return true;
 }
 
 }  // namespace hwy
