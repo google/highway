@@ -557,6 +557,14 @@
 #define HWY_TARGET_STR_FP16 "+fp16"
 #endif
 
+#if HWY_OS_APPLE
+// Enable i8mm for the NEON_BF16 target if compiling for macOS, iOS, or iPadOS
+// as all Apple Silicon CPU's that support BF16 have support for I8MM.
+#define HWY_TARGET_STR_NEON_BF16_EXTRA "+i8mm"
+#else
+#define HWY_TARGET_STR_NEON_BF16_EXTRA ""
+#endif
+
 #if HWY_TARGET == HWY_NEON_WITHOUT_AES
 #if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1400
 // Prevents inadvertent use of SVE by GCC 13.4 and earlier, see #2689.
@@ -568,7 +576,8 @@
 #define HWY_TARGET_STR HWY_TARGET_STR_NEON
 #elif HWY_TARGET == HWY_NEON_BF16
 #define HWY_TARGET_STR \
-  HWY_TARGET_STR_FP16 "+bf16+dotprod" HWY_TARGET_STR_NEON
+  HWY_TARGET_STR_FP16  \
+      "+bf16+dotprod" HWY_TARGET_STR_NEON_BF16_EXTRA HWY_TARGET_STR_NEON
 #else
 #error "Logic error, missing case"
 #endif  // HWY_TARGET
