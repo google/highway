@@ -417,6 +417,7 @@ cc_library(
     copts = COPTS,
     textual_hdrs = [
         "hwy/contrib/math/math-inl.h",
+        "hwy/contrib/math/fast_math-inl.h",
     ],
     deps = [
         ":hwy",
