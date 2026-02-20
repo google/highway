@@ -32,7 +32,7 @@ std::uint64_t GetSeed() { return static_cast<uint64_t>(std::time(nullptr)); }
 void RngLoop(const std::uint64_t seed, std::uint64_t* HWY_RESTRICT result,
              const size_t size) {
   const ScalableTag<std::uint64_t> d;
-  VectorXoshiro generator{seed};
+  VectorXoshiro<> generator{seed};
   for (size_t i = 0; i < size; i += Lanes(d)) {
     Store(generator(), d, result + i);
   }
@@ -42,7 +42,7 @@ void RngLoop(const std::uint64_t seed, std::uint64_t* HWY_RESTRICT result,
 void UniformLoop(const std::uint64_t seed, double* HWY_RESTRICT result,
                  const size_t size) {
   const ScalableTag<double> d;
-  VectorXoshiro generator{seed};
+  VectorXoshiro<> generator{seed};
   for (size_t i = 0; i < size; i += Lanes(d)) {
     Store(generator.Uniform(), d, result + i);
   }
@@ -51,7 +51,7 @@ void UniformLoop(const std::uint64_t seed, double* HWY_RESTRICT result,
 
 void TestSeeding() {
   const std::uint64_t seed = GetSeed();
-  VectorXoshiro generator{seed};
+  VectorXoshiro<> generator{seed};
   internal::Xoshiro reference{seed};
   const auto& state = generator.GetState();
   const ScalableTag<std::uint64_t> d;
@@ -74,7 +74,7 @@ void TestSeeding() {
 void TestMultiThreadSeeding() {
   const std::uint64_t seed = GetSeed();
   const std::uint64_t threadId = std::random_device()() % 1000;
-  VectorXoshiro generator{seed, threadId};
+  VectorXoshiro<> generator{seed, threadId};
   internal::Xoshiro reference{seed};
 
   for (std::size_t i = 0UL; i < threadId; ++i) {
@@ -148,7 +148,7 @@ void TestUniformDist() {
 
 void TestNextNRandomUint64() {
   const std::uint64_t seed = GetSeed();
-  VectorXoshiro generator{seed};
+  VectorXoshiro<> generator{seed};
   const auto result_array = generator.operator()(tests);
   std::vector<internal::Xoshiro> reference;
   reference.emplace_back(seed);
@@ -176,7 +176,7 @@ void TestNextNRandomUint64() {
 
 void TestNextFixedNRandomUint64() {
   const std::uint64_t seed = GetSeed();
-  VectorXoshiro generator{seed};
+  VectorXoshiro<> generator{seed};
   const auto result_array = generator.operator()<tests>();
   std::vector<internal::Xoshiro> reference;
   reference.emplace_back(seed);
@@ -205,7 +205,7 @@ void TestNextFixedNRandomUint64() {
 void TestNextNUniformDist() {
 #if HWY_HAVE_FLOAT64
   const std::uint64_t seed = GetSeed();
-  VectorXoshiro generator{seed};
+  VectorXoshiro<> generator{seed};
   const auto result_array = generator.Uniform(tests);
   internal::Xoshiro reference{seed};
   const ScalableTag<double> d;
@@ -226,7 +226,7 @@ void TestNextNUniformDist() {
 void TestNextFixedNUniformDist() {
 #if HWY_HAVE_FLOAT64
   const std::uint64_t seed = GetSeed();
-  VectorXoshiro generator{seed};
+  VectorXoshiro<> generator{seed};
   const auto result_array = generator.Uniform<tests>();
   internal::Xoshiro reference{seed};
   const ScalableTag<double> d;
