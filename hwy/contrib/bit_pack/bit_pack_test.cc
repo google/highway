@@ -167,6 +167,17 @@ struct TestPack {
   }
 };
 
+void TestAllPackk() {
+  ForShrinkableVectors<TestPack<Packk8, 8, 1>>()(uint8_t());
+  ForShrinkableVectors<TestPack<Packk8, 8, 2>>()(uint8_t());
+  ForShrinkableVectors<TestPack<Packk8, 8, 3>>()(uint8_t());
+  ForShrinkableVectors<TestPack<Packk8, 8, 4>>()(uint8_t());
+  ForShrinkableVectors<TestPack<Packk8, 8, 5>>()(uint8_t());
+  ForShrinkableVectors<TestPack<Packk8, 8, 6>>()(uint8_t());
+  ForShrinkableVectors<TestPack<Packk8, 8, 7>>()(uint8_t());
+  ForShrinkableVectors<TestPack<Packk8, 8, 8>>()(uint8_t());
+}
+
 void TestAllPack8() {
   ForShrinkableVectors<TestPack<Pack8, 8, 1>>()(uint8_t());
   ForShrinkableVectors<TestPack<Pack8, 8, 2>>()(uint8_t());
@@ -200,6 +211,8 @@ void TestAllPack16() {
 void TestAllPack32() {
   ForShrinkableVectors<TestPack<Pack32, 32, 1>>()(uint32_t());
   ForShrinkableVectors<TestPack<Pack32, 32, 2>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 3>>()(uint32_t());
+  ForShrinkableVectors<TestPack<Pack32, 32, 4>>()(uint32_t());
   ForShrinkableVectors<TestPack<Pack32, 32, 6>>()(uint32_t());
   ForShrinkableVectors<TestPack<Pack32, 32, 11>>()(uint32_t());
   ForShrinkableVectors<TestPack<Pack32, 32, 16>>()(uint32_t());
@@ -220,6 +233,7 @@ void TestAllPack64() {
   ForShrinkableVectors<TestPack<Pack64, 64, 33>>()(uint64_t());
   ForShrinkableVectors<TestPack<Pack64, 64, 41>>()(uint64_t());
   ForShrinkableVectors<TestPack<Pack64, 64, 61>>()(uint64_t());
+  ForShrinkableVectors<TestPack<Pack64, 64, 64>>()(uint64_t());
 #endif
 }
 
@@ -233,6 +247,7 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 namespace {
 HWY_BEFORE_TEST(BitPackTest);
+HWY_EXPORT_AND_TEST_P(BitPackTest, TestAllPackk);
 HWY_EXPORT_AND_TEST_P(BitPackTest, TestAllPack8);
 HWY_EXPORT_AND_TEST_P(BitPackTest, TestAllPack16);
 HWY_EXPORT_AND_TEST_P(BitPackTest, TestAllPack32);
