@@ -333,6 +333,47 @@ HWY_INLINE V FastAtan(D d, V val) {
   return CopySign(result, val);
 }
 
+/**
+ * Fast approximation of atan2(y, x).
+ *
+ * Valid Lane Types: float32, float64
+ * Valid Range: As long as y/x is in Valid Range for FastAtan()
+ * Correctly handles negative zero, infinities, and NaN.
+ * @return atan2 of 'y', 'x'
+ */
+template <class D, class V>
+HWY_INLINE V FastAtan2(const D d, V y, V x) {
+  using T = TFromD<D>;
+  using M = MFromD<D>;
+
+  const V kHalf = Set(d, static_cast<T>(+0.5));
+  const V kPi = Set(d, static_cast<T>(+3.14159265358979323846264));
+  const V kPi2 = Mul(kPi, kHalf);
+
+  const V k0 = Zero(d);
+  const M y_0 = Eq(y, k0);
+  const M x_0 = Eq(x, k0);
+  const M x_neg = Lt(x, k0);
+  const M y_inf = IsInf(y);
+  const M x_inf = IsInf(x);
+  const M nan = Or(IsNaN(y), IsNaN(x));
+
+  const V if_xneg_pi = IfThenElseZero(x_neg, kPi);
+  // x= +inf: pi/4; -inf: 3*pi/4; else: pi/2
+  const V if_yinf = Mul(kHalf, IfThenElse(x_inf, Add(kPi2, if_xneg_pi), kPi));
+
+  V t = FastAtan(d, Div(y, x));
+  // Disambiguate between quadrants 1/3 and 2/4 by adding (Q2: Pi; Q3: -Pi).
+  t = Add(t, CopySignToAbs(if_xneg_pi, y));
+  // Special cases for 0 and infinity:
+  t = IfThenElse(x_inf, if_xneg_pi, t);
+  t = IfThenElse(x_0, kPi2, t);
+  t = IfThenElse(y_inf, if_yinf, t);
+  t = IfThenElse(y_0, if_xneg_pi, t);
+  // Any input NaN => NaN, otherwise fix sign.
+  return IfThenElse(nan, NaN(d), CopySign(t, y));
+}
+
 template <class D, class V>
 HWY_NOINLINE V CallFastAtan(const D d, VecArg<V> x) {
   return FastAtan(d, x);
@@ -341,6 +382,11 @@ HWY_NOINLINE V CallFastAtan(const D d, VecArg<V> x) {
 template <class D, class V>
 HWY_NOINLINE V CallFastTan(const D d, VecArg<V> x) {
   return FastTan(d, x);
+}
+
+template <class D, class V>
+HWY_NOINLINE V CallFastAtan2(const D d, VecArg<V> y, VecArg<V> x) {
+  return FastAtan2(d, y, x);
 }
 
 }  // namespace HWY_NAMESPACE
