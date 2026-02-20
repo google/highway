@@ -141,7 +141,8 @@ HWY_NOINLINE void TestMath(const char* name, T (*fx1)(T),
 template <class T, class D>
 HWY_NOINLINE void TestMathRelative(const char* name, T (*fx1)(T),
                                    Vec<D> (*fxN)(D, VecArg<Vec<D>>), D d, T min,
-                                   T max, double max_relative_error) {
+                                   T max, double max_relative_error,
+                                   uint64_t samples = 4000) {
   if (HWY_MATH_TEST_EXCESS_PRECISION) {
     static bool once = true;
     if (once) {
@@ -170,7 +171,7 @@ HWY_NOINLINE void TestMathRelative(const char* name, T (*fx1)(T),
 
   double max_actual_rel_error = 0.0;
   // Emulation is slower, so cannot afford as many.
-  constexpr UintT kSamplesPerRange = static_cast<UintT>(AdjustedReps(4000));
+  const UintT kSamplesPerRange = static_cast<UintT>(AdjustedReps(samples));
   for (int range_index = 0; range_index < range_count; ++range_index) {
     const UintT start = ranges[range_index][0];
     const UintT stop = ranges[range_index][1];
@@ -615,6 +616,28 @@ HWY_NOINLINE void TestAllFastTan() {
   ForFloat3264Types(ForPartialVectors<TestFastTanRelative>());
 }
 
+struct TestFastAtanRelative {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T, D d) {
+    if (sizeof(T) == 4) {
+      // Float: [-1e35, +1e35]
+      TestMathRelative<T, D>("FastAtan", std::atan, CallFastAtan, d,
+                             static_cast<T>(-1e35), static_cast<T>(1e35),
+                             0.0035, 1000000);
+    } else {
+      // Double: [-1e305, +1e305]
+      TestMathRelative<T, D>("FastAtan", std::atan, CallFastAtan, d,
+                             static_cast<T>(-1e305), static_cast<T>(1e305),
+                             0.0035, 1000000);
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllFastAtan() {
+  if (HWY_MATH_TEST_EXCESS_PRECISION) return;
+  ForFloat3264Types(ForPartialVectors<TestFastAtanRelative>());
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -629,6 +652,7 @@ HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllAtan);
 HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllAtan2);
 HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllHypot);
 HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllFastTan);
+HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllFastAtan);
 
 HWY_AFTER_TEST();
 }  // namespace
