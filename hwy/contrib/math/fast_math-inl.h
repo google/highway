@@ -82,7 +82,8 @@ HWY_INLINE V FastTan(D d, V x) {
   constexpr size_t kLanes = HWY_MAX_LANES_D(D);
   V a, b, c, d_val;
 
-  if constexpr (kLanes >= 4 && !HWY_HAVE_SCALABLE) {
+  if constexpr ((kLanes >= 4 && !HWY_HAVE_SCALABLE) ||
+                (HWY_HAVE_SCALABLE && sizeof(T) == 4)) {
     // --- Table Lookup ---
     const auto scale = Set(d, static_cast<T>(3.8197186342));
     auto idx_float = Floor(Mul(x_red, scale));
@@ -110,7 +111,7 @@ HWY_INLINE V FastTan(D d, V x) {
         1252.0000000000000, 910.00000000000000, 990.00000000000000,
         990.00000000000000, 990.00000000000000};
 
-    if constexpr (kLanes >= 8) {
+    if constexpr (kLanes >= 8 && !HWY_HAVE_SCALABLE) {
       // Cast to "Indices" Type
       auto idx = IndicesFromVec(d, idx_int);
       a = TableLookupLanes(Load(d, arr_a), idx);
@@ -119,10 +120,12 @@ HWY_INLINE V FastTan(D d, V x) {
       d_val = TableLookupLanes(Load(d, arr_d), idx);
     } else {
       auto idx = IndicesFromVec(d, idx_int);
-      a = TwoTablesLookupLanes(d, Load(d, arr_a), LoadU(d, arr_a + 4), idx);
-      b = TwoTablesLookupLanes(d, Load(d, arr_b), LoadU(d, arr_b + 4), idx);
-      c = TwoTablesLookupLanes(d, Load(d, arr_c), LoadU(d, arr_c + 4), idx);
-      d_val = TwoTablesLookupLanes(d, Load(d, arr_d), LoadU(d, arr_d + 4), idx);
+      FixedTag<T, 4> d4;
+      a = TwoTablesLookupLanes(d, Load(d4, arr_a), Load(d4, arr_a + 4), idx);
+      b = TwoTablesLookupLanes(d, Load(d4, arr_b), Load(d4, arr_b + 4), idx);
+      c = TwoTablesLookupLanes(d, Load(d4, arr_c), Load(d4, arr_c + 4), idx);
+      d_val =
+          TwoTablesLookupLanes(d, Load(d4, arr_d), Load(d4, arr_d + 4), idx);
     }
   } else {
     // --- FALLBACK PATH: Blend Chain ---
@@ -213,7 +216,8 @@ HWY_INLINE V FastAtan(D d, V val) {
   constexpr size_t kLanes = HWY_MAX_LANES_D(D);
   V a, b, c, d_coef;
 
-  if constexpr (kLanes >= 4 && !HWY_HAVE_SCALABLE) {
+  if constexpr ((kLanes >= 4 && !HWY_HAVE_SCALABLE) ||
+                (HWY_HAVE_SCALABLE && sizeof(T) == 4)) {
     // Index calculation by counting thresholds crossed
     // We want:
     // y < tan15 -> idx 0
@@ -255,7 +259,7 @@ HWY_INLINE V FastAtan(D d, V val) {
         1252.0000000000000, 910.00000000000000, 990.00000000000000,
         990.00000000000000, 990.00000000000000};
 
-    if constexpr (kLanes >= 8) {
+    if constexpr (kLanes >= 8 && !HWY_HAVE_SCALABLE) {
       auto idx = IndicesFromVec(d, idx_i);
       a = TableLookupLanes(Load(d, arr_a), idx);
       b = TableLookupLanes(Load(d, arr_b), idx);
@@ -263,11 +267,12 @@ HWY_INLINE V FastAtan(D d, V val) {
       d_coef = TableLookupLanes(Load(d, arr_d), idx);
     } else {
       auto idx = IndicesFromVec(d, idx_i);
-      a = TwoTablesLookupLanes(d, Load(d, arr_a), LoadU(d, arr_a + 4), idx);
-      b = TwoTablesLookupLanes(d, Load(d, arr_b), LoadU(d, arr_b + 4), idx);
-      c = TwoTablesLookupLanes(d, Load(d, arr_c), LoadU(d, arr_c + 4), idx);
+      FixedTag<T, 4> d4;
+      a = TwoTablesLookupLanes(d, Load(d4, arr_a), Load(d4, arr_a + 4), idx);
+      b = TwoTablesLookupLanes(d, Load(d4, arr_b), Load(d4, arr_b + 4), idx);
+      c = TwoTablesLookupLanes(d, Load(d4, arr_c), Load(d4, arr_c + 4), idx);
       d_coef =
-          TwoTablesLookupLanes(d, Load(d, arr_d), LoadU(d, arr_d + 4), idx);
+          TwoTablesLookupLanes(d, Load(d4, arr_d), Load(d4, arr_d + 4), idx);
     }
   } else {
     // --- FALLBACK PATH: Blend Chain ---
