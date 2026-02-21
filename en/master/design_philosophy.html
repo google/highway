@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Design philosophy &mdash; HIGHWAY nightly documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css" />
+      <link rel="stylesheet" type="text/css" href="_static/css/toggle.css" />
+
+  
+    <link rel="shortcut icon" href="_static/logo-32x32.ico"/>
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+        <script src="_static/js/toggle.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Frequently Asked Questions" href="faq.html" />
+    <link rel="prev" title="API synopsis / quick reference" href="quick_reference.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            HIGHWAY
+              <img src="_static/logo.png" class="logo" alt="Logo"/>
+          </a>
+              <div class="version">
+                master
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="README.html">Efficient and performance-portable vector software</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quick_reference.html">API synopsis / quick reference</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Design philosophy</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#prior-api-designs">Prior API designs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#overloaded-function-api">Overloaded function API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#masks">Masks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#differences-vs-p0214r5-std-experimental-simd">Differences vs. P0214R5 / std::experimental::simd</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#other-related-work">Other related work</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">Frequently Asked Questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="impl_details.html">Highway implementation details</a></li>
+<li class="toctree-l1"><a class="reference internal" href="release_testing_process.html">Release testing process</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">HIGHWAY</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Design philosophy</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/google/highway/blob/master/docs/design_philosophy.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <div class="section" id="design-philosophy">
+<h1>Design philosophy<a class="headerlink" href="#design-philosophy" title="Permalink to this heading"></a></h1>
+<ul class="simple">
+<li><p>Performance is important but not the sole consideration. Anyone who
+goes to the trouble of using SIMD clearly cares about speed. However,
+portability, maintainability and readability also matter, otherwise
+we would write in assembly. We aim for performance within 10-20% of a
+hand-written assembly implementation on the development platform.
+There is no performance gap vs. intrinsics: Highway code can do
+anything they can. If necessary, you can use platform-specific
+instructions inside <code class="docutils literal notranslate"><span class="pre">#if</span> <span class="pre">HWY_TARGET</span> <span class="pre">==</span> <span class="pre">HWY_NEON</span></code> etc.</p></li>
+<li><p>The guiding principles of C++ are “pay only for what you use” and
+“leave no room for a lower-level language below C++”. We apply these
+by defining a SIMD API that ensures operation costs are visible,
+predictable and minimal.</p></li>
+<li><p>Performance portability is important, i.e. the API should be
+efficient on all target platforms. Unfortunately, common idioms for
+one platform can be inefficient on others. For example: summing lanes
+horizontally versus shuffling. Documenting which operations are
+expensive does not prevent their use, as evidenced by widespread use
+of <code class="docutils literal notranslate"><span class="pre">HADDPS</span></code>. Performance acceptance tests may detect large
+regressions, but do not help choose the approach during initial
+development. Analysis tools can warn about some potential
+inefficiencies, but likely not all. We instead provide <a class="reference external" href="g3doc/instruction_matrix.pdf">a carefully
+chosen set of vector types and operations that are efficient on all
+target platforms</a> (Armv8, PPC8,
+x86).</p></li>
+<li><p>Future SIMD hardware features are difficult to predict. For example,
+AVX2 came with surprising semantics (almost no interaction between
+128-bit blocks) and AVX-512 added two kinds of predicates (writemask
+and zeromask). To ensure the API reflects hardware realities, we
+suggest a flexible approach that adds new operations as they become
+commonly available, with fallback implementations where necessary.</p></li>
+<li><p>Masking/predication differs between platforms, and it is not clear
+how important the use cases are beyond the ternary operator
+<code class="docutils literal notranslate"><span class="pre">IfThenElse</span></code>. AVX-512/Arm SVE zeromasks are useful, but not
+supported by P0214R5. We provide <code class="docutils literal notranslate"><span class="pre">IfThen[Zero]Else[Zero]</span></code> variants.</p></li>
+<li><p>“Width-agnostic” SIMD is more future-proof than user-specified fixed
+sizes. For example, valarray-like code can iterate over a 1D array
+with a library-specified vector width. This will result in better
+code when vector sizes increase, and matches the direction taken by
+<a class="reference external" href="https://alastairreid.github.io/papers/sve-ieee-micro-2017.pdf">Arm
+SVE</a>
+and RiscV V as well as Agner Fog’s <a class="reference external" href="https://www.agner.org/optimize/forwardcom.pdf">ForwardCom instruction set
+proposal</a>. However,
+some applications may require fixed sizes, so we also guarantee
+support for &lt;= 128-bit vectors in each instruction set.</p></li>
+<li><p>The API and its implementation should be usable and efficient with
+commonly used compilers, including MSVC. For example, we write
+<code class="docutils literal notranslate"><span class="pre">ShiftLeft&lt;3&gt;(v)</span></code> instead of <code class="docutils literal notranslate"><span class="pre">v</span> <span class="pre">&lt;&lt;</span> <span class="pre">3</span></code> because MSVC 2017 (aarch64)
+does not propagate the literal (<a class="reference external" href="https://godbolt.org/g/rKx5Ga">https://godbolt.org/g/rKx5Ga</a>).
+Highway requires function-specific target attributes, supported by
+GCC 4.9 / Clang 3.9 / MSVC 2015.</p></li>
+<li><p>Efficient and safe runtime dispatch is important. Modules such as
+image or video codecs are typically embedded into larger applications
+such as browsers, so they cannot require separate binaries for each
+CPU. Libraries also cannot predict whether the application already
+uses AVX2 (and pays the frequency throttling cost), so this decision
+must be left to the application. Using only the lowest-common
+denominator instructions sacrifices too much performance. Therefore,
+we provide code paths for multiple instruction sets and choose the
+most suitable at runtime. To reduce overhead, dispatch should be
+hoisted to higher layers instead of checking inside every low-level
+function. Highway supports inlining functions in the same file or in
+<code class="docutils literal notranslate"><span class="pre">*-inl.h</span></code> headers. We generate all code paths from the same source
+to reduce implementation- and debugging cost.</p></li>
+<li><p>Not every CPU need be supported. To reduce code size and compile
+time, we group x86 targets into clusters. In particular, SSE3
+instructions are only used/available if S-SSE3 is also available, and
+AVX only if AVX2 is also supported.</p></li>
+<li><p>Access to platform-specific intrinsics is necessary for acceptance in
+performance-critical projects. We provide conversions to and from
+intrinsics to allow utilizing specialized platform-specific
+functionality, and simplify incremental porting of existing code.</p></li>
+<li><p>The core API should be compact and easy to learn; we provide a
+<a class="reference external" href="quick_reference.md">concise reference</a>.</p></li>
+</ul>
+<div class="section" id="prior-api-designs">
+<h2>Prior API designs<a class="headerlink" href="#prior-api-designs" title="Permalink to this heading"></a></h2>
+<p>The author has been writing SIMD code since 2002: first via assembly
+language, then intrinsics, later Intel’s <code class="docutils literal notranslate"><span class="pre">F32vec4</span></code> wrapper, followed
+by three generations of custom vector classes. The first used macros to
+generate the classes, which reduces duplication but also readability.
+The second used templates instead. The third (used in highwayhash and
+PIK) added support for AVX2 and runtime dispatch. The current design
+(used in JPEG XL) enables code generation for multiple platforms and/or
+instruction sets from the same source, and improves runtime dispatch.</p>
+</div>
+<div class="section" id="overloaded-function-api">
+<h2>Overloaded function API<a class="headerlink" href="#overloaded-function-api" title="Permalink to this heading"></a></h2>
+<p>Most C++ vector APIs rely on class templates. However, the Arm SVE
+vector type is sizeless and cannot be wrapped in a class. We instead
+rely on overloaded functions. Overloading based on vector types is also
+undesirable because SVE vectors cannot be default-constructed. We
+instead use a dedicated tag type <code class="docutils literal notranslate"><span class="pre">Simd</span></code> for overloading, abbreviated
+to <code class="docutils literal notranslate"><span class="pre">D</span></code> for template arguments and <code class="docutils literal notranslate"><span class="pre">d</span></code> in lvalues.</p>
+<p>Note that generic function templates are possible (see
+generic_ops-inl.h).</p>
+</div>
+<div class="section" id="masks">
+<h2>Masks<a class="headerlink" href="#masks" title="Permalink to this heading"></a></h2>
+<p>AVX-512 introduced a major change to the SIMD interface: special mask
+registers (one bit per lane) that serve as predicates. It would be
+expensive to force AVX-512 implementations to conform to the prior model
+of full vectors with lanes set to all one or all zero bits. We instead
+provide a Mask type that emulates a subset of this functionality on
+other platforms at zero cost.</p>
+<p>Masks are returned by comparisons and <code class="docutils literal notranslate"><span class="pre">TestBit</span></code>; they serve as the
+input to <code class="docutils literal notranslate"><span class="pre">IfThen*</span></code>. We provide conversions between masks and vector
+lanes. On targets without dedicated mask registers, we use FF..FF as the
+definition of true. To also benefit from x86 instructions that only
+require the sign bit of floating-point inputs to be set, we provide a
+special <code class="docutils literal notranslate"><span class="pre">ZeroIfNegative</span></code> function.</p>
+</div>
+<div class="section" id="differences-vs-p0214r5-std-experimental-simd">
+<h2>Differences vs. <a class="reference external" href="https://goo.gl/zKW4SA">P0214R5</a> / std::experimental::simd<a class="headerlink" href="#differences-vs-p0214r5-std-experimental-simd" title="Permalink to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p>Allowing the use of built-in vector types by relying on non-member
+functions. By contrast, P0214R5 requires a wrapper class, which does
+not work for sizeless vector types currently used by Arm SVE and
+Risc-V.</p></li>
+<li><p>Supporting many more operations such as 128-bit compare/minmax,
+AES/CLMUL, <code class="docutils literal notranslate"><span class="pre">AndNot</span></code>, <code class="docutils literal notranslate"><span class="pre">AverageRound</span></code>, bit-shift by immediates,
+compress/expand, fixed-point mul, <code class="docutils literal notranslate"><span class="pre">IfThenElse</span></code>, interleaved
+load/store, lzcnt, mask find/set, masked load/store, popcount,
+reductions, saturated add/sub, scatter/gather.</p></li>
+<li><p>Designing the API to avoid or minimize overhead on AVX2/AVX-512
+caused by crossing 128-bit ‘block’ boundaries.</p></li>
+<li><p>Avoiding the need for non-native vectors. By contrast, P0214R5’s
+<code class="docutils literal notranslate"><span class="pre">simd_cast</span></code> returns <code class="docutils literal notranslate"><span class="pre">fixed_size&lt;&gt;</span></code> vectors which are more
+expensive to access because they reside on the stack. We can avoid
+this plus additional overhead on Arm/AVX2 by defining
+width-expanding operations as functions of a vector part,
+e.g. promoting half a vector of <code class="docutils literal notranslate"><span class="pre">uint8_t</span></code> lanes to one full vector
+of <code class="docutils literal notranslate"><span class="pre">uint16_t</span></code>, or demoting full vectors to half vectors with
+half-width lanes.</p></li>
+<li><p>Guaranteeing access to the underlying intrinsic vector type. This
+ensures all platform-specific capabilities can be used. P0214R5
+instead only ‘encourages’ implementations to provide access.</p></li>
+<li><p>Enabling safe runtime dispatch and inlining in the same binary.
+P0214R5 is based on the Vc library, which does not provide
+assistance for linking multiple instruction sets into the same
+binary. The Vc documentation suggests compiling separate executables
+for each instruction set or using GCC’s ifunc (indirect functions).
+The latter is compiler-specific and risks crashes due to ODR
+violations when compiling the same function with different compiler
+flags. We solve this problem via target-specific namespaces and
+attributes (see HOWTO section below). We also permit a mix of static
+target selection and runtime dispatch for hotspots that may benefit
+from newer instruction sets if available.</p></li>
+<li><p>Omitting inefficient or non-performance-portable operations such as
+<code class="docutils literal notranslate"><span class="pre">hmax</span></code>, <code class="docutils literal notranslate"><span class="pre">operator[]</span></code>, and unsupported integer comparisons.
+Applications can often replace these operations at lower cost than
+emulating that exact behavior.</p></li>
+<li><p>Omitting <code class="docutils literal notranslate"><span class="pre">long</span> <span class="pre">double</span></code> types: these are not commonly available in
+hardware.</p></li>
+<li><p>Ensuring signed integer overflow has well-defined semantics
+(wraparound).</p></li>
+<li><p>Avoiding hidden performance costs. P0214R5 allows implicit
+conversions from integer to float, which costs 3-4 cycles on x86. We
+make these conversions explicit to ensure their cost is visible.</p></li>
+</ol>
+</div>
+<div class="section" id="other-related-work">
+<h2>Other related work<a class="headerlink" href="#other-related-work" title="Permalink to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference external" href="http://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=7568423">Neat
+SIMD</a>
+adopts a similar approach with interchangeable vector/scalar types
+and a compact interface. It allows access to the underlying
+intrinsics, but does not appear to be designed for other platforms
+than x86.</p></li>
+<li><p>UME::SIMD (<a class="reference external" href="https://goo.gl/yPeVZx">code</a>,
+<a class="reference external" href="https://goo.gl/2xpZrk">paper</a>) also adopts an explicit
+vectorization model with vector classes. However, it exposes the
+union of all platform capabilities, which makes the API harder to
+learn (209-page spec) and implement (the estimated LOC count is
+<a class="reference external" href="https://goo.gl/1THFRi">500K</a>). The API is less
+performance-portable because it allows applications to use operations
+that are inefficient on other platforms.</p></li>
+<li><p>Inastemp (<a class="reference external" href="https://goo.gl/hg3USM">code</a>,
+<a class="reference external" href="https://goo.gl/YcTU7S">paper</a>) is a vector library for scientific
+computing with some innovative features: automatic FLOPS counting,
+and “if/else branches” using lambda functions. It supports IBM
+Power8, but only provides float and double types and does not support
+SVE without assuming the runtime vector size.</p></li>
+</ul>
+</div>
+</div>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="quick_reference.html" class="btn btn-neutral float-left" title="API synopsis / quick reference" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="faq.html" class="btn btn-neutral float-right" title="Frequently Asked Questions" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright Apache 2.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+
+  <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      <span class="fa fa-book"> Read the Docs</span>
+      
+      
+     <span class="fa fa-element">
+     <input class="container_toggle" type="checkbox" id="switch" name="mode">
+     <label for="switch"></label>
+     </span>
+      
+      v: master
+      <span class="fa fa-caret-down"></span>
+    </span>
+    <div class="rst-other-versions">
+      
+      <dl>
+        <dt>Languages</dt>
+        
+           <strong> 
+          <dd><a href="/highway/en/master/">en</a></dd>
+           </strong> 
+        
+          
+          <dd><a href="/highway/zh/master/">zh</a></dd>
+          
+        
+      </dl>
+      
+      
+      <dl>
+        <dt>Versions</dt>
+        
+          
+          <dd><a href="/highway/en/disable_w32_warning/">disable_w32_warning</a></dd>
+          
+        
+           <strong> 
+          <dd><a href="/highway/en/master/">master</a></dd>
+           </strong> 
+        
+      </dl>
+      
+      
+      <dl>
+        <dt>Downloads</dt>
+        
+          <dd><a href="/highway/en/master/highway_en_master.epub">epub</a></dd>
+        
+      </dl>
+      
+      
+      <hr/>
+      Free document hosting provided by <a href="https://pages.github.com/">GitHub Pages</a>.
+ 
+    </div>
+  </div>
+
+ <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>  
+
+  <style>
+         .wy-nav-content { max-width: none; }
+  </style>
+
+
+
+</body>
+</html>
