@@ -638,6 +638,70 @@ HWY_NOINLINE void TestAllFastAtan() {
   ForFloat3264Types(ForPartialVectors<TestFastAtanRelative>());
 }
 
+struct TestFastAtan2 {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T t, D d) {
+    const size_t N = Lanes(d);
+
+    size_t padded;
+    AlignedFreeUniquePtr<T[]> in_y, in_x, expected;
+    Atan2TestCases(t, d, padded, in_y, in_x, expected);
+
+    // Constants for error checking
+    const T rel_limit = static_cast<T>(8e-8);
+    const T tiny_threshold = static_cast<T>(1e-20);
+    const Vec<D> v_rel_limit = Set(d, rel_limit);
+    const Vec<D> v_tiny_threshold = Set(d, tiny_threshold);
+
+    for (size_t i = 0; i < padded; i += N) {
+      const Vec<D> y = Load(d, &in_y[i]);
+      const Vec<D> x = Load(d, &in_x[i]);
+#if HWY_ARCH_ARM_A64
+      // TODO(b/287462770): inline to work around incorrect SVE codegen
+      const Vec<D> actual = FastAtan2(d, y, x);
+#else
+      const Vec<D> actual = CallFastAtan2(d, y, x);
+#endif
+      const Vec<D> vexpected = Load(d, &expected[i]);
+
+      // 1. Check NaNs match exactly
+      const Mask<D> exp_nan = IsNaN(vexpected);
+      const Mask<D> act_nan = IsNaN(actual);
+      HWY_ASSERT_MASK_EQ(d, exp_nan, act_nan);
+
+      // 2. Calculate Error
+      const Vec<D> abs_exp = Abs(vexpected);
+      const Vec<D> diff = Abs(Sub(actual, vexpected));
+
+      // 3. Determine Tolerance
+      // If abs_exp > 1e-20, tolerance = abs_exp * 8e-8.
+      // Else, tolerance = 8e-8 (effectively treating 'err' as the relative
+      // error metric).
+      const Mask<D> use_relative = Gt(abs_exp, v_tiny_threshold);
+      const Vec<D> tolerance =
+          IfThenElse(use_relative, Mul(abs_exp, v_rel_limit), v_rel_limit);
+
+      // 4. Verify
+      // Pass if it's NaN (checked above) OR if within tolerance
+      const Mask<D> ok = Or(act_nan, Le(diff, tolerance));
+
+      if (!AllTrue(d, ok)) {
+        const size_t mismatch =
+            static_cast<size_t>(FindKnownFirstTrue(d, Not(ok)));
+        fprintf(stderr, "Mismatch for i=%d expected %E actual %E\n",
+                static_cast<int>(i + mismatch), expected[i + mismatch],
+                ExtractLane(actual, mismatch));
+        HWY_ASSERT(0);
+      }
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllFastAtan2() {
+  if (HWY_MATH_TEST_EXCESS_PRECISION) return;
+  ForFloat3264Types(ForPartialVectors<TestFastAtan2>());
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -653,6 +717,7 @@ HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllAtan2);
 HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllHypot);
 HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllFastTan);
 HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllFastAtan);
+HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllFastAtan2);
 
 HWY_AFTER_TEST();
 }  // namespace

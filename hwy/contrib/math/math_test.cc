@@ -26,6 +26,7 @@
 #define HWY_TARGET_INCLUDE "hwy/contrib/math/math_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
+#include "hwy/contrib/math/fast_math-inl.h"
 #include "hwy/contrib/math/math-inl.h"
 #include "hwy/tests/test_util-inl.h"
 // clang-format on
@@ -179,6 +180,153 @@ DEFINE_MATH_TEST(Log2,
   std::log2,  CallLog2,  +DBL_MIN,   +DBL_MAX,    2)
 // clang-format on
 
+// template <class D, class V>
+// HWY_NOINLINE V CallFastLog(const D d, VecArg<V> x);
+
+template <class T, class D>
+HWY_NOINLINE void TestMathRelative(const char* name, T (*fx1)(T),
+                                   Vec<D> (*fxN)(D, VecArg<Vec<D>>), D d, T min,
+                                   T max, double max_relative_error,
+                                   uint64_t samples = 4000) {
+  if (HWY_MATH_TEST_EXCESS_PRECISION) {
+    static bool once = true;
+    if (once) {
+      once = false;
+      HWY_WARN("Skipping math_test due to GCC issue with excess precision.\n");
+    }
+    return;
+  }
+
+  using UintT = MakeUnsigned<T>;
+
+  const UintT min_bits = BitCastScalar<UintT>(min);
+  const UintT max_bits = BitCastScalar<UintT>(max);
+
+  // If min is negative and max is positive, the range needs to be broken into
+  // two pieces, [+0, max] and [-0, min], otherwise [min, max].
+  int range_count = 1;
+  UintT ranges[2][2] = {{min_bits, max_bits}, {0, 0}};
+  if ((min < 0.0) && (max > 0.0)) {
+    ranges[0][0] = BitCastScalar<UintT>(ConvertScalarTo<T>(+0.0));
+    ranges[0][1] = max_bits;
+    ranges[1][0] = BitCastScalar<UintT>(ConvertScalarTo<T>(-0.0));
+    ranges[1][1] = min_bits;
+    range_count = 2;
+  } else {
+    // If not splitting, ensure we iterate from smaller uint to larger uint.
+    // For negative numbers, min (e.g. -1000) has larger uint representation
+    // than max (e.g. -1).
+    if (ranges[0][0] > ranges[0][1]) {
+      auto tmp = ranges[0][0];
+      ranges[0][0] = ranges[0][1];
+      ranges[0][1] = tmp;
+    }
+  }
+
+  double max_actual_rel_error = 0.0;
+  double max_error_value = 0.0;
+  // Emulation is slower, so cannot afford as many.
+  const UintT kSamplesPerRange = static_cast<UintT>(AdjustedReps(samples));
+  for (int range_index = 0; range_index < range_count; ++range_index) {
+    const UintT start = ranges[range_index][0];
+    const UintT stop = ranges[range_index][1];
+    const UintT step = HWY_MAX(1, ((stop - start) / kSamplesPerRange));
+    for (UintT value_bits = start; value_bits <= stop; value_bits += step) {
+      // For reasons unknown, the HWY_MAX is necessary on RVV, otherwise
+      // value_bits can be less than start, and thus possibly NaN.
+      const T value =
+          BitCastScalar<T>(HWY_MIN(HWY_MAX(start, value_bits), stop));
+      const T actual = GetLane(fxN(d, Set(d, value)));
+      const T expected = fx1(value);
+
+      // Skip small inputs and outputs on armv7, it flushes subnormals to zero.
+#if HWY_TARGET <= HWY_NEON_WITHOUT_AES && HWY_ARCH_ARM_V7
+      if ((std::abs(value) < 1e-37f) || (std::abs(expected) < 1e-37f)) {
+        continue;
+      }
+#endif
+
+      if (std::abs(expected) > 0.0) {
+        double rel = std::abs(static_cast<double>(actual) -
+                              static_cast<double>(expected)) /
+                     std::abs(static_cast<double>(expected));
+        if (std::isnan(rel) || rel > max_actual_rel_error) {
+          max_actual_rel_error = rel;
+          max_error_value = static_cast<double>(value);
+        }
+        if (rel > max_relative_error) {
+          static int print_count = 0;
+          if (print_count < 10) {
+            fprintf(stderr,
+                    "%s: %s(%f) expected %E actual %E rel %E max rel %E\n",
+                    hwy::TypeName(T(), Lanes(d)).c_str(), name,
+                    static_cast<double>(value), static_cast<double>(expected),
+                    static_cast<double>(actual), rel, max_relative_error);
+            print_count++;
+          }
+        }
+      }
+    }
+  }
+  fprintf(stderr, "%s: %s max_rel_error %E at %E\n",
+          hwy::TypeName(T(), Lanes(d)).c_str(), name, max_actual_rel_error,
+          max_error_value);
+  HWY_ASSERT(max_actual_rel_error <= max_relative_error);
+}
+
+struct TestFastLog {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T, D d) {
+    const double max_relative_error = 0.0007;
+    const uint64_t samples = 1000000;
+    if (sizeof(T) == 4) {
+      TestMathRelative<T, D>("FastLog", std::log, CallFastLog, d, FLT_MIN,
+                             FLT_MAX, max_relative_error, samples);
+    } else {
+      TestMathRelative<T, D>("FastLog", std::log, CallFastLog, d, DBL_MIN,
+                             DBL_MAX, max_relative_error, samples);
+    }
+  }
+};
+
+struct TestFastExp {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T, D d) {
+    if (sizeof(T) == 4) {
+      // Float Normal Range: [-87.0, +88.0]
+      // exp(-87) ~= 1.6e-38 (just above min normal 1.17e-38)
+      TestMathRelative<T, D>("FastExpNormal", std::exp, CallFastExp, d,
+                             static_cast<T>(-87.0), static_cast<T>(88.0),
+                             0.0009, 1e7);
+
+      // Float Subnormal Range: [-104.0, -87.0]
+      // exp(-104) is close to 0. Error is dominated by quantization (1 ULP ~=
+      // 50% relative error for small values).
+      TestMath<T, D>("FastExpSubnormal", std::exp, CallFastExp, d,
+                     static_cast<T>(-FLT_MAX), static_cast<T>(-87.0), 1);
+    } else {
+      // Double Normal Range: [-708.0, +706.0]
+      // exp(-708) ~= 2.2e-308 (min normal 2.22e-308)
+      TestMathRelative<T, D>("FastExpNormal", std::exp, CallFastExp, d,
+                             static_cast<T>(-708.0), static_cast<T>(706.0),
+                             0.0009, 1e7);
+
+      // Double Subnormal Range: [-744.0, -708.0]
+      // exp(-744) is very small. Quantization error is expected.
+      TestMath<T, D>("FastExpSubnormal", std::exp, CallFastExp, d,
+                     static_cast<T>(-DBL_MAX), static_cast<T>(-708.0), 1);
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllFastExp() {
+  ForFloat3264Types(ForPartialVectors<TestFastExp>());
+}
+
+HWY_NOINLINE void TestAllFastLog() {
+  ForFloat3264Types(ForPartialVectors<TestFastLog>());
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -196,6 +344,8 @@ HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog10);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog1p);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog2);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllFastLog);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllFastExp);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy
