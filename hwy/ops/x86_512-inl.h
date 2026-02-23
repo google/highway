@@ -5929,7 +5929,7 @@ HWY_API VFromD<D> DemoteTo(D /* tag */, Vec512<double> v) {
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I32_D(D)>
 HWY_API VFromD<D> DemoteInRangeTo(D /* tag */, Vec512<double> v) {
 #if HWY_X86_HAVE_AVX10_2_OPS
-  return VFromD<D>{_mm512_cvtts_pd_epi32(v.raw)};
+  return VFromD<D>{_mm512_cvttpd_epi32(v.raw)};
 #elif HWY_COMPILER_GCC_ACTUAL
   // Workaround for undefined behavior in _mm512_cvttpd_epi32 with GCC if any
   // values of v[i] are not within the range of an int32_t
@@ -5966,7 +5966,7 @@ HWY_API VFromD<D> DemoteInRangeTo(D /* tag */, Vec512<double> v) {
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U32_D(D)>
 HWY_API VFromD<D> DemoteInRangeTo(D /* tag */, Vec512<double> v) {
 #if HWY_X86_HAVE_AVX10_2_OPS
-  return VFromD<D>{_mm512_cvtts_pd_epu32(v.raw)};
+  return VFromD<D>{_mm512_cvttpd_epu32(v.raw)};
 #elif HWY_COMPILER_GCC_ACTUAL
   // Workaround for undefined behavior in _mm512_cvttpd_epu32 with GCC if any
   // values of v[i] are not within the range of an uint32_t
@@ -6314,7 +6314,7 @@ HWY_API VFromD<D> ConvertInRangeTo(D /* tag */, VFromD<RebindToFloat<D>> v) {
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_I32_D(D)>
 HWY_API VFromD<D> ConvertInRangeTo(D /*d*/, Vec512<float> v) {
 #if HWY_X86_HAVE_AVX10_2_OPS
-  return VFromD<D>{_mm512_cvtts_ps_epi32(v.raw)};
+  return VFromD<D>{_mm512_cvttps_epi32(v.raw)};
 #elif HWY_COMPILER_GCC_ACTUAL
   // Workaround for undefined behavior in _mm512_cvttps_epi32 with GCC if any
   // values of v[i] are not within the range of an int32_t
@@ -6356,7 +6356,7 @@ HWY_API VFromD<D> ConvertInRangeTo(D /*d*/, Vec512<float> v) {
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_I64_D(D)>
 HWY_API VFromD<D> ConvertInRangeTo(D /*di*/, Vec512<double> v) {
 #if HWY_X86_HAVE_AVX10_2_OPS
-  return VFromD<D>{_mm512_cvtts_pd_epi64(v.raw)};
+  return VFromD<D>{_mm512_cvttpd_epi64(v.raw)};
 #elif HWY_COMPILER_GCC_ACTUAL
   // Workaround for undefined behavior in _mm512_cvttpd_epi64 with GCC if any
   // values of v[i] are not within the range of an int64_t
