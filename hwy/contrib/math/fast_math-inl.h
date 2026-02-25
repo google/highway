@@ -56,6 +56,84 @@ HWY_INLINE void ReduceAngleTan(D d, V ang, V& x_red, V& sign) {
 
 }  // namespace impl
 
+namespace impl {
+
+template <class T>
+struct FastExpImpl {};
+
+template <>
+struct FastExpImpl<float> {
+  // Rounds float toward zero and returns as int32_t.
+  template <class D, class V>
+  HWY_INLINE Vec<Rebind<int32_t, D>> ToInt32(D /*unused*/, V x) {
+    return ConvertInRangeTo(Rebind<int32_t, D>(), x);
+  }
+
+  // Computes 2^x, where x is an integer.
+  template <class D, class VI32>
+  HWY_INLINE Vec<D> Pow2I(D d, VI32 x) {
+    const Rebind<int32_t, D> di32;
+    const VI32 kOffset = Set(di32, 0x7F);
+    return BitCast(d, ShiftLeft<23>(Add(x, kOffset)));
+  }
+
+  // Sets the exponent of 'x' to 2^e.
+  template <class D, class V, class VI32>
+  HWY_INLINE V LoadExpShortRange(D d, V x, VI32 e) {
+    const VI32 y = ShiftRight<1>(e);
+    return Mul(Mul(x, Pow2I(d, y)), Pow2I(d, Sub(e, y)));
+  }
+
+  template <class D, class V, class VI32>
+  HWY_INLINE V ExpReduce(D d, V x, VI32 q) {
+    // kMinusLn2 ~= -ln(2)
+    const V kMinusLn2 = Set(d, -0.69314718056f);
+
+    // Extended precision modular arithmetic.
+    const V qf = ConvertTo(d, q);
+    return MulAdd(qf, kMinusLn2, x);
+  }
+};
+
+#if HWY_HAVE_FLOAT64 && HWY_HAVE_INTEGER64
+template <>
+struct FastExpImpl<double> {
+  // Rounds double toward zero and returns as int32_t.
+  template <class D, class V>
+  HWY_INLINE Vec<Rebind<int32_t, D>> ToInt32(D /*unused*/, V x) {
+    return DemoteInRangeTo(Rebind<int32_t, D>(), x);
+  }
+
+  // Computes 2^x, where x is an integer.
+  template <class D, class VI32>
+  HWY_INLINE Vec<D> Pow2I(D d, VI32 x) {
+    const Rebind<int32_t, D> di32;
+    const Rebind<int64_t, D> di64;
+    const VI32 kOffset = Set(di32, 0x3FF);
+    return BitCast(d, ShiftLeft<52>(PromoteTo(di64, Add(x, kOffset))));
+  }
+
+  // Sets the exponent of 'x' to 2^e.
+  template <class D, class V, class VI32>
+  HWY_INLINE V LoadExpShortRange(D d, V x, VI32 e) {
+    const VI32 y = ShiftRight<1>(e);
+    return Mul(Mul(x, Pow2I(d, y)), Pow2I(d, Sub(e, y)));
+  }
+
+  template <class D, class V, class VI32>
+  HWY_INLINE V ExpReduce(D d, V x, VI32 q) {
+    // kMinusLn2 ~= -ln(2)
+    const V kMinusLn2 = Set(d, -0.6931471805599453);
+
+    // Extended precision modular arithmetic.
+    const V qf = PromoteTo(d, q);
+    return MulAdd(qf, kMinusLn2, x);
+  }
+};
+#endif
+
+}  // namespace impl
+
 /**
  * Fast approximation of tan(x).
  *
@@ -778,6 +856,69 @@ HWY_INLINE V FastLog(D d, V x) {
   return MulAdd(exp, kLn2, approx);
 }
 
+/**
+ * Fast approximation of exp(x).
+ *
+ * Valid Lane Types: float32, float64
+ * Max ULP Error: 1 for float32 [-FLT_MAX, -87]
+ * Max ULP Error: 1 for float64 [-DBL_MAX, -708]
+ * Max Relative Error: 0.06% for float32 [-87, 88]
+ * Max Relative Error: 0.06% for float64 [-708, 706]
+ * Average Relative Error: 0.05% for float32 [-87, 88]
+ * Average Relative Error: 0.06% for float64 [-708, 706]
+ * Valid Range: float32[-FLT_MAX, +88], float64[-DBL_MAX, +706]
+ *
+ * @return e^x
+ */
+template <class D, class V>
+HWY_INLINE V FastExp(D d, V x) {
+  using T = TFromD<D>;
+  impl::FastExpImpl<T> impl;
+
+  const V kHalf = Set(d, static_cast<T>(+0.5));
+  const V kLowerBound =
+      Set(d, static_cast<T>((sizeof(T) == 4 ? -104.0 : -1000.0)));
+  const V kNegZero = Set(d, static_cast<T>(-0.0));
+
+  const V kOneOverLog2 = Set(d, static_cast<T>(+1.442695040888963407359924681));
+
+  using TI = MakeSigned<T>;
+  const Rebind<TI, D> di;
+  const auto rounded_offs = BitCast(
+      d, OrAnd(BitCast(di, kHalf), BitCast(di, x), BitCast(di, kNegZero)));
+
+  const auto q = impl.ToInt32(d, MulAdd(x, kOneOverLog2, rounded_offs));
+
+  // Reduce
+  const auto x_red = impl.ExpReduce(d, x, q);
+
+  // New logic:
+  // x_in = |x_red| / 2 -> absorbed into coefficients
+  // if x_red < 0: swap num/den
+
+  auto y = Abs(x_red);
+
+  const auto a = Set(d, static_cast<T>(-1757.05));
+  const auto b = Set(d, static_cast<T>(-3128.2));
+  const auto c = Set(d, static_cast<T>(1406.95));
+  const auto d_coef = Set(d, static_cast<T>(-3130.2));
+
+  // res = (Ay + B) / (Cy + D)
+  auto num = MulAdd(a, y, b);
+  auto den = MulAdd(c, y, d_coef);
+
+  // If x_red < 0, swap num/den
+  auto final_num = IfNegativeThenElse(x_red, den, num);
+  auto final_den = IfNegativeThenElse(x_red, num, den);
+
+  auto approx = Div(final_num, final_den);
+
+  const V res = impl.LoadExpShortRange(d, approx, q);
+
+  // Handle underflow
+  return IfThenElseZero(Ge(x, kLowerBound), res);
+}
+
 template <class D, class V>
 HWY_NOINLINE V CallFastAtan(const D d, VecArg<V> x) {
   return FastAtan(d, x);
@@ -801,6 +942,11 @@ HWY_NOINLINE V CallFastTanh(const D d, VecArg<V> x) {
 template <class D, class V>
 HWY_NOINLINE V CallFastLog(const D d, VecArg<V> x) {
   return FastLog(d, x);
+}
+
+template <class D, class V>
+HWY_NOINLINE V CallFastExp(const D d, VecArg<V> x) {
+  return FastExp(d, x);
 }
 
 }  // namespace HWY_NAMESPACE

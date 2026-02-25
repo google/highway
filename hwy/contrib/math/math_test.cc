@@ -222,6 +222,7 @@ HWY_NOINLINE void TestMathRelative(const char* name, T (*fx1)(T),
   }
 
   double max_actual_rel_error = 0.0;
+  double max_error_value = 0.0;
   // Emulation is slower, so cannot afford as many.
   const UintT kSamplesPerRange =
       static_cast<UintT>(AdjustedReps(static_cast<size_t>(samples)));
@@ -248,7 +249,10 @@ HWY_NOINLINE void TestMathRelative(const char* name, T (*fx1)(T),
         double rel = std::abs(static_cast<double>(actual) -
                               static_cast<double>(expected)) /
                      std::abs(static_cast<double>(expected));
-        max_actual_rel_error = HWY_MAX(max_actual_rel_error, rel);
+        if (ScalarIsNaN(rel) || rel > max_actual_rel_error) {
+          max_actual_rel_error = rel;
+          max_error_value = static_cast<double>(value);
+        }
         if (rel > max_relative_error) {
           static int print_count = 0;
           if (print_count < 10) {
@@ -263,8 +267,9 @@ HWY_NOINLINE void TestMathRelative(const char* name, T (*fx1)(T),
       }
     }
   }
-  fprintf(stderr, "%s: %s max_rel_error %E\n",
-          hwy::TypeName(T(), Lanes(d)).c_str(), name, max_actual_rel_error);
+  fprintf(stderr, "%s: %s max_rel_error %E at %E\n",
+          hwy::TypeName(T(), Lanes(d)).c_str(), name, max_actual_rel_error,
+          max_error_value);
   HWY_ASSERT(max_actual_rel_error <= max_relative_error);
 }
 
@@ -282,6 +287,40 @@ struct TestFastLog {
     }
   }
 };
+
+struct TestFastExp {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T, D d) {
+    if (sizeof(T) == 4) {
+      // Float Normal Range: [-87.0, +88.0]
+      // exp(-87) ~= 1.6e-38 (just above min normal 1.17e-38)
+      TestMathRelative<T, D>("FastExpNormal", std::exp, CallFastExp, d,
+                             static_cast<T>(-87.0), static_cast<T>(88.0),
+                             0.0007, 1e7);
+
+      // Float Subnormal Range: [-104.0, -87.0]
+      // exp(-104) is close to 0. Error is dominated by quantization (1 ULP ~=
+      // 50% relative error for small values).
+      TestMath<T, D>("FastExpSubnormal", std::exp, CallFastExp, d,
+                     static_cast<T>(-FLT_MAX), static_cast<T>(-87.0), 1);
+    } else {
+      // Double Normal Range: [-708.0, +706.0]
+      // exp(-708) ~= 2.2e-308 (min normal 2.22e-308)
+      TestMathRelative<T, D>("FastExpNormal", std::exp, CallFastExp, d,
+                             static_cast<T>(-708.0), static_cast<T>(706.0),
+                             0.0007, 1e7);
+
+      // Double Subnormal Range: [-744.0, -708.0]
+      // exp(-744) is very small. Quantization error is expected.
+      TestMath<T, D>("FastExpSubnormal", std::exp, CallFastExp, d,
+                     static_cast<T>(-DBL_MAX), static_cast<T>(-708.0), 1);
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllFastExp() {
+  ForFloat3264Types(ForPartialVectors<TestFastExp>());
+}
 
 HWY_NOINLINE void TestAllFastLog() {
   ForFloat3264Types(ForPartialVectors<TestFastLog>());
@@ -305,6 +344,7 @@ HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog10);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog1p);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog2);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllFastLog);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllFastExp);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy
