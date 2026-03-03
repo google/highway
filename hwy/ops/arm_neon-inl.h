@@ -7650,7 +7650,8 @@ HWY_API Vec32<uint32_t> RearrangeToOddPlusEven(Vec32<uint32_t> sum0,
 }
 
 // ------------------------------ SumOfMulQuadAccumulate
-#ifdef __ARM_FEATURE_DOTPROD
+
+#if defined(__ARM_FEATURE_DOTPROD) || HWY_TARGET == HWY_NEON_BF16
 
 #ifdef HWY_NATIVE_I8_I8_SUMOFMULQUADACCUMULATE
 #undef HWY_NATIVE_I8_I8_SUMOFMULQUADACCUMULATE
@@ -7694,7 +7695,7 @@ HWY_API VFromD<DU32> SumOfMulQuadAccumulate(
   return VFromD<DU32>(vdotq_u32(sum.raw, a.raw, b.raw));
 }
 
-#endif //__ARM_FEATURE_DOTPROD
+#endif //__ARM_FEATURE_DOTPROD || HWY_TARGET == HWY_NEON_BF16
 
 #ifdef HWY_NATIVE_U8_I8_SUMOFMULQUADACCUMULATE
 #undef HWY_NATIVE_U8_I8_SUMOFMULQUADACCUMULATE
