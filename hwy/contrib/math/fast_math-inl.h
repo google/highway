@@ -494,17 +494,17 @@ HWY_INLINE V FastTanh(D d, V val) {
   // Abs(val) and preserve sign for later
   auto y = Abs(val);
 
-  // Coefficients for P(y) ~ index using CF algo
-  const auto k0 = Set(d, static_cast<T>(-0.1145426548151546));
-  const auto k1 = Set(d, static_cast<T>(6.911330994691481));
-  const auto k2 = Set(d, static_cast<T>(-2.511392313950185));
-  const auto k3 = Set(d, static_cast<T>(0.3465107224049977));
-
   constexpr size_t kLanes = HWY_MAX_LANES_D(D);
   V a, c, d_coef;
 
   if constexpr ((kLanes >= 4 && !HWY_HAVE_SCALABLE) ||
                 (HWY_HAVE_SCALABLE && sizeof(T) == 4)) {
+    // Coefficients for P(y) ~ index using CF algo
+    const auto k0 = Set(d, static_cast<T>(-0.1145426548151546));
+    const auto k1 = Set(d, static_cast<T>(6.911330994691481));
+    const auto k2 = Set(d, static_cast<T>(-2.511392313950185));
+    const auto k3 = Set(d, static_cast<T>(0.3465107224049977));
+
     // Index calculation: idx = P(y)
     // Estrin's scheme
     // k0 + y * k1 + y^2 * (k2 + y * k3)
@@ -714,15 +714,6 @@ HWY_INLINE V FastLog(D d, V x) {
       OrAnd(Add(And(exp_bits, kManMask), kMagic), x_bits, kLowerBits);
   const V y = BitCast(d, y_bits);
 
-  // Polynomial Approximation
-  const auto t0 = Set(d, static_cast<T>(0.7954951275));
-  const auto t1 = Set(d, static_cast<T>(0.883883475));
-  const auto t2 = Set(d, static_cast<T>(0.9722718225));
-  const auto t3 = Set(d, static_cast<T>(1.06066017));
-  const auto t4 = Set(d, static_cast<T>(1.1490485175));
-  const auto t5 = Set(d, static_cast<T>(1.237436865));
-  const auto t6 = Set(d, static_cast<T>(1.3258252125));
-
   constexpr size_t kLanes = HWY_MAX_LANES_D(D);
   V a, c, d_coef;
 
@@ -784,6 +775,15 @@ HWY_INLINE V FastLog(D d, V x) {
     }
   } else {
     // --- FALLBACK PATH: Blend Chain ---
+    // Polynomial Approximation
+    const auto t0 = Set(d, static_cast<T>(0.7954951275));
+    const auto t1 = Set(d, static_cast<T>(0.883883475));
+    const auto t2 = Set(d, static_cast<T>(0.9722718225));
+    const auto t3 = Set(d, static_cast<T>(1.06066017));
+    const auto t4 = Set(d, static_cast<T>(1.1490485175));
+    const auto t5 = Set(d, static_cast<T>(1.237436865));
+    const auto t6 = Set(d, static_cast<T>(1.3258252125));
+
     // Start with highest index (7)
     a = Set(d, static_cast<T>(-1.0026088937292035e+00));
     c = Set(d, static_cast<T>(-4.3319821691832594e-01));
