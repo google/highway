@@ -276,7 +276,7 @@ tests on 32-bit x86, including AVX2/3, on GCC 7/8 and Clang 8/11/12. On Ubuntu
 22.04, Clang 11 and 12, but not later versions, require extra compiler flags
 `-m32 -isystem /usr/i686-linux-gnu/include`. Clang 10 and earlier require the
 above plus `-isystem /usr/i686-linux-gnu/include/c++/12/i686-linux-gnu`. See
-#1279.
+[#1279](https://github.com/google/highway/issues/1279).
 
 ## Building highway - Using vcpkg
 
