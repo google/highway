@@ -169,13 +169,13 @@ HWY_INLINE V FastTan(D d, V x) {
     // Convert to Integer Vector (Signed)
     auto idx_int = ConvertTo(RebindToSigned<D>(), idx_float);
 
-    HWY_ALIGN static constexpr T arr_a[] = {
+    HWY_ALIGN static constexpr T arr_a[8] = {
         static_cast<T>(630.25357464271012), static_cast<T>(572.95779513082321),
         static_cast<T>(343.77467707849392), static_cast<T>(572.95779513082321),
         static_cast<T>(229.18311805232929), static_cast<T>(57.295779513082323),
         static_cast<T>(57.295779513082323), static_cast<T>(57.295779513082323)};
 
-    HWY_ALIGN static constexpr T arr_b[] = {static_cast<T>(0.0000000000000000),
+    HWY_ALIGN static constexpr T arr_b[8] = {static_cast<T>(0.0000000000000000),
                                             static_cast<T>(10.0000000000000000),
                                             static_cast<T>(46.0000000000000000),
                                             static_cast<T>(217.00000000000000),
@@ -184,7 +184,7 @@ HWY_INLINE V FastTan(D d, V x) {
                                             static_cast<T>(542.00000000000000),
                                             static_cast<T>(542.00000000000000)};
 
-    HWY_ALIGN static constexpr T arr_c[] = {
+    HWY_ALIGN static constexpr T arr_c[8] = {
         static_cast<T>(-57.295779513082323),
         static_cast<T>(-229.18311805232929),
         static_cast<T>(-286.47889756541161),
@@ -194,7 +194,7 @@ HWY_INLINE V FastTan(D d, V x) {
         static_cast<T>(-630.25357464271012),
         static_cast<T>(-630.25357464271012)};
 
-    HWY_ALIGN static constexpr T arr_d[] = {
+    HWY_ALIGN static constexpr T arr_d[8] = {
         static_cast<T>(632.00000000000000), static_cast<T>(657.00000000000000),
         static_cast<T>(541.00000000000000), static_cast<T>(1252.0000000000000),
         static_cast<T>(910.00000000000000), static_cast<T>(990.00000000000000),
@@ -203,10 +203,11 @@ HWY_INLINE V FastTan(D d, V x) {
     if constexpr (kLanes >= 8 && !HWY_HAVE_SCALABLE) {
       // Cast to "Indices" Type
       auto idx = IndicesFromVec(d, idx_int);
-      a = TableLookupLanes(Load(d, arr_a), idx);
-      b = TableLookupLanes(Load(d, arr_b), idx);
-      c = TableLookupLanes(Load(d, arr_c), idx);
-      d_val = TableLookupLanes(Load(d, arr_d), idx);
+      CappedTag<T, 8> d8;
+      a = TableLookupLanes(ResizeBitCast(d, Load(d8, arr_a)), idx);
+      b = TableLookupLanes(ResizeBitCast(d, Load(d8, arr_b)), idx);
+      c = TableLookupLanes(ResizeBitCast(d, Load(d8, arr_c)), idx);
+      d_val = TableLookupLanes(ResizeBitCast(d, Load(d8, arr_d)), idx);
     } else {
       auto idx = IndicesFromVec(d, idx_int);
       FixedTag<T, 4> d4;
@@ -331,12 +332,12 @@ HWY_INLINE V FastAtan(D d, V val) {
     idx_i = Add(idx_i, And(VecFromMask(DI(), mask60), one_i));
     idx_i = Add(idx_i, And(VecFromMask(DI(), mask75), one_i));
 
-    HWY_ALIGN static constexpr T arr_a[] = {
+    HWY_ALIGN static constexpr T arr_a[8] = {
         static_cast<T>(630.25357464271012), static_cast<T>(572.95779513082321),
         static_cast<T>(343.77467707849392), static_cast<T>(572.95779513082321),
         static_cast<T>(229.18311805232929), static_cast<T>(57.295779513082323),
         static_cast<T>(57.295779513082323), static_cast<T>(57.295779513082323)};
-    HWY_ALIGN static constexpr T arr_b[] = {static_cast<T>(0.0000000000000000),
+    HWY_ALIGN static constexpr T arr_b[8] = {static_cast<T>(0.0000000000000000),
                                             static_cast<T>(10.0000000000000000),
                                             static_cast<T>(46.0000000000000000),
                                             static_cast<T>(217.00000000000000),
@@ -344,7 +345,7 @@ HWY_INLINE V FastAtan(D d, V val) {
                                             static_cast<T>(542.00000000000000),
                                             static_cast<T>(542.00000000000000),
                                             static_cast<T>(542.00000000000000)};
-    HWY_ALIGN static constexpr T arr_c[] = {
+    HWY_ALIGN static constexpr T arr_c[8] = {
         static_cast<T>(-57.295779513082323),
         static_cast<T>(-229.18311805232929),
         static_cast<T>(-286.47889756541161),
@@ -353,7 +354,7 @@ HWY_INLINE V FastAtan(D d, V val) {
         static_cast<T>(-630.25357464271012),
         static_cast<T>(-630.25357464271012),
         static_cast<T>(-630.25357464271012)};
-    HWY_ALIGN static constexpr T arr_d[] = {
+    HWY_ALIGN static constexpr T arr_d[8] = {
         static_cast<T>(632.00000000000000), static_cast<T>(657.00000000000000),
         static_cast<T>(541.00000000000000), static_cast<T>(1252.0000000000000),
         static_cast<T>(910.00000000000000), static_cast<T>(990.00000000000000),
@@ -361,10 +362,11 @@ HWY_INLINE V FastAtan(D d, V val) {
 
     if constexpr (kLanes >= 8 && !HWY_HAVE_SCALABLE) {
       auto idx = IndicesFromVec(d, idx_i);
-      a = TableLookupLanes(Load(d, arr_a), idx);
-      b = TableLookupLanes(Load(d, arr_b), idx);
-      c = TableLookupLanes(Load(d, arr_c), idx);
-      d_coef = TableLookupLanes(Load(d, arr_d), idx);
+      CappedTag<T, 8> d8;
+      a = TableLookupLanes(ResizeBitCast(d, Load(d8, arr_a)), idx);
+      b = TableLookupLanes(ResizeBitCast(d, Load(d8, arr_b)), idx);
+      c = TableLookupLanes(ResizeBitCast(d, Load(d8, arr_c)), idx);
+      d_coef = TableLookupLanes(ResizeBitCast(d, Load(d8, arr_d)), idx);
     } else {
       auto idx = IndicesFromVec(d, idx_i);
       FixedTag<T, 4> d4;
@@ -520,7 +522,7 @@ HWY_INLINE V FastTanh(D d, V val) {
     // Clamp index to 7
     idx_i = Min(idx_i, Set(DI(), 7));
 
-    HWY_ALIGN static constexpr T arr_a[] = {
+    HWY_ALIGN static constexpr T arr_a[8] = {
         static_cast<T>(-2870.653300658652),
         static_cast<T>(-193.8913447691486),
         static_cast<T>(-37.25783093771139),
@@ -530,7 +532,7 @@ HWY_INLINE V FastTanh(D d, V val) {
         static_cast<T>(-0.9603919422736032),
         static_cast<T>(-0.4265454062350802)};
     // arr_b is not needed since its always 1.0
-    HWY_ALIGN static constexpr T arr_c[] = {
+    HWY_ALIGN static constexpr T arr_c[8] = {
         static_cast<T>(-316.5640994591445),
         static_cast<T>(-49.14374182730444),
         static_cast<T>(-15.69264419046708),
@@ -540,7 +542,7 @@ HWY_INLINE V FastTanh(D d, V val) {
         static_cast<T>(-0.9298342163526662),
         static_cast<T>(-0.426230503963466)};
 
-    HWY_ALIGN static constexpr T arr_d[] = {
+    HWY_ALIGN static constexpr T arr_d[8] = {
         static_cast<T>(-2838.258534620734),
         static_cast<T>(-181.5331279956489),
         static_cast<T>(-30.30794802185292),
@@ -552,9 +554,10 @@ HWY_INLINE V FastTanh(D d, V val) {
 
     if constexpr (kLanes >= 8 && !HWY_HAVE_SCALABLE) {
       auto idx = IndicesFromVec(d, idx_i);
-      a = TableLookupLanes(Load(d, arr_a), idx);
-      c = TableLookupLanes(Load(d, arr_c), idx);
-      d_coef = TableLookupLanes(Load(d, arr_d), idx);
+      CappedTag<T, 8> d8;
+      a = TableLookupLanes(ResizeBitCast(d, Load(d8, arr_a)), idx);
+      c = TableLookupLanes(ResizeBitCast(d, Load(d8, arr_c)), idx);
+      d_coef = TableLookupLanes(ResizeBitCast(d, Load(d8, arr_d)), idx);
     } else {
       auto idx = IndicesFromVec(d, idx_i);
       FixedTag<T, 4> d4;
@@ -731,7 +734,7 @@ HWY_INLINE V FastLog(D d, V x) {
     // Clamp index to 7 to handle overshoots
     idx_i = Min(idx_i, Set(RebindToSigned<D>(), 7));
 
-    HWY_ALIGN static constexpr T arr_a[] = {
+    HWY_ALIGN static constexpr T arr_a[8] = {
         static_cast<T>(-9.9805647568302591e-01),
         static_cast<T>(-9.9957356952094290e-01),
         static_cast<T>(-9.9997448030468128e-01),
@@ -741,7 +744,7 @@ HWY_INLINE V FastLog(D d, V x) {
         static_cast<T>(-1.0012578436820159e+00),
         static_cast<T>(-1.0026088937292035e+00)};
     // b array is not needed since b is always 1.0.
-    HWY_ALIGN static constexpr T arr_c[] = {
+    HWY_ALIGN static constexpr T arr_c[8] = {
         static_cast<T>(-5.8272115256950630e-01),
         static_cast<T>(-5.4794075644717266e-01),
         static_cast<T>(-5.1959981902435026e-01),
@@ -750,7 +753,7 @@ HWY_INLINE V FastLog(D d, V x) {
         static_cast<T>(-4.5972782480224245e-01),
         static_cast<T>(-4.4546134537646059e-01),
         static_cast<T>(-4.3319821691832594e-01)};
-    HWY_ALIGN static constexpr T arr_d[] = {
+    HWY_ALIGN static constexpr T arr_d[8] = {
         static_cast<T>(-4.3704086438791473e-01),
         static_cast<T>(-4.5946229210571821e-01),
         static_cast<T>(-4.8168192392472370e-01),
@@ -762,9 +765,10 @@ HWY_INLINE V FastLog(D d, V x) {
 
     if constexpr (kLanes >= 8 && !HWY_HAVE_SCALABLE) {
       auto idx = IndicesFromVec(d, idx_i);
-      a = TableLookupLanes(Load(d, arr_a), idx);
-      c = TableLookupLanes(Load(d, arr_c), idx);
-      d_coef = TableLookupLanes(Load(d, arr_d), idx);
+      CappedTag<T, 8> d8;
+      a = TableLookupLanes(ResizeBitCast(d, Load(d8, arr_a)), idx);
+      c = TableLookupLanes(ResizeBitCast(d, Load(d8, arr_c)), idx);
+      d_coef = TableLookupLanes(ResizeBitCast(d, Load(d8, arr_d)), idx);
     } else {
       auto idx = IndicesFromVec(d, idx_i);
       FixedTag<T, 4> d4;
