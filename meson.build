@@ -127,6 +127,7 @@ hwy_contrib_headers = files(
     'hwy/contrib/bit_pack/bit_pack-inl.h',
     'hwy/contrib/dot/dot-inl.h',
     'hwy/contrib/image/image.h',
+    'hwy/contrib/math/fast_math-inl.h',
     'hwy/contrib/math/math-inl.h',
     'hwy/contrib/matvec/matvec-inl.h',
     'hwy/contrib/random/random-inl.h',

@@ -4556,7 +4556,7 @@ HWY_API Vec128<int64_t, N> operator*(Vec128<int64_t, N> a,
 
 // ------------------------------ RotateRight (ShiftRight, Or)
 
-// U8 RotateRight implementation on AVX3_DL is now in x86_512-inl.h as U8
+// U8 RotateRight implementation on AVX3_DL is now in x86_avx3-inl.h as U8
 // RotateRight uses detail::GaloisAffine on AVX3_DL
 
 #if HWY_TARGET > HWY_AVX3_DL
@@ -9190,6 +9190,17 @@ HWY_API V InterleaveEvenBlocks(D, V a, V /*b*/) {
 // ------------------------------ InterleaveOddBlocks
 template <class D, class V = VFromD<D>, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API V InterleaveOddBlocks(D, V a, V /*b*/) {
+  return a;
+}
+
+// ------------------------------ InterleaveLowerBlocks
+template <class D, class V = VFromD<D>, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API V InterleaveLowerBlocks(D, V a, V /*b*/) {
+  return a;
+}
+// ------------------------------ InterleaveUpperBlocks
+template <class D, class V = VFromD<D>, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API V InterleaveUpperBlocks(D, V a, V /*b*/) {
   return a;
 }
 

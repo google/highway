@@ -4312,6 +4312,17 @@ HWY_API V InterleaveOddBlocks(D, V a, V /*b*/) {
   return a;
 }
 
+// ------------------------------ InterleaveLowerBlocks
+template <class D, class V = VFromD<D>, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API V InterleaveLowerBlocks(D, V a, V /*b*/) {
+  return a;
+}
+// ------------------------------ InterleaveUpperBlocks
+template <class D, class V = VFromD<D>, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API V InterleaveUpperBlocks(D, V a, V /*b*/) {
+  return a;
+}
+
 // ------------------------------ Shl
 
 template <typename T, size_t N, HWY_IF_UI8(T)>

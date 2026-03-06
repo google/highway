@@ -49,6 +49,7 @@ hwy_contrib_public = [
   "$_hwy/contrib/algo/transform-inl.h",
   "$_hwy/contrib/dot/dot-inl.h",
   "$_hwy/contrib/image/image.h",
+  "$_hwy/contrib/math/fast_math-inl.h",
   "$_hwy/contrib/math/math-inl.h",
 ]
 

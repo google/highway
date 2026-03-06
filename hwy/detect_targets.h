@@ -270,11 +270,12 @@
 // SVE[2] require recent clang or gcc versions.
 
 #ifndef HWY_BROKEN_SVE  // allow override
-// GCC 10+. Clang 22 still has test failures for SVE, including MSAN. No Apple
-// CPU (at least up to and including M4 and A18) has SVE.
+// GCC 10+. Clang 22 still has test failures for SVE, including MSAN because
+// initialization info appears not to be propagated through SVE instructions.
+// No Apple CPU (at least up to and including M4 and A18) has SVE.
 #if (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 2300) ||           \
     (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1000) || \
-    HWY_OS_APPLE
+    HWY_OS_APPLE || HWY_IS_MSAN
 #define HWY_BROKEN_SVE (HWY_SVE | HWY_SVE_256)
 #else
 #define HWY_BROKEN_SVE 0
@@ -282,10 +283,11 @@
 #endif  // HWY_BROKEN_SVE
 
 #ifndef HWY_BROKEN_SVE2  // allow override
-// Clang 21 still has test failures for SVE2, including MSAN.
+// Clang 21 still has test failures for SVE2, including MSAN because
+// initialization info appears not to be propagated through SVE instructions.
 #if (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 2300) ||           \
     (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1000) || \
-    HWY_OS_APPLE
+    HWY_OS_APPLE || HWY_IS_MSAN
 #define HWY_BROKEN_SVE2 (HWY_SVE2)
 #else
 #define HWY_BROKEN_SVE2 0
@@ -293,10 +295,10 @@
 #endif  // HWY_BROKEN_SVE2
 
 #ifndef HWY_BROKEN_SVE2_128  // allow override
-// GCC 10+. Clang 21 works for SVE2_128, but not for SVE2.
+// GCC 10+. Clang 21 works for SVE2_128, but not for SVE2 nor MSAN.
 #if (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 2100) ||           \
     (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1000) || \
-    HWY_OS_APPLE
+    HWY_OS_APPLE || HWY_IS_MSAN
 #define HWY_BROKEN_SVE2_128 (HWY_SVE2_128)
 #else
 #define HWY_BROKEN_SVE2_128 0

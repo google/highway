@@ -2526,6 +2526,17 @@ HWY_API V InterleaveOddBlocks(D d, V a, V b) {
   return ConcatUpperUpper(d, b, a);
 }
 
+// ------------------------------ InterleaveLowerBlocks
+template <class D, class V = VFromD<D>, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API V InterleaveLowerBlocks(D d, V a, V b) {
+  return InterleaveEvenBlocks(d, a, b);
+}
+// ------------------------------ InterleaveUpperBlocks
+template <class D, class V = VFromD<D>, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API V InterleaveUpperBlocks(D d, V a, V b) {
+  return InterleaveOddBlocks(d, a, b);
+}
+
 // ------------------------------ Reverse (RotateRight)
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 4)>

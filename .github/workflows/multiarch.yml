@@ -24,7 +24,7 @@ jobs:
             distro: ubuntu_latest
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6.0.1
+      uses: actions/checkout@v6.0.2
     - name: Build and test
       uses: uraimo/run-on-arch-action@v3.0.1
       id: build
@@ -68,11 +68,11 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
         with:
           egress-policy: audit  # cannot be block - runner does git checkout
 
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v4.0.0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4.0.0
 
       - name: Install deps
         run: sudo apt-get update && sudo apt-get install ${{ matrix.extra_deps }}
@@ -102,11 +102,11 @@ jobs:
           wget https://github.com/loongson/build-tools/releases/download/2025.02.21/x86_64-cross-tools-loongarch64-binutils_2.44-gcc_14.2.0-glibc_2.41.tar.xz
           sudo tar -xvf x86_64-cross-tools-loongarch64-binutils_2.44-gcc_14.2.0-glibc_2.41.tar.xz -C /opt
       - name: Harden Runner
-        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
         with:
           egress-policy: audit  # cannot be block - runner does git checkout
 
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v4.0.0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4.0.0
 
       - name: Install deps
         run: |

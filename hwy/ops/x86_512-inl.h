@@ -4828,6 +4828,65 @@ HWY_API Vec512<T> InterleaveOddBlocks(Full512<T> d, Vec512<T> a, Vec512<T> b) {
   return OddEvenBlocks(b, SlideDownBlocks<1>(d, a));
 }
 
+// ------------------------------ InterleaveLowerBlocks (TwoTablesLookupLanes)
+
+// Note that _mm512_shuffle_f32x4 etc. can only use `a` to populate the lower
+// half of the result, so we would require at least two instructions. We instead
+// use table lookups.
+
+template <typename T>
+HWY_API Vec512<T> InterleaveLowerBlocks(Full512<T> d, Vec512<T> a,
+                                        Vec512<T> b) {
+  const Repartition<uint64_t, decltype(d)> du64;
+  HWY_ALIGN static constexpr int64_t kIdx[8] = {0, 1, 8, 9, 2, 3, 10, 11};
+  const auto idx = SetTableIndices(du64, kIdx);
+  return BitCast(d,
+                 TwoTablesLookupLanes(BitCast(du64, a), BitCast(du64, b), idx));
+}
+
+HWY_API Vec512<float> InterleaveLowerBlocks(Full512<float> d, Vec512<float> a,
+                                            Vec512<float> b) {
+  HWY_ALIGN static constexpr int32_t kIdx[16] = {0, 1, 2, 3, 16, 17, 18, 19,
+                                                 4, 5, 6, 7, 20, 21, 22, 23};
+  const auto idx = SetTableIndices(d, kIdx);
+  return TwoTablesLookupLanes(a, b, idx);
+}
+
+HWY_API Vec512<double> InterleaveLowerBlocks(Full512<double> d,
+                                             Vec512<double> a,
+                                             Vec512<double> b) {
+  HWY_ALIGN static constexpr int64_t kIdx[8] = {0, 1, 8, 9, 2, 3, 10, 11};
+  const auto idx = SetTableIndices(d, kIdx);
+  return TwoTablesLookupLanes(a, b, idx);
+}
+
+// ------------------------------ InterleaveUpperBlocks (TwoTablesLookupLanes)
+template <typename T>
+HWY_API Vec512<T> InterleaveUpperBlocks(Full512<T> d, Vec512<T> a,
+                                        Vec512<T> b) {
+  const Repartition<uint64_t, decltype(d)> du64;
+  HWY_ALIGN static constexpr int64_t kIdx[8] = {4, 5, 12, 13, 6, 7, 14, 15};
+  const auto idx = SetTableIndices(du64, kIdx);
+  return BitCast(
+      d, TwoTablesLookupLanes(du64, BitCast(du64, a), BitCast(du64, b), idx));
+}
+
+HWY_API Vec512<float> InterleaveUpperBlocks(Full512<float> d, Vec512<float> a,
+                                            Vec512<float> b) {
+  HWY_ALIGN static constexpr int32_t kIdx[16] = {
+      8, 9, 10, 11, 24, 25, 26, 27, 12, 13, 14, 15, 28, 29, 30, 31};
+  const auto idx = SetTableIndices(d, kIdx);
+  return TwoTablesLookupLanes(a, b, idx);
+}
+
+HWY_API Vec512<double> InterleaveUpperBlocks(Full512<double> d,
+                                             Vec512<double> a,
+                                             Vec512<double> b) {
+  HWY_ALIGN static constexpr int64_t kIdx[8] = {4, 5, 12, 13, 6, 7, 14, 15};
+  const auto idx = SetTableIndices(d, kIdx);
+  return TwoTablesLookupLanes(a, b, idx);
+}
+
 // ------------------------------ ReverseBlocks
 
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_FLOAT3264_D(D)>
