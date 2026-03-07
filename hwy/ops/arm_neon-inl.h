@@ -1,5 +1,5 @@
 // Copyright 2019 Google LLC
-// Copyright 2024-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+// Copyright 2024-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: BSD-3-Clause
 //
@@ -7651,8 +7651,8 @@ HWY_API Vec32<uint32_t> RearrangeToOddPlusEven(Vec32<uint32_t> sum0,
 
 // ------------------------------ SumOfMulQuadAccumulate
 
-#if HWY_TARGET == HWY_NEON_BF16 || \
-    (HWY_OS_APPLE && HWY_ARCH_ARM_A64 && defined(__ARM_FEATURE_DOTPROD))
+
+#if HWY_TARGET == HWY_NEON_BF16 || defined(__ARM_FEATURE_DOTPROD)
 
 #ifdef HWY_NATIVE_I8_I8_SUMOFMULQUADACCUMULATE
 #undef HWY_NATIVE_I8_I8_SUMOFMULQUADACCUMULATE
@@ -7695,6 +7695,8 @@ HWY_API VFromD<DU32> SumOfMulQuadAccumulate(
     VFromD<Repartition<uint8_t, DU32>> b, VFromD<DU32> sum) {
   return VFromD<DU32>(vdotq_u32(sum.raw, a.raw, b.raw));
 }
+
+#endif //__ARM_FEATURE_DOTPROD || HWY_TARGET == HWY_NEON_BF16
 
 #ifdef HWY_NATIVE_U8_I8_SUMOFMULQUADACCUMULATE
 #undef HWY_NATIVE_U8_I8_SUMOFMULQUADACCUMULATE
@@ -7739,8 +7741,6 @@ HWY_API VFromD<DI32> SumOfMulQuadAccumulate(
 }
 
 #endif  // __ARM_FEATURE_MATMUL_INT8
-
-#endif  // HWY_TARGET == HWY_NEON_BF16
 
 // ------------------------------ WidenMulPairwiseAdd
 
