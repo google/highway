@@ -99,11 +99,13 @@ jobs:
             cxx_flags: -ftrapv
             cxx_standard: 20
 
-          - name: GCC-12
+          - name: GCC-12 (C++11)
             extra_deps: g++-12
             c_compiler: gcc-12
             cxx_compiler: g++-12
             cxx_flags: -ftrapv
+            # contrib/ requires C++17
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 11
 
           - name: GCC-12 (C++20)
