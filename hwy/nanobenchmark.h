@@ -150,4 +150,7 @@ static inline size_t MeasureClosure(const Closure& closure,
 
 }  // namespace hwy
 
+#if HWY_HEADER_ONLY
+#include "hwy/nanobenchmark.cc"
+#endif
 #endif  // HIGHWAY_HWY_NANOBENCHMARK_H_

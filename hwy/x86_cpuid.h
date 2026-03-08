@@ -35,7 +35,7 @@ namespace x86 {
 
 // Calls CPUID instruction with eax=level and ecx=count and returns the result
 // in abcd array where abcd = {eax, ebx, ecx, edx} (hence the name abcd).
-static inline void Cpuid(const uint32_t level, const uint32_t count,
+inline void Cpuid(const uint32_t level, const uint32_t count,
                          uint32_t* HWY_RESTRICT abcd) {
 #if HWY_COMPILER_MSVC || HWY_COMPILER_CLANGCL
   int regs[4];
@@ -56,17 +56,17 @@ static inline void Cpuid(const uint32_t level, const uint32_t count,
 #endif  // HWY_COMPILER_MSVC || HWY_COMPILER_CLANGCL
 }
 
-static inline bool IsBitSet(const uint32_t reg, const int index) {
+inline bool IsBitSet(const uint32_t reg, const int index) {
   return (reg & (1U << index)) != 0;
 }
 
-static inline uint32_t MaxLevel() {
+inline uint32_t MaxLevel() {
   uint32_t abcd[4];
   Cpuid(0, 0, abcd);
   return abcd[0];
 }
 
-static inline bool IsAMD() {
+inline bool IsAMD() {
   uint32_t abcd[4];
   Cpuid(0, 0, abcd);
   const uint32_t max_level = abcd[0];

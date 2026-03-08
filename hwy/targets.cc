@@ -49,16 +49,18 @@
 namespace hwy {
 
 #if HWY_OS_APPLE
-static HWY_INLINE HWY_MAYBE_UNUSED bool HasCpuFeature(
-    const char* feature_name) {
+namespace detail {
+// HWY_HEADER_ONLY_FUNC
+HWY_INLINE HWY_MAYBE_UNUSED bool HasCpuFeature(const char* feature_name) {
   int result = 0;
   size_t len = sizeof(int);
   return (sysctlbyname(feature_name, &result, &len, nullptr, 0) == 0 &&
           result != 0);
 }
 
-static HWY_INLINE HWY_MAYBE_UNUSED bool ParseU32(const char*& ptr,
-                                                 uint32_t& parsed_val) {
+// HWY_HEADER_ONLY_FUNC
+HWY_INLINE HWY_MAYBE_UNUSED bool ParseU32(const char*& ptr,
+                                          uint32_t& parsed_val) {
   uint64_t parsed_u64 = 0;
 
   const char* start_ptr = ptr;
@@ -79,7 +81,8 @@ static HWY_INLINE HWY_MAYBE_UNUSED bool ParseU32(const char*& ptr,
   return (ptr != start_ptr);
 }
 
-static HWY_INLINE HWY_MAYBE_UNUSED bool IsMacOs12_2OrLater() {
+// HWY_HEADER_ONLY_FUNC
+HWY_INLINE HWY_MAYBE_UNUSED bool IsMacOs12_2OrLater() {
   utsname uname_buf;
   ZeroBytes(&uname_buf, sizeof(utsname));
 
@@ -111,6 +114,7 @@ static HWY_INLINE HWY_MAYBE_UNUSED bool IsMacOs12_2OrLater() {
   // or later
   return (major > 21 || (major == 21 && minor >= 3));
 }
+}  // namespace detail
 #endif  // HWY_OS_APPLE
 
 #if HWY_ARCH_X86 && HWY_HAVE_RUNTIME_DISPATCH
@@ -118,7 +122,8 @@ namespace x86 {
 
 // Returns the lower 32 bits of extended control register 0.
 // Requires CPU support for "OSXSAVE" (see below).
-static uint32_t ReadXCR0() {
+HWY_HEADER_ONLY_FUNC
+uint32_t ReadXCR0() {
 #if HWY_COMPILER_MSVC
   return static_cast<uint32_t>(_xgetbv(0));
 #else   // HWY_COMPILER_MSVC
@@ -177,12 +182,13 @@ enum class FeatureIndex : uint32_t {
 static_assert(static_cast<size_t>(FeatureIndex::kSentinel) < 64,
               "Too many bits for u64");
 
-static HWY_INLINE constexpr uint64_t Bit(FeatureIndex index) {
+HWY_INLINE constexpr uint64_t Bit(FeatureIndex index) {
   return 1ull << static_cast<size_t>(index);
 }
 
 // Returns bit array of FeatureIndex from CPUID feature flags.
-static uint64_t FlagsFromCPUID() {
+HWY_HEADER_ONLY_FUNC
+uint64_t FlagsFromCPUID() {
   uint64_t flags = 0;  // return value
   uint32_t abcd[4];
   Cpuid(0, 0, abcd);
@@ -240,17 +246,17 @@ static uint64_t FlagsFromCPUID() {
 }
 
 // Each Highway target requires a 'group' of multiple features/flags.
-static constexpr uint64_t kGroupSSE2 =
+HWY_INLINE_VAR constexpr uint64_t kGroupSSE2 =
     Bit(FeatureIndex::kSSE) | Bit(FeatureIndex::kSSE2);
 
-static constexpr uint64_t kGroupSSSE3 =
+HWY_INLINE_VAR constexpr uint64_t kGroupSSSE3 =
     Bit(FeatureIndex::kSSE3) | Bit(FeatureIndex::kSSSE3) | kGroupSSE2;
 
 #ifdef HWY_DISABLE_PCLMUL_AES
-static constexpr uint64_t kGroupSSE4 =
+HWY_INLINE_VAR constexpr uint64_t kGroupSSE4 =
     Bit(FeatureIndex::kSSE41) | Bit(FeatureIndex::kSSE42) | kGroupSSSE3;
 #else
-static constexpr uint64_t kGroupSSE4 =
+HWY_INLINE_VAR constexpr uint64_t kGroupSSE4 =
     Bit(FeatureIndex::kSSE41) | Bit(FeatureIndex::kSSE42) |
     Bit(FeatureIndex::kCLMUL) | Bit(FeatureIndex::kAES) | kGroupSSSE3;
 #endif  // HWY_DISABLE_PCLMUL_AES
@@ -260,46 +266,47 @@ static constexpr uint64_t kGroupSSE4 =
 // [https://www.virtualbox.org/ticket/15471]. Thus we provide the option of
 // avoiding using and requiring these so AVX2 can still be used.
 #ifdef HWY_DISABLE_BMI2_FMA
-static constexpr uint64_t kGroupBMI2_FMA = 0;
+HWY_INLINE_VAR constexpr uint64_t kGroupBMI2_FMA = 0;
 #else
-static constexpr uint64_t kGroupBMI2_FMA = Bit(FeatureIndex::kBMI) |
-                                           Bit(FeatureIndex::kBMI2) |
-                                           Bit(FeatureIndex::kFMA);
+HWY_INLINE_VAR constexpr uint64_t kGroupBMI2_FMA = Bit(FeatureIndex::kBMI) |
+                                    Bit(FeatureIndex::kBMI2) |
+                                    Bit(FeatureIndex::kFMA);
 #endif
 
 #ifdef HWY_DISABLE_F16C
-static constexpr uint64_t kGroupF16C = 0;
+HWY_INLINE_VAR constexpr uint64_t kGroupF16C = 0;
 #else
-static constexpr uint64_t kGroupF16C = Bit(FeatureIndex::kF16C);
+HWY_INLINE_VAR constexpr uint64_t kGroupF16C = Bit(FeatureIndex::kF16C);
 #endif
 
-static constexpr uint64_t kGroupAVX2 =
+HWY_INLINE_VAR constexpr uint64_t kGroupAVX2 =
     Bit(FeatureIndex::kAVX) | Bit(FeatureIndex::kAVX2) |
     Bit(FeatureIndex::kLZCNT) | kGroupBMI2_FMA | kGroupF16C | kGroupSSE4;
 
-static constexpr uint64_t kGroupAVX3 =
+HWY_INLINE_VAR constexpr uint64_t kGroupAVX3 =
     Bit(FeatureIndex::kAVX512F) | Bit(FeatureIndex::kAVX512VL) |
     Bit(FeatureIndex::kAVX512DQ) | Bit(FeatureIndex::kAVX512BW) |
     Bit(FeatureIndex::kAVX512CD) | kGroupAVX2;
 
-static constexpr uint64_t kGroupAVX3_DL =
+HWY_INLINE_VAR constexpr uint64_t kGroupAVX3_DL =
     Bit(FeatureIndex::kVNNI) | Bit(FeatureIndex::kVPCLMULQDQ) |
     Bit(FeatureIndex::kVBMI) | Bit(FeatureIndex::kVBMI2) |
     Bit(FeatureIndex::kVAES) | Bit(FeatureIndex::kPOPCNTDQ) |
     Bit(FeatureIndex::kBITALG) | Bit(FeatureIndex::kGFNI) | kGroupAVX3;
 
-static constexpr uint64_t kGroupAVX3_ZEN4 =
+HWY_INLINE_VAR constexpr uint64_t kGroupAVX3_ZEN4 =
     Bit(FeatureIndex::kAVX512BF16) | kGroupAVX3_DL;
 
-static constexpr uint64_t kGroupAVX3_SPR =
+HWY_INLINE_VAR constexpr uint64_t kGroupAVX3_SPR =
     Bit(FeatureIndex::kAVX512FP16) | kGroupAVX3_ZEN4;
 
-static constexpr uint64_t kGroupAVX10 =
+HWY_INLINE_VAR constexpr uint64_t kGroupAVX10 =
     Bit(FeatureIndex::kAVX10) | Bit(FeatureIndex::kAPX) |
     Bit(FeatureIndex::kVPCLMULQDQ) | Bit(FeatureIndex::kVAES) |
     Bit(FeatureIndex::kGFNI) | kGroupAVX2;
 
-static int64_t DetectTargets() {
+HWY_HEADER_ONLY_FUNC
+int64_t DetectTargets() {
   int64_t bits = 0;  // return value of supported targets.
   HWY_IF_CONSTEXPR(HWY_ARCH_X86_64) {
     bits |= HWY_SSE2;  // always present in x64
@@ -405,7 +412,8 @@ static int64_t DetectTargets() {
     // HasCpuFeature("hw.optional.avx512f") avoids false negative results
     // on x86_64 CPU's that have AVX3 support.
     const bool have_avx3_xsave_support =
-        IsMacOs12_2OrLater() && HasCpuFeature("hw.optional.avx512f");
+        detail::IsMacOs12_2OrLater() &&
+        detail::HasCpuFeature("hw.optional.avx512f");
 #endif
 
     const uint32_t xcr0 = ReadXCR0();
@@ -450,7 +458,8 @@ namespace arm {
     (HWY_COMPILER_GCC || HWY_COMPILER_CLANG) && \
     ((HWY_TARGETS & HWY_ALL_SVE) != 0)
 HWY_PUSH_ATTRIBUTES("+sve")
-static int64_t DetectAdditionalSveTargets(int64_t detected_targets) {
+HWY_HEADER_ONLY_FUNC
+int64_t DetectAdditionalSveTargets(int64_t detected_targets) {
   uint64_t sve_vec_len;
 
   // Use inline assembly instead of svcntb_pat(SV_ALL) as GCC or Clang might
@@ -467,7 +476,8 @@ static int64_t DetectAdditionalSveTargets(int64_t detected_targets) {
 HWY_POP_ATTRIBUTES
 #endif
 
-static int64_t DetectTargets() {
+HWY_HEADER_ONLY_FUNC
+int64_t DetectTargets() {
   int64_t bits = 0;  // return value of supported targets.
 
   using CapBits = unsigned long;  // NOLINT
@@ -483,6 +493,7 @@ static int64_t DetectTargets() {
   bits |= HWY_NEON_WITHOUT_AES;  // aarch64 always has NEON and VFPv4..
 
 #if HWY_OS_APPLE
+  using namespace detail;
   if (HasCpuFeature("hw.optional.arm.FEAT_AES")) {
     bits |= HWY_NEON;
 
@@ -589,19 +600,18 @@ namespace ppc {
 using CapBits = unsigned long;  // NOLINT
 
 // For AT_HWCAP, the others are for AT_HWCAP2
-static constexpr CapBits kGroupVSX =
-    PPC_FEATURE_HAS_ALTIVEC | PPC_FEATURE_HAS_VSX;
+HWY_INLINE_VAR constexpr CapBits kGroupVSX = PPC_FEATURE_HAS_ALTIVEC | PPC_FEATURE_HAS_VSX;
 
 #if defined(HWY_DISABLE_PPC8_CRYPTO)
-static constexpr CapBits kGroupPPC8 = PPC_FEATURE2_ARCH_2_07;
+HWY_INLINE_VAR constexpr CapBits kGroupPPC8 = PPC_FEATURE2_ARCH_2_07;
 #else
-static constexpr CapBits kGroupPPC8 =
-    PPC_FEATURE2_ARCH_2_07 | PPC_FEATURE2_VEC_CRYPTO;
+HWY_INLINE_VAR constexpr CapBits kGroupPPC8 = PPC_FEATURE2_ARCH_2_07 | PPC_FEATURE2_VEC_CRYPTO;
 #endif
-static constexpr CapBits kGroupPPC9 = kGroupPPC8 | PPC_FEATURE2_ARCH_3_00;
-static constexpr CapBits kGroupPPC10 = kGroupPPC9 | PPC_FEATURE2_ARCH_3_1;
+HWY_INLINE_VAR constexpr CapBits kGroupPPC9 = kGroupPPC8 | PPC_FEATURE2_ARCH_3_00;
+HWY_INLINE_VAR constexpr CapBits kGroupPPC10 = kGroupPPC9 | PPC_FEATURE2_ARCH_3_1;
 
-static int64_t DetectTargets() {
+HWY_HEADER_ONLY_FUNC
+int64_t DetectTargets() {
   int64_t bits = 0;  // return value of supported targets.
 
 #if defined(AT_HWCAP) && defined(AT_HWCAP2)
@@ -641,11 +651,12 @@ namespace s390x {
 
 using CapBits = unsigned long;  // NOLINT
 
-static constexpr CapBits kGroupZ14 = HWCAP_S390_VX | HWCAP_S390_VXE;
-static constexpr CapBits kGroupZ15 =
+HWY_INLINE_VAR constexpr CapBits kGroupZ14 = HWCAP_S390_VX | HWCAP_S390_VXE;
+HWY_INLINE_VAR constexpr CapBits kGroupZ15 =
     HWCAP_S390_VX | HWCAP_S390_VXE | HWCAP_S390_VXRS_EXT2;
 
-static int64_t DetectTargets() {
+HWY_HEADER_ONLY_FUNC
+int64_t DetectTargets() {
   int64_t bits = 0;
 
 #if defined(AT_HWCAP)
@@ -672,7 +683,8 @@ namespace rvv {
 
 using CapBits = unsigned long;  // NOLINT
 
-static int64_t DetectTargets() {
+HWY_HEADER_ONLY_FUNC
+int64_t DetectTargets() {
   int64_t bits = 0;
 
   const CapBits hw = getauxval(AT_HWCAP);
@@ -721,7 +733,8 @@ namespace loongarch {
 
 using CapBits = unsigned long;  // NOLINT
 
-static int64_t DetectTargets() {
+HWY_HEADER_ONLY_FUNC
+int64_t DetectTargets() {
   int64_t bits = 0;
   const CapBits hw = getauxval(AT_HWCAP);
   if (hw & LA_HWCAP_LSX) bits |= HWY_LSX;
@@ -734,7 +747,8 @@ static int64_t DetectTargets() {
 // Returns targets supported by the CPU, independently of DisableTargets.
 // Factored out of SupportedTargets to make its structure more obvious. Note
 // that x86 CPUID may take several hundred cycles.
-static int64_t DetectTargets() {
+HWY_HEADER_ONLY_FUNC
+int64_t DetectTargets() {
   // Apps will use only one of these (the default is EMU128), but compile flags
   // for this TU may differ from that of the app, so allow both.
   int64_t bits = HWY_SCALAR | HWY_EMU128;
@@ -773,15 +787,24 @@ static int64_t DetectTargets() {
   return bits;
 }
 
+namespace detail {
 // When running tests, this value can be set to the mocked supported targets
 // mask. Only written to from a single thread before the test starts.
-static int64_t supported_targets_for_test_ = 0;
+inline int64_t& SupportedTargetsForTest() {
+  static int64_t supported_targets_for_test_ = 0;
+  return supported_targets_for_test_;
+}
 
 // Mask of targets disabled at runtime with DisableTargets.
-static int64_t supported_mask_ = LimitsMax<int64_t>();
+inline int64_t& SupportedMask() {
+  static auto supported_mask_ = LimitsMax<int64_t>();
+  return supported_mask_;
+}
+}  // namespace detail
 
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT void DisableTargets(int64_t disabled_targets) {
-  supported_mask_ = static_cast<int64_t>(~disabled_targets);
+  detail::SupportedMask() = static_cast<int64_t>(~disabled_targets);
   // This will take effect on the next call to SupportedTargets, which is
   // called right before GetChosenTarget::Update. However, calling Update here
   // would make it appear that HWY_DYNAMIC_DISPATCH was called, which we want
@@ -790,13 +813,15 @@ HWY_DLLEXPORT void DisableTargets(int64_t disabled_targets) {
   GetChosenTarget().DeInit();
 }
 
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT void SetSupportedTargetsForTest(int64_t targets) {
-  supported_targets_for_test_ = targets;
+  detail::SupportedTargetsForTest() = targets;
   GetChosenTarget().DeInit();  // see comment above
 }
 
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT int64_t SupportedTargets() {
-  int64_t targets = supported_targets_for_test_;
+  int64_t targets = detail::SupportedTargetsForTest();
   if (HWY_LIKELY(targets == 0)) {
     // Mock not active. Re-detect instead of caching just in case we're on a
     // heterogeneous ISA (also requires some app support to pin threads). This
@@ -810,10 +835,11 @@ HWY_DLLEXPORT int64_t SupportedTargets() {
     GetChosenTarget().Update(targets);
   }
 
-  targets &= supported_mask_;
+  targets &= detail::SupportedMask();
   return targets == 0 ? HWY_STATIC_TARGET : targets;
 }
 
+HWY_HEADER_ONLY_FUNC
 HWY_DLLEXPORT ChosenTarget& GetChosenTarget() {
   static ChosenTarget chosen_target;
   return chosen_target;
