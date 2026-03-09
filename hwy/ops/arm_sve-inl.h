@@ -6477,7 +6477,7 @@ HWY_API svint32_t MulEvenAdd(Simd<int32_t, N, kPow2> dw, svint16_t a,
   (void)dw;
   return svmlalb_s32(c, a, b);
 #else
-  return MulAdd(c, PromoteEvenTo(dw, a), PromoteEvenTo(dw, b));
+  return MulAdd(PromoteEvenTo(dw, a), PromoteEvenTo(dw, b), c);
 #endif  // HWY_SVE_HAVE_2
 }
 
@@ -6488,7 +6488,7 @@ HWY_API svuint32_t MulEvenAdd(Simd<uint32_t, N, kPow2> dw, svuint16_t a,
   (void)dw;
   return svmlalb_u32(c, a, b);
 #else
-  return MulAdd(c, PromoteEvenTo(dw, a), PromoteEvenTo(dw, b));
+  return MulAdd(PromoteEvenTo(dw, a), PromoteEvenTo(dw, b), c);
 #endif  // HWY_SVE_HAVE_2
 }
 
@@ -6499,7 +6499,7 @@ HWY_API svint32_t MulOddAdd(Simd<int32_t, N, kPow2> dw, svint16_t a,
   (void)dw;
   return svmlalt_s32(c, a, b);
 #else
-  return MulAdd(c, PromoteOddTo(dw, a), PromoteOddTo(dw, b));
+  return MulAdd(PromoteOddTo(dw, a), PromoteOddTo(dw, b), c);
 #endif  // HWY_SVE_HAVE_2
 }
 
@@ -6510,7 +6510,7 @@ HWY_API svuint32_t MulOddAdd(Simd<uint32_t, N, kPow2> dw, svuint16_t a,
   (void)dw;
   return svmlalt_u32(c, a, b);
 #else
-  return MulAdd(c, PromoteOddTo(dw, a), PromoteOddTo(dw, b));
+  return MulAdd(PromoteOddTo(dw, a), PromoteOddTo(dw, b), c);
 #endif  // HWY_SVE_HAVE_2
 }
 
