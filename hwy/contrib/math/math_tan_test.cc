@@ -170,6 +170,9 @@ HWY_NOINLINE void TestMathRelative(const char* name, T (*fx1)(T),
   }
 
   double max_actual_rel_error = 0.0;
+  double max_error_value = 0.0;
+  double sum_rel_error = 0.0;
+  uint64_t count = 0;
   // Emulation is slower, so cannot afford as many.
   const UintT kSamplesPerRange =
       static_cast<UintT>(AdjustedReps(static_cast<size_t>(samples)));
@@ -196,7 +199,12 @@ HWY_NOINLINE void TestMathRelative(const char* name, T (*fx1)(T),
         double rel = std::abs(static_cast<double>(actual) -
                               static_cast<double>(expected)) /
                      std::abs(static_cast<double>(expected));
-        max_actual_rel_error = HWY_MAX(max_actual_rel_error, rel);
+        if (rel > max_actual_rel_error) {
+          max_actual_rel_error = rel;
+          max_error_value = static_cast<double>(value);
+        }
+        sum_rel_error += rel;
+        count++;
         if (rel > max_relative_error) {
           fprintf(stderr,
                   "%s: %s(%f) expected %E actual %E rel %E max rel %E\n",
@@ -207,8 +215,14 @@ HWY_NOINLINE void TestMathRelative(const char* name, T (*fx1)(T),
       }
     }
   }
-  fprintf(stderr, "%s: %s max_rel_error %E\n",
-          hwy::TypeName(T(), Lanes(d)).c_str(), name, max_actual_rel_error);
+  fprintf(stderr, "%s: %s max_rel_error %E at %E\n",
+          hwy::TypeName(T(), Lanes(d)).c_str(), name, max_actual_rel_error,
+          max_error_value);
+  if (count > 0) {
+    fprintf(stderr, "%s: %s avg_rel_error %E\n",
+            hwy::TypeName(T(), Lanes(d)).c_str(), name,
+            sum_rel_error / static_cast<double>(count));
+  }
   HWY_ASSERT(max_actual_rel_error <= max_relative_error);
 }
 
@@ -624,12 +638,12 @@ struct TestFastAtanRelative {
       // Float: [-1e35, +1e35]
       TestMathRelative<T, D>("FastAtan", std::atan, CallFastAtan, d,
                              static_cast<T>(-1e35), static_cast<T>(1e35),
-                             0.0035, 1000000);
+                             0.0012, 1000000);
     } else {
       // Double: [-1e305, +1e305]
       TestMathRelative<T, D>("FastAtan", std::atan, CallFastAtan, d,
                              static_cast<T>(-1e305), static_cast<T>(1e305),
-                             0.0035, 1000000);
+                             0.0012, 1000000);
     }
   }
 };
@@ -649,7 +663,7 @@ struct TestFastAtan2 {
     Atan2TestCases(t, d, padded, in_y, in_x, expected);
 
     // Constants for error checking
-    const T rel_limit = static_cast<T>(8e-8);
+    const T rel_limit = static_cast<T>(0.0012);
     const T tiny_threshold = static_cast<T>(1e-20);
     const Vec<D> v_rel_limit = Set(d, rel_limit);
     const Vec<D> v_tiny_threshold = Set(d, tiny_threshold);
