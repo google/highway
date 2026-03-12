@@ -73,9 +73,11 @@ class TestWithParamTarget : public testing::TestWithParam<int64_t> {
     // was compiled with more than one target. In the single-target case only
     // static dispatch will be used anyway.
 #if (HWY_TARGETS & (HWY_TARGETS - 1)) != 0
-    EXPECT_TRUE(GetChosenTarget().IsInitialized())
-        << "This hwy target parametric test doesn't use dynamic-dispatch and "
-           "doesn't need to be parametric.";
+    if (!this->IsSkipped()) {
+      EXPECT_TRUE(GetChosenTarget().IsInitialized())
+          << "This hwy target parametric test doesn't use dynamic-dispatch and "
+             "doesn't need to be parametric.";
+    }
 #endif
     SetSupportedTargetsForTest(0);
   }
@@ -167,10 +169,29 @@ std::string TestParamTargetNameAndT(
   TEST_P(suite, func_name) { HWY_DYNAMIC_DISPATCH(func_name)(GetParam()); } \
   static_assert(true, "For requiring trailing semicolon")
 
+// Export and test a function on ONLY the best available target.
+#define HWY_EXPORT_AND_TEST_BEST_P(suite, func_name)                \
+  HWY_EXPORT(func_name);                                          \
+  TEST_P(suite, func_name) {                                      \
+    int64_t current_targets = hwy::SupportedTargets();            \
+    hwy::SetSupportedTargetsForTest(0);                           \
+    int64_t all_supported = hwy::SupportedTargets() & HWY_TARGETS;    \
+    hwy::SetSupportedTargetsForTest(current_targets);             \
+    int64_t best_target = all_supported & -all_supported;           \
+    if (GetParam() == best_target) {                          \
+      HWY_DYNAMIC_DISPATCH(func_name)();                            \
+    } else {                                                        \
+      GTEST_SKIP() << "Skipping " << hwy::TargetName(GetParam())     \
+                   << " as not the best target";                  \
+    }                                                               \
+  }                                                                 \
+  static_assert(true, "For requiring trailing semicolon")
+
 #define HWY_BEFORE_TEST(suite)                      \
   class suite : public hwy::TestWithParamTarget {}; \
   HWY_TARGET_INSTANTIATE_TEST_SUITE_P(suite);       \
   static_assert(true, "For requiring trailing semicolon")
+
 
 #define HWY_AFTER_TEST() static_assert(true, "For requiring trailing semicolon")
 
