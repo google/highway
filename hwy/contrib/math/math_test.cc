@@ -291,9 +291,18 @@ struct TestFastLog {
       TestMathRelative<T, D>("FastLog", std::log, CallFastLog, d,
                              static_cast<T>(FLT_MIN), static_cast<T>(FLT_MAX),
                              max_relative_error, samples);
+      TestMathRelative<T, D>("FastLogPositiveNormal", std::log,
+                             CallFastLogPositiveNormal, d,
+                             static_cast<T>(1.18e-38f), static_cast<T>(FLT_MAX),
+                             max_relative_error, samples);
+
     } else {
       TestMathRelative<T, D>("FastLog", std::log, CallFastLog, d,
                              static_cast<T>(DBL_MIN), static_cast<T>(DBL_MAX),
+                             max_relative_error, samples);
+      TestMathRelative<T, D>("FastLogPositiveNormal", std::log,
+                             CallFastLogPositiveNormal, d,
+                             static_cast<T>(2.23e-308), static_cast<T>(DBL_MAX),
                              max_relative_error, samples);
     }
   }
@@ -355,9 +364,17 @@ struct TestFastLog2 {
       TestMathRelative<T, D>("FastLog2", std::log2, CallFastLog2, d,
                              static_cast<T>(FLT_MIN), static_cast<T>(FLT_MAX),
                              max_relative_error, samples);
+      TestMathRelative<T, D>("FastLog2PositiveNormal", std::log2,
+                             CallFastLog2PositiveNormal, d,
+                             static_cast<T>(1.18e-38f), static_cast<T>(FLT_MAX),
+                             max_relative_error, samples);
     } else {
       TestMathRelative<T, D>("FastLog2", std::log2, CallFastLog2, d,
                              static_cast<T>(DBL_MIN), static_cast<T>(DBL_MAX),
+                             max_relative_error, samples);
+      TestMathRelative<T, D>("FastLog2PositiveNormal", std::log2,
+                             CallFastLog2PositiveNormal, d,
+                             static_cast<T>(2.23e-308), static_cast<T>(DBL_MAX),
                              max_relative_error, samples);
     }
   }
@@ -372,9 +389,17 @@ struct TestFastLog10 {
       TestMathRelative<T, D>("FastLog10", std::log10, CallFastLog10, d,
                              static_cast<T>(FLT_MIN), static_cast<T>(FLT_MAX),
                              max_relative_error, samples);
+      TestMathRelative<T, D>("FastLog10PositiveNormal", std::log10,
+                             CallFastLog10PositiveNormal, d,
+                             static_cast<T>(1.18e-38f), static_cast<T>(FLT_MAX),
+                             max_relative_error, samples);
     } else {
       TestMathRelative<T, D>("FastLog10", std::log10, CallFastLog10, d,
                              static_cast<T>(DBL_MIN), static_cast<T>(DBL_MAX),
+                             max_relative_error, samples);
+      TestMathRelative<T, D>("FastLog10PositiveNormal", std::log10,
+                             CallFastLog10PositiveNormal, d,
+                             static_cast<T>(2.23e-308), static_cast<T>(DBL_MAX),
                              max_relative_error, samples);
     }
   }
@@ -389,9 +414,17 @@ struct TestFastLog1p {
       TestMathRelative<T, D>("FastLog1p", std::log1p, CallFastLog1p, d,
                              static_cast<T>(-0.9f), static_cast<T>(FLT_MAX),
                              max_relative_error, samples);
+      TestMathRelative<T, D>("FastLog1pPositiveNormal", std::log1p,
+                             CallFastLog1pPositiveNormal, d,
+                             static_cast<T>(0.0f), static_cast<T>(FLT_MAX),
+                             max_relative_error, samples);
     } else {
       TestMathRelative<T, D>("FastLog1p", std::log1p, CallFastLog1p, d,
                              static_cast<T>(-0.9), static_cast<T>(DBL_MAX),
+                             max_relative_error, samples);
+      TestMathRelative<T, D>("FastLog1pPositiveNormal", std::log1p,
+                             CallFastLog1pPositiveNormal, d,
+                             static_cast<T>(0.0), static_cast<T>(DBL_MAX),
                              max_relative_error, samples);
     }
   }

@@ -175,14 +175,15 @@ HWY_INLINE V FastTan(D d, V x) {
         static_cast<T>(229.18311805232929), static_cast<T>(57.295779513082323),
         static_cast<T>(57.295779513082323), static_cast<T>(57.295779513082323)};
 
-    HWY_ALIGN static constexpr T arr_b[8] = {static_cast<T>(0.0000000000000000),
-                                            static_cast<T>(10.0000000000000000),
-                                            static_cast<T>(46.0000000000000000),
-                                            static_cast<T>(217.00000000000000),
-                                            static_cast<T>(297.00000000000000),
-                                            static_cast<T>(542.00000000000000),
-                                            static_cast<T>(542.00000000000000),
-                                            static_cast<T>(542.00000000000000)};
+    HWY_ALIGN static constexpr T arr_b[8] = {
+        static_cast<T>(0.0000000000000000),
+        static_cast<T>(10.0000000000000000),
+        static_cast<T>(46.0000000000000000),
+        static_cast<T>(217.00000000000000),
+        static_cast<T>(297.00000000000000),
+        static_cast<T>(542.00000000000000),
+        static_cast<T>(542.00000000000000),
+        static_cast<T>(542.00000000000000)};
 
     HWY_ALIGN static constexpr T arr_c[8] = {
         static_cast<T>(-57.295779513082323),
@@ -590,14 +591,10 @@ HWY_INLINE V FastTanh(D d, V val) {
         static_cast<T>(-0.426230503963466)};
 
     HWY_ALIGN static constexpr T arr_d[8] = {
-        static_cast<T>(-2838.258534620734),
-        static_cast<T>(-181.5331279956489),
-        static_cast<T>(-30.30794802185292),
-        static_cast<T>(-7.153356551689031),
-        static_cast<T>(-1.362618744593559),
-        static_cast<T>(0.3945376146399447),
-        static_cast<T>(0.9044994362862746),
-        static_cast<T>(0.9978013800900772)};
+        static_cast<T>(-2838.258534620734), static_cast<T>(-181.5331279956489),
+        static_cast<T>(-30.30794802185292), static_cast<T>(-7.153356551689031),
+        static_cast<T>(-1.362618744593559), static_cast<T>(0.3945376146399447),
+        static_cast<T>(0.9044994362862746), static_cast<T>(0.9978013800900772)};
 
     if constexpr (kLanes >= 8 && !HWY_HAVE_SCALABLE) {
       auto idx = IndicesFromVec(d, idx_i);
@@ -675,8 +672,8 @@ HWY_INLINE V FastTanh(D d, V val) {
     mask = Lt(y, t0);
     a = IfThenElse(mask, Set(d, static_cast<T>(-2870.653300658652)), a);
     c = IfThenElse(mask, Set(d, static_cast<T>(-316.5640994591445)), c);
-    d_coef = IfThenElse(mask, Set(d, static_cast<T>(-2838.258534620734)),
-                        d_coef);
+    d_coef =
+        IfThenElse(mask, Set(d, static_cast<T>(-2838.258534620734)), d_coef);
   }
 
   // Math: y = (ax + 1.0)/(cx + d)
@@ -706,7 +703,8 @@ HWY_INLINE V FastTanh(D d, V val) {
  *
  * @return natural logarithm of 'x'
  */
-template <class D, class V>
+// If false, subnormals are treated as zero.
+template <bool kHandleSubnormals = true, class D, class V>
 HWY_INLINE V FastLog(D d, V x) {
   using T = TFromD<D>;
   using TI = MakeSigned<T>;
@@ -742,14 +740,19 @@ HWY_INLINE V FastLog(D d, V x) {
                                  : static_cast<T>(1.8014398509481984e+16));
   const V kLn2 = Set(d, static_cast<T>(0.6931471805599453));
 
-  // Handle Subnormals
-  const auto is_denormal = Lt(x, kMinNormal);
-  x = MaskedMulOr(x, is_denormal, x, kScale);
+  MFromD<D> is_denormal;
+  if constexpr (kHandleSubnormals) {
+    // Handle Subnormals
+    is_denormal = Lt(x, kMinNormal);
+    x = MaskedMulOr(x, is_denormal, x, kScale);
+  }
 
   // Compute exponent
   auto exp_bits = Add(BitCast(di, x), Sub(kExpMask, kMagic));
-  const VI exp_scale =
-      BitCast(di, IfThenElseZero(is_denormal, BitCast(d, kExpScale)));
+  VI exp_scale = Zero(di);
+  if constexpr (kHandleSubnormals) {
+    exp_scale = BitCast(di, IfThenElseZero(is_denormal, BitCast(d, kExpScale)));
+  }
 
   constexpr int kMantissaShift = kIsF32 ? 23 : 52;
   const auto kBias = Set(di, kIsF32 ? 0x7F : 0x3FF);
@@ -1032,11 +1035,12 @@ HWY_INLINE V FastExpMinusOrZero(D d, V x) {
  *
  * @return base 2 logarithm of 'x'
  */
-template <class D, class V>
+// If false, subnormals are treated as zero.
+template <bool kHandleSubnormals = true, class D, class V>
 HWY_INLINE V FastLog2(D d, V x) {
   using T = TFromD<D>;
   const auto kInvLn2 = Set(d, static_cast<T>(1.4426950408889634));
-  return Mul(FastLog(d, x), kInvLn2);
+  return Mul(FastLog<kHandleSubnormals>(d, x), kInvLn2);
 }
 
 /**
@@ -1049,11 +1053,12 @@ HWY_INLINE V FastLog2(D d, V x) {
  *
  * @return base 10 logarithm of 'x'
  */
-template <class D, class V>
+// If false, subnormals are treated as zero.
+template <bool kHandleSubnormals = true, class D, class V>
 HWY_INLINE V FastLog10(D d, V x) {
   using T = TFromD<D>;
   const auto kInvLn10 = Set(d, static_cast<T>(0.4342944819032518));
-  return Mul(FastLog(d, x), kInvLn10);
+  return Mul(FastLog<kHandleSubnormals>(d, x), kInvLn10);
 }
 
 /**
@@ -1066,7 +1071,8 @@ HWY_INLINE V FastLog10(D d, V x) {
  *
  * @return natural logarithm of '1 + x'
  */
-template <class D, class V>
+// If false, subnormals are treated as zero.
+template <bool kHandleSubnormals = true, class D, class V>
 HWY_INLINE V FastLog1p(const D d, V x) {
   using T = TFromD<D>;
   const V kOne = Set(d, static_cast<T>(+1.0));
@@ -1076,7 +1082,7 @@ HWY_INLINE V FastLog1p(const D d, V x) {
   // If y == 1, divisor becomes -1 (dummy), avoiding division by zero.
   const V kMinusOne = Set(d, static_cast<T>(-1.0));
   const V divisor = MaskedSubOr(kMinusOne, not_pole, y, kOne);
-  const V non_pole = Mul(FastLog(d, y), Div(x, divisor));
+  const V non_pole = Mul(FastLog<kHandleSubnormals>(d, y), Div(x, divisor));
   return IfThenElse(not_pole, non_pole, x);
 }
 
@@ -1089,9 +1095,10 @@ HWY_INLINE V FastLog1p(const D d, V x) {
  * Relative Error for Valid Range: float32 : 0.27%, float64 : 0.22%
  * @return base^exp
  */
-template <class D, class V>
+// If false, subnormals are treated as zero.
+template <bool kHandleSubnormals = true, class D, class V>
 HWY_INLINE V FastPow(D d, V base, V exp) {
-  return FastExp(d, Mul(exp, FastLog(d, base)));
+  return FastExp(d, Mul(exp, FastLog<kHandleSubnormals>(d, base)));
 }
 
 template <class D, class V>
@@ -1116,7 +1123,7 @@ HWY_NOINLINE V CallFastTanh(const D d, VecArg<V> x) {
 
 template <class D, class V>
 HWY_NOINLINE V CallFastLog(const D d, VecArg<V> x) {
-  return FastLog(d, x);
+  return FastLog<>(d, x);
 }
 
 template <class D, class V>
@@ -1130,22 +1137,42 @@ HWY_NOINLINE V CallFastExpMinusOrZero(const D d, VecArg<V> x) {
 }
 template <class D, class V>
 HWY_NOINLINE V CallFastLog2(const D d, VecArg<V> x) {
-  return FastLog2(d, x);
+  return FastLog2<>(d, x);
 }
 
 template <class D, class V>
 HWY_NOINLINE V CallFastLog10(const D d, VecArg<V> x) {
-  return FastLog10(d, x);
+  return FastLog10<>(d, x);
 }
 
 template <class D, class V>
 HWY_NOINLINE V CallFastLog1p(const D d, VecArg<V> x) {
-  return FastLog1p(d, x);
+  return FastLog1p<>(d, x);
 }
 
 template <class D, class V>
 HWY_NOINLINE V CallFastPow(const D d, VecArg<V> base, VecArg<V> exp) {
-  return FastPow(d, base, exp);
+  return FastPow<>(d, base, exp);
+}
+
+template <class D, class V>
+HWY_NOINLINE V CallFastLogPositiveNormal(const D d, VecArg<V> x) {
+  return FastLog</*kHandleSubnormals=*/false>(d, x);
+}
+
+template <class D, class V>
+HWY_NOINLINE V CallFastLog2PositiveNormal(const D d, VecArg<V> x) {
+  return FastLog2</*kHandleSubnormals=*/false>(d, x);
+}
+
+template <class D, class V>
+HWY_NOINLINE V CallFastLog10PositiveNormal(const D d, VecArg<V> x) {
+  return FastLog10</*kHandleSubnormals=*/false>(d, x);
+}
+
+template <class D, class V>
+HWY_NOINLINE V CallFastLog1pPositiveNormal(const D d, VecArg<V> x) {
+  return FastLog1p</*kHandleSubnormals=*/false>(d, x);
 }
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
