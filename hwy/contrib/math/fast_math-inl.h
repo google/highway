@@ -292,12 +292,18 @@ HWY_INLINE V FastTan(D d, V x) {
  *
  * @return arctangent of 'x'
  */
-template <class D, class V>
+// if kAssumePositive is true, we assume inputs are non-negative.
+template <class D, class V, bool kAssumePositive = false>
 HWY_INLINE V FastAtan(D d, V val) {
   using T = TFromD<D>;
 
-  // Abs(val) and preserve sign for later
-  auto y = Abs(val);
+  // Abs(val) and preserve sign for later (if needed)
+  V y;
+  if constexpr (kAssumePositive) {
+    y = val;
+  } else {
+    y = Abs(val);
+  }
 
   // Constants for thresholds (8 intervals -> 7 thresholds)
   const auto t0 = Set(d, static_cast<T>(0.25));
@@ -333,43 +339,78 @@ HWY_INLINE V FastAtan(D d, V val) {
     const auto mask5 = RebindMask(DI(), Ge(y, t5));
     const auto mask6 = RebindMask(DI(), Ge(y, t6));
 
+    constexpr size_t kNumRegisters =
+#if HWY_ARCH_X86_32
+        8;
+#elif HWY_ARCH_X86_64
+        (HWY_TARGET <= HWY_AVX3) ? 32 : 16;
+#elif HWY_ARCH_ARM_V7
+        16;
+#else
+        32;  // AArch64, RVV, PPC, WASM etc have at least 32 vector registers.
+#endif
+
 #ifdef HWY_NATIVE_MASK
-    // Adder tree for native masks.
-    const auto sum0 = IfThenElseZero(mask0, one_i);
-    const auto sum01 = MaskedAddOr(sum0, mask1, sum0, one_i);
+    if constexpr (kNumRegisters >= 32) {
+      // Adder tree for native masks.
+      const auto sum0 = IfThenElseZero(mask0, one_i);
+      const auto sum01 = MaskedAddOr(sum0, mask1, sum0, one_i);
 
-    const auto sum2 = IfThenElseZero(mask2, one_i);
-    const auto sum23 = MaskedAddOr(sum2, mask3, sum2, one_i);
+      const auto sum2 = IfThenElseZero(mask2, one_i);
+      const auto sum23 = MaskedAddOr(sum2, mask3, sum2, one_i);
 
-    const auto sum4 = IfThenElseZero(mask4, one_i);
-    const auto sum45 = MaskedAddOr(sum4, mask5, sum4, one_i);
+      const auto sum4 = IfThenElseZero(mask4, one_i);
+      const auto sum45 = MaskedAddOr(sum4, mask5, sum4, one_i);
 
-    const auto sum6 = IfThenElseZero(mask6, one_i);
+      const auto sum6 = IfThenElseZero(mask6, one_i);
 
-    const auto sum03 = Add(sum01, sum23);
-    const auto sum46 = Add(sum45, sum6);
-    idx_i = Add(sum03, sum46);
+      const auto sum03 = Add(sum01, sum23);
+      const auto sum46 = Add(sum45, sum6);
+
+      idx_i = Add(sum03, sum46);
+    } else {
+      // Sequential chain.
+      const auto sum0 = IfThenElseZero(mask0, one_i);
+      const auto sum1 = MaskedAddOr(sum0, mask1, sum0, one_i);
+      const auto sum2 = MaskedAddOr(sum1, mask2, sum1, one_i);
+      const auto sum3 = MaskedAddOr(sum2, mask3, sum2, one_i);
+      const auto sum4 = MaskedAddOr(sum3, mask4, sum3, one_i);
+      const auto sum5 = MaskedAddOr(sum4, mask5, sum4, one_i);
+      idx_i = MaskedAddOr(sum5, mask6, sum5, one_i);
+    }
 #else
     (void)one_i;
-    // VecFromMask returns -1 if true, 0 otherwise.
-    // We accumulate these -1s in a tree dependency to reduce latency.
-    const auto m0 = VecFromMask(DI(), mask0);
-    const auto m1 = VecFromMask(DI(), mask1);
-    const auto m2 = VecFromMask(DI(), mask2);
-    const auto m3 = VecFromMask(DI(), mask3);
-    const auto m4 = VecFromMask(DI(), mask4);
-    const auto m5 = VecFromMask(DI(), mask5);
-    const auto m6 = VecFromMask(DI(), mask6);
+    if constexpr (kNumRegisters >= 32) {
+      // VecFromMask returns -1 if true, 0 otherwise.
+      // We accumulate these -1s in a tree dependency to reduce latency.
+      const auto m0 = VecFromMask(DI(), mask0);
+      const auto m1 = VecFromMask(DI(), mask1);
+      const auto m2 = VecFromMask(DI(), mask2);
+      const auto m3 = VecFromMask(DI(), mask3);
+      const auto m4 = VecFromMask(DI(), mask4);
+      const auto m5 = VecFromMask(DI(), mask5);
+      const auto m6 = VecFromMask(DI(), mask6);
 
-    const auto sum01 = Add(m0, m1);
-    const auto sum23 = Add(m2, m3);
-    const auto sum45 = Add(m4, m5);
+      const auto sum01 = Add(m0, m1);
+      const auto sum23 = Add(m2, m3);
+      const auto sum45 = Add(m4, m5);
 
-    const auto sum03 = Add(sum01, sum23);
-    const auto sum46 = Add(sum45, m6);
+      const auto sum03 = Add(sum01, sum23);
+      const auto sum46 = Add(sum45, m6);
 
-    // idx_i = - (sum of -1s)
-    idx_i = Neg(Add(sum03, sum46));
+      // idx_i = - (sum of -1s)
+      idx_i = Neg(Add(sum03, sum46));
+    } else {
+      // VecFromMask returns -1 if true, 0 otherwise.
+      // We subtract them sequentially to avoid using too many registers.
+      idx_i = Sub(idx_i, VecFromMask(DI(), mask0));
+      idx_i = Sub(idx_i, VecFromMask(DI(), mask1));
+      idx_i = Sub(idx_i, VecFromMask(DI(), mask2));
+      idx_i = Sub(idx_i, VecFromMask(DI(), mask3));
+      idx_i = Sub(idx_i, VecFromMask(DI(), mask4));
+      idx_i = Sub(idx_i, VecFromMask(DI(), mask5));
+      idx_i = Sub(idx_i, VecFromMask(DI(), mask6));
+    }
 #endif
 
     HWY_ALIGN static constexpr T arr_b[8] = {
@@ -480,7 +521,11 @@ HWY_INLINE V FastAtan(D d, V val) {
   const auto kSmall = Set(d, static_cast<T>(0.06));
   result = IfThenElse(Lt(y, kSmall), y, result);
 
-  return CopySign(result, val);
+  if constexpr (kAssumePositive) {
+    return result;
+  } else {
+    return CopySign(result, val);
+  }
 }
 
 /**
@@ -1173,6 +1218,11 @@ HWY_NOINLINE V CallFastLog10PositiveNormal(const D d, VecArg<V> x) {
 template <class D, class V>
 HWY_NOINLINE V CallFastLog1pPositiveNormal(const D d, VecArg<V> x) {
   return FastLog1p</*kHandleSubnormals=*/false>(d, x);
+}
+
+template <class D, class V>
+HWY_NOINLINE V CallFastAtanPositive(const D d, VecArg<V> x) {
+  return FastAtan<D, V, /*kAssumePositive=*/true>(d, x);
 }
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
