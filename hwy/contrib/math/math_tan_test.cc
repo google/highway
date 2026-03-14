@@ -639,11 +639,19 @@ struct TestFastAtanRelative {
       TestMathRelative<T, D>("FastAtan", std::atan, CallFastAtan, d,
                              static_cast<T>(-1e35), static_cast<T>(1e35),
                              0.0012, 1000000);
+      // Float: [0, +1e35]
+      TestMathRelative<T, D>("FastAtanPositive", std::atan,
+                             CallFastAtanPositive, d, static_cast<T>(0),
+                             static_cast<T>(1e35), 0.0012, 1000000);
     } else {
       // Double: [-1e305, +1e305]
       TestMathRelative<T, D>("FastAtan", std::atan, CallFastAtan, d,
                              static_cast<T>(-1e305), static_cast<T>(1e305),
                              0.0012, 1000000);
+      // Double: [0, +1e305]
+      TestMathRelative<T, D>("FastAtanPositive", std::atan,
+                             CallFastAtanPositive, d, static_cast<T>(0),
+                             static_cast<T>(1e305), 0.0012, 1000000);
     }
   }
 };
