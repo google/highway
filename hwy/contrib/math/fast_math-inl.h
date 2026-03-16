@@ -745,6 +745,11 @@ HWY_INLINE V FastLog(D d, V x) {
     // Handle Subnormals
     is_denormal = Lt(x, kMinNormal);
     x = MaskedMulOr(x, is_denormal, x, kScale);
+  } else {
+    (void)is_denormal;
+    (void)kMinNormal;
+    (void)kScale;
+    (void)kExpScale;
   }
 
   // Compute exponent
