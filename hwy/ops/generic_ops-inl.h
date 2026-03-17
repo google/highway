@@ -5987,7 +5987,7 @@ HWY_API size_t CompressBitsStore(V v, const uint8_t* HWY_RESTRICT bits, D d,
   Store(v, d, lanes);
 
   const Simd<T, HWY_MIN(MaxLanes(d), 8), 0> d8;
-  T* HWY_RESTRICT pos = unaligned;
+  T* pos = unaligned;
 
   HWY_ALIGN constexpr T table[2048] = {
       0, 1, 2, 3, 4, 5, 6, 7, /**/ 0, 1, 2, 3, 4, 5, 6, 7,  //
@@ -6119,15 +6119,29 @@ HWY_API size_t CompressBitsStore(V v, const uint8_t* HWY_RESTRICT bits, D d,
       2, 3, 4, 5, 6, 7, 0, 1, /**/ 0, 2, 3, 4, 5, 6, 7, 1,  //
       1, 2, 3, 4, 5, 6, 7, 0, /**/ 0, 1, 2, 3, 4, 5, 6, 7};
 
-  for (size_t i = 0; i < Lanes(d); i += 8) {
-    // Each byte worth of bits is the index of one of 256 8-byte ranges, and its
-    // population count determines how far to advance the write position.
-    const size_t bits8 = bits[i / 8];
-    const auto indices = Load(d8, table + bits8 * 8);
-    const auto compressed = TableLookupBytes(LoadU(d8, lanes + i), indices);
-    StoreU(compressed, d8, pos);
-    pos += PopCount(bits8);
+  size_t i = 0;
+  HWY_LANES_CONSTEXPR size_t N = Lanes(d);
+  if (N >= 8) {
+    for (; i <= N - 8; i += 8) {
+      // Each byte worth of bits is the index of one of 256 8-byte ranges, and
+      // its population count determines how far to advance the write position.
+      const size_t bits8 = bits[i / 8];
+      const auto indices = Load(d8, table + bits8 * 8);
+      const auto compressed = TableLookupBytes(LoadU(d8, lanes + i), indices);
+      StoreU(compressed, d8, pos);
+      pos += PopCount(bits8);
+    }
   }
+  // Full vectors are multiples of 8, otherwise use an inefficient loop
+  // (for safely handling compress_test).
+  HWY_IF_CONSTEXPR(!detail::IsFull(d)) {
+    for (; i < N; ++i) {
+      if (bits[i / 8] & (1u << (i % 8))) {
+        *pos++ = lanes[i];
+      }
+    }
+  }
+
   return static_cast<size_t>(pos - unaligned);
 }
 

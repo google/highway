@@ -22,6 +22,9 @@
 #define HIGHWAY_HWY_CONTRIB_MATH_FAST_MATH_INL_H_
 #endif
 
+#include <stddef.h>
+#include <stdint.h>
+
 #include "hwy/highway.h"
 
 HWY_BEFORE_NAMESPACE();
@@ -161,7 +164,7 @@ HWY_INLINE V FastTan(D d, V x) {
   V a, b, c, d_val;
 
   if constexpr ((kLanes >= 4 && !HWY_HAVE_SCALABLE) ||
-                (HWY_HAVE_SCALABLE && sizeof(T) == 4)) {
+                (HWY_HAVE_SCALABLE && sizeof(T) == 4 && detail::IsFull(d))) {
     // --- Table Lookup ---
     const auto scale = Set(d, static_cast<T>(3.8197186342));
     auto idx_float = Floor(Mul(x_red, scale));
@@ -312,7 +315,7 @@ HWY_INLINE V FastAtan(D d, V val) {
   V b, c, d_coef;
 
   if constexpr ((kLanes >= 4 && !HWY_HAVE_SCALABLE) ||
-                (HWY_HAVE_SCALABLE && sizeof(T) == 4)) {
+                (HWY_HAVE_SCALABLE && sizeof(T) == 4 && detail::IsFull(d))) {
     // Index calculation by counting thresholds crossed
     // We want:
     // y < t0 -> idx 0
@@ -548,7 +551,7 @@ HWY_INLINE V FastTanh(D d, V val) {
   V a, c, d_coef;
 
   if constexpr ((kLanes >= 4 && !HWY_HAVE_SCALABLE) ||
-                (HWY_HAVE_SCALABLE && sizeof(T) == 4)) {
+                (HWY_HAVE_SCALABLE && sizeof(T) == 4 && detail::IsFull(d))) {
     // Coefficients for P(y) ~ index using CF algo
     const auto k0 = Set(d, static_cast<T>(-0.1145426548151546));
     const auto k1 = Set(d, static_cast<T>(6.911330994691481));
@@ -696,7 +699,7 @@ HWY_INLINE V FastTanh(D d, V val) {
  * Fast approximation of log(x).
  *
  * Valid Lane Types: float32, float64
- * Max Relative Error: 0.008%
+ * Max Relative Error: 0.0095%
  * Average Relative Error : 0.000014%
  * Valid Range: float32: (0, +FLT_MAX]
  *              float64: (0, +DBL_MAX]
@@ -776,7 +779,7 @@ HWY_INLINE V FastLog(D d, V x) {
   V a, c, d_coef;
 
   if constexpr ((kLanes >= 4 && !HWY_HAVE_SCALABLE) ||
-                (HWY_HAVE_SCALABLE && sizeof(T) == 4)) {
+                (HWY_HAVE_SCALABLE && sizeof(T) == 4 && detail::IsFull(d))) {
     // --- Table Lookup ---
     const auto scale = Set(d, static_cast<T>(11.3137085));
     // Input is always non-negative, so Floor() + ConvertTo()

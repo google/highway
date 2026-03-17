@@ -285,7 +285,7 @@ HWY_NOINLINE void TestMathRelative(const char* name, T (*fx1)(T),
 struct TestFastLog {
   template <class T, class D>
   HWY_NOINLINE void operator()(T, D d) {
-    const double max_relative_error = 0.000082;
+    const double max_relative_error = 9.5E-5;  // SVE: 8.99
     const uint64_t samples = 1000000;
     if (sizeof(T) == 4) {
       TestMathRelative<T, D>("FastLog", std::log, CallFastLog, d,
