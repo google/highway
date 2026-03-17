@@ -225,31 +225,31 @@ HWY_INLINE V FastTan(D d, V x) {
     c = Set(d, static_cast<T>(-630.25357464271012));
     d_val = Set(d, static_cast<T>(990.00000000000000));
 
-    auto mask = Lt(x_red, Set(d, static_cast<T>(1.305)));
+    auto mask = Lt(x_red, Set(d, static_cast<T>(1.3089969389976279)));
     a = IfThenElse(mask, Set(d, static_cast<T>(229.18311805232929)), a);
     b = IfThenElse(mask, Set(d, static_cast<T>(297.00000000000000)), b);
     c = IfThenElse(mask, Set(d, static_cast<T>(-572.95779513082321)), c);
     d_val = IfThenElse(mask, Set(d, static_cast<T>(910.00000000000000)), d_val);
 
-    mask = Lt(x_red, Set(d, static_cast<T>(1.044)));
+    mask = Lt(x_red, Set(d, static_cast<T>(1.0471975511981024)));
     a = IfThenElse(mask, Set(d, static_cast<T>(572.95779513082321)), a);
     b = IfThenElse(mask, Set(d, static_cast<T>(217.00000000000000)), b);
     c = IfThenElse(mask, Set(d, static_cast<T>(-744.84513367007019)), c);
     d_val = IfThenElse(mask, Set(d, static_cast<T>(1252.0000000000000)), d_val);
 
-    mask = Lt(x_red, Set(d, static_cast<T>(0.783)));
+    mask = Lt(x_red, Set(d, static_cast<T>(0.7853981633985767)));
     a = IfThenElse(mask, Set(d, static_cast<T>(343.77467707849392)), a);
     b = IfThenElse(mask, Set(d, static_cast<T>(46.0000000000000000)), b);
     c = IfThenElse(mask, Set(d, static_cast<T>(-286.47889756541161)), c);
     d_val = IfThenElse(mask, Set(d, static_cast<T>(541.00000000000000)), d_val);
 
-    mask = Lt(x_red, Set(d, static_cast<T>(0.522)));
+    mask = Lt(x_red, Set(d, static_cast<T>(0.5235987755990512)));
     a = IfThenElse(mask, Set(d, static_cast<T>(572.95779513082321)), a);
     b = IfThenElse(mask, Set(d, static_cast<T>(10.0000000000000000)), b);
     c = IfThenElse(mask, Set(d, static_cast<T>(-229.18311805232929)), c);
     d_val = IfThenElse(mask, Set(d, static_cast<T>(657.00000000000000)), d_val);
 
-    mask = Lt(x_red, Set(d, static_cast<T>(0.261)));
+    mask = Lt(x_red, Set(d, static_cast<T>(0.2617993877995256)));
     a = IfThenElse(mask, Set(d, static_cast<T>(630.25357464271012)), a);
     b = IfThenZeroElse(mask, b);
     c = IfThenElse(mask, Set(d, static_cast<T>(-57.295779513082323)), c);
@@ -614,12 +614,12 @@ HWY_INLINE V FastTanh(D d, V val) {
     // --- FALLBACK PATH: Blend Chain ---
     // Thresholds for intervals
     const auto t0 = Set(d, static_cast<T>(0.1717248723716211));
-    const auto t1 = Set(d, static_cast<T>(0.3477988003593247));
-    const auto t2 = Set(d, static_cast<T>(0.5534457063834467));
-    const auto t3 = Set(d, static_cast<T>(0.8043240819114705));
-    const auto t4 = Set(d, static_cast<T>(1.134519560823246));
-    const auto t5 = Set(d, static_cast<T>(1.644201273678551));
-    const auto t6 = Set(d, static_cast<T>(2.635890009498573));
+    const auto t1 = Set(d, static_cast<T>(0.3477988003593246));
+    const auto t2 = Set(d, static_cast<T>(0.5534457063834466));
+    const auto t3 = Set(d, static_cast<T>(0.8043240819114703));
+    const auto t4 = Set(d, static_cast<T>(1.1345195608232461));
+    const auto t5 = Set(d, static_cast<T>(1.6442012736785494));
+    const auto t6 = Set(d, static_cast<T>(2.6358900094985716));
 
     // Start with highest index (7)
     a = Set(d, static_cast<T>(-0.4265454062350802));
@@ -835,13 +835,13 @@ HWY_INLINE V FastLog(D d, V x) {
   } else {
     // --- FALLBACK PATH: Blend Chain ---
     // Polynomial Approximation
-    const auto t0 = Set(d, static_cast<T>(0.7954951275));
-    const auto t1 = Set(d, static_cast<T>(0.883883475));
-    const auto t2 = Set(d, static_cast<T>(0.9722718225));
-    const auto t3 = Set(d, static_cast<T>(1.06066017));
-    const auto t4 = Set(d, static_cast<T>(1.1490485175));
-    const auto t5 = Set(d, static_cast<T>(1.237436865));
-    const auto t6 = Set(d, static_cast<T>(1.3258252125));
+    const auto t0 = Set(d, static_cast<T>(0.7954951287634819));
+    const auto t1 = Set(d, static_cast<T>(0.8838834764038688));
+    const auto t2 = Set(d, static_cast<T>(0.9722718240442556));
+    const auto t3 = Set(d, static_cast<T>(1.0606601716846424));
+    const auto t4 = Set(d, static_cast<T>(1.1490485193250295));
+    const auto t5 = Set(d, static_cast<T>(1.2374368669654163));
+    const auto t6 = Set(d, static_cast<T>(1.3258252146058032));
 
     // Start with highest index (7)
     a = Set(d, static_cast<T>(-1.0026088937292035e+00));
