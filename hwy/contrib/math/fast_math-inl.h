@@ -343,42 +343,74 @@ HWY_INLINE V FastAtan(D d, V val) {
     const auto mask6 = RebindMask(DI(), Ge(y, t6));
 
 #ifdef HWY_NATIVE_MASK
-    // Adder tree for native masks.
-    const auto sum0 = IfThenElseZero(mask0, one_i);
-    const auto sum01 = MaskedAddOr(sum0, mask1, sum0, one_i);
+    if constexpr (HWY_REGISTERS >= 32) {
+      // Adder tree for native masks.
+      const auto sum0 = IfThenElseZero(mask0, one_i);
+      const auto sum01 = MaskedAddOr(sum0, mask1, sum0, one_i);
 
-    const auto sum2 = IfThenElseZero(mask2, one_i);
-    const auto sum23 = MaskedAddOr(sum2, mask3, sum2, one_i);
+      const auto sum2 = IfThenElseZero(mask2, one_i);
+      const auto sum23 = MaskedAddOr(sum2, mask3, sum2, one_i);
 
-    const auto sum4 = IfThenElseZero(mask4, one_i);
-    const auto sum45 = MaskedAddOr(sum4, mask5, sum4, one_i);
+      const auto sum4 = IfThenElseZero(mask4, one_i);
+      const auto sum45 = MaskedAddOr(sum4, mask5, sum4, one_i);
 
-    const auto sum6 = IfThenElseZero(mask6, one_i);
+      const auto sum6 = IfThenElseZero(mask6, one_i);
 
-    const auto sum03 = Add(sum01, sum23);
-    const auto sum46 = Add(sum45, sum6);
-    idx_i = Add(sum03, sum46);
+      const auto sum03 = Add(sum01, sum23);
+      const auto sum46 = Add(sum45, sum6);
+
+      idx_i = Add(sum03, sum46);
+    } else {
+      // 2x unrolled sequential chain.
+      const auto sum0 = IfThenElseZero(mask0, one_i);
+      const auto sum02 = MaskedAddOr(sum0, mask2, sum0, one_i);
+      const auto sum024 = MaskedAddOr(sum02, mask4, sum02, one_i);
+      const auto sum0246 = MaskedAddOr(sum024, mask6, sum024, one_i);
+
+      const auto sum1 = IfThenElseZero(mask1, one_i);
+      const auto sum13 = MaskedAddOr(sum1, mask3, sum1, one_i);
+      const auto sum135 = MaskedAddOr(sum13, mask5, sum13, one_i);
+
+      idx_i = Add(sum0246, sum135);
+    }
 #else
     (void)one_i;
-    // VecFromMask returns -1 if true, 0 otherwise.
-    // We accumulate these -1s in a tree dependency to reduce latency.
-    const auto m0 = VecFromMask(DI(), mask0);
-    const auto m1 = VecFromMask(DI(), mask1);
-    const auto m2 = VecFromMask(DI(), mask2);
-    const auto m3 = VecFromMask(DI(), mask3);
-    const auto m4 = VecFromMask(DI(), mask4);
-    const auto m5 = VecFromMask(DI(), mask5);
-    const auto m6 = VecFromMask(DI(), mask6);
+    if constexpr (HWY_REGISTERS >= 32) {
+      // VecFromMask returns -1 if true, 0 otherwise.
+      // We accumulate these -1s in a tree dependency to reduce latency.
+      const auto m0 = VecFromMask(DI(), mask0);
+      const auto m1 = VecFromMask(DI(), mask1);
+      const auto m2 = VecFromMask(DI(), mask2);
+      const auto m3 = VecFromMask(DI(), mask3);
+      const auto m4 = VecFromMask(DI(), mask4);
+      const auto m5 = VecFromMask(DI(), mask5);
+      const auto m6 = VecFromMask(DI(), mask6);
 
-    const auto sum01 = Add(m0, m1);
-    const auto sum23 = Add(m2, m3);
-    const auto sum45 = Add(m4, m5);
+      const auto sum01 = Add(m0, m1);
+      const auto sum23 = Add(m2, m3);
+      const auto sum45 = Add(m4, m5);
 
-    const auto sum03 = Add(sum01, sum23);
-    const auto sum46 = Add(sum45, m6);
+      const auto sum03 = Add(sum01, sum23);
+      const auto sum46 = Add(sum45, m6);
 
-    // idx_i = - (sum of -1s)
-    idx_i = Neg(Add(sum03, sum46));
+      // idx_i = - (sum of -1s)
+      idx_i = Neg(Add(sum03, sum46));
+    } else {
+      // VecFromMask returns -1 if true, 0 otherwise.
+      // We subtract them in a 2x unrolled chain to avoid using too many
+      // registers.
+      auto sum0246 = Sub(idx_i, VecFromMask(DI(), mask0));
+      sum0246 = Sub(sum0246, VecFromMask(DI(), mask2));
+      sum0246 = Sub(sum0246, VecFromMask(DI(), mask4));
+      sum0246 = Sub(sum0246, VecFromMask(DI(), mask6));
+
+      auto sum135 = Zero(DI());
+      sum135 = Sub(sum135, VecFromMask(DI(), mask1));
+      sum135 = Sub(sum135, VecFromMask(DI(), mask3));
+      sum135 = Sub(sum135, VecFromMask(DI(), mask5));
+
+      idx_i = Add(sum0246, sum135);
+    }
 #endif
 
     HWY_ALIGN static constexpr T arr_b[8] = {
