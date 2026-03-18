@@ -295,12 +295,18 @@ HWY_INLINE V FastTan(D d, V x) {
  *
  * @return arctangent of 'x'
  */
-template <class D, class V>
+// if kAssumePositive is true, we assume inputs are non-negative.
+template <class D, class V, bool kAssumePositive = false>
 HWY_INLINE V FastAtan(D d, V val) {
   using T = TFromD<D>;
 
-  // Abs(val) and preserve sign for later
-  auto y = Abs(val);
+  // Abs(val) and preserve sign for later (if needed)
+  V y;
+  if constexpr (kAssumePositive) {
+    y = val;
+  } else {
+    y = Abs(val);
+  }
 
   // Constants for thresholds (8 intervals -> 7 thresholds)
   const auto t0 = Set(d, static_cast<T>(0.25));
@@ -483,7 +489,11 @@ HWY_INLINE V FastAtan(D d, V val) {
   const auto kSmall = Set(d, static_cast<T>(0.06));
   result = IfThenElse(Lt(y, kSmall), y, result);
 
-  return CopySign(result, val);
+  if constexpr (kAssumePositive) {
+    return result;
+  } else {
+    return CopySign(result, val);
+  }
 }
 
 /**
@@ -1181,6 +1191,11 @@ HWY_NOINLINE V CallFastLog10PositiveNormal(const D d, VecArg<V> x) {
 template <class D, class V>
 HWY_NOINLINE V CallFastLog1pPositiveNormal(const D d, VecArg<V> x) {
   return FastLog1p</*kHandleSubnormals=*/false>(d, x);
+}
+
+template <class D, class V>
+HWY_NOINLINE V CallFastAtanPositive(const D d, VecArg<V> x) {
+  return FastAtan<D, V, /*kAssumePositive=*/true>(d, x);
 }
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
