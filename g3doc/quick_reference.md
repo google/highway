@@ -2890,6 +2890,9 @@ supported for the `HWY_SCALAR` target.
 *   `HWY_IS_BIG_ENDIAN` expands to 1 on big-endian targets and to 0 on
     little-endian targets.
 
+*   `HWY_REGISTERS` expands to the number of architectural vector registers
+    available on the current target.
+
 *   `HWY_MAX_BYTES` is an upper bound on the size of a full vector, suitable for
     use in `#if` expressions. Except for the `HWY_SCALAR` target, it is equal to
     the vector size if `!HWY_HAVE_SCALABLE`.

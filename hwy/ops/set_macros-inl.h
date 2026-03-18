@@ -39,6 +39,7 @@
 
 #undef HWY_HAVE_SCALABLE
 #undef HWY_HAVE_TUPLE
+#undef HWY_REGISTERS
 #undef HWY_HAVE_INTEGER64
 #undef HWY_HAVE_FLOAT16
 #undef HWY_HAVE_FLOAT64
@@ -94,6 +95,13 @@
 #define HWY_HAVE_TUPLE 0
 #else
 #define HWY_HAVE_TUPLE 1
+#endif
+
+// Target-specific number of architectural vector registers available.
+#if !HWY_ARCH_X86 || (HWY_TARGET <= HWY_AVX3)
+#define HWY_REGISTERS 32
+#else
+#define HWY_REGISTERS 16
 #endif
 
 // For internal use (clamping/validating N for Simd<>)
