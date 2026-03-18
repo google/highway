@@ -353,32 +353,47 @@ HWY_INLINE V FastAtan2(const D d, V y, V x) {
   using T = TFromD<D>;
   using M = MFromD<D>;
 
-  const V kHalf = Set(d, static_cast<T>(+0.5));
-  const V kPi = Set(d, static_cast<T>(+3.14159265358979323846264));
-  const V kPi2 = Mul(kPi, kHalf);
-
+  const V kPi = Set(d, static_cast<T>(3.14159265358979323846264));
+  const V kPiOverTwo = Set(d, static_cast<T>(1.57079632679489661923));
+  const V kOne = Set(d, static_cast<T>(1.0));
   const V k0 = Zero(d);
-  const M y_0 = Eq(y, k0);
-  const M x_0 = Eq(x, k0);
+
+  const V ax = Abs(x);
+  const V ay = Abs(y);
+
+  const V num = Min(ax, ay);
+  const V den = Max(ax, ay);
+
+  const M is_zero = Eq(den, k0);
+  const M is_inf = IsInf(num);
+  V mapped_y = MaskedDivOr(k0, Not(is_zero), num, den);
+  mapped_y = IfThenElse(is_inf, kOne, mapped_y);
+
+  // Degree 4 polynomial for atan(x) / x over [0, 1]
+  const V c0 = Set(d, static_cast<T>(0.9999653683169244));
+  const V c1 = Set(d, static_cast<T>(-0.3315525587266785));
+  const V c2 = Set(d, static_cast<T>(0.1844770291758270));
+  const V c3 = Set(d, static_cast<T>(-0.0907475543745560));
+  const V c4 = Set(d, static_cast<T>(0.0232748721030191));
+
+  const V z = Mul(mapped_y, mapped_y);
+  const V z2 = Mul(z, z);
+  const V z4 = Mul(z2, z2);
+
+  const V p01 = MulAdd(c1, z, c0);
+  const V p23 = MulAdd(c3, z, c2);
+  const V p = MulAdd(z4, c4, MulAdd(z2, p23, p01));
+
+  const V poly = Mul(mapped_y, p);
+
+  const M ay_gt_ax = Gt(ay, ax);
+  V angle = MaskedSubOr(poly, ay_gt_ax, kPiOverTwo, poly);
+
   const M x_neg = Lt(x, k0);
-  const M y_inf = IsInf(y);
-  const M x_inf = IsInf(x);
-  const M nan = Or(IsNaN(y), IsNaN(x));
+  angle = MaskedSubOr(angle, x_neg, kPi, angle);
 
-  const V if_xneg_pi = IfThenElseZero(x_neg, kPi);
-  // x= +inf: pi/4; -inf: 3*pi/4; else: pi/2
-  const V if_yinf = Mul(kHalf, IfThenElse(x_inf, Add(kPi2, if_xneg_pi), kPi));
-
-  V t = FastAtan(d, Div(y, x));
-  // Disambiguate between quadrants 1/3 and 2/4 by adding (Q2: Pi; Q3: -Pi).
-  t = Add(t, CopySignToAbs(if_xneg_pi, y));
-  // Special cases for 0 and infinity:
-  t = IfThenElse(x_inf, if_xneg_pi, t);
-  t = IfThenElse(x_0, kPi2, t);
-  t = IfThenElse(y_inf, if_yinf, t);
-  t = IfThenElse(y_0, if_xneg_pi, t);
-  // Any input NaN => NaN, otherwise fix sign.
-  return IfThenElse(nan, NaN(d), CopySign(t, y));
+  const M nan = IsEitherNaN(y, x);
+  return IfThenElse(nan, NaN(d), CopySign(angle, y));
 }
 
 /**
