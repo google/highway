@@ -456,60 +456,129 @@ HWY_INLINE V FastAtan(D d, V val) {
           TwoTablesLookupLanes(d, Load(d4, arr_d), Load(d4, arr_d + 4), idx);
     }
   } else {
-    // --- FALLBACK PATH: Blend Chain ---
-    // Start with highest index (7)
-    b = Set(d, static_cast<T>(-0.636599879781324485));
-    c = Set(d, static_cast<T>(0.636619772367580161));
-    d_coef = Set(d, static_cast<T>(1.26656532459780878e-05));
+    if constexpr (HWY_REGISTERS >= 32) {
+      // Split into two parallel chains to reduce dependency latency.
+      // Final merge is at t4.
 
-    // If y < t6 (idx 6)
-    auto mask = Lt(y, t6);
-    b = IfThenElse(mask, Set(d, static_cast<T>(-0.593857794692536411)), b);
-    c = IfThenElse(mask, Set(d, static_cast<T>(0.636616956982029358)), c);
-    d_coef =
-        IfThenElse(mask, Set(d, static_cast<T>(0.0278008627557660426)), d_coef);
+      // -- Chain 1: Indices 0 to 3 (Evaluated starting from t3 down to t0)
+      auto b_low = Set(d, static_cast<T>(-0.182135385862423199));  // idx 3
+      auto c_low = Set(d, static_cast<T>(0.598418137876644551));
+      auto d_low = Set(d, static_cast<T>(0.443535029927121405));
 
-    // If y < t5 (idx 5)
-    mask = Lt(y, t5);
-    b = IfThenElse(mask, Set(d, static_cast<T>(-0.480883389052863985)), b);
-    c = IfThenElse(mask, Set(d, static_cast<T>(0.636073159320597714)), c);
-    d_coef =
-        IfThenElse(mask, Set(d, static_cast<T>(0.109971971200957128)), d_coef);
+      auto mask = Lt(y, t2);
+      b_low = IfThenElse(mask, Set(d, static_cast<T>(-0.0804001272366929864)),
+                         b_low);
+      c_low =
+          IfThenElse(mask, Set(d, static_cast<T>(0.52223579294308875)), c_low);
+      d_low =
+          IfThenElse(mask, Set(d, static_cast<T>(0.648674367895195281)), d_low);
 
-    // If y < t4 (idx 4)
-    mask = Lt(y, t4);
-    b = IfThenElse(mask, Set(d, static_cast<T>(-0.325653141343514918)), b);
-    c = IfThenElse(mask, Set(d, static_cast<T>(0.62936025141102403)), c);
-    d_coef =
-        IfThenElse(mask, Set(d, static_cast<T>(0.253346310124016816)), d_coef);
+      mask = Lt(y, t1);
+      b_low = IfThenElse(mask, Set(d, static_cast<T>(-0.0171444509361914806)),
+                         b_low);
+      c_low =
+          IfThenElse(mask, Set(d, static_cast<T>(0.36171001035385264)), c_low);
+      d_low =
+          IfThenElse(mask, Set(d, static_cast<T>(0.861228636645467005)), d_low);
 
-    // If y < t3 (idx 3)
-    mask = Lt(y, t3);
-    b = IfThenElse(mask, Set(d, static_cast<T>(-0.182135385862423199)), b);
-    c = IfThenElse(mask, Set(d, static_cast<T>(0.598418137876644551)), c);
-    d_coef =
-        IfThenElse(mask, Set(d, static_cast<T>(0.443535029927121405)), d_coef);
+      mask = Lt(y, t0);
+      b_low = IfThenElse(mask, Set(d, static_cast<T>(-0.000844737750631938361)),
+                         b_low);
+      c_low =
+          IfThenElse(mask, Set(d, static_cast<T>(0.150444244129797872)), c_low);
+      d_low =
+          IfThenElse(mask, Set(d, static_cast<T>(0.979164002922822796)), d_low);
 
-    // If y < t2 (idx 2)
-    mask = Lt(y, t2);
-    b = IfThenElse(mask, Set(d, static_cast<T>(-0.0804001272366929864)), b);
-    c = IfThenElse(mask, Set(d, static_cast<T>(0.52223579294308875)), c);
-    d_coef =
-        IfThenElse(mask, Set(d, static_cast<T>(0.648674367895195281)), d_coef);
+      // -- Chain 2: Indices 4 to 7 (Evaluated starting from t7 down to t4)
+      auto b_high = Set(d, static_cast<T>(-0.636599879781324485));  // idx 7
+      auto c_high = Set(d, static_cast<T>(0.636619772367580161));
+      auto d_high = Set(d, static_cast<T>(1.26656532459780878e-05));
 
-    // If y < t1 (idx 1)
-    mask = Lt(y, t1);
-    b = IfThenElse(mask, Set(d, static_cast<T>(-0.0171444509361914806)), b);
-    c = IfThenElse(mask, Set(d, static_cast<T>(0.36171001035385264)), c);
-    d_coef =
-        IfThenElse(mask, Set(d, static_cast<T>(0.861228636645467005)), d_coef);
+      mask = Lt(y, t6);
+      b_high = IfThenElse(mask, Set(d, static_cast<T>(-0.593857794692536411)),
+                          b_high);
+      c_high = IfThenElse(mask, Set(d, static_cast<T>(0.636616956982029358)),
+                          c_high);
+      d_high = IfThenElse(mask, Set(d, static_cast<T>(0.0278008627557660426)),
+                          d_high);
 
-    // If y < t0 (idx 0)
-    mask = Lt(y, t0);
-    b = IfThenElse(mask, Set(d, static_cast<T>(-0.000844737750631938361)), b);
-    c = IfThenElse(mask, Set(d, static_cast<T>(0.150444244129797872)), c);
-    d_coef =
-        IfThenElse(mask, Set(d, static_cast<T>(0.979164002922822796)), d_coef);
+      mask = Lt(y, t5);
+      b_high = IfThenElse(mask, Set(d, static_cast<T>(-0.480883389052863985)),
+                          b_high);
+      c_high = IfThenElse(mask, Set(d, static_cast<T>(0.636073159320597714)),
+                          c_high);
+      d_high = IfThenElse(mask, Set(d, static_cast<T>(0.109971971200957128)),
+                          d_high);
+
+      mask = Lt(y, t4);
+      b_high = IfThenElse(mask, Set(d, static_cast<T>(-0.325653141343514918)),
+                          b_high);
+      c_high =
+          IfThenElse(mask, Set(d, static_cast<T>(0.62936025141102403)), c_high);
+      d_high = IfThenElse(mask, Set(d, static_cast<T>(0.253346310124016816)),
+                          d_high);
+
+      // -- Merge the two chains
+      auto merge_mask = Lt(y, t3);
+      b = IfThenElse(merge_mask, b_low, b_high);
+      c = IfThenElse(merge_mask, c_low, c_high);
+      d_coef = IfThenElse(merge_mask, d_low, d_high);
+
+    } else {
+      // Start with highest index (7)
+      b = Set(d, static_cast<T>(-0.636599879781324485));
+      c = Set(d, static_cast<T>(0.636619772367580161));
+      d_coef = Set(d, static_cast<T>(1.26656532459780878e-05));
+
+      // If y < t6 (idx 6)
+      auto mask = Lt(y, t6);
+      b = IfThenElse(mask, Set(d, static_cast<T>(-0.593857794692536411)), b);
+      c = IfThenElse(mask, Set(d, static_cast<T>(0.636616956982029358)), c);
+      d_coef = IfThenElse(mask, Set(d, static_cast<T>(0.0278008627557660426)),
+                          d_coef);
+
+      // If y < t5 (idx 5)
+      mask = Lt(y, t5);
+      b = IfThenElse(mask, Set(d, static_cast<T>(-0.480883389052863985)), b);
+      c = IfThenElse(mask, Set(d, static_cast<T>(0.636073159320597714)), c);
+      d_coef = IfThenElse(mask, Set(d, static_cast<T>(0.109971971200957128)),
+                          d_coef);
+
+      // If y < t4 (idx 4)
+      mask = Lt(y, t4);
+      b = IfThenElse(mask, Set(d, static_cast<T>(-0.325653141343514918)), b);
+      c = IfThenElse(mask, Set(d, static_cast<T>(0.62936025141102403)), c);
+      d_coef = IfThenElse(mask, Set(d, static_cast<T>(0.253346310124016816)),
+                          d_coef);
+
+      // If y < t3 (idx 3)
+      mask = Lt(y, t3);
+      b = IfThenElse(mask, Set(d, static_cast<T>(-0.182135385862423199)), b);
+      c = IfThenElse(mask, Set(d, static_cast<T>(0.598418137876644551)), c);
+      d_coef = IfThenElse(mask, Set(d, static_cast<T>(0.443535029927121405)),
+                          d_coef);
+
+      // If y < t2 (idx 2)
+      mask = Lt(y, t2);
+      b = IfThenElse(mask, Set(d, static_cast<T>(-0.0804001272366929864)), b);
+      c = IfThenElse(mask, Set(d, static_cast<T>(0.52223579294308875)), c);
+      d_coef = IfThenElse(mask, Set(d, static_cast<T>(0.648674367895195281)),
+                          d_coef);
+
+      // If y < t1 (idx 1)
+      mask = Lt(y, t1);
+      b = IfThenElse(mask, Set(d, static_cast<T>(-0.0171444509361914806)), b);
+      c = IfThenElse(mask, Set(d, static_cast<T>(0.36171001035385264)), c);
+      d_coef = IfThenElse(mask, Set(d, static_cast<T>(0.861228636645467005)),
+                          d_coef);
+
+      // If y < t0 (idx 0)
+      mask = Lt(y, t0);
+      b = IfThenElse(mask, Set(d, static_cast<T>(-0.000844737750631938361)), b);
+      c = IfThenElse(mask, Set(d, static_cast<T>(0.150444244129797872)), c);
+      d_coef = IfThenElse(mask, Set(d, static_cast<T>(0.979164002922822796)),
+                          d_coef);
+    }
   }
 
   // Math: y = (x + b)/(c*x + d)
