@@ -638,20 +638,20 @@ struct TestFastAtanRelative {
       // Float: [-1e35, +1e35]
       TestMathRelative<T, D>("FastAtan", std::atan, CallFastAtan, d,
                              static_cast<T>(-1e35), static_cast<T>(1e35),
-                             0.0012, 1000000);
+                             0.000035, 1000000);
       // Float: [0, +1e35]
       TestMathRelative<T, D>("FastAtanPositive", std::atan,
                              CallFastAtanPositive, d, static_cast<T>(0),
-                             static_cast<T>(1e35), 0.0012, 1000000);
+                             static_cast<T>(1e35), 0.000035, 1000000);
     } else {
       // Double: [-1e305, +1e305]
       TestMathRelative<T, D>("FastAtan", std::atan, CallFastAtan, d,
                              static_cast<T>(-1e305), static_cast<T>(1e305),
-                             0.0012, 1000000);
+                             0.000035, 1000000);
       // Double: [0, +1e305]
       TestMathRelative<T, D>("FastAtanPositive", std::atan,
                              CallFastAtanPositive, d, static_cast<T>(0),
-                             static_cast<T>(1e305), 0.0012, 1000000);
+                             static_cast<T>(1e305), 0.000035, 1000000);
     }
   }
 };
@@ -671,7 +671,7 @@ struct TestFastAtan2 {
     Atan2TestCases(t, d, padded, in_y, in_x, expected);
 
     // Constants for error checking
-    const T rel_limit = static_cast<T>(0.0012);
+    const T rel_limit = static_cast<T>(0.000035);
     const T tiny_threshold = static_cast<T>(1e-20);
     const Vec<D> v_rel_limit = Set(d, rel_limit);
     const Vec<D> v_tiny_threshold = Set(d, tiny_threshold);
