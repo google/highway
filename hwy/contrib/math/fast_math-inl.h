@@ -372,11 +372,11 @@ HWY_INLINE V FastAtan(D d, V val) {
 
   const V z = Mul(mapped_y, mapped_y);
   const V z2 = Mul(z, z);
-  const V z4 = Mul(z2, z2);
 
   const V p01 = MulAdd(c1, z, c0);
   const V p23 = MulAdd(c3, z, c2);
-  const V p = MulAdd(z4, c4, MulAdd(z2, p23, p01));
+  const V p234 = MulAdd(z2, c4, p23);
+  const V p = MulAdd(z2, p234, p01);
 
   const V poly = Mul(mapped_y, p);
 
@@ -427,11 +427,11 @@ HWY_INLINE V FastAtan2(const D d, V y, V x) {
 
   const V z = Mul(mapped_y, mapped_y);
   const V z2 = Mul(z, z);
-  const V z4 = Mul(z2, z2);
 
   const V p01 = MulAdd(c1, z, c0);
   const V p23 = MulAdd(c3, z, c2);
-  const V p = MulAdd(z4, c4, MulAdd(z2, p23, p01));
+  const V p234 = MulAdd(z2, c4, p23);
+  const V p = MulAdd(z2, p234, p01);
 
   const V poly = Mul(mapped_y, p);
 
