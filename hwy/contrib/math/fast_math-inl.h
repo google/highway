@@ -364,9 +364,8 @@ HWY_INLINE V FastAtan2(const D d, V y, V x) {
   const V num = Min(ax, ay);
   const V den = Max(ax, ay);
 
-  const M is_zero = Eq(den, k0);
   const M is_inf = IsInf(num);
-  V mapped_y = MaskedDivOr(k0, Not(is_zero), num, den);
+  V mapped_y = MaskedDivOr(k0, Ne(den, k0), num, den);
   mapped_y = IfThenElse(is_inf, kOne, mapped_y);
 
   // Degree 4 polynomial for atan(x) / x over [0, 1]
@@ -392,8 +391,8 @@ HWY_INLINE V FastAtan2(const D d, V y, V x) {
   const M x_neg = Lt(x, k0);
   angle = MaskedSubOr(angle, x_neg, kPi, angle);
 
-  const M nan = IsEitherNaN(y, x);
-  return IfThenElse(nan, NaN(d), CopySign(angle, y));
+  const M is_nan = IsEitherNaN(y, x);
+  return IfThenElse(is_nan, NaN(d), CopySign(angle, y));
 }
 
 /**

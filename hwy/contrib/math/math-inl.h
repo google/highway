@@ -134,36 +134,8 @@ HWY_NOINLINE V CallAtanh(const D d, VecArg<V> x) {
  * Correctly handles negative zero, infinities, and NaN.
  * @return atan2 of 'y', 'x'
  */
-template <class D, class V = VFromD<D>, class M = MFromD<D>,
-          typename T = TFromD<D>>
-HWY_INLINE V Atan2(const D d, V y, V x) {
-  const V kHalf = Set(d, static_cast<T>(+0.5));
-  const V kPi = Set(d, static_cast<T>(+3.14159265358979323846264));
-  const V kPi2 = Mul(kPi, kHalf);
-
-  const V k0 = Zero(d);
-  const M y_0 = Eq(y, k0);
-  const M x_0 = Eq(x, k0);
-  const M x_neg = Lt(x, k0);
-  const M y_inf = IsInf(y);
-  const M x_inf = IsInf(x);
-  const M nan = Or(IsNaN(y), IsNaN(x));
-
-  const V if_xneg_pi = IfThenElseZero(x_neg, kPi);
-  // x= +inf: pi/4; -inf: 3*pi/4; else: pi/2
-  const V if_yinf = Mul(kHalf, IfThenElse(x_inf, Add(kPi2, if_xneg_pi), kPi));
-
-  V t = Atan(d, Div(y, x));
-  // Disambiguate between quadrants 1/3 and 2/4 by adding (Q2: Pi; Q3: -Pi).
-  t = Add(t, CopySignToAbs(if_xneg_pi, y));
-  // Special cases for 0 and infinity:
-  t = IfThenElse(x_inf, if_xneg_pi, t);
-  t = IfThenElse(x_0, kPi2, t);
-  t = IfThenElse(y_inf, if_yinf, t);
-  t = IfThenElse(y_0, if_xneg_pi, t);
-  // Any input NaN => NaN, otherwise fix sign.
-  return IfThenElse(nan, NaN(d), CopySign(t, y));
-}
+template <class D, class V>
+HWY_INLINE V Atan2(D d, V y, V x);
 template <class D, class V>
 HWY_NOINLINE V CallAtan2(const D d, VecArg<V> y, VecArg<V> x) {
   return Atan2(d, y, x);
@@ -1424,6 +1396,39 @@ HWY_INLINE V Atan(const D d, V x) {
   const auto divisor = IfThenElse(mask, abs_x, kOne);
   const V y = impl.AtanPoly(d, IfThenElse(mask, Div(kOne, divisor), abs_x));
   return Or(IfThenElse(mask, Sub(kPiOverTwo, y), y), sign);
+}
+
+template <class D, class V>
+HWY_INLINE V Atan2(const D d, V y, V x) {
+  using T = TFromD<D>;
+  using M = MFromD<D>;
+
+  const V kPi = Set(d, static_cast<T>(3.14159265358979323846264));
+  const V kPiOverTwo = Set(d, static_cast<T>(1.57079632679489661923132169));
+  const V kOne = Set(d, static_cast<T>(1.0));
+  const V k0 = Zero(d);
+
+  const V ax = Abs(x);
+  const V ay = Abs(y);
+
+  const V num = Min(ax, ay);
+  const V den = Max(ax, ay);
+
+  const M is_inf = IsInf(num);
+  V mapped_y = MaskedDivOr(k0, Ne(den, k0), num, den);
+  mapped_y = IfThenElse(is_inf, kOne, mapped_y);
+
+  impl::AtanImpl<T> impl;
+  const V poly = impl.AtanPoly(d, mapped_y);
+
+  const M ay_gt_ax = Gt(ay, ax);
+  V angle = MaskedSubOr(poly, ay_gt_ax, kPiOverTwo, poly);
+
+  const M x_neg = Lt(x, k0);
+  angle = MaskedSubOr(angle, x_neg, kPi, angle);
+
+  const M is_nan = IsEitherNaN(y, x);
+  return IfThenElse(is_nan, NaN(d), CopySign(angle, y));
 }
 
 template <class D, class V>
