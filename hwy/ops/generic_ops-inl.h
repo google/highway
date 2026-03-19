@@ -22,6 +22,7 @@
 // the generic implementation here if native ops are already defined.
 
 #include "hwy/base.h"
+#include "hwy/detect_compiler_arch.h"
 
 // Define detail::Shuffle1230 etc, but only when viewing the current header;
 // normally this is included via highway.h, which includes ops/*.h.
@@ -6121,6 +6122,16 @@ HWY_API size_t CompressBitsStore(V v, const uint8_t* HWY_RESTRICT bits, D d,
 
   size_t i = 0;
   HWY_LANES_CONSTEXPR size_t N = Lanes(d);
+  constexpr bool kMaybeLt128 =
+      (HWY_TARGET == HWY_SCALAR) || !detail::IsFull(D());
+  // If less than 128 bit, we may not enter the main loop below, and even
+  // the remainder loop might not write anything if bits are not set.
+  // Ensure the output is initialized. GCC seems not to understand this is only
+  // necessary if kMaybeLt128.
+  HWY_IF_CONSTEXPR(kMaybeLt128 || HWY_COMPILER_GCC_ACTUAL) {
+    StoreU(v, d, unaligned);
+  }
+  HWY_ASSUME(N >= 8 || kMaybeLt128);
   if (N >= 8) {
     for (; i <= N - 8; i += 8) {
       // Each byte worth of bits is the index of one of 256 8-byte ranges, and
@@ -6132,9 +6143,10 @@ HWY_API size_t CompressBitsStore(V v, const uint8_t* HWY_RESTRICT bits, D d,
       pos += PopCount(bits8);
     }
   }
-  // Full vectors are multiples of 8, otherwise use an inefficient loop
-  // (for safely handling compress_test).
-  HWY_IF_CONSTEXPR(!detail::IsFull(d)) {
+  // Not required if we have full vectors of >= 128 bits, because they are
+  // multiples of 8 bytes. Inefficient loop is mainly required for safely
+  // handling compress_test).
+  HWY_IF_CONSTEXPR(kMaybeLt128) {
     for (; i < N; ++i) {
       if (bits[i / 8] & (1u << (i % 8))) {
         *pos++ = lanes[i];

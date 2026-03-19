@@ -72,7 +72,7 @@ struct TestCompress {
     using TU = MakeUnsigned<T>;
     const Rebind<TI, D> di;
     const size_t N = Lanes(d);
-    const size_t bits_size = RoundUpTo(DivCeil(N, 8), 8);
+    const size_t bits_size = RoundUpTo(DivCeil(N, size_t{8}), size_t{8});
 
     for (int frac : {0, 2, 3}) {
       // For CompressStore
