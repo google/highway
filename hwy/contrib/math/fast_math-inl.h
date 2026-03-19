@@ -959,7 +959,12 @@ HWY_INLINE V FastLog1p(const D d, V x) {
   // If y == 1, divisor becomes -1 (dummy), avoiding division by zero.
   const V kMinusOne = Set(d, static_cast<T>(-1.0));
   const V divisor = MaskedSubOr(kMinusOne, not_pole, y, kOne);
-  const V non_pole = Mul(FastLog<kHandleSubnormals>(d, y), Div(x, divisor));
+  // Ensure exactly 1.0 when x == divisor. This is necessary because some
+  // platforms (like Armv7) use Newton-Raphson for division, which can return
+  // 0.0, instead of 1.0 when the reciprocal calculation underflows
+  // for very large x.
+  const V div_res = MaskedDivOr(kOne, Ne(x, divisor), x, divisor);
+  const V non_pole = Mul(FastLog<kHandleSubnormals>(d, y), div_res);
   return IfThenElse(not_pole, non_pole, x);
 }
 
