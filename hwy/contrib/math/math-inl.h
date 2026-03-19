@@ -1552,11 +1552,17 @@ HWY_INLINE V Log1p(const D d, V x) {
   const V kOne = Set(d, static_cast<T>(+1.0));
 
   const V y = Add(x, kOne);
-  const auto is_pole = Eq(y, kOne);
-  const auto divisor = Sub(IfThenZeroElse(is_pole, y), kOne);
+  const Mask<D> not_pole = Ne(y, kOne);
+  // If y == 1, divisor becomes 1 (dummy), avoiding division by zero.
+  const V divisor = MaskedSubOr(y, not_pole, y, kOne);
+  // Ensure exactly 1.0 when x == divisor. This is necessary because some
+  // platforms (like Armv7) use Newton-Raphson for division, which can return
+  // 0.0, instead of 1.0 when the reciprocal calculation underflows
+  // for very large x.
+  const V div_res = MaskedDivOr(kOne, Ne(x, divisor), x, divisor);
   const auto non_pole =
-      Mul(impl::Log<D, V, /*kAllowSubnormals=*/false>(d, y), Div(x, divisor));
-  return IfThenElse(is_pole, x, non_pole);
+      Mul(impl::Log<D, V, /*kAllowSubnormals=*/false>(d, y), div_res);
+  return IfThenElse(not_pole, non_pole, x);
 }
 
 template <class D, class V>

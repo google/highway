@@ -174,7 +174,7 @@ DEFINE_MATH_TEST(Log10,
   std::log10, CallLog10, +FLT_MIN,   +FLT_MAX,    2,
   std::log10, CallLog10, +DBL_MIN,   +DBL_MAX,    2)
 DEFINE_MATH_TEST(Log1p,
-  std::log1p, CallLog1p, +0.0f,      +1e37f,      3,  // NEON is 3 instead of 2
+  std::log1p, CallLog1p, +0.0f,      +FLT_MAX,    3,  // NEON is 3 instead of 2
   std::log1p, CallLog1p, +0.0,       +DBL_MAX,    2)
 DEFINE_MATH_TEST(Log2,
   std::log2,  CallLog2,  +FLT_MIN,   +FLT_MAX,    2,
