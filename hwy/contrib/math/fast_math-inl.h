@@ -212,10 +212,12 @@ HWY_INLINE V FastTan(D d, V x) {
     } else {
       auto idx = IndicesFromVec(d, idx_int);
       FixedTag<T, 4> d4;
-      b = TwoTablesLookupLanes(d, Load(d4, arr_b), Load(d4, arr_b + 4), idx);
-      c = TwoTablesLookupLanes(d, Load(d4, arr_c), Load(d4, arr_c + 4), idx);
-      d_val =
-          TwoTablesLookupLanes(d, Load(d4, arr_d), Load(d4, arr_d + 4), idx);
+      b = TwoTablesLookupLanes(d4, ResizeBitCast(d, Load(d4, arr_b)),
+                               ResizeBitCast(d, Load(d4, arr_b + 4)), idx);
+      c = TwoTablesLookupLanes(d4, ResizeBitCast(d, Load(d4, arr_c)),
+                               ResizeBitCast(d, Load(d4, arr_c + 4)), idx);
+      d_val = TwoTablesLookupLanes(d4, ResizeBitCast(d, Load(d4, arr_d)),
+                                    ResizeBitCast(d, Load(d4, arr_d + 4)), idx);
     }
   } else {
     // --- FALLBACK PATH: Blend Chain ---
@@ -530,10 +532,12 @@ HWY_INLINE V FastTanh(D d, V val) {
     } else {
       auto idx = IndicesFromVec(d, idx_i);
       FixedTag<T, 4> d4;
-      b = TwoTablesLookupLanes(d, Load(d4, arr_b), Load(d4, arr_b + 4), idx);
-      c = TwoTablesLookupLanes(d, Load(d4, arr_c), Load(d4, arr_c + 4), idx);
-      d_coef =
-          TwoTablesLookupLanes(d, Load(d4, arr_d), Load(d4, arr_d + 4), idx);
+      b = TwoTablesLookupLanes(d4, ResizeBitCast(d, Load(d4, arr_b)),
+                               ResizeBitCast(d, Load(d4, arr_b + 4)), idx);
+      c = TwoTablesLookupLanes(d4, ResizeBitCast(d, Load(d4, arr_c)),
+                               ResizeBitCast(d, Load(d4, arr_c + 4)), idx);
+      d_coef = TwoTablesLookupLanes(d4, ResizeBitCast(d, Load(d4, arr_d)),
+                                    ResizeBitCast(d, Load(d4, arr_d + 4)), idx);
     }
   } else {
     // --- FALLBACK PATH: Blend Chain ---
@@ -821,10 +825,12 @@ HWY_INLINE V FastLog(D d, V x) {
     } else {
       auto idx = IndicesFromVec(d, idx_i);
       FixedTag<T, 4> d4;
-      b = TwoTablesLookupLanes(d, Load(d4, arr_b), Load(d4, arr_b + 4), idx);
-      c = TwoTablesLookupLanes(d, Load(d4, arr_c), Load(d4, arr_c + 4), idx);
-      d_coef =
-          TwoTablesLookupLanes(d, Load(d4, arr_d), Load(d4, arr_d + 4), idx);
+      b = TwoTablesLookupLanes(d4, ResizeBitCast(d, Load(d4, arr_b)),
+                               ResizeBitCast(d, Load(d4, arr_b + 4)), idx);
+      c = TwoTablesLookupLanes(d4, ResizeBitCast(d, Load(d4, arr_c)),
+                               ResizeBitCast(d, Load(d4, arr_c + 4)), idx);
+      d_coef = TwoTablesLookupLanes(d4, ResizeBitCast(d, Load(d4, arr_d)),
+                                    ResizeBitCast(d, Load(d4, arr_d + 4)), idx);
     }
   } else {
     // --- FALLBACK PATH: Blend Chain ---
