@@ -6869,6 +6869,70 @@ HWY_API VFromD<D> TwoTablesLookupLanes(D /*d*/, VFromD<D> a, VFromD<D> b,
 }
 #endif
 
+// ------------------------------ Lookup8
+
+template <class D, typename T = TFromD<D>, class VI, HWY_IF_T_SIZE(T, 4)>
+HWY_INLINE Vec<D> Lookup8(D d, const T* table, VI indices) {
+  // `di` describes the indices given - same bits per lane, but `d` determines
+  // the actual lane count of the result and also of the table vectors, which
+  // is relevant for adjusting the index values, see below.
+  DFromV<VI> di;
+  static_assert(sizeof(T) == sizeof(TFromD<decltype(di)>),
+                "Index/vector must have same lane size");
+  HWY_IF_CONSTEXPR(HWY_IS_DEBUG_BUILD) {
+    HWY_DASSERT(Lanes(d) >= 4);
+    HWY_DASSERT(Lanes(di) >= 4);
+    HWY_DASSERT(AllTrue(di, Lt(indices, Set(di, 8))));
+  }
+
+  HWY_IF_CONSTEXPR(!HWY_HAVE_SCALABLE) {
+    // Fixed-size vectors: we know they are >= 128 bit, so either one or two
+    // tables are sufficient.
+    HWY_IF_CONSTEXPR(MaxLanes(d) >= 8) {
+      const CappedTag<T, 8> d8;
+      // We want to perform one lookup per index, hence cast. This has no
+      // runtime cost; the upper lanes are unused.
+      const Vec<D> t0 = ResizeBitCast(d, Load(d8, table));
+      return TableLookupLanes(t0, IndicesFromVec(d, indices));
+    }
+    HWY_IF_CONSTEXPR(MaxLanes(d) < 8) {
+      // Exactly 4 lanes, because we ensured >= 4 above.
+      const Vec<D> t0 = Load(d, table);
+      const Vec<D> t1 = Load(d, table + 4);
+      return TwoTablesLookupLanes(d, t0, t1, IndicesFromVec(d, indices));
+    }
+  }
+  HWY_IF_CONSTEXPR(HWY_HAVE_SCALABLE) {
+    // Scalable: first we must load two halves of the table into two vectors,
+    // regardless of vector size. We always use two-vector lookups to avoid
+    // runtime branching.
+    const FixedTag<T, 4> d4;
+
+    // We want to use native lookup instructions (more efficient on SVE than two
+    // lookups plus a blend), hence cast. This has no runtime cost. No LoadU
+    // required because + 4 is still aligned relative to `d4`.
+    const Vec<D> t0 = ResizeBitCast(d, Load(d4, table));
+    const Vec<D> t1 = ResizeBitCast(d, Load(d4, table + 4));
+
+    // Now ensure indices for the second half of the table point to the second
+    // vector. Note that SVE2_128 and SVE_256 are handled by the fixed-size case
+    // above. The adjustment factor is 0 for 128-bit SIMD, which can happen with
+    // 128-bit SVE1 hardware, but we do not know that at compile time.
+    const VI adjust = Set(di, Lanes(d) - 4);
+    Mask<decltype(di)> ge_4;
+#if HWY_TARGET_IS_SVE
+    ge_4 = detail::GeN(indices, 4);
+#elif HWY_TARGET == HWY_RVV
+    ge_4 = detail::GtS(indices, 4 - 1);
+#else
+    ge_4 = Ge(indices, Set(di, 4));
+#endif
+    indices = MaskedAddOr(indices, ge_4, indices, adjust);
+
+    return TwoTablesLookupLanes(d, t0, t1, IndicesFromVec(d, indices));
+  }
+}
+
 // ------------------------------ Reverse2, Reverse4, Reverse8 (8-bit)
 
 #if (defined(HWY_NATIVE_REVERSE2_8) == defined(HWY_TARGET_TOGGLE)) || HWY_IDE

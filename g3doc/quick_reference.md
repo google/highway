@@ -2543,12 +2543,15 @@ The following `ReverseN` must not be called if `Lanes(D()) < N`:
     that the latter condition is only a (potential) limitation for 8-bit lanes
     on the RVV target; otherwise, `Lanes(D()) <= LimitsMax<..>()`. `indices` are
     always integers, even if `V` is a floating-point type. Note that `d` can
-    have fewer lanes than `V`. This can make sense when tables are fixed-size,
-    but we want to perform as many lookups as there are indices in a full
-    vector. However, this forces the SVE implementation into a slower codepath.
-    For this use case, it is better to instead adjust indices into the full
-    vectors. Let `NT` denote the table size, e.g. 8. Then we update `idx =
-    MaskedAddOr(idx, Ge(idx, Set(di, NT/2)), idx, Set(di, Lanes(di) - NT/2))`.
+    have fewer lanes than `V` or the indices; it determines the lanes of the
+    result, and also how many lanes of the table vectors are used. This can make
+    sense when tables are fixed-size, but we want to perform as many lookups as
+    there are indices in a full vector. However, this forces the SVE
+    implementation into a slower codepath. For this use case, it is better to
+    instead adjust indices into the full vectors. Let `NT` denote the table
+    size, e.g. 8. Then we update `idx = MaskedAddOr(idx, Ge(idx, Set(di, NT/2)),
+    idx, Set(di, Lanes(di) - NT/2))`. Rather than implementing this yourself, we
+    suggest using `Lookup8` instead.
 
 *   <code>V **TwoTablesLookupLanes**(V a, V b, unspecified)</code> returns
     `TwoTablesLookupLanes(DFromV<V>(), a, b, indices)`, see above. Note that the
@@ -2556,15 +2559,25 @@ The following `ReverseN` must not be called if `Lanes(D()) < N`:
     `TwoTablesLookupLanes(a, b, indices)` on RVV/SVE if `Lanes(d) <
     Lanes(DFromV<V>())`.
 
+*   `VI`: {u,i}32, `D`: `{u,i,f}32` \
+    <code>Vec&lt;D&gt; **Lookup8**(D, const TFromD<D>* tbl, VI indices)</code>:
+    returns `GatherIndex(D(), tbl, indices)`, but much more efficient, and
+    limited to 8 elements. Results are undefined if any indices are 8 or above.
+    This is implemented using `TableLookupLanes` or `TwoTablesLookupLanes`. Only
+    available if `D().MaxBytes() >= 16`; this is guaranteed to be the case if
+    `HWY_TARGET != HWY_SCALAR` and `D` is `FixedTag<T, 16/sizeof(T)>` or
+    `ScalableTag<T>` or `CappedTag<T, N/sizeof(T)>` (where `N >= 16`).
+
 *   <code>unspecified **IndicesFromVec**(D d, V idx)</code> prepares for
-    `TableLookupLanes` with integer indices in `idx`, which must be the same bit
-    width as `TFromD<D>` and in the range `[0, 2 * Lanes(d))`, but need not be
-    unique.
+    `TableLookupLanes` or `TwoTablesLookupLanes` with integer indices in `idx`,
+    which must be the same bit width as `TFromD<D>` and in the range `[0, 2 *
+    Lanes(d))`, but need not be unique.
 
 *   <code>unspecified **SetTableIndices**(D d, TI* idx)</code> prepares for
-    `TableLookupLanes` by loading `Lanes(d)` integer indices from `idx`, which
-    must be in the range `[0, 2 * Lanes(d))` but need not be unique. The index
-    type `TI` must be an integer of the same size as `TFromD<D>`.
+    `TableLookupLanes` or `TwoTablesLookupLanes` by loading `Lanes(d)` integer
+    indices from `idx`, which must be in the range `[0, 2 * Lanes(d))` but need
+    not be unique. The index type `TI` must be an integer of the same size as
+    `TFromD<D>`.
 
 *   <code>V **Per4LaneBlockShuffle**&lt;size_t kIdx3, size_t kIdx2, size_t
     kIdx1, size_t kIdx0&gt;(V v)</code> does a per 4-lane block shuffle of `v`

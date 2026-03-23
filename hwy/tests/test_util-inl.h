@@ -119,10 +119,19 @@ VFromD<D> IotaForSpecial(D d, First first) {
   return DemoteTo(d, Set(df, static_cast<float>(first)));
 }
 
+// Workaround for Clang SVE bug: unless inlined, SVE vectors are truncated at
+// 128 bits.
+#undef HWY_ASSERT_INLINE
+#if HWY_TARGET & HWY_ALL_SVE
+#define HWY_ASSERT_INLINE HWY_INLINE
+#else
+#define HWY_ASSERT_INLINE HWY_NOINLINE
+#endif
+
 // Compare expected array to vector.
 template <class D, typename T = TFromD<D>>
-HWY_NOINLINE void AssertVecEqual(D d, const T* expected, Vec<D> actual,
-                                 const char* filename, const int line) {
+HWY_ASSERT_INLINE void AssertVecEqual(D d, const T* expected, Vec<D> actual,
+                                      const char* filename, const int line) {
   const size_t N = Lanes(d);
   auto actual_lanes = AllocateAligned<T>(N);
   HWY_ASSERT(actual_lanes);
@@ -136,8 +145,8 @@ HWY_NOINLINE void AssertVecEqual(D d, const T* expected, Vec<D> actual,
 
 // Compare expected vector to vector.
 template <class D, typename T = TFromD<D>>
-HWY_NOINLINE void AssertVecEqual(D d, Vec<D> expected, Vec<D> actual,
-                                 const char* filename, int line) {
+HWY_ASSERT_INLINE void AssertVecEqual(D d, Vec<D> expected, Vec<D> actual,
+                                      const char* filename, int line) {
   const size_t N = Lanes(d);
   auto expected_lanes = AllocateAligned<T>(N);
   auto actual_lanes = AllocateAligned<T>(N);
@@ -153,8 +162,9 @@ HWY_NOINLINE void AssertVecEqual(D d, Vec<D> expected, Vec<D> actual,
 
 // Only checks the valid mask elements (those whose index < Lanes(d)).
 template <class D>
-HWY_NOINLINE void AssertMaskEqual(D d, VecArg<Mask<D>> a, VecArg<Mask<D>> b,
-                                  const char* filename, int line) {
+HWY_ASSERT_INLINE void AssertMaskEqual(D d, VecArg<Mask<D>> a,
+                                       VecArg<Mask<D>> b, const char* filename,
+                                       int line) {
   // lvalues prevented MSAN failure in farm_sve.
   const Vec<D> va = VecFromMask(d, a);
   const Vec<D> vb = VecFromMask(d, b);

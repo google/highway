@@ -1684,9 +1684,16 @@ HWY_API MFromD<D> MaskedIsNaN(const M m, const V v) {
 
 #undef HWY_RVV_RETM_ARGMVV
 #undef HWY_RVV_RETM_ARGVV
-#undef HWY_RVV_RETM_ARGVS
 
 // ------------------------------ Gt/Ge (Lt, Le)
+
+namespace detail {
+HWY_RVV_FOREACH_I(HWY_RVV_RETM_ARGVS, GtS, msgt_vx, _ALL)
+HWY_RVV_FOREACH_U(HWY_RVV_RETM_ARGVS, GtS, msgtu_vx, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_RETM_ARGVS, GtS, mfgt_vf, _ALL)
+}  // namespace detail
+
+#undef HWY_RVV_RETM_ARGVS
 
 // Swap args to reverse comparisons:
 template <class V>
@@ -3180,7 +3187,7 @@ namespace detail {
 // For x86-compatible behaviour mandated by Highway API: TableLookupBytes
 // offsets are implicitly relative to the start of their 128-bit block.
 template <typename T, size_t N, int kPow2>
-HWY_CXX17_CONSTEXPR HWY_INLINE size_t LanesPerBlock(Simd<T, N, kPow2> d) {
+HWY_LANES_CONSTEXPR HWY_INLINE size_t LanesPerBlock(Simd<T, N, kPow2> d) {
   // kMinVecBytes is the minimum size of VFromD<decltype(d)> in bytes
   constexpr size_t kMinVecBytes =
       ScaleByPower(16, HWY_MAX(HWY_MIN(kPow2, 3), -3));
@@ -3667,7 +3674,7 @@ HWY_API V SwapAdjacentBlocks(const V v) {
 
 template <class D, class V = VFromD<D>>
 HWY_API V InterleaveEvenBlocks(D d, V a, V b) {
-  HWY_CXX17_CONSTEXPR size_t lpb = detail::LanesPerBlock(d);
+  HWY_LANES_CONSTEXPR size_t lpb = detail::LanesPerBlock(d);
   return OddEvenBlocks(SlideUpLanes(d, b, lpb), a);
 }
 
@@ -3676,7 +3683,7 @@ HWY_API V InterleaveEvenBlocks(D d, V a, V b) {
 
 template <class D, class V = VFromD<D>>
 HWY_API V InterleaveOddBlocks(D d, V a, V b) {
-  HWY_CXX17_CONSTEXPR size_t lpb = detail::LanesPerBlock(d);
+  HWY_LANES_CONSTEXPR size_t lpb = detail::LanesPerBlock(d);
   return OddEvenBlocks(b, SlideDownLanes(d, a, lpb));
 }
 
@@ -3770,7 +3777,7 @@ HWY_INLINE V InterleaveBlocks(D d, const V ba) {
   const RebindToUnsigned<decltype(d)> du;
   using VU = VFromD<decltype(du)>;
   using TU = TFromD<decltype(du)>;
-  HWY_CXX17_CONSTEXPR size_t lpb = detail::LanesPerBlock(d);
+  HWY_LANES_CONSTEXPR size_t lpb = detail::LanesPerBlock(d);
   const VU iota = detail::Iota0(du);
   // Divide the block index by 2, without affecting the within-block lane.
   const VU idx_blocks =
@@ -3789,7 +3796,7 @@ HWY_INLINE V InterleaveBlocks(D d, const V ba) {
   const Rebind<uint16_t, decltype(d)> du;  // Increases LMUL
   using VU = VFromD<decltype(du)>;
   using TU = TFromD<decltype(du)>;
-  HWY_CXX17_CONSTEXPR size_t lpb = detail::LanesPerBlock(d);
+  HWY_LANES_CONSTEXPR size_t lpb = detail::LanesPerBlock(d);
   const VU iota = detail::Iota0(du);
   // Divide the block index by 2, without affecting the within-block lane.
   const VU idx_blocks =
@@ -4583,7 +4590,7 @@ HWY_API V ShiftRightLanes(const Simd<T, N, kPow2> d, V v) {
 
   const auto shifted = detail::SlideDown(v, kLanes);
   // Match x86 semantics by zeroing upper lanes in 128-bit blocks
-  HWY_CXX17_CONSTEXPR size_t lpb = detail::LanesPerBlock(di);
+  HWY_LANES_CONSTEXPR size_t lpb = detail::LanesPerBlock(di);
   const auto idx_mod =
       detail::AndS(BitCast(di, detail::Iota0(du)), static_cast<TI>(lpb - 1));
   const auto keep = detail::LtS(idx_mod, static_cast<TI>(lpb - kLanes));
@@ -4692,7 +4699,7 @@ namespace detail {
 // Definitely at least 128 bit: match x86 semantics (independent blocks). Using
 // InterleaveWhole and 64-bit Compress avoids 8-bit overflow.
 template <class D, class V, HWY_IF_POW2_LE_D(D, 2)>
-HWY_INLINE V InterleaveLower(D d, const V a, const V b) {
+HWY_INLINE V InterleaveLowerImpl(D d, const V a, const V b) {
   static_assert(IsSame<TFromD<D>, TFromV<V>>(), "D/V mismatch");
   const Twice<D> dt;
   const RebindToUnsigned<decltype(dt)> dt_u;
@@ -4707,18 +4714,18 @@ HWY_INLINE V InterleaveLower(D d, const V a, const V b) {
   return BitCast(d, LowerHalf(Compress(BitCast(dt_u, interleaved), is_even)));
 }
 template <class D, class V, HWY_IF_POW2_GT_D(D, 2)>
-HWY_INLINE V InterleaveLower(D d, const V a, const V b) {
+HWY_INLINE V InterleaveLowerImpl(D d, const V a, const V b) {
   const Half<D> dh;
   const VFromD<decltype(dh)> i0 =
-      InterleaveLower(dh, LowerHalf(dh, a), LowerHalf(dh, b));
+      InterleaveLowerImpl(dh, LowerHalf(dh, a), LowerHalf(dh, b));
   const VFromD<decltype(dh)> i1 =
-      InterleaveLower(dh, UpperHalf(dh, a), UpperHalf(dh, b));
+      InterleaveLowerImpl(dh, UpperHalf(dh, a), UpperHalf(dh, b));
   return Combine(d, i1, i0);
 }
 
 // As above, for the upper half of blocks.
 template <class D, class V, HWY_IF_POW2_LE_D(D, 2)>
-HWY_INLINE V InterleaveUpper(D d, const V a, const V b) {
+HWY_INLINE V InterleaveUpperImpl(D d, const V a, const V b) {
   static_assert(IsSame<TFromD<D>, TFromV<V>>(), "D/V mismatch");
   const Twice<D> dt;
   const RebindToUnsigned<decltype(dt)> dt_u;
@@ -4733,12 +4740,12 @@ HWY_INLINE V InterleaveUpper(D d, const V a, const V b) {
   return BitCast(d, LowerHalf(Compress(BitCast(dt_u, interleaved), is_odd)));
 }
 template <class D, class V, HWY_IF_POW2_GT_D(D, 2)>
-HWY_INLINE V InterleaveUpper(D d, const V a, const V b) {
+HWY_INLINE V InterleaveUpperImpl(D d, const V a, const V b) {
   const Half<D> dh;
   const VFromD<decltype(dh)> i0 =
-      InterleaveUpper(dh, LowerHalf(dh, a), LowerHalf(dh, b));
+      InterleaveUpperImpl(dh, LowerHalf(dh, a), LowerHalf(dh, b));
   const VFromD<decltype(dh)> i1 =
-      InterleaveUpper(dh, UpperHalf(dh, a), UpperHalf(dh, b));
+      InterleaveUpperImpl(dh, UpperHalf(dh, a), UpperHalf(dh, b));
   return Combine(d, i1, i0);
 }
 
@@ -4765,7 +4772,7 @@ constexpr bool IsLT128(Simd<T, N, kPow2> /* d */) {
 
 template <class D, class V, HWY_RVV_IF_GE128_D(D)>
 HWY_API V InterleaveLower(D d, const V a, const V b) {
-  return detail::InterleaveLower(d, a, b);
+  return detail::InterleaveLowerImpl(d, a, b);
 }
 
 // Single block: interleave without extra Compress.
@@ -4783,8 +4790,8 @@ HWY_API V InterleaveLower(D d, const V a, const V b) {
   }
   // Fractional LMUL: use LMUL=1 to ensure we can cast to u64.
   const ScalableTag<TFromD<D>, HWY_MAX(d.Pow2(), 0)> d1;
-  return ResizeBitCast(d, detail::InterleaveLower(d1, ResizeBitCast(d1, a),
-                                                  ResizeBitCast(d1, b)));
+  return ResizeBitCast(d, detail::InterleaveLowerImpl(d1, ResizeBitCast(d1, a),
+                                                      ResizeBitCast(d1, b)));
 }
 
 template <class V>
@@ -4796,7 +4803,7 @@ HWY_API V InterleaveLower(const V a, const V b) {
 
 template <class D, class V, HWY_RVV_IF_GE128_D(D)>
 HWY_API V InterleaveUpper(D d, const V a, const V b) {
-  return detail::InterleaveUpper(d, a, b);
+  return detail::InterleaveUpperImpl(d, a, b);
 }
 
 // Single block: interleave without extra Compress.
@@ -4814,8 +4821,8 @@ HWY_API V InterleaveUpper(D d, const V a, const V b) {
   }
   // Fractional LMUL: use LMUL=1 to ensure we can cast to u64.
   const ScalableTag<TFromD<D>, HWY_MAX(d.Pow2(), 0)> d1;
-  return ResizeBitCast(d, detail::InterleaveUpper(d1, ResizeBitCast(d1, a),
-                                                  ResizeBitCast(d1, b)));
+  return ResizeBitCast(d, detail::InterleaveUpperImpl(d1, ResizeBitCast(d1, a),
+                                                      ResizeBitCast(d1, b)));
 }
 
 // ------------------------------ ZipLower
@@ -5377,7 +5384,7 @@ HWY_API VFromD<D> LoadDup128(D d, const TFromD<D>* const HWY_RESTRICT p) {
 
   // idx must be unsigned for TableLookupLanes.
   using TU = TFromD<decltype(du)>;
-  HWY_CXX17_CONSTEXPR TU mask = static_cast<TU>(detail::LanesPerBlock(d) - 1);
+  HWY_LANES_CONSTEXPR TU mask = static_cast<TU>(detail::LanesPerBlock(d) - 1);
   // Broadcast the first block.
   const VFromD<RebindToUnsigned<D>> idx = detail::AndS(detail::Iota0(du), mask);
   // Safe even for 8-bit lanes because indices never exceed 15.
