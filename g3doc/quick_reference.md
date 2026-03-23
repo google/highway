@@ -2542,7 +2542,13 @@ The following `ReverseN` must not be called if `Lanes(D()) < N`:
     Lanes(d)` and `indices[i] <= LimitsMax<TFromD<RebindToUnsigned<D>>>()`. Note
     that the latter condition is only a (potential) limitation for 8-bit lanes
     on the RVV target; otherwise, `Lanes(D()) <= LimitsMax<..>()`. `indices` are
-    always integers, even if `V` is a floating-point type.
+    always integers, even if `V` is a floating-point type. Note that `d` can
+    have fewer lanes than `V`. This can make sense when tables are fixed-size,
+    but we want to perform as many lookups as there are indices in a full
+    vector. However, this forces the SVE implementation into a slower codepath.
+    For this use case, it is better to instead adjust indices into the full
+    vectors. Let `NT` denote the table size, e.g. 8. Then we update `idx =
+    MaskedAddOr(idx, Ge(idx, Set(di, NT/2)), idx, Set(di, Lanes(di) - NT/2))`.
 
 *   <code>V **TwoTablesLookupLanes**(V a, V b, unspecified)</code> returns
     `TwoTablesLookupLanes(DFromV<V>(), a, b, indices)`, see above. Note that the
