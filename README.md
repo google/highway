@@ -226,6 +226,10 @@ If you have existing code using x86/NEON intrinsics, you may be interested in
 [SIMDe](https://github.com/simd-everywhere/simde), which emulates those
 intrinsics using other platforms' intrinsics or autovectorization.
 
+[xSIMD](https://github.com/xtensor-stack/xsimd) is a header only C++ library.
+It supports Arm, Power, RISC-V, WebAssembly and x86 targets.  Has a high level
+interface, but fewer supported operations.
+
 ## Installation
 
 This project uses CMake to generate and build. In a Debian-based system you can
