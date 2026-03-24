@@ -202,21 +202,12 @@ HWY_INLINE V FastTan(D d, V x) {
         static_cast<T>(17.2787595947438639),
         static_cast<T>(17.2787595947438639)};
 
-    if constexpr (kLanes >= 8 && !HWY_HAVE_SCALABLE) {
-      // Cast to "Indices" Type
-      auto idx = IndicesFromVec(d, idx_int);
-      CappedTag<T, 8> d8;
-      b = TableLookupLanes(ResizeBitCast(d, Load(d8, arr_b)), idx);
-      c = TableLookupLanes(ResizeBitCast(d, Load(d8, arr_c)), idx);
-      d_val = TableLookupLanes(ResizeBitCast(d, Load(d8, arr_d)), idx);
-    } else {
-      auto idx = IndicesFromVec(d, idx_int);
-      FixedTag<T, 4> d4;
-      b = TwoTablesLookupLanes(d, Load(d4, arr_b), Load(d4, arr_b + 4), idx);
-      c = TwoTablesLookupLanes(d, Load(d4, arr_c), Load(d4, arr_c + 4), idx);
-      d_val =
-          TwoTablesLookupLanes(d, Load(d4, arr_d), Load(d4, arr_d + 4), idx);
-    }
+    // Since Lookup8 is available for HWY_MIN_BYTES / sizeof(T) >= 4, this
+    // condition covers all cases we encounter inside the top level if block
+    // inside FastTan
+    b = Lookup8(d, arr_b, idx_int);
+    c = Lookup8(d, arr_c, idx_int);
+    d_val = Lookup8(d, arr_d, idx_int);
   } else {
     // --- FALLBACK PATH: Blend Chain ---
     if constexpr (HWY_REGISTERS >= 32) {
@@ -521,20 +512,12 @@ HWY_INLINE V FastTanh(D d, V val) {
         static_cast<T>(-0.941802400116966476),
         static_cast<T>(-2.33926181246965115)};
 
-    if constexpr (kLanes >= 8 && !HWY_HAVE_SCALABLE) {
-      auto idx = IndicesFromVec(d, idx_i);
-      CappedTag<T, 8> d8;
-      b = TableLookupLanes(ResizeBitCast(d, Load(d8, arr_b)), idx);
-      c = TableLookupLanes(ResizeBitCast(d, Load(d8, arr_c)), idx);
-      d_coef = TableLookupLanes(ResizeBitCast(d, Load(d8, arr_d)), idx);
-    } else {
-      auto idx = IndicesFromVec(d, idx_i);
-      FixedTag<T, 4> d4;
-      b = TwoTablesLookupLanes(d, Load(d4, arr_b), Load(d4, arr_b + 4), idx);
-      c = TwoTablesLookupLanes(d, Load(d4, arr_c), Load(d4, arr_c + 4), idx);
-      d_coef =
-          TwoTablesLookupLanes(d, Load(d4, arr_d), Load(d4, arr_d + 4), idx);
-    }
+    // Since Lookup8 is available for HWY_MIN_BYTES / sizeof(T) >= 4, this
+    // condition covers all cases we encounter inside the top level if block
+    // inside FastTanh
+    b = Lookup8(d, arr_b, idx_i);
+    c = Lookup8(d, arr_c, idx_i);
+    d_coef = Lookup8(d, arr_d, idx_i);
   } else {
     // --- FALLBACK PATH: Blend Chain ---
     // Thresholds for intervals
@@ -812,20 +795,12 @@ HWY_INLINE V FastLog(D d, V x) {
         static_cast<T>(0.569860763464220654),
         static_cast<T>(0.591637568597068619)};
 
-    if constexpr (kLanes >= 8 && !HWY_HAVE_SCALABLE) {
-      auto idx = IndicesFromVec(d, idx_i);
-      CappedTag<T, 8> d8;
-      b = TableLookupLanes(ResizeBitCast(d, Load(d8, arr_b)), idx);
-      c = TableLookupLanes(ResizeBitCast(d, Load(d8, arr_c)), idx);
-      d_coef = TableLookupLanes(ResizeBitCast(d, Load(d8, arr_d)), idx);
-    } else {
-      auto idx = IndicesFromVec(d, idx_i);
-      FixedTag<T, 4> d4;
-      b = TwoTablesLookupLanes(d, Load(d4, arr_b), Load(d4, arr_b + 4), idx);
-      c = TwoTablesLookupLanes(d, Load(d4, arr_c), Load(d4, arr_c + 4), idx);
-      d_coef =
-          TwoTablesLookupLanes(d, Load(d4, arr_d), Load(d4, arr_d + 4), idx);
-    }
+    // Since Lookup8 is available for HWY_MIN_BYTES / sizeof(T) >= 4, this
+    // condition covers all cases we encounter inside the top level if block
+    // inside FastLog
+    b = Lookup8(d, arr_b, idx_i);
+    c = Lookup8(d, arr_c, idx_i);
+    d_coef = Lookup8(d, arr_d, idx_i);
   } else {
     // --- FALLBACK PATH: Blend Chain ---
     // Polynomial Approximation
