@@ -6871,8 +6871,8 @@ HWY_API VFromD<D> TwoTablesLookupLanes(D /*d*/, VFromD<D> a, VFromD<D> b,
 
 // ------------------------------ Lookup8
 
-template <class D, typename T = TFromD<D>, class VI, HWY_IF_T_SIZE(T, 4)>
-HWY_INLINE Vec<D> Lookup8(D d, const T* table, VI indices) {
+template <class D, typename T = TFromD<D>, class VI>
+HWY_INLINE Vec<D> Lookup8(D d, const T* HWY_RESTRICT table, VI indices) {
   // `di` describes the indices given - same bits per lane, but `d` determines
   // the actual lane count of the result and also of the table vectors, which
   // is relevant for adjusting the index values, see below.
@@ -6927,6 +6927,7 @@ HWY_INLINE Vec<D> Lookup8(D d, const T* table, VI indices) {
 #else
     ge_4 = Ge(indices, Set(di, 4));
 #endif
+
     indices = MaskedAddOr(indices, ge_4, indices, adjust);
 
     return TwoTablesLookupLanes(d, t0, t1, IndicesFromVec(d, indices));

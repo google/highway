@@ -207,6 +207,7 @@ struct TestLookup8 {
     using TU = TFromD<decltype(du)>;
 
     const size_t N = Lanes(d);
+    if (N < 4) return;
 
     auto tbl = AllocateAligned<T>(N);
     auto idx = AllocateAligned<TU>(N);
@@ -254,7 +255,10 @@ struct TestLookup8 {
   }
 };
 
-HWY_NOINLINE void TestAllLookup8() { ForUIF32(ForGE128Vectors<TestLookup8>()); }
+HWY_NOINLINE void TestAllLookup8() {
+  ForUIF16(ForGE128Vectors<TestLookup8>());
+  ForUIF3264(ForGE128Vectors<TestLookup8>());
+}
 
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)

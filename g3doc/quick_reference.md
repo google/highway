@@ -2559,14 +2559,15 @@ The following `ReverseN` must not be called if `Lanes(D()) < N`:
     `TwoTablesLookupLanes(a, b, indices)` on RVV/SVE if `Lanes(d) <
     Lanes(DFromV<V>())`.
 
-*   `VI`: {u,i}32, `D`: `{u,i,f}32` \
+*   `D`: {u,i,f}{16,32,64} \
     <code>Vec&lt;D&gt; **Lookup8**(D, const TFromD<D>* tbl, VI indices)</code>:
     returns `GatherIndex(D(), tbl, indices)`, but much more efficient, and
     limited to 8 elements. Results are undefined if any indices are 8 or above.
-    This is implemented using `TableLookupLanes` or `TwoTablesLookupLanes`. Only
-    available if `D().MaxBytes() >= 16`; this is guaranteed to be the case if
-    `HWY_TARGET != HWY_SCALAR` and `D` is `FixedTag<T, 16/sizeof(T)>` or
-    `ScalableTag<T>` or `CappedTag<T, N/sizeof(T)>` (where `N >= 16`).
+    This is implemented using `TableLookupLanes` or `TwoTablesLookupLanes`. Let
+    `T` denote `TFromD<D>`. Only available if `HWY_MIN_BYTES / sizeof(T) >= 4`;
+    this is guaranteed to be the case if `HWY_TARGET != HWY_SCALAR` and `T` is
+    four bytes and `D` is one of `FixedTag<T, 16/sizeof(T)>` or `ScalableTag<T>`
+    or `CappedTag<T, N/sizeof(T)>` (where `N >= 16`).
 
 *   <code>unspecified **IndicesFromVec**(D d, V idx)</code> prepares for
     `TableLookupLanes` or `TwoTablesLookupLanes` with integer indices in `idx`,
