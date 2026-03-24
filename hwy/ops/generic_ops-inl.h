@@ -6876,8 +6876,9 @@ HWY_INLINE Vec<D> Lookup8(D d, const T* HWY_RESTRICT table, VI indices) {
   static_assert(sizeof(T) == sizeof(TFromD<decltype(di)>),
                 "Index/vector must have same lane size");
   HWY_IF_CONSTEXPR(HWY_IS_DEBUG_BUILD) {
+    // Asserting Lanes(di) >= 4 not needed since both d and di have the same
+    // number of Lanes()
     HWY_DASSERT(Lanes(d) >= 4);
-    HWY_DASSERT(Lanes(di) >= 4);
     HWY_DASSERT(AllTrue(di, Lt(indices, Set(di, 8))));
   }
 
