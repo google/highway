@@ -853,8 +853,7 @@ HWY_API MFromD<D> MaskedIsNaN(const M m, const V v) {
 
 // ------------------------------ Xor3
 
-#if (defined(HWY_NATIVE_XOR3) == \
-     defined(HWY_TARGET_TOGGLE))
+#if (defined(HWY_NATIVE_XOR3) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_XOR3
 #undef HWY_NATIVE_XOR3
 #else
@@ -870,8 +869,7 @@ HWY_API V Xor3(V x1, V x2, V x3) {
 
 // ------------------------------ XorAndNot
 
-#if (defined(HWY_NATIVE_BCAX) == \
-     defined(HWY_TARGET_TOGGLE))
+#if (defined(HWY_NATIVE_BCAX) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_BCAX
 #undef HWY_NATIVE_BCAX
 #else
@@ -3194,8 +3192,8 @@ HWY_API VFromD<D> GatherIndexN(D d, const T* HWY_RESTRICT base,
 
 template <class D, typename T = TFromD<D>>
 HWY_API VFromD<D> GatherIndexNOr(VFromD<D> no, D d, const T* HWY_RESTRICT base,
-                               VFromD<RebindToSigned<D>> index,
-                               const size_t max_lanes_to_load) {
+                                 VFromD<RebindToSigned<D>> index,
+                                 const size_t max_lanes_to_load) {
   const RebindToSigned<D> di;
   using TI = TFromD<decltype(di)>;
   static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
@@ -3216,8 +3214,8 @@ HWY_API VFromD<D> GatherIndexN(D d, const T* HWY_RESTRICT base,
 }
 template <class D, typename T = TFromD<D>>
 HWY_API VFromD<D> GatherIndexNOr(VFromD<D> no, D d, const T* HWY_RESTRICT base,
-                               VFromD<RebindToSigned<D>> index,
-                               const size_t max_lanes_to_load) {
+                                 VFromD<RebindToSigned<D>> index,
+                                 const size_t max_lanes_to_load) {
   return MaskedGatherIndexOr(no, FirstN(d, max_lanes_to_load), d, base, index);
 }
 #endif  // (defined(HWY_NATIVE_GATHER) == defined(HWY_TARGET_TOGGLE))
@@ -4595,7 +4593,7 @@ HWY_API V PopulationCount(V v) {
       ResizeBitCast(d, TableLookupLanes(lookup, ResizeBitCast(d_tbl, hi)));
   const auto lo_popcnt =
       ResizeBitCast(d, TableLookupLanes(lookup, ResizeBitCast(d_tbl, lo)));
-#else  // HWY_TARGET != HWY_RVV
+#else   // HWY_TARGET != HWY_RVV
   const auto hi_popcnt = TableLookupBytes(lookup, hi);
   const auto lo_popcnt = TableLookupBytes(lookup, lo);
 #endif  // HWY_TARGET == HWY_RVV
@@ -5364,14 +5362,13 @@ HWY_INLINE V IntDiv(V a, V b) {
 #endif  // HWY_HAVE_FLOAT64
 
 template <size_t kOrigLaneSize, class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
-          HWY_IF_T_SIZE_ONE_OF_V(V, ((HWY_TARGET <= HWY_SSE2 ||
-                                      HWY_TARGET == HWY_WASM ||
-                                      HWY_TARGET == HWY_WASM_EMU256 ||
-                                      HWY_TARGET == HWY_LSX ||
-                                      HWY_TARGET == HWY_LASX)
-                                         ? 0
-                                         : (1 << 1)) |
-                                        (1 << 2) | (1 << 4) | (1 << 8))>
+          HWY_IF_T_SIZE_ONE_OF_V(
+              V, ((HWY_TARGET <= HWY_SSE2 || HWY_TARGET == HWY_WASM ||
+                   HWY_TARGET == HWY_WASM_EMU256 || HWY_TARGET == HWY_LSX ||
+                   HWY_TARGET == HWY_LASX)
+                      ? 0
+                      : (1 << 1)) |
+                     (1 << 2) | (1 << 4) | (1 << 8))>
 HWY_INLINE V IntMod(V a, V b) {
   return hwy::HWY_NAMESPACE::NegMulAdd(IntDiv<kOrigLaneSize>(a, b), b, a);
 }
@@ -5608,8 +5605,7 @@ HWY_API VW RearrangeToOddPlusEven(const VW sum0, const VW sum1) {
 #define HWY_NATIVE_WIDEN_MUL_ACCUMULATE
 #endif
 
-template<class D, HWY_IF_INTEGER(TFromD<D>),
-         class DN = RepartitionToNarrow<D>>
+template <class D, HWY_IF_INTEGER(TFromD<D>), class DN = RepartitionToNarrow<D>>
 HWY_API VFromD<D> WidenMulAccumulate(D d, VFromD<DN> mul, VFromD<DN> x,
                                      VFromD<D> low, VFromD<D>& high) {
   high = MulAdd(PromoteUpperTo(d, mul), PromoteUpperTo(d, x), high);
