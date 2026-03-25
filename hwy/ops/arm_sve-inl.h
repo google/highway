@@ -4167,8 +4167,16 @@ HWY_API V InterleaveUpperBlocks(D d, V a, V b) {
   const svuint64_t b64 = BitCast(du64, b);
   svuint64_t even = detail::InterleaveEven(a64, b64);  // a0 b0 a2 b2
   svuint64_t odd = detail::InterleaveOdd(a64, b64);    // a1 b1 a3 b3
-  return BitCast(d, detail::ZipUpperSame(even, odd));  // a32 b32
-#endif
+  HWY_IF_CONSTEXPR(detail::IsFull(d)) {
+    return BitCast(d, detail::ZipUpperSame(even, odd));  // a32 b32
+  }
+  // ZipUpperSame assumes full vectors; instead use UpperHalf to honor the
+  // capped/fractional tag.
+  const Half<decltype(du64)> du64h;
+  even = ResizeBitCast(du64, UpperHalf(du64h, even));
+  odd = ResizeBitCast(du64, UpperHalf(du64h, odd));
+  return BitCast(d, detail::ZipLowerSame(even, odd));
+#endif  // HWY_TARGET
 }
 
 // ------------------------------ Reverse
