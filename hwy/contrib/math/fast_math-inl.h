@@ -96,6 +96,12 @@ struct FastExpImpl<float> {
     const V qf = ConvertTo(d, q);
     return MulAdd(qf, kMinusLn2, x);
   }
+
+  template <class D, class V = VFromD<D>, class VI32 = Vec<Rebind<int32_t, D>>>
+  HWY_INLINE V Exp2Reduce(D d, V x, VI32 q) {
+    const V qf = ConvertTo(d, q);
+    return Sub(x, qf);
+  }
 };
 
 #if HWY_HAVE_FLOAT64 && HWY_HAVE_INTEGER64
@@ -131,6 +137,13 @@ struct FastExpImpl<double> {
     // Extended precision modular arithmetic.
     const V qf = PromoteTo(d, q);
     return MulAdd(qf, kMinusLn2, x);
+  }
+
+  template <class D, class V = VFromD<D>, class VI32 = Vec<Rebind<int32_t, D>>,
+            HWY_IF_F64_D(D)>
+  HWY_INLINE V Exp2Reduce(D d, V x, VI32 q) {
+    const V qf = PromoteTo(d, q);
+    return Sub(x, qf);
   }
 };
 #endif
@@ -1005,6 +1018,70 @@ HWY_INLINE V FastExp(D d, V x) {
 }
 
 /**
+ * Fast approximation of exp2(x).
+ *
+ * Valid Lane Types: float32, float64
+ * Max ULP Error: 1 for float32 [-FLT_MAX, -150]
+ * Max ULP Error: 1 for float64 [-DBL_MAX, -1075]
+ * Max Relative Error: 0.0007% for float32 [-150, 128]
+ * Max Relative Error: 0.0007% for float64 [-1075, 1024]
+ * Average Relative Error: 0.00002% for float32 [-150, 128]
+ * Average Relative Error: 0.00001% for float64 [-1075, 1024]
+ * Valid Range: float32[-FLT_MAX, +128], float64[-DBL_MAX, +1024]
+ *
+ * @return 2^x
+ */
+template <class D, class V>
+HWY_INLINE V FastExp2(D d, V x) {
+  using T = TFromD<D>;
+  impl::FastExpImpl<T> impl;
+
+  const V kHalf = Set(d, static_cast<T>(+0.5));
+  // FastExp uses kLowerBound = -104.0 / -1000.0 since it operates on e^x. For
+  // FastExp2, we use lower limits correspondingly to -150.0 and -1075.0.
+  const V kLowerBound =
+      Set(d, static_cast<T>((sizeof(T) == 4 ? -150.0 : -1075.0)));
+  const V kNegZero = Set(d, static_cast<T>(-0.0));
+
+  using TI = MakeSigned<T>;
+  const Rebind<TI, D> di;
+  const auto rounded_offs = BitCast(
+      d, OrAnd(BitCast(di, kHalf), BitCast(di, x), BitCast(di, kNegZero)));
+
+  // FastExp calculates q = ToInt32(x * (1/ln(2)) + rounded_offs)
+  // FastExp2 does not need the (1/ln(2)) scaling factor since the input is
+  // already in base 2.
+  const auto q = impl.ToInt32(d, Add(x, rounded_offs));
+
+  const auto x_red = impl.Exp2Reduce(d, x, q);
+
+  // Degree 4 polynomial approximation of 2^x on [-1/2, 1/2]
+  // Derived from FastExp coefficients by pre-absorbing ln2:
+  // c_fast_exp2[i] = c_fast_exp[i] * (ln2)^i.
+  const auto c0 = Set(d, static_cast<T>(1.0000001510806224569));
+  const auto c1 = Set(d, static_cast<T>(0.69312104523363065471));
+  const auto c2 = Set(d, static_cast<T>(0.24021865239713606622));
+  const auto c3 = Set(d, static_cast<T>(0.05592203117565365516));
+  const auto c4 = Set(d, static_cast<T>(0.00968574163456345638));
+
+  // Estrin's scheme
+  const auto x2 = Mul(x_red, x_red);
+  // term0 = c1*x + c0
+  const auto term0 = MulAdd(c1, x_red, c0);
+  // term1 = c3*x + c2
+  const auto term1 = MulAdd(c3, x_red, c2);
+  // term2 = c4*x^2 + term1
+  const auto term2 = MulAdd(c4, x2, term1);
+  // approx = term2 * x^2 + term0
+  const auto approx = MulAdd(term2, x2, term0);
+
+  const V res = impl.LoadExpShortRange(d, approx, q);
+
+  // Handle underflow
+  return IfThenElseZero(Ge(x, kLowerBound), res);
+}
+
+/**
  * Fast approximation of exp(x) for x <= 0.
  *
  * Valid Lane Types: float32, float64
@@ -1175,6 +1252,11 @@ HWY_NOINLINE V CallFastLog(const D d, VecArg<V> x) {
 template <class D, class V>
 HWY_NOINLINE V CallFastExp(const D d, VecArg<V> x) {
   return FastExp(d, x);
+}
+
+template <class D, class V>
+HWY_NOINLINE V CallFastExp2(const D d, VecArg<V> x) {
+  return FastExp2(d, x);
 }
 
 template <class D, class V>
