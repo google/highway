@@ -257,7 +257,13 @@ struct TestLookup8 {
 
 HWY_NOINLINE void TestAllLookup8() {
   ForUIF16(ForGE128Vectors<TestLookup8>());
-  ForUIF3264(ForGE128Vectors<TestLookup8>());
+  ForUIF32(ForGE128Vectors<TestLookup8>());
+  // For Lookup8 with 64-bit lanes, we require a scalable target (fine because
+  // the test has a runtime check) or 256 bit vectors: 8 elements across two
+  // vectors, hence at least four 8-byte uint64_t per vector.
+#if HWY_HAVE_SCALABLE || HWY_MIN_BYTES / 8 >= 4
+  ForUIF64(ForGE128Vectors<TestLookup8>());
+#endif
 }
 
 }  // namespace
