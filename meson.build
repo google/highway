@@ -76,6 +76,7 @@ hwy_headers = files(
     'hwy/aligned_allocator.h',
     'hwy/auto_tune.h',
     'hwy/base.h',
+    'hwy/bit_set.h',
     'hwy/cache_control.h',
     'hwy/detect_compiler_arch.h',  # private
     'hwy/detect_targets.h',  # private
