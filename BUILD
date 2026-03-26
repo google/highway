@@ -592,6 +592,22 @@ HWY_TEST_DEPS = [
     for subdir, test, extra_deps in HWY_TESTS
 ]
 
+cc_test(
+    name = "math_benchmark",
+    size = "medium",
+    timeout = "long",
+    srcs = ["hwy/contrib/math/math_benchmark.cc"],
+    copts = COPTS + HWY_TEST_COPTS,
+    local_defines = ["HWY_IS_TEST"],
+    tags = [
+        "manual",
+        "notap",
+    ],
+    deps = HWY_TEST_DEPS + [
+        ":math",
+    ],
+)
+
 # For manually building the tests we define here (:all does not work in --config=msvc)
 test_suite(
     name = "hwy_ops_tests",

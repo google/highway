@@ -50,6 +50,7 @@
 
 #include "hwy/highway_export.h"
 #include "hwy/timer.h"  // IWYU pragma: export
+#include "hwy/base.h"
 
 namespace hwy {
 
@@ -113,6 +114,14 @@ struct Result {
   // Measure of variability (median absolute deviation relative to "ticks").
   float variability;
 };
+
+// Returns a Params struct with customized configuration for benchmarks.
+// Specifically limits `max_evals` to prevent timeout in tests.
+static inline Params DefaultBenchmarkParams() {
+  Params p;
+  p.max_evals = HWY_IS_DEBUG_BUILD ? 3 : 4;
+  return p;
+}
 
 // Precisely measures the number of ticks elapsed when calling "func" with the
 // given inputs, shuffled to ensure realistic branch prediction hit rates.
