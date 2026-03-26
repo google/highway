@@ -34,7 +34,7 @@ namespace HWY_NAMESPACE {
 namespace impl {
 
 // Port of reduce_angle_tan_SIMD
-template <class D, class V>
+template <class D, class V = VFromD<D>>
 HWY_INLINE void ReduceAngleTan(D d, V ang, V& x_red, V& sign) {
   using T = TFromD<D>;
   const auto pi = Set(d, static_cast<T>(3.14159265358979323846));
@@ -67,13 +67,13 @@ struct FastExpImpl {};
 template <>
 struct FastExpImpl<float> {
   // Rounds float toward zero and returns as int32_t.
-  template <class D, class V>
+  template <class D, class V = VFromD<D>, HWY_IF_F32_D(D)>
   HWY_INLINE Vec<Rebind<int32_t, D>> ToInt32(D /*unused*/, V x) {
     return ConvertInRangeTo(Rebind<int32_t, D>(), x);
   }
 
   // Computes 2^x, where x is an integer.
-  template <class D, class VI32>
+  template <class D, class VI32 = Vec<Rebind<int32_t, D>>, HWY_IF_F32_D(D)>
   HWY_INLINE Vec<D> Pow2I(D d, VI32 x) {
     const Rebind<int32_t, D> di32;
     const VI32 kOffset = Set(di32, 0x7F);
@@ -81,13 +81,15 @@ struct FastExpImpl<float> {
   }
 
   // Sets the exponent of 'x' to 2^e.
-  template <class D, class V, class VI32>
+  template <class D, class V = VFromD<D>, class VI32 = Vec<Rebind<int32_t, D>>,
+            HWY_IF_F32_D(D)>
   HWY_INLINE V LoadExpShortRange(D d, V x, VI32 e) {
     const VI32 y = ShiftRight<1>(e);
     return Mul(Mul(x, Pow2I(d, y)), Pow2I(d, Sub(e, y)));
   }
 
-  template <class D, class V, class VI32>
+  template <class D, class V = VFromD<D>, class VI32 = Vec<Rebind<int32_t, D>>,
+            HWY_IF_F32_D(D)>
   HWY_INLINE V ExpReduce(D d, V x, VI32 q) {
     // kMinusLn2 ~= -ln(2)
     const V kMinusLn2 = Set(d, -0.69314718056f);
@@ -97,7 +99,8 @@ struct FastExpImpl<float> {
     return MulAdd(qf, kMinusLn2, x);
   }
 
-  template <class D, class V = VFromD<D>, class VI32 = Vec<Rebind<int32_t, D>>>
+  template <class D, class V = VFromD<D>, class VI32 = Vec<Rebind<int32_t, D>>,
+            HWY_IF_F32_D(D)>
   HWY_INLINE V Exp2Reduce(D d, V x, VI32 q) {
     const V qf = ConvertTo(d, q);
     return Sub(x, qf);
@@ -108,13 +111,13 @@ struct FastExpImpl<float> {
 template <>
 struct FastExpImpl<double> {
   // Rounds double toward zero and returns as int32_t.
-  template <class D, class V>
+  template <class D, class V = VFromD<D>, HWY_IF_F64_D(D)>
   HWY_INLINE Vec<Rebind<int32_t, D>> ToInt32(D /*unused*/, V x) {
     return DemoteInRangeTo(Rebind<int32_t, D>(), x);
   }
 
   // Computes 2^x, where x is an integer.
-  template <class D, class VI32>
+  template <class D, class VI32 = Vec<Rebind<int32_t, D>>, HWY_IF_F64_D(D)>
   HWY_INLINE Vec<D> Pow2I(D d, VI32 x) {
     const Rebind<int32_t, D> di32;
     const Rebind<int64_t, D> di64;
@@ -123,13 +126,15 @@ struct FastExpImpl<double> {
   }
 
   // Sets the exponent of 'x' to 2^e.
-  template <class D, class V, class VI32>
+  template <class D, class V = VFromD<D>, class VI32 = Vec<Rebind<int32_t, D>>,
+            HWY_IF_F64_D(D)>
   HWY_INLINE V LoadExpShortRange(D d, V x, VI32 e) {
     const VI32 y = ShiftRight<1>(e);
     return Mul(Mul(x, Pow2I(d, y)), Pow2I(d, Sub(e, y)));
   }
 
-  template <class D, class V, class VI32>
+  template <class D, class V = VFromD<D>, class VI32 = Vec<Rebind<int32_t, D>>,
+            HWY_IF_F64_D(D)>
   HWY_INLINE V ExpReduce(D d, V x, VI32 q) {
     // kMinusLn2 ~= -ln(2)
     const V kMinusLn2 = Set(d, -0.6931471805599453);
