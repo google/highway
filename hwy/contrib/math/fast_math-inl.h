@@ -748,15 +748,6 @@ HWY_INLINE V FastLog(D d, V x) {
   // exponent.
   const VI kExpMask = Set(di, kIsF32 ? static_cast<TI>(0x3F800000L)
                                      : static_cast<TI>(0x3FF0000000000000LL));
-  // Integer exponent adjustment (-25 or -54) corresponding to kScale.
-  const VI kExpScale =
-      Set(di, kIsF32 ? static_cast<TI>(-25) : static_cast<TI>(-54));
-  // Mantissa mask.
-  const VI kManMask = Set(di, kIsF32 ? static_cast<TI>(0x7FFFFFL)
-                                     : static_cast<TI>(0xFFFFF00000000LL));
-  // Mask for lower 32 or 64 bits.
-  const VI kLowerBits = Set(di, kIsF32 ? static_cast<TI>(0x00000000L)
-                                       : static_cast<TI>(0xFFFFFFFFLL));
   const V kMinNormal = Set(d, kIsF32 ? static_cast<T>(1.175494351e-38f)
                                      : static_cast<T>(2.2250738585072014e-308));
   // Scale to normalize subnormal inputs: 2^25 (f32) or 2^54 (f64)
@@ -773,27 +764,32 @@ HWY_INLINE V FastLog(D d, V x) {
     (void)is_denormal;
     (void)kMinNormal;
     (void)kScale;
-    (void)kExpScale;
   }
 
   // Compute exponent
   auto exp_bits = Add(BitCast(di, x), Sub(kExpMask, kMagic));
-  VI exp_scale = Zero(di);
-  if constexpr (kHandleSubnormals) {
-    exp_scale = BitCast(di, IfThenElseZero(is_denormal, BitCast(d, kExpScale)));
-  }
 
   constexpr int kMantissaShift = kIsF32 ? 23 : 52;
   const auto kBias = Set(di, kIsF32 ? 0x7F : 0x3FF);
   const auto exp_int = Sub(BitCast(di, ShiftRight<kMantissaShift>(
                                            BitCast(du, BitCast(d, exp_bits)))),
                            kBias);
-  const auto exp = ConvertTo(d, Add(exp_scale, exp_int));
+  V exp = ConvertTo(d, exp_int);
+
+  if constexpr (kHandleSubnormals) {
+    // Pay off the subnormal debt (-25.0 for f32, -54.0 for f64)
+    // This allows us to keep `exp_int` pure for the mantissa trick.
+    const V kExpScaleFloat =
+        Set(d, kIsF32 ? static_cast<T>(-25.0) : static_cast<T>(-54.0));
+    exp = MaskedAddOr(exp, is_denormal, exp, kExpScaleFloat);
+  }
 
   // Renormalize x to y in [0.707, 1.414]
-  const auto x_bits = BitCast(di, x);
-  const auto y_bits =
-      OrAnd(Add(And(exp_bits, kManMask), kMagic), x_bits, kLowerBits);
+  // Shift the pure exponent back into the exponent field and subtract it
+  // directly from x. Because the lower bits are zeros, this perfectly zeroes
+  // out the original exponent of x without touching the mantissa.
+  const VI exp_int_shifted = ShiftLeft<kMantissaShift>(exp_int);
+  const VI y_bits = Sub(BitCast(di, x), exp_int_shifted);
   const V y = BitCast(d, y_bits);
 
   constexpr size_t kLanes = HWY_MAX_LANES_D(D);
