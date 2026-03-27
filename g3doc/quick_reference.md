@@ -131,7 +131,8 @@ HWY_AFTER_NAMESPACE();
 
 If you choose not to use the `BEFORE/AFTER` lines, you must prefix any function
 that calls Highway ops such as `Load` with `HWY_ATTR`. Either of these will set
-the compiler #pragma required to generate vector code.
+the compiler #pragma required to generate vector code. Lambda functions 
+currently require `HWY_ATTR` before their opening brace.
 
 The `HWY_NAMESPACE` lines ensure each instantiation of your code (one per
 target) resides in a unique namespace, thus preventing ODR violations. You can
