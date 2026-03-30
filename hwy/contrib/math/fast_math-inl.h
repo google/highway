@@ -742,12 +742,13 @@ HWY_INLINE V FastLog(D d, V x) {
   // Constants for Range Reduction
   // kMagic is approx 1/sqrt(2). It is used to center the mantissa interval
   // around 1.0 (specifically [0.707, 1.414])
-  const VI kMagic = Set(di, kIsF32 ? static_cast<TI>(0x3F3504F3L)
-                                   : static_cast<TI>(0x3FE6A09E00000000LL));
-  // Bit pattern for 1.0. Used in the integer arithmetic to extract the
-  // exponent.
-  const VI kExpMask = Set(di, kIsF32 ? static_cast<TI>(0x3F800000L)
-                                     : static_cast<TI>(0x3FF0000000000000LL));
+  // kExpMask is the bit pattern for 1.0. Used in the integer arithmetic to
+  // extract the exponent.
+  // kExpMagicDiff is the difference between kExpMask and kMagic.
+  const VI kExpMagicDiff = Set(
+      di, kIsF32
+              ? static_cast<TI>(0x3F800000L - 0x3F3504F3L)
+              : static_cast<TI>(0x3FF0000000000000LL - 0x3FE6A09E00000000LL));
   const V kMinNormal = Set(d, kIsF32 ? static_cast<T>(1.175494351e-38f)
                                      : static_cast<T>(2.2250738585072014e-308));
   // Scale to normalize subnormal inputs: 2^25 (f32) or 2^54 (f64)
@@ -767,13 +768,12 @@ HWY_INLINE V FastLog(D d, V x) {
   }
 
   // Compute exponent
-  auto exp_bits = Add(BitCast(di, x), Sub(kExpMask, kMagic));
+  auto exp_bits = Add(BitCast(di, x), kExpMagicDiff);
 
   constexpr int kMantissaShift = kIsF32 ? 23 : 52;
   const auto kBias = Set(di, kIsF32 ? 0x7F : 0x3FF);
-  const auto exp_int = Sub(BitCast(di, ShiftRight<kMantissaShift>(
-                                           BitCast(du, BitCast(d, exp_bits)))),
-                           kBias);
+  const auto exp_int = Sub(
+      BitCast(di, ShiftRight<kMantissaShift>(BitCast(du, exp_bits))), kBias);
   V exp = ConvertTo(d, exp_int);
 
   if constexpr (kHandleSubnormals) {
