@@ -995,12 +995,12 @@ HWY_INLINE V FastLog(D d, V x) {
  * Fast approximation of exp(x).
  *
  * Valid Lane Types: float32, float64
- * Max ULP Error: 1 for float32 [-FLT_MAX, -87]
- * Max ULP Error: 1 for float64 [-DBL_MAX, -708]
  * Max Relative Error: 0.0007% for float32 [-87, 88]
  * Max Relative Error: 0.0007% for float64 [-708, 706]
  * Average Relative Error: 0.00002% for float32 [-87, 88]
  * Average Relative Error: 0.00001% for float64 [-708, 706]
+ * Max Relative Error for Subnormals: 2.4% for float32 [-FLT_MAX, -87]
+ * Max Relative Error for Subnormals: 0.006% for float64 [-DBL_MAX, -708]
  * Valid Range: float32[-FLT_MAX, +88], float64[-DBL_MAX, +706]
  *
  * @return e^x
@@ -1055,12 +1055,12 @@ HWY_INLINE V FastExp(D d, V x) {
  * Fast approximation of exp2(x).
  *
  * Valid Lane Types: float32, float64
- * Max ULP Error: 1 for float32 [-FLT_MAX, -150]
- * Max ULP Error: 1 for float64 [-DBL_MAX, -1075]
  * Max Relative Error: 0.0007% for float32 [-150, 128]
  * Max Relative Error: 0.0007% for float64 [-1075, 1024]
  * Average Relative Error: 0.00002% for float32 [-150, 128]
  * Average Relative Error: 0.00001% for float64 [-1075, 1024]
+ * Max Relative Error for Subnormals: 0.08% for float32 [-FLT_MAX, -150]
+ * Max Relative Error for Subnormals: 0.03% for float64 [-DBL_MAX, -1075]
  * Valid Range: float32[-FLT_MAX, +128], float64[-DBL_MAX, +1024]
  *
  * @return 2^x
@@ -1116,11 +1116,9 @@ HWY_INLINE V FastExp2(D d, V x) {
 }
 
 /**
- * Fast approximation of exp(x) for x <= 0.
+ * Fast approximation of exp(x) for x <= 0. Subnormals are flushed to zero.
  *
  * Valid Lane Types: float32, float64
- * Max ULP Error: 1 for float32 [-FLT_MAX, -87]
- * Max ULP Error: 1 for float64 [-DBL_MAX, -708]
  * Max Relative Error: 0.0007% for float32 [-87, 0]
  * Max Relative Error: 0.0007% for float64 [-708, 0]
  * Average Relative Error: 0.00002% for float32 [-87, 0]

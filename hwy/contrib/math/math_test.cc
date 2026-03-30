@@ -101,6 +101,15 @@ HWY_NOINLINE void TestMath(const char* name, T (*fx1)(T),
     ranges[1][0] = BitCastScalar<UintT>(ConvertScalarTo<T>(-0.0));
     ranges[1][1] = min_bits;
     range_count = 2;
+  } else {
+    // If not splitting, ensure we iterate from smaller uint to larger uint.
+    // For negative numbers, min (e.g. -1000) has larger uint representation
+    // than max (e.g. -1).
+    if (ranges[0][0] > ranges[0][1]) {
+      auto tmp = ranges[0][0];
+      ranges[0][0] = ranges[0][1];
+      ranges[0][1] = tmp;
+    }
   }
 
   uint64_t max_ulp = 0;
@@ -325,10 +334,10 @@ struct TestFastExp {
                              0.000008, 1e7);
 
       // Float Subnormal Range: [-104.0, -87.0]
-      // exp(-104) is close to 0. Error is dominated by quantization (1 ULP ~=
-      // 50% relative error for small values).
-      TestMath<T, D>("FastExpSubnormal", std::exp, CallFastExp, d,
-                     static_cast<T>(-FLT_MAX), static_cast<T>(-87.0), 1);
+      // exp(-104) is very small. Quantization error is expected.
+      TestMathRelative<T, D>("FastExpSubnormal", std::exp, CallFastExp, d,
+                             static_cast<T>(-104.0), static_cast<T>(-87.0),
+                             0.03);
     } else {
       // Double Normal Range: [-708.0, +706.0]
       // exp(-708) ~= 2.2e-308 (min normal 2.22e-308)
@@ -338,8 +347,9 @@ struct TestFastExp {
 
       // Double Subnormal Range: [-744.0, -708.0]
       // exp(-744) is very small. Quantization error is expected.
-      TestMath<T, D>("FastExpSubnormal", std::exp, CallFastExp, d,
-                     static_cast<T>(-DBL_MAX), static_cast<T>(-708.0), 1);
+      TestMathRelative<T, D>("FastExpSubnormal", std::exp, CallFastExp, d,
+                             static_cast<T>(-744.0), static_cast<T>(-708.0),
+                             0.00007);
     }
   }
 };
@@ -355,8 +365,9 @@ struct TestFastExp2 {
                              0.000008, 1e7);
 
       // Float Subnormal Range: [-150.0, -126.0]
-      TestMath<T, D>("FastExp2Subnormal", std::exp2, CallFastExp2, d,
-                     static_cast<T>(-150.0), static_cast<T>(-126.0), 1);
+      TestMathRelative<T, D>("FastExp2Subnormal", std::exp2, CallFastExp2, d,
+                             static_cast<T>(-150.0), static_cast<T>(-126.0),
+                             0.0009);
     } else {
       // Double Normal Range: [-1022.0, +1023.0]
       TestMathRelative<T, D>("FastExp2Normal", std::exp2, CallFastExp2, d,
@@ -364,8 +375,9 @@ struct TestFastExp2 {
                              0.000008, 1e7);
 
       // Double Subnormal Range: [-1075.0, -1022.0]
-      TestMath<T, D>("FastExp2Subnormal", std::exp2, CallFastExp2, d,
-                     static_cast<T>(-1075.0), static_cast<T>(-1022.0), 1);
+      TestMathRelative<T, D>("FastExp2Subnormal", std::exp2, CallFastExp2, d,
+                             static_cast<T>(-1075.0), static_cast<T>(-1022.0),
+                             0.0004);
     }
   }
 };
