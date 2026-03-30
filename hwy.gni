@@ -46,6 +46,7 @@ hwy_sources = [
 hwy_contrib_public = [
   "$_hwy/contrib/algo/copy-inl.h",
   "$_hwy/contrib/algo/find-inl.h",
+  "$_hwy/contrib/algo/minmax-inl.h",
   "$_hwy/contrib/algo/transform-inl.h",
   "$_hwy/contrib/dot/dot-inl.h",
   "$_hwy/contrib/image/image.h",
