@@ -1005,26 +1005,39 @@ HWY_INLINE V FastLog(D d, V x) {
  *
  * @return e^x
  */
-template <class D, class V>
+template <bool kHandleSubnormals = true, class D, class V>
 HWY_INLINE V FastExp(D d, V x) {
   using T = TFromD<D>;
   impl::FastExpImpl<T> impl;
 
+  T lower_bound_val;
+  if constexpr (kHandleSubnormals) {
+    lower_bound_val = sizeof(T) == 4 ? -104.0 : -1000.0;
+  } else {
+    lower_bound_val = sizeof(T) == 4 ? -88.0 : -709.0;
+  }
+  const V kLowerBound = Set(d, static_cast<T>(lower_bound_val));
+
   const V kHalf = Set(d, static_cast<T>(+0.5));
-  const V kLowerBound =
-      Set(d, static_cast<T>((sizeof(T) == 4 ? -104.0 : -1000.0)));
   const V kNegZero = Set(d, static_cast<T>(-0.0));
 
   const V kOneOverLog2 = Set(d, static_cast<T>(+1.442695040888963407359924681));
 
   using TI = MakeSigned<T>;
   const Rebind<TI, D> di;
+
+  V x_clamped = x;
+  if constexpr (!kHandleSubnormals) {
+    x_clamped = Max(x, kLowerBound);
+  }
+
   const auto rounded_offs = BitCast(
-      d, OrAnd(BitCast(di, kHalf), BitCast(di, x), BitCast(di, kNegZero)));
+      d,
+      OrAnd(BitCast(di, kHalf), BitCast(di, x_clamped), BitCast(di, kNegZero)));
 
-  const auto q = impl.ToInt32(d, MulAdd(x, kOneOverLog2, rounded_offs));
+  const auto q = impl.ToInt32(d, MulAdd(x_clamped, kOneOverLog2, rounded_offs));
 
-  const auto x_red = impl.ExpReduce(d, x, q);
+  const auto x_red = impl.ExpReduce(d, x_clamped, q);
 
   // Degree 4 polynomial approximation of e^x on [-ln2/2, ln2/2]
   // Generated via Caratheodory-Fejer approximation.
@@ -1045,10 +1058,15 @@ HWY_INLINE V FastExp(D d, V x) {
   // approx = term2 * x^2 + term0
   const auto approx = MulAdd(term2, x2, term0);
 
-  const V res = impl.LoadExpShortRange(d, approx, q);
-
-  // Handle underflow
-  return IfThenElseZero(Ge(x, kLowerBound), res);
+  if constexpr (kHandleSubnormals) {
+    const V res = impl.LoadExpShortRange(d, approx, q);
+    // Handle underflow
+    return IfThenElseZero(Ge(x, kLowerBound), res);
+  } else {
+    // Optimization: avoid splitting the exponent since 'q' is guaranteed
+    // to fall within the normal floating-point ranges.
+    return Mul(approx, impl.Pow2I(d, q));
+  }
 }
 
 /**
@@ -1065,29 +1083,42 @@ HWY_INLINE V FastExp(D d, V x) {
  *
  * @return 2^x
  */
-template <class D, class V>
+template <bool kHandleSubnormals = true, class D, class V>
 HWY_INLINE V FastExp2(D d, V x) {
   using T = TFromD<D>;
   impl::FastExpImpl<T> impl;
 
+  T lower_bound_val;
+  if constexpr (kHandleSubnormals) {
+    // FastExp uses kLowerBound = -104.0 / -1000.0 since it operates on e^x. For
+    // FastExp2, we use lower limits correspondingly to -150.0 and -1075.0.
+    lower_bound_val = sizeof(T) == 4 ? -150.0 : -1075.0;
+  } else {
+    lower_bound_val = sizeof(T) == 4 ? -127.0 : -1023.0;
+  }
+  const V kLowerBound = Set(d, static_cast<T>(lower_bound_val));
+
   const V kHalf = Set(d, static_cast<T>(+0.5));
-  // FastExp uses kLowerBound = -104.0 / -1000.0 since it operates on e^x. For
-  // FastExp2, we use lower limits correspondingly to -150.0 and -1075.0.
-  const V kLowerBound =
-      Set(d, static_cast<T>((sizeof(T) == 4 ? -150.0 : -1075.0)));
   const V kNegZero = Set(d, static_cast<T>(-0.0));
 
   using TI = MakeSigned<T>;
   const Rebind<TI, D> di;
+
+  V x_clamped = x;
+  if constexpr (!kHandleSubnormals) {
+    x_clamped = Max(x, kLowerBound);
+  }
+
   const auto rounded_offs = BitCast(
-      d, OrAnd(BitCast(di, kHalf), BitCast(di, x), BitCast(di, kNegZero)));
+      d,
+      OrAnd(BitCast(di, kHalf), BitCast(di, x_clamped), BitCast(di, kNegZero)));
 
   // FastExp calculates q = ToInt32(x * (1/ln(2)) + rounded_offs)
   // FastExp2 does not need the (1/ln(2)) scaling factor since the input is
   // already in base 2.
-  const auto q = impl.ToInt32(d, Add(x, rounded_offs));
+  const auto q = impl.ToInt32(d, Add(x_clamped, rounded_offs));
 
-  const auto x_red = impl.Exp2Reduce(d, x, q);
+  const auto x_red = impl.Exp2Reduce(d, x_clamped, q);
 
   // Degree 4 polynomial approximation of 2^x on [-1/2, 1/2]
   // Derived from FastExp coefficients by pre-absorbing ln2:
@@ -1109,10 +1140,15 @@ HWY_INLINE V FastExp2(D d, V x) {
   // approx = term2 * x^2 + term0
   const auto approx = MulAdd(term2, x2, term0);
 
-  const V res = impl.LoadExpShortRange(d, approx, q);
-
-  // Handle underflow
-  return IfThenElseZero(Ge(x, kLowerBound), res);
+  if constexpr (kHandleSubnormals) {
+    const V res = impl.LoadExpShortRange(d, approx, q);
+    // Handle underflow
+    return IfThenElseZero(Ge(x, kLowerBound), res);
+  } else {
+    // Optimization: avoid splitting the exponent since 'q' is guaranteed
+    // to fall within the normal floating-point ranges.
+    return Mul(approx, impl.Pow2I(d, q));
+  }
 }
 
 /**
@@ -1253,7 +1289,8 @@ HWY_INLINE V FastLog1p(const D d, V x) {
 // If false, subnormals are treated as zero.
 template <bool kHandleSubnormals = true, class D, class V>
 HWY_INLINE V FastPow(D d, V base, V exp) {
-  return FastExp(d, Mul(exp, FastLog<kHandleSubnormals>(d, base)));
+  return FastExp<kHandleSubnormals>(
+      d, Mul(exp, FastLog<kHandleSubnormals>(d, base)));
 }
 
 template <class D, class V>
@@ -1313,6 +1350,16 @@ HWY_NOINLINE V CallFastLog1p(const D d, VecArg<V> x) {
 template <class D, class V>
 HWY_NOINLINE V CallFastPow(const D d, VecArg<V> base, VecArg<V> exp) {
   return FastPow<>(d, base, exp);
+}
+
+template <class D, class V>
+HWY_NOINLINE V CallFastExpNormal(const D d, VecArg<V> x) {
+  return FastExp</*kHandleSubnormals=*/false>(d, x);
+}
+
+template <class D, class V>
+HWY_NOINLINE V CallFastExp2Normal(const D d, VecArg<V> x) {
+  return FastExp2</*kHandleSubnormals=*/false>(d, x);
 }
 
 template <class D, class V>
