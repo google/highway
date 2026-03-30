@@ -316,6 +316,7 @@ cc_library(
     textual_hdrs = [
         "hwy/contrib/algo/copy-inl.h",
         "hwy/contrib/algo/find-inl.h",
+        "hwy/contrib/algo/minmax-inl.h",
         "hwy/contrib/algo/transform-inl.h",
     ],
     deps = [

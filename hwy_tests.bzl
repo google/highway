@@ -14,6 +14,11 @@ HWY_CONTRIB_TESTS = (
     ),
     (
         "hwy/contrib/algo/",
+        "minmax_value_test",
+        (":algo",),
+    ),
+    (
+        "hwy/contrib/algo/",
         "transform_test",
         (":algo",),
     ),
