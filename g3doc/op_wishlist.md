@@ -43,7 +43,6 @@ scalbn, tan, tgamma
 
 ### Remaining STL functions for hwy/contrib/algo
 
-*   Min/MaxValue
 *   IndexOfMin/Max
 *   AllOf / AnyOf / NoneOf
 *   Count(If) (https://en.algorithmica.org/hpc/simd/masking/)
@@ -185,3 +184,4 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~AddSub and MulAddSub~~ - by johnplatts
 *   ~~hypot~~ - by johnplatts
 *   ~~exp2~~ - by johnplatts
+*   ~~Min/MaxValue~~
