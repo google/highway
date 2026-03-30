@@ -47,17 +47,26 @@ extern const char* g_fxn2;
 #define HWY_MATH_BENCHMARKS(V) \
   V(Exp)                       \
   V(FastExp)                   \
+  V(FastExpNormal)             \
   V(Exp2)                      \
   V(FastExp2)                  \
+  V(FastExp2Normal)            \
   V(FastExpMinusOrZero)        \
   V(Log)                       \
   V(FastLog)                   \
+  V(FastLogPositiveNormal)     \
   V(Log2)                      \
   V(FastLog2)                  \
+  V(FastLog2PositiveNormal)    \
   V(Log10)                     \
   V(FastLog10)                 \
+  V(FastLog10PositiveNormal)   \
+  V(Log1p)                     \
+  V(FastLog1p)                 \
+  V(FastLog1pPositiveNormal)   \
   V(Atan)                      \
   V(FastAtan)                  \
+  V(FastAtanPositive)          \
   V(Tanh)                      \
   V(FastTanh)                  \
   V(Atan2)                     \
@@ -139,11 +148,15 @@ DEFINE_MATH_BENCH(CallExp, hn::CallExp(d, v),
                   -10.0 + static_cast<double>(in) * (20.0 / 15.0))
 DEFINE_MATH_BENCH(CallFastExp, hn::CallFastExp(d, v),
                   -10.0 + static_cast<double>(in) * (20.0 / 15.0))
+DEFINE_MATH_BENCH(CallFastExpNormal, hn::CallFastExpNormal(d, v),
+                  -10.0 + static_cast<double>(in) * (20.0 / 15.0))
 
 // Exp2 / FastExp2
 DEFINE_MATH_BENCH(CallExp2, hn::CallExp2(d, v),
                   -10.0 + static_cast<double>(in) * (20.0 / 15.0))
 DEFINE_MATH_BENCH(CallFastExp2, hn::CallFastExp2(d, v),
+                  -10.0 + static_cast<double>(in) * (20.0 / 15.0))
+DEFINE_MATH_BENCH(CallFastExp2Normal, hn::CallFastExp2Normal(d, v),
                   -10.0 + static_cast<double>(in) * (20.0 / 15.0))
 
 // FastExpMinusOrZero
@@ -155,11 +168,17 @@ DEFINE_MATH_BENCH(CallLog, hn::CallLog(d, v),
                   0.1 + static_cast<double>(in) * 1.0)
 DEFINE_MATH_BENCH(CallFastLog, hn::CallFastLog(d, v),
                   0.1 + static_cast<double>(in) * 1.0)
+DEFINE_MATH_BENCH(CallFastLogPositiveNormal,
+                  hn::CallFastLogPositiveNormal(d, v),
+                  0.1 + static_cast<double>(in) * 1.0)
 
 // Log2 / FastLog2
 DEFINE_MATH_BENCH(CallLog2, hn::CallLog2(d, v),
                   0.1 + static_cast<double>(in) * 1.0)
 DEFINE_MATH_BENCH(CallFastLog2, hn::CallFastLog2(d, v),
+                  0.1 + static_cast<double>(in) * 1.0)
+DEFINE_MATH_BENCH(CallFastLog2PositiveNormal,
+                  hn::CallFastLog2PositiveNormal(d, v),
                   0.1 + static_cast<double>(in) * 1.0)
 
 // Log10 / FastLog10
@@ -167,12 +186,26 @@ DEFINE_MATH_BENCH(CallLog10, hn::CallLog10(d, v),
                   0.1 + static_cast<double>(in) * 1.0)
 DEFINE_MATH_BENCH(CallFastLog10, hn::CallFastLog10(d, v),
                   0.1 + static_cast<double>(in) * 1.0)
+DEFINE_MATH_BENCH(CallFastLog10PositiveNormal,
+                  hn::CallFastLog10PositiveNormal(d, v),
+                  0.1 + static_cast<double>(in) * 1.0)
+
+// Log1p / FastLog1p
+DEFINE_MATH_BENCH(CallLog1p, hn::CallLog1p(d, v),
+                  0.1 + static_cast<double>(in) * 1.0)
+DEFINE_MATH_BENCH(CallFastLog1p, hn::CallFastLog1p(d, v),
+                  0.1 + static_cast<double>(in) * 1.0)
+DEFINE_MATH_BENCH(CallFastLog1pPositiveNormal,
+                  hn::CallFastLog1pPositiveNormal(d, v),
+                  0.1 + static_cast<double>(in) * 1.0)
 
 // Atan / FastAtan
 DEFINE_MATH_BENCH(CallAtan, hn::CallAtan(d, v),
                   -10.0 + static_cast<double>(in) * (20.0 / 15.0))
 DEFINE_MATH_BENCH(CallFastAtan, hn::CallFastAtan(d, v),
                   -10.0 + static_cast<double>(in) * (20.0 / 15.0))
+DEFINE_MATH_BENCH(CallFastAtanPositive, hn::CallFastAtanPositive(d, v),
+                  0.1 + static_cast<double>(in) * (20.0 / 15.0))
 
 // Tanh / FastTanh
 DEFINE_MATH_BENCH(CallTanh, hn::CallTanh(d, v),
