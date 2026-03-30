@@ -858,7 +858,8 @@ struct ExpImpl<float> {
 template <>
 struct LogImpl<float> {
   template <class D, class V = VFromD<D>, HWY_IF_F32_D(D)>
-  HWY_INLINE Vec<Rebind<int32_t, D>> Log2p1NoSubnormal(D /*d*/, V x) {
+  HWY_INLINE Vec<Rebind<int32_t, D>> Log2p1NoSubnormal(
+      D /*d*/, Vec<Rebind<int32_t, D>> x) {
     const Rebind<int32_t, D> di32;
     const Rebind<uint32_t, D> du32;
     const auto kBias = Set(di32, 0x7F);
@@ -955,7 +956,8 @@ struct ExpImpl<double> {
 template <>
 struct LogImpl<double> {
   template <class D, class V = VFromD<D>, HWY_IF_F64_D(D)>
-  HWY_INLINE Vec<Rebind<int64_t, D>> Log2p1NoSubnormal(D /*d*/, V x) {
+  HWY_INLINE Vec<Rebind<int64_t, D>> Log2p1NoSubnormal(
+      D /*d*/, Vec<Rebind<int64_t, D>> x) {
     const Rebind<int64_t, D> di64;
     const Rebind<uint64_t, D> du64;
     return Sub(BitCast(di64, ShiftRight<52>(BitCast(du64, x))),
@@ -1009,8 +1011,10 @@ HWY_INLINE V Log(const D d, V x) {
                                        : static_cast<TI>(0xFFFFFFFFLL));
   const VI kMagic = Set(di, kIsF32 ? static_cast<TI>(0x3F3504F3L)
                                    : static_cast<TI>(0x3FE6A09E00000000LL));
-  const VI kExpMask = Set(di, kIsF32 ? static_cast<TI>(0x3F800000L)
-                                     : static_cast<TI>(0x3FF0000000000000LL));
+  const VI kExpMagicDiff = Set(
+      di, kIsF32
+              ? static_cast<TI>(0x3F800000L - 0x3F3504F3L)
+              : static_cast<TI>(0x3FF0000000000000LL - 0x3FE6A09E00000000LL));
   const VI kExpScale =
       Set(di, kIsF32 ? static_cast<TI>(-25) : static_cast<TI>(-54));
   const VI kManMask = Set(di, kIsF32 ? static_cast<TI>(0x7FFFFFL)
@@ -1024,15 +1028,14 @@ HWY_INLINE V Log(const D d, V x) {
     x = IfThenElse(is_denormal, Mul(x, kScale), x);
 
     // Compute the new exponent.
-    exp_bits = Add(BitCast(di, x), Sub(kExpMask, kMagic));
+    exp_bits = Add(BitCast(di, x), kExpMagicDiff);
     const VI exp_scale =
         BitCast(di, IfThenElseZero(is_denormal, BitCast(d, kExpScale)));
-    exp = ConvertTo(
-        d, Add(exp_scale, impl.Log2p1NoSubnormal(d, BitCast(d, exp_bits))));
+    exp = ConvertTo(d, Add(exp_scale, impl.Log2p1NoSubnormal(d, exp_bits)));
   } else {
     // Compute the new exponent.
-    exp_bits = Add(BitCast(di, x), Sub(kExpMask, kMagic));
-    exp = ConvertTo(d, impl.Log2p1NoSubnormal(d, BitCast(d, exp_bits)));
+    exp_bits = Add(BitCast(di, x), kExpMagicDiff);
+    exp = ConvertTo(d, impl.Log2p1NoSubnormal(d, exp_bits));
   }
 
   // Renormalize.
