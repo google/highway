@@ -710,8 +710,11 @@ HWY_INLINE V FastTanh(D d, V val) {
   const auto kSmall = Set(d, static_cast<T>(0.01));
   result = IfThenElse(Lt(y, kSmall), y, result);
 
-  const auto one = Set(d, static_cast<T>(1.0));
-  result = IfThenElse(Lt(y, Set(d, static_cast<T>(5.0))), result, one);
+  const auto k1 = Set(d, static_cast<T>(1.0));
+  // We can take Min since cubic approximation for index 7 is monotonically
+  // increasing, so for inputs >5 the polynomial approximation will output >1.0
+  // allowing us to use Min() directly instead of IfThenElse()
+  result = Min(result, k1);
 
   return CopySign(result, val);  // Restore sign
 }
