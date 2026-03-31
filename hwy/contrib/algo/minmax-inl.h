@@ -35,22 +35,28 @@ T MinValue(D d, const T* HWY_RESTRICT in, size_t count) {
   const T identity = hwy::PositiveInfOrHighestValue<T>();
   const Vec<D> identity_vec = Set(d, identity);
 
-  Vec<D> acc = identity_vec;
+  Vec<D> acc0 = identity_vec;
+  Vec<D> acc1 = identity_vec;
+  Vec<D> acc2 = identity_vec;
+  Vec<D> acc3 = identity_vec;
 
   size_t i = 0;
-  if (count >= N) {
-    for (; i <= count - N; i += N) {
-      acc = Min(acc, LoadU(d, in + i));
-    }
+  for (; i + 4 * N <= count; i += 4 * N) {
+    acc0 = Min(acc0, LoadU(d, in + i));
+    acc1 = Min(acc1, LoadU(d, in + i + N));
+    acc2 = Min(acc2, LoadU(d, in + i + 2 * N));
+    acc3 = Min(acc3, LoadU(d, in + i + 3 * N));
   }
 
-  if (HWY_LIKELY(i != count)) {
+  acc0 = Min(Min(acc0, acc1), Min(acc2, acc3));
+
+  for (; i < count; i += N) {
     const size_t remaining = count - i;
-    HWY_DASSERT(0 != remaining && remaining < N);
-    acc = Min(acc, LoadNOr(identity_vec, d, in + i, remaining));
+    const size_t n = HWY_MIN(remaining, N);
+    acc0 = Min(acc0, LoadNOr(identity_vec, d, in + i, n));
   }
 
-  return ReduceMin(d, acc);
+  return ReduceMin(d, acc0);
 }
 
 // Returns the maximum value in `in[0, count)` or NegativeInfOrLowestValue<T>() if count == 0.
@@ -60,22 +66,28 @@ T MaxValue(D d, const T* HWY_RESTRICT in, size_t count) {
   const T identity = hwy::NegativeInfOrLowestValue<T>();
   const Vec<D> identity_vec = Set(d, identity);
 
-  Vec<D> acc = identity_vec;
+  Vec<D> acc0 = identity_vec;
+  Vec<D> acc1 = identity_vec;
+  Vec<D> acc2 = identity_vec;
+  Vec<D> acc3 = identity_vec;
 
   size_t i = 0;
-  if (count >= N) {
-    for (; i <= count - N; i += N) {
-      acc = Max(acc, LoadU(d, in + i));
-    }
+  for (; i + 4 * N <= count; i += 4 * N) {
+    acc0 = Max(acc0, LoadU(d, in + i));
+    acc1 = Max(acc1, LoadU(d, in + i + N));
+    acc2 = Max(acc2, LoadU(d, in + i + 2 * N));
+    acc3 = Max(acc3, LoadU(d, in + i + 3 * N));
   }
 
-  if (HWY_LIKELY(i != count)) {
+  acc0 = Max(Max(acc0, acc1), Max(acc2, acc3));
+
+  for (; i < count; i += N) {
     const size_t remaining = count - i;
-    HWY_DASSERT(0 != remaining && remaining < N);
-    acc = Max(acc, LoadNOr(identity_vec, d, in + i, remaining));
+    const size_t n = HWY_MIN(remaining, N);
+    acc0 = Max(acc0, LoadNOr(identity_vec, d, in + i, n));
   }
 
-  return ReduceMax(d, acc);
+  return ReduceMax(d, acc0);
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
