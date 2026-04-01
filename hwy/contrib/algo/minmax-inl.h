@@ -41,11 +41,13 @@ T MinValue(D d, const T* HWY_RESTRICT in, size_t count) {
   Vec<D> acc3 = identity_vec;
 
   size_t i = 0;
-  for (; i + 4 * N <= count; i += 4 * N) {
-    acc0 = Min(acc0, LoadU(d, in + i));
-    acc1 = Min(acc1, LoadU(d, in + i + N));
-    acc2 = Min(acc2, LoadU(d, in + i + 2 * N));
-    acc3 = Min(acc3, LoadU(d, in + i + 3 * N));
+  if (count >= 4 * N) {
+    for (; i <= count - 4 * N; i += 4 * N) {
+      acc0 = Min(acc0, LoadU(d, in + i));
+      acc1 = Min(acc1, LoadU(d, in + i + N));
+      acc2 = Min(acc2, LoadU(d, in + i + 2 * N));
+      acc3 = Min(acc3, LoadU(d, in + i + 3 * N));
+    }
   }
 
   acc0 = Min(Min(acc0, acc1), Min(acc2, acc3));
@@ -72,11 +74,13 @@ T MaxValue(D d, const T* HWY_RESTRICT in, size_t count) {
   Vec<D> acc3 = identity_vec;
 
   size_t i = 0;
-  for (; i + 4 * N <= count; i += 4 * N) {
-    acc0 = Max(acc0, LoadU(d, in + i));
-    acc1 = Max(acc1, LoadU(d, in + i + N));
-    acc2 = Max(acc2, LoadU(d, in + i + 2 * N));
-    acc3 = Max(acc3, LoadU(d, in + i + 3 * N));
+  if (count >= 4 * N) {
+    for (; i <= count - 4 * N; i += 4 * N) {
+      acc0 = Max(acc0, LoadU(d, in + i));
+      acc1 = Max(acc1, LoadU(d, in + i + N));
+      acc2 = Max(acc2, LoadU(d, in + i + 2 * N));
+      acc3 = Max(acc3, LoadU(d, in + i + 3 * N));
+    }
   }
 
   acc0 = Max(Max(acc0, acc1), Max(acc2, acc3));
