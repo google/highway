@@ -6842,11 +6842,18 @@ HWY_API Vec128<T, 1> Expand(Vec128<T, 1> v, Mask128<T, 1> mask) {
 }
 
 // ------------------------------ LoadExpand
+
+// #2957: clangd warning because x86_128-inl.h defines an overload with this
+// condition, so negate it here.
+#if !(HWY_TARGET <= HWY_AVX3 || HWY_IDE)
+
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
                              const TFromD<D>* HWY_RESTRICT unaligned) {
   return Expand(LoadU(d, unaligned), mask);
 }
+
+#endif  // !(HWY_TARGET <= HWY_AVX3 || HWY_IDE)
 
 #endif  // HWY_NATIVE_EXPAND
 
