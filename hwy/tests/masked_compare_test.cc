@@ -13,6 +13,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Clang aarch64 OOM workaround: Not using AES, hence NEON_WITHOUT_AES is
+// sufficient. SVE is mostly superseded by SVE2.
+#ifndef HWY_DISABLED_TARGETS
+#define HWY_DISABLED_TARGETS (HWY_NEON | HWY_SVE | HWY_SVE_256)
+#endif  // HWY_DISABLED_TARGETS
+
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/masked_compare_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
