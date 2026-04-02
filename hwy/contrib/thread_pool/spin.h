@@ -283,9 +283,10 @@ HWY_POP_ATTRIBUTES
 // Ignores `disabled` for `kPause` if it is the only supported and enabled type.
 // Somewhat expensive, typically called during initialization.
 static inline SpinType DetectSpin(int disabled = 0) {
-  const auto HWY_MAYBE_UNUSED enabled = [disabled](SpinType type) {
+  const auto enabled = [disabled](SpinType type) {
     return (disabled & (1 << static_cast<int>(type))) == 0;
   };
+  (void)enabled;
 
 #if HWY_ENABLE_MONITORX
   if (enabled(SpinType::kMonitorX) && x86::IsAMD()) {

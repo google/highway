@@ -6922,7 +6922,8 @@ HWY_INLINE Vec<D> Lookup8(D d, const T* HWY_RESTRICT table, VI indices) {
     // vector. Note that SVE2_128 and SVE_256 are handled by the fixed-size case
     // above. The adjustment factor is 0 for 128-bit SIMD, which can happen with
     // 128-bit SVE1 hardware, but we do not know that at compile time.
-    const VI adjust = Set(di, Lanes(d) - 4);
+    using TI = TFromD<decltype(di)>;
+    const VI adjust = Set(di, static_cast<TI>(Lanes(d) - 4));
     Mask<decltype(di)> ge_4;
 #if HWY_TARGET_IS_SVE
     ge_4 = detail::GeN(indices, 4);
