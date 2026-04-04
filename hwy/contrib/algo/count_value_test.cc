@@ -15,7 +15,7 @@
 
 #include <stdio.h>
 
-#include <algorithm>  // std::count
+#include <algorithm>  // std::count, std::count_if
 #include <vector>
 
 #include "hwy/aligned_allocator.h"
@@ -103,6 +103,44 @@ void TestAllCount() {
   ForAllTypes(ForPartialVectors<ForeachCountAndMisalign<TestCount>>());
 }
 
+struct TestCountIf {
+  template <class D>
+  void operator()(D d, size_t count, size_t misalign, RandomState& rng) {
+    using T = TFromD<D>;
+    AlignedFreeUniquePtr<T[]> storage =
+        AllocateAligned<T>(HWY_MAX(1, misalign + count));
+    HWY_ASSERT(storage);
+    T* in = storage.get() + misalign;
+    for (size_t i = 0; i < count; ++i) {
+      in[i] = Random<T>(rng);
+    }
+
+    const int min_val = IsSigned<T>() ? -9 : 0;
+    for (int val = min_val; val <= 9; ++val) {
+      const auto greater = [val](const auto d2, const auto v) HWY_ATTR {
+        return Gt(v, Set(d2, ConvertScalarTo<T>(val)));
+      };
+      const size_t actual = CountIf(d, in, count, greater);
+
+      const size_t expected = static_cast<size_t>(std::count_if(
+          in, in + count, [val](T x) { return x > ConvertScalarTo<T>(val); }));
+
+      if (expected != actual) {
+        fprintf(stderr,
+                "%s count %d misalign %d val %d: CountIf expected %d got %d\n",
+                hwy::TypeName(T(), Lanes(d)).c_str(), static_cast<int>(count),
+                static_cast<int>(misalign), val, static_cast<int>(expected),
+                static_cast<int>(actual));
+        HWY_ASSERT(false);
+      }
+    }
+  }
+};
+
+void TestAllCountIf() {
+  ForAllTypes(ForPartialVectors<ForeachCountAndMisalign<TestCountIf>>());
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -114,6 +152,7 @@ namespace hwy {
 namespace {
 HWY_BEFORE_TEST(CountTest);
 HWY_EXPORT_AND_TEST_P(CountTest, TestAllCount);
+HWY_EXPORT_AND_TEST_P(CountTest, TestAllCountIf);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy

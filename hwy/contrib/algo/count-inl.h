@@ -73,6 +73,48 @@ size_t Count(D d, T value, const T* HWY_RESTRICT in, size_t count) {
   return total;
 }
 
+// Returns the number of elements in `in[0, count)` for which `func(d, vec)` returns true.
+template <class D, class Func, typename T = TFromD<D>>
+size_t CountIf(D d, const T* HWY_RESTRICT in, size_t count, const Func& func) {
+  const size_t N = Lanes(d);
+
+  size_t total = 0;
+  size_t i = 0;
+  if (count >= 4 * N) {
+    for (; i <= count - 4 * N; i += 4 * N) {
+      total += CountTrue(d, func(d, LoadU(d, in + i)));
+      total += CountTrue(d, func(d, LoadU(d, in + i + N)));
+      total += CountTrue(d, func(d, LoadU(d, in + i + 2 * N)));
+      total += CountTrue(d, func(d, LoadU(d, in + i + 3 * N)));
+    }
+  }
+
+  if (count >= N) {
+    for (; i <= count - N; i += N) {
+      total += CountTrue(d, func(d, LoadU(d, in + i)));
+    }
+  }
+
+  if (i != count) {
+#if HWY_MEM_OPS_MIGHT_FAULT
+    const CappedTag<T, 1> d1;
+    for (; i < count; ++i) {
+      if (AllTrue(d1, func(d1, LoadU(d1, in + i)))) {
+        total += 1;
+      }
+    }
+#else
+    const size_t remaining = count - i;
+    HWY_DASSERT(0 != remaining && remaining < N);
+    const Mask<D> mask = FirstN(d, remaining);
+    const Vec<D> v = MaskedLoad(mask, d, in + i);
+    total += CountTrue(d, And(func(d, v), mask));
+#endif  // HWY_MEM_OPS_MIGHT_FAULT
+  }
+
+  return total;
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
