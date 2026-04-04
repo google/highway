@@ -669,6 +669,7 @@ if tests_enabled
         hwy_contrib_test_files = files(
             'hwy/auto_tune_test.cc',
             'hwy/contrib/algo/copy_test.cc',
+            'hwy/contrib/algo/count_value_test.cc',
             'hwy/contrib/algo/find_test.cc',
             'hwy/contrib/algo/minmax_value_test.cc',
             'hwy/contrib/algo/transform_test.cc',

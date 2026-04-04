@@ -879,6 +879,7 @@ list(APPEND HWY_TEST_LIBS hwy_contrib)
 list(APPEND HWY_TEST_FILES
   hwy/auto_tune_test.cc
   hwy/contrib/algo/copy_test.cc
+  hwy/contrib/algo/count_value_test.cc
   hwy/contrib/algo/find_test.cc
   hwy/contrib/algo/minmax_value_test.cc
   hwy/contrib/algo/transform_test.cc
