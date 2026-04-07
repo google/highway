@@ -241,6 +241,7 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/thread_pool/topology.h
     hwy/contrib/algo/copy-inl.h
     hwy/contrib/algo/find-inl.h
+    hwy/contrib/algo/minmax-inl.h
     hwy/contrib/algo/transform-inl.h
     hwy/contrib/unroller/unroller-inl.h
 )
