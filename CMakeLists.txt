@@ -469,9 +469,8 @@ else()
   endif()  # HWY_CMAKE_ARM7
 
   if(HWY_RISCV)
-    # gcc(13) and recent clang both support V, but not yet runtime dispatch, so
-    # we add the gcv compiler flag, which then requires the CPU (now when using
-    # either compiler) to support V.
+    # Add the gcv compiler flag so that RVV is available as a baseline target.
+    # Without this, Clang 19+ can still use RVV via runtime dispatch.
     if(HWY_CMAKE_RVV)
       if(RISCV_XLEN EQUAL 64)
         list(APPEND HWY_FLAGS -march=rv64gcv1p0)
