@@ -240,6 +240,7 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/thread_pool/topology.cc
     hwy/contrib/thread_pool/topology.h
     hwy/contrib/algo/copy-inl.h
+    hwy/contrib/algo/count-inl.h
     hwy/contrib/algo/find-inl.h
     hwy/contrib/algo/minmax-inl.h
     hwy/contrib/algo/transform-inl.h
