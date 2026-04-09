@@ -34,14 +34,6 @@
 #define HWY_SVE_HAVE_2 0
 #endif
 
-// If 1, both __bf16 and a limited set of *_bf16 SVE intrinsics are available:
-// create/get/set/dup, ld/st, sel, rev, trn, uzp, zip.
-#if HWY_ARM_HAVE_SCALAR_BF16_TYPE && defined(__ARM_FEATURE_SVE_BF16)
-#define HWY_SVE_HAVE_BF16_FEATURE 1
-#else
-#define HWY_SVE_HAVE_BF16_FEATURE 0
-#endif
-
 // HWY_SVE_HAVE_BF16_VEC is defined to 1 if the SVE svbfloat16_t vector type
 // is supported, even if HWY_SVE_HAVE_BF16_FEATURE (= intrinsics) is 0.
 #if HWY_SVE_HAVE_BF16_FEATURE ||                                       \

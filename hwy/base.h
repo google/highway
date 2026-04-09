@@ -1726,20 +1726,6 @@ HWY_F16_CONSTEXPR inline std::partial_ordering operator<=>(
 //------------------------------------------------------------------------------
 // BF16 lane type
 
-// Compiler supports ACLE __bf16, not necessarily with operators.
-
-// Disable the __bf16 type on AArch64 with GCC 13 or earlier as there is a bug
-// in GCC 13 and earlier that sometimes causes BF16 constant values to be
-// incorrectly loaded on AArch64, and this GCC bug on AArch64 is
-// described at https://gcc.gnu.org/bugzilla/show_bug.cgi?id=111867.
-
-#if HWY_ARCH_ARM_A64 && \
-    (HWY_COMPILER_CLANG >= 1700 || HWY_COMPILER_GCC_ACTUAL >= 1400)
-#define HWY_ARM_HAVE_SCALAR_BF16_TYPE 1
-#else
-#define HWY_ARM_HAVE_SCALAR_BF16_TYPE 0
-#endif
-
 // x86 compiler supports __bf16, not necessarily with operators.
 // Disable in debug builds due to clang miscompiles as of 2025-07-22: casting
 // bf16 <-> f32 in convert_test results in 0x2525 for 1.0 instead of 0x3f80.

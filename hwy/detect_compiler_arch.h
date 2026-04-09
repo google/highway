@@ -445,4 +445,20 @@
 #error "Must only detect one byte order"
 #endif
 
+//------------------------------------------------------------------------------
+// Features checked in set_macros-inl.h
+
+// Compiler supports ACLE __bf16, not necessarily with operators.
+//
+// Disable the __bf16 type on AArch64 with GCC 13 or earlier as there is a bug
+// in GCC 13 and earlier that sometimes causes BF16 constant values to be
+// incorrectly loaded on AArch64, and this GCC bug on AArch64 is
+// described at https://gcc.gnu.org/bugzilla/show_bug.cgi?id=111867.
+#if HWY_ARCH_ARM_A64 && \
+    (HWY_COMPILER_CLANG >= 1700 || HWY_COMPILER_GCC_ACTUAL >= 1400)
+#define HWY_ARM_HAVE_SCALAR_BF16_TYPE 1
+#else
+#define HWY_ARM_HAVE_SCALAR_BF16_TYPE 0
+#endif
+
 #endif  // HIGHWAY_HWY_DETECT_COMPILER_ARCH_H_

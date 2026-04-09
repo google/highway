@@ -60,6 +60,15 @@
 #undef HWY_LANES
 #define HWY_LANES(T) (HWY_MAX_BYTES / sizeof(T))
 
+// If 1, both __bf16 and a limited set of *_bf16 SVE intrinsics are available:
+// create/get/set/dup, ld/st, sel, rev, trn, uzp, zip.
+// Consulted below, hence define here rather than in arm_sve-inl.h.
+#if HWY_ARM_HAVE_SCALAR_BF16_TYPE && defined(__ARM_FEATURE_SVE_BF16)
+#define HWY_SVE_HAVE_BF16_FEATURE 1
+#else
+#define HWY_SVE_HAVE_BF16_FEATURE 0
+#endif
+
 #undef HWY_TARGET_IS_SVE
 #if HWY_TARGET & HWY_ALL_SVE
 #define HWY_TARGET_IS_SVE 1
