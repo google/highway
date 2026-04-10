@@ -53,48 +53,42 @@ size_t Count(D d, T value, const T* HWY_RESTRICT in, size_t count) {
           VI acc3 = Zero(di);
           const size_t cap = HWY_MIN(i + 128 * 4 * N, count);
 
-#ifdef HWY_NATIVE_MASK
-          const auto one_i = Set(di, TFromD<decltype(di)>(1));
-          for (; i <= cap - 4 * N; i += 4 * N) {
-            acc0 = MaskedAddOr(
-                acc0, RebindMask(di, Eq(broadcasted, LoadU(d, in + i))), acc0,
-                one_i);
-            acc1 = MaskedAddOr(
-                acc1, RebindMask(di, Eq(broadcasted, LoadU(d, in + i + N))),
-                acc1, one_i);
-            acc2 = MaskedAddOr(
-                acc2, RebindMask(di, Eq(broadcasted, LoadU(d, in + i + 2 * N))),
-                acc2, one_i);
-            acc3 = MaskedAddOr(
-                acc3, RebindMask(di, Eq(broadcasted, LoadU(d, in + i + 3 * N))),
-                acc3, one_i);
+          const auto k1 = Set(di, TFromD<decltype(di)>(1));
+          if constexpr (HWY_NATIVE_MASK) {
+            for (; i <= cap - 4 * N; i += 4 * N) {
+              const auto m0 = RebindMask(di, Eq(broadcasted, LoadU(d, in + i)));
+              const auto m1 =
+                  RebindMask(di, Eq(broadcasted, LoadU(d, in + i + N)));
+              const auto m2 =
+                  RebindMask(di, Eq(broadcasted, LoadU(d, in + i + 2 * N)));
+              const auto m3 =
+                  RebindMask(di, Eq(broadcasted, LoadU(d, in + i + 3 * N)));
+              acc0 = MaskedAddOr(acc0, m0, acc0, k1);
+              acc1 = MaskedAddOr(acc1, m1, acc1, k1);
+              acc2 = MaskedAddOr(acc2, m2, acc2, k1);
+              acc3 = MaskedAddOr(acc3, m3, acc3, k1);
+            }
+            acc0 = Add(Add(acc0, acc1), Add(acc2, acc3));
+          } else {
+            for (; i <= cap - 4 * N; i += 4 * N) {
+              const auto v0 = VecFromMask(d, Eq(broadcasted, LoadU(d, in + i)));
+              const auto v1 =
+                  VecFromMask(d, Eq(broadcasted, LoadU(d, in + i + N)));
+              const auto v2 =
+                  VecFromMask(d, Eq(broadcasted, LoadU(d, in + i + 2 * N)));
+              const auto v3 =
+                  VecFromMask(d, Eq(broadcasted, LoadU(d, in + i + 3 * N)));
+              acc0 = Add(acc0, BitCast(di, v0));
+              acc1 = Add(acc1, BitCast(di, v1));
+              acc2 = Add(acc2, BitCast(di, v2));
+              acc3 = Add(acc3, BitCast(di, v3));
+            }
+            acc0 = Neg(Add(Add(acc0, acc1), Add(acc2, acc3)));
           }
-          acc0 = Add(Add(acc0, acc1), Add(acc2, acc3));
-#else
-          for (; i <= cap - 4 * N; i += 4 * N) {
-            acc0 = Add(
-                acc0,
-                BitCast(di, VecFromMask(d, Eq(broadcasted, LoadU(d, in + i)))));
-            acc1 = Add(acc1,
-                       BitCast(di, VecFromMask(d, Eq(broadcasted,
-                                                     LoadU(d, in + i + N)))));
-            acc2 = Add(
-                acc2,
-                BitCast(di, VecFromMask(
-                                d, Eq(broadcasted, LoadU(d, in + i + 2 * N)))));
-            acc3 = Add(
-                acc3,
-                BitCast(di, VecFromMask(
-                                d, Eq(broadcasted, LoadU(d, in + i + 3 * N)))));
-          }
-          acc0 = Neg(Add(Add(acc0, acc1), Add(acc2, acc3)));
-#endif
           const auto acc_u8 = BitCast(RebindToUnsigned<decltype(di)>(), acc0);
-          const auto one_i8 = Set(di, TFromD<decltype(di)>(1));
-          const auto widened = SatWidenMulPairwiseAdd(di16, acc_u8, one_i8);
-          const auto one_i16 = Set(di16, int16_t(1));
-          wide_sum =
-              SatWidenMulPairwiseAccumulate(di32, widened, one_i16, wide_sum);
+          const auto widened = SatWidenMulPairwiseAdd(di16, acc_u8, k1);
+          wide_sum = SatWidenMulPairwiseAccumulate(
+              di32, widened, Set(di16, int16_t(1)), wide_sum);
         }
       }
       total += static_cast<size_t>(ReduceSum(di32, wide_sum));
@@ -112,90 +106,81 @@ size_t Count(D d, T value, const T* HWY_RESTRICT in, size_t count) {
           VI acc3 = Zero(di);
           const size_t cap = HWY_MIN(i + 32768 * 4 * N, count);
 
-#ifdef HWY_NATIVE_MASK
-          const auto one_i = Set(di, TFromD<decltype(di)>(1));
-          for (; i <= cap - 4 * N; i += 4 * N) {
-            acc0 = MaskedAddOr(
-                acc0, RebindMask(di, Eq(broadcasted, LoadU(d, in + i))), acc0,
-                one_i);
-            acc1 = MaskedAddOr(
-                acc1, RebindMask(di, Eq(broadcasted, LoadU(d, in + i + N))),
-                acc1, one_i);
-            acc2 = MaskedAddOr(
-                acc2, RebindMask(di, Eq(broadcasted, LoadU(d, in + i + 2 * N))),
-                acc2, one_i);
-            acc3 = MaskedAddOr(
-                acc3, RebindMask(di, Eq(broadcasted, LoadU(d, in + i + 3 * N))),
-                acc3, one_i);
+          const auto k1 = Set(di, TFromD<decltype(di)>(1));
+          if constexpr (HWY_NATIVE_MASK) {
+            for (; i <= cap - 4 * N; i += 4 * N) {
+              const auto m0 = RebindMask(di, Eq(broadcasted, LoadU(d, in + i)));
+              const auto m1 =
+                  RebindMask(di, Eq(broadcasted, LoadU(d, in + i + N)));
+              const auto m2 =
+                  RebindMask(di, Eq(broadcasted, LoadU(d, in + i + 2 * N)));
+              const auto m3 =
+                  RebindMask(di, Eq(broadcasted, LoadU(d, in + i + 3 * N)));
+              acc0 = MaskedAddOr(acc0, m0, acc0, k1);
+              acc1 = MaskedAddOr(acc1, m1, acc1, k1);
+              acc2 = MaskedAddOr(acc2, m2, acc2, k1);
+              acc3 = MaskedAddOr(acc3, m3, acc3, k1);
+            }
+            acc0 = Add(Add(acc0, acc1), Add(acc2, acc3));
+          } else {
+            for (; i <= cap - 4 * N; i += 4 * N) {
+              const auto v0 = VecFromMask(d, Eq(broadcasted, LoadU(d, in + i)));
+              const auto v1 =
+                  VecFromMask(d, Eq(broadcasted, LoadU(d, in + i + N)));
+              const auto v2 =
+                  VecFromMask(d, Eq(broadcasted, LoadU(d, in + i + 2 * N)));
+              const auto v3 =
+                  VecFromMask(d, Eq(broadcasted, LoadU(d, in + i + 3 * N)));
+              acc0 = Add(acc0, BitCast(di, v0));
+              acc1 = Add(acc1, BitCast(di, v1));
+              acc2 = Add(acc2, BitCast(di, v2));
+              acc3 = Add(acc3, BitCast(di, v3));
+            }
+            acc0 = Neg(Add(Add(acc0, acc1), Add(acc2, acc3)));
           }
-          acc0 = Add(Add(acc0, acc1), Add(acc2, acc3));
-#else
-          for (; i <= cap - 4 * N; i += 4 * N) {
-            acc0 = Add(
-                acc0,
-                BitCast(di, VecFromMask(d, Eq(broadcasted, LoadU(d, in + i)))));
-            acc1 = Add(acc1,
-                       BitCast(di, VecFromMask(d, Eq(broadcasted,
-                                                     LoadU(d, in + i + N)))));
-            acc2 = Add(
-                acc2,
-                BitCast(di, VecFromMask(
-                                d, Eq(broadcasted, LoadU(d, in + i + 2 * N)))));
-            acc3 = Add(
-                acc3,
-                BitCast(di, VecFromMask(
-                                d, Eq(broadcasted, LoadU(d, in + i + 3 * N)))));
-          }
-          acc0 = Neg(Add(Add(acc0, acc1), Add(acc2, acc3)));
-#endif
-          const auto one_i16 = Set(di, TFromD<decltype(di)>(1));
-          wide_sum =
-              SatWidenMulPairwiseAccumulate(di32, acc0, one_i16, wide_sum);
+          wide_sum = SatWidenMulPairwiseAccumulate(di32, acc0, k1, wide_sum);
         }
       }
       total += static_cast<size_t>(ReduceSum(di32, wide_sum));
     }
   } else {
+    // Lane type wide enough to accumulate directly
     if (count >= 4 * N) {
       VI acc0 = Zero(di);
       VI acc1 = Zero(di);
       VI acc2 = Zero(di);
       VI acc3 = Zero(di);
 
-#ifdef HWY_NATIVE_MASK
-      const auto one_i = Set(di, TFromD<decltype(di)>(1));
-      for (; i <= count - 4 * N; i += 4 * N) {
-        acc0 =
-            MaskedAddOr(acc0, RebindMask(di, Eq(broadcasted, LoadU(d, in + i))),
-                        acc0, one_i);
-        acc1 = MaskedAddOr(
-            acc1, RebindMask(di, Eq(broadcasted, LoadU(d, in + i + N))), acc1,
-            one_i);
-        acc2 = MaskedAddOr(
-            acc2, RebindMask(di, Eq(broadcasted, LoadU(d, in + i + 2 * N))),
-            acc2, one_i);
-        acc3 = MaskedAddOr(
-            acc3, RebindMask(di, Eq(broadcasted, LoadU(d, in + i + 3 * N))),
-            acc3, one_i);
+      const auto k1 = Set(di, TFromD<decltype(di)>(1));
+      if constexpr (HWY_NATIVE_MASK) {
+        for (; i <= count - 4 * N; i += 4 * N) {
+          const auto m0 = RebindMask(di, Eq(broadcasted, LoadU(d, in + i)));
+          const auto m1 = RebindMask(di, Eq(broadcasted, LoadU(d, in + i + N)));
+          const auto m2 =
+              RebindMask(di, Eq(broadcasted, LoadU(d, in + i + 2 * N)));
+          const auto m3 =
+              RebindMask(di, Eq(broadcasted, LoadU(d, in + i + 3 * N)));
+          acc0 = MaskedAddOr(acc0, m0, acc0, k1);
+          acc1 = MaskedAddOr(acc1, m1, acc1, k1);
+          acc2 = MaskedAddOr(acc2, m2, acc2, k1);
+          acc3 = MaskedAddOr(acc3, m3, acc3, k1);
+        }
+        acc0 = Add(Add(acc0, acc1), Add(acc2, acc3));
+      } else {
+        for (; i <= count - 4 * N; i += 4 * N) {
+          const auto v0 = VecFromMask(d, Eq(broadcasted, LoadU(d, in + i)));
+          const auto v1 = VecFromMask(d, Eq(broadcasted, LoadU(d, in + i + N)));
+          const auto v2 =
+              VecFromMask(d, Eq(broadcasted, LoadU(d, in + i + 2 * N)));
+          const auto v3 =
+              VecFromMask(d, Eq(broadcasted, LoadU(d, in + i + 3 * N)));
+          acc0 = Add(acc0, BitCast(di, v0));
+          acc1 = Add(acc1, BitCast(di, v1));
+          acc2 = Add(acc2, BitCast(di, v2));
+          acc3 = Add(acc3, BitCast(di, v3));
+        }
+        acc0 = Neg(Add(Add(acc0, acc1), Add(acc2, acc3)));
       }
-      acc0 = Add(Add(acc0, acc1), Add(acc2, acc3));
-#else
-      for (; i <= count - 4 * N; i += 4 * N) {
-        acc0 =
-            Add(acc0,
-                BitCast(di, VecFromMask(d, Eq(broadcasted, LoadU(d, in + i)))));
-        acc1 = Add(
-            acc1,
-            BitCast(di, VecFromMask(d, Eq(broadcasted, LoadU(d, in + i + N)))));
-        acc2 = Add(acc2,
-                   BitCast(di, VecFromMask(d, Eq(broadcasted,
-                                                 LoadU(d, in + i + 2 * N)))));
-        acc3 = Add(acc3,
-                   BitCast(di, VecFromMask(d, Eq(broadcasted,
-                                                 LoadU(d, in + i + 3 * N)))));
-      }
-      acc0 = Neg(Add(Add(acc0, acc1), Add(acc2, acc3)));
-#endif
       total += static_cast<size_t>(ReduceSum(di, acc0));
     }
   }
