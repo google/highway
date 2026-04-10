@@ -526,6 +526,13 @@ static int64_t DetectTargets() {
 #ifndef HWCAP2_SVEAES
 #define HWCAP2_SVEAES (1 << 2)
 #endif
+#ifndef HWCAP2_SVEI8MM
+#define HWCAP2_SVEI8MM (1 << 9)
+#endif
+#ifndef HWCAP2_SVEBF16
+#define HWCAP2_SVEBF16 (1 << 12)
+#endif
+
   constexpr CapBits kGroupSVE2 = HWCAP2_SVE2 | HWCAP2_SVEAES;
   const CapBits hw2 = getauxval(AT_HWCAP2);
   if ((hw2 & kGroupSVE2) == kGroupSVE2) {
@@ -536,6 +543,12 @@ static int64_t DetectTargets() {
     ((HWY_TARGETS & HWY_ALL_SVE) != 0)
   if ((bits & HWY_ALL_SVE) != 0) {
     bits |= DetectAdditionalSveTargets(bits);
+
+    // SVE2_128 implies I8MM and BF16, hence remove it if they are not present.
+    constexpr CapBits kGroupSVE2_128 = HWCAP2_SVEI8MM | HWCAP2_SVEBF16;
+    if ((hw2 & kGroupSVE2_128) != kGroupSVE2_128) {
+      bits &= ~HWY_SVE2_128;
+    }
   }
 #endif  // (HWY_COMPILER_GCC || HWY_COMPILER_CLANG) &&
         // ((HWY_TARGETS & HWY_ALL_SVE) != 0)
