@@ -103,7 +103,6 @@ size_t Count(D d, T value, const T* HWY_RESTRICT in, size_t count) {
     total += static_cast<size_t>(ReduceSum(di32, wide_sum));
   } else if constexpr (sizeof(T) == 2 && HWY_MAX_LANES_D(D) >= 2) {
     // Min 2 lanes needed for pairwise widening, 16->32
-    const auto k1 = Set(di, TI{1});
     const Repartition<int32_t, D> di32;
     auto wide_sum = Zero(di32);
 
@@ -116,6 +115,7 @@ size_t Count(D d, T value, const T* HWY_RESTRICT in, size_t count) {
         const size_t cap = HWY_MIN(i + 32768 * 4 * N, count);
 
         if constexpr (HWY_NATIVE_MASK) {
+          const auto k1 = Set(di, TI{1});
           for (; i <= cap - 4 * N; i += 4 * N) {
             const auto m0 = RebindMask(di, Eq(broadcasted, LoadU(d, in + i)));
             const auto m1 =
@@ -154,7 +154,6 @@ size_t Count(D d, T value, const T* HWY_RESTRICT in, size_t count) {
     total += static_cast<size_t>(ReduceSum(di32, wide_sum));
   } else {
     // Lane type wide enough to accumulate directly
-    const auto k1 = Set(di, TI{1});
     if (count >= 4 * N) {
       VI acc0 = Zero(di);
       VI acc1 = Zero(di);
@@ -162,6 +161,7 @@ size_t Count(D d, T value, const T* HWY_RESTRICT in, size_t count) {
       VI acc3 = Zero(di);
 
       if constexpr (HWY_NATIVE_MASK) {
+        const auto k1 = Set(di, TI{1});
         for (; i <= count - 4 * N; i += 4 * N) {
           const auto m0 = RebindMask(di, Eq(broadcasted, LoadU(d, in + i)));
           const auto m1 = RebindMask(di, Eq(broadcasted, LoadU(d, in + i + N)));
@@ -279,7 +279,6 @@ size_t CountIf(D d, const T* HWY_RESTRICT in, size_t count, const Func& func) {
     total += static_cast<size_t>(ReduceSum(di32, wide_sum));
   } else if constexpr (sizeof(T) == 2 && HWY_MAX_LANES_D(D) >= 2) {
     // Min 2 lanes needed for pairwise widening, 16->32
-    const auto k1 = Set(di, TI{1});
     const Repartition<int32_t, D> di32;
     auto wide_sum = Zero(di32);
 
@@ -292,6 +291,7 @@ size_t CountIf(D d, const T* HWY_RESTRICT in, size_t count, const Func& func) {
         const size_t cap = HWY_MIN(i + 32768 * 4 * N, count);
 
         if constexpr (HWY_NATIVE_MASK) {
+          const auto k1 = Set(di, TI{1});
           for (; i <= cap - 4 * N; i += 4 * N) {
             const auto m0 = RebindMask(di, func(d, LoadU(d, in + i)));
             const auto m1 = RebindMask(di, func(d, LoadU(d, in + i + N)));
@@ -324,7 +324,6 @@ size_t CountIf(D d, const T* HWY_RESTRICT in, size_t count, const Func& func) {
     total += static_cast<size_t>(ReduceSum(di32, wide_sum));
   } else {
     // Lane type wide enough to accumulate directly
-    const auto k1 = Set(di, TI{1});
     if (count >= 4 * N) {
       VI acc0 = Zero(di);
       VI acc1 = Zero(di);
@@ -332,6 +331,7 @@ size_t CountIf(D d, const T* HWY_RESTRICT in, size_t count, const Func& func) {
       VI acc3 = Zero(di);
 
       if constexpr (HWY_NATIVE_MASK) {
+        const auto k1 = Set(di, TI{1});
         for (; i <= count - 4 * N; i += 4 * N) {
           const auto m0 = RebindMask(di, func(d, LoadU(d, in + i)));
           const auto m1 = RebindMask(di, func(d, LoadU(d, in + i + N)));
