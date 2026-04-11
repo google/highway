@@ -48,7 +48,7 @@ size_t Count(D d, T value, const T* HWY_RESTRICT in, size_t count) {
     const Repartition<int32_t, D> di32;
     auto wide_sum = Zero(di32);
 
-    if (count >= 4 * N) {
+    if (count >= 4 * N && N >= 4) {
       while (i <= count - 4 * N) {
         VI acc0 = Zero(di);
         VI acc1 = Zero(di);
@@ -106,7 +106,7 @@ size_t Count(D d, T value, const T* HWY_RESTRICT in, size_t count) {
     const Repartition<int32_t, D> di32;
     auto wide_sum = Zero(di32);
 
-    if (count >= 4 * N) {
+    if (count >= 4 * N && N >= 2) {
       while (i <= count - 4 * N) {
         VI acc0 = Zero(di);
         VI acc1 = Zero(di);
@@ -230,7 +230,7 @@ size_t CountIf(D d, const T* HWY_RESTRICT in, size_t count, const Func& func) {
     const Repartition<int32_t, D> di32;
     auto wide_sum = Zero(di32);
 
-    if (count >= 4 * N) {
+    if (count >= 4 * N && N >= 4) {
       while (i <= count - 4 * N) {
         VI acc0 = Zero(di);
         VI acc1 = Zero(di);
@@ -282,7 +282,7 @@ size_t CountIf(D d, const T* HWY_RESTRICT in, size_t count, const Func& func) {
     const Repartition<int32_t, D> di32;
     auto wide_sum = Zero(di32);
 
-    if (count >= 4 * N) {
+    if (count >= 4 * N && N >= 2) {
       while (i <= count - 4 * N) {
         VI acc0 = Zero(di);
         VI acc1 = Zero(di);
