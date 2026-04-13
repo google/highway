@@ -645,13 +645,14 @@
 #define HWY_HAVE_SCALABLE 1
 #endif
 
-// Note: -march strings are delimited by + but pragma target is comma-separated.
+// Note: -march strings are delimited by + and GCC actually requires + before
+// each pragma target, which are also comma-separated.
 
 #undef HWY_TARGET_STR_SVE2_AES
 // Static dispatch with -march=armv8-a+sve2+aes, or no baseline, hence dynamic
 // dispatch, which checks for AES support at runtime.
 #if defined(__ARM_FEATURE_SVE2_AES) || (HWY_BASELINE_SVE2 == 0)
-#define HWY_TARGET_STR_SVE2_AES ",sve2-aes"
+#define HWY_TARGET_STR_SVE2_AES ",+sve2-aes"
 #else  // SVE2 without AES
 #define HWY_TARGET_STR_SVE2_AES ""
 #endif
@@ -659,7 +660,7 @@
 #undef HWY_TARGET_STR_SVE2_128
 // SVE2_128 implies/requires I8MM and BF16, see #2973.
 #if HWY_TARGET == HWY_SVE2_128
-#define HWY_TARGET_STR_SVE2_128 ",i8mm,bf16"
+#define HWY_TARGET_STR_SVE2_128 ",+i8mm,+bf16"
 #else
 #define HWY_TARGET_STR_SVE2_128 ""
 #endif
@@ -668,9 +669,9 @@
 #if HWY_HAVE_RUNTIME_DISPATCH
 #if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
 #define HWY_TARGET_STR \
-  "sve,sve2" HWY_TARGET_STR_SVE2_AES HWY_TARGET_STR_SVE2_128
+  "+sve,+sve2" HWY_TARGET_STR_SVE2_AES HWY_TARGET_STR_SVE2_128
 #else  // not SVE2 target
-#define HWY_TARGET_STR "sve"
+#define HWY_TARGET_STR "+sve"
 #endif
 #else  // !HWY_HAVE_RUNTIME_DISPATCH
 // HWY_TARGET_STR remains undefined
