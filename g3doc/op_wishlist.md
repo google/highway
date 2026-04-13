@@ -45,7 +45,6 @@ scalbn, tan, tgamma
 
 *   IndexOfMin/Max
 *   AllOf / AnyOf / NoneOf
-*   Count(If) (https://en.algorithmica.org/hpc/simd/masking/)
 *   EqualSpan
 *   ReverseSpan
 *   ShuffleSpan
@@ -184,3 +183,4 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~hypot~~ - by johnplatts
 *   ~~exp2~~ - by johnplatts
 *   ~~Min/MaxValue~~
+*   ~~Count(If) (https://en.algorithmica.org/hpc/simd/masking/)~~

@@ -9,6 +9,11 @@ HWY_CONTRIB_TESTS = (
     ),
     (
         "hwy/contrib/algo/",
+        "count_value_test",
+        (":algo",),
+    ),
+    (
+        "hwy/contrib/algo/",
         "find_test",
         (":algo",),
     ),

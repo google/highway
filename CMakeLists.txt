@@ -240,6 +240,7 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/thread_pool/topology.cc
     hwy/contrib/thread_pool/topology.h
     hwy/contrib/algo/copy-inl.h
+    hwy/contrib/algo/count-inl.h
     hwy/contrib/algo/find-inl.h
     hwy/contrib/algo/minmax-inl.h
     hwy/contrib/algo/transform-inl.h
@@ -879,6 +880,7 @@ list(APPEND HWY_TEST_LIBS hwy_contrib)
 list(APPEND HWY_TEST_FILES
   hwy/auto_tune_test.cc
   hwy/contrib/algo/copy_test.cc
+  hwy/contrib/algo/count_value_test.cc
   hwy/contrib/algo/find_test.cc
   hwy/contrib/algo/minmax_value_test.cc
   hwy/contrib/algo/transform_test.cc
