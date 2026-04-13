@@ -57,6 +57,57 @@ HWY_INLINE void ReduceAngleTan(D d, V ang, V& x_red, V& sign) {
   x_red = Abs(ang_mod);
 }
 
+// Range reduction and exponent extraction for logarithm functions.
+// Normalizes x to y in [0.707, 1.414] and extracts the exponent as a float in
+// 'exp'. If kHandleSubnormals is true, scales subnormal inputs to prevent
+// underflow.
+template <bool kHandleSubnormals = true, class D, class V>
+HWY_INLINE void FastLogRangeReduction(D d, V x, V& y, V& exp) {
+  using T = TFromD<D>;
+  const RebindToSigned<D> di;
+  const RebindToUnsigned<D> du;
+  using TI = TFromD<decltype(di)>;
+  using VI = decltype(Zero(di));
+
+  constexpr bool kIsF32 = (sizeof(T) == 4);
+
+  const VI kExpMagicDiff = Set(
+      di, kIsF32
+              ? static_cast<TI>(0x3F800000L - 0x3F3504F3L)
+              : static_cast<TI>(0x3FF0000000000000LL - 0x3FE6A09E00000000LL));
+
+  MFromD<D> is_denormal;
+  if constexpr (kHandleSubnormals) {
+    const V kMinNormal =
+        Set(d, kIsF32 ? static_cast<T>(1.175494351e-38f)
+                      : static_cast<T>(2.2250738585072014e-308));
+    const V kScale = Set(d, kIsF32 ? static_cast<T>(3.355443200e+7f)
+                                   : static_cast<T>(1.8014398509481984e+16));
+    is_denormal = Lt(x, kMinNormal);
+    x = MaskedMulOr(x, is_denormal, x, kScale);
+  } else {
+    (void)is_denormal;
+  }
+
+  auto exp_bits = Add(BitCast(di, x), kExpMagicDiff);
+
+  constexpr int kMantissaShift = kIsF32 ? 23 : 52;
+  const auto kBias = Set(di, kIsF32 ? 0x7F : 0x3FF);
+  const auto exp_int = Sub(
+      BitCast(di, ShiftRight<kMantissaShift>(BitCast(du, exp_bits))), kBias);
+  exp = ConvertTo(d, exp_int);
+
+  if constexpr (kHandleSubnormals) {
+    const V kExpScaleFloat =
+        Set(d, kIsF32 ? static_cast<T>(-25.0) : static_cast<T>(-54.0));
+    exp = MaskedAddOr(exp, is_denormal, exp, kExpScaleFloat);
+  }
+
+  const VI exp_int_shifted = ShiftLeft<kMantissaShift>(exp_int);
+  const VI y_bits = Sub(BitCast(di, x), exp_int_shifted);
+  y = BitCast(d, y_bits);
+}
+
 }  // namespace impl
 
 namespace impl {
@@ -734,66 +785,9 @@ HWY_INLINE V FastTanh(D d, V val) {
 template <bool kHandleSubnormals = true, class D, class V>
 HWY_INLINE V FastLog(D d, V x) {
   using T = TFromD<D>;
-  using TI = MakeSigned<T>;
-  using TU = MakeUnsigned<T>;
-  const Rebind<TI, D> di;
-  const Rebind<TU, D> du;
-  using VI = decltype(Zero(di));
-
-  constexpr bool kIsF32 = (sizeof(T) == 4);
-
-  // Constants for Range Reduction
-  // kMagic is approx 1/sqrt(2). It is used to center the mantissa interval
-  // around 1.0 (specifically [0.707, 1.414])
-  // kExpMask is the bit pattern for 1.0. Used in the integer arithmetic to
-  // extract the exponent.
-  // kExpMagicDiff is the difference between kExpMask and kMagic.
-  const VI kExpMagicDiff = Set(
-      di, kIsF32
-              ? static_cast<TI>(0x3F800000L - 0x3F3504F3L)
-              : static_cast<TI>(0x3FF0000000000000LL - 0x3FE6A09E00000000LL));
-  const V kMinNormal = Set(d, kIsF32 ? static_cast<T>(1.175494351e-38f)
-                                     : static_cast<T>(2.2250738585072014e-308));
-  // Scale to normalize subnormal inputs: 2^25 (f32) or 2^54 (f64)
-  const V kScale = Set(d, kIsF32 ? static_cast<T>(3.355443200e+7f)
-                                 : static_cast<T>(1.8014398509481984e+16));
   const V kLn2 = Set(d, static_cast<T>(0.6931471805599453));
-
-  MFromD<D> is_denormal;
-  if constexpr (kHandleSubnormals) {
-    // Handle Subnormals
-    is_denormal = Lt(x, kMinNormal);
-    x = MaskedMulOr(x, is_denormal, x, kScale);
-  } else {
-    (void)is_denormal;
-    (void)kMinNormal;
-    (void)kScale;
-  }
-
-  // Compute exponent
-  auto exp_bits = Add(BitCast(di, x), kExpMagicDiff);
-
-  constexpr int kMantissaShift = kIsF32 ? 23 : 52;
-  const auto kBias = Set(di, kIsF32 ? 0x7F : 0x3FF);
-  const auto exp_int = Sub(
-      BitCast(di, ShiftRight<kMantissaShift>(BitCast(du, exp_bits))), kBias);
-  V exp = ConvertTo(d, exp_int);
-
-  if constexpr (kHandleSubnormals) {
-    // Pay off the subnormal debt (-25.0 for f32, -54.0 for f64)
-    // This allows us to keep `exp_int` pure for the mantissa trick.
-    const V kExpScaleFloat =
-        Set(d, kIsF32 ? static_cast<T>(-25.0) : static_cast<T>(-54.0));
-    exp = MaskedAddOr(exp, is_denormal, exp, kExpScaleFloat);
-  }
-
-  // Renormalize x to y in [0.707, 1.414]
-  // Shift the pure exponent back into the exponent field and subtract it
-  // directly from x. Because the lower bits are zeros, this perfectly zeroes
-  // out the original exponent of x without touching the mantissa.
-  const VI exp_int_shifted = ShiftLeft<kMantissaShift>(exp_int);
-  const VI y_bits = Sub(BitCast(di, x), exp_int_shifted);
-  const V y = BitCast(d, y_bits);
+  V y, exp;
+  impl::FastLogRangeReduction<kHandleSubnormals>(d, x, y, exp);
 
   constexpr size_t kLanes = HWY_MAX_LANES_D(D);
   V b, c, d_coef;
@@ -1226,8 +1220,179 @@ HWY_INLINE V FastExpMinusOrZero(D d, V x) {
 template <bool kHandleSubnormals = true, class D, class V>
 HWY_INLINE V FastLog2(D d, V x) {
   using T = TFromD<D>;
+  V y, exp;
+  impl::FastLogRangeReduction<kHandleSubnormals>(d, x, y, exp);
+
+  constexpr size_t kLanes = HWY_MAX_LANES_D(D);
+  V b, c, d_coef;
+
+  if constexpr ((kLanes >= 4 && !HWY_HAVE_SCALABLE) ||
+                (HWY_HAVE_SCALABLE && sizeof(T) == 4 && detail::IsFull(d))) {
+    const auto scale = Set(d, static_cast<T>(11.3137085));
+    auto idx_i = ConvertInRangeTo(
+        RebindToSigned<D>(), MulAdd(y, scale, Set(d, static_cast<T>(-8.0))));
+
+    idx_i = Min(idx_i, Set(RebindToSigned<D>(), 7));
+
+    HWY_ALIGN static constexpr T arr_b[8] = {
+        static_cast<T>(-1.00194730895928918),
+        static_cast<T>(-1.00042661239958708),
+        static_cast<T>(-1.0000255203465902),
+        static_cast<T>(-1),
+        static_cast<T>(-0.999929163668789478),
+        static_cast<T>(-0.999558969823431065),
+        static_cast<T>(-0.998743736501089163),
+        static_cast<T>(-0.997397894886509873)};
+
+    HWY_ALIGN static constexpr T arr_c[8] = {
+        static_cast<T>(0.58385589069067223),
+        static_cast<T>(0.548174514768112076),
+        static_cast<T>(0.519613079391819999),
+        static_cast<T>(0.497367242550162236),
+        static_cast<T>(0.476391677761481835),
+        static_cast<T>(0.459525070958496262),
+        static_cast<T>(0.44490172854808846),
+        static_cast<T>(0.432070989622927948)};
+
+    HWY_ALIGN static constexpr T arr_d[8] = {
+        static_cast<T>(0.437891917978712797),
+        static_cast<T>(0.459658304416673158),
+        static_cast<T>(0.481694216614368509),
+        static_cast<T>(0.502574248959839265),
+        static_cast<T>(0.525922172040079627),
+        static_cast<T>(0.547948723977362273),
+        static_cast<T>(0.569860763464220654),
+        static_cast<T>(0.591637568597068619)};
+
+    b = Lookup8(d, arr_b, idx_i);
+    c = Lookup8(d, arr_c, idx_i);
+    d_coef = Lookup8(d, arr_d, idx_i);
+  } else {
+    const auto t0 = Set(d, static_cast<T>(0.7954951287634819));
+    const auto t1 = Set(d, static_cast<T>(0.8838834764038688));
+    const auto t2 = Set(d, static_cast<T>(0.9722718240442556));
+    const auto t3 = Set(d, static_cast<T>(1.0606601716846424));
+    const auto t4 = Set(d, static_cast<T>(1.1490485193250295));
+    const auto t5 = Set(d, static_cast<T>(1.2374368669654163));
+    const auto t6 = Set(d, static_cast<T>(1.3258252146058032));
+
+    if constexpr (HWY_REGISTERS >= 32) {
+      auto b_low = Set(d, static_cast<T>(-1));
+      auto c_low = Set(d, static_cast<T>(0.497367242550162236));
+      auto d_low = Set(d, static_cast<T>(0.502574248959839265));
+
+      auto mask = Lt(y, t2);
+      b_low =
+          IfThenElse(mask, Set(d, static_cast<T>(-1.0000255203465902)), b_low);
+      c_low =
+          IfThenElse(mask, Set(d, static_cast<T>(0.519613079391819999)), c_low);
+      d_low =
+          IfThenElse(mask, Set(d, static_cast<T>(0.481694216614368509)), d_low);
+
+      mask = Lt(y, t1);
+      b_low =
+          IfThenElse(mask, Set(d, static_cast<T>(-1.00042661239958708)), b_low);
+      c_low =
+          IfThenElse(mask, Set(d, static_cast<T>(0.548174514768112076)), c_low);
+      d_low =
+          IfThenElse(mask, Set(d, static_cast<T>(0.459658304416673158)), d_low);
+
+      mask = Lt(y, t0);
+      b_low =
+          IfThenElse(mask, Set(d, static_cast<T>(-1.00194730895928918)), b_low);
+      c_low =
+          IfThenElse(mask, Set(d, static_cast<T>(0.58385589069067223)), c_low);
+      d_low =
+          IfThenElse(mask, Set(d, static_cast<T>(0.437891917978712797)), d_low);
+
+      auto b_high = Set(d, static_cast<T>(-0.997397894886509873));
+      auto c_high = Set(d, static_cast<T>(0.432070989622927948));
+      auto d_high = Set(d, static_cast<T>(0.591637568597068619));
+
+      mask = Lt(y, t6);
+      b_high = IfThenElse(mask, Set(d, static_cast<T>(-0.998743736501089163)),
+                          b_high);
+      c_high =
+          IfThenElse(mask, Set(d, static_cast<T>(0.44490172854808846)), c_high);
+      d_high = IfThenElse(mask, Set(d, static_cast<T>(0.569860763464220654)),
+                          d_high);
+
+      mask = Lt(y, t5);
+      b_high = IfThenElse(mask, Set(d, static_cast<T>(-0.999558969823431065)),
+                          b_high);
+      c_high = IfThenElse(mask, Set(d, static_cast<T>(0.459525070958496262)),
+                          c_high);
+      d_high = IfThenElse(mask, Set(d, static_cast<T>(0.547948723977362273)),
+                          d_high);
+
+      mask = Lt(y, t4);
+      b_high = IfThenElse(mask, Set(d, static_cast<T>(-0.999929163668789478)),
+                          b_high);
+      c_high = IfThenElse(mask, Set(d, static_cast<T>(0.476391677761481835)),
+                          c_high);
+      d_high = IfThenElse(mask, Set(d, static_cast<T>(0.525922172040079627)),
+                          d_high);
+
+      auto merge_mask = Lt(y, t3);
+      b = IfThenElse(merge_mask, b_low, b_high);
+      c = IfThenElse(merge_mask, c_low, c_high);
+      d_coef = IfThenElse(merge_mask, d_low, d_high);
+    } else {
+      b = Set(d, static_cast<T>(-0.997397894886509873));
+      c = Set(d, static_cast<T>(0.432070989622927948));
+      d_coef = Set(d, static_cast<T>(0.591637568597068619));
+
+      auto mask = Lt(y, t6);
+      b = IfThenElse(mask, Set(d, static_cast<T>(-0.998743736501089163)), b);
+      c = IfThenElse(mask, Set(d, static_cast<T>(0.44490172854808846)), c);
+      d_coef = IfThenElse(mask, Set(d, static_cast<T>(0.569860763464220654)),
+                          d_coef);
+
+      mask = Lt(y, t5);
+      b = IfThenElse(mask, Set(d, static_cast<T>(-0.999558969823431065)), b);
+      c = IfThenElse(mask, Set(d, static_cast<T>(0.459525070958496262)), c);
+      d_coef = IfThenElse(mask, Set(d, static_cast<T>(0.547948723977362273)),
+                          d_coef);
+
+      mask = Lt(y, t4);
+      b = IfThenElse(mask, Set(d, static_cast<T>(-0.999929163668789478)), b);
+      c = IfThenElse(mask, Set(d, static_cast<T>(0.476391677761481835)), c);
+      d_coef = IfThenElse(mask, Set(d, static_cast<T>(0.525922172040079627)),
+                          d_coef);
+
+      mask = Lt(y, t3);
+      b = IfThenElse(mask, Set(d, static_cast<T>(-1)), b);
+      c = IfThenElse(mask, Set(d, static_cast<T>(0.497367242550162236)), c);
+      d_coef = IfThenElse(mask, Set(d, static_cast<T>(0.502574248959839265)),
+                          d_coef);
+
+      mask = Lt(y, t2);
+      b = IfThenElse(mask, Set(d, static_cast<T>(-1.0000255203465902)), b);
+      c = IfThenElse(mask, Set(d, static_cast<T>(0.519613079391819999)), c);
+      d_coef = IfThenElse(mask, Set(d, static_cast<T>(0.481694216614368509)),
+                          d_coef);
+
+      mask = Lt(y, t1);
+      b = IfThenElse(mask, Set(d, static_cast<T>(-1.00042661239958708)), b);
+      c = IfThenElse(mask, Set(d, static_cast<T>(0.548174514768112076)), c);
+      d_coef = IfThenElse(mask, Set(d, static_cast<T>(0.459658304416673158)),
+                          d_coef);
+
+      mask = Lt(y, t0);
+      b = IfThenElse(mask, Set(d, static_cast<T>(-1.00194730895928918)), b);
+      c = IfThenElse(mask, Set(d, static_cast<T>(0.58385589069067223)), c);
+      d_coef = IfThenElse(mask, Set(d, static_cast<T>(0.437891917978712797)),
+                          d_coef);
+    }
+  }
+
+  auto num = Add(y, b);
+  auto den = MulAdd(c, y, d_coef);
+
+  auto approx = Div(num, den);
+
   const auto kInvLn2 = Set(d, static_cast<T>(1.4426950408889634));
-  return Mul(FastLog<kHandleSubnormals>(d, x), kInvLn2);
+  return MulAdd(approx, kInvLn2, exp);
 }
 
 /**
