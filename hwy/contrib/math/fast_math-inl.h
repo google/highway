@@ -1409,8 +1409,186 @@ HWY_INLINE V FastLog2(D d, V x) {
 template <bool kHandleSubnormals = true, class D, class V>
 HWY_INLINE V FastLog10(D d, V x) {
   using T = TFromD<D>;
-  const auto kInvLn10 = Set(d, static_cast<T>(0.4342944819032518));
-  return Mul(FastLog<kHandleSubnormals>(d, x), kInvLn10);
+  V y, exp;
+  impl::FastLogRangeReduction<kHandleSubnormals>(d, x, y, exp);
+
+  constexpr size_t kLanes = HWY_MAX_LANES_D(D);
+  V b, c, d_coef;
+
+  if constexpr ((kLanes >= 4 && !HWY_HAVE_SCALABLE) ||
+                (HWY_HAVE_SCALABLE && sizeof(T) == 4 && detail::IsFull(d))) {
+    const auto scale = Set(d, static_cast<T>(11.3137085));
+    auto idx_i = ConvertInRangeTo(
+        RebindToSigned<D>(), MulAdd(y, scale, Set(d, static_cast<T>(-8.0))));
+
+    idx_i = Min(idx_i, Set(RebindToSigned<D>(), 7));
+
+    HWY_ALIGN static constexpr T arr_b[8] = {
+        static_cast<T>(-1.00194730895928918),
+        static_cast<T>(-1.00042661239958708),
+        static_cast<T>(-1.0000255203465902),
+        static_cast<T>(-1),
+        static_cast<T>(-0.999929163668789478),
+        static_cast<T>(-0.999558969823431065),
+        static_cast<T>(-0.998743736501089163),
+        static_cast<T>(-0.997397894886509873)};
+
+    // Denominator coefficients are pre-multiplied by Ln(10) compared to FastLog
+    // to save a multiply instruction in the final step (preabsorption).
+    HWY_ALIGN static constexpr T arr_c[8] = {
+        static_cast<T>(1.344377870361103122),
+        static_cast<T>(1.262218466064299438),
+        static_cast<T>(1.196453330732336395),
+        static_cast<T>(1.145230398439557540),
+        static_cast<T>(1.096932375640011115),
+        static_cast<T>(1.058095578246064594),
+        static_cast<T>(1.024424088002112043),
+        static_cast<T>(0.994880219820938994)};
+
+    HWY_ALIGN static constexpr T arr_d[8] = {
+        static_cast<T>(1.008283402680355545),
+        static_cast<T>(1.058402359620750799),
+        static_cast<T>(1.109141922557689730),
+        static_cast<T>(1.157219973777604327),
+        static_cast<T>(1.210980553414537253),
+        static_cast<T>(1.261698563555383457),
+        static_cast<T>(1.312152899034920495),
+        static_cast<T>(1.362295845906852376)};
+
+    b = Lookup8(d, arr_b, idx_i);
+    c = Lookup8(d, arr_c, idx_i);
+    d_coef = Lookup8(d, arr_d, idx_i);
+  } else {
+    const auto t0 = Set(d, static_cast<T>(0.7954951287634819));
+    const auto t1 = Set(d, static_cast<T>(0.8838834764038688));
+    const auto t2 = Set(d, static_cast<T>(0.9722718240442556));
+    const auto t3 = Set(d, static_cast<T>(1.0606601716846424));
+    const auto t4 = Set(d, static_cast<T>(1.1490485193250295));
+    const auto t5 = Set(d, static_cast<T>(1.2374368669654163));
+    const auto t6 = Set(d, static_cast<T>(1.3258252146058032));
+
+    if constexpr (HWY_REGISTERS >= 32) {
+      auto b_low = Set(d, static_cast<T>(-1));  // idx 3
+      // Denominator coefficients pre-multiplied by Ln(10).
+      auto c_low = Set(d, static_cast<T>(1.145230398439557540));
+      auto d_low = Set(d, static_cast<T>(1.157219973777604327));
+
+      auto mask = Lt(y, t2);
+      b_low =
+          IfThenElse(mask, Set(d, static_cast<T>(-1.0000255203465902)), b_low);
+      c_low =
+          IfThenElse(mask, Set(d, static_cast<T>(1.196453330732336395)), c_low);
+      d_low =
+          IfThenElse(mask, Set(d, static_cast<T>(1.109141922557689730)), d_low);
+
+      mask = Lt(y, t1);
+      b_low =
+          IfThenElse(mask, Set(d, static_cast<T>(-1.00042661239958708)), b_low);
+      c_low =
+          IfThenElse(mask, Set(d, static_cast<T>(1.262218466064299438)), c_low);
+      d_low =
+          IfThenElse(mask, Set(d, static_cast<T>(1.058402359620750799)), d_low);
+
+      mask = Lt(y, t0);
+      b_low =
+          IfThenElse(mask, Set(d, static_cast<T>(-1.00194730895928918)), b_low);
+      c_low =
+          IfThenElse(mask, Set(d, static_cast<T>(1.344377870361103122)), c_low);
+      d_low =
+          IfThenElse(mask, Set(d, static_cast<T>(1.008283402680355545)), d_low);
+
+      auto b_high = Set(d, static_cast<T>(-0.997397894886509873));  // idx 7
+      // Denominator coefficients pre-multiplied by Ln(10).
+      auto c_high = Set(d, static_cast<T>(0.994880219820938994));
+      auto d_high = Set(d, static_cast<T>(1.362295845906852376));
+
+      mask = Lt(y, t6);
+      b_high = IfThenElse(mask, Set(d, static_cast<T>(-0.998743736501089163)),
+                          b_high);
+      c_high = IfThenElse(mask, Set(d, static_cast<T>(1.024424088002112043)),
+                          c_high);
+      d_high = IfThenElse(mask, Set(d, static_cast<T>(1.312152899034920495)),
+                          d_high);
+
+      mask = Lt(y, t5);
+      b_high = IfThenElse(mask, Set(d, static_cast<T>(-0.999558969823431065)),
+                          b_high);
+      c_high = IfThenElse(mask, Set(d, static_cast<T>(1.058095578246064594)),
+                          c_high);
+      d_high = IfThenElse(mask, Set(d, static_cast<T>(1.261698563555383457)),
+                          d_high);
+
+      mask = Lt(y, t4);
+      b_high = IfThenElse(mask, Set(d, static_cast<T>(-0.999929163668789478)),
+                          b_high);
+      c_high = IfThenElse(mask, Set(d, static_cast<T>(1.096932375640011115)),
+                          c_high);
+      d_high = IfThenElse(mask, Set(d, static_cast<T>(1.210980553414537253)),
+                          d_high);
+
+      auto merge_mask = Lt(y, t3);
+      b = IfThenElse(merge_mask, b_low, b_high);
+      c = IfThenElse(merge_mask, c_low, c_high);
+      d_coef = IfThenElse(merge_mask, d_low, d_high);
+    } else {
+      b = Set(d, static_cast<T>(-0.997397894886509873));
+      // Denominator coefficients pre-multiplied by Ln(10).
+      c = Set(d, static_cast<T>(0.994880219820938994));
+      d_coef = Set(d, static_cast<T>(1.362295845906852376));
+
+      auto mask = Lt(y, t6);
+      b = IfThenElse(mask, Set(d, static_cast<T>(-0.998743736501089163)), b);
+      c = IfThenElse(mask, Set(d, static_cast<T>(1.024424088002112043)), c);
+      d_coef = IfThenElse(mask, Set(d, static_cast<T>(1.312152899034920495)),
+                          d_coef);
+
+      mask = Lt(y, t5);
+      b = IfThenElse(mask, Set(d, static_cast<T>(-0.999558969823431065)), b);
+      c = IfThenElse(mask, Set(d, static_cast<T>(1.058095578246064594)), c);
+      d_coef = IfThenElse(mask, Set(d, static_cast<T>(1.261698563555383457)),
+                          d_coef);
+
+      mask = Lt(y, t4);
+      b = IfThenElse(mask, Set(d, static_cast<T>(-0.999929163668789478)), b);
+      c = IfThenElse(mask, Set(d, static_cast<T>(1.096932375640011115)), c);
+      d_coef = IfThenElse(mask, Set(d, static_cast<T>(1.210980553414537253)),
+                          d_coef);
+
+      mask = Lt(y, t3);
+      b = IfThenElse(mask, Set(d, static_cast<T>(-1)), b);
+      c = IfThenElse(mask, Set(d, static_cast<T>(1.145230398439557540)), c);
+      d_coef = IfThenElse(mask, Set(d, static_cast<T>(1.157219973777604327)),
+                          d_coef);
+
+      mask = Lt(y, t2);
+      b = IfThenElse(mask, Set(d, static_cast<T>(-1.0000255203465902)), b);
+      c = IfThenElse(mask, Set(d, static_cast<T>(1.196453330732336395)), c);
+      d_coef = IfThenElse(mask, Set(d, static_cast<T>(1.109141922557689730)),
+                          d_coef);
+
+      mask = Lt(y, t1);
+      b = IfThenElse(mask, Set(d, static_cast<T>(-1.00042661239958708)), b);
+      c = IfThenElse(mask, Set(d, static_cast<T>(1.262218466064299438)), c);
+      d_coef = IfThenElse(mask, Set(d, static_cast<T>(1.058402359620750799)),
+                          d_coef);
+
+      mask = Lt(y, t0);
+      b = IfThenElse(mask, Set(d, static_cast<T>(-1.00194730895928918)), b);
+      c = IfThenElse(mask, Set(d, static_cast<T>(1.344377870361103122)), c);
+      d_coef = IfThenElse(mask, Set(d, static_cast<T>(1.008283402680355545)),
+                          d_coef);
+    }
+  }
+
+  auto num = Add(y, b);
+  auto den = MulAdd(c, y, d_coef);
+  auto approx = Div(num, den);
+
+  const auto kLog10_2 = Set(d, static_cast<T>(0.3010299956639812));  // log10(2)
+  // Computes exp * log10(2) + approx. Since approx was scaled by 1/Ln(10)
+  // via the pre-scaled denominator, this yields the correct log10 result
+  // using a single MulAdd instruction.
+  return MulAdd(exp, kLog10_2, approx);
 }
 
 /**
