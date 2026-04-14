@@ -480,6 +480,26 @@ cc_binary(
     ],
 )
 
+cc_binary(
+    name = "sum_array_simple",
+    srcs = ["hwy/examples/sum_array_simple.cc"],
+    copts = COPTS,
+    deps = [
+        ":hwy",
+    ],
+)
+
+cc_binary(
+    name = "sum_array_advanced",
+    srcs = ["hwy/examples/sum_array_advanced.cc"],
+    copts = COPTS,
+    deps = [
+        ":hwy",
+        ":nanobenchmark",
+        ":timer",
+    ],
+)
+
 cc_library(
     name = "skeleton",
     srcs = ["hwy/examples/skeleton.cc"],

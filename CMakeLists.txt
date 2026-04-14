@@ -756,6 +756,24 @@ set_target_properties(hwy_profiler_example
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
 endif()  # HWY_ENABLE_CONTRIB
 
+# Simple array sum example
+add_executable(sum_array_simple hwy/examples/sum_array_simple.cc)
+target_compile_options(sum_array_simple PRIVATE ${HWY_FLAGS})
+target_compile_features(sum_array_simple PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
+target_link_libraries(sum_array_simple PRIVATE hwy)
+target_link_libraries(sum_array_simple PRIVATE ${ATOMICS_LIBRARIES})
+set_target_properties(sum_array_simple
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
+
+# Advanced array sum example
+add_executable(sum_array_advanced hwy/examples/sum_array_advanced.cc)
+target_compile_options(sum_array_advanced PRIVATE ${HWY_FLAGS})
+target_compile_features(sum_array_advanced PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
+target_link_libraries(sum_array_advanced PRIVATE hwy)
+target_link_libraries(sum_array_advanced PRIVATE ${ATOMICS_LIBRARIES})
+set_target_properties(sum_array_advanced
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
+
 endif()  # HWY_ENABLE_EXAMPLES
 # -------------------------------------------------------- Tests
 
