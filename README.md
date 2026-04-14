@@ -230,6 +230,12 @@ intrinsics using other platforms' intrinsics or autovectorization.
 It supports Arm, Power, RISC-V, WebAssembly and x86 targets.  Has a high level
 interface, but fewer supported operations.
 
+[NumKong](https://github.com/ashvardanian/NumKong) a SIMD accelerated math C
+library focused on operations such as dot products and mixed precision matrix
+multiplications.  It can be used from C++, Go, Python, Rust, Swift and
+WebAssembly.  Accelerated operations are availble on ARM, LoongArch, Power,
+RISC-V and x86.
+
 ## Installation
 
 This project uses CMake to generate and build. In a Debian-based system you can
