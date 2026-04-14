@@ -1,8 +1,24 @@
+// Copyright 2026 Google LLC
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 
 #include <algorithm>
 #include <cmath>
-#include <vector>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE \
@@ -33,8 +49,8 @@ HWY_INLINE T SumArraySIMD(const T* HWY_RESTRICT array, size_t count) {
   V sum3 = hn::Zero(d);
 
   size_t i = 0;
-  // HWY_LANES_CONSTEXPR allows N to be a constexpr if supported by architecure
-  // otherwise not.
+  // HWY_LANES_CONSTEXPR allows N to be a constexpr if supported by the
+  // architecture, otherwise not.
   HWY_LANES_CONSTEXPR size_t N = hn::Lanes(d);
 
   // Unroll by 4 to mask latency of adds.
@@ -101,8 +117,8 @@ T SumArrayScalar(const T* array, size_t count) {
 }
 
 int RunTests() {
-  const size_t count = 10000;
-  const int reps = 100000;
+  const size_t count = 10'000;
+  const int reps = 100'000;
 
   auto test = [&](auto type_tag, const char* type_name) HWY_ATTR {
     using T = decltype(type_tag);
@@ -123,7 +139,7 @@ int RunTests() {
     const double t_simd_0 = hwy::platform::Now();
     T simd_sum = 0;
     // HWY_EXPORT_T creates dispatch table, and dispatch calls calls the best
-    // (widest) available implementation (can delete the rest)
+    // (widest) available implementation.
     HWY_EXPORT_T(SumArrayTable, SumArraySIMD<T>);
     for (int r = 0; r < reps; ++r) {
       simd_sum = HWY_DYNAMIC_DISPATCH_T(SumArrayTable)(data.data(), count);
