@@ -194,6 +194,10 @@ DEFINE_MATH_TEST(Log1p,
 DEFINE_MATH_TEST(Log2,
   std::log2,  CallLog2,  +FLT_MIN,   +FLT_MAX,    2,
   std::log2,  CallLog2,  +DBL_MIN,   +DBL_MAX,    2)
+DEFINE_MATH_TEST(Cbrt,
+  std::cbrt, CallCbrt, -FLT_MAX, +FLT_MAX, 2,
+  std::cbrt, CallCbrt, -DBL_MAX, +DBL_MAX, 2)
+
 // clang-format on
 
 template <class T, class D>
@@ -626,6 +630,7 @@ HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog10);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog1p);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog2);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllCbrt);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllFastLog);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllFastExp);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllFastExp2);
