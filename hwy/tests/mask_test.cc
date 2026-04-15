@@ -15,7 +15,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h>  // memset
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/mask_test.cc"
@@ -43,7 +42,7 @@ struct TestMaskFromVec {
     const Mask<D> actual_false = MaskFromVec(Load(d, lanes.get()));
     HWY_ASSERT_MASK_EQ(d, MaskFalse(d), actual_false);
 
-    memset(lanes.get(), 0xFF, N * sizeof(T));
+    FillBytes(lanes.get(), 0xFF, N * sizeof(T));
     const Mask<D> actual_true = MaskFromVec(Load(d, lanes.get()));
     HWY_ASSERT_MASK_EQ(d, MaskTrue(d), actual_true);
   }
@@ -176,7 +175,7 @@ struct TestCountTrue {
     const size_t N = Lanes(di);
     auto bool_lanes = AllocateAligned<TI>(N);
     HWY_ASSERT(bool_lanes);
-    memset(bool_lanes.get(), 0, N * sizeof(TI));
+    ZeroBytes(bool_lanes.get(), N * sizeof(TI));
 
     // For all combinations of zero/nonzero state of subset of lanes:
     const size_t max_lanes = HWY_MIN(N, size_t(10));
@@ -209,7 +208,7 @@ struct TestFindFirstTrue {  // Also FindKnownFirstTrue
     const size_t N = Lanes(di);
     auto bool_lanes = AllocateAligned<TI>(N);
     HWY_ASSERT(bool_lanes);
-    memset(bool_lanes.get(), 0, N * sizeof(TI));
+    ZeroBytes(bool_lanes.get(), N * sizeof(TI));
 
     // For all combinations of zero/nonzero state of subset of lanes:
     const size_t max_lanes = AdjustedLog2Reps(HWY_MIN(N, size_t(9)));
@@ -244,7 +243,7 @@ struct TestFindLastTrue {  // Also FindKnownLastTrue
     const size_t N = Lanes(di);
     auto bool_lanes = AllocateAligned<TI>(N);
     HWY_ASSERT(bool_lanes);
-    memset(bool_lanes.get(), 0, N * sizeof(TI));
+    ZeroBytes(bool_lanes.get(), N * sizeof(TI));
 
     // For all combinations of zero/nonzero state of subset of lanes:
     const size_t max_lanes = AdjustedLog2Reps(HWY_MIN(N, size_t(9)));
@@ -282,7 +281,7 @@ struct TestLogicalMask {
     const size_t N = Lanes(di);
     auto bool_lanes = AllocateAligned<TI>(N);
     HWY_ASSERT(bool_lanes);
-    memset(bool_lanes.get(), 0, N * sizeof(TI));
+    ZeroBytes(bool_lanes.get(), N * sizeof(TI));
 
     HWY_ASSERT_MASK_EQ(d, m0, Not(m_all));
     HWY_ASSERT_MASK_EQ(d, m_all, Not(m0));

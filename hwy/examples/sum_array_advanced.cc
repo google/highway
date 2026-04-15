@@ -17,9 +17,6 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include <algorithm>
-#include <cmath>
-
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE \
   "hwy/examples/sum_array_advanced.cc"
@@ -126,7 +123,7 @@ int RunTests() {
     // Unpredictable1 prevents compiler from optimizing away code as it can't
     // assume value of that 1. Keep in mind it is quite expensive and
     // recommended to use sparingly.
-    std::fill(data.begin(), data.end(), static_cast<T>(hwy::Unpredictable1()));
+    FillBytes(data.data(), hwy::Unpredictable1(), data.size() * sizeof(T));
 
     const double t_scalar_0 = hwy::platform::Now();
     T scalar_sum = {0};
@@ -138,7 +135,7 @@ int RunTests() {
 
     const double t_simd_0 = hwy::platform::Now();
     T simd_sum = 0;
-    // HWY_EXPORT_T creates dispatch table, and dispatch calls calls the best
+    // HWY_EXPORT_T creates a dispatch table, and dispatch calls calls the best
     // (widest) available implementation.
     HWY_EXPORT_T(SumArrayTable, SumArraySIMD<T>);
     for (int r = 0; r < reps; ++r) {
@@ -153,11 +150,9 @@ int RunTests() {
            static_cast<double>(simd_sum), dt_simd);
     printf("%s - Speedup:    %fx\n", type_name, dt_scalar / dt_simd);
 
-    bool passed = false;
-    if constexpr (hwy::IsFloat<T>()) {
-      passed = std::abs(scalar_sum - simd_sum) <= 1e-1;
-    } else {
-      passed = scalar_sum == simd_sum;
+    bool passed = scalar_sum == simd_sum;
+    HWY_IF_CONSTEXPR(hwy::IsFloat<T>()) {
+      passed = hwy::ScalarAbs(scalar_sum - simd_sum) <= 1e-1;
     }
 
     if (!passed) {

@@ -123,7 +123,7 @@ void ImageBase::InitializePadding(const size_t sizeof_t, Padding padding) {
     // There's a bug in msan in clang-6 when handling AVX2 operations. This
     // workaround allows tests to pass on msan, although it is slower and
     // prevents msan warnings from uninitialized images.
-    memset(row, 0, initialize_size);
+    hwy::ZeroBytes(row, initialize_size);
 #else
     hwy::ZeroBytes(row + valid_size, initialize_size - valid_size);
 #endif  // clang6

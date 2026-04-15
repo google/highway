@@ -2565,10 +2565,10 @@ The following `ReverseN` must not be called if `Lanes(D()) < N`:
     returns `GatherIndex(D(), tbl, indices)`, but much more efficient, and
     limited to 8 elements. Results are undefined if any indices are 8 or above.
     This is implemented using `TableLookupLanes` or `TwoTablesLookupLanes`. Let
-    `T` denote `TFromD<D>`. Only available if `HWY_MIN_BYTES / sizeof(T) >= 4`;
-    this is guaranteed to be the case if `HWY_TARGET != HWY_SCALAR` and `T` is
-    four bytes and `D` is one of `FixedTag<T, 16/sizeof(T)>` or `ScalableTag<T>`
-    or `CappedTag<T, N/sizeof(T)>` (where `N >= 16`).
+    `T` denote `TFromD<D>`. Only available if `HWY_TARGET != HWY_SCALAR` and
+    `HWY_MIN_BYTES / sizeof(T) >= 4`. The latter is guaranteed if `T` is four
+    bytes and `D` is one of `FixedTag<T, 16/sizeof(T)>` or `ScalableTag<T>` or
+    `CappedTag<T, N/sizeof(T)>` (where `N >= 16`).
 
 *   <code>unspecified **IndicesFromVec**(D d, V idx)</code> prepares for
     `TableLookupLanes` or `TwoTablesLookupLanes` with integer indices in `idx`,
@@ -2835,6 +2835,20 @@ Ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
 *   `HWY_RESTRICT`: use after a pointer, e.g. `T* HWY_RESTRICT p`, to indicate
     the pointer is not aliased, i.e. it is the only way to access the data. This
     may improve code generation by preventing unnecessary reloads.
+
+*   `HWY_CXX14_CONSTEXPR`: Use instead of constexpr to avoid compiler errors for
+    older compilers. This macro is for when a constexpr function involves
+    multiple statements and loops, which is allowed in C++14 but not before. If
+    the compiler does not support C++14 constexpr, this evaluates to nothing.
+
+*   `HWY_CXX17_CONSTEXPR`: Same as above, but for C++17 constexpr, which adds
+    support for lambdas, the standard library, and capturing *this. Note that
+    C++17 constexpr still disallows allocating and virtual functions, which are
+    allowed in C++20, but we do not have a use case yet.
+
+*   `HWY_IF_CONSTEXPR`: Use instead of `if constexpr` to avoid compiler errors
+    for older compilers. When compilers lack C++17 support, this evaluates to a
+    normal if statement.
 
 *   `HWY_LIKELY`: use `if (HWY_LIKELY(condition))` to signal to the compiler
     that `condition` is likely to be true. This may improve performance by
