@@ -22,7 +22,7 @@
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE \
-  "third_party/highway/hwy/examples/sum_array_simple.cc"
+  "hwy/examples/sum_array_simple.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 
 #include "hwy/highway.h"
