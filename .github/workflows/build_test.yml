@@ -289,4 +289,8 @@ jobs:
         with:
           path: ~/.cache/bazel
           key: bazel-${{ runner.os }}
+
+      - name: Verify Bazel Version
+        run: bazel info release
+
       - run: bazel build //...
