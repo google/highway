@@ -22,7 +22,7 @@ concurrency:
 jobs:
   cmake:
     name: Build and test ${{ matrix.name }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-22.04-8core
     strategy:
       matrix:
         include:
@@ -145,7 +145,7 @@ jobs:
 
   cmake_ubuntu_2404:
     name: Build and test ${{ matrix.name }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-8core
     strategy:
       matrix:
         include:
@@ -274,7 +274,7 @@ jobs:
           ctest --test-dir out
 
   bazel:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-4core
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df # v2.18.0
