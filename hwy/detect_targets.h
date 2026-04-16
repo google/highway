@@ -207,9 +207,9 @@
 #endif  // HWY_BROKEN_AVX10_2
 
 #ifndef HWY_BROKEN_AVX3_DL_ZEN4  // allow override
-// AVX3_DL and AVX3_ZEN4 require clang >= 7 (ensured above), gcc >= 8.1 or ICC
+// AVX3_DL and AVX3_ZEN4 require clang >= 7 (ensured above), gcc >= 10.1 or ICC
 // 2021.
-#if (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 801) || \
+#if (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1001) || \
     (HWY_COMPILER_ICC && HWY_COMPILER_ICC < 2021)
 #define HWY_BROKEN_AVX3_DL_ZEN4 (HWY_AVX3_DL | HWY_AVX3_ZEN4)
 #else

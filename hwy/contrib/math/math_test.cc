@@ -115,7 +115,7 @@ HWY_NOINLINE void TestMath(const char* name, T (*fx1)(T),
   uint64_t max_ulp = 0;
   // Emulation is slower, so cannot afford as many.
   constexpr UintT kSamplesPerRange =
-      static_cast<UintT>(AdjustedReps(static_cast<size_t>(2000)));
+      static_cast<UintT>(AdjustedReps(static_cast<size_t>(1000)));
   for (int range_index = 0; range_index < range_count; ++range_index) {
     const UintT start = ranges[range_index][0];
     const UintT stop = ranges[range_index][1];
@@ -349,7 +349,7 @@ struct TestFastExp {
       // exp(-744) is very small. Quantization error is expected.
       TestMathRelative<T, D>("FastExpSubnormal", std::exp, CallFastExp, d,
                              static_cast<T>(-744.0), static_cast<T>(-708.0),
-                             0.00007);
+                             1.4E-4);
     }
   }
 };

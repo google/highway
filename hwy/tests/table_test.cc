@@ -209,27 +209,30 @@ struct TestLookup8 {
     const size_t N = Lanes(d);
     if (N < 4) return;
 
-    auto tbl = AllocateAligned<T>(N);
-    auto idx = AllocateAligned<TU>(N);
-    auto expected = AllocateAligned<T>(N);
+    const size_t padded_N = HWY_MAX(N, 8);
+    auto tbl = AllocateAligned<T>(padded_N);
+    auto idx = AllocateAligned<TU>(padded_N);
+    auto expected = AllocateAligned<T>(padded_N);
     HWY_ASSERT(tbl && idx && expected);
-    ZeroBytes(idx.get(), N * sizeof(TU));
-    const Vec<D> v = Iota(d, static_cast<T>(Unpredictable1()));
-    Store(v, d, tbl.get());
+    ZeroBytes(idx.get(), padded_N * sizeof(TU));
 
-    if (N <= 8) {  // Test all permutations
-      for (size_t i0 = 0; i0 < N; ++i0) {
+    for (size_t i = 0; i < padded_N; ++i) {
+      tbl[i] = ConvertScalarTo<T>(i + static_cast<size_t>(Unpredictable1()));
+    }
+
+    if (N < 8) {  // Test all permutations (max index is 7)
+      for (size_t i0 = 0; i0 < 8; ++i0) {
         idx[0] = static_cast<TU>(i0);
 
-        for (size_t i1 = 0; i1 < N; ++i1) {
-          if (N >= 2) idx[1] = static_cast<TU>(i1);
-          for (size_t i2 = 0; i2 < N; ++i2) {
-            if (N >= 4) idx[2] = static_cast<TU>(i2);
-            for (size_t i3 = 0; i3 < N; ++i3) {
-              if (N >= 4) idx[3] = static_cast<TU>(i3);
+        for (size_t i1 = 0; i1 < 8; ++i1) {
+          idx[1] = static_cast<TU>(i1);
+          for (size_t i2 = 0; i2 < 8; ++i2) {
+            idx[2] = static_cast<TU>(i2);
+            for (size_t i3 = 0; i3 < 8; ++i3) {
+              idx[3] = static_cast<TU>(i3);
 
-              for (size_t i = 0; i < N; ++i) {
-                expected[i] = ConvertScalarTo<T>(idx[i] + 1);  // == v[idx[i]]
+              for (size_t i = 0; i < padded_N; ++i) {
+                expected[i] = ConvertScalarTo<T>(idx[i] + 1);
               }
 
               const V actual = Lookup8(d, tbl.get(), Load(du, idx.get()));
@@ -244,7 +247,7 @@ struct TestLookup8 {
       // For larger vectors, upper lanes will be zero.
       HWY_ALIGN TU idx_source[16] = {1, 3, 2, 2, 3, 7, 6, 5,
                                      0, 4, 0, 4, 5, 7, 6, 6};
-      for (size_t j = 0; j < N; ++j) {
+      for (size_t j = 0; j < padded_N; ++j) {
         idx[j] = static_cast<TU>(idx_source[j & 15]);
         expected[j] = ConvertScalarTo<T>(idx[j] + 1);  // == v[idx[j]]
       }

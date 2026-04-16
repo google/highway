@@ -6906,11 +6906,14 @@ HWY_INLINE Vec<D> Lookup8(D d, const T* HWY_RESTRICT table, VI indices) {
       return TwoTablesLookupLanes(d, t0, t1, IndicesFromVec(d, indices));
     }
   }
+
   HWY_IF_CONSTEXPR(HWY_HAVE_SCALABLE) {
     // Scalable: first we must load two halves of the table into two vectors,
     // regardless of vector size. We always use two-vector lookups to avoid
-    // runtime branching.
-    const FixedTag<T, 4> d4;
+    // runtime branching. Note that RVV can have U64x8 even with 128-bit
+    // vectors (LMUL=4), hence we must use the given LMUL, not FixedTag, but we
+    // still want to cap at 4 lanes to avoid overrunning the table.
+    const CappedTag<T, 4, d.Pow2()> d4;
 
     // We want to use native lookup instructions (more efficient on SVE than two
     // lookups plus a blend), hence cast. This has no runtime cost. No LoadU
@@ -6924,15 +6927,11 @@ HWY_INLINE Vec<D> Lookup8(D d, const T* HWY_RESTRICT table, VI indices) {
     // 128-bit SVE1 hardware, but we do not know that at compile time.
     using TI = TFromD<decltype(di)>;
     const VI adjust = Set(di, static_cast<TI>(Lanes(d) - 4));
-    Mask<decltype(di)> ge_4;
 #if HWY_TARGET_IS_SVE
-    ge_4 = detail::GeN(indices, 4);
-#elif HWY_TARGET == HWY_RVV
-    ge_4 = detail::GtS(indices, 4 - 1);
+    const Mask<decltype(di)> ge_4 = detail::GeN(indices, 4);
 #else
-    ge_4 = Ge(indices, Set(di, 4));
+    const Mask<decltype(di)> ge_4 = Ge(indices, Set(di, 4));
 #endif
-
     indices = MaskedAddOr(indices, ge_4, indices, adjust);
 
     return TwoTablesLookupLanes(d, t0, t1, IndicesFromVec(d, indices));
