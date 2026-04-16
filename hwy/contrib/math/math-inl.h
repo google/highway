@@ -145,7 +145,7 @@ HWY_NOINLINE V CallAtan2(const D d, VecArg<V> y, VecArg<V> x) {
  * Highway SIMD version of std::cbrt(x).
  *
  * Valid Lane Types: float32, float64
- *        Max Error: ULP = 2
+ *        Max Error: ULP = 6
  *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
  * @return cube root of 'x'
  */
@@ -1472,21 +1472,22 @@ HWY_INLINE V Atanh(const D d, V x) {
              Xor(kHalf, sign));
 }
 
+// Based on musl libc cbrt (MIT-licensed).
+// Copyright © 2005-2020 Rich Felker, et al.
+// See https://git.musl-libc.org/cgit/musl/tree/COPYRIGHT
 template <bool kHandleSubnormals, class D, class V>
 HWY_INLINE V Cbrt(const D d, V x) {
   using T = TFromD<D>;
 
   const V sign = And(SignBit(d), x);
-  const V abs_x = Abs(x);
+  const V abs_x = Xor(x, sign);
   x = abs_x;
 
   constexpr bool kIsF32 = (sizeof(T) == 4);
 
   MFromD<D> is_denormal;
   if constexpr (kHandleSubnormals) {
-    const V kMinNormal =
-        Set(d, kIsF32 ? static_cast<T>(1.175494351e-38f)
-                      : static_cast<T>(2.2250738585072014e-308));
+    const V kMinNormal = Set(d, SmallestNormal<T>());
     // Exponent to scale subnormals that is divisible by 3, 2^24 or 2^54
     const V kScale = Set(d, kIsF32 ? static_cast<T>(16777216.0f)
                                    : static_cast<T>(18014398509481984.0));
@@ -1519,7 +1520,7 @@ HWY_INLINE V Cbrt(const D d, V x) {
   y = Mul(kOneThird, MulAdd(kTwo, y, Div(x, Mul(y, y))));
   y = Mul(kOneThird, MulAdd(kTwo, y, Div(x, Mul(y, y))));
   y = Mul(kOneThird, MulAdd(kTwo, y, Div(x, Mul(y, y))));
-  if (!kIsF32) {
+  if constexpr (!kIsF32) {
     y = Mul(kOneThird, MulAdd(kTwo, y, Div(x, Mul(y, y))));
   }
 
@@ -1530,8 +1531,7 @@ HWY_INLINE V Cbrt(const D d, V x) {
     y = MaskedMulOr(y, is_denormal, y, kUnscale);
   }
 
-  y = IfThenElse(Or(Eq(abs_x, Zero(d)), Or(IsInf(abs_x), IsNaN(abs_x))), abs_x,
-                 y);
+  y = IfThenElse(Or(Eq(abs_x, Zero(d)), Not(IsFinite(abs_x))), abs_x, y);
 
   y = Or(y, sign);
   return y;

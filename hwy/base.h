@@ -2382,6 +2382,21 @@ HWY_INLINE HWY_BITCASTSCALAR_CONSTEXPR double Epsilon<double>() {
   return 2.2204460492503131e-16;
 }
 
+// Smallest positive normal value. Equal to 2^(1 - bias)
+template <typename T>
+HWY_API HWY_BITCASTSCALAR_CONSTEXPR T SmallestNormal() {
+  static_assert(sizeof(T) == 0, "Only instantiate the specializations");
+  return T{};
+}
+template <>
+HWY_INLINE HWY_BITCASTSCALAR_CONSTEXPR float SmallestNormal<float>() {
+  return 1.175494351e-38f;  // 2^-126
+}
+template <>
+HWY_INLINE HWY_BITCASTSCALAR_CONSTEXPR double SmallestNormal<double>() {
+  return 2.2250738585072014e-308;  // 2^-1022
+}
+
 // Returns width in bits of the mantissa field in IEEE binary16/32/64.
 template <typename T>
 constexpr int MantissaBits() {

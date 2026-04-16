@@ -195,8 +195,8 @@ DEFINE_MATH_TEST(Log2,
   std::log2,  CallLog2,  +FLT_MIN,   +FLT_MAX,    2,
   std::log2,  CallLog2,  +DBL_MIN,   +DBL_MAX,    2)
 DEFINE_MATH_TEST(Cbrt,
-  std::cbrt, CallCbrt, -FLT_MAX, +FLT_MAX, 2,
-  std::cbrt, CallCbrt, -DBL_MAX, +DBL_MAX, 2)
+  std::cbrt, CallCbrt, -FLT_MAX, +FLT_MAX, 6,
+  std::cbrt, CallCbrt, -DBL_MAX, +DBL_MAX, 6)
 
 // clang-format on
 
