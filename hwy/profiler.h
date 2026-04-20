@@ -446,6 +446,8 @@ class Results {
     std::sort(indices.begin(), indices.end(), [&](uint32_t a, uint32_t b) {
       return totals_[a].duration > totals_[b].duration;
     });
+    printf("   %-40s: %10s x %15s / %5s (%5s %3s-%3s) = %9s\n", "Zone", "Calls",
+           "Cycles/Call", "Avg Count", "Count", "Min", "Max", "Wall Time(s)");
 
     for (uint32_t zone_idx : indices) {
       Accumulator& total = totals_[zone_idx];  // cleared after printing
