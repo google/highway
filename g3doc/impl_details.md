@@ -12,7 +12,7 @@ The key to understanding Highway is to differentiate between vectors and
 zero-sized tag arguments. The former store actual data and are mapped by the
 compiler to vector registers. The latter (`Simd<>` and `SizeTag<>`) are only
 used to select among the various overloads of functions such as `Set`. This
-allows Highway to use builtin vector types without a class wrapper.
+allows Highway to use built in vector types without a class wrapper.
 
 Class wrappers are problematic for SVE and RVV because LLVM (or at least Clang)
 does not allow member variables whose type is 'sizeless' (in particular,
@@ -252,7 +252,9 @@ For ZVector targets `HWY_Z14`, `HWY_Z15`, `HWY_Z16`, there is the
 For LoongArch, there is a
 [list of intrinsics](https://jia.je/unofficial-loongarch-intrinsics-guide/lsx/integer_computation/)
 and
-[ISA reference](https://loongson.github.io/LoongArch-Documentation/LoongArch-Vol1-EN.html).
+[ISA reference](https://loongson.github.io/LoongArch-Documentation/LoongArch-Vol1-EN.html)
+and
+[summary of highlights](http://0x80.pl/notesen/2025-01-21-loongarch64-highlights.html).
 
 ## Why scalar target
 
