@@ -22,7 +22,7 @@ namespace pool {
 
 // TODO: move implementation here.
 
-HWY_DLLEXPORT Shared& Shared::Get() {
+HWY_CONTRIB_DLLEXPORT Shared& Shared::Get() {
   static Shared* shared = new Shared();
   return *shared;
 }

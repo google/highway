@@ -674,7 +674,7 @@ class Caller {
 // Singleton, shared by all ThreadPool.
 class Shared {
  public:
-  static HWY_DLLEXPORT Shared& Get();  // Thread-safe.
+  static HWY_CONTRIB_DLLEXPORT Shared& Get();  // Thread-safe.
 
   Stopwatch MakeStopwatch() const { return Stopwatch(timer_); }
   Stopwatch& LastRootEnd() { return last_root_end_; }
@@ -756,7 +756,7 @@ struct Caller {};
 
 class Shared {
  public:
-  static HWY_DLLEXPORT Shared& Get();  // Thread-safe.
+  static HWY_CONTRIB_DLLEXPORT Shared& Get();  // Thread-safe.
 
   Stopwatch MakeStopwatch() const { return Stopwatch(timer_); }
 
