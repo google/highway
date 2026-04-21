@@ -6,7 +6,7 @@ Q0.0: How do I **get the Highway library**?
 
 A: Highway is available in numerous package managers, e.g. under the name
 libhwy-dev. After installing, you can add it to your CMake-based build via
-`find_package(HWY 1.4.0)` and `target_link_libraries(your_project PRIVATE hwy)`.
+`find_package(HWY 1.3.0)` and `target_link_libraries(your_project PRIVATE hwy)`.
 
 Alternatively, if using Git for version control, you can use Highway as a
 'submodule' by adding the following to .gitmodules:
@@ -262,7 +262,7 @@ Q4.4: Why are **overloaded operators not allowed**?
 
 A: C++ disallows overloading functions for built-in types, and vectors on some
 platforms (SVE, RISC-V) are indeed built-in types precisely due to the above
-limitation. Discussions are ongoing whether the compiler could add built-in
+limitation. Discussions are ongoing whether the compiler could add builtin
 `operator<(unspecified_vector, unspecified_vector)`. When(if) that becomes
 widely supported, this limitation can be lifted.
 
@@ -281,6 +281,7 @@ support runtime dispatch. We strongly recommend starting a SIMD project by
 copying from an existing one, because the ordering of code matters and the
 vector-specific boilerplate may be unfamiliar. See hwy/examples/skeleton.cc
 and https://github.com/google/highway#examples.
+
 
 Q5.2: What's the difference between **`HWY_BEFORE_NAMESPACE` and `HWY_ATTR`**?
 
@@ -318,7 +319,7 @@ named *-inl.h with a special include guard of the form:
 #endif
 ```
 
-Highway takes care of defining and `#undef HWY_TARGET_TOGGLE` after each
+Highway takes care of defining and un-defining `HWY_TARGET_TOGGLE` after each
 recompilation such that the guarded header is included exactly once per target.
 Again, this effort is only necessary when using foreach_target.h. However, we
 recommend using the special include guards already so your code is ready for
