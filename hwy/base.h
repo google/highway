@@ -367,55 +367,6 @@ HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
   } while (0)
 #define HWY_ASSERT(condition) HWY_ASSERT_M(condition, "")
 
-#if HWY_HAS_FEATURE(memory_sanitizer) || defined(MEMORY_SANITIZER) || \
-    defined(__SANITIZE_MEMORY__)
-#define HWY_IS_MSAN 1
-#else
-#define HWY_IS_MSAN 0
-#endif
-
-#if HWY_HAS_FEATURE(address_sanitizer) || defined(ADDRESS_SANITIZER) || \
-    defined(__SANITIZE_ADDRESS__)
-#define HWY_IS_ASAN 1
-#else
-#define HWY_IS_ASAN 0
-#endif
-
-#if HWY_HAS_FEATURE(hwaddress_sanitizer) || defined(HWADDRESS_SANITIZER) || \
-    defined(__SANITIZE_HWADDRESS__)
-#define HWY_IS_HWASAN 1
-#else
-#define HWY_IS_HWASAN 0
-#endif
-
-#if HWY_HAS_FEATURE(thread_sanitizer) || defined(THREAD_SANITIZER) || \
-    defined(__SANITIZE_THREAD__)
-#define HWY_IS_TSAN 1
-#else
-#define HWY_IS_TSAN 0
-#endif
-
-#if HWY_HAS_FEATURE(undefined_behavior_sanitizer) || \
-    defined(UNDEFINED_BEHAVIOR_SANITIZER)
-#define HWY_IS_UBSAN 1
-#else
-#define HWY_IS_UBSAN 0
-#endif
-
-// MSAN may cause lengthy build times or false positives e.g. in AVX3 DemoteTo.
-// You can disable MSAN by adding this attribute to the function that fails.
-#if HWY_IS_MSAN
-#define HWY_ATTR_NO_MSAN __attribute__((no_sanitize_memory))
-#else
-#define HWY_ATTR_NO_MSAN
-#endif
-
-#if HWY_IS_ASAN || HWY_IS_HWASAN || HWY_IS_MSAN || HWY_IS_TSAN || HWY_IS_UBSAN
-#define HWY_IS_SANITIZER 1
-#else
-#define HWY_IS_SANITIZER 0
-#endif
-
 // For enabling HWY_DASSERT and shortening tests in slower debug builds
 //
 // Note: `HWY_IS_UBSAN` is specifically excluded from engaging debug
