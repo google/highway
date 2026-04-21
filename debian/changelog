@@ -1,3 +1,26 @@
+highway (1.4.0-1) UNRELEASED; urgency=medium
+
+Add:
+- Fast* math functions, sum_array example
+- HWY_ARCH_MAX_BYTES, HWY_MIN_BYTES, HWY_NATIVE_MASK, HWY_REGISTERS
+- HWY_EXPORT_AND_TEST_BEST_P
+- InterleaveLower/UpperBlocks, Lookup8, XorAndNot
+- MinMax algo, AtomicBitSet
+- RVV and LSX/LASX runtime dispatch, FreeBSD futex
+
+Improvements:
+- MulByPow2, PopulationCount, SumsOfAdjQuadAbsDiff
+- ReorderWidenMulAccumulate, SumOfMulQuadAccumulate
+- Re-enable SVE, add i8mm for SVE/NEON_BF16
+
+Fixes:
+- EVEX512 compiler change workaround, Timer::start() result truncation
+- BF16 dot on SVE, doc formatting, StringTable race, warnings
+
+Thanks to all contributors, especially johnplatts and Nikhil0250!
+
+-- Jan Wassenberg <janwas@google.com>  Tue, 07 Apr 2026 18:00:00 +0200
+
 highway (1.3.0-1) UNRELEASED; urgency=medium
 
 Add:

@@ -36,7 +36,7 @@
 // API version (https://semver.org/); keep in sync with CMakeLists.txt and
 // meson.build.
 #define HWY_MAJOR 1
-#define HWY_MINOR 3
+#define HWY_MINOR 4
 #define HWY_PATCH 0
 
 // True if the Highway version >= major.minor.0. Added in 1.2.0.
