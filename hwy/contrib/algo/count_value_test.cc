@@ -23,7 +23,8 @@
 
 // clang-format off
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "hwy/contrib/algo/count_value_test.cc"
+#define HWY_TARGET_INCLUDE \
+  "hwy/contrib/algo/count_value_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
 #include "hwy/contrib/algo/count-inl.h"
@@ -100,7 +101,9 @@ struct TestCount {
 };
 
 void TestAllCount() {
-  ForAllTypes(ForPartialVectors<ForeachCountAndMisalign<TestCount>>());
+  // Widens to i32, hence require at least 4 i8 or 2 i16. We have an adapter for
+  // 128-bit and above which is stricter than required.
+  ForAllTypes(ForGE128Vectors<ForeachCountAndMisalign<TestCount>>());
 }
 
 struct TestCountIf {
@@ -138,7 +141,9 @@ struct TestCountIf {
 };
 
 void TestAllCountIf() {
-  ForAllTypes(ForPartialVectors<ForeachCountAndMisalign<TestCountIf>>());
+  // Widens to i32, hence require at least 4 i8 or 2 i16. We have an adapter for
+  // 128-bit and above which is stricter than required.
+  ForAllTypes(ForGE128Vectors<ForeachCountAndMisalign<TestCountIf>>());
 }
 
 }  // namespace
