@@ -189,7 +189,9 @@ int RunTests() {
   };
 
   if (test(float(), "Float", 1.0) != 0) return 1;
+#if HWY_HAVE_FLOAT64
   if (test(double(), "Double", 1.0) != 0) return 1;
+#endif
   if (test(int32_t(), "Int32", 10) != 0) return 1;
 
   printf("All Validations PASSED\n");
