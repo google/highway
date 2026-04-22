@@ -331,7 +331,7 @@ struct TestFastExp {
       // exp(-87) ~= 1.6e-38 (just above min normal 1.17e-38)
       TestMathRelative<T, D>("FastExpNormal", std::exp, CallFastExp, d,
                              static_cast<T>(-87.0), static_cast<T>(88.0),
-                             0.000008, 1e7);
+                             0.000008, 10'000'000);
 
       // Float Subnormal Range: [-104.0, -87.0]
       // exp(-104) is very small. Quantization error is expected.
@@ -343,7 +343,7 @@ struct TestFastExp {
       // exp(-708) ~= 2.2e-308 (min normal 2.22e-308)
       TestMathRelative<T, D>("FastExpNormal", std::exp, CallFastExp, d,
                              static_cast<T>(-708.0), static_cast<T>(706.0),
-                             0.000008, 1e7);
+                             0.000008, 10'000'000);
 
       // Double Subnormal Range: [-744.0, -708.0]
       // exp(-744) is very small. Quantization error is expected.
@@ -362,7 +362,7 @@ struct TestFastExp2 {
       // exp2(-126) is min normal
       TestMathRelative<T, D>("FastExp2Normal", std::exp2, CallFastExp2, d,
                              static_cast<T>(-126.0), static_cast<T>(127.0),
-                             0.000008, 1e7);
+                             0.000008, 10'000'000);
 
       // Float Subnormal Range: [-150.0, -126.0]
       TestMathRelative<T, D>("FastExp2Subnormal", std::exp2, CallFastExp2, d,
@@ -372,7 +372,7 @@ struct TestFastExp2 {
       // Double Normal Range: [-1022.0, +1023.0]
       TestMathRelative<T, D>("FastExp2Normal", std::exp2, CallFastExp2, d,
                              static_cast<T>(-1022.0), static_cast<T>(1023.0),
-                             0.000008, 1e7);
+                             0.000008, 10'000'000);
 
       // Double Subnormal Range: [-1075.0, -1022.0]
       TestMathRelative<T, D>("FastExp2Subnormal", std::exp2, CallFastExp2, d,
@@ -389,12 +389,12 @@ struct TestFastExpMinusOrZero {
       // Float Normal Range: [-87.0, 0.0]
       TestMathRelative<T, D>("FastExpMinusOrZeroNormal", std::exp,
                              CallFastExpMinusOrZero, d, static_cast<T>(-87.0),
-                             static_cast<T>(-0.0), 0.000008, 1e7);
+                             static_cast<T>(-0.0), 0.000008, 10'000'000);
     } else {
       // Double Normal Range: [-708.0, 0.0]
       TestMathRelative<T, D>("FastExpMinusOrZeroNormal", std::exp,
                              CallFastExpMinusOrZero, d, static_cast<T>(-708.0),
-                             static_cast<T>(-0.0), 0.000008, 1e7);
+                             static_cast<T>(-0.0), 0.000008, 10'000'000);
     }
   }
 };

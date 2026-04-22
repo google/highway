@@ -32,36 +32,41 @@
 namespace hwy {
 namespace {
 
+// Workaround for Windows MSVC requiring lambda capture for constexpr, whereas
+// Clang warns when capturing.
+template <class Set>
+constexpr size_t Max(const Set& set) {
+  return set.MaxSize() - 1;
+}
+
 template <class Set>
 void SmokeTest() {
-  constexpr size_t kMax = Set().MaxSize() - 1;
-
   Set set;
   // Defaults to empty.
   HWY_ASSERT(!set.Any());
   HWY_ASSERT(!set.All());
   HWY_ASSERT(!set.Get(0));
-  HWY_ASSERT(!set.Get(kMax));
+  HWY_ASSERT(!set.Get(Max(set)));
   HWY_ASSERT(set.First0() == 0);
   set.Foreach(
       [](size_t i) { HWY_ABORT("Set should be empty but got %zu\n", i); });
   HWY_ASSERT(set.Count() == 0);
 
   // After setting, we can retrieve it.
-  set.Set(kMax);
-  HWY_ASSERT(set.Get(kMax));
+  set.Set(Max(set));
+  HWY_ASSERT(set.Get(Max(set)));
   HWY_ASSERT(set.Any());
   HWY_ASSERT(!set.All());
-  HWY_ASSERT(set.First() == kMax);
+  HWY_ASSERT(set.First() == Max(set));
   HWY_ASSERT(set.First0() == 0);
-  set.Foreach([](size_t i) { HWY_ASSERT(i == kMax); });
+  set.Foreach([&set](size_t i) { HWY_ASSERT(i == Max(set)); });
   HWY_ASSERT(set.Count() == 1);
 
   // After clearing, it is empty again.
-  set.Clear(kMax);
+  set.Clear(Max(set));
   set.Clear(0);  // was not set
   HWY_ASSERT(!set.Get(0));
-  HWY_ASSERT(!set.Get(kMax));
+  HWY_ASSERT(!set.Get(Max(set)));
   HWY_ASSERT(!set.Any());
   HWY_ASSERT(!set.All());
   HWY_ASSERT(set.First0() == 0);
@@ -75,9 +80,10 @@ TEST(BitSetTest, SmokeTestSet) { SmokeTest<BitSet<320>>(); }
 TEST(BitSetTest, SmokeTestAtomicSet) { SmokeTest<AtomicBitSet<400>>(); }
 TEST(BitSetTest, SmokeTestSet4096) { SmokeTest<BitSet4096<>>(); }
 
+HWY_INLINE_VAR constexpr size_t kMin = 0;
+
 template <class Set>
 void TestSetNonzeroBitsFrom64() {
-  constexpr size_t kMin = 0;
   Set set;
   set.SetNonzeroBitsFrom64(1ull << kMin);
   HWY_ASSERT(set.Any());
