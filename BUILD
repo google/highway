@@ -500,6 +500,18 @@ cc_binary(
     ],
 )
 
+cc_binary(
+    name = "dot_product_unroll",
+    srcs = ["hwy/examples/dot_product_unroll.cc"],
+    copts = COPTS,
+    deps = [
+        ":hwy",
+        ":hwy_test_util",
+        ":nanobenchmark",
+        ":timer",
+    ],
+)
+
 cc_library(
     name = "skeleton",
     srcs = ["hwy/examples/skeleton.cc"],

@@ -25,7 +25,6 @@
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
 //
-#include "hwy/contrib/random/random-inl.h"
 #include "hwy/nanobenchmark.h"
 #include "hwy/timer.h"
 
