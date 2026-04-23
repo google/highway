@@ -774,6 +774,16 @@ target_link_libraries(sum_array_advanced PRIVATE ${ATOMICS_LIBRARIES})
 set_target_properties(sum_array_advanced
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
 
+
+# Advanced dot product with unrolling example
+add_executable(dot_product_unroll hwy/examples/dot_product_unroll.cc)
+target_compile_options(dot_product_unroll PRIVATE ${HWY_FLAGS})
+target_compile_features(dot_product_unroll PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
+target_link_libraries(dot_product_unroll PRIVATE hwy)
+target_link_libraries(dot_product_unroll PRIVATE ${ATOMICS_LIBRARIES})
+set_target_properties(dot_product_unroll
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
+
 endif()  # HWY_ENABLE_EXAMPLES
 # -------------------------------------------------------- Tests
 
