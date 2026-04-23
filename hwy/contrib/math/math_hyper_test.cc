@@ -240,6 +240,9 @@ HWY_NOINLINE void TestMathRelative(const char* name, T (*fx1)(T),
   }
 
   double max_actual_rel_error = 0.0;
+  double max_rel_err_value = 0.0;
+  double max_rel_err_expected = 0.0;
+  double max_rel_err_actual = 0.0;
   double sum_rel_error = 0.0;
   uint64_t count = 0;
   // Emulation is slower, so cannot afford as many.
@@ -268,7 +271,12 @@ HWY_NOINLINE void TestMathRelative(const char* name, T (*fx1)(T),
         double rel = std::abs(static_cast<double>(actual) -
                               static_cast<double>(expected)) /
                      std::abs(static_cast<double>(expected));
-        max_actual_rel_error = HWY_MAX(max_actual_rel_error, rel);
+        if (rel > max_actual_rel_error) {
+          max_actual_rel_error = rel;
+          max_rel_err_value = static_cast<double>(value);
+          max_rel_err_expected = static_cast<double>(expected);
+          max_rel_err_actual = static_cast<double>(actual);
+        }
         sum_rel_error += rel;
         count++;
         if (rel > max_relative_error) {
@@ -285,8 +293,9 @@ HWY_NOINLINE void TestMathRelative(const char* name, T (*fx1)(T),
       }
     }
   }
-  fprintf(stderr, "%s: %s max_rel_error %E\n",
-          hwy::TypeName(T(), Lanes(d)).c_str(), name, max_actual_rel_error);
+  fprintf(stderr, "%s: %s max_rel_error %E at input %E actual %E expected %E\n",
+          hwy::TypeName(T(), Lanes(d)).c_str(), name, max_actual_rel_error,
+          max_rel_err_value, max_rel_err_actual, max_rel_err_expected);
   if (count > 0) {
     fprintf(stderr, "%s: %s avg_rel_error %E\n",
             hwy::TypeName(T(), Lanes(d)).c_str(), name,
