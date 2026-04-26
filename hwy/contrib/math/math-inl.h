@@ -1472,9 +1472,9 @@ HWY_INLINE V Atanh(const D d, V x) {
              Xor(kHalf, sign));
 }
 
-// Based on musl libc cbrt (MIT-licensed).
-// Copyright © 2005-2020 Rich Felker, et al.
-// See https://git.musl-libc.org/cgit/musl/tree/COPYRIGHT
+// Modified from BSD-licensed code
+// Copyright (c) the JPEG XL Project Authors. All rights reserved.
+// See https://github.com/libjxl/libjxl/blob/main/LICENSE.
 template <bool kHandleSubnormals, class D, class V>
 HWY_INLINE V Cbrt(const D d, V x) {
   using T = TFromD<D>;
@@ -1497,32 +1497,83 @@ HWY_INLINE V Cbrt(const D d, V x) {
     (void)is_denormal;
   }
 
-  const RebindToUnsigned<D> du;
-  using TU = TFromD<decltype(du)>;
-  // Reciprocal of 3 for Barrett reduction, ceil(2^33 / 3) or ceil(2^65 / 3)
-  const auto kMagicRecip =
-      Set(du, kIsF32 ? static_cast<TU>(0xAAAAAAABu)
-                     : static_cast<TU>(0xAAAAAAAAAAAAAAABULL));
-  // Exponent bias correction, (bias - bias / 3 - 0.03306235651) * 2^mantissa
-  // See https://git.musl-libc.org/cgit/musl/tree/src/math/cbrtf.c#n24
-  const auto kMagic = Set(du, kIsF32 ? static_cast<TU>(0x2A5137F2u)
-                                     : static_cast<TU>(0x2A9F789300000000ULL));
+  V y;
+  const RebindToSigned<D> di;
+  using TI = TFromD<decltype(di)>;
+  using VI = decltype(Zero(di));
 
-  // Reinterpret float bits as int and divide by 3 for initial estimate
-  // See https://git.musl-libc.org/cgit/musl/tree/src/math/cbrt.c#n43
-  auto x_bits = BitCast(du, x);
-  x_bits = Add(ShiftRight<1>(MulHigh(x_bits, kMagicRecip)), kMagic);
-  auto y = BitCast(d, x_bits);
+  const VI x_int = BitCast(di, x);
 
-  // Newton method, aproximately double accuracy each iteration
-  const auto kOneThird = Set(d, static_cast<T>(1.0 / 3.0));
-  const auto kTwo = Set(d, static_cast<T>(2.0));
-  y = Mul(kOneThird, MulAdd(kTwo, y, Div(x, Mul(y, y))));
-  y = Mul(kOneThird, MulAdd(kTwo, y, Div(x, Mul(y, y))));
-  y = Mul(kOneThird, MulAdd(kTwo, y, Div(x, Mul(y, y))));
-  if constexpr (!kIsF32) {
-    y = Mul(kOneThird, MulAdd(kTwo, y, Div(x, Mul(y, y))));
+  // Extract exponent and shift (3*128 or 3*512) to keep non-negative for
+  // Barrett reduction
+  const VI exp_shifted =
+      Add(ShiftRight < kIsF32 ? 23 : 52 > (x_int),
+          Set(di, kIsF32 ? static_cast<TI>(257) : static_cast<TI>(513)));
+
+  // Narrow to u16 so MulHigh uses one op
+  const Repartition<uint16_t, decltype(di)> du16;
+  using VU16 = decltype(Zero(du16));
+  const VU16 exp_shifted_u16 = BitCast(du16, exp_shifted);
+  // Barrett Reduction
+  const VU16 exp_shifted_div_3_u16 =
+      MulHigh(exp_shifted_u16, Set(du16, uint16_t{0x5556}));
+  // Extract mod for table lookup
+  const VU16 exp_mod_3_u16 =
+      Sub(exp_shifted_u16, Mul(exp_shifted_div_3_u16, Set(du16, uint16_t{3})));
+  const VI exp_shifted_div_3 = BitCast(di, exp_shifted_div_3_u16);
+  const VI exp_mod_3 = BitCast(di, exp_mod_3_u16);
+
+  // Undo constant shift to ensure non negative
+  const VI neg_exp_div_3 =
+      Sub(Set(di, kIsF32 ? static_cast<TI>(128) : static_cast<TI>(512)),
+          exp_shifted_div_3);
+  // Combine exp mod 3 index with the top mantissa bits
+  const VI top_mant =
+      And(ShiftRight < kIsF32 ? 22 : 50 > (x_int),
+          Set(di, kIsF32 ? static_cast<TI>(1) : static_cast<TI>(3)));
+  const VI idx = Add(ShiftLeft < kIsF32 ? 1 : 2 > (exp_mod_3), top_mant);
+
+  V r;
+  if constexpr (kIsF32) {
+    // (1/cbrt(lo) + 1/cbrt(hi))/2 over 6 bins of [1,8)
+    HWY_ALIGN static constexpr float initial_guess[8] = {
+        0.92807984f, 0.81504166f, 0.73603648f, 0.65004617f,
+        0.58375800f, 0.51406258f, 0.0f,        0.0f};
+    if constexpr (HWY_MAX_LANES_D(D) >= 4) {
+      r = Lookup8(d, initial_guess, idx);
+    } else {
+      r = GatherIndex(d, initial_guess, idx);
+    }
+  } else {
+    // (1/cbrt(lo) + 1/cbrt(hi))/2 over 12 bins of [1,8)
+    HWY_ALIGN static constexpr double initial_guess[12] = {
+        9.6415888336127797e-01, 9.0094911572942737e-01, 8.5170349905127118e-01,
+        8.1176352967517162e-01, 7.6525341285608861e-01, 7.1508378703935604e-01,
+        6.7599751517949214e-01, 6.4429714047789299e-01, 6.0738203629500487e-01,
+        5.6756237789583885e-01, 5.3653958336190732e-01, 5.1137897928735510e-01};
+    r = GatherIndex(d, initial_guess, idx);
   }
+
+  // Apply 2^(-exp/3) to scale lookup result to 1/cbrt(x).
+  r = MulByPow2(r, neg_exp_div_3);
+
+  const V kOneThird = Set(d, static_cast<T>(1.0 / 3.0));
+  const V kFourThirds = Set(d, static_cast<T>(4.0 / 3.0));
+  const V x_div_3 = Mul(kOneThird, x);
+  constexpr size_t kIters = kIsF32 ? 2 : 3;
+  // Newton iteration for 1/cbrt(x): r = r * (4/3 - (x/3) * r^3).
+  for (size_t i = 0; i < kIters; ++i) {
+    const V r2 = Mul(r, r);
+    const V r3 = Mul(r2, r);
+    r = Mul(r, NegMulAdd(x_div_3, r3, kFourThirds));
+  }
+
+  // Fused finalizer: y = r*r*x * (5/3 - (2/3) * r*r*r*x).
+  const V kFiveThirds = Set(d, static_cast<T>(5.0 / 3.0));
+  const V kTwoThirds = Set(d, static_cast<T>(2.0 / 3.0));
+  const V y0 = Mul(Mul(r, r), x);
+  const V h = Mul(y0, r);
+  y = Mul(y0, NegMulAdd(kTwoThirds, h, kFiveThirds));
 
   if constexpr (kHandleSubnormals) {
     // 1 / cbrt(kScale), 1 / 2^8 or 1 / 2^18
