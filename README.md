@@ -132,16 +132,19 @@ or using it as a Git submodule.  It is also available in package managers or rep
 <summary>
 Click to expand BSD repositories
 </summary>
+    
 *   [DragonFlyBSD](https://github.com/DragonFlyBSD/DPorts/tree/master/devel/highway)
-*   [freebsd](https://cgit.freebsd.org/ports/tree/devel/highway)
-*   [ghostbsd](https://github.com/ghostbsd/ghostbsd-ports/tree/main/devel/highway)
+*   [FreeBSD](https://cgit.freebsd.org/ports/tree/devel/highway)
+*   [GhostBSD](https://github.com/ghostbsd/ghostbsd-ports/tree/main/devel/highway)
 *   [MidnightBSD](https://www.midnightbsd.org/mports/devel/highway/README.html)
+
 </details>
 
 <details>
 <summary>
 Click to expand cross platform package repositories
 </summary>
+
 *   [conan-io](https://conan.io/center/recipes/highway)
 *   [conda-forge](https://anaconda.org/channels/conda-forge/packages/libhwy/overview)
 *   [EasyBuild](https://docs.easybuild.io/version-specific/supported-software/h/Highway/)
@@ -149,12 +152,14 @@ Click to expand cross platform package repositories
 *   [microsoft/vcpkg](https://vcpkg.io/en/package/highway)
 *   [spack](https://packages.spack.io/package.html?name=highway)    
 *   [xmake-io/xmake-repo](https://github.com/xmake-io/xmake-repo/tree/dev/packages/h/highway)
+
 </details>
 
 <details>
 <summary>
-    Click to expand linux package repositories
+Click to expand linux package repositories
 </summary>
+
 Obtained from [repology](https://repology.org/project/highway-simd-library/versions)
 
 [![Packaging status](https://repology.org/badge/vertical-allrepos/highway-simd-library.svg)](https://repology.org/project/highway-simd-library/versions)
@@ -164,8 +169,10 @@ Obtained from [repology](https://repology.org/project/highway-simd-library/versi
 <summary>
     Click to expand Windows package repositories
 </summary>
+    
 * [fd00/yacp](https://github.com/fd00/yacp/tree/master/highway)
 * [MSYS2](https://packages.msys2.org/search?t=binpkg&q=highway)
+
 </details>
 
 <details>
@@ -173,8 +180,10 @@ Obtained from [repology](https://repology.org/project/highway-simd-library/versi
   Click to expand other operating systems and environments where Highway
     has been used
 </summary>
+    
 * [OPNsense](https://opnsense.org/)
 * [Xilinx/Vitis_Libraries](https://github.com/Xilinx/Vitis_Libraries)
+
 </details>
 
 ## Current status
