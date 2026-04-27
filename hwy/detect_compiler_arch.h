@@ -310,13 +310,16 @@
 #define HWY_ARCH_X86 0
 #endif
 
-#if defined(__powerpc64__) || defined(_M_PPC) || defined(__powerpc__)
+// Apple uses __ppc__, MSVC uses _M_PPC.
+#if defined(__powerpc64__) || defined(_M_PPC) || defined(__powerpc__) || \
+    defined(__PPC__) || defined(__ppc__) || defined(__POWERPC__)
 #define HWY_ARCH_PPC 1
 #else
 #define HWY_ARCH_PPC 0
 #endif
 
-#if defined(__powerpc64__) || (HWY_ARCH_PPC && defined(__64BIT__))
+#if defined(__powerpc64__) || defined(__PPC64__) || defined(__ppc64__) || \
+    (HWY_ARCH_PPC && defined(__64BIT__))
 #define HWY_ARCH_PPC_64 1
 #else
 #define HWY_ARCH_PPC_64 0
