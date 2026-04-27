@@ -307,9 +307,9 @@ HWY_NOINLINE void TestMathRelative(const char* name, T (*fx1)(T),
 struct TestFastTanh {
   template <class T, class D>
   HWY_NOINLINE void operator()(T, D d) {
-    const double max_relative_error_float = 0.0003;
-    const double max_relative_error_double = 0.0003;
-    const double max_relative_error_small = 0.00004;
+    const double max_relative_error_float = 0.000007;
+    const double max_relative_error_double = 0.000007;
+    const double max_relative_error_small = 0.0000004;
     const uint64_t samples = 1000000;
     const uint64_t samples_small = 10000;
     TestMathRelative<T, D>("FastTanh Small", std::tanh, CallFastTanh, d,
