@@ -1510,18 +1510,27 @@ HWY_INLINE V Cbrt(const D d, V x) {
       Add(ShiftRight < kIsF32 ? 23 : 52 > (x_int),
           Set(di, kIsF32 ? static_cast<TI>(257) : static_cast<TI>(513)));
 
-  // Narrow to i16 so MulHigh is cheaper than i32/i64
-  const Rebind<int16_t, D> di16;
-  using VI16 = decltype(Zero(di16));
-  const VI16 exp_shifted_i16 = DemoteTo(di16, exp_shifted);
-  // Barrett Reduction
-  const VI16 exp_shifted_div_3_i16 =
-      MulHigh(exp_shifted_i16, Set(di16, int16_t{0x5556}));
-  // Extract mod for table lookup
-  const VI16 exp_mod_3_i16 =
-      Sub(exp_shifted_i16, Mul(exp_shifted_div_3_i16, Set(di16, int16_t{3})));
-  const VI exp_shifted_div_3 = PromoteTo(di, exp_shifted_div_3_i16);
-  const VI exp_mod_3 = PromoteTo(di, exp_mod_3_i16);
+  // Barrett reduction (n/3) via MulHigh by 0x5556
+  // Cannot Repartition to smaller lanes on a single-lane target
+  VI exp_shifted_div_3;
+  VI exp_mod_3;
+  if constexpr (HWY_MAX_LANES_D(D) > 1) {
+    const Repartition<uint16_t, decltype(di)> du16;
+    using VU16 = decltype(Zero(du16));
+    const VU16 exp_shifted_u16 = BitCast(du16, exp_shifted);
+    const VU16 exp_shifted_div_3_u16 =
+        MulHigh(exp_shifted_u16, Set(du16, static_cast<uint16_t>(0x5556)));
+    const VU16 exp_mod_3_u16 =
+        Sub(exp_shifted_u16,
+            Mul(exp_shifted_div_3_u16, Set(du16, static_cast<uint16_t>(3))));
+    exp_shifted_div_3 = BitCast(di, exp_shifted_div_3_u16);
+    exp_mod_3 = BitCast(di, exp_mod_3_u16);
+  } else {
+    exp_shifted_div_3 =
+        ShiftRight<16>(Mul(exp_shifted, Set(di, static_cast<TI>(0x5556))));
+    exp_mod_3 =
+        Sub(exp_shifted, Mul(exp_shifted_div_3, Set(di, static_cast<TI>(3))));
+  }
 
   // Undo constant shift to ensure non negative
   const VI neg_exp_div_3 =
