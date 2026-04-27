@@ -406,7 +406,7 @@ HWY_INLINE V FastTan(D d, V x) {
  * @return arctangent of 'x'
  */
 // if kAssumePositive is true, we assume inputs are non-negative.
-template <class D, class V, bool kAssumePositive = false>
+template <bool kAssumePositive = false, class D, class V>
 HWY_INLINE V FastAtan(D d, V val) {
   using T = TFromD<D>;
 
@@ -1857,7 +1857,7 @@ HWY_NOINLINE V CallFastLog1pPositiveNormal(const D d, VecArg<V> x) {
 
 template <class D, class V>
 HWY_NOINLINE V CallFastAtanPositive(const D d, VecArg<V> x) {
-  return FastAtan<D, V, /*kAssumePositive=*/true>(d, x);
+  return FastAtan</*kAssumePositive=*/true>(d, x);
 }
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
