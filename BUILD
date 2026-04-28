@@ -435,6 +435,8 @@ cc_library(
     ],
     deps = [
         ":hwy",
+        ":timer",
+        "//hwy/contrib/sort:vqsort",
     ],
 )
 
