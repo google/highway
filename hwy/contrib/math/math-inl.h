@@ -1515,16 +1515,23 @@ HWY_INLINE V Cbrt(const D d, V x) {
   VI exp_shifted_div_3;
   VI exp_mod_3;
   if constexpr (HWY_MAX_LANES_D(D) > 1) {
-    const Repartition<uint16_t, decltype(di)> du16;
-    using VU16 = decltype(Zero(du16));
-    const VU16 exp_shifted_u16 = BitCast(du16, exp_shifted);
-    const VU16 exp_shifted_div_3_u16 =
-        MulHigh(exp_shifted_u16, Set(du16, static_cast<uint16_t>(0x5556)));
-    const VU16 exp_mod_3_u16 =
-        Sub(exp_shifted_u16,
-            Mul(exp_shifted_div_3_u16, Set(du16, static_cast<uint16_t>(3))));
-    exp_shifted_div_3 = BitCast(di, exp_shifted_div_3_u16);
-    exp_mod_3 = BitCast(di, exp_mod_3_u16);
+    if (Lanes(d) > 1) {
+      const Repartition<uint16_t, decltype(di)> du16;
+      using VU16 = decltype(Zero(du16));
+      const VU16 exp_shifted_u16 = BitCast(du16, exp_shifted);
+      const VU16 exp_shifted_div_3_u16 =
+          MulHigh(exp_shifted_u16, Set(du16, static_cast<uint16_t>(0x5556)));
+      const VU16 exp_mod_3_u16 =
+          Sub(exp_shifted_u16,
+              Mul(exp_shifted_div_3_u16, Set(du16, static_cast<uint16_t>(3))));
+      exp_shifted_div_3 = BitCast(di, exp_shifted_div_3_u16);
+      exp_mod_3 = BitCast(di, exp_mod_3_u16);
+    } else {
+      exp_shifted_div_3 =
+          ShiftRight<16>(Mul(exp_shifted, Set(di, static_cast<TI>(0x5556))));
+      exp_mod_3 =
+          Sub(exp_shifted, Mul(exp_shifted_div_3, Set(di, static_cast<TI>(3))));
+    }
   } else {
     exp_shifted_div_3 =
         ShiftRight<16>(Mul(exp_shifted, Set(di, static_cast<TI>(0x5556))));
@@ -1549,7 +1556,11 @@ HWY_INLINE V Cbrt(const D d, V x) {
         0.92807984f, 0.81504166f, 0.73603648f, 0.65004617f,
         0.58375800f, 0.51406258f, 0.0f,        0.0f};
     if constexpr (HWY_MAX_LANES_D(D) >= 4) {
-      r = Lookup8(d, initial_guess, idx);
+      if (Lanes(d) >= 4) {
+        r = Lookup8(d, initial_guess, idx);
+      } else {
+        r = GatherIndex(d, initial_guess, idx);
+      }
     } else {
       r = GatherIndex(d, initial_guess, idx);
     }
