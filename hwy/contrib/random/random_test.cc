@@ -73,7 +73,7 @@ void TestSeeding() {
 
 void TestMultiThreadSeeding() {
   const std::uint64_t seed = GetSeed();
-  const std::uint64_t threadId = std::random_device()() % 1000;
+  const std::uint64_t threadId = GetSeed() % 1000;
   VectorXoshiro generator{seed, threadId};
   internal::Xoshiro reference{seed};
 
@@ -293,6 +293,8 @@ void TestUniformCachedXorshiro() {
 
 // ----- AesCtrEngine / RngStream / RandomNormalizedFloat tests -----
 
+#if HWY_TARGET != HWY_SCALAR
+
 void TestAesCtrDeterministic() {
   const AesCtrEngine engine1(/*deterministic=*/true);
   const AesCtrEngine engine2(/*deterministic=*/true);
@@ -405,6 +407,22 @@ void TestRandomNormalizedFloat() {
   fprintf(stderr, "RandomNormalizedFloat mean: %.6f\n", mean);
   HWY_ASSERT(-0.01 < mean && mean < 0.01);
 }
+
+#else
+
+void TestAesCtrDeterministic() {}
+
+void TestAesCtrSeeded() {}
+
+void TestAesCtrStreamsDiffer() {}
+
+void TestAesCtrBitDistribution() {}
+
+void TestAesCtrChiSquared() {}
+
+void TestRandomNormalizedFloat() {}
+
+#endif  // HWY_TARGET != HWY_SCALAR
 
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)

@@ -21,6 +21,8 @@
 #define HIGHWAY_HWY_CONTRIB_RANDOM_RANDOM_H_
 #endif
 
+#include <stddef.h>
+
 #include <array>
 #include <cstdint>
 #include <limits>
@@ -201,7 +203,7 @@ class VectorXoshiro {
 
   HWY_INLINE VU64 operator()() noexcept { return Next(); }
 
-  AlignedVector<std::uint64_t> operator()(const std::size_t n) {
+  AlignedVector<std::uint64_t> operator()(const size_t n) {
     AlignedVector<std::uint64_t> result(n);
     const ScalableTag<std::uint64_t> tag{};
     auto s0 = Load(tag, state_[{0}].data());
@@ -254,7 +256,7 @@ class VectorXoshiro {
     return Mul(real, MUL_VALUE);
   }
 
-  AlignedVector<double> Uniform(const std::size_t n) {
+  AlignedVector<double> Uniform(const size_t n) {
     AlignedVector<double> result(n);
     const ScalableTag<std::uint64_t> tag{};
     const ScalableTag<double> real_tag{};
@@ -371,7 +373,7 @@ class CachedXoshiro {
  private:
   VectorXoshiro generator_;
   alignas(HWY_ALIGNMENT) std::array<result_type, size> cache_;
-  std::size_t index_;
+  size_t index_;
 
   static_assert((size & (size - 1)) == 0 && size != 0,
                 "only power of 2 are supported");
@@ -420,6 +422,7 @@ class alignas(16) AesCtrEngine {
   // users generally call once at a time, this requires buffering, which is not
   // worth the complexity in this application.
   uint64_t operator()(uint64_t stream, uint64_t counter) const {
+#if HWY_TARGET != HWY_SCALAR
     using D = Full128<uint8_t>;  // 128 bits for AES
     using V = Vec<D>;
     const Repartition<uint64_t, D> d64;
@@ -441,6 +444,12 @@ class alignas(16) AesCtrEngine {
 
     // Return lower 64 bits of the u8 vector.
     return GetLane(BitCast(d64, state));
+#else
+    HWY_DASSERT(0);  // Not supported.
+    (void)stream;
+    (void)counter;
+    return 0;
+#endif  // HWY_TARGET != HWY_SCALAR
   }
 
  private:
