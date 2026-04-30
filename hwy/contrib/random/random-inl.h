@@ -487,7 +487,8 @@ class RngStream {
 HWY_INLINE float RandomNormalizedFloat(RngStream& rng) {
   const uint32_t exp = hwy::BitCastScalar<uint32_t>(1.0f);
   const uint32_t mantissa_mask = hwy::MantissaMask<float>();
-  const uint32_t representation = exp | (rng() & mantissa_mask);
+  const uint32_t mantissa = static_cast<uint32_t>(rng() & static_cast<uint64_t>(mantissa_mask));
+  const uint32_t representation = exp | mantissa;
   const float f12 = hwy::BitCastScalar<float>(representation);
   HWY_DASSERT(1.0f <= f12 && f12 < 2.0f);  // exponent is 2^0, only mantissa
   const float f = (2.0f * (f12 - 1.0f)) - 1.0f;
