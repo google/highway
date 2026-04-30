@@ -125,14 +125,13 @@ Other
 *   [zimt](https://github.com/kfjahnke/zimt): C++11 template library to process n-dimensional arrays with multi-threaded SIMD code
 *   [vectorized Quicksort](https://github.com/google/highway/tree/master/hwy/contrib/sort) ([paper](https://arxiv.org/abs/2205.05982))
 
-If you'd like to get Highway, in addition to cloning from this GitHub repository
-or using it as a Git submodule.  It is also available in package managers or repositories:
+Highway can also be installed via a package manager or from a repository:
 
 <details>
 <summary>
 Click to expand BSD repositories
 </summary>
-    
+
 *   [DragonFlyBSD](https://github.com/DragonFlyBSD/DPorts/tree/master/devel/highway)
 *   [FreeBSD](https://cgit.freebsd.org/ports/tree/devel/highway)
 *   [GhostBSD](https://github.com/ghostbsd/ghostbsd-ports/tree/main/devel/highway)
@@ -150,7 +149,7 @@ Click to expand cross platform package repositories
 *   [EasyBuild](https://docs.easybuild.io/version-specific/supported-software/h/Highway/)
 *   [Homebrew](https://formulae.brew.sh/formula/highway)
 *   [microsoft/vcpkg](https://vcpkg.io/en/package/highway)
-*   [spack](https://packages.spack.io/package.html?name=highway)    
+*   [spack](https://packages.spack.io/package.html?name=highway)
 *   [xmake-io/xmake-repo](https://github.com/xmake-io/xmake-repo/tree/dev/packages/h/highway)
 
 </details>
@@ -169,7 +168,7 @@ Obtained from [repology](https://repology.org/project/highway-simd-library/versi
 <summary>
     Click to expand Windows package repositories
 </summary>
-    
+
 * [fd00/yacp](https://github.com/fd00/yacp/tree/master/highway)
 * [MSYS2](https://packages.msys2.org/search?t=binpkg&q=highway)
 
@@ -180,7 +179,7 @@ Obtained from [repology](https://repology.org/project/highway-simd-library/versi
   Click to expand other operating systems and environments where Highway
     has been used
 </summary>
-    
+
 * [OPNsense](https://opnsense.org/)
 * [Xilinx/Vitis_Libraries](https://github.com/Xilinx/Vitis_Libraries)
 
@@ -263,14 +262,14 @@ If you have existing code using x86/NEON intrinsics, you may be interested in
 [SIMDe](https://github.com/simd-everywhere/simde), which emulates those
 intrinsics using other platforms' intrinsics or autovectorization.
 
-[xSIMD](https://github.com/xtensor-stack/xsimd) is a header only C++ library.
-It supports Arm, Power, RISC-V, WebAssembly and x86 targets.  Has a high level
+[xSIMD](https://github.com/xtensor-stack/xsimd) is a header only C++ library. It
+supports Arm, Power, RISC-V, WebAssembly and x86 targets. Has a high level
 interface, but fewer supported operations.
 
 [NumKong](https://github.com/ashvardanian/NumKong) a SIMD accelerated math C
 library focused on operations such as dot products and mixed precision matrix
-multiplications.  It can be used from C++, Go, Python, Rust, Swift and
-WebAssembly.  Accelerated operations are availble on ARM, LoongArch, Power,
+multiplications. It can be used from C++, Go, Python, Rust, Swift and
+WebAssembly. Accelerated operations are available on Arm, LoongArch, Power,
 RISC-V and x86.
 
 ## Installation
