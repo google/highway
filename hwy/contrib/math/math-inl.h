@@ -142,6 +142,21 @@ HWY_NOINLINE V CallAtan2(const D d, VecArg<V> y, VecArg<V> x) {
 }
 
 /**
+ * Highway SIMD version of std::cbrt(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 6
+ *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
+ * @return cube root of 'x'
+ */
+template <bool kHandleSubnormals = true, class D, class V>
+HWY_INLINE V Cbrt(D d, V x);
+template <class D, class V>
+HWY_NOINLINE V CallCbrt(const D d, VecArg<V> x) {
+  return Cbrt<true>(d, x);
+}
+
+/**
  * Highway SIMD version of std::cos(x).
  *
  * Valid Lane Types: float32, float64
@@ -1455,6 +1470,142 @@ HWY_INLINE V Atanh(const D d, V x) {
   const V abs_x = Xor(x, sign);
   return Mul(Log1p(d, Div(Add(abs_x, abs_x), Sub(kOne, abs_x))),
              Xor(kHalf, sign));
+}
+
+// Modified from BSD-licensed code
+// Copyright (c) the JPEG XL Project Authors. All rights reserved.
+// See https://github.com/libjxl/libjxl/blob/main/LICENSE.
+template <bool kHandleSubnormals, class D, class V>
+HWY_INLINE V Cbrt(const D d, V x) {
+  using T = TFromD<D>;
+
+  const V sign = And(SignBit(d), x);
+  const V abs_x = Xor(x, sign);
+  x = abs_x;
+
+  constexpr bool kIsF32 = (sizeof(T) == 4);
+
+  MFromD<D> is_denormal;
+  if constexpr (kHandleSubnormals) {
+    const V kMinNormal = Set(d, SmallestNormal<T>());
+    // Exponent to scale subnormals that is divisible by 3, 2^24 or 2^54
+    const V kScale = Set(d, kIsF32 ? static_cast<T>(16777216.0f)
+                                   : static_cast<T>(18014398509481984.0));
+    is_denormal = Lt(x, kMinNormal);
+    x = MaskedMulOr(x, is_denormal, x, kScale);
+  } else {
+    (void)is_denormal;
+  }
+
+  V y;
+  const RebindToSigned<D> di;
+  using TI = TFromD<decltype(di)>;
+  using VI = decltype(Zero(di));
+
+  const VI x_int = BitCast(di, x);
+
+  // Extract exponent and shift (3*128 or 3*512) to keep non-negative for
+  // Barrett reduction
+  const VI exp_shifted =
+      Add(ShiftRight < kIsF32 ? 23 : 52 > (x_int),
+          Set(di, kIsF32 ? static_cast<TI>(257) : static_cast<TI>(513)));
+
+  // Barrett reduction (n/3) via MulHigh by 0x5556
+  // Cannot Repartition to smaller lanes on a single-lane target
+  VI exp_shifted_div_3;
+  VI exp_mod_3;
+  if constexpr (HWY_MAX_LANES_D(D) > 1) {
+    if (Lanes(d) > 1) {
+      const Repartition<uint16_t, decltype(di)> du16;
+      using VU16 = decltype(Zero(du16));
+      const VU16 exp_shifted_u16 = BitCast(du16, exp_shifted);
+      const VU16 exp_shifted_div_3_u16 =
+          MulHigh(exp_shifted_u16, Set(du16, static_cast<uint16_t>(0x5556)));
+      const VU16 exp_mod_3_u16 =
+          Sub(exp_shifted_u16,
+              Mul(exp_shifted_div_3_u16, Set(du16, static_cast<uint16_t>(3))));
+      exp_shifted_div_3 = BitCast(di, exp_shifted_div_3_u16);
+      exp_mod_3 = BitCast(di, exp_mod_3_u16);
+    } else {
+      exp_shifted_div_3 =
+          ShiftRight<16>(Mul(exp_shifted, Set(di, static_cast<TI>(0x5556))));
+      exp_mod_3 =
+          Sub(exp_shifted, Mul(exp_shifted_div_3, Set(di, static_cast<TI>(3))));
+    }
+  } else {
+    exp_shifted_div_3 =
+        ShiftRight<16>(Mul(exp_shifted, Set(di, static_cast<TI>(0x5556))));
+    exp_mod_3 =
+        Sub(exp_shifted, Mul(exp_shifted_div_3, Set(di, static_cast<TI>(3))));
+  }
+
+  // Undo constant shift to ensure non negative
+  const VI neg_exp_div_3 =
+      Sub(Set(di, kIsF32 ? static_cast<TI>(128) : static_cast<TI>(512)),
+          exp_shifted_div_3);
+  // Combine exp mod 3 index with the top mantissa bits
+  const VI top_mant =
+      And(ShiftRight < kIsF32 ? 22 : 50 > (x_int),
+          Set(di, kIsF32 ? static_cast<TI>(1) : static_cast<TI>(3)));
+  const VI idx = Add(ShiftLeft < kIsF32 ? 1 : 2 > (exp_mod_3), top_mant);
+
+  V r;
+  if constexpr (kIsF32) {
+    // (1/cbrt(lo) + 1/cbrt(hi))/2 over 6 bins of [1,8)
+    HWY_ALIGN static constexpr float initial_guess[8] = {
+        0.92807984f, 0.81504166f, 0.73603648f, 0.65004617f,
+        0.58375800f, 0.51406258f, 0.0f,        0.0f};
+    if constexpr (HWY_MAX_LANES_D(D) >= 4) {
+      if (Lanes(d) >= 4) {
+        r = Lookup8(d, initial_guess, idx);
+      } else {
+        r = GatherIndex(d, initial_guess, idx);
+      }
+    } else {
+      r = GatherIndex(d, initial_guess, idx);
+    }
+  } else {
+    // (1/cbrt(lo) + 1/cbrt(hi))/2 over 12 bins of [1,8)
+    HWY_ALIGN static constexpr double initial_guess[12] = {
+        9.6415888336127797e-01, 9.0094911572942737e-01, 8.5170349905127118e-01,
+        8.1176352967517162e-01, 7.6525341285608861e-01, 7.1508378703935604e-01,
+        6.7599751517949214e-01, 6.4429714047789299e-01, 6.0738203629500487e-01,
+        5.6756237789583885e-01, 5.3653958336190732e-01, 5.1137897928735510e-01};
+    r = GatherIndex(d, initial_guess, idx);
+  }
+
+  // Apply 2^(-exp/3) to scale lookup result to 1/cbrt(x).
+  r = MulByPow2(r, neg_exp_div_3);
+
+  const V kOneThird = Set(d, static_cast<T>(1.0 / 3.0));
+  const V kFourThirds = Set(d, static_cast<T>(4.0 / 3.0));
+  const V x_div_3 = Mul(kOneThird, x);
+  constexpr size_t kIters = kIsF32 ? 2 : 3;
+  // Newton iteration for 1/cbrt(x): r = r * (4/3 - (x/3) * r^3).
+  for (size_t i = 0; i < kIters; ++i) {
+    const V r2 = Mul(r, r);
+    const V r3 = Mul(r2, r);
+    r = Mul(r, NegMulAdd(x_div_3, r3, kFourThirds));
+  }
+
+  // Fused finalizer: y = r*r*x * (5/3 - (2/3) * r*r*r*x).
+  const V kFiveThirds = Set(d, static_cast<T>(5.0 / 3.0));
+  const V kTwoThirds = Set(d, static_cast<T>(2.0 / 3.0));
+  const V y0 = Mul(Mul(r, r), x);
+  const V h = Mul(y0, r);
+  y = Mul(y0, NegMulAdd(kTwoThirds, h, kFiveThirds));
+
+  if constexpr (kHandleSubnormals) {
+    // 1 / cbrt(kScale), 1 / 2^8 or 1 / 2^18
+    const auto kUnscale = Set(d, kIsF32 ? static_cast<T>(1.0 / 256.0)
+                                        : static_cast<T>(1.0 / 262144.0));
+    y = MaskedMulOr(y, is_denormal, y, kUnscale);
+  }
+
+  y = IfThenElse(Or(Eq(abs_x, Zero(d)), Not(IsFinite(abs_x))), abs_x, y);
+
+  y = Or(y, sign);
+  return y;
 }
 
 template <class D, class V>

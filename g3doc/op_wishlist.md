@@ -38,7 +38,7 @@ _mm512_getmant (f32/f64)
 
 High-precision! Consider copying from SLEEF. See #1650.
 
-cbrt, cosh, erf, fmod, ilogb, lgamma, logb, modf, nextafter, nexttoward, pow,
+cosh, erf, fmod, ilogb, lgamma, logb, modf, nextafter, nexttoward, pow,
 scalbn, tan, tgamma
 
 ### Remaining STL functions for hwy/contrib/algo
@@ -184,3 +184,4 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~exp2~~ - by johnplatts
 *   ~~Min/MaxValue~~
 *   ~~Count(If) (https://en.algorithmica.org/hpc/simd/masking/)~~
+*   ~~cbrt~~
