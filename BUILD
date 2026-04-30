@@ -114,6 +114,10 @@ COPTS = select({
         "-march=rv64gcv1p0",
         "-menable-experimental-extensions",
     ],
+    "@platforms//cpu:loongarch64": [
+        "-mlsx",
+        "-mlasx",
+    ],
     "//conditions:default": [
     ],
 })
@@ -193,6 +197,10 @@ cc_library(
         "//conditions:default": [],
     }) + select({
         "@platforms//cpu:riscv64": ["hwy/ops/rvv-inl.h"],
+        "@platforms//cpu:loongarch64": [
+            "hwy/ops/loongarch_lsx-inl.h",
+            "hwy/ops/loongarch_lasx-inl.h",
+            ],
         "//conditions:default": [],
     }),
 )
@@ -594,6 +602,7 @@ HWY_TEST_DEPS = [
             # Fixes OOM for matvec_test on RVV.
             exec_properties = select({
                 "@platforms//cpu:riscv64": {"mem": "16g"},
+		"@platforms//cpu:loongarch64": {"mem": "16g"},
                 "//conditions:default": None,
             }),
             features = select({
@@ -613,6 +622,7 @@ HWY_TEST_DEPS = [
             }),
             linkstatic = select({
                 "@platforms//cpu:riscv64": True,
+		"@platforms//cpu:loongarch64": True,
                 "//conditions:default": False,
             }),
             local_defines = ["HWY_IS_TEST"],
