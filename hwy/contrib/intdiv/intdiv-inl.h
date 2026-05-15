@@ -474,15 +474,7 @@ HWY_INLINE V IntDiv(D d, V dividend, const DivisorParamsU<T>& params) {
 
       constexpr int kShift = static_cast<int>(sizeof(T) * 8);
 
-#if defined(HWY_HAVE_ORDEREDDEMOTE2TO)
-      const V t1 =
-          OrderedDemote2To(d, ShiftRight<kShift>(prod_lo), ShiftRight<kShift>(prod_hi));
-#else
-      const Half<D> d_half;
-      const auto t1_lo = DemoteTo(d_half, ShiftRight<kShift>(prod_lo));
-      const auto t1_hi = DemoteTo(d_half, ShiftRight<kShift>(prod_hi));
-      const V t1 = Combine(d, t1_hi, t1_lo);
-#endif
+      const V t1 = OrderedDemote2To(d, ShiftRight<kShift>(prod_lo), ShiftRight<kShift>(prod_hi));
 
       const V diff = Sub(dividend, t1);
       const V shifted = ShiftRight<1>(diff);
@@ -548,15 +540,7 @@ HWY_INLINE V IntDiv(D d, V dividend, const DivisorParamsS<T>& params) {
 
       constexpr int kShift = static_cast<int>(sizeof(T) * 8);
 
-#if defined(HWY_HAVE_ORDEREDDEMOTE2TO)
-      const auto high =
-          OrderedDemote2To(d, ShiftRight<kShift>(prod_lo), ShiftRight<kShift>(prod_hi));
-#else
-      const Half<D> d_half;
-      const auto high_lo = DemoteTo(d_half, ShiftRight<kShift>(prod_lo));
-      const auto high_hi = DemoteTo(d_half, ShiftRight<kShift>(prod_hi));
-      const auto high = Combine(d, high_hi, high_lo);
-#endif
+      const auto high = OrderedDemote2To(d, ShiftRight<kShift>(prod_lo), ShiftRight<kShift>(prod_hi));
 
       q0 = Add(dividend, high);
     }
