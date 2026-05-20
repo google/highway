@@ -304,7 +304,9 @@ class Span {
   Span() = default;
   Span(T* data, size_t size) : size_(size), data_(data) {}
   template <typename U>
-  Span(U u) : Span(u.data(), u.size()) {}
+  Span(U& u) : Span(u.data(), u.size()) {}
+  template <typename U>
+  Span(U&& u) : Span(u.data(), u.size()) {}
   Span(std::initializer_list<const T> v) : Span(v.begin(), v.size()) {}
 
   // Copies the contents of the initializer list to the span.
@@ -342,6 +344,12 @@ class Span {
   size_t size_ = 0;
   T* data_ = nullptr;
 };
+
+// Deduction guides to infer the constness of T from the constness of U.
+template <typename U>
+Span(U&) -> Span<typename U::value_type>;
+template <typename U>
+Span(const U&) -> Span<const typename U::value_type>;
 
 // A multi dimensional array containing an aligned buffer.
 //
