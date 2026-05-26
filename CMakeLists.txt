@@ -284,6 +284,7 @@ set(HWY_SOURCES
     hwy/print.h
     hwy/profiler.h
     hwy/robust_statistics.h
+    hwy/stats.h
     hwy/targets.h
     hwy/timer-inl.h
     hwy/timer.h
@@ -299,6 +300,7 @@ if (NOT HWY_CMAKE_HEADER_ONLY)
     hwy/perf_counters.cc
     hwy/print.cc
     hwy/profiler.cc
+    hwy/stats.cc
     hwy/targets.cc
     hwy/timer.cc
   )
