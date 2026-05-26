@@ -68,6 +68,35 @@ HWY_CONTRIB_TESTS = (
         (":random",),
     ),
     (
+        "hwy/contrib/hash/",
+        "hash_test",
+        (
+            ":hash",
+            ":random",
+            ":stats",
+            ":thread_pool",
+            ":bit_set",
+        ),
+    ),
+    (
+        "hwy/contrib/hash/",
+        "hash_bench",
+        (":hash", ":random"),
+    ),
+    (
+        "hwy/contrib/hash/",
+        "hash_eval",
+        (
+            ":hash",
+            ":profiler",
+            ":random",
+            ":stats",
+            ":thread_pool",
+            ":topology",
+            "//hwy/contrib/sort:vqsort",
+        ),
+    ),
+    (
         "hwy/contrib/matvec/",
         "matvec_test",
         (":matvec", ":algo", ":topology", ":thread_pool"),

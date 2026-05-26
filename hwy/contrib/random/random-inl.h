@@ -497,6 +497,19 @@ HWY_INLINE float RandomNormalizedFloat(RngStream& rng) {
   return f;
 }
 
+// It is fine if seed is low-entropy, e.g. a counter; AesCtrEngine uses five
+// rounds, which adequately mixes such inputs.
+template <typename T>
+AlignedVector<T> FillRandom(size_t count, AesCtrEngine& engine, uint64_t seed) {
+  RngStream rng(engine, seed);
+  AlignedVector<T> v;
+  v.reserve(count);
+  for (size_t i = 0; i < count; ++i) {
+    v.push_back(static_cast<T>(rng()));
+  }
+  return v;
+}
+
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 
