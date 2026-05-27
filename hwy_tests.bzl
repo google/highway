@@ -43,6 +43,11 @@ HWY_CONTRIB_TESTS = (
         (":image",),
     ),
     (
+        "hwy/contrib/intdiv/",
+        "intdiv_test",
+        (":intdiv",),
+    ),
+    (
         "hwy/contrib/math/",
         "math_test",
         (":math",),

@@ -579,6 +579,18 @@ cc_library(
     local_defines = ["HWY_HEADER_ONLY"],
 )
 
+cc_library(
+    name = "intdiv",
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/intdiv/intdiv-inl.h",
+    ],
+    deps = [
+        ":hwy",
+    ],
+)
+
 cc_test(
     name = "list_targets",
     size = "small",
