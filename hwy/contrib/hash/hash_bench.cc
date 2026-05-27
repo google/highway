@@ -39,6 +39,7 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
+#if HWY_TARGET != HWY_SCALAR
 
 template <class IHash>
 HWY_NOINLINE void TestLatency(const IHash& hash) {
@@ -48,7 +49,9 @@ HWY_NOINLINE void TestLatency(const IHash& hash) {
   Result results[1];
 
   const size_t num_results = MeasureClosure(
-      [&hash](FuncInput input) { return hash(static_cast<uint32_t>(input)); },
+      [&hash](FuncInput func_input) {
+        return hash(static_cast<uint32_t>(func_input));
+      },
       &input, 1, results, params);
   if (num_results == 1) {
     const double ns =
@@ -123,6 +126,11 @@ HWY_NOINLINE void TestAllThroughput() {
   AesCtrEngine engine(/*deterministic=*/true);
   ForeachHash(engine, 0, [](const auto& hash) { TestThroughput(hash); });
 }
+
+#else   // HWY_TARGET == HWY_SCALAR
+void TestAllLatency() {}
+void TestAllThroughput() {}
+#endif  // HWY_TARGET != HWY_SCALAR
 
 }  // namespace
 }  // namespace HWY_NAMESPACE

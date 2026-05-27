@@ -16,17 +16,16 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+
 #include <iostream>
-#include <vector>
 #include <numeric>
+
 #include "hwy/aligned_allocator.h"
-#include <cstring>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE \
   "hwy/examples/matrix_transpose_scatter_gather.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
-
 #include "hwy/highway.h"
 
 /*
@@ -51,6 +50,8 @@ GatherIndexN/ScatterIndexN for partial vector operations without masking.
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
+
 namespace hn = hwy::HWY_NAMESPACE;
 
 // Scalar baseline matrix transpose.
@@ -64,8 +65,8 @@ void TransposeScalar(const uint32_t* HWY_RESTRICT input, uint32_t R, uint32_t C,
 }
 
 // Transpose via Scatter: Contiguous Load -> Strided Scatter Store.
-void TransposeScatter(const uint32_t* HWY_RESTRICT input, uint32_t R, uint32_t C,
-                      uint32_t* HWY_RESTRICT output) {
+void TransposeScatter(const uint32_t* HWY_RESTRICT input, uint32_t R,
+                      uint32_t C, uint32_t* HWY_RESTRICT output) {
   using D = hn::ScalableTag<uint32_t>;
   const D d;
   using V = hn::Vec<D>;
@@ -86,7 +87,8 @@ void TransposeScatter(const uint32_t* HWY_RESTRICT input, uint32_t R, uint32_t C
       // Load contiguous row slice from input
       V row = hn::Load(d, input + r * C + c);
 
-      // Scatter to output column-wise using constant strided indices and moving base pointer
+      // Scatter to output column-wise using constant strided indices and
+      // moving base pointer
       hn::ScatterIndex(row, d, output + c * R + r, stride_indices);
     }
 
@@ -121,7 +123,8 @@ void TransposeGather(const uint32_t* HWY_RESTRICT input, uint32_t R, uint32_t C,
     uint32_t r = 0;
     // Process output columns (input rows) in blocks of Lanes (N)
     for (; r + N <= R; r += N) {
-      // Gather column slice from input using constant strided indices and moving base pointer
+      // Gather column slice from input using constant strided indices and
+      // moving base pointer
       V col = hn::GatherIndex(d, input + r * C + c, stride_indices);
 
       // Store contiguous row slice to output
@@ -139,6 +142,7 @@ void TransposeGather(const uint32_t* HWY_RESTRICT input, uint32_t R, uint32_t C,
   }
 }
 
+}  // namespace
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
@@ -150,8 +154,8 @@ HWY_EXPORT(TransposeScatter);
 HWY_EXPORT(TransposeGather);
 
 // Visualizes a subgrid of the matrix in console.
-void PrintMatrix(const uint32_t* m, uint32_t R, uint32_t C, uint32_t C_stride,
-                 const char* label) {
+static void PrintMatrix(const uint32_t* m, uint32_t R, uint32_t C,
+                        uint32_t C_stride, const char* label) {
   std::cout << label << " (" << R << "x" << C << "):\n";
   for (uint32_t r = 0; r < R; ++r) {
     for (uint32_t c = 0; c < C; ++c) {
@@ -161,37 +165,40 @@ void PrintMatrix(const uint32_t* m, uint32_t R, uint32_t C, uint32_t C_stride,
   }
   std::cout << "\n";
 }
-}  // namespace hwy
 
-int main() {
+static void Run() {
   // Dimensions 64x64
   const uint32_t R = 64;
   const uint32_t C = 64;
   const size_t size = R * C;
 
-  std::vector<uint32_t, hwy::AlignedAllocator<uint32_t>> input(size);
-  std::vector<uint32_t, hwy::AlignedAllocator<uint32_t>> output(size);
+  AlignedVector<uint32_t> input(size);
+  AlignedVector<uint32_t> output(size);
 
   // Fill input with sequential values 0..size-1
   std::iota(input.begin(), input.end(), 0);
 
   std::cout << "Matrix Size: " << R << "x" << C << "\n\n";
   std::cout << "Input subgrid:\n";
-  hwy::PrintMatrix(input.data(), 3, 5, C, "Input");
+  PrintMatrix(input.data(), 3, 5, C, "Input");
 
   // 1. Run Scalar Baseline
-  HWY_DYNAMIC_DISPATCH(hwy::TransposeScalar)(input.data(), R, C, output.data());
-  hwy::PrintMatrix(output.data(), 5, 3, R, "Scalar Transposed");
+  HWY_DYNAMIC_DISPATCH(TransposeScalar)(input.data(), R, C, output.data());
+  PrintMatrix(output.data(), 5, 3, R, "Scalar Transposed");
 
   // 2. Run Transpose via Scatter (SIMD)
-  HWY_DYNAMIC_DISPATCH(hwy::TransposeScatter)(
-      input.data(), R, C, output.data());
-  hwy::PrintMatrix(output.data(), 5, 3, R, "SIMD Scatter Transposed");
+  HWY_DYNAMIC_DISPATCH(TransposeScatter)(input.data(), R, C, output.data());
+  PrintMatrix(output.data(), 5, 3, R, "SIMD Scatter Transposed");
 
   // 3. Run Transpose via Gather (SIMD)
-  HWY_DYNAMIC_DISPATCH(hwy::TransposeGather)(input.data(), R, C, output.data());
-  hwy::PrintMatrix(output.data(), 5, 3, R, "SIMD Gather Transposed");
+  HWY_DYNAMIC_DISPATCH(TransposeGather)(input.data(), R, C, output.data());
+  PrintMatrix(output.data(), 5, 3, R, "SIMD Gather Transposed");
+}
 
+}  // namespace hwy
+
+int main() {
+  hwy::Run();
   return 0;
 }
 #endif  // HWY_ONCE

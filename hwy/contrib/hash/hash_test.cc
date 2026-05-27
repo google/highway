@@ -41,12 +41,12 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
+#if HWY_TARGET != HWY_SCALAR
 
 ThreadPool MakePool(size_t max_threads = 31) {
   return ThreadPool(HWY_MIN(ThreadPool::MaxThreads(), max_threads));
 }
-
-namespace {
 
 template <typename T>
 static void AssertNear(const char* name, double expected, T actual,
@@ -108,8 +108,9 @@ static HWY_NOINLINE void TestAvalanche(const Hash& hash) {
 
     // Each (input_bit, output_bit) pair should flip ~50% of the time.
     // Allow 40-60% range for non-cryptographic use.
-    const size_t lo = static_cast<size_t>(kNumTrials * 0.40);
-    const size_t hi = static_cast<size_t>(kNumTrials * 0.60);
+    const double num_trials = static_cast<double>(kNumTrials);
+    const int32_t lo = static_cast<int32_t>(num_trials * 0.40);
+    const int32_t hi = static_cast<int32_t>(num_trials * 0.60);
     size_t violations = 0;
 
     const int32_t expected = static_cast<int32_t>(kNumTrials / 2);
@@ -127,7 +128,7 @@ static HWY_NOINLINE void TestAvalanche(const Hash& hash) {
           if (violations < 20) {  // Don't flood output.
             HWY_WARN(
                 "Avalanche violation: input_bit=%2zu, output_bit=%2zu, "
-                "flip_count=%4ud (expected ~%4d, range [%4zu, %4zu])",
+                "flip_count=%4ud (expected ~%4d, range [%4d, %4d])",
                 ibit, obit, actual, expected, lo, hi);
           }
           violations++;
@@ -427,6 +428,15 @@ static HWY_NOINLINE void TestAllEdgeCases() {
     TestEdgeCases(hash);
   });
 }
+
+#else   // HWY_TARGET == HWY_SCALAR
+static void TestAllAvalanche() {}
+static void TestAllBias() {}
+static void TestAllBuckets() {}
+static void TestAllBijection() {}
+static void TestAllLanesEqual() {}
+static void TestAllEdgeCases() {}
+#endif  // HWY_TARGET != HWY_SCALAR
 
 }  // namespace
 }  // namespace HWY_NAMESPACE

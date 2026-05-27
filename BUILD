@@ -494,7 +494,7 @@ cc_binary(
     ],
 )
 
-cc_binary(
+cc_test(
     name = "sum_array_simple",
     srcs = ["hwy/examples/sum_array_simple.cc"],
     copts = COPTS,
@@ -503,7 +503,7 @@ cc_binary(
     ],
 )
 
-cc_binary(
+cc_test(
     name = "sum_array_advanced",
     srcs = ["hwy/examples/sum_array_advanced.cc"],
     copts = COPTS,
@@ -514,7 +514,7 @@ cc_binary(
     ],
 )
 
-cc_binary(
+cc_test(
     name = "masks_and_logic",
     srcs = ["hwy/examples/masks_and_logic.cc"],
     copts = COPTS,
@@ -523,7 +523,7 @@ cc_binary(
     ],
 )
 
-cc_binary(
+cc_test(
     name = "ctf_aes",
     srcs = ["hwy/examples/ctf_aes.cc"],
     copts = COPTS,
@@ -533,7 +533,7 @@ cc_binary(
     ],
 )
 
-cc_binary(
+cc_test(
     name = "matrix_transpose_scatter_gather",
     srcs = ["hwy/examples/matrix_transpose_scatter_gather.cc"],
     copts = COPTS,
@@ -542,7 +542,7 @@ cc_binary(
     ],
 )
 
-cc_binary(
+cc_test(
     name = "dot_product_unroll",
     srcs = ["hwy/examples/dot_product_unroll.cc"],
     copts = COPTS,

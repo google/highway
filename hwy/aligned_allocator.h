@@ -345,11 +345,14 @@ class Span {
   T* data_ = nullptr;
 };
 
-// Deduction guides to infer the constness of T from the constness of U.
+// Deduction guides to infer the constness of T from the constness of U
+// (requires C++17)
+#if HWY_CXX_LANG >= 201703L
 template <typename U>
 Span(U&) -> Span<typename U::value_type>;
 template <typename U>
 Span(const U&) -> Span<const typename U::value_type>;
+#endif  // HWY_CXX_LANG >= 201703L
 
 // A multi dimensional array containing an aligned buffer.
 //

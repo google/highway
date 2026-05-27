@@ -73,6 +73,7 @@ constexpr Box kBox2 = {35.0f, 18.0f, 12.0f, 8.0f};
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 namespace hn = hwy::HWY_NAMESPACE;
 
 // Render a single line using SIMD.
@@ -141,6 +142,7 @@ void RenderArtSIMD(size_t width, size_t height, int32_t* HWY_RESTRICT buf) {
   }
 }
 
+}  // namespace
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
@@ -149,11 +151,13 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 HWY_EXPORT(RenderArtSIMD);
 
-void CallRenderArtSIMD(size_t width, size_t height, int32_t* HWY_RESTRICT buf) {
+static void CallRenderArtSIMD(size_t width, size_t height,
+                              int32_t* HWY_RESTRICT buf) {
   HWY_DYNAMIC_DISPATCH(RenderArtSIMD)(width, height, buf);
 }
 
-void RenderArtScalar(size_t width, size_t height, int32_t* HWY_RESTRICT buf) {
+static void RenderArtScalar(size_t width, size_t height,
+                            int32_t* HWY_RESTRICT buf) {
   auto check_box = [](float x_val, float y_val, Box b) {
     return std::abs(x_val - b.cx) < b.w && std::abs(y_val - b.cy) < b.h;
   };
@@ -178,7 +182,8 @@ void RenderArtScalar(size_t width, size_t height, int32_t* HWY_RESTRICT buf) {
   }
 }
 
-void PrintArt(const std::vector<int32_t>& buf, size_t width, size_t height) {
+static void PrintArt(const std::vector<int32_t>& buf, size_t width,
+                     size_t height) {
   for (size_t y = 0; y < height; ++y) {
     for (size_t x = 0; x < width; ++x) {
       std::cout << static_cast<char>(buf[y * width + x]);

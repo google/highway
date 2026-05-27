@@ -49,6 +49,7 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
+#if HWY_TARGET != HWY_SCALAR
 
 using KeyType = uint32_t;
 using HashType = uint32_t;
@@ -904,6 +905,10 @@ HWY_NOINLINE void RunAll() {
   ForeachHash(engine, 0, [](const auto& hash) { RunTests(hash); });
   PROFILER_PRINT_RESULTS();
 }
+
+#else   // HWY_TARGET == HWY_SCALAR
+void RunAll() {}
+#endif  // HWY_TARGET != HWY_SCALAR
 
 }  // namespace
 }  // namespace HWY_NAMESPACE

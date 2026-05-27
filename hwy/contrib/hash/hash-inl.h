@@ -50,8 +50,8 @@
 #include "hwy/contrib/random/random-inl.h"
 #include "hwy/highway.h"
 
+#if HWY_TARGET != HWY_SCALAR
 HWY_BEFORE_NAMESPACE();
-
 namespace hwy {
 namespace HWY_NAMESPACE {
 
@@ -212,7 +212,7 @@ class Speck32 {
   AlignedVector<uint16_t> keys_;
 };
 
-#if 0  // obsolete
+#if 0  // obsolete - use one of the above instead
 
 // Lai-Massey diffuses faster than Feistel because it updates both halves
 // concurrently, but this is also a weakness in that input differentials
@@ -405,7 +405,7 @@ class WeakNMHash {
   AlignedVector<uint32_t> keys_;
 };
 
-#endif
+#endif  // obsolete
 
 template <class Func>
 void ForeachHash(AesCtrEngine& engine, uint64_t seed, const Func& func) {
@@ -420,7 +420,7 @@ void ForeachHash(AesCtrEngine& engine, uint64_t seed, const Func& func) {
 
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
-
 HWY_AFTER_NAMESPACE();
+#endif  // HWY_TARGET != HWY_SCALAR
 
 #endif  // HIGHWAY_HWY_CONTRIB_HASH_HASH_INL_H_
