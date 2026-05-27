@@ -529,7 +529,7 @@ HWY_API Vec128<T, N> AndXor(Vec128<T, N> a, Vec128<T, N> x1,
   } else  // NOLINT
 #endif
   {
-    return detail::TernaryLogic<0x06>(x, a1, a2);
+    return detail::TernaryLogic<0x06>(a, x1, x2);
   }
 }
 
