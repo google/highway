@@ -69,6 +69,8 @@ extern const char* g_fxn2;
   V(FastAtanPositive)          \
   V(Tanh)                      \
   V(FastTanh)                  \
+  V(Tan)                       \
+  V(FastTan)                   \
   V(Atan2)                     \
   V(FastAtan2)
 
@@ -212,6 +214,12 @@ DEFINE_MATH_BENCH(CallTanh, hn::CallTanh(d, v),
                   -10.0 + static_cast<double>(in) * (20.0 / 15.0))
 DEFINE_MATH_BENCH(CallFastTanh, hn::CallFastTanh(d, v),
                   -10.0 + static_cast<double>(in) * (20.0 / 15.0))
+
+// Tan / FastTan
+DEFINE_MATH_BENCH(CallTan, hn::Tan(d, v),
+                  -1.57 + static_cast<double>(in) * (3.14 / 15.0))
+DEFINE_MATH_BENCH(CallFastTan, hn::CallFastTan(d, v),
+                  -1.57 + static_cast<double>(in) * (3.14 / 15.0))
 
 // Atan2 / FastAtan2
 DEFINE_MATH_BENCH_2ARG(CallAtan2, hn::CallAtan2(d, y, x),
