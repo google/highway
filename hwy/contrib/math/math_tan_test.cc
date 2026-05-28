@@ -253,6 +253,10 @@ HWY_NOINLINE void TestMathRelative(const char* name, T (*fx1)(T),
 DEFINE_MATH_TEST(Atan,
   std::atan,  CallAtan,  -FLT_MAX,   +FLT_MAX,    3,
   std::atan,  CallAtan,  -DBL_MAX,   +DBL_MAX,    3)
+
+DEFINE_MATH_TEST(Tan,
+  std::tan,  CallTan,  -39000.0,   +39000.0,    64,
+  std::tan,  CallTan,  -39000.0,   +39000.0,    1)
 // clang-format on
 
 template <typename T, class D>
@@ -733,6 +737,7 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 namespace {
 HWY_BEFORE_TEST(HwyMathTanTest);
+HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllTan);
 HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllAtan);
 HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllAtan2);
 HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllHypot);

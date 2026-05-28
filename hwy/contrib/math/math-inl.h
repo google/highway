@@ -172,6 +172,21 @@ HWY_NOINLINE V CallCos(const D d, VecArg<V> x) {
 }
 
 /**
+ * Highway SIMD version of std::tan(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 64 (float32), 1 (float64)
+ *      Valid Range: [-39000, +39000]
+ * @return tangent of 'x'
+ */
+template <class D, class V>
+HWY_INLINE V Tan(D d, V x);
+template <class D, class V>
+HWY_NOINLINE V CallTan(const D d, VecArg<V> x) {
+  return Tan(d, x);
+}
+
+/**
  * Highway SIMD version of std::exp(x).
  *
  * Valid Lane Types: float32, float64
@@ -1801,6 +1816,13 @@ HWY_INLINE void SinCos(const D d, V x, V& s, V& c) {
   using T = TFromD<D>;
   impl::SinCosImpl<T> impl;
   impl.SinCos(d, x, s, c);
+}
+
+template <class D, class V>
+HWY_INLINE V Tan(const D d, V x) {
+  V s, c;
+  SinCos(d, x, s, c);
+  return Div(s, c);
 }
 
 template <class D, class V>
