@@ -611,17 +611,15 @@ struct TestFastTanRelative {
   template <class T, class D>
   HWY_NOINLINE void operator()(T, D d) {
     if (sizeof(T) == 4) {
-      // Float: [-89.99, +89.99] deg
-      // 89.99 deg = 1.570621794 rad
+      // Float: [-89.999999, +89.999999] deg
       TestMathRelative<T, D>("FastTan", std::tan, CallFastTan, d,
-                             static_cast<T>(-1.570621794),
-                             static_cast<T>(1.570621794), 0.0035);
+                             static_cast<T>(-1.570796309),
+                             static_cast<T>(1.570796309), 0.00045);
     } else {
-      // Double: [-89.9999999, +89.9999999] deg
-      // 89.9999999 deg = 1.570796325 rad
+      // Double: [-89.999999999999, +89.999999999999] deg
       TestMathRelative<T, D>("FastTan", std::tan, CallFastTan, d,
-                             static_cast<T>(-1.570796325),
-                             static_cast<T>(1.570796325), 0.0035);
+                             static_cast<T>(-1.5707963267948),
+                             static_cast<T>(1.5707963267948), 0.00045);
     }
   }
 };
