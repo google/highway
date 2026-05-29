@@ -3168,7 +3168,7 @@ HWY_API VFromD<D> MaskedGatherIndex(MFromD<D> m, D d,
 
   HWY_ALIGN T lanes[MaxLanes(d)];
   for (size_t i = 0; i < MaxLanes(d); ++i) {
-    HWY_DASSERT(index_lanes[i] >= 0);
+    HWY_DASSERT(!mask_lanes[i] || index_lanes[i] >= 0);
     lanes[i] = mask_lanes[i] ? base[index_lanes[i]] : T{0};
   }
   return Load(d, lanes);
@@ -3193,7 +3193,7 @@ HWY_API VFromD<D> MaskedGatherIndexOr(VFromD<D> no, MFromD<D> m, D d,
 
   HWY_ALIGN T lanes[MaxLanes(d)];
   for (size_t i = 0; i < MaxLanes(d); ++i) {
-    HWY_DASSERT(index_lanes[i] >= 0);
+    HWY_DASSERT(!mask_lanes[i] || index_lanes[i] >= 0);
     lanes[i] = mask_lanes[i] ? base[index_lanes[i]] : no_lanes[i];
   }
   return Load(d, lanes);
