@@ -915,6 +915,7 @@ list(APPEND HWY_TEST_FILES
   hwy/contrib/algo/transform_test.cc
   hwy/contrib/bit_pack/bit_pack_test.cc
   hwy/contrib/dot/dot_test.cc
+  hwy/contrib/dot/dot_bench.cc
   hwy/contrib/matvec/matvec_test.cc
   hwy/contrib/image/image_test.cc
   # Disabled due to SIGILL in clang7 debug build during gtest discovery phase,
