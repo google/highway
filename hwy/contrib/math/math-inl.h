@@ -175,8 +175,10 @@ HWY_NOINLINE V CallCos(const D d, VecArg<V> x) {
  * Highway SIMD version of std::tan(x).
  *
  * Valid Lane Types: float32, float64
- *        Max Error: ULP = 64 (float32), 1 (float64)
- *      Valid Range: [-39000, +39000]
+ *        Max Error: ULP = ~300 (float32), 1 (float64)
+ *                   Note: On float32, error is ~64 ULP on targets with FMA.
+ *                   Without FMA (e.g. SSE4), rounding errors accumulate up to
+ * ~300 ULP. Valid Range: [-39000, +39000]
  * @return tangent of 'x'
  */
 template <class D, class V>
@@ -1548,7 +1550,7 @@ HWY_INLINE V Cbrt(const D d, V x) {
   // Extract exponent and shift (3*128 or 3*512) to keep non-negative for
   // Barrett reduction
   const VI exp_shifted =
-      Add(ShiftRight < kIsF32 ? 23 : 52 > (x_int),
+      Add(ShiftRight<kIsF32 ? 23 : 52>(x_int),
           Set(di, kIsF32 ? static_cast<TI>(257) : static_cast<TI>(513)));
 
   VI exp_shifted_div_3;
@@ -1572,9 +1574,9 @@ HWY_INLINE V Cbrt(const D d, V x) {
           exp_shifted_div_3);
   // Combine exp mod 3 index with the top mantissa bits
   const VI top_mant =
-      And(ShiftRight < kIsF32 ? 22 : 50 > (x_int),
+      And(ShiftRight<kIsF32 ? 22 : 50>(x_int),
           Set(di, kIsF32 ? static_cast<TI>(1) : static_cast<TI>(3)));
-  const VI idx = Add(ShiftLeft < kIsF32 ? 1 : 2 > (exp_mod_3), top_mant);
+  const VI idx = Add(ShiftLeft<kIsF32 ? 1 : 2>(exp_mod_3), top_mant);
 
   V r;
   if constexpr (kIsF32) {

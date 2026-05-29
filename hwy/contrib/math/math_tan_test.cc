@@ -254,8 +254,11 @@ DEFINE_MATH_TEST(Atan,
   std::atan,  CallAtan,  -FLT_MAX,   +FLT_MAX,    3,
   std::atan,  CallAtan,  -DBL_MAX,   +DBL_MAX,    3)
 
+// 300 ULP max error for float32 accommodates for architectures without FMA (like SSE4)
+// where rounding errors accumulate higher due to separate multiply and add instructions.
+// On hardware with FMA, the max error is ~64 ULP.
 DEFINE_MATH_TEST(Tan,
-  std::tan,  CallTan,  -39000.0,   +39000.0,    64,
+  std::tan,  CallTan,  -39000.0,   +39000.0,    (HWY_NATIVE_FMA ? 64 : 300),
   std::tan,  CallTan,  -39000.0,   +39000.0,    1)
 // clang-format on
 
@@ -616,14 +619,20 @@ struct TestFastTanRelative {
   HWY_NOINLINE void operator()(T, D d) {
     if (sizeof(T) == 4) {
       // Float: [-89.999999, +89.999999] deg
-      TestMathRelative<T, D>("FastTan", std::tan, CallFastTan, d,
-                             static_cast<T>(-1.570796309),
-                             static_cast<T>(1.570796309), 0.00045);
+      // Max relative error is 0.002 to tolerate accuracy drop on architectures
+      // without FMA support (like SSE4). On targets with FMA, the actual max
+      // rel error is ~0.00045.
+      TestMathRelative<T, D>(
+          "FastTan", std::tan, CallFastTan, d, static_cast<T>(-1.570796309),
+          static_cast<T>(1.570796309), (HWY_NATIVE_FMA ? 0.00045 : 0.002));
     } else {
       // Double: [-89.999999999999, +89.999999999999] deg
-      TestMathRelative<T, D>("FastTan", std::tan, CallFastTan, d,
-                             static_cast<T>(-1.5707963267948),
-                             static_cast<T>(1.5707963267948), 0.00045);
+      // Max relative error is 0.002 to tolerate accuracy drop on architectures
+      // without FMA support (like SSE4). On targets with FMA, the actual max
+      // rel error is ~0.00045.
+      TestMathRelative<T, D>(
+          "FastTan", std::tan, CallFastTan, d, static_cast<T>(-1.5707963267948),
+          static_cast<T>(1.5707963267948), (HWY_NATIVE_FMA ? 0.00045 : 0.002));
     }
   }
 };

@@ -210,9 +210,12 @@ struct FastExpImpl<double> {
  * Fast approximation of tan(x).
  *
  * Valid Lane Types: float32, float64
- * Max Relative Error: < 0.045% for angles equivalent to falling between
+ * Max Relative Error: < 0.2% for angles equivalent to falling between
  * [-89.999999, +89.999999] degrees (float32) and
  *                     [-89.999999999999, +89.999999999999] degrees (float64).
+ *                     Note: On targets with FMA, max error is < 0.045%.
+ *                     Increased to < 0.2% to accommodate precision constraints
+ *                     of older targets without FMA (e.g., SSE4).
  * Valid Range: float32 : [-250, +250] rads
  *              float64 : [-1e10, +1e10] rads
  *
