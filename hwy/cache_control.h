@@ -92,8 +92,10 @@ HWY_INLINE HWY_ATTR_CACHE void FlushStream() {
 #endif
 }
 
-// Optionally begins loading the cache line containing "p" to reduce latency of
-// subsequent actual loads.
+// Optionally begins loading the cache line containing "p" into all cache
+// levels, including L1, to reduce latency of subsequent actual loads. This
+// corresponds to the T0 temporal locality hint on x86, which is ideal when data
+// is about to be directly consumed.
 template <typename T>
 HWY_INLINE HWY_ATTR_CACHE void Prefetch(const T* p) {
   (void)p;
@@ -105,6 +107,38 @@ HWY_INLINE HWY_ATTR_CACHE void Prefetch(const T* p) {
   // Hint=0 (NTA) behavior differs, but skipping outer caches is probably not
   // desirable, so use the default 3 (keep in caches).
   __builtin_prefetch(p, /*write=*/0, /*hint=*/3);
+#endif
+#endif  //  HWY_DISABLE_CACHE_CONTROL
+}
+
+// Begins loading the cache line containing "p" into the L1 cache only, passing
+// a Non-Temporal Access (NTA) hint. This minimizes pollution of outer memory
+// caches (L2/L3) and is ideal for data accessed exactly once.
+template <typename T>
+HWY_INLINE HWY_ATTR_CACHE void PrefetchNTA(const T* p) {
+  (void)p;
+#ifndef HWY_DISABLE_CACHE_CONTROL
+#if HWY_ARCH_X86 && !(HWY_COMPILER_CLANGCL && !defined(__MMX__))
+  _mm_prefetch(reinterpret_cast<const char*>(p), _MM_HINT_NTA);
+#elif HWY_COMPILER_GCC || HWY_COMPILER_CLANGCL  // includes clang
+  // Hint=0 specifically sets Non-Temporal local locality
+  __builtin_prefetch(p, /*write=*/0, /*hint=*/0);
+#endif
+#endif  //  HWY_DISABLE_CACHE_CONTROL
+}
+
+// Attempts to stage the cache line containing "p" into the L3/L2 outer caches
+// without aggressively staging it immediately into the L1. This restricts L1
+// and LFB thrashing on architectures like Intel when hiding massive DRAM delay.
+template <typename T>
+HWY_INLINE HWY_ATTR_CACHE void DeepPrefetch(const T* p) {
+  (void)p;
+#ifndef HWY_DISABLE_CACHE_CONTROL
+#if HWY_ARCH_X86 && !(HWY_COMPILER_CLANGCL && !defined(__MMX__))
+  _mm_prefetch(reinterpret_cast<const char*>(p), _MM_HINT_T2);
+#elif HWY_COMPILER_GCC || HWY_COMPILER_CLANGCL  // includes clang
+  // Hint=1 requests Moderate degrees of temporal locality (L2/L3 bounds)
+  __builtin_prefetch(p, /*write=*/0, /*hint=*/1);
 #endif
 #endif  //  HWY_DISABLE_CACHE_CONTROL
 }

@@ -702,3 +702,43 @@ test_suite(
     name = "hwy_ops_tests",
     tags = ["hwy_ops_test"],
 )
+
+# copybara:strip_begin(internal)
+cc_library(
+    name = "dual_tier_prefetch",
+    hdrs = [
+        "hwy/contrib/pipeline/dual_tier_prefetch.h",
+    ],
+    compatible_with = [],
+    copts = COPTS,
+    deps = [
+        ":hwy",
+    ],
+)
+
+cc_library(
+    name = "dual_tier_prefetch_2d",
+    hdrs = [
+        "hwy/contrib/pipeline/dual_tier_prefetch_2d.h",
+    ],
+    compatible_with = [],
+    copts = COPTS,
+    deps = [
+        ":dual_tier_prefetch",
+        ":hwy",
+    ],
+)
+
+cc_test(
+    name = "dual_tier_prefetch_benchmark",
+    size = "medium",
+    srcs = ["hwy/contrib/pipeline/dual_tier_prefetch_benchmark.cc"],
+    copts = COPTS + HWY_TEST_COPTS,
+    deps = [
+        ":dual_tier_prefetch",
+        ":hwy",
+        "//testing/base/public:gunit_main",
+        "//third_party/benchmark",
+    ],
+)
+# copybara:strip_end
