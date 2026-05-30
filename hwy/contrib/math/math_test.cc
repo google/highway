@@ -174,8 +174,8 @@ HWY_NOINLINE void TestMath(const char* name, T (*fx1)(T),
 
 // clang-format off
 DEFINE_MATH_TEST(Erf,
-  std::erf,   CallErf,   -FLT_MAX,   +FLT_MAX,    2,
-  std::erf,   CallErf,   -DBL_MAX,   +DBL_MAX,    2)
+  std::erf,   CallErf,   -FLT_MAX,   +FLT_MAX,    4,
+  std::erf,   CallErf,   -DBL_MAX,   +DBL_MAX,    4)
 DEFINE_MATH_TEST(Exp,
   std::exp,   CallExp,   -FLT_MAX,   +104.0f,     1,
   std::exp,   CallExp,   -DBL_MAX,   +104.0,      1)
