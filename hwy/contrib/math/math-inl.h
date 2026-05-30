@@ -584,6 +584,8 @@ struct AtanImpl {};
 template <class FloatOrDouble>
 struct CosSinImpl {};
 template <class FloatOrDouble>
+struct ErfImpl {};
+template <class FloatOrDouble>
 struct ExpImpl {};
 template <class FloatOrDouble>
 struct LogImpl {};
@@ -681,6 +683,143 @@ struct AtanImpl<double> {
     return MulAdd(Estrin(y, k0, k1, k2, k3, k4, k5, k6, k7, k8, k9, k10, k11,
                          k12, k13, k14, k15, k16, k17, k18),
                   Mul(y, x), x);
+  }
+};
+
+#endif
+
+template <>
+struct ErfImpl<float> {
+  // Polynomial approximation for erf(x) over |x| < 1
+  template <class D, class V = VFromD<D>, HWY_IF_F32_D(D)>
+  HWY_INLINE V SmallErf(D d, V x, V z) {
+    const V kT0 = Set(d, +1.128379165726710E+0f);
+    const V kT1 = Set(d, -3.761262582423300E-1f);
+    const V kT2 = Set(d, +1.128358514861418E-1f);
+    const V kT3 = Set(d, -2.685381193529856E-2f);
+    const V kT4 = Set(d, +5.188327685732524E-3f);
+    const V kT5 = Set(d, -8.010193625184903E-4f);
+    const V kT6 = Set(d, +7.853861353153693E-5f);
+    return Mul(x, Estrin(z, kT0, kT1, kT2, kT3, kT4, kT5, kT6));
+  }
+
+  // erfc(x) / exp(-x*x) via polynomial in 1/(x*x), |x| in [1, Limit)
+  // Uses P for |x| in [1, 2), R for |x| in [2, Limit)
+  template <class D, class V = VFromD<D>, HWY_IF_F32_D(D)>
+  HWY_INLINE V ErfcFactor(D d, V x, V /*z*/) {
+    const V kOne = Set(d, +1.0f);
+    const V inv_x = Div(kOne, x);
+    const V w = Mul(inv_x, inv_x);
+
+    const V kP0 = Set(d, +5.638259427386472E-1f);
+    const V kP1 = Set(d, -2.741127028184656E-1f);
+    const V kP2 = Set(d, +3.404879937665872E-1f);
+    const V kP3 = Set(d, -4.944515323274145E-1f);
+    const V kP4 = Set(d, +6.210004621745983E-1f);
+    const V kP5 = Set(d, -5.824733027278666E-1f);
+    const V kP6 = Set(d, +3.687424674597105E-1f);
+    const V kP7 = Set(d, -1.387039388740657E-1f);
+    const V kP8 = Set(d, +2.326819970068386E-2f);
+    const V poly_P = Estrin(w, kP0, kP1, kP2, kP3, kP4, kP5, kP6, kP7, kP8);
+
+    const V kR0 = Set(d, +5.641895067754075E-1f);
+    const V kR1 = Set(d, -2.820767439740514E-1f);
+    const V kR2 = Set(d, +4.218463358204948E-1f);
+    const V kR3 = Set(d, -1.015265279202700E+0f);
+    const V kR4 = Set(d, +2.921019019210786E+0f);
+    const V kR5 = Set(d, -7.495518717768503E+0f);
+    const V kR6 = Set(d, +1.297719955372516E+1f);
+    const V kR7 = Set(d, -1.047766399936249E+1f);
+    const V poly_R = Estrin(w, kR0, kR1, kR2, kR3, kR4, kR5, kR6, kR7);
+
+    const auto is_mid = Lt(x, Set(d, +2.0f));
+    return Mul(inv_x, IfThenElse(is_mid, poly_P, poly_R));
+  }
+
+  // |x| >= 14: erfc underflows f32, erf saturates to +/-1
+  template <class D, class V = VFromD<D>, HWY_IF_F32_D(D)>
+  HWY_INLINE V Limit(D d) {
+    return Set(d, +14.0f);
+  }
+};
+
+#if HWY_HAVE_FLOAT64 && HWY_HAVE_INTEGER64
+
+template <>
+struct ErfImpl<double> {
+  // T(z) / U(z) approximation for erf(x) over |x| < 1
+  template <class D, class V = VFromD<D>, HWY_IF_F64_D(D)>
+  HWY_INLINE V SmallErf(D d, V x, V z) {
+    const V kT0 = Set(d, +5.55923013010394962768E4);
+    const V kT1 = Set(d, +7.00332514112805075473E3);
+    const V kT2 = Set(d, +2.23200534594684319226E3);
+    const V kT3 = Set(d, +9.00260197203842689217E1);
+    const V kT4 = Set(d, +9.60497373987051638749E0);
+    const V T_poly = Estrin(z, kT0, kT1, kT2, kT3, kT4);
+
+    const V kU0 = Set(d, +4.92673942608635921086E4);
+    const V kU1 = Set(d, +2.26290000613890934246E4);
+    const V kU2 = Set(d, +4.59432382970980127987E3);
+    const V kU3 = Set(d, +5.21357949780152679795E2);
+    const V kU4 = Set(d, +3.35617141647503099647E1);
+    const V kU5 = Set(d, +1.0);
+    const V U_poly = Estrin(z, kU0, kU1, kU2, kU3, kU4, kU5);
+
+    return Mul(x, Div(T_poly, U_poly));
+  }
+
+  // erfc(x) / exp(-x*x) via P(x)/Q(x) and R(x)/S(x), |x| in [1, Limit)
+  template <class D, class V = VFromD<D>, HWY_IF_F64_D(D)>
+  HWY_INLINE V ErfcFactor(D d, V x, V /*z*/) {
+    const V kP0 = Set(d, +5.57535335369399327526E2);
+    const V kP1 = Set(d, +1.02755188689515710272E3);
+    const V kP2 = Set(d, +9.34528527171957607540E2);
+    const V kP3 = Set(d, +5.26445194995477358631E2);
+    const V kP4 = Set(d, +1.96520832956077098242E2);
+    const V kP5 = Set(d, +4.86371970985681366614E1);
+    const V kP6 = Set(d, +7.46321056442269912687E0);
+    const V kP7 = Set(d, +5.64189564831068821977E-1);
+    const V kP8 = Set(d, +2.46196981473530512524E-10);
+    const V poly_P = Estrin(x, kP0, kP1, kP2, kP3, kP4, kP5, kP6, kP7, kP8);
+
+    const V kQ0 = Set(d, +5.57535340817727675546E2);
+    const V kQ1 = Set(d, +1.65666309194161350182E3);
+    const V kQ2 = Set(d, +2.24633760818710981792E3);
+    const V kQ3 = Set(d, +1.82390916687909736289E3);
+    const V kQ4 = Set(d, +9.75708501743205489753E2);
+    const V kQ5 = Set(d, +3.54937778887819891062E2);
+    const V kQ6 = Set(d, +8.67072140885989742329E1);
+    const V kQ7 = Set(d, +1.32281951154744992508E1);
+    const V kQ8 = Set(d, +1.0);
+    const V poly_Q = Estrin(x, kQ0, kQ1, kQ2, kQ3, kQ4, kQ5, kQ6, kQ7, kQ8);
+
+    const V kR0 = Set(d, +2.97886665372100240670E0);
+    const V kR1 = Set(d, +7.40974269950448939160E0);
+    const V kR2 = Set(d, +6.16021097993053585195E0);
+    const V kR3 = Set(d, +5.01905042251180477414E0);
+    const V kR4 = Set(d, +1.27536670759978104416E0);
+    const V kR5 = Set(d, +5.64189583547755073984E-1);
+    const V poly_R = Estrin(x, kR0, kR1, kR2, kR3, kR4, kR5);
+
+    const V kS0 = Set(d, +3.36907645100081516050E0);
+    const V kS1 = Set(d, +9.60896809063285878198E0);
+    const V kS2 = Set(d, +1.70814450747565897222E1);
+    const V kS3 = Set(d, +1.20489539808096656605E1);
+    const V kS4 = Set(d, +9.39603524938001434673E0);
+    const V kS5 = Set(d, +2.26052863220117276590E0);
+    const V kS6 = Set(d, +1.0);
+    const V poly_S = Estrin(x, kS0, kS1, kS2, kS3, kS4, kS5, kS6);
+
+    const auto is_mid = Lt(x, Set(d, +8.0));
+    const V num = IfThenElse(is_mid, poly_P, poly_R);
+    const V den = IfThenElse(is_mid, poly_Q, poly_S);
+    return Div(num, den);
+  }
+
+  // |x| >= 37.519: erfc underflows f64, erf saturates to +/-1
+  template <class D, class V = VFromD<D>, HWY_IF_F64_D(D)>
+  HWY_INLINE V Limit(D d) {
+    return Set(d, +37.519379347);
   }
 };
 
@@ -1678,65 +1817,26 @@ HWY_INLINE V Cos(const D d, V x) {
 template <class D, class V>
 HWY_INLINE V Erf(const D d, V x) {
   using T = TFromD<D>;
-
-  // |x| < 1, 2/sqrt(pi)
-  const V kT0 = Set(d, static_cast<T>(1.128379165726710));
-  const V kT1 = Set(d, static_cast<T>(-3.761262582423300E-1));
-  const V kT2 = Set(d, static_cast<T>(1.128358514861418E-1));
-  const V kT3 = Set(d, static_cast<T>(-2.685381193529856E-2));
-  const V kT4 = Set(d, static_cast<T>(5.188327685732524E-3));
-  const V kT5 = Set(d, static_cast<T>(-8.010193625184903E-4));
-  const V kT6 = Set(d, static_cast<T>(7.853861353153693E-5));
-
-  // |x| in [1, 2), 1/sqrt(pi)
-  const V kP0 = Set(d, static_cast<T>(5.638259427386472E-1));
-  const V kP1 = Set(d, static_cast<T>(-2.741127028184656E-1));
-  const V kP2 = Set(d, static_cast<T>(3.404879937665872E-1));
-  const V kP3 = Set(d, static_cast<T>(-4.944515323274145E-1));
-  const V kP4 = Set(d, static_cast<T>(6.210004621745983E-1));
-  const V kP5 = Set(d, static_cast<T>(-5.824733027278666E-1));
-  const V kP6 = Set(d, static_cast<T>(3.687424674597105E-1));
-  const V kP7 = Set(d, static_cast<T>(-1.387039388740657E-1));
-  const V kP8 = Set(d, static_cast<T>(2.326819970068386E-2));
-
-  // |x| in [2, 14), 1/sqrt(pi)
-  const V kR0 = Set(d, static_cast<T>(5.641895067754075E-1));
-  const V kR1 = Set(d, static_cast<T>(-2.820767439740514E-1));
-  const V kR2 = Set(d, static_cast<T>(4.218463358204948E-1));
-  const V kR3 = Set(d, static_cast<T>(-1.015265279202700E+0));
-  const V kR4 = Set(d, static_cast<T>(2.921019019210786E+0));
-  const V kR5 = Set(d, static_cast<T>(-7.495518717768503E+0));
-  const V kR6 = Set(d, static_cast<T>(1.297719955372516E+1));
-  const V kR7 = Set(d, static_cast<T>(-1.047766399936249E+1));
-
+  impl::ErfImpl<T> impl;
   const V kOne = Set(d, static_cast<T>(1));
 
   const V sign = And(SignBit(d), x);
   x = Xor(x, sign);
   const V z = Mul(x, x);
 
-  // |x| < 1: erf(x) = x * T(x * x)
-  const V poly_T = impl::Estrin(z, kT0, kT1, kT2, kT3, kT4, kT5, kT6);
-  const V erf_small = Mul(x, poly_T);
+  const V small = impl.SmallErf(d, x, z);
 
-  // |x| in [1, 14): erf(x) = 1 - exp(-x * x) * poly(1 / (x * x)) / x
   const V exp_neg_z = Exp(d, Neg(z));
-  const V inv_x = Div(kOne, x);
-  const V w = Mul(inv_x, inv_x);
-  const V poly_P = impl::Estrin(w, kP0, kP1, kP2, kP3, kP4, kP5, kP6, kP7, kP8);
-  const V poly_R = impl::Estrin(w, kR0, kR1, kR2, kR3, kR4, kR5, kR6, kR7);
-  const auto is_mid = Lt(x, Set(d, static_cast<T>(2)));
-  const V poly_pick = IfThenElse(is_mid, poly_P, poly_R);
+  const V large = NegMulAdd(exp_neg_z, impl.ErfcFactor(d, x, z), kOne);
 
-  const V scaled_poly = Mul(inv_x, poly_pick);
-  const V erf_large = NegMulAdd(exp_neg_z, scaled_poly, kOne);
-
-  const auto is_below_saturation = Lt(x, Set(d, static_cast<T>(14)));
+  const V kLimit = impl.Limit(d);
+  const auto is_below_limit = Lt(x, kLimit);
   const auto is_small = Lt(x, kOne);
 
   V result = kOne;
-  result = IfThenElse(is_below_saturation, erf_large, result);
-  result = IfThenElse(is_small, erf_small, result);
+
+  result = IfThenElse(is_below_limit, large, result);
+  result = IfThenElse(is_small, small, result);
 
   result = IfThenElse(IsNaN(x), x, result);
 
