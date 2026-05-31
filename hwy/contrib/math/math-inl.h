@@ -1819,25 +1819,20 @@ HWY_INLINE V Erf(const D d, V x) {
   using T = TFromD<D>;
   impl::ErfImpl<T> impl;
   const V kOne = Set(d, static_cast<T>(1));
+  const V kLimit = impl.Limit(d);
 
   const V sign = And(SignBit(d), x);
   x = Xor(x, sign);
-  const V z = Mul(x, x);
 
-  const V small = impl.SmallErf(d, x, z);
+  const V x_clamped = Min(x, kLimit);
+  const V z = Mul(x_clamped, x_clamped);
 
+  const V small = impl.SmallErf(d, x_clamped, z);
   const V exp_neg_z = Exp(d, Neg(z));
-  const V large = NegMulAdd(exp_neg_z, impl.ErfcFactor(d, x, z), kOne);
+  const V large = NegMulAdd(exp_neg_z, impl.ErfcFactor(d, x_clamped, z), kOne);
 
-  const V kLimit = impl.Limit(d);
-  const auto is_below_limit = Lt(x, kLimit);
-  const auto is_small = Lt(x, kOne);
-
-  V result = kOne;
-
-  result = IfThenElse(is_below_limit, large, result);
-  result = IfThenElse(is_small, small, result);
-
+  const auto is_small = Lt(x_clamped, kOne);
+  V result = IfThenElse(is_small, small, large);
   result = IfThenElse(IsNaN(x), x, result);
 
   return Or(result, sign);
