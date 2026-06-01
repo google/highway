@@ -173,6 +173,9 @@ HWY_NOINLINE void TestMath(const char* name, T (*fx1)(T),
   DEFINE_MATH_TEST_FUNC(NAME)
 
 // clang-format off
+DEFINE_MATH_TEST(Erf,
+  std::erf,   CallErf,   -FLT_MAX,   +FLT_MAX,    4,
+  std::erf,   CallErf,   -DBL_MAX,   +DBL_MAX,    4)
 DEFINE_MATH_TEST(Exp,
   std::exp,   CallExp,   -FLT_MAX,   +104.0f,     1,
   std::exp,   CallExp,   -DBL_MAX,   +104.0,      1)
@@ -623,6 +626,7 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 namespace {
 HWY_BEFORE_TEST(HwyMathTest);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllErf);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExp);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExp2);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExpm1);
