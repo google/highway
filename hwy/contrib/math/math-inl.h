@@ -175,7 +175,7 @@ HWY_NOINLINE V CallCos(const D d, VecArg<V> x) {
  * Highway SIMD version of std::tan(x).
  *
  * Valid Lane Types: float32, float64
- *        Max Error: ULP = ~300 (float32), 1 (float64)
+ *        Max Error: ULP = ~300 (float32), 2 (float64)
  *                   Note: On float32, error is ~64 ULP on targets with FMA.
  *                   Without FMA (e.g. SSE4), rounding errors accumulate up to
  * ~300 ULP. Valid Range: [-39000, +39000]

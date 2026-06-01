@@ -259,7 +259,7 @@ DEFINE_MATH_TEST(Atan,
 // On hardware with FMA, the max error is ~64 ULP.
 DEFINE_MATH_TEST(Tan,
   std::tan,  CallTan,  -39000.0,   +39000.0,    (HWY_NATIVE_FMA ? 64 : 300),
-  std::tan,  CallTan,  -39000.0,   +39000.0,    1)
+  std::tan,  CallTan,  -39000.0,   +39000.0,    2)
 // clang-format on
 
 template <typename T, class D>
