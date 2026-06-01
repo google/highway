@@ -193,7 +193,7 @@ HWY_NOINLINE V CallTan(const D d, VecArg<V> x) {
  *
  * Valid Lane Types: float32, float64
  *        Max Error: ULP = 4
- *      Valid Range: [-FLT_MAX, +FLT_MAX]
+ *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
  * @return error function of 'x'
  */
 template <class D, class V>
@@ -1813,7 +1813,7 @@ HWY_INLINE V Cos(const D d, V x) {
 
 // Erf
 // Based on Cephes erff/erf by Stephen Moshier (public domain, 1989)
-// See https://www.netlib.org/cephes/ — single/ndtrf.c
+// See https://www.netlib.org/cephes/ - single/ndtrf.c (f32), cprob/ndtr.c (f64)
 template <class D, class V>
 HWY_INLINE V Erf(const D d, V x) {
   using T = TFromD<D>;
