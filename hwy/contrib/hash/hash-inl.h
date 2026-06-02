@@ -124,24 +124,19 @@ class Triple32 {
  public:
   static constexpr const char* Name() { return "Triple32"; }
 
+  Triple32() = default;
   Triple32(AesCtrEngine& engine, uint64_t seed)
-      : keys_(FillRandom<uint32_t>(1, engine, seed)) {}
+      : key_(static_cast<uint32_t>(RngStream(engine, seed)())) {}
 
   uint32_t operator()(uint32_t x) const {
     ScalableTag<uint32_t> du32;
     return GetLane(OneVec(du32, Set(du32, x)));
   }
 
-  template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
-  HWY_INLINE void TwoVec(DU32 du32, VU32& inout0, VU32& inout1) const {
-    inout0 = OneVec(du32, inout0);
-    inout1 = OneVec(du32, inout1);
-  }
-
- private:
+  // Used by Phast.
   template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
   HWY_INLINE VU32 OneVec(DU32 du32, const VU32 in) const {
-    VU32 hash = Xor(in, Set(du32, keys_[0]));
+    VU32 hash = Xor(in, Set(du32, key_));
     hash = Xor(hash, ShiftRight<17>(hash));
     hash = Mul(hash, Set(du32, 0xED5AD4BBu));
     hash = Xor(hash, ShiftRight<11>(hash));
@@ -152,7 +147,14 @@ class Triple32 {
     return hash;
   }
 
-  AlignedVector<uint32_t> keys_;
+  template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
+  HWY_INLINE void TwoVec(DU32 du32, VU32& inout0, VU32& inout1) const {
+    inout0 = OneVec(du32, inout0);
+    inout1 = OneVec(du32, inout1);
+  }
+
+ private:
+  uint32_t key_ = 0;
 };
 
 // Round-reduced ARX cipher. Considerably slower than Triple32 on AVX2 due to
@@ -406,6 +408,62 @@ class WeakNMHash {
 };
 
 #endif  // obsolete
+
+// In-place version.
+template <class Hash>
+static void HashArray(const Hash& hash, uint32_t* HWY_RESTRICT inout,
+                      size_t count) {
+  const ScalableTag<uint32_t> du32;
+  using VU32 = Vec<decltype(du32)>;
+  HWY_LANES_CONSTEXPR size_t N = Lanes(du32);
+
+  size_t i = 0;
+  if (HWY_LIKELY(count >= 4 * N)) {
+    for (; i <= count - 4 * N; i += 4 * N) {
+      VU32 v0 = Load(du32, inout + i + 0 * N);
+      VU32 v1 = Load(du32, inout + i + 1 * N);
+      VU32 v2 = Load(du32, inout + i + 2 * N);
+      VU32 v3 = Load(du32, inout + i + 3 * N);
+      hash.TwoVec(du32, v0, v1);
+      hash.TwoVec(du32, v2, v3);
+      Store(v0, du32, inout + i + 0 * N);
+      Store(v1, du32, inout + i + 1 * N);
+      Store(v2, du32, inout + i + 2 * N);
+      Store(v3, du32, inout + i + 3 * N);
+    }
+  }
+  for (; i < count; ++i) {
+    inout[i] = hash(inout[i]);
+  }
+}
+
+// Same, but separate input and output arrays.
+template <class Hash>
+static void HashArray(const Hash& hash, const uint32_t* HWY_RESTRICT in,
+                      uint32_t* HWY_RESTRICT out, size_t count) {
+  const ScalableTag<uint32_t> du32;
+  using VU32 = Vec<decltype(du32)>;
+  HWY_LANES_CONSTEXPR size_t N = Lanes(du32);
+
+  size_t i = 0;
+  if (HWY_LIKELY(count >= 4 * N)) {
+    for (; i <= count - 4 * N; i += 4 * N) {
+      VU32 v0 = Load(du32, in + i + 0 * N);
+      VU32 v1 = Load(du32, in + i + 1 * N);
+      VU32 v2 = Load(du32, in + i + 2 * N);
+      VU32 v3 = Load(du32, in + i + 3 * N);
+      hash.TwoVec(du32, v0, v1);
+      hash.TwoVec(du32, v2, v3);
+      Store(v0, du32, out + i + 0 * N);
+      Store(v1, du32, out + i + 1 * N);
+      Store(v2, du32, out + i + 2 * N);
+      Store(v3, du32, out + i + 3 * N);
+    }
+  }
+  for (; i < count; ++i) {
+    out[i] = hash(in[i]);
+  }
+}
 
 template <class Func>
 void ForeachHash(AesCtrEngine& engine, uint64_t seed, const Func& func) {

@@ -20,17 +20,18 @@
 #define HWY_DISABLED_TARGETS (HWY_SSE2 | HWY_SSSE3 | HWY_SSE4)
 #endif  // HWY_DISABLED_TARGETS
 
+#include "hwy/contrib/thread_pool/thread_pool.h"
+#include "hwy/contrib/thread_pool/topology.h"
 #include "hwy/nanobenchmark.h"
-#include "hwy/per_target.h"
 #include "hwy/timer.h"
 
 // clang-format off
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "hwy/contrib/hash/hash_bench.cc"  // NOLINT
+#define HWY_TARGET_INCLUDE "hwy/contrib/hash/phast_bench.cc"  // NOLINT
 // clang-format on
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 // After foreach_target
-#include "hwy/contrib/hash/hash-inl.h"
+#include "hwy/contrib/hash/phast-inl.h"
 #include "hwy/contrib/random/random-inl.h"
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
@@ -41,38 +42,31 @@ namespace HWY_NAMESPACE {
 namespace {
 #if HWY_TARGET != HWY_SCALAR
 
-template <class IHash>
-HWY_NOINLINE void TestLatency(const IHash& hash) {
+HWY_NOINLINE void TestLatency(const Phast& phast) {
   FuncInput input = Unpredictable1();
   Params params = DefaultBenchmarkParams();
   params.verbose = false;
   Result results[1];
 
   const size_t num_results = MeasureClosure(
-      [&hash](FuncInput func_input) {
-        return hash(static_cast<uint32_t>(func_input));
+      [&phast](FuncInput func_input) {
+        return phast(static_cast<uint32_t>(func_input));
       },
       &input, 1, results, params);
   if (num_results == 1) {
     const double ns =
         results[0].ticks / platform::InvariantTicksPerSecond() * 1E9;
-    printf("%12s: %6.2f ns = %4.1f GB/s; measurement MAD=%4.2f%%\n",
-           hash.Name(), ns, VectorBytes() / ns, results[0].variability * 100.0);
+    printf("Query latency: %6.2f ns; measurement MAD=%4.2f%%\n", ns,
+           results[0].variability * 100.0);
   } else {
     HWY_WARN("Measurement failed.");
   }
 }
 
-// Each Hash* only provides TwoVec. This adapter avoids duplicating a loop for
-// each hash function.
-
-template <class IHash>
-HWY_NOINLINE void TestThroughput(const IHash& hash) {
-  const size_t kNumU32 = 4096;
-  HWY_ALIGN_MAX uint32_t inout[kNumU32];
-  for (size_t i = 0; i < kNumU32; ++i) {
-    inout[i] = static_cast<uint32_t>(Unpredictable1());
-  }
+HWY_NOINLINE void TestThroughput(const Phast& phast,
+                                 const AlignedVector<uint32_t>& keys) {
+  constexpr size_t kNumU32 = 4096;
+  HWY_ALIGN_MAX uint32_t indices[kNumU32];
 
   FuncInput input = Unpredictable1();
   Result results[1];
@@ -81,29 +75,55 @@ HWY_NOINLINE void TestThroughput(const IHash& hash) {
 
   const size_t num_results = MeasureClosure(
       [&](FuncInput func_input) {
-        HashArray(hash, inout, kNumU32);
-        return inout[func_input];
+        phast.QueryBatch(keys.data(), kNumU32, indices);
+        return indices[func_input];
       },
       &input, 1, results, params);
   if (num_results == 1) {
     const double ns =
         results[0].ticks / platform::InvariantTicksPerSecond() * 1E9;
-    printf("%12s: %7.2f ns = %4.1f GB/s; measurement MAD=%4.2f%%\n",
-           hash.Name(), ns, kNumU32 * sizeof(uint32_t) / ns,
-           results[0].variability * 100.0);
+    printf(
+        "Query batch throughput: %7.2f ns = %4.1f MB/s; measurement "
+        "MAD=%4.2f%%\n",
+        ns, static_cast<double>(kNumU32 * sizeof(uint32_t)) / ns * 1E3,
+        results[0].variability * 100.0);
   } else {
     HWY_WARN("Measurement failed.");
   }
 }
 
-HWY_NOINLINE void TestAllLatency() {
+HWY_NOINLINE AlignedVector<uint32_t> GenerateKeys(size_t num_keys) {
+  // Must be distinct, hence do not use FillRandom().
+  AlignedVector<uint32_t> keys;
+  keys.reserve(num_keys);
   AesCtrEngine engine(/*deterministic=*/true);
-  ForeachHash(engine, 0, [](const auto& hash) { TestLatency(hash); });
+  Triple32 permutation(engine, Unpredictable1());
+  for (size_t i = 0; i < num_keys; ++i) {
+    keys.push_back(permutation(i));
+  }
+  return keys;
 }
 
+static ThreadPool MakePool() {
+  static Topology topology;
+  if (topology.packages.empty()) return ThreadPool(ThreadPool::MaxThreads());
+  // Minus one because these are in addition to the main thread.
+  return ThreadPool(topology.packages[0].cores.size() - 1);
+}
+
+HWY_NOINLINE Phast MakePhast(const AlignedVector<uint32_t>& keys) {
+  PhastConfig config(keys.size());
+  ThreadPool pool = MakePool();
+  return BuildPhast(keys.data(), config, pool);
+}
+
+HWY_NOINLINE void TestAllLatency() {
+  const AlignedVector<uint32_t> keys = GenerateKeys(1000);
+  TestLatency(MakePhast(keys));
+}
 HWY_NOINLINE void TestAllThroughput() {
-  AesCtrEngine engine(/*deterministic=*/true);
-  ForeachHash(engine, 0, [](const auto& hash) { TestThroughput(hash); });
+  const AlignedVector<uint32_t> keys = GenerateKeys(10000);
+  TestThroughput(MakePhast(keys), keys);
 }
 
 #else   // HWY_TARGET == HWY_SCALAR
@@ -119,9 +139,9 @@ HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
 namespace hwy {
-HWY_BEFORE_TEST(HashBench);
-HWY_EXPORT_AND_TEST_BEST_P(HashBench, TestAllLatency);
-HWY_EXPORT_AND_TEST_BEST_P(HashBench, TestAllThroughput);
+HWY_BEFORE_TEST(PhastBench);
+HWY_EXPORT_AND_TEST_BEST_P(PhastBench, TestAllLatency);
+HWY_EXPORT_AND_TEST_BEST_P(PhastBench, TestAllThroughput);
 HWY_AFTER_TEST();
 }  // namespace hwy
 #endif  // HWY_ONCE

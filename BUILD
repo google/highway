@@ -368,6 +368,7 @@ cc_library(
     ],
     hdrs = [
         "hwy/contrib/thread_pool/futex.h",
+        "hwy/contrib/thread_pool/index_range.h",
         "hwy/contrib/thread_pool/spin.h",
         "hwy/contrib/thread_pool/thread_pool.h",
     ],
@@ -446,9 +447,12 @@ cc_library(
     copts = COPTS,
     textual_hdrs = [
         "hwy/contrib/hash/hash-inl.h",
+        "hwy/contrib/hash/phast-inl.h",
     ],
     deps = [
         ":hwy",
+        ":profiler",
+        ":stats",
     ],
 )
 
