@@ -103,6 +103,15 @@ HWY_CONTRIB_TESTS = (
     ),
     (
         "hwy/contrib/hash/",
+        "hash_prospector16",
+        [
+            ":random",
+            ":thread_pool",
+            ":topology",
+        ],
+    ),
+    (
+        "hwy/contrib/hash/",
         "phast_test",
         [
             ":hash",

@@ -61,8 +61,8 @@
 #include "hwy/profiler.h"
 #include "hwy/stats.h"
 
+#if HWY_TARGET != HWY_SCALAR
 HWY_BEFORE_NAMESPACE();
-
 namespace hwy {
 namespace HWY_NAMESPACE {
 
@@ -764,7 +764,7 @@ static HWY_MAYBE_UNUSED Phast BuildPhast(const uint32_t* keys,
 
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
-
 HWY_AFTER_NAMESPACE();
+#endif  // HWY_TARGET != HWY_SCALAR
 
 #endif  // HIGHWAY_HWY_CONTRIB_HASH_PHAST_INL_H_

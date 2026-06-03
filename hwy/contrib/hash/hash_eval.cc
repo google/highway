@@ -286,9 +286,7 @@ template <typename HashFunction>
 void DiffTestRecurse(const HashFunction& hash, KeyType& k1, KeyType& k2,
                      HashType& h1, HashType& h2, int start, int bitsleft,
                      AlignedVector<KeyType>* diffs) {
-  const int bits = sizeof(KeyType) * 8;
-
-  for (int i = start; i < bits; i++) {
+  for (int i = start; i < static_cast<int>(kKeyBits); i++) {
     FlipBit(k2, i);
     bitsleft--;
 
@@ -308,7 +306,7 @@ void DiffTestRecurse(const HashFunction& hash, KeyType& k1, KeyType& k2,
 }
 
 // Sorts the input.
-static size_t MaxRunLength(AlignedVector<KeyType>& diffs) {
+HWY_MAYBE_UNUSED size_t MaxRunLength(AlignedVector<KeyType>& diffs) {
   PROFILER_FUNC;
   if (diffs.empty()) return 1;
 
@@ -403,8 +401,7 @@ inline double calcScore(const uint32_t* bins, const size_t bincount,
 }
 
 // Bulk of CPU time is spent in this function.
-static Result TestDistribution(const AlignedVector<HashType>& hashes,
-                               EvalCtx& ctx) {
+Result TestDistribution(const AlignedVector<HashType>& hashes, EvalCtx& ctx) {
   PROFILER_FUNC;
 
   // We need at least 5 keys per bin to reliably test distribution biases
@@ -423,7 +420,7 @@ static Result TestDistribution(const AlignedVector<HashType>& hashes,
 
   Result ret;
 
-  for (int start = 0; start < kHashBits; start++) {
+  for (int start = 0; start < static_cast<int>(kHashBits); start++) {
     size_t width = max_width;
     size_t num_bins = max_bins;
 
@@ -474,7 +471,7 @@ static Result TestDistribution(const AlignedVector<HashType>& hashes,
       num_bins /= 2;
       if (width < 8) break;
 
-      for (int i = 0; i < num_bins; i++) {
+      for (size_t i = 0; i < num_bins; i++) {
         bins[i] += bins[i + num_bins];
       }
     }
@@ -483,7 +480,7 @@ static Result TestDistribution(const AlignedVector<HashType>& hashes,
   return ret;
 }
 
-static size_t CountCollisions(AlignedVector<HashType>& hashes) {
+size_t CountCollisions(AlignedVector<HashType>& hashes) {
   PROFILER_FUNC;
   hwy::VQSort(hashes.data(), hashes.size(), hwy::SortAscending());
   auto end = std::unique(hashes.begin(), hashes.end());
@@ -491,8 +488,8 @@ static size_t CountCollisions(AlignedVector<HashType>& hashes) {
 }
 
 // Non-const `hashes` because `FindCollisions` sorts it.
-HWY_NOINLINE Result AnalyzeHashes(AlignedVector<HashType>& hashes,
-                                  EvalCtx& ctx) {
+HWY_MAYBE_UNUSED Result AnalyzeHashes(AlignedVector<HashType>& hashes,
+                                      EvalCtx& ctx) {
   // Before FindCollisions sorts hashes.
   Result result = TestDistribution(hashes, ctx);
   result.collisions = CountCollisions(hashes);
@@ -579,7 +576,7 @@ void TestRotCounter(const HashFunction& hash, EvalCtx& ctx) {
   AlignedVector<HashType> hashes(size_t{1} << 20);
 
   Result result;
-  for (size_t idx_bit = 0; idx_bit < sizeof(KeyType) * 8; idx_bit++) {
+  for (size_t idx_bit = 0; idx_bit < kKeyBits; idx_bit++) {
     ComputeHashes(0, hashes, ctx,
                   [&](auto dh, size_t NH, RngStream& /*rng*/, size_t i,
                       auto& h0, auto& h1) HWY_ATTR {
@@ -603,7 +600,7 @@ void TestDiffDist(const HashFunction& hash, EvalCtx& ctx) {
   AlignedVector<HashType> diffs(256 * 256 * 32);
 
   Result result;
-  for (size_t keybit = 0; keybit < sizeof(KeyType) * 8; ++keybit) {
+  for (size_t keybit = 0; keybit < kKeyBits; ++keybit) {
     ComputeHashes(857374 + keybit * 257, diffs, ctx,
                   [&](auto dh, size_t NH, RngStream& rng, size_t /*pos*/,
                       auto& h0, auto& h1) HWY_ATTR {
@@ -646,7 +643,7 @@ void TestDiffDist(const HashFunction& hash, EvalCtx& ctx) {
 // Keyset generators.
 
 // All keys with two non-zero bytes. Fast.
-AlignedVector<KeyType> TwoBytesKeygen() {
+HWY_MAYBE_UNUSED AlignedVector<KeyType> TwoBytesKeygen() {
   const auto chooseK = [](int n, int k) -> double {
     if (k > (n - k)) k = n - k;
 
@@ -665,7 +662,7 @@ AlignedVector<KeyType> TwoBytesKeygen() {
   uint8_t bytes[sizeof(KeyType)] = {};
 
   // Add all keys with one non-zero byte
-  for (int byteA = 0; byteA < sizeof(KeyType); byteA++) {
+  for (size_t byteA = 0; byteA < sizeof(KeyType); byteA++) {
     for (int valA = 1; valA <= 255; valA++) {
       bytes[byteA] = (uint8_t)valA;
 
@@ -678,10 +675,10 @@ AlignedVector<KeyType> TwoBytesKeygen() {
   }
 
   // Add all keys with two non-zero bytes
-  for (int byteA = 0; byteA < sizeof(KeyType) - 1; byteA++) {
-    for (int byteB = byteA + 1; byteB < sizeof(KeyType); byteB++) {
+  for (size_t byteA = 0; byteA < sizeof(KeyType) - 1; byteA++) {
+    for (size_t byteB = byteA + 1; byteB < sizeof(KeyType); byteB++) {
       for (int valA = 1; valA <= 255; valA++) {
-        bytes[byteA] = (uint8_t)valA;
+        bytes[byteA] = static_cast<uint8_t>(valA);
 
         for (int valB = 1; valB <= 255; valB++) {
           bytes[byteB] = (uint8_t)valB;
@@ -702,7 +699,7 @@ AlignedVector<KeyType> TwoBytesKeygen() {
 
 void SparseKeygenR(int start, int bitsleft, KeyType& k,
                    AlignedVector<HashType>& keys) {
-  for (int i = start; i < sizeof(KeyType) * 8; i++) {
+  for (int i = start; i < static_cast<int>(kKeyBits); i++) {
     FlipBit(k, i);
 
     keys.push_back(k);
@@ -715,7 +712,7 @@ void SparseKeygenR(int start, int bitsleft, KeyType& k,
   }
 }
 
-AlignedVector<HashType> SparseKeygen() {
+HWY_MAYBE_UNUSED AlignedVector<HashType> SparseKeygen() {
   const int kNonzeroBits = 6;
 
   AlignedVector<HashType> keys;
@@ -727,7 +724,7 @@ AlignedVector<HashType> SparseKeygen() {
 }
 
 // Keys with bytes ABAB (including AAAA)
-AlignedVector<HashType> CyclicKeygen() {
+HWY_MAYBE_UNUSED AlignedVector<HashType> CyclicKeygen() {
   AlignedVector<HashType> keys;
   keys.reserve(255 * 255);
   for (int valA = 1; valA <= 255; ++valA) {
