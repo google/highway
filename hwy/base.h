@@ -2715,8 +2715,16 @@ HWY_API constexpr TTo ConvertScalarTo(TFrom in) {
 //------------------------------------------------------------------------------
 // Helper functions
 
+// Returns [0, range). Slight bias but negligible for small ranges.
+HWY_API uint32_t LemireMod(uint32_t in, uint32_t range) {
+  const uint32_t mod =
+      static_cast<uint32_t>((uint64_t{in} * uint64_t{range}) >> 32);
+  HWY_DASSERT(mod < range);
+  return mod;
+}
+
 template <typename T1, typename T2>
-constexpr inline T1 DivCeil(T1 a, T2 b) {
+constexpr T1 DivCeil(T1 a, T2 b) {
 #if HWY_CXX_LANG >= 201703L
   HWY_DASSERT(b != T2{0});
 #endif
@@ -2724,12 +2732,12 @@ constexpr inline T1 DivCeil(T1 a, T2 b) {
 }
 
 // Works for any non-zero `align`; if a power of two, compiler emits ADD+AND.
-constexpr inline size_t RoundUpTo(size_t what, size_t align) {
+constexpr size_t RoundUpTo(size_t what, size_t align) {
   return DivCeil(what, align) * align;
 }
 
 // Works for any `align`; if a power of two, compiler emits AND.
-constexpr inline size_t RoundDownTo(size_t what, size_t align) {
+constexpr size_t RoundDownTo(size_t what, size_t align) {
   return what - (what % align);
 }
 

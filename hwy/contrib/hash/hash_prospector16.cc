@@ -25,6 +25,7 @@
 // Finally, tries a moderate random subset of possible multiplier values and
 // prints the best 8.
 
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -61,19 +62,11 @@ size_t NumThreads(const Topology& topology) {
   return topology.packages[0].cores.size() - 1;
 }
 
-// Returns [0, range). Somewhat biased, but this is mainly used in tests.
-uint32_t LemireMod(uint32_t in, uint32_t range) {
-  const uint32_t mod =
-      static_cast<uint32_t>((uint64_t{in} * uint64_t{range}) >> 32);
-  HWY_DASSERT(mod < range);
-  return mod;
-}
-
 // Returns random value in [0, range).
 uint32_t Choose(uint32_t range, RngStream& rng) {
   // First truncate - requires a widening mul.
-  const uint32_t r = static_cast<uint32_t>(rng() & 0xFFFFFFFF);
-  return LemireMod(r, range);
+  const uint32_t bits = static_cast<uint32_t>(rng() & 0xFFFFFFFF);
+  return LemireMod(bits, range);
 }
 
 constexpr uint32_t IPow(uint32_t base, uint32_t exp) {
@@ -155,8 +148,8 @@ class OpAndVal {
         printf("x += 0x%04x * x * x;\n", val_);
         break;
       case Op::PSHUFB:
-        printf("x ^= PSHUFB[x >> 12]; table = %016lx %016lx\n", table.lo,
-               table.hi);
+        printf("x ^= PSHUFB[x >> 12]; table = %016" PRIu64 " %016" PRIu64 "\n",
+               table.lo, table.hi);
         break;
       default:
         HWY_ABORT("Invalid Op %u", static_cast<unsigned>(op_));

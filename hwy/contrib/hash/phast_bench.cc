@@ -65,8 +65,7 @@ HWY_NOINLINE void TestLatency(const Phast& phast) {
 
 HWY_NOINLINE void TestThroughput(const Phast& phast,
                                  const AlignedVector<uint32_t>& keys) {
-  constexpr size_t kNumU32 = 4096;
-  HWY_ALIGN_MAX uint32_t indices[kNumU32];
+  AlignedVector<uint32_t> indices(keys.size());
 
   FuncInput input = Unpredictable1();
   Result results[1];
@@ -75,7 +74,7 @@ HWY_NOINLINE void TestThroughput(const Phast& phast,
 
   const size_t num_results = MeasureClosure(
       [&](FuncInput func_input) {
-        phast.QueryBatch(keys.data(), kNumU32, indices);
+        phast.QueryBatch(keys.data(), keys.size(), indices.data());
         return indices[func_input];
       },
       &input, 1, results, params);
@@ -85,7 +84,7 @@ HWY_NOINLINE void TestThroughput(const Phast& phast,
     printf(
         "Query batch throughput: %7.2f ns = %4.1f MB/s; measurement "
         "MAD=%4.2f%%\n",
-        ns, static_cast<double>(kNumU32 * sizeof(uint32_t)) / ns * 1E3,
+        ns, static_cast<double>(keys.size() * sizeof(uint32_t)) / ns * 1E3,
         results[0].variability * 100.0);
   } else {
     HWY_WARN("Measurement failed.");
@@ -122,7 +121,7 @@ HWY_NOINLINE void TestAllLatency() {
   TestLatency(MakePhast(keys));
 }
 HWY_NOINLINE void TestAllThroughput() {
-  const AlignedVector<uint32_t> keys = GenerateKeys(10000);
+  const AlignedVector<uint32_t> keys = GenerateKeys(1000 * 1000);
   TestThroughput(MakePhast(keys), keys);
 }
 
