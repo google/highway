@@ -339,6 +339,21 @@ HWY_NOINLINE V CallSinh(const D d, VecArg<V> x) {
 }
 
 /**
+ * Highway SIMD version of std::cosh(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 4
+ *      Valid Range: float32[-88.7228, +88.7228], float64[-709, +709]
+ * @return hyperbolic cosine of 'x'
+ */
+template <class D, class V>
+HWY_INLINE V Cosh(D d, V x);
+template <class D, class V>
+HWY_NOINLINE V CallCosh(const D d, VecArg<V> x) {
+  return Cosh(d, x);
+}
+
+/**
  * Highway SIMD version of std::tanh(x).
  *
  * Valid Lane Types: float32, float64
@@ -2437,6 +2452,20 @@ HWY_INLINE V Sinh(const D d, V x) {
   const V y = Expm1(d, abs_x);
   const V z = Mul(Div(Add(y, kTwo), Add(y, kOne)), Mul(y, kHalf));
   return Xor(z, sign);  // Reapply the sign bit
+}
+
+template <class D, class V>
+HWY_INLINE V Cosh(const D d, V x) {
+  using T = TFromD<D>;
+  const V kHalf = Set(d, static_cast<T>(+0.5));
+  const V kOne = Set(d, static_cast<T>(+1.0));
+  const V kTwo = Set(d, static_cast<T>(+2.0));
+
+  const V y = Expm1(d, Abs(x));
+  const V z = Mul(Div(Add(y, kTwo), Add(y, kOne)), Mul(y, kHalf));
+
+  // cosh(x) == cosh(|x|) == (expm1(|x|) - sinh(|x|)) + 1 == (y - z) + 1
+  return Add(Sub(y, z), kOne);
 }
 
 template <class D, class V>
