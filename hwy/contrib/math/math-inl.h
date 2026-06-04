@@ -384,6 +384,21 @@ HWY_NOINLINE V CallHypot(const D d, VecArg<V> a, VecArg<V> b) {
   return Hypot(d, a, b);
 }
 
+/**
+ * Highway SIMD version of Pow
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 5
+ *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
+ * @return a raised to b
+ */
+template <class D, class V>
+HWY_INLINE V Pow(D d, V a, V b);
+template <class D, class V>
+HWY_NOINLINE V CallPow(const D d, VecArg<V> a, VecArg<V> b) {
+  return Pow(d, a, b);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Implementation
 ////////////////////////////////////////////////////////////////////////////////
@@ -577,6 +592,104 @@ HWY_INLINE HWY_MAYBE_UNUSED T Estrin(T x, T c0, T c1, T c2, T c3, T c4, T c5,
                     MulAdd(x2, MulAdd(c3, x, c2), MulAdd(c1, x, c0)))));
 }
 
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_INLINE HWY_MAYBE_UNUSED V InRangeLoProduct(V a, V b, V p_hi) {
+  // InRangeLoProduct assumes that either a[i], b[i], p_hi[i] and the result
+  // returned by InRangeLoProduct are all finite or that we do not care about
+  // the result.
+
+#if HWY_NATIVE_FMA
+  return MulSub(a, b, p_hi);
+#else
+  const DFromV<decltype(a)> d;
+  const RebindToUnsigned<decltype(d)> du;
+
+  using T = TFromD<decltype(d)>;
+
+  constexpr int kNumOfMantFracBits = MantissaBits<T>();
+  static_assert(kNumOfMantFracBits > 0, "kNumOfMantFracBits > 0 must be true");
+
+  constexpr int kCeilHalfNumOfMantBits =
+      (kNumOfMantFracBits | 1) - (kNumOfMantFracBits >> 1);
+  static_assert(kCeilHalfNumOfMantBits > 0,
+                "kCeilHalfNumOfMantBits > 0 must be true");
+
+  const auto a_bits = BitCast(du, a);
+  const auto b_bits = BitCast(du, b);
+
+  // a_hi[i] is equal to the result of rounding a[i] to the nearest value that
+  // has at most kNumOfMantFracBits - kCeilHalfNumOfMantBits + 1 bits of
+  // precision, with ties rounded away from zero.
+
+  // b_hi[i] is equal to the result of rounding b[i] to the nearest value that
+  // has at most kNumOfMantFracBits - kCeilHalfNumOfMantBits + 1 bits of
+  // precision, with ties rounded away from zero.
+
+  // RoundingShiftRight + ShiftLeft is used instead of Veltkamp splitting as
+  // RoundingShiftRight + ShiftLeft will only overflow to infinity if |a[i]|
+  // or |b[i]| is sufficiently close to LimitsMax<T>().
+
+  // For F16 values, RoundingShiftRight + ShiftLeft will not overflow to
+  // infinity for |a[i]| <= 64480, whereas Veltkamp splitting will
+  // overflow for |a[i]| > 1007.
+
+  // For F32 values, RoundingShiftRight + ShiftLeft will not overflow to
+  // infinity for |a[i]| < 3.4028235E+38, whereas Veltkamp splitting will
+  // overflow for |a[i]| > 8.3056467E+34.
+
+  // For F64 values, RoundingShiftRight + ShiftLeft will not overflow to
+  // infinity for |a[i]| < 1.7976931214684583E+308, whereas Veltkamp splitting
+  // will overflow for |a[i]| >= 1.3393857490036326E300.
+
+  const auto a_hi =
+      BitCast(d, ShiftLeft<kCeilHalfNumOfMantBits>(
+                     RoundingShiftRight<kCeilHalfNumOfMantBits>(a_bits)));
+  const auto b_hi =
+      BitCast(d, ShiftLeft<kCeilHalfNumOfMantBits>(
+                     RoundingShiftRight<kCeilHalfNumOfMantBits>(b_bits)));
+
+  // InRangeLoProduct assumes that we only care about the result if a_hi[i] and
+  // b_hi[i] are both finite.
+
+  const auto a_lo = Sub(a, a_hi);
+  const auto b_lo = Sub(b, b_hi);
+
+  // All of the multiplications below are exact if x[i] and y[i] (where x and y
+  // are the multiplicands) are both finite values and either the exact value of
+  // x[i] * y[i] is a normal finite value, at least one of x[i] or y[i] is zero,
+  // or at least one of |x[i]| or |y[i]| is greater than or equal to 1.
+
+  // In addition, a_hi[i] * b_lo[i] + a_lo[i] * b_hi[i] is exact if
+  // a_hi[i] * b_lo[i] and a_lo[i] * b_hi[i] are both exact finite values.
+
+  const auto p_lo = MulAdd(
+      a_lo, b_lo,
+      Add(MulAdd(a_hi, b_lo, Mul(a_lo, b_hi)), MulSub(a_hi, b_hi, p_hi)));
+
+  // p_lo[i] is exact if a_hi[i] * b_hi[i], a_hi[i] * b_lo[i],
+  // a_lo[i] * b_hi[i], and a_lo[i] * b_lo[i] are all exact finite values
+  // and p_hi[i] is finite (which will be the case if none of the
+  // multiplications overflow to infinity or underflow to a subnormal or zero).
+
+  return p_lo;
+#endif
+}
+
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_INLINE HWY_MAYBE_UNUSED V InRangeFloatDivRem(V a, V b, V q) {
+  // InRangeFloatDivRem assumes that either a[i], b[i], q[i] and the result
+  // returned by InRangeFloatDivRem are all finite or that we do not care about
+  // the result.
+
+#if HWY_NATIVE_FMA
+  return NegMulAdd(q, b, a);
+#else
+  const auto p_hi = Mul(q, b);
+  const auto p_lo = InRangeLoProduct(q, b, p_hi);
+  return Sub(Sub(a, p_hi), p_lo);
+#endif
+}
+
 template <class FloatOrDouble>
 struct AsinImpl {};
 template <class FloatOrDouble>
@@ -589,6 +702,8 @@ template <class FloatOrDouble>
 struct ExpImpl {};
 template <class FloatOrDouble>
 struct LogImpl {};
+template <class FloatOrDouble>
+struct ExtPrecLog2ForPowImpl;
 template <class FloatOrDouble>
 struct SinCosImpl {};
 
@@ -1039,6 +1154,14 @@ struct ExpImpl<float> {
     return MulAdd(x_frac, Set(d, 0.193147182464599609375f),
                   Mul(x_frac, Set(d, 0.5f)));
   }
+
+  template <class D, class V = VFromD<D>, class VI32 = Vec<Rebind<int32_t, D>>,
+            HWY_IF_F32_D(D)>
+  HWY_INLINE V Exp2ReduceForPow(D d, V x_hi, V x_lo, VI32 q) {
+    const V x_frac = Add(Sub(x_hi, ConvertTo(d, q)), x_lo);
+    return MulAdd(x_frac, Set(d, 0.193147182464599609375f),
+                  Mul(x_frac, Set(d, 0.5f)));
+  }
 };
 
 template <>
@@ -1063,6 +1186,20 @@ struct LogImpl<float> {
     const V x2 = Mul(x, x);
     const V x4 = Mul(x2, x2);
     return MulAdd(MulAdd(k2, x4, k0), x2, Mul(MulAdd(k3, x4, k1), x4));
+  }
+};
+
+template <>
+struct ExtPrecLog2ForPowImpl<float> {
+  // Approximates Log2(x) over the range [sqrt(2) / 2, sqrt(2)].
+  template <class D, class V = VFromD<D>, HWY_IF_F32_D(D)>
+  HWY_INLINE V ExtPrecLog2Poly(D d, V z_sqr_hi) {
+    const auto k0 = Set(d, 0.5770779f);
+    const auto k1 = Set(d, 0.41221106f);
+    const auto k2 = Set(d, 0.31983307f);
+    const auto k3 = Set(d, 0.28389898f);
+
+    return Estrin(z_sqr_hi, k0, k1, k2, k3);
   }
 };
 
@@ -1137,6 +1274,14 @@ struct ExpImpl<double> {
     return MulAdd(x_frac, Set(d, 0.1931471805599453139823396),
                   Mul(x_frac, Set(d, 0.5)));
   }
+
+  template <class D, class V = VFromD<D>, class VI32 = Vec<Rebind<int32_t, D>>,
+            HWY_IF_F64_D(D)>
+  HWY_INLINE V Exp2ReduceForPow(D d, V x_hi, V x_lo, VI32 q) {
+    const V x_frac = Add(Sub(x_hi, PromoteTo(d, q)), x_lo);
+    return MulAdd(x_frac, Set(d, 0.1931471805599453139823396),
+                  Mul(x_frac, Set(d, 0.5)));
+  }
 };
 
 template <>
@@ -1167,6 +1312,25 @@ struct LogImpl<double> {
                   (Mul(MulAdd(MulAdd(k5, x4, k3), x4, k1), x4)));
   }
 };
+
+#if HWY_HAVE_FLOAT64
+template <>
+struct ExtPrecLog2ForPowImpl<double> {
+  // Approximates Log2(x) over the range [sqrt(2) / 2, sqrt(2)].
+  template <class D, class V = VFromD<D>, HWY_IF_F64_D(D)>
+  HWY_INLINE V ExtPrecLog2Poly(D d, V z_sqr_hi) {
+    const auto k0 = Set(d, 0.5770780163556751);
+    const auto k1 = Set(d, 0.41219858307744156);
+    const auto k2 = Set(d, 0.3205989040855153);
+    const auto k3 = Set(d, 0.26230757701579316);
+    const auto k4 = Set(d, 0.2219887477464986);
+    const auto k5 = Set(d, 0.19115982151710184);
+    const auto k6 = Set(d, 0.19116733197473582);
+
+    return Estrin(z_sqr_hi, k0, k1, k2, k3, k4, k5, k6);
+  }
+};
+#endif
 
 #endif
 
@@ -1235,6 +1399,181 @@ HWY_INLINE V Log(const D d, V x) {
   return MulSub(
       exp, kLn2Hi,
       Sub(MulSub(z, Sub(ym1, impl.LogPoly(d, z)), Mul(exp, kLn2Lo)), ym1));
+}
+
+template <class D, class V = VFromD<D>, HWY_IF_FLOAT3264_D(D)>
+HWY_INLINE V ExtPrecLog2OfMantForPow(D d, V x, V& log2_x_lo) {
+  // sqrt(2) / 2 <= x[i] <= sqrt(2) should be true
+
+  using T = TFromD<D>;
+  impl::ExtPrecLog2ForPowImpl<T> impl;
+
+  const V one = Set(d, ConvertScalarTo<T>(1));
+
+  const V x_minus_1 = Sub(x, one);
+
+  const V x_plus_1_hi = Add(x, one);
+  const V x_plus_1_v = Sub(x_plus_1_hi, x);
+  const V x_plus_1_lo =
+      Add(Sub(x, Sub(x_plus_1_hi, x_plus_1_v)), Sub(one, x_plus_1_v));
+
+  const V z_hi0 = Div(x_minus_1, x_plus_1_hi);
+  const V z_lo0 =
+      Div(NegMulAdd(z_hi0, x_plus_1_lo,
+                    InRangeFloatDivRem(x_minus_1, x_plus_1_hi, z_hi0)),
+          x_plus_1_hi);
+
+  const V z_hi = Add(z_hi0, z_lo0);
+  const V z_lo = Add(Sub(z_hi0, z_hi), z_lo0);
+
+  const V z_sqr_hi = Mul(z_hi, z_hi);
+  const V z_sqr_lo = InRangeLoProduct(z_hi, z_hi, z_sqr_hi);
+
+  const V p0 = Mul(z_sqr_hi, impl.ExtPrecLog2Poly(d, z_sqr_hi));
+
+  constexpr bool kIsF32 = (sizeof(T) == 4);
+  const V c0_hi = Set(d, kIsF32 ? static_cast<T>(2.88539f)
+                                : static_cast<T>(2.8853900817779268));
+  const V c0_lo = Set(d, kIsF32 ? static_cast<T>(3.851926E-8f)
+                                : static_cast<T>(4.0710547481862066E-17));
+
+  const V c1_hi = Set(d, kIsF32 ? static_cast<T>(0.9617967f)
+                                : static_cast<T>(0.9617966939259756));
+  const V c1_lo = Set(d, kIsF32 ? static_cast<T>(-6.8015265E-9f)
+                                : static_cast<T>(-3.1125578659356493E-17));
+
+  const V s0 = Add(p0, c1_lo);
+  const V v0 = Sub(s0, p0);
+  const V e0 = Add(Sub(p0, Sub(s0, v0)), Sub(c1_lo, v0));
+
+  const V s1 = Add(c1_hi, s0);
+  const V e1 = Add(Add(Sub(c1_hi, s1), s0), e0);
+
+  const V p1_hi = Mul(s1, z_sqr_hi);
+  const V p1_lo =
+      MulAdd(e1, z_sqr_hi,
+             MulAdd(s1, z_sqr_lo, InRangeLoProduct(s1, z_sqr_hi, p1_hi)));
+
+  const V s2 = Add(p1_hi, c0_lo);
+  const V v2 = Sub(s2, p1_hi);
+  const V e2 = Add(Sub(p1_hi, Sub(s2, v2)), Sub(c0_lo, v2));
+
+  const V s3 = Add(c0_hi, s2);
+  const V e3 = Add(Add(Sub(c0_hi, s3), s2), Add(e2, p1_lo));
+
+  const V log2_x_hi = Mul(s3, z_hi);
+  log2_x_lo =
+      MulAdd(e3, z_hi, MulAdd(s3, z_lo, InRangeLoProduct(s3, z_hi, log2_x_hi)));
+
+  return log2_x_hi;
+}
+
+// ExtPrecLog2OfMantForPow(x) computes Log2(x) to extra precision, which ensures
+// that the fractional portion of Log2(a) * b is sufficiently accurate for
+// Pow(a, b) if |Log2(a) * b| > 0.5 is true.
+template <class D, class V = VFromD<D>, HWY_IF_FLOAT3264_D(D)>
+HWY_INLINE V ExtPrecLog2ForPow(D d, V x, V& log2_x_lo) {
+  // x[i] should have its sign bit cleared
+
+  using T = TFromD<D>;
+  using TU = MakeUnsigned<T>;
+  using TI = MakeSigned<T>;
+
+  constexpr bool kIsF32 = (sizeof(T) == 4);
+
+  // kExpAdjBitIncr is equal to the fractional mantissa bits of the largest
+  // floating point value that is less than the exact value of sqrt(2).
+  constexpr TU kExpAdjBitIncr =
+      static_cast<TU>(kIsF32 ? 0x004AFB0Cu : 0x00095F619980C434u);
+
+  const RebindToUnsigned<decltype(d)> du;
+  const RebindToSigned<decltype(d)> di;
+
+  constexpr int kNumOfMantFracBits = MantissaBits<T>();
+  static_assert(kNumOfMantFracBits > 0, "kNumOfMantFracBits > 0 must be true");
+
+  constexpr TI kExpBias = static_cast<TI>(MaxExponentField<T>() >> 1);
+  static_assert(kExpBias > 0, "kExpBias > 0 must be true");
+
+  constexpr TU kExponentMask = ExponentMask<T>();
+  constexpr TU kSignificandMask = static_cast<TU>(LimitsMax<TI>());
+  constexpr TU kMaxLt2FloatValBits = (kSignificandMask >> 1);
+  constexpr TU kPos1FloatValBits = kMaxLt2FloatValBits & kExponentMask;
+  constexpr TU kNegInfBits = kExponentMask | SignMask<T>();
+  constexpr TU kLessThanMinNormalScaleFactorBits =
+      static_cast<TU>(kExpBias + kNumOfMantFracBits) << kNumOfMantFracBits;
+
+  const auto exp_lsb = Set(du, TU{1} << kNumOfMantFracBits);
+  const auto exp_bias = Set(di, kExpBias);
+  const auto neg_inf = BitCast(d, Set(du, kNegInfBits));
+
+  const auto one = BitCast(d, Set(du, kPos1FloatValBits));
+  const auto min_normal = BitCast(d, exp_lsb);
+
+  const auto x_is_zero_or_subnormal = Lt(x, min_normal);
+  const auto x_normalize_scale_factor =
+      IfThenElse(x_is_zero_or_subnormal,
+                 BitCast(d, Set(du, kLessThanMinNormalScaleFactorBits)), one);
+
+  // normalized_x[i] is equal to the normalized value of x[i], which ensures
+  // that subnormal numbers are either scaled up to a normal number (which is
+  // usually the case on most targets) or flushed to zero (which occurs on Armv7
+  // NEON).
+
+  const auto normalized_x = Mul(x, x_normalize_scale_factor);
+  const auto x_denormalize_exp = IfThenElseZero(
+      RebindMask(di, x_is_zero_or_subnormal), Set(di, -kNumOfMantFracBits));
+
+  const auto normalized_x_bits = BitCast(du, normalized_x);
+
+  // x_mant_exp_adj[i] is equal to the decrement that needs to be made to
+  // the mantissa bits to get x_mant[i] in the (sqrt(2) / 2, sqrt(2)) range.
+  const auto x_mant_exp_adj = And(
+      Xor(normalized_x_bits, Add(normalized_x_bits, Set(du, kExpAdjBitIncr))),
+      exp_lsb);
+
+  // If normalized_x[i] is a normal floating-point number, then x_exp[i] is
+  // equal to lrint(log2(x[i])).
+  const auto x_exp =
+      Add(Add(BitCast(di, GetBiasedExponent(normalized_x)), x_denormalize_exp),
+          Sub(BitCast(di, ShiftRight<kNumOfMantFracBits>(x_mant_exp_adj)),
+              exp_bias));
+  const auto x_exp_as_float = ConvertTo(d, x_exp);
+
+  // x_mant[i] is equal to the mantissa of x[i] in the (sqrt(2) / 2, sqrt(2))
+  // range.
+  const auto x_mant =
+      BitCast(d, And(Xor(Or(normalized_x_bits, Set(du, kPos1FloatValBits)),
+                         x_mant_exp_adj),
+                     Set(du, kMaxLt2FloatValBits)));
+
+  // If normalized_x[i] is a normal floating-point number, then x will be equal
+  // to calbn(x_mant[i], x_exp[i]).
+
+  RemoveCvRef<V> log2_x_mant_lo;
+  const V log2_x_mant_hi = ExtPrecLog2OfMantForPow(d, x_mant, log2_x_mant_lo);
+
+  const V log2_x_hi0 = Add(x_exp_as_float, log2_x_mant_hi);
+  const V log2_x_lo0 =
+      Add(Add(Sub(x_exp_as_float, log2_x_hi0), log2_x_mant_hi), log2_x_mant_lo);
+
+  const V log2_x_hi1 = Add(log2_x_hi0, log2_x_lo0);
+  const V log2_x_lo1 = Add(Sub(log2_x_hi0, log2_x_hi1), log2_x_lo0);
+
+  const auto x_is_zero = Eq(normalized_x, Zero(d));
+  const auto x_is_finite = IsFinite(normalized_x);
+
+  // If normalized_x[i] is a nonzero finite number, then log2(x[i]) will be
+  // equal to log2_x_hi1[i] + log2_x_hi0[i].
+
+  // Otherwise, return negative infinity if normalized_x[i] is equal to zero
+  // and return normalized_x[i] if normalized_x[i] is non-finite.
+
+  const V log2_x_hi = IfThenElse(
+      x_is_finite, IfThenElse(x_is_zero, neg_inf, log2_x_hi1), normalized_x);
+  log2_x_lo = IfThenElseZero(AndNot(x_is_zero, x_is_finite), log2_x_lo1);
+
+  return log2_x_hi;
 }
 
 // SinCos
@@ -1940,6 +2279,126 @@ template <class D, class V>
 HWY_INLINE V Log2(const D d, V x) {
   using T = TFromD<D>;
   return Mul(Log(d, x), Set(d, static_cast<T>(1.44269504088896340735992)));
+}
+
+template <class D, class V>
+HWY_INLINE V Pow(D d, V a, V b) {
+  using T = TFromD<decltype(d)>;
+  using TI = MakeSigned<T>;
+
+  const RebindToSigned<decltype(d)> di;
+
+  const auto kZero = Zero(d);
+  const auto kOne = Set(d, static_cast<T>(1));
+
+  const auto a_is_nonzero_negative_finite =
+      And(Gt(a, Set(d, NegativeInfOrLowestValue<T>())), Lt(a, kZero));
+
+  const auto abs_b = Abs(b);
+  const auto b_int = ConvertTo(di, b);
+  const auto b_is_integer_or_inf =
+      Or(Eq(b, ConvertTo(d, b_int)), Ge(abs_b, Set(d, MantissaEnd<T>())));
+
+  // If a[i] is negative (including negative zero) and b[i] is an odd integer,
+  // then the result of pow(a[i], b[i]) will be negative.
+
+  // b[i] is an odd integer if and only if b_int[i] != LimitsMax<TI>(),
+  // (b_int[i] & 1) != 0, and b_is_integer_or_inf[i] are all true.
+
+  // Otherwise, the result of pow(a[i], b[i]) will be positive.
+
+  // result_sign[i] is equal to the sign of pow(a[i], b[i]) in the sign bit.
+  const auto result_sign = BitCast(
+      d, And(BitCast(di, a),
+             ShiftLeft<(sizeof(TI) * 8 - 1)>(
+                 And(IfThenZeroElse(Eq(b_int, Set(di, LimitsMax<TI>())), b_int),
+                     IfThenElseZero(RebindMask(di, b_is_integer_or_inf),
+                                    Set(di, 1))))));
+
+  // If -inf < a[i] < 0 and b[i] is not an integer or infinity, then force a2[i]
+  // to NaN as the result of pow(a[i], b[i]) will be NaN in this case.
+
+  // Otherwise, if b[i] == 0, force a2[i] to 1 as pow(a[i], 0) is equal to 1 for
+  // all values of a[i].
+
+  // If neither of the above cases are true, then a2[i] will be equal to |a[i]|.
+
+  // If |a[i]| == 1, then force b2[i] to 0 as pow(1, b[i]) is equal to 1 for all
+  // values of a[i] and as |pow(-1, b[i])| == 1 is true if b[i] is an integer or
+  // infinity.
+
+  const auto abs_a = Abs(a);
+  const auto a2 =
+      IfThenElse(AndNot(b_is_integer_or_inf, a_is_nonzero_negative_finite),
+                 NaN(d), IfThenElse(Eq(abs_b, kZero), kOne, abs_a));
+  const auto b2 = IfThenZeroElse(Eq(abs_a, kOne), b);
+
+  // The absolute value of the result is equal to a2[i] raised to b2[i].
+
+  // Compute log2(a2[i]) using extra precision to ensure that extra accuracy
+  // is there in the fractional part of log2(a2[i]) * b2[i] if
+  // |log2(a2[i]) * b2[i]| > 0.5.
+
+  VFromD<D> log2_a2_lo;
+  const auto log2_a2_hi = impl::ExtPrecLog2ForPow(d, a2, log2_a2_lo);
+
+  constexpr TI kExpBias = static_cast<TI>(MaxExponentField<T>() >> 1);
+  static_assert(kExpBias > 0, "kExpBias > 0 must be true");
+
+  constexpr int kNumOfMantFracBits = MantissaBits<T>();
+  static_assert(kNumOfMantFracBits > 0, "kNumOfMantFracBits > 0 must be true");
+
+  constexpr TI kMinInRangeExp = -kExpBias - kNumOfMantFracBits - 1;
+  static_assert(kMinInRangeExp < 0, "kMinInRangeExp < 0 must be true");
+
+  constexpr TI kMaxInRangeExp = kExpBias + 2;
+  static_assert(kMaxInRangeExp > 0, "kMaxInRangeExp > 0 must be true");
+
+  const auto min_in_range_exp = Set(d, static_cast<T>(kMinInRangeExp));
+  const auto max_in_range_exp = Set(d, static_cast<T>(kMaxInRangeExp));
+
+  const auto base2_exp0 = Mul(log2_a2_hi, b2);
+  const auto base2_exp0_is_nan = IsNaN(base2_exp0);
+
+  // If base2_exp0[i] is NaN, clamped_base2_exp0[i] will be equal to NaN.
+  // Otherwise, if base2_exp0[i] is non-NaN, then clamped_base2_exp0[i] will be
+  // equal to min(max(base2_exp0[i], kMinInRangeExp), kMaxInRangeExp).
+  const auto clamped_base2_exp0 =
+      Clamp(IfThenZeroElse(base2_exp0_is_nan, base2_exp0), min_in_range_exp,
+            max_in_range_exp);
+
+  // If base2_exp0[i] is equal to clamped_base2_exp0[i], then base2_exp1[i] will
+  // be equal to the lower bits of log2(a2[i]) * b2[i], which ensures that
+  // base_e_exp[i] has sufficient accuracy if |log2(a2[i]) * b2[i]| > 0.5.
+
+  // Otherwise, if base2_exp0[i] is not equal to clamped_base2_exp0[i], then
+  // either base2_exp0[i] is too small (which will result in a zero result),
+  // base2_exp0[i] is too large (which will result in an infinite result), or
+  // base2_exp0[i] is NaN (which will result in a NaN result).
+  const auto base2_exp1 = IfThenElseZero(
+      Eq(base2_exp0, clamped_base2_exp0),
+      MulAdd(log2_a2_lo, b2,
+             impl::InRangeLoProduct(log2_a2_hi, b2, clamped_base2_exp0)));
+
+  impl::ExpImpl<T> exp_impl;
+
+  // Compute exp2(clamped_base2_exp0[i] + base2_exp1[i])
+
+  // Reduce, approximate, and then reconstruct.
+  const auto q = exp_impl.ToNearestInt32(d, clamped_base2_exp0);
+  const auto base_e_exp =
+      exp_impl.Exp2ReduceForPow(d, clamped_base2_exp0, base2_exp1, q);
+
+  // abs_result[i] is equal to the result of |pow(a[i], b[i])|
+  const auto abs_result =
+      IfThenElse(base2_exp0_is_nan, base2_exp0,
+                 exp_impl.LoadExpShortRange(
+                     d, Add(exp_impl.ExpPoly(d, base_e_exp), kOne), q));
+
+  // Bitwise OR result_sign[i] to abs_result[i] to get the final result
+  const auto result = Or(abs_result, result_sign);
+
+  return result;
 }
 
 template <class D, class V>
