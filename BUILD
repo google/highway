@@ -4,6 +4,7 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("//:hwy_tests.bzl", "HWY_TESTS")
 load("@rules_license//rules:license.bzl", "license")
+load("//tools/build_defs/testing:bzl_library.bzl", "bzl_library")
 
 package(
     default_applicable_licenses = [":license"],
@@ -116,6 +117,27 @@ COPTS = select({
     ],
     "//conditions:default": [
     ],
+})
+
+HWY_TEST_COPTS = select({
+    ":compiler_msvc": [],
+    "//conditions:default": [
+        # gTest triggers this warning (which is enabled by the
+        # extra-semi in COPTS), so we need to disable it here,
+        # but it's still enabled for :hwy.
+        "-Wno-c++98-compat-extra-semi",
+    ],
+})
+
+# Common to all tests.
+HWY_TEST_DEPS = [
+    ":hwy_test_util",
+    ":hwy",
+    ":nanobenchmark",
+    ":timer",
+] + select({
+    ":compiler_msvc": [],
+    "//conditions:default": ["@com_google_googletest//:gtest_main"],
 })
 
 DEFINES = select({
@@ -344,9 +366,16 @@ cc_library(
     copts = COPTS,
     textual_hdrs = [
         "hwy/contrib/dot/dot-inl.h",
+        # copybara:strip_begin(internal)
+        "hwy/contrib/dot/one_to_many-inl.h",
+        "hwy/contrib/dot/one_to_many_kernels-inl.h",
+        # copybara:strip_end
     ],
     deps = [
         ":hwy",
+        # copybara:strip_begin(internal)
+        ":prefetch_pipeline",
+        # copybara:strip_end
     ],
 )
 
@@ -607,6 +636,25 @@ cc_library(
     ],
 )
 
+# copybara:strip_begin(internal)
+cc_library(
+    name = "prefetch_pipeline",
+    hdrs = [
+        "hwy/contrib/pipeline/prefetch_pipeline.h",
+        "hwy/contrib/pipeline/prefetch_pipeline_2d.h",
+        "hwy/contrib/pipeline/prefetch_pipeline_types.h",
+        "hwy/contrib/pipeline/prefetch_tuner.h",
+        "hwy/contrib/pipeline/prefetch_tuner_registry.h",
+    ],
+    compatible_with = [],
+    copts = COPTS,
+    deps = [
+        ":hwy",
+        ":timer",
+    ],
+)
+# copybara:strip_end
+
 cc_test(
     name = "list_targets",
     size = "small",
@@ -627,27 +675,6 @@ cc_test(
         "@com_google_googletest//:gtest_main",
     ],
 )
-
-HWY_TEST_COPTS = select({
-    ":compiler_msvc": [],
-    "//conditions:default": [
-        # gTest triggers this warning (which is enabled by the
-        # extra-semi in COPTS), so we need to disable it here,
-        # but it's still enabled for :hwy.
-        "-Wno-c++98-compat-extra-semi",
-    ],
-})
-
-# Common to all tests.
-HWY_TEST_DEPS = [
-    ":hwy_test_util",
-    ":hwy",
-    ":nanobenchmark",
-    ":timer",
-] + select({
-    ":compiler_msvc": [],
-    "//conditions:default": ["@com_google_googletest//:gtest_main"],
-})
 
 [
     [
@@ -713,4 +740,11 @@ cc_test(
 test_suite(
     name = "hwy_ops_tests",
     tags = ["hwy_ops_test"],
+)
+
+bzl_library(
+    name = "hwy_tests_bzl",
+    srcs = ["hwy_tests.bzl"],
+    parse_tests = False,
+    visibility = ["//visibility:private"],
 )
