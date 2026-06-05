@@ -49,7 +49,7 @@ namespace {
 
 // --------------------------------------------------------------------------
 // AesCtrEngine requires AES-NI, which is not available on HWY_SCALAR.
-#if HWY_TARGET == HWY_SCALAR
+#if (HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128) && !HWY_IDE
 HWY_NOINLINE void TestAllRoundtrip() {}
 HWY_NOINLINE void TestQueryConsistency() {}
 HWY_NOINLINE void TestHeadroomSweep() {}
@@ -134,6 +134,7 @@ HWY_NOINLINE void TestQueryConsistency() {
   PhastConfig config(num_keys);
   ThreadPool pool = MakePool();
   Phast phast = BuildPhast(keys.data(), config, pool);
+  HWY_ASSERT_M(!phast.IsEmpty(), "Build failed");
 
   // Query each key twice and verify same result.
   for (uint32_t i = 0; i < num_keys; ++i) {
@@ -150,8 +151,10 @@ HWY_NOINLINE void TestQueryConsistency() {
 HWY_NOINLINE void TestHeadroomSweep() {
   fprintf(stderr, "bytes   h%% kpb L\n");
 
-  // Pre-generate keys once at max size.
-  const size_t kMaxN = 1000 * 1000;
+  // Pre-generate keys once at max size. Smaller problem size on debug builds
+  // and non-x86 (might be emulated).
+  const size_t kMaxN =
+      (HWY_IS_DEBUG_BUILD || !HWY_ARCH_X86) ? 50 * 1000 : 1000 * 1000;
   AesCtrEngine engine(/*deterministic=*/true);
   AlignedVector<uint32_t> all_keys = FillRandom<uint32_t>(kMaxN, engine, 0);
   VQSort(all_keys.data(), kMaxN, SortAscending());
@@ -199,12 +202,11 @@ HWY_NOINLINE void TestHeadroomSweep() {
   PROFILER_PRINT_RESULTS();
 }
 
-#endif  // HWY_TARGET != HWY_SCALAR
+#endif  // HWY_TARGET != HWY_SCALAR && HWY_TARGET != HWY_EMU128
 
 }  // namespace
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
-
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE

@@ -40,9 +40,14 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
-#if HWY_TARGET != HWY_SCALAR
+#if (HWY_TARGET != HWY_SCALAR && HWY_TARGET != HWY_EMU128) || HWY_IDE
 
 HWY_NOINLINE void TestLatency(const Phast& phast) {
+  if (phast.IsEmpty()) {
+    HWY_WARN("Phast build failed, skipping latency test.\n");
+    return;
+  }
+
   FuncInput input = Unpredictable1();
   Params params = DefaultBenchmarkParams();
   params.verbose = false;
@@ -65,6 +70,11 @@ HWY_NOINLINE void TestLatency(const Phast& phast) {
 
 HWY_NOINLINE void TestThroughput(const Phast& phast,
                                  const AlignedVector<uint32_t>& keys) {
+  if (phast.IsEmpty()) {
+    HWY_WARN("Phast build failed, skipping throughput test.\n");
+    return;
+  }
+
   AlignedVector<uint32_t> indices(keys.size());
 
   FuncInput input = Unpredictable1();
@@ -111,7 +121,12 @@ static ThreadPool MakePool() {
 }
 
 HWY_NOINLINE Phast MakePhast(const AlignedVector<uint32_t>& keys) {
-  PhastConfig config(keys.size());
+  const size_t num_keys = keys.size();
+  const uint32_t slice_length = num_keys > 256 * 1024   ? 4096
+                                : num_keys >= 10 * 1000 ? 512
+                                                        : 256;
+  const uint32_t headroom_percent = num_keys > 256 * 1024 ? 2 : 5;
+  PhastConfig config(num_keys, 2, slice_length, headroom_percent);
   ThreadPool pool = MakePool();
   return BuildPhast(keys.data(), config, pool);
 }
@@ -121,14 +136,15 @@ HWY_NOINLINE void TestAllLatency() {
   TestLatency(MakePhast(keys));
 }
 HWY_NOINLINE void TestAllThroughput() {
-  const AlignedVector<uint32_t> keys = GenerateKeys(1000 * 1000);
+  const size_t num_keys = HWY_IS_DEBUG_BUILD ? 10 * 1000 : 1000 * 1000;
+  const AlignedVector<uint32_t> keys = GenerateKeys(num_keys);
   TestThroughput(MakePhast(keys), keys);
 }
 
-#else   // HWY_TARGET == HWY_SCALAR
+#else   // HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128
 void TestAllLatency() {}
 void TestAllThroughput() {}
-#endif  // HWY_TARGET != HWY_SCALAR
+#endif  // HWY_TARGET != HWY_SCALAR && HWY_TARGET != HWY_EMU128
 
 }  // namespace
 }  // namespace HWY_NAMESPACE

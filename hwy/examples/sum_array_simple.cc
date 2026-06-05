@@ -30,6 +30,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 namespace hn = hwy::HWY_NAMESPACE;
 
 float SumArraySIMD(const float* HWY_RESTRICT array, size_t count) {
@@ -51,6 +52,7 @@ float SumArraySIMD(const float* HWY_RESTRICT array, size_t count) {
   return total;
 }
 
+}  // namespace
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
@@ -59,7 +61,7 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 HWY_EXPORT(SumArraySIMD);
 
-float CallSumArraySIMD(const float* array, size_t count) {
+static float CallSumArraySIMD(const float* array, size_t count) {
   return HWY_DYNAMIC_DISPATCH(SumArraySIMD)(array, count);
 }
 

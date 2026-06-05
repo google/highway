@@ -55,7 +55,7 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
-#if HWY_TARGET != HWY_SCALAR
+#if (HWY_TARGET != HWY_SCALAR && HWY_TARGET != HWY_EMU128) || HWY_IDE
 
 size_t NumThreads(const Topology& topology) {
   if (topology.packages.empty()) return ThreadPool::MaxThreads();
@@ -738,7 +738,7 @@ HWY_MAYBE_UNUSED void PrintBestMultipliers(const OpSequence& seq,
   AlignedVector<TopResults> worker_results(num_workers);
 
   const double t_start = platform::Now();
-  static constexpr size_t kItersPerTask = 1024;
+  static constexpr size_t kItersPerTask = AdjustedReps(128);
   size_t round = 0;
   for (; platform::Now() - t_start < budget_seconds; ++round) {
     pool.Run(0, num_workers, [&](uint64_t task, size_t worker) {
@@ -907,8 +907,9 @@ HWY_NOINLINE void RunHashProspector16() {
   Topology topology;
   ThreadPool pool(NumThreads(topology));
   // Evaluating 23m multipliers (40s on Turin) has top 8 costs 0.023-0.027, vs.
-  // 0.029-0.034 for 15s.
-  const double budget_seconds = HWY_IS_DEBUG_BUILD ? 1.0 : 40.0;
+  // 0.029-0.034 for 15s. For manual runs, this should be >= 40.0, but we use
+  // short timeouts to make tests run quickly.
+  const double budget_seconds = HWY_IS_DEBUG_BUILD ? 0.1 : 0.5;
 
   Variant::InitTables();
 
@@ -936,10 +937,10 @@ HWY_NOINLINE void RunHashProspector16() {
   }
 }
 
-#else   // HWY_TARGET == HWY_SCALAR
+#else   // HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128
 void TestHashProspector16() {}
 void RunHashProspector16() {}
-#endif  // HWY_TARGET != HWY_SCALAR
+#endif  // HWY_TARGET != HWY_SCALAR && HWY_TARGET != HWY_EMU128
 
 }  // namespace
 }  // namespace HWY_NAMESPACE

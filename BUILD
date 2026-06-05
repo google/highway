@@ -642,7 +642,7 @@ HWY_TEST_DEPS = [
         cc_test(
             name = test,
             size = "large",
-            timeout = "eternal",  # default moderate is not enough for math_test
+            timeout = "long",  # default moderate is not enough for math_test
             srcs = [
                 subdir + test + ".cc",
             ],

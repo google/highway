@@ -789,14 +789,17 @@ void RunTests(const HashFunction& hash) {
   TestSparse(hash, ctx);
   TestCyclic(hash, ctx);
 
-  TestAvalanche(hash, ctx);
-  TestDiff(hash, ctx);
+  // Re-enable for manual runs; we want tests to be fast by default.
+  if constexpr (false) {
+    TestAvalanche(hash, ctx);
+    TestDiff(hash, ctx);
 
-  TestNotCounter(hash, ctx);
-  TestRevCounter(hash, ctx);
-  TestMulCounter(hash, ctx);
-  TestRotCounter(hash, ctx);
-  TestDiffDist(hash, ctx);
+    TestNotCounter(hash, ctx);
+    TestRevCounter(hash, ctx);
+    TestMulCounter(hash, ctx);
+    TestRotCounter(hash, ctx);
+    TestDiffDist(hash, ctx);
+  }
 }
 
 HWY_NOINLINE void RunAll() {

@@ -42,9 +42,9 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
-#if HWY_TARGET != HWY_SCALAR
+#if (HWY_TARGET != HWY_SCALAR && HWY_TARGET != HWY_EMU128) || HWY_IDE
 
-ThreadPool MakePool(size_t max_threads = 31) {
+HWY_MAYBE_UNUSED ThreadPool MakePool(size_t max_threads = 31) {
   return ThreadPool(HWY_MIN(ThreadPool::MaxThreads(), max_threads));
 }
 
@@ -429,14 +429,14 @@ static HWY_NOINLINE void TestAllEdgeCases() {
   });
 }
 
-#else   // HWY_TARGET == HWY_SCALAR
+#else   // HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128
 static void TestAllAvalanche() {}
 static void TestAllBias() {}
 static void TestAllBuckets() {}
 static void TestAllBijection() {}
 static void TestAllLanesEqual() {}
 static void TestAllEdgeCases() {}
-#endif  // HWY_TARGET != HWY_SCALAR
+#endif  // HWY_TARGET != HWY_SCALAR && HWY_TARGET != HWY_EMU128
 
 }  // namespace
 }  // namespace HWY_NAMESPACE

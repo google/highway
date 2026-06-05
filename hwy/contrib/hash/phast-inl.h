@@ -286,10 +286,10 @@ class Phast {
   // Scalar version for builder.
   static HWY_INLINE uint16_t Hash16(uint16_t x) {
     x = static_cast<uint16_t>(x ^ (x >> 8));
-    const uint16_t x2 = static_cast<uint16_t>(x * x);
-    x = static_cast<uint16_t>(x + static_cast<uint16_t>(x2 * 0xca32));
+    const uint16_t x2 = static_cast<uint16_t>(uint32_t{x} * x);
+    x = static_cast<uint16_t>(x + static_cast<uint16_t>(uint32_t{x2} * 0xca32));
     x = static_cast<uint16_t>(x ^ (x >> 12));
-    x = static_cast<uint16_t>(x * 0x3929u);
+    x = static_cast<uint16_t>(uint32_t{x} * 0x3929u);
     return x;
   }
 
@@ -785,7 +785,7 @@ class PhastBuilder {
   PackedSeeds seeds_packed_;
   AlignedVector<uint8_t> committed_seeds_;  // seed per rank, for backtracking
 
-  uint32_t rank_or_0_;  // uninitialized until MaybeBuild() is called.
+  uint32_t rank_or_0_ = ~0u;  // set by MaybeBuild().
 };
 
 struct PhastStats {

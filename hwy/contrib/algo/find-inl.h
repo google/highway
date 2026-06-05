@@ -79,8 +79,8 @@ size_t FindIf(D d, const T* HWY_RESTRICT in, size_t count, const Func& func) {
   size_t i = 0;
   if (HWY_LIKELY(count >= 2 * N)) {
     for (; i <= count - 2 * N; i += 2 * N) {
-      const Mask<D> eq0 = func(LoadU(d, in + i + 0 * N));
-      const Mask<D> eq1 = func(LoadU(d, in + i + 1 * N));
+      const Mask<D> eq0 = func(d, LoadU(d, in + i + 0 * N));
+      const Mask<D> eq1 = func(d, LoadU(d, in + i + 1 * N));
       if (AllFalse(d, Or(eq0, eq1))) continue;
       const intptr_t pos = FindFirstTrue(d, eq0);
       if (pos >= 0) return i + static_cast<size_t>(pos);
@@ -90,7 +90,7 @@ size_t FindIf(D d, const T* HWY_RESTRICT in, size_t count, const Func& func) {
 
   size_t remaining = count - i;
   if (remaining >= N) {
-    const Mask<D> eq = func(LoadU(d, in + i));
+    const Mask<D> eq = func(d, LoadU(d, in + i));
     const intptr_t pos = FindFirstTrue(d, eq);
     if (pos >= 0) return i + static_cast<size_t>(pos);
     i += N;
@@ -100,7 +100,7 @@ size_t FindIf(D d, const T* HWY_RESTRICT in, size_t count, const Func& func) {
   HWY_DASSERT(remaining < N);
   if (remaining != 0) {
     const Mask<D> mask = FirstN(d, remaining);
-    const Mask<D> eq = And(mask, func(LoadN(d, in + i, remaining)));
+    const Mask<D> eq = And(mask, func(d, LoadN(d, in + i, remaining)));
     const intptr_t pos = FindFirstTrue(d, eq);
     if (pos >= 0) return i + static_cast<size_t>(pos);
   }
