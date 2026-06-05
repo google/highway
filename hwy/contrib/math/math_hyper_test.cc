@@ -194,6 +194,9 @@ DEFINE_MATH_TEST(Atanh,
 DEFINE_MATH_TEST(Sinh,
   std::sinh,  CallSinh,  -80.0f,     +80.0f,      4,
   std::sinh,  CallSinh,  -709.0,     +709.0,      4)
+DEFINE_MATH_TEST(Cosh,
+  std::cosh,  CallCosh,  -80.0f,     +80.0f,      4,
+  std::cosh,  CallCosh,  -709.0,     +709.0,      4)
 DEFINE_MATH_TEST(Tanh,
   std::tanh,  CallTanh,  -FLT_MAX,   +FLT_MAX,    4,
   std::tanh,  CallTanh,  -DBL_MAX,   +DBL_MAX,    4)
@@ -346,6 +349,7 @@ HWY_EXPORT_AND_TEST_P(HwyMathHyperTest, TestAllAcosh);
 HWY_EXPORT_AND_TEST_P(HwyMathHyperTest, TestAllAsinh);
 HWY_EXPORT_AND_TEST_P(HwyMathHyperTest, TestAllAtanh);
 HWY_EXPORT_AND_TEST_P(HwyMathHyperTest, TestAllSinh);
+HWY_EXPORT_AND_TEST_P(HwyMathHyperTest, TestAllCosh);
 HWY_EXPORT_AND_TEST_P(HwyMathHyperTest, TestAllTanh);
 HWY_EXPORT_AND_TEST_P(HwyMathHyperTest, TestAllFastTanh);
 HWY_AFTER_TEST();
