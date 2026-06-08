@@ -210,6 +210,15 @@ using DFromM = Simd<typename M::PrivateT, M::kPrivateN, 0>;
 template <class V>
 using TFromV = typename V::PrivateT;
 
+#define HWY_X86_FPCLASS_QNAN 0x01
+#define HWY_X86_FPCLASS_POS0 0x02
+#define HWY_X86_FPCLASS_NEG0 0x04
+#define HWY_X86_FPCLASS_POS_INF 0x08
+#define HWY_X86_FPCLASS_NEG_INF 0x10
+#define HWY_X86_FPCLASS_SUBNORMAL 0x20
+#define HWY_X86_FPCLASS_NEG 0x40
+#define HWY_X86_FPCLASS_SNAN 0x80
+
 // ------------------------------ Zero
 
 // Use HWY_MAX_LANES_D here because VFromD is defined in terms of Zero.
@@ -5696,6 +5705,401 @@ template <typename T, size_t N, HWY_IF_U16(T)>
 HWY_API Vec128<T, N> MaskedSatSubOr(Vec128<T, N> no, Mask128<T, N> m,
                                     Vec128<T, N> a, Vec128<T, N> b) {
   return Vec128<T, N>{_mm_mask_subs_epu16(no.raw, m.raw, a.raw, b.raw)};
+}
+
+// ------------------------------ MaskedEq etc.
+
+#ifdef HWY_NATIVE_MASKED_COMP
+#undef HWY_NATIVE_MASKED_COMP
+#else
+#define HWY_NATIVE_MASKED_COMP
+#endif
+
+// ----- MaskedEq
+template <typename T, size_t N, HWY_IF_UI8(T)>
+HWY_API Mask128<T, N> MaskedEq(Mask128<T, N> m, Vec128<T, N> a,
+                               Vec128<T, N> b) {
+  return Mask128<T, N>{_mm_mask_cmpeq_epi8_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, size_t N, HWY_IF_UI16(T)>
+HWY_API Mask128<T, N> MaskedEq(Mask128<T, N> m, Vec128<T, N> a,
+                               Vec128<T, N> b) {
+  return Mask128<T, N>{_mm_mask_cmpeq_epi16_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, size_t N, HWY_IF_UI32(T)>
+HWY_API Mask128<T, N> MaskedEq(Mask128<T, N> m, Vec128<T, N> a,
+                               Vec128<T, N> b) {
+  return Mask128<T, N>{_mm_mask_cmpeq_epi32_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, size_t N, HWY_IF_UI64(T)>
+HWY_API Mask128<T, N> MaskedEq(Mask128<T, N> m, Vec128<T, N> a,
+                               Vec128<T, N> b) {
+  return Mask128<T, N>{_mm_mask_cmpeq_epi64_mask(m.raw, a.raw, b.raw)};
+}
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Mask128<float16_t, N> MaskedEq(Mask128<float16_t, N> m,
+                                       Vec128<float16_t, N> a,
+                                       Vec128<float16_t, N> b) {
+  return Mask128<float16_t, N>{
+      _mm_mask_cmp_ph_mask(m.raw, a.raw, b.raw, _CMP_EQ_OQ)};
+}
+#endif  // HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Mask128<float, N> MaskedEq(Mask128<float, N> m, Vec128<float, N> a,
+                                   Vec128<float, N> b) {
+  return Mask128<float, N>{
+      _mm_mask_cmp_ps_mask(m.raw, a.raw, b.raw, _CMP_EQ_OQ)};
+}
+template <size_t N>
+HWY_API Mask128<double, N> MaskedEq(Mask128<double, N> m, Vec128<double, N> a,
+                                    Vec128<double, N> b) {
+  return Mask128<double, N>{
+      _mm_mask_cmp_pd_mask(m.raw, a.raw, b.raw, _CMP_EQ_OQ)};
+}
+
+// ----- MaskedNe
+template <typename T, size_t N, HWY_IF_UI8(T)>
+HWY_API Mask128<T, N> MaskedNe(Mask128<T, N> m, Vec128<T, N> a,
+                               Vec128<T, N> b) {
+  return Mask128<T, N>{_mm_mask_cmpneq_epi8_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, size_t N, HWY_IF_UI16(T)>
+HWY_API Mask128<T, N> MaskedNe(Mask128<T, N> m, Vec128<T, N> a,
+                               Vec128<T, N> b) {
+  return Mask128<T, N>{_mm_mask_cmpneq_epi16_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, size_t N, HWY_IF_UI32(T)>
+HWY_API Mask128<T, N> MaskedNe(Mask128<T, N> m, Vec128<T, N> a,
+                               Vec128<T, N> b) {
+  return Mask128<T, N>{_mm_mask_cmpneq_epi32_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, size_t N, HWY_IF_UI64(T)>
+HWY_API Mask128<T, N> MaskedNe(Mask128<T, N> m, Vec128<T, N> a,
+                               Vec128<T, N> b) {
+  return Mask128<T, N>{_mm_mask_cmpneq_epi64_mask(m.raw, a.raw, b.raw)};
+}
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Mask128<float16_t, N> MaskedNe(Mask128<float16_t, N> m,
+                                       Vec128<float16_t, N> a,
+                                       Vec128<float16_t, N> b) {
+  return Mask128<float16_t, N>{
+      _mm_mask_cmp_ph_mask(m.raw, a.raw, b.raw, _CMP_NEQ_OQ)};
+}
+#endif  // HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Mask128<float, N> MaskedNe(Mask128<float, N> m, Vec128<float, N> a,
+                                   Vec128<float, N> b) {
+  return Mask128<float, N>{
+      _mm_mask_cmp_ps_mask(m.raw, a.raw, b.raw, _CMP_NEQ_OQ)};
+}
+template <size_t N>
+HWY_API Mask128<double, N> MaskedNe(Mask128<double, N> m, Vec128<double, N> a,
+                                    Vec128<double, N> b) {
+  return Mask128<double, N>{
+      _mm_mask_cmp_pd_mask(m.raw, a.raw, b.raw, _CMP_NEQ_OQ)};
+}
+
+// ----- MaskedLt
+template <size_t N>
+HWY_API Mask128<int8_t, N> MaskedLt(Mask128<int8_t, N> m, Vec128<int8_t, N> a,
+                                    Vec128<int8_t, N> b) {
+  return Mask128<int8_t, N>{_mm_mask_cmplt_epi8_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<int16_t, N> MaskedLt(Mask128<int16_t, N> m,
+                                     Vec128<int16_t, N> a,
+                                     Vec128<int16_t, N> b) {
+  return Mask128<int16_t, N>{_mm_mask_cmplt_epi16_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<int32_t, N> MaskedLt(Mask128<int32_t, N> m,
+                                     Vec128<int32_t, N> a,
+                                     Vec128<int32_t, N> b) {
+  return Mask128<int32_t, N>{_mm_mask_cmplt_epi32_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<int64_t, N> MaskedLt(Mask128<int64_t, N> m,
+                                     Vec128<int64_t, N> a,
+                                     Vec128<int64_t, N> b) {
+  return Mask128<int64_t, N>{_mm_mask_cmplt_epi64_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint8_t, N> MaskedLt(Mask128<uint8_t, N> m,
+                                     Vec128<uint8_t, N> a,
+                                     Vec128<uint8_t, N> b) {
+  return Mask128<uint8_t, N>{_mm_mask_cmplt_epu8_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint16_t, N> MaskedLt(Mask128<uint16_t, N> m,
+                                      Vec128<uint16_t, N> a,
+                                      Vec128<uint16_t, N> b) {
+  return Mask128<uint16_t, N>{_mm_mask_cmplt_epu16_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint32_t, N> MaskedLt(Mask128<uint32_t, N> m,
+                                      Vec128<uint32_t, N> a,
+                                      Vec128<uint32_t, N> b) {
+  return Mask128<uint32_t, N>{_mm_mask_cmplt_epu32_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint64_t, N> MaskedLt(Mask128<uint64_t, N> m,
+                                      Vec128<uint64_t, N> a,
+                                      Vec128<uint64_t, N> b) {
+  return Mask128<uint64_t, N>{_mm_mask_cmplt_epu64_mask(m.raw, a.raw, b.raw)};
+}
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Mask128<float16_t, N> MaskedLt(Mask128<float16_t, N> m,
+                                       Vec128<float16_t, N> a,
+                                       Vec128<float16_t, N> b) {
+  return Mask128<float16_t, N>{
+      _mm_mask_cmp_ph_mask(m.raw, a.raw, b.raw, _CMP_LT_OQ)};
+}
+#endif  // HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Mask128<float, N> MaskedLt(Mask128<float, N> m, Vec128<float, N> a,
+                                   Vec128<float, N> b) {
+  return Mask128<float, N>{
+      _mm_mask_cmp_ps_mask(m.raw, a.raw, b.raw, _CMP_LT_OQ)};
+}
+template <size_t N>
+HWY_API Mask128<double, N> MaskedLt(Mask128<double, N> m, Vec128<double, N> a,
+                                    Vec128<double, N> b) {
+  return Mask128<double, N>{
+      _mm_mask_cmp_pd_mask(m.raw, a.raw, b.raw, _CMP_LT_OQ)};
+}
+
+// ----- MaskedGt
+template <size_t N>
+HWY_API Mask128<int8_t, N> MaskedGt(Mask128<int8_t, N> m, Vec128<int8_t, N> a,
+                                    Vec128<int8_t, N> b) {
+  return Mask128<int8_t, N>{_mm_mask_cmpgt_epi8_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<int16_t, N> MaskedGt(Mask128<int16_t, N> m,
+                                     Vec128<int16_t, N> a,
+                                     Vec128<int16_t, N> b) {
+  return Mask128<int16_t, N>{_mm_mask_cmpgt_epi16_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<int32_t, N> MaskedGt(Mask128<int32_t, N> m,
+                                     Vec128<int32_t, N> a,
+                                     Vec128<int32_t, N> b) {
+  return Mask128<int32_t, N>{_mm_mask_cmpgt_epi32_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<int64_t, N> MaskedGt(Mask128<int64_t, N> m,
+                                     Vec128<int64_t, N> a,
+                                     Vec128<int64_t, N> b) {
+  return Mask128<int64_t, N>{_mm_mask_cmpgt_epi64_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint8_t, N> MaskedGt(Mask128<uint8_t, N> m,
+                                     Vec128<uint8_t, N> a,
+                                     Vec128<uint8_t, N> b) {
+  return Mask128<uint8_t, N>{_mm_mask_cmpgt_epu8_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint16_t, N> MaskedGt(Mask128<uint16_t, N> m,
+                                      Vec128<uint16_t, N> a,
+                                      Vec128<uint16_t, N> b) {
+  return Mask128<uint16_t, N>{_mm_mask_cmpgt_epu16_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint32_t, N> MaskedGt(Mask128<uint32_t, N> m,
+                                      Vec128<uint32_t, N> a,
+                                      Vec128<uint32_t, N> b) {
+  return Mask128<uint32_t, N>{_mm_mask_cmpgt_epu32_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint64_t, N> MaskedGt(Mask128<uint64_t, N> m,
+                                      Vec128<uint64_t, N> a,
+                                      Vec128<uint64_t, N> b) {
+  return Mask128<uint64_t, N>{_mm_mask_cmpgt_epu64_mask(m.raw, a.raw, b.raw)};
+}
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Mask128<float16_t, N> MaskedGt(Mask128<float16_t, N> m,
+                                       Vec128<float16_t, N> a,
+                                       Vec128<float16_t, N> b) {
+  return Mask128<float16_t, N>{
+      _mm_mask_cmp_ph_mask(m.raw, a.raw, b.raw, _CMP_GT_OQ)};
+}
+#endif  // HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Mask128<float, N> MaskedGt(Mask128<float, N> m, Vec128<float, N> a,
+                                   Vec128<float, N> b) {
+  return Mask128<float, N>{
+      _mm_mask_cmp_ps_mask(m.raw, a.raw, b.raw, _CMP_GT_OQ)};
+}
+template <size_t N>
+HWY_API Mask128<double, N> MaskedGt(Mask128<double, N> m, Vec128<double, N> a,
+                                    Vec128<double, N> b) {
+  return Mask128<double, N>{
+      _mm_mask_cmp_pd_mask(m.raw, a.raw, b.raw, _CMP_GT_OQ)};
+}
+
+// ----- MaskedLe
+template <size_t N>
+HWY_API Mask128<int8_t, N> MaskedLe(Mask128<int8_t, N> m, Vec128<int8_t, N> a,
+                                    Vec128<int8_t, N> b) {
+  return Mask128<int8_t, N>{_mm_mask_cmple_epi8_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<int16_t, N> MaskedLe(Mask128<int16_t, N> m,
+                                     Vec128<int16_t, N> a,
+                                     Vec128<int16_t, N> b) {
+  return Mask128<int16_t, N>{_mm_mask_cmple_epi16_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<int32_t, N> MaskedLe(Mask128<int32_t, N> m,
+                                     Vec128<int32_t, N> a,
+                                     Vec128<int32_t, N> b) {
+  return Mask128<int32_t, N>{_mm_mask_cmple_epi32_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<int64_t, N> MaskedLe(Mask128<int64_t, N> m,
+                                     Vec128<int64_t, N> a,
+                                     Vec128<int64_t, N> b) {
+  return Mask128<int64_t, N>{_mm_mask_cmple_epi64_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint8_t, N> MaskedLe(Mask128<uint8_t, N> m,
+                                     Vec128<uint8_t, N> a,
+                                     Vec128<uint8_t, N> b) {
+  return Mask128<uint8_t, N>{_mm_mask_cmple_epu8_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint16_t, N> MaskedLe(Mask128<uint16_t, N> m,
+                                      Vec128<uint16_t, N> a,
+                                      Vec128<uint16_t, N> b) {
+  return Mask128<uint16_t, N>{_mm_mask_cmple_epu16_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint32_t, N> MaskedLe(Mask128<uint32_t, N> m,
+                                      Vec128<uint32_t, N> a,
+                                      Vec128<uint32_t, N> b) {
+  return Mask128<uint32_t, N>{_mm_mask_cmple_epu32_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint64_t, N> MaskedLe(Mask128<uint64_t, N> m,
+                                      Vec128<uint64_t, N> a,
+                                      Vec128<uint64_t, N> b) {
+  return Mask128<uint64_t, N>{_mm_mask_cmple_epu64_mask(m.raw, a.raw, b.raw)};
+}
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Mask128<float16_t, N> MaskedLe(Mask128<float16_t, N> m,
+                                       Vec128<float16_t, N> a,
+                                       Vec128<float16_t, N> b) {
+  return Mask128<float16_t, N>{
+      _mm_mask_cmp_ph_mask(m.raw, a.raw, b.raw, _CMP_LE_OQ)};
+}
+#endif  // HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Mask128<float, N> MaskedLe(Mask128<float, N> m, Vec128<float, N> a,
+                                   Vec128<float, N> b) {
+  return Mask128<float, N>{
+      _mm_mask_cmp_ps_mask(m.raw, a.raw, b.raw, _CMP_LE_OQ)};
+}
+template <size_t N>
+HWY_API Mask128<double, N> MaskedLe(Mask128<double, N> m, Vec128<double, N> a,
+                                    Vec128<double, N> b) {
+  return Mask128<double, N>{
+      _mm_mask_cmp_pd_mask(m.raw, a.raw, b.raw, _CMP_LE_OQ)};
+}
+
+// ----- MaskedGe
+template <size_t N>
+HWY_API Mask128<int8_t, N> MaskedGe(Mask128<int8_t, N> m, Vec128<int8_t, N> a,
+                                    Vec128<int8_t, N> b) {
+  return Mask128<int8_t, N>{_mm_mask_cmpge_epi8_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<int16_t, N> MaskedGe(Mask128<int16_t, N> m,
+                                     Vec128<int16_t, N> a,
+                                     Vec128<int16_t, N> b) {
+  return Mask128<int16_t, N>{_mm_mask_cmpge_epi16_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<int32_t, N> MaskedGe(Mask128<int32_t, N> m,
+                                     Vec128<int32_t, N> a,
+                                     Vec128<int32_t, N> b) {
+  return Mask128<int32_t, N>{_mm_mask_cmpge_epi32_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<int64_t, N> MaskedGe(Mask128<int64_t, N> m,
+                                     Vec128<int64_t, N> a,
+                                     Vec128<int64_t, N> b) {
+  return Mask128<int64_t, N>{_mm_mask_cmpge_epi64_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint8_t, N> MaskedGe(Mask128<uint8_t, N> m,
+                                     Vec128<uint8_t, N> a,
+                                     Vec128<uint8_t, N> b) {
+  return Mask128<uint8_t, N>{_mm_mask_cmpge_epu8_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint16_t, N> MaskedGe(Mask128<uint16_t, N> m,
+                                      Vec128<uint16_t, N> a,
+                                      Vec128<uint16_t, N> b) {
+  return Mask128<uint16_t, N>{_mm_mask_cmpge_epu16_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint32_t, N> MaskedGe(Mask128<uint32_t, N> m,
+                                      Vec128<uint32_t, N> a,
+                                      Vec128<uint32_t, N> b) {
+  return Mask128<uint32_t, N>{_mm_mask_cmpge_epu32_mask(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint64_t, N> MaskedGe(Mask128<uint64_t, N> m,
+                                      Vec128<uint64_t, N> a,
+                                      Vec128<uint64_t, N> b) {
+  return Mask128<uint64_t, N>{_mm_mask_cmpge_epu64_mask(m.raw, a.raw, b.raw)};
+}
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Mask128<float16_t, N> MaskedGe(Mask128<float16_t, N> m,
+                                       Vec128<float16_t, N> a,
+                                       Vec128<float16_t, N> b) {
+  return Mask128<float16_t, N>{
+      _mm_mask_cmp_ph_mask(m.raw, a.raw, b.raw, _CMP_GE_OQ)};
+}
+#endif  // HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Mask128<float, N> MaskedGe(Mask128<float, N> m, Vec128<float, N> a,
+                                   Vec128<float, N> b) {
+  return Mask128<float, N>{
+      _mm_mask_cmp_ps_mask(m.raw, a.raw, b.raw, _CMP_GE_OQ)};
+}
+template <size_t N>
+HWY_API Mask128<double, N> MaskedGe(Mask128<double, N> m, Vec128<double, N> a,
+                                    Vec128<double, N> b) {
+  return Mask128<double, N>{
+      _mm_mask_cmp_pd_mask(m.raw, a.raw, b.raw, _CMP_GE_OQ)};
+}
+
+// ----- MaskedIsNaN
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Mask128<float16_t, N> MaskedIsNaN(Mask128<float16_t, N> m,
+                                          Vec128<float16_t, N> v) {
+  return Mask128<float16_t, N>{_mm_mask_fpclass_ph_mask(
+      m.raw, v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
+}
+#endif  // HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Mask128<float, N> MaskedIsNaN(Mask128<float, N> m, Vec128<float, N> v) {
+  return Mask128<float, N>{_mm_mask_fpclass_ps_mask(
+      m.raw, v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
+}
+template <size_t N>
+HWY_API Mask128<double, N> MaskedIsNaN(Mask128<double, N> m,
+                                       Vec128<double, N> v) {
+  return Mask128<double, N>{_mm_mask_fpclass_pd_mask(
+      m.raw, v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
 }
 
 #endif  // HWY_TARGET <= HWY_AVX3
@@ -12485,15 +12889,6 @@ HWY_API Vec128<double, N> Floor(const Vec128<double, N> v) {
 #endif  // !HWY_SSSE3
 
 // ------------------------------ Floating-point classification
-
-#define HWY_X86_FPCLASS_QNAN 0x01
-#define HWY_X86_FPCLASS_POS0 0x02
-#define HWY_X86_FPCLASS_NEG0 0x04
-#define HWY_X86_FPCLASS_POS_INF 0x08
-#define HWY_X86_FPCLASS_NEG_INF 0x10
-#define HWY_X86_FPCLASS_SUBNORMAL 0x20
-#define HWY_X86_FPCLASS_NEG 0x40
-#define HWY_X86_FPCLASS_SNAN 0x80
 
 #if HWY_HAVE_FLOAT16 || HWY_IDE
 

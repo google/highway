@@ -2223,6 +2223,331 @@ HWY_API Vec512<T> MaskedSatSubOr(Vec512<T> no, Mask512<T> m, Vec512<T> a,
   return Vec512<T>{_mm512_mask_subs_epu16(no.raw, m.raw, a.raw, b.raw)};
 }
 
+// ------------------------------ MaskedEq
+
+template <typename T, HWY_IF_UI8(T)>
+HWY_API Mask512<T> MaskedEq(Mask512<T> m, Vec512<T> a, Vec512<T> b) {
+  return Mask512<T>{_mm512_mask_cmpeq_epi8_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_UI16(T)>
+HWY_API Mask512<T> MaskedEq(Mask512<T> m, Vec512<T> a, Vec512<T> b) {
+  return Mask512<T>{_mm512_mask_cmpeq_epi16_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_UI32(T)>
+HWY_API Mask512<T> MaskedEq(Mask512<T> m, Vec512<T> a, Vec512<T> b) {
+  return Mask512<T>{_mm512_mask_cmpeq_epi32_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_UI64(T)>
+HWY_API Mask512<T> MaskedEq(Mask512<T> m, Vec512<T> a, Vec512<T> b) {
+  return Mask512<T>{_mm512_mask_cmpeq_epi64_mask(m.raw, a.raw, b.raw)};
+}
+
+#if HWY_HAVE_FLOAT16
+HWY_API Mask512<float16_t> MaskedEq(Mask512<float16_t> m,
+                                     Vec512<float16_t> a,
+                                     Vec512<float16_t> b) {
+  return Mask512<float16_t>{
+      _mm512_mask_cmp_ph_mask(m.raw, a.raw, b.raw, _CMP_EQ_OQ)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
+HWY_API Mask512<float> MaskedEq(Mask512<float> m, Vec512<float> a,
+                                 Vec512<float> b) {
+  return Mask512<float>{
+      _mm512_mask_cmp_ps_mask(m.raw, a.raw, b.raw, _CMP_EQ_OQ)};
+}
+
+HWY_API Mask512<double> MaskedEq(Mask512<double> m, Vec512<double> a,
+                                  Vec512<double> b) {
+  return Mask512<double>{
+      _mm512_mask_cmp_pd_mask(m.raw, a.raw, b.raw, _CMP_EQ_OQ)};
+}
+
+// ------------------------------ MaskedNe
+
+template <typename T, HWY_IF_UI8(T)>
+HWY_API Mask512<T> MaskedNe(Mask512<T> m, Vec512<T> a, Vec512<T> b) {
+  return Mask512<T>{_mm512_mask_cmpneq_epi8_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_UI16(T)>
+HWY_API Mask512<T> MaskedNe(Mask512<T> m, Vec512<T> a, Vec512<T> b) {
+  return Mask512<T>{_mm512_mask_cmpneq_epi16_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_UI32(T)>
+HWY_API Mask512<T> MaskedNe(Mask512<T> m, Vec512<T> a, Vec512<T> b) {
+  return Mask512<T>{_mm512_mask_cmpneq_epi32_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_UI64(T)>
+HWY_API Mask512<T> MaskedNe(Mask512<T> m, Vec512<T> a, Vec512<T> b) {
+  return Mask512<T>{_mm512_mask_cmpneq_epi64_mask(m.raw, a.raw, b.raw)};
+}
+
+#if HWY_HAVE_FLOAT16
+HWY_API Mask512<float16_t> MaskedNe(Mask512<float16_t> m,
+                                     Vec512<float16_t> a,
+                                     Vec512<float16_t> b) {
+  return Mask512<float16_t>{
+      _mm512_mask_cmp_ph_mask(m.raw, a.raw, b.raw, _CMP_NEQ_OQ)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
+HWY_API Mask512<float> MaskedNe(Mask512<float> m, Vec512<float> a,
+                                 Vec512<float> b) {
+  return Mask512<float>{
+      _mm512_mask_cmp_ps_mask(m.raw, a.raw, b.raw, _CMP_NEQ_OQ)};
+}
+
+HWY_API Mask512<double> MaskedNe(Mask512<double> m, Vec512<double> a,
+                                  Vec512<double> b) {
+  return Mask512<double>{
+      _mm512_mask_cmp_pd_mask(m.raw, a.raw, b.raw, _CMP_NEQ_OQ)};
+}
+
+// ------------------------------ MaskedLt
+
+HWY_API Mask512<int8_t> MaskedLt(Mask512<int8_t> m, Vec512<int8_t> a,
+                                  Vec512<int8_t> b) {
+  return Mask512<int8_t>{_mm512_mask_cmplt_epi8_mask(m.raw, a.raw, b.raw)};
+}
+HWY_API Mask512<int16_t> MaskedLt(Mask512<int16_t> m, Vec512<int16_t> a,
+                                   Vec512<int16_t> b) {
+  return Mask512<int16_t>{_mm512_mask_cmplt_epi16_mask(m.raw, a.raw, b.raw)};
+}
+HWY_API Mask512<int32_t> MaskedLt(Mask512<int32_t> m, Vec512<int32_t> a,
+                                   Vec512<int32_t> b) {
+  return Mask512<int32_t>{_mm512_mask_cmplt_epi32_mask(m.raw, a.raw, b.raw)};
+}
+HWY_API Mask512<int64_t> MaskedLt(Mask512<int64_t> m, Vec512<int64_t> a,
+                                   Vec512<int64_t> b) {
+  return Mask512<int64_t>{_mm512_mask_cmplt_epi64_mask(m.raw, a.raw, b.raw)};
+}
+
+HWY_API Mask512<uint8_t> MaskedLt(Mask512<uint8_t> m, Vec512<uint8_t> a,
+                                   Vec512<uint8_t> b) {
+  return Mask512<uint8_t>{_mm512_mask_cmplt_epu8_mask(m.raw, a.raw, b.raw)};
+}
+HWY_API Mask512<uint16_t> MaskedLt(Mask512<uint16_t> m, Vec512<uint16_t> a,
+                                    Vec512<uint16_t> b) {
+  return Mask512<uint16_t>{_mm512_mask_cmplt_epu16_mask(m.raw, a.raw, b.raw)};
+}
+HWY_API Mask512<uint32_t> MaskedLt(Mask512<uint32_t> m, Vec512<uint32_t> a,
+                                    Vec512<uint32_t> b) {
+  return Mask512<uint32_t>{_mm512_mask_cmplt_epu32_mask(m.raw, a.raw, b.raw)};
+}
+HWY_API Mask512<uint64_t> MaskedLt(Mask512<uint64_t> m, Vec512<uint64_t> a,
+                                    Vec512<uint64_t> b) {
+  return Mask512<uint64_t>{_mm512_mask_cmplt_epu64_mask(m.raw, a.raw, b.raw)};
+}
+
+#if HWY_HAVE_FLOAT16
+HWY_API Mask512<float16_t> MaskedLt(Mask512<float16_t> m,
+                                     Vec512<float16_t> a,
+                                     Vec512<float16_t> b) {
+  return Mask512<float16_t>{
+      _mm512_mask_cmp_ph_mask(m.raw, a.raw, b.raw, _CMP_LT_OQ)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
+HWY_API Mask512<float> MaskedLt(Mask512<float> m, Vec512<float> a,
+                                 Vec512<float> b) {
+  return Mask512<float>{
+      _mm512_mask_cmp_ps_mask(m.raw, a.raw, b.raw, _CMP_LT_OQ)};
+}
+
+HWY_API Mask512<double> MaskedLt(Mask512<double> m, Vec512<double> a,
+                                  Vec512<double> b) {
+  return Mask512<double>{
+      _mm512_mask_cmp_pd_mask(m.raw, a.raw, b.raw, _CMP_LT_OQ)};
+}
+
+// ------------------------------ MaskedGt
+
+HWY_API Mask512<int8_t> MaskedGt(Mask512<int8_t> m, Vec512<int8_t> a,
+                                  Vec512<int8_t> b) {
+  return Mask512<int8_t>{_mm512_mask_cmpgt_epi8_mask(m.raw, a.raw, b.raw)};
+}
+HWY_API Mask512<int16_t> MaskedGt(Mask512<int16_t> m, Vec512<int16_t> a,
+                                   Vec512<int16_t> b) {
+  return Mask512<int16_t>{_mm512_mask_cmpgt_epi16_mask(m.raw, a.raw, b.raw)};
+}
+HWY_API Mask512<int32_t> MaskedGt(Mask512<int32_t> m, Vec512<int32_t> a,
+                                   Vec512<int32_t> b) {
+  return Mask512<int32_t>{_mm512_mask_cmpgt_epi32_mask(m.raw, a.raw, b.raw)};
+}
+HWY_API Mask512<int64_t> MaskedGt(Mask512<int64_t> m, Vec512<int64_t> a,
+                                   Vec512<int64_t> b) {
+  return Mask512<int64_t>{_mm512_mask_cmpgt_epi64_mask(m.raw, a.raw, b.raw)};
+}
+
+HWY_API Mask512<uint8_t> MaskedGt(Mask512<uint8_t> m, Vec512<uint8_t> a,
+                                   Vec512<uint8_t> b) {
+  return Mask512<uint8_t>{_mm512_mask_cmpgt_epu8_mask(m.raw, a.raw, b.raw)};
+}
+HWY_API Mask512<uint16_t> MaskedGt(Mask512<uint16_t> m, Vec512<uint16_t> a,
+                                    Vec512<uint16_t> b) {
+  return Mask512<uint16_t>{_mm512_mask_cmpgt_epu16_mask(m.raw, a.raw, b.raw)};
+}
+HWY_API Mask512<uint32_t> MaskedGt(Mask512<uint32_t> m, Vec512<uint32_t> a,
+                                    Vec512<uint32_t> b) {
+  return Mask512<uint32_t>{_mm512_mask_cmpgt_epu32_mask(m.raw, a.raw, b.raw)};
+}
+HWY_API Mask512<uint64_t> MaskedGt(Mask512<uint64_t> m, Vec512<uint64_t> a,
+                                    Vec512<uint64_t> b) {
+  return Mask512<uint64_t>{_mm512_mask_cmpgt_epu64_mask(m.raw, a.raw, b.raw)};
+}
+
+#if HWY_HAVE_FLOAT16
+HWY_API Mask512<float16_t> MaskedGt(Mask512<float16_t> m,
+                                     Vec512<float16_t> a,
+                                     Vec512<float16_t> b) {
+  return Mask512<float16_t>{
+      _mm512_mask_cmp_ph_mask(m.raw, a.raw, b.raw, _CMP_GT_OQ)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
+HWY_API Mask512<float> MaskedGt(Mask512<float> m, Vec512<float> a,
+                                 Vec512<float> b) {
+  return Mask512<float>{
+      _mm512_mask_cmp_ps_mask(m.raw, a.raw, b.raw, _CMP_GT_OQ)};
+}
+
+HWY_API Mask512<double> MaskedGt(Mask512<double> m, Vec512<double> a,
+                                  Vec512<double> b) {
+  return Mask512<double>{
+      _mm512_mask_cmp_pd_mask(m.raw, a.raw, b.raw, _CMP_GT_OQ)};
+}
+
+// ------------------------------ MaskedLe
+
+HWY_API Mask512<int8_t> MaskedLe(Mask512<int8_t> m, Vec512<int8_t> a,
+                                  Vec512<int8_t> b) {
+  return Mask512<int8_t>{_mm512_mask_cmple_epi8_mask(m.raw, a.raw, b.raw)};
+}
+HWY_API Mask512<int16_t> MaskedLe(Mask512<int16_t> m, Vec512<int16_t> a,
+                                   Vec512<int16_t> b) {
+  return Mask512<int16_t>{_mm512_mask_cmple_epi16_mask(m.raw, a.raw, b.raw)};
+}
+HWY_API Mask512<int32_t> MaskedLe(Mask512<int32_t> m, Vec512<int32_t> a,
+                                   Vec512<int32_t> b) {
+  return Mask512<int32_t>{_mm512_mask_cmple_epi32_mask(m.raw, a.raw, b.raw)};
+}
+HWY_API Mask512<int64_t> MaskedLe(Mask512<int64_t> m, Vec512<int64_t> a,
+                                   Vec512<int64_t> b) {
+  return Mask512<int64_t>{_mm512_mask_cmple_epi64_mask(m.raw, a.raw, b.raw)};
+}
+
+HWY_API Mask512<uint8_t> MaskedLe(Mask512<uint8_t> m, Vec512<uint8_t> a,
+                                   Vec512<uint8_t> b) {
+  return Mask512<uint8_t>{_mm512_mask_cmple_epu8_mask(m.raw, a.raw, b.raw)};
+}
+HWY_API Mask512<uint16_t> MaskedLe(Mask512<uint16_t> m, Vec512<uint16_t> a,
+                                    Vec512<uint16_t> b) {
+  return Mask512<uint16_t>{_mm512_mask_cmple_epu16_mask(m.raw, a.raw, b.raw)};
+}
+HWY_API Mask512<uint32_t> MaskedLe(Mask512<uint32_t> m, Vec512<uint32_t> a,
+                                    Vec512<uint32_t> b) {
+  return Mask512<uint32_t>{_mm512_mask_cmple_epu32_mask(m.raw, a.raw, b.raw)};
+}
+HWY_API Mask512<uint64_t> MaskedLe(Mask512<uint64_t> m, Vec512<uint64_t> a,
+                                    Vec512<uint64_t> b) {
+  return Mask512<uint64_t>{_mm512_mask_cmple_epu64_mask(m.raw, a.raw, b.raw)};
+}
+
+#if HWY_HAVE_FLOAT16
+HWY_API Mask512<float16_t> MaskedLe(Mask512<float16_t> m,
+                                     Vec512<float16_t> a,
+                                     Vec512<float16_t> b) {
+  return Mask512<float16_t>{
+      _mm512_mask_cmp_ph_mask(m.raw, a.raw, b.raw, _CMP_LE_OQ)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
+HWY_API Mask512<float> MaskedLe(Mask512<float> m, Vec512<float> a,
+                                 Vec512<float> b) {
+  return Mask512<float>{
+      _mm512_mask_cmp_ps_mask(m.raw, a.raw, b.raw, _CMP_LE_OQ)};
+}
+
+HWY_API Mask512<double> MaskedLe(Mask512<double> m, Vec512<double> a,
+                                  Vec512<double> b) {
+  return Mask512<double>{
+      _mm512_mask_cmp_pd_mask(m.raw, a.raw, b.raw, _CMP_LE_OQ)};
+}
+
+// ------------------------------ MaskedGe
+
+HWY_API Mask512<int8_t> MaskedGe(Mask512<int8_t> m, Vec512<int8_t> a,
+                                  Vec512<int8_t> b) {
+  return Mask512<int8_t>{_mm512_mask_cmpge_epi8_mask(m.raw, a.raw, b.raw)};
+}
+HWY_API Mask512<int16_t> MaskedGe(Mask512<int16_t> m, Vec512<int16_t> a,
+                                   Vec512<int16_t> b) {
+  return Mask512<int16_t>{_mm512_mask_cmpge_epi16_mask(m.raw, a.raw, b.raw)};
+}
+HWY_API Mask512<int32_t> MaskedGe(Mask512<int32_t> m, Vec512<int32_t> a,
+                                   Vec512<int32_t> b) {
+  return Mask512<int32_t>{_mm512_mask_cmpge_epi32_mask(m.raw, a.raw, b.raw)};
+}
+HWY_API Mask512<int64_t> MaskedGe(Mask512<int64_t> m, Vec512<int64_t> a,
+                                   Vec512<int64_t> b) {
+  return Mask512<int64_t>{_mm512_mask_cmpge_epi64_mask(m.raw, a.raw, b.raw)};
+}
+
+HWY_API Mask512<uint8_t> MaskedGe(Mask512<uint8_t> m, Vec512<uint8_t> a,
+                                   Vec512<uint8_t> b) {
+  return Mask512<uint8_t>{_mm512_mask_cmpge_epu8_mask(m.raw, a.raw, b.raw)};
+}
+HWY_API Mask512<uint16_t> MaskedGe(Mask512<uint16_t> m, Vec512<uint16_t> a,
+                                    Vec512<uint16_t> b) {
+  return Mask512<uint16_t>{_mm512_mask_cmpge_epu16_mask(m.raw, a.raw, b.raw)};
+}
+HWY_API Mask512<uint32_t> MaskedGe(Mask512<uint32_t> m, Vec512<uint32_t> a,
+                                    Vec512<uint32_t> b) {
+  return Mask512<uint32_t>{_mm512_mask_cmpge_epu32_mask(m.raw, a.raw, b.raw)};
+}
+HWY_API Mask512<uint64_t> MaskedGe(Mask512<uint64_t> m, Vec512<uint64_t> a,
+                                    Vec512<uint64_t> b) {
+  return Mask512<uint64_t>{_mm512_mask_cmpge_epu64_mask(m.raw, a.raw, b.raw)};
+}
+
+#if HWY_HAVE_FLOAT16
+HWY_API Mask512<float16_t> MaskedGe(Mask512<float16_t> m,
+                                     Vec512<float16_t> a,
+                                     Vec512<float16_t> b) {
+  return Mask512<float16_t>{
+      _mm512_mask_cmp_ph_mask(m.raw, a.raw, b.raw, _CMP_GE_OQ)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
+HWY_API Mask512<float> MaskedGe(Mask512<float> m, Vec512<float> a,
+                                 Vec512<float> b) {
+  return Mask512<float>{
+      _mm512_mask_cmp_ps_mask(m.raw, a.raw, b.raw, _CMP_GE_OQ)};
+}
+
+HWY_API Mask512<double> MaskedGe(Mask512<double> m, Vec512<double> a,
+                                  Vec512<double> b) {
+  return Mask512<double>{
+      _mm512_mask_cmp_pd_mask(m.raw, a.raw, b.raw, _CMP_GE_OQ)};
+}
+
+// ----- MaskedIsNaN
+#if HWY_HAVE_FLOAT16
+HWY_API Mask512<float16_t> MaskedIsNaN(Mask512<float16_t> m,
+                                        Vec512<float16_t> v) {
+  return Mask512<float16_t>{_mm512_mask_fpclass_ph_mask(
+      m.raw, v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
+}
+#endif  // HWY_HAVE_FLOAT16
+HWY_API Mask512<float> MaskedIsNaN(Mask512<float> m, Vec512<float> v) {
+  return Mask512<float>{_mm512_mask_fpclass_ps_mask(
+      m.raw, v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
+}
+HWY_API Mask512<double> MaskedIsNaN(Mask512<double> m, Vec512<double> v) {
+  return Mask512<double>{_mm512_mask_fpclass_pd_mask(
+      m.raw, v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
+}
+
 // ------------------------------ Floating-point multiply-add variants
 
 #if HWY_HAVE_FLOAT16

@@ -3109,6 +3109,299 @@ HWY_API Vec256<T> MaskedSatSubOr(Vec256<T> no, Mask256<T> m, Vec256<T> a,
   return Vec256<T>{_mm256_mask_subs_epu16(no.raw, m.raw, a.raw, b.raw)};
 }
 
+// ------------------------------ MaskedEq etc.
+
+// ----- MaskedEq
+template <typename T, HWY_IF_UI8(T)>
+HWY_API Mask256<T> MaskedEq(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmpeq_epi8_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_UI16(T)>
+HWY_API Mask256<T> MaskedEq(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmpeq_epi16_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_UI32(T)>
+HWY_API Mask256<T> MaskedEq(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmpeq_epi32_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_UI64(T)>
+HWY_API Mask256<T> MaskedEq(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmpeq_epi64_mask(m.raw, a.raw, b.raw)};
+}
+#if HWY_HAVE_FLOAT16
+HWY_API Mask256<float16_t> MaskedEq(Mask256<float16_t> m, Vec256<float16_t> a,
+                                    Vec256<float16_t> b) {
+  return Mask256<float16_t>{
+      _mm256_mask_cmp_ph_mask(m.raw, a.raw, b.raw, _CMP_EQ_OQ)};
+}
+#endif  // HWY_HAVE_FLOAT16
+HWY_API Mask256<float> MaskedEq(Mask256<float> m, Vec256<float> a,
+                                Vec256<float> b) {
+  return Mask256<float>{
+      _mm256_mask_cmp_ps_mask(m.raw, a.raw, b.raw, _CMP_EQ_OQ)};
+}
+HWY_API Mask256<double> MaskedEq(Mask256<double> m, Vec256<double> a,
+                                 Vec256<double> b) {
+  return Mask256<double>{
+      _mm256_mask_cmp_pd_mask(m.raw, a.raw, b.raw, _CMP_EQ_OQ)};
+}
+
+// ----- MaskedNe
+template <typename T, HWY_IF_UI8(T)>
+HWY_API Mask256<T> MaskedNe(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmpneq_epi8_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_UI16(T)>
+HWY_API Mask256<T> MaskedNe(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmpneq_epi16_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_UI32(T)>
+HWY_API Mask256<T> MaskedNe(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmpneq_epi32_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_UI64(T)>
+HWY_API Mask256<T> MaskedNe(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmpneq_epi64_mask(m.raw, a.raw, b.raw)};
+}
+#if HWY_HAVE_FLOAT16
+HWY_API Mask256<float16_t> MaskedNe(Mask256<float16_t> m, Vec256<float16_t> a,
+                                    Vec256<float16_t> b) {
+  return Mask256<float16_t>{
+      _mm256_mask_cmp_ph_mask(m.raw, a.raw, b.raw, _CMP_NEQ_OQ)};
+}
+#endif  // HWY_HAVE_FLOAT16
+HWY_API Mask256<float> MaskedNe(Mask256<float> m, Vec256<float> a,
+                                Vec256<float> b) {
+  return Mask256<float>{
+      _mm256_mask_cmp_ps_mask(m.raw, a.raw, b.raw, _CMP_NEQ_OQ)};
+}
+HWY_API Mask256<double> MaskedNe(Mask256<double> m, Vec256<double> a,
+                                 Vec256<double> b) {
+  return Mask256<double>{
+      _mm256_mask_cmp_pd_mask(m.raw, a.raw, b.raw, _CMP_NEQ_OQ)};
+}
+
+// ----- MaskedLt
+template <typename T, HWY_IF_I8(T)>
+HWY_API Mask256<T> MaskedLt(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmplt_epi8_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_I16(T)>
+HWY_API Mask256<T> MaskedLt(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmplt_epi16_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_I32(T)>
+HWY_API Mask256<T> MaskedLt(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmplt_epi32_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_I64(T)>
+HWY_API Mask256<T> MaskedLt(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmplt_epi64_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_U8(T)>
+HWY_API Mask256<T> MaskedLt(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmplt_epu8_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_U16(T)>
+HWY_API Mask256<T> MaskedLt(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmplt_epu16_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_U32(T)>
+HWY_API Mask256<T> MaskedLt(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmplt_epu32_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_U64(T)>
+HWY_API Mask256<T> MaskedLt(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmplt_epu64_mask(m.raw, a.raw, b.raw)};
+}
+#if HWY_HAVE_FLOAT16
+HWY_API Mask256<float16_t> MaskedLt(Mask256<float16_t> m, Vec256<float16_t> a,
+                                    Vec256<float16_t> b) {
+  return Mask256<float16_t>{
+      _mm256_mask_cmp_ph_mask(m.raw, a.raw, b.raw, _CMP_LT_OQ)};
+}
+#endif  // HWY_HAVE_FLOAT16
+HWY_API Mask256<float> MaskedLt(Mask256<float> m, Vec256<float> a,
+                                Vec256<float> b) {
+  return Mask256<float>{
+      _mm256_mask_cmp_ps_mask(m.raw, a.raw, b.raw, _CMP_LT_OQ)};
+}
+HWY_API Mask256<double> MaskedLt(Mask256<double> m, Vec256<double> a,
+                                 Vec256<double> b) {
+  return Mask256<double>{
+      _mm256_mask_cmp_pd_mask(m.raw, a.raw, b.raw, _CMP_LT_OQ)};
+}
+
+// ----- MaskedGt
+template <typename T, HWY_IF_I8(T)>
+HWY_API Mask256<T> MaskedGt(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmpgt_epi8_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_I16(T)>
+HWY_API Mask256<T> MaskedGt(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmpgt_epi16_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_I32(T)>
+HWY_API Mask256<T> MaskedGt(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmpgt_epi32_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_I64(T)>
+HWY_API Mask256<T> MaskedGt(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmpgt_epi64_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_U8(T)>
+HWY_API Mask256<T> MaskedGt(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmpgt_epu8_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_U16(T)>
+HWY_API Mask256<T> MaskedGt(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmpgt_epu16_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_U32(T)>
+HWY_API Mask256<T> MaskedGt(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmpgt_epu32_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_U64(T)>
+HWY_API Mask256<T> MaskedGt(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmpgt_epu64_mask(m.raw, a.raw, b.raw)};
+}
+#if HWY_HAVE_FLOAT16
+HWY_API Mask256<float16_t> MaskedGt(Mask256<float16_t> m, Vec256<float16_t> a,
+                                    Vec256<float16_t> b) {
+  return Mask256<float16_t>{
+      _mm256_mask_cmp_ph_mask(m.raw, a.raw, b.raw, _CMP_GT_OQ)};
+}
+#endif  // HWY_HAVE_FLOAT16
+HWY_API Mask256<float> MaskedGt(Mask256<float> m, Vec256<float> a,
+                                Vec256<float> b) {
+  return Mask256<float>{
+      _mm256_mask_cmp_ps_mask(m.raw, a.raw, b.raw, _CMP_GT_OQ)};
+}
+HWY_API Mask256<double> MaskedGt(Mask256<double> m, Vec256<double> a,
+                                 Vec256<double> b) {
+  return Mask256<double>{
+      _mm256_mask_cmp_pd_mask(m.raw, a.raw, b.raw, _CMP_GT_OQ)};
+}
+
+// ----- MaskedLe
+template <typename T, HWY_IF_I8(T)>
+HWY_API Mask256<T> MaskedLe(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmple_epi8_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_I16(T)>
+HWY_API Mask256<T> MaskedLe(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmple_epi16_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_I32(T)>
+HWY_API Mask256<T> MaskedLe(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmple_epi32_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_I64(T)>
+HWY_API Mask256<T> MaskedLe(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmple_epi64_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_U8(T)>
+HWY_API Mask256<T> MaskedLe(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmple_epu8_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_U16(T)>
+HWY_API Mask256<T> MaskedLe(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmple_epu16_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_U32(T)>
+HWY_API Mask256<T> MaskedLe(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmple_epu32_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_U64(T)>
+HWY_API Mask256<T> MaskedLe(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmple_epu64_mask(m.raw, a.raw, b.raw)};
+}
+#if HWY_HAVE_FLOAT16
+HWY_API Mask256<float16_t> MaskedLe(Mask256<float16_t> m, Vec256<float16_t> a,
+                                    Vec256<float16_t> b) {
+  return Mask256<float16_t>{
+      _mm256_mask_cmp_ph_mask(m.raw, a.raw, b.raw, _CMP_LE_OQ)};
+}
+#endif  // HWY_HAVE_FLOAT16
+HWY_API Mask256<float> MaskedLe(Mask256<float> m, Vec256<float> a,
+                                Vec256<float> b) {
+  return Mask256<float>{
+      _mm256_mask_cmp_ps_mask(m.raw, a.raw, b.raw, _CMP_LE_OQ)};
+}
+HWY_API Mask256<double> MaskedLe(Mask256<double> m, Vec256<double> a,
+                                 Vec256<double> b) {
+  return Mask256<double>{
+      _mm256_mask_cmp_pd_mask(m.raw, a.raw, b.raw, _CMP_LE_OQ)};
+}
+
+// ----- MaskedGe
+template <typename T, HWY_IF_I8(T)>
+HWY_API Mask256<T> MaskedGe(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmpge_epi8_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_I16(T)>
+HWY_API Mask256<T> MaskedGe(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmpge_epi16_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_I32(T)>
+HWY_API Mask256<T> MaskedGe(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmpge_epi32_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_I64(T)>
+HWY_API Mask256<T> MaskedGe(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmpge_epi64_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_U8(T)>
+HWY_API Mask256<T> MaskedGe(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmpge_epu8_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_U16(T)>
+HWY_API Mask256<T> MaskedGe(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmpge_epu16_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_U32(T)>
+HWY_API Mask256<T> MaskedGe(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmpge_epu32_mask(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_U64(T)>
+HWY_API Mask256<T> MaskedGe(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Mask256<T>{_mm256_mask_cmpge_epu64_mask(m.raw, a.raw, b.raw)};
+}
+#if HWY_HAVE_FLOAT16
+HWY_API Mask256<float16_t> MaskedGe(Mask256<float16_t> m, Vec256<float16_t> a,
+                                    Vec256<float16_t> b) {
+  return Mask256<float16_t>{
+      _mm256_mask_cmp_ph_mask(m.raw, a.raw, b.raw, _CMP_GE_OQ)};
+}
+#endif  // HWY_HAVE_FLOAT16
+HWY_API Mask256<float> MaskedGe(Mask256<float> m, Vec256<float> a,
+                                Vec256<float> b) {
+  return Mask256<float>{
+      _mm256_mask_cmp_ps_mask(m.raw, a.raw, b.raw, _CMP_GE_OQ)};
+}
+HWY_API Mask256<double> MaskedGe(Mask256<double> m, Vec256<double> a,
+                                 Vec256<double> b) {
+  return Mask256<double>{
+      _mm256_mask_cmp_pd_mask(m.raw, a.raw, b.raw, _CMP_GE_OQ)};
+}
+
+// ----- MaskedIsNaN
+#if HWY_HAVE_FLOAT16
+HWY_API Mask256<float16_t> MaskedIsNaN(Mask256<float16_t> m,
+                                        Vec256<float16_t> v) {
+  return Mask256<float16_t>{_mm256_mask_fpclass_ph_mask(
+      m.raw, v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
+}
+#endif  // HWY_HAVE_FLOAT16
+HWY_API Mask256<float> MaskedIsNaN(Mask256<float> m, Vec256<float> v) {
+  return Mask256<float>{_mm256_mask_fpclass_ps_mask(
+      m.raw, v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
+}
+HWY_API Mask256<double> MaskedIsNaN(Mask256<double> m, Vec256<double> v) {
+  return Mask256<double>{_mm256_mask_fpclass_pd_mask(
+      m.raw, v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
+}
+
 #endif  // HWY_TARGET <= HWY_AVX3
 
 // ------------------------------ Floating-point multiply-add variants
