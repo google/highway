@@ -129,8 +129,10 @@ HWY_CONTRIB_TESTS = (
             ":hash",
             ":profiler",
             ":random",
+            ":robust_statistics",
             ":thread_pool",
             ":topology",
+            # Placeholder for flat_hash_set, do not remove
         ],
     ),
     (

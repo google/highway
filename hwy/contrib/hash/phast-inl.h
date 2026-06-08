@@ -193,6 +193,7 @@ class Phast {
   Phast() = default;
   Phast(PhastConfig config, const Triple32 hash, PackedSeeds&& seeds_packed)
       : config_(config), hash_(hash), seeds_packed_(std::move(seeds_packed)) {}
+
   Phast(Phast&& other) = default;
   Phast& operator=(Phast&& other) = default;
 
@@ -206,6 +207,21 @@ class Phast {
     const uint32_t bucket_idx = hash & config_.BucketMask();
     const uint32_t seed = seeds_packed_.Get(bucket_idx);
     return QueryWithSeeds(hash, seed, config_);
+  }
+
+  // Two vectors have higher throughput because they utilize all 16-bit lanes
+  // for Hash16. Can be called directly, or via QueryBatch.
+  template <class DU32, class VU32 = Vec<DU32>>
+  HWY_INLINE void Query2(DU32 du32, VU32 key0, VU32 key1, VU32& idx0,
+                         VU32& idx1) const {
+    hash_.TwoVec(du32, key0, key1);
+
+    // Load 8-bit seeds from bucket.
+    const VU32 bucket_mask = Set(du32, config_.BucketMask());
+    const VU32 seed0 = seeds_packed_.Get(du32, And(key0, bucket_mask));
+    const VU32 seed1 = seeds_packed_.Get(du32, And(key1, bucket_mask));
+
+    QueryWithSeeds(du32, key0, key1, seed0, seed1, config_, idx0, idx1);
   }
 
   // Same, for a batch of keys. Considerably higher throughput than repeated
@@ -324,21 +340,6 @@ class Phast {
                                        const uint32_t seed) {
     const uint16_t combined = static_cast<uint16_t>((hash >> 16) + seed);
     return Hash16(combined);  // caller will AND
-  }
-
-  // Two vectors have higher throughput because they utilize all 16-bit lanes
-  // for Hash16. Called by QueryBatch.
-  template <class DU32, class VU32 = Vec<DU32>>
-  HWY_INLINE void Query2(DU32 du32, VU32 key0, VU32 key1, VU32& idx0,
-                         VU32& idx1) const {
-    hash_.TwoVec(du32, key0, key1);
-
-    // Load 8-bit seeds from bucket.
-    const VU32 bucket_mask = Set(du32, config_.BucketMask());
-    const VU32 seed0 = seeds_packed_.Get(du32, And(key0, bucket_mask));
-    const VU32 seed1 = seeds_packed_.Get(du32, And(key1, bucket_mask));
-
-    QueryWithSeeds(du32, key0, key1, seed0, seed1, config_, idx0, idx1);
   }
 
   PhastConfig config_ = {};
@@ -673,7 +674,7 @@ class PhastBuilder {
     return hash_for_key_idx_[key_idx] & config_.BucketMask();
   }
 
-  static constexpr size_t kMaxHashesPerBucket = 16;
+  static constexpr size_t kMaxHashesPerBucket = 32;
 
   size_t PopulateBuckets(size_t num_keys) {
     PROFILER_FUNC;
