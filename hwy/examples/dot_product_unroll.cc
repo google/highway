@@ -17,16 +17,18 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include <bit>
 #include <random>
-#undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "hwy/examples/dot_product_unroll.cc"
+
 #include "hwy/aligned_allocator.h"
-#include "hwy/foreach_target.h"  // IWYU pragma: keep
-#include "hwy/highway.h"
-//
 #include "hwy/nanobenchmark.h"
 #include "hwy/timer.h"
+
+// clang-format off
+#undef HWY_TARGET_INCLUDE
+#define HWY_TARGET_INCLUDE "hwy/examples/dot_product_unroll.cc"  // NOLINT
+// clang-format on
+#include "hwy/foreach_target.h"  // IWYU pragma: keep
+#include "hwy/highway.h"
 
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
@@ -109,19 +111,22 @@ HWY_INLINE T DotProductSIMDUnrolled(const T* HWY_RESTRICT array1,
 HWY_AFTER_NAMESPACE();
 
 // HWY_ONCE marks code that will be compiled once instead once per target
-// architecure
+// architecture.
 #if HWY_ONCE
 namespace hwy {
+namespace {
+
 // Fills array with random values between 0 and max_v
 template <typename T>
-void FillRandom(const std::uint64_t seed, T* HWY_RESTRICT result,
-                const size_t size, T max_v) {
+void FillRandom(const uint64_t seed, T* HWY_RESTRICT result, const size_t size,
+                T max_v) {
   std::mt19937_64 engine(seed);
   std::uniform_real_distribution<double> dist(0, 1.0);
   for (size_t i = 0; i < size; i++) {
     result[i] = static_cast<T>(dist(engine) * max_v);
   }
 }
+
 template <typename T>
 T DotProductScalar(const T* array1, const T* array2, size_t count) {
   T sum = T{0};
@@ -130,6 +135,7 @@ T DotProductScalar(const T* array1, const T* array2, size_t count) {
   }
   return sum;
 }
+
 int RunTests() {
   const size_t count = 10'000;
   const int reps = 100'000;
@@ -198,6 +204,7 @@ int RunTests() {
   return 0;
 }
 
+}  // namespace
 }  // namespace hwy
 
 int main() { return hwy::RunTests(); }
