@@ -74,6 +74,18 @@ Online demos using Compiler Explorer:
     (simpler, but requires/only uses the instruction set enabled by compiler
     flags)
 
+We have prepared several tutorial-like examples in hwy/examples:
+
+-   benchmark.cc: dot product with remainder-free loops and benchmarking.
+-   ctf_aes.cc: capture the flag, brute-force AES solver. Also shows masks.
+-   dot_product_unroll.cc: 4x unrolling and remainder handling.
+-   masks_and_logic.cc: visualizes masks/comparisons with ASCII art.
+-   matrix_transpose_scatter_gather: shows/compares Scatter and Gather.
+-   profiler_example: shows how to use the our built-in profiler for measuring
+    the time cost of annotated zones.
+-   skeleton*: a complete example of a module with runtime dispatch.
+-   sum_array_advanced.cc: similar to dot_product_unroll.
+
 We observe that Highway is referenced in the following open source projects,
 found via sourcegraph.com. Most are GitHub repositories. If you would like to
 add your project or link to it directly, feel free to raise an issue or contact
@@ -498,6 +510,7 @@ Highway offers several strategies for loop vectorization:
 
 *   Process whole vectors and include previously processed elements
     in the last vector:
+
     ```
     for (size_t i = 0; i < count; i += N) LoopBody<false>(d, HWY_MIN(i, count - N), 0);
     ```
