@@ -256,6 +256,35 @@ void TestAllSelect() {
   }
 }
 
+template <typename T>
+void TestPartialSortKEqualsNForType() {
+  const size_t num = 10;
+  std::vector<T> keys(num);
+  std::iota(keys.begin(), keys.end(), T{0});
+  std::reverse(keys.begin(), keys.end());
+
+  hwy::VQPartialSort(keys.data(), num, num, hwy::SortAscending());
+
+  for (size_t i = 0; i < num; ++i) {
+    if (keys[i] != static_cast<T>(i)) {
+      HWY_ABORT("KEqualsN mismatch at %zu\n", i);
+    }
+  }
+}
+
+void TestPartialSortKEqualsN() {
+  TestPartialSortKEqualsNForType<uint32_t>();
+  TestPartialSortKEqualsNForType<int32_t>();
+  if (hwy::HaveInteger64()) {
+    TestPartialSortKEqualsNForType<int64_t>();
+    TestPartialSortKEqualsNForType<uint64_t>();
+  }
+  TestPartialSortKEqualsNForType<float>();
+  if (hwy::HaveFloat64()) {
+    TestPartialSortKEqualsNForType<double>();
+  }
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -270,6 +299,7 @@ HWY_EXPORT_AND_TEST_P(SortTest, TestAllSortIota);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllSort);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllSelect);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllPartialSort);
+HWY_EXPORT_AND_TEST_P(SortTest, TestPartialSortKEqualsN);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy

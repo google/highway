@@ -232,7 +232,11 @@ void HeapSelect(Traits st, T* HWY_RESTRICT lanes, const size_t num_lanes,
 template <class Traits, typename T>
 void HeapPartialSort(Traits st, T* HWY_RESTRICT lanes, const size_t num_lanes,
                      const size_t k_lanes) {
-  HeapSelect(st, lanes, num_lanes, k_lanes);
+  // When k_lanes == num_lanes, selecting all elements is a no-op; skip to
+  // avoid out-of-bounds access in HeapSelect.
+  if (k_lanes < num_lanes) {
+    HeapSelect(st, lanes, num_lanes, k_lanes);
+  }
   HeapSort(st, lanes, k_lanes);
 }
 
@@ -2022,9 +2026,12 @@ void PartialSort(D d, Traits st, T* HWY_RESTRICT keys, size_t num, size_t k,
     // Introspection: switch to worst-case N*logN heapsort after this many.
     // Should never be reached, so computing log2 exactly does not help.
     const size_t max_levels = 50;
-    // TODO: optimize to use kLooseSelect
-    detail::Recurse<detail::RecurseMode::kSelect>(d, st, keys, num, buf, state,
-                                                  max_levels, k);
+    // When k == num, selecting all elements is a no-op; skip to avoid
+    // assertion failure in Select, which requires k < num.
+    if (k < num) {
+      detail::Recurse<detail::RecurseMode::kSelect>(d, st, keys, num, buf,
+                                                    state, max_levels, k);
+    }
     detail::Recurse<detail::RecurseMode::kSort>(d, st, keys, k, buf, state,
                                                 max_levels);
   }
