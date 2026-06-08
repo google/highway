@@ -2,10 +2,12 @@
 
 <!--*
 # Document freshness: For more information, see go/fresh-source.
-freshness: { owner: 'janwas' reviewed: '2026-03-30' }
+freshness: { owner: 'janwas' reviewed: '2026-06-08' }
 *-->
 
 ## Wishlist
+
+### Widening add: u16 + half u8 = u16
 
 ### F32RoundToNearestEven
 
@@ -23,8 +25,7 @@ LoadnPair: Gather with optimizations in particular for 2x64-bit, which use
 128-bit loads plus Combine.
 Also StorePair
 
-Lookup128 for 32x 32-bit and 16x 64-bit. permutex2var on AVX-512, else Gather.
-Also Lookup512 (-bit).
+Lookup32 for 32-bit, Lookup16 for 64-bit. permutex2var on AVX-512, else Gather.
 
 ReduceMin/MaxOrNaN
 
@@ -38,8 +39,7 @@ _mm512_getmant (f32/f64)
 
 High-precision! Consider copying from SLEEF. See #1650.
 
-cosh, fmod, ilogb, lgamma, logb, modf, nextafter, nexttoward, pow,
-scalbn, tan, tgamma
+fmod, ilogb, lgamma, logb, modf, nextafter, nexttoward, scalbn, tgamma
 
 ### Remaining STL functions for hwy/contrib/algo
 
@@ -72,6 +72,12 @@ For crypto. Native on Icelake+.
 
 *   Use new mask<->vec cast instruction, possibly for OddEven, ExpandLoad
 *   `rgather_vx` for broadcasting redsum result?
+*   use new vcreate intrinsics
+*   Use clipu for ConcatEven, ConcatOdd
+
+### x86 codegen
+
+*   SumOfLanes 8-bit also use SumsOf8+Broadcast
 
 ### SVE codegen
 
@@ -186,3 +192,6 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~Count(If) (https://en.algorithmica.org/hpc/simd/masking/)~~
 *   ~~cbrt~~
 *   ~~erf~~
+*   ~~cosh~~
+*   ~~tan~~
+*   ~~pow~~

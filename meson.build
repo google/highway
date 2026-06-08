@@ -680,8 +680,7 @@ if tests_enabled
             'hwy/contrib/dot/dot_test.cc',
             'hwy/contrib/matvec/matvec_test.cc',
             'hwy/contrib/image/image_test.cc',
-            # Disabled due to SIGILL in clang7 debug build during gtest discovery phase,
-            # not reproducible locally. Still tested via bazel build.
+            'hwy/contrib/math/fast_math_test.cc',
             'hwy/contrib/math/math_test.cc',
             'hwy/contrib/math/math_hyper_test.cc',
             'hwy/contrib/math/math_tan_test.cc',

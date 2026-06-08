@@ -928,6 +928,7 @@ list(APPEND HWY_TEST_FILES
   # Disabled due to SIGILL in clang7 debug build during gtest discovery phase,
   # not reproducible locally. Still tested via bazel build.
   hwy/contrib/math/math_test.cc
+  hwy/contrib/math/fast_math_test.cc
   hwy/contrib/math/math_hyper_test.cc
   hwy/contrib/math/math_tan_test.cc
   hwy/contrib/math/math_trig_test.cc

@@ -54,6 +54,11 @@ HWY_CONTRIB_TESTS = (
     ),
     (
         "hwy/contrib/math/",
+        "fast_math_test",
+        [":math"],
+    ),
+    (
+        "hwy/contrib/math/",
         "math_hyper_test",
         [":math"],
     ),
