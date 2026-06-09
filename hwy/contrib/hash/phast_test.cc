@@ -19,11 +19,13 @@
 #include <stdio.h>
 
 #include <algorithm>  // std::unique
+#include <utility>    // std::move
 
 #ifndef HWY_DISABLED_TARGETS
 #define HWY_DISABLED_TARGETS (HWY_SSE2 | HWY_SSSE3 | HWY_SSE4)
 #endif  // HWY_DISABLED_TARGETS
 
+#include "hwy/contrib/hash/phast.h"
 #include "hwy/contrib/sort/vqsort.h"
 #include "hwy/contrib/thread_pool/thread_pool.h"
 #include "hwy/contrib/thread_pool/topology.h"
@@ -93,9 +95,10 @@ void TestRoundTrip(const uint32_t num_keys, const uint32_t keys_per_bucket,
   const PhastConfig config(num_keys, keys_per_bucket, slice_length,
                            headroom_percent, max_retries);
   ThreadPool pool = MakePool();
-  const Phast phast = BuildPhast(keys.data(), config, pool);
+  PhastData data = BuildPhast(keys.data(), config, pool);
   const double elapsed = platform::Now() - t0;
-  HWY_ASSERT_M(!phast.IsEmpty(), "Build failed");
+  HWY_ASSERT_M(!data.IsEmpty(), "Build failed");
+  const Phast phast(std::move(data));
   fprintf(stderr, "  Build(%u keys, lambda=%u, L=%u): %.2f ms\n", num_keys,
           keys_per_bucket, slice_length, elapsed * 1e3);
 
@@ -133,8 +136,9 @@ HWY_NOINLINE void TestQueryConsistency() {
 
   PhastConfig config(num_keys);
   ThreadPool pool = MakePool();
-  Phast phast = BuildPhast(keys.data(), config, pool);
-  HWY_ASSERT_M(!phast.IsEmpty(), "Build failed");
+  PhastData data = BuildPhast(keys.data(), config, pool);
+  HWY_ASSERT_M(!data.IsEmpty(), "Build failed");
+  Phast phast(std::move(data));
 
   // Query each key twice and verify same result.
   for (uint32_t i = 0; i < num_keys; ++i) {
@@ -178,8 +182,9 @@ HWY_NOINLINE void TestHeadroomSweep() {
   ThreadPool pool = MakePool();
   for (PhastConfig& in_config : configs) {
     PhastStats stats;
-    Phast phast = BuildPhast(all_keys.data(), in_config, pool, &stats);
-    HWY_ASSERT(stats.success == !phast.IsEmpty());
+    PhastData data = BuildPhast(all_keys.data(), in_config, pool, &stats);
+    HWY_ASSERT(stats.success == !data.IsEmpty());
+    const Phast phast(std::move(data));
     const PhastConfig& config = phast.Config();
 
     char config_str[100];

@@ -443,6 +443,12 @@ cc_library(
 
 cc_library(
     name = "hash",
+    srcs = [
+        "hwy/contrib/hash/phast.cc",
+    ],
+    hdrs = [
+        "hwy/contrib/hash/phast.h",
+    ],
     compatible_with = [],
     copts = COPTS,
     textual_hdrs = [
@@ -450,9 +456,13 @@ cc_library(
         "hwy/contrib/hash/phast-inl.h",
     ],
     deps = [
+        ":algo",
         ":hwy",
         ":profiler",
+        ":random",
         ":stats",
+        ":thread_pool",
+        "//hwy/contrib/sort:vqsort",
     ],
 )
 

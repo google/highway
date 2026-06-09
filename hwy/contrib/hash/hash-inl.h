@@ -105,7 +105,7 @@ class Feistel4Mul2 {
 
  private:
   template <class DU16, class VU16 = Vec<DU16>, HWY_IF_U16_D(DU16)>
-  static HWY_INLINE VU16 FeistelMul(DU16 du16, VU16 x, const VU16 other,
+  static HWY_INLINE VU16 FeistelMul(DU16, VU16 x, const VU16 other,
                                     const VU16 kKey, const VU16 kMul0,
                                     const VU16 kMul1) {
     x = Xor(x, ShiftRight<8>(x));
@@ -203,7 +203,7 @@ class Speck32 {
  private:
   // One round of Speck32: mix data (x0, x1) using k0.
   template <class DU16, class VU16 = Vec<DU16>, HWY_IF_U16_D(DU16)>
-  static HWY_INLINE void Round(DU16 du16, VU16& x0, VU16& x1, const VU16 k0) {
+  static HWY_INLINE void Round(DU16, VU16& x0, VU16& x1, const VU16 k0) {
     x0 = RotateRight<7>(x0);
     x0 = Add(x0, x1);
     x0 = Xor(x0, k0);

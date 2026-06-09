@@ -14,12 +14,12 @@
 // limitations under the License.
 
 // If set, we also benchmark absl::flat_hash_set.
-#include "hwy/detect_compiler_arch.h"
 #define HWY_HAVE_ABSL 0
 
 #include <stdint.h>
 #include <stdio.h>
 
+#include <utility>  // std::move
 #include <vector>
 
 #if HWY_HAVE_ABSL
@@ -30,6 +30,7 @@
 #define HWY_DISABLED_TARGETS (HWY_SSE2 | HWY_SSSE3 | HWY_SSE4)
 #endif  // HWY_DISABLED_TARGETS
 
+#include "hwy/contrib/hash/phast.h"
 #include "hwy/contrib/thread_pool/thread_pool.h"
 #include "hwy/contrib/thread_pool/topology.h"
 #include "hwy/nanobenchmark.h"
@@ -91,7 +92,8 @@ HWY_NOINLINE Phast MakePhast(const AlignedVector<uint32_t>& keys,
                                     : num_keys > 256 * 1024    ? 2
                                                                : 5;
   PhastConfig config(num_keys, 2, slice_length, headroom_percent);
-  return BuildPhast(keys.data(), config, pool);
+  PhastData data = BuildPhast(keys.data(), config, pool);
+  return Phast(std::move(data));
 }
 
 HWY_NOINLINE void TestLatency() {
@@ -184,7 +186,7 @@ HWY_NOINLINE void TestThroughput() {
   using VU32 = Vec<decltype(du32)>;
   using MU32 = Mask<decltype(du32)>;
   HWY_LANES_CONSTEXPR size_t N = Lanes(du32);
-  HWY_DASSERT(kNumKeys % (2 * N) == 0);  // See GenerateKeys().
+  HWY_ASSERT(kNumKeys % (2 * N) == 0);  // See GenerateKeys().
 
   // Scatter keys to the verification slots. Could also sort K32V32 and copy.
   AlignedVector<uint32_t> key_verify(phast.Config().NumSlots());
@@ -216,6 +218,7 @@ HWY_NOINLINE void TestThroughput() {
           MU32 eq0 = SetMask(du32, true);
           MU32 eq1 = SetMask(du32, true);
           for (size_t i = 0; i < kNumKeys; i += 2 * N) {
+            // Faster to wrap than have two loops (likely due to code size).
             const size_t wrapped_i = (worker * keys_per_chunk + i) % kNumKeys;
             const VU32 keys0 = Load(du32, &keys[wrapped_i]);
             const VU32 keys1 = Load(du32, &keys[wrapped_i + N]);
@@ -252,57 +255,62 @@ HWY_NOINLINE void TestThroughput() {
 
 // Compare with absl::flat_hash_set - just set membership.
 HWY_NOINLINE void TestAbslThroughput() {
-  if constexpr (HWY_HAVE_ABSL) {
-    const AlignedVector<uint32_t> keys = GenerateKeys(kNumKeys);
-    absl::flat_hash_set<uint32_t> set(keys.begin(), keys.end());
+#if HWY_HAVE_ABSL
+  const AlignedVector<uint32_t> keys = GenerateKeys(kNumKeys);
+  absl::flat_hash_set<uint32_t> set(keys.begin(), keys.end());
 
-    FuncInput input = Unpredictable1();
-    Result results[1];
-    Params params = DefaultBenchmarkParams();
-    params.min_samples_per_eval = 2;
-    params.max_evals = 3;
-    params.verbose = false;
+  FuncInput input = Unpredictable1();
+  Result results[1];
+  Params params = DefaultBenchmarkParams();
+  params.min_samples_per_eval = 2;
+  params.max_evals = 3;
+  params.verbose = false;
 
-    ThreadPool pool = MakePool();
-    pool.SetWaitMode(PoolWaitMode::kSpin);
+  ThreadPool pool = MakePool();
+  pool.SetWaitMode(PoolWaitMode::kSpin);
 
-    // Each worker starts at a different offset in the keys to avoid unrealistic
-    // cache behavior, without requiring separate per-worker allocations.
-    const size_t num_workers_pow2 = 1u << hwy::CeilLog2(pool.NumWorkers());
-    const size_t N = VectorBytes() / sizeof(uint32_t);
-    const size_t keys_per_chunk = kNumKeys / (num_workers_pow2 * 2 * N);
+  // Each worker starts at a different offset in the keys to avoid unrealistic
+  // cache behavior, without requiring separate per-worker allocations.
+  const size_t num_workers_pow2 = 1u << hwy::CeilLog2(pool.NumWorkers());
+  const size_t N = VectorBytes() / sizeof(uint32_t);
+  const size_t keys_per_chunk = kNumKeys / (num_workers_pow2 * 2 * N);
 
-    AlignedVector<uint8_t> per_worker(pool.NumWorkers() * HWY_ALIGNMENT);
-    const size_t num_results = MeasureClosure(
-        [&](FuncInput func_input) {
-          pool.Run(0, pool.NumWorkers(), [&](uint64_t task_idx, size_t worker) {
-            bool all_found = true;
-            for (size_t i = 0; i < kNumKeys; ++i) {
-              all_found &=
-                  set.contains(keys[(i + worker * keys_per_chunk) % kNumKeys]);
-            }
-            per_worker[worker * HWY_ALIGNMENT] = all_found;
-          });
-          return per_worker[Unpredictable1() * HWY_ALIGNMENT];
-        },
-        &input, 1, results, params);
-    for (size_t i = 0; i < pool.NumWorkers(); ++i) {
-      HWY_ASSERT(per_worker[i * HWY_ALIGNMENT]);
-    }
-    if (num_results == 1) {
-      const double ns =
-          results[0].ticks / platform::InvariantTicksPerSecond() * 1E9;
-      const size_t bytes = kNumKeys * sizeof(uint32_t) * pool.NumWorkers();
-      printf(
-          "Batch absl verify throughput: %7.2f ns = %4.1f GB/s; measurement "
-          "MAD=%4.2f%%\n",
-          ns, static_cast<double>(bytes) / ns, results[0].variability * 100.0);
-    } else {
-      HWY_WARN("Measurement failed.");
-    }
-  } else {
-    HWY_WARN("absl::flat_hash_set not available, skipping test.");
+  AlignedVector<uint8_t> per_worker(pool.NumWorkers() * HWY_ALIGNMENT);
+  const size_t num_results = MeasureClosure(
+      [&](FuncInput func_input) {
+        pool.Run(0, pool.NumWorkers(), [&](uint64_t task_idx, size_t worker) {
+          bool all_found = true;
+          const size_t offset = worker * keys_per_chunk;
+          // First loop from the per-worker offset to end.
+          for (size_t i = offset; i < kNumKeys; ++i) {
+            all_found &= set.contains(keys[i]);
+          }
+          // Second loop from the beginning to the per-worker offset.
+          for (size_t i = 0; i < offset; ++i) {
+            all_found &= set.contains(keys[i]);
+          }
+          per_worker[worker * HWY_ALIGNMENT] = all_found;
+        });
+        return per_worker[Unpredictable1() * HWY_ALIGNMENT];
+      },
+      &input, 1, results, params);
+  for (size_t i = 0; i < pool.NumWorkers(); ++i) {
+    HWY_ASSERT(per_worker[i * HWY_ALIGNMENT]);
   }
+  if (num_results == 1) {
+    const double ns =
+        results[0].ticks / platform::InvariantTicksPerSecond() * 1E9;
+    const size_t bytes = kNumKeys * sizeof(uint32_t) * pool.NumWorkers();
+    printf(
+        "Batch absl verify throughput: %7.2f ns = %4.1f GB/s; measurement "
+        "MAD=%4.2f%%\n",
+        ns, static_cast<double>(bytes) / ns, results[0].variability * 100.0);
+  } else {
+    HWY_WARN("Measurement failed.");
+  }
+#else
+  HWY_WARN("absl::flat_hash_set not available, skipping test.");
+#endif  // HWY_HAVE_ABSL
 }
 
 #else   // HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128
