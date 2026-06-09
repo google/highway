@@ -77,7 +77,8 @@ void TransposeScatter(const uint32_t* HWY_RESTRICT input, uint32_t R,
   HWY_LANES_CONSTEXPR size_t N = hn::Lanes(d);
 
   // Precompute constant strided indices vector: [0*R, 1*R, 2*R, ...]
-  VI stride_indices = hn::Mul(hn::Iota(di, 0), hn::Set(di, R));
+  VI stride_indices =
+      hn::Mul(hn::Iota(di, 0), hn::Set(di, static_cast<int32_t>(R)));
 
   // Loop over input rows
   for (uint32_t r = 0; r < R; ++r) {
@@ -116,7 +117,8 @@ void TransposeGather(const uint32_t* HWY_RESTRICT input, uint32_t R, uint32_t C,
   HWY_LANES_CONSTEXPR size_t N = hn::Lanes(d);
 
   // Precompute constant strided indices vector: [0*C, 1*C, 2*C, ...]
-  VI stride_indices = hn::Mul(hn::Iota(di, 0), hn::Set(di, C));
+  VI stride_indices =
+      hn::Mul(hn::Iota(di, 0), hn::Set(di, static_cast<int32_t>(C)));
 
   // Loop over output rows (which are input columns)
   for (uint32_t c = 0; c < C; ++c) {
