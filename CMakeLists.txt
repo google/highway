@@ -782,7 +782,6 @@ target_link_libraries(sum_array_advanced PRIVATE ${ATOMICS_LIBRARIES})
 set_target_properties(sum_array_advanced
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
 
-
 # Advanced dot product with unrolling example
 add_executable(dot_product_unroll hwy/examples/dot_product_unroll.cc)
 target_compile_options(dot_product_unroll PRIVATE ${HWY_FLAGS})
@@ -792,7 +791,35 @@ target_link_libraries(dot_product_unroll PRIVATE ${ATOMICS_LIBRARIES})
 set_target_properties(dot_product_unroll
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
 
+# AES capture the flag example
+add_executable(ctf_aes hwy/examples/ctf_aes.cc)
+target_compile_options(ctf_aes PRIVATE ${HWY_FLAGS})
+target_compile_features(ctf_aes PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
+target_link_libraries(ctf_aes PRIVATE hwy)
+target_link_libraries(ctf_aes PRIVATE ${ATOMICS_LIBRARIES})
+set_target_properties(ctf_aes
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
+
+# Mask and logic ASCII art example
+add_executable(masks_and_logic hwy/examples/masks_and_logic.cc)
+target_compile_options(masks_and_logic PRIVATE ${HWY_FLAGS})
+target_compile_features(masks_and_logic PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
+target_link_libraries(masks_and_logic PRIVATE hwy)
+target_link_libraries(masks_and_logic PRIVATE ${ATOMICS_LIBRARIES})
+set_target_properties(masks_and_logic
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
+
+# Matrix transpose using scatter/gather example
+add_executable(matrix_transpose_scatter_gather hwy/examples/matrix_transpose_scatter_gather.cc)
+target_compile_options(matrix_transpose_scatter_gather PRIVATE ${HWY_FLAGS})
+target_compile_features(matrix_transpose_scatter_gather PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
+target_link_libraries(matrix_transpose_scatter_gather PRIVATE hwy)
+target_link_libraries(matrix_transpose_scatter_gather PRIVATE ${ATOMICS_LIBRARIES})
+set_target_properties(matrix_transpose_scatter_gather
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
+
 endif()  # HWY_ENABLE_EXAMPLES
+
 # -------------------------------------------------------- Tests
 
 if(HWY_ENABLE_TESTS)

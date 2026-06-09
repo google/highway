@@ -74,17 +74,26 @@ Online demos using Compiler Explorer:
     (simpler, but requires/only uses the instruction set enabled by compiler
     flags)
 
-We have prepared several tutorial-like examples in hwy/examples:
+We have prepared several tutorial-like examples in hwy/examples; see the
+README.md there for more information.
+
+Basics:
+
+-   sum_array_advanced.cc: 4x unrolling and remainder handling.
+-   dot_product_unroll.cc: similar to sum_array_advanced, plus reduction.
+-   matrix_transpose_scatter_gather: shows/compares Scatter and Gather.
+
+Infrastructure:
 
 -   benchmark.cc: dot product with remainder-free loops and benchmarking.
--   ctf_aes.cc: capture the flag, brute-force AES solver. Also shows masks.
--   dot_product_unroll.cc: 4x unrolling and remainder handling.
--   masks_and_logic.cc: visualizes masks/comparisons with ASCII art.
--   matrix_transpose_scatter_gather: shows/compares Scatter and Gather.
 -   profiler_example: shows how to use the our built-in profiler for measuring
     the time cost of annotated zones.
 -   skeleton*: a complete example of a module with runtime dispatch.
--   sum_array_advanced.cc: similar to dot_product_unroll.
+
+Challenges:
+
+-   masks_and_logic.cc: visualizes masks/comparisons with ASCII art.
+-   ctf_aes.cc: capture the flag, brute-force AES password guessing.
 
 We observe that Highway is referenced in the following open source projects,
 found via sourcegraph.com. Most are GitHub repositories. If you would like to
