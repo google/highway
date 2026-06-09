@@ -780,6 +780,86 @@ HWY_NOINLINE void TestAllOrderedDemote2To() {
   // ForSpecialTypes(ForShrinkableVectors<TestFloatOrderedDemote2To>());
 }
 
+class TestShiftRightAndDemote2To {
+#if HWY_TARGET != HWY_SCALAR
+
+ private:
+  // The fused ops must match the unfused reference on the same target, so the
+  // lane order is identical and we can compare directly without sorting.
+  template <int kShiftAmt, class DN, class D, class V = VFromD<D>>
+  static HWY_INLINE void Verify(DN dn, D /*d*/, V a, V b, const char* filename,
+                                const int line) {
+    AssertVecEqual(dn,
+                   ReorderDemote2To(dn, ShiftRight<kShiftAmt>(a),
+                                    ShiftRight<kShiftAmt>(b)),
+                   ReorderShiftRightAndDemote2To<kShiftAmt>(dn, a, b), filename,
+                   line);
+    AssertVecEqual(dn,
+                   ReorderDemote2To(dn, RoundingShiftRight<kShiftAmt>(a),
+                                    RoundingShiftRight<kShiftAmt>(b)),
+                   ReorderRoundingShiftRightAndDemote2To<kShiftAmt>(dn, a, b),
+                   filename, line);
+    AssertVecEqual(dn,
+                   OrderedDemote2To(dn, ShiftRight<kShiftAmt>(a),
+                                    ShiftRight<kShiftAmt>(b)),
+                   OrderedShiftRightAndDemote2To<kShiftAmt>(dn, a, b), filename,
+                   line);
+    AssertVecEqual(dn,
+                   OrderedDemote2To(dn, RoundingShiftRight<kShiftAmt>(a),
+                                    RoundingShiftRight<kShiftAmt>(b)),
+                   OrderedRoundingShiftRightAndDemote2To<kShiftAmt>(dn, a, b),
+                   filename, line);
+  }
+
+  template <typename T, class D, class DN>
+  static void DoTest(DN dn, T /*t*/, D d) {
+    using TN = TFromD<DN>;
+    const size_t N = Lanes(d);
+    const size_t twiceN = N * 2;
+    auto from = AllocateAligned<T>(twiceN);
+    HWY_ASSERT(from);
+
+    RandomState rng;
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
+      for (size_t i = 0; i < twiceN; ++i) {
+        const uint64_t bits = rng();
+        CopyBytes<sizeof(T)>(&bits, &from[i]);  // not same size
+      }
+      const auto a = Load(d, from.get());
+      const auto b = Load(d, from.get() + N);
+
+      Verify<0>(dn, d, a, b, __FILE__, __LINE__);
+      Verify<1>(dn, d, a, b, __FILE__, __LINE__);
+      Verify<static_cast<int>(sizeof(TN) * 4)>(dn, d, a, b, __FILE__, __LINE__);
+      Verify<static_cast<int>(sizeof(TN) * 8 - 1)>(dn, d, a, b, __FILE__,
+                                                   __LINE__);
+      Verify<static_cast<int>(sizeof(TN) * 8)>(dn, d, a, b, __FILE__, __LINE__);
+      Verify<static_cast<int>(sizeof(T) * 8 - 1)>(dn, d, a, b, __FILE__,
+                                                  __LINE__);
+    }
+  }
+#endif
+
+ public:
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*t*/, D d) {
+#if HWY_TARGET != HWY_SCALAR
+    const RepartitionToNarrow<D> dn;
+    const RebindToSigned<decltype(dn)> dn_i;
+    const RebindToUnsigned<decltype(dn)> dn_u;
+
+    DoTest(dn_i, T(), d);
+    DoTest(dn_u, T(), d);
+#else
+    (void)d;
+#endif
+  }
+};
+
+HWY_NOINLINE void TestAllShiftRightAndDemote2To() {
+  ForUI163264(ForShrinkableVectors<TestShiftRightAndDemote2To>());
+}
+
 struct TestI32F64 {
   template <typename TF, class DF>
   HWY_NOINLINE void operator()(TF /*unused*/, const DF df) {
@@ -847,6 +927,7 @@ HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllDemoteUI64ToFloat);
 HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllDemoteToBF16);
 HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllReorderDemote2To);
 HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllOrderedDemote2To);
+HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllShiftRightAndDemote2To);
 HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllI32F64);
 HWY_AFTER_TEST();
 #endif  //  !HWY_IS_MSAN
