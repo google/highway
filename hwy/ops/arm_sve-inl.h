@@ -6450,6 +6450,7 @@ template <size_t N, int kPow2>
 HWY_API svfloat32_t MulEvenAdd(Simd<float, N, kPow2> dw, VBF16 a, VBF16 b,
                                const svfloat32_t c) {
 #if HWY_SVE_HAVE_BF16_FEATURE
+  (void)dw;
   return svbfmlalb_f32(c, a, b);
 #else
   return MulAdd(PromoteEvenTo(dw, a), PromoteEvenTo(dw, b), c);
@@ -6520,7 +6521,7 @@ template <size_t N, int kPow2>
 HWY_API svfloat32_t WidenMulEven(Simd<float, N, kPow2> dw, VBF16 a, VBF16 b) {
 #if HWY_SVE_HAVE_BF16_FEATURE
   (void)dw;
-  return MulEvenAdd(dw, Zero(dw), a, b);
+  return MulEvenAdd(dw, a, b, Zero(dw));
 #else
   // Same as MulEvenAdd, but without generating a zero argument.
   return Mul(PromoteEvenTo(dw, a), PromoteEvenTo(dw, b));
