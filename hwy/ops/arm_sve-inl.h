@@ -7109,6 +7109,33 @@ HWY_SVE_FOREACH_UI(HWY_SVE_MASKED_LEADING_ZERO_COUNT, MaskedLeadingZeroCount,
                    clz)
 #undef HWY_SVE_LEADING_ZERO_COUNT
 
+// ------------------------------ PerBlock2x2MatMul (SVE hardware overrides)
+#if defined(__ARM_FEATURE_SVE_MATMUL_INT8) || HWY_TARGET == HWY_SVE2_128
+template <size_t N, int kPow2>
+HWY_API svint32_t PerBlock2x2MatMul(
+    Simd<int32_t, N, kPow2> /* d */,
+    svint8_t a,
+    svint8_t b,
+    svint32_t c) {
+  return svmmla_s32(c, a, b);
+}
+#endif
+
+#if defined(__ARM_FEATURE_SVE_BF16) || HWY_TARGET == HWY_SVE2_128
+template <size_t N, int kPow2, class VBF16>
+HWY_API svfloat32_t PerBlock2x2MatMul(
+    Simd<float, N, kPow2> /* d */,
+    VBF16 a,
+    VBF16 b,
+    svfloat32_t c) {
+#if HWY_SVE_HAVE_BF16_VEC
+  return svbfmmla_f32(c, a, b);
+#else
+  return svbfmmla_f32(c, svreinterpret_bf16_u16(a), svreinterpret_bf16_u16(b));
+#endif
+}
+#endif
+
 // ================================================== END MACROS
 #undef HWY_SVE_ALL_PTRUE
 #undef HWY_SVE_D
