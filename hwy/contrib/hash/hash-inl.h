@@ -125,8 +125,11 @@ class Triple32 {
   static constexpr const char* Name() { return "Triple32"; }
 
   Triple32() = default;
+  explicit Triple32(uint32_t key) : key_(key) {}
   Triple32(AesCtrEngine& engine, uint64_t seed)
       : key_(static_cast<uint32_t>(RngStream(engine, seed)())) {}
+
+  uint32_t Key() const { return key_; }
 
   uint32_t operator()(uint32_t x) const {
     ScalableTag<uint32_t> du32;
@@ -474,6 +477,19 @@ void ForeachHash(AesCtrEngine& engine, uint64_t seed, const Func& func) {
   // func(Murmur3(engine, seed));
   // func(WeakTwoMul(engine, seed));
   // func(WeakNMHash(engine, seed));
+}
+
+// Returns vector filled with a bijection of a counter. This is not the same as
+// a permutation of [0, count), but no values repeat.
+template <typename T>
+AlignedVector<T> FillRandomDistinct(size_t count, uint32_t key) {
+  Triple32 permutation(key);
+  AlignedVector<T> v;
+  v.reserve(count);
+  for (size_t i = 0; i < count; ++i) {
+    v.push_back(permutation(i));
+  }
+  return v;
 }
 
 }  // namespace HWY_NAMESPACE

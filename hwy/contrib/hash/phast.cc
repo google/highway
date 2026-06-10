@@ -20,13 +20,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <algorithm>  // std::unique
+#include <algorithm>  // std::sort, std::unique
 #include <utility>    // std::move
+#include <vector>
 
 #include "hwy/aligned_allocator.h"
 #include "hwy/contrib/thread_pool/thread_pool.h"
 #include "hwy/profiler.h"
-#include "hwy/stats.h"
 
 #ifndef HWY_DISABLED_TARGETS
 #define HWY_DISABLED_TARGETS (HWY_SSE2 | HWY_SSSE3 | HWY_SSE4)
@@ -40,6 +40,7 @@
 // After foreach_target
 #include "hwy/contrib/algo/find-inl.h"
 #include "hwy/contrib/hash/hash-inl.h"
+#include "hwy/contrib/hash/phast-inl.h"
 #include "hwy/contrib/random/random-inl.h"
 #include "hwy/contrib/sort/vqsort-inl.h"
 #include "hwy/highway.h"
@@ -47,17 +48,108 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 #if HWY_TARGET != HWY_SCALAR
+
+// --------------------------------------------------------------------------
+// Enumerate feasible configs.
+
+HWY_INLINE_VAR constexpr size_t kMaxAttempts = 256;  // pow2 for faster mul/div.
+
+PhastConfig MakeConfig(size_t num_keys, int headroom_percent,
+                       size_t keys_per_bucket, size_t slice_length,
+                       uint32_t seed) {
+  size_t num_slots =
+      num_keys * static_cast<size_t>(100 + headroom_percent) / 100 + 1;
+  // Prevents underflow in PhastPlacement::num_slice_offsets.
+  num_slots = HWY_MAX(num_slots, slice_length);
+
+  // Round up to power of 2 for fast modulo.
+  const size_t num_buckets = RoundUpToPow2(num_keys / keys_per_bucket);
+
+  return PhastConfig(num_keys, num_slots, num_buckets, seed,
+                     PhastPlacement(num_slots, slice_length));
+}
+
+size_t MinSliceLength(size_t num_keys) {
+  HWY_ASSERT(num_keys >= 1);
+  // Based on suggestions from the PHAST paper, section 5.1.
+  if (num_keys < 64) return RoundDownToPow2(num_keys);
+  if (num_keys < 1'300) return 64;
+  if (num_keys < 9'500) return 128;
+  if (num_keys < 12'000) return 256;
+  if (num_keys < 140'000) return 512;
+  return 2048;
+}
+
+// Enumerates feasible configs and sorts by extra_bytes ascending.
+static AlignedVector<PhastConfig> EnumerateConfigs(size_t num_keys,
+                                                   size_t num_workers,
+                                                   size_t& reps_per_config) {
+  const size_t min_slice_length = MinSliceLength(num_keys);
+  HWY_ASSERT(min_slice_length < num_keys);
+
+  const std::vector<int> kHeadroomPercents = {1, 2, 3, 4, 10};
+  const std::vector<size_t> kSliceShifts = {0, 1};
+  // If num_keys is less than 30% above a power of 2, kpb=3 is preferred
+  // because kpb=2 would nearly double the bucket count (wasteful).
+  // If more than 70% above, kpb=2 and kpb=3 yield the same bucket count
+  // due to rounding up to pow2. Otherwise try both.
+  const size_t prev_pow2 = RoundDownToPow2(num_keys);
+  const double ratio =
+      static_cast<double>(num_keys) / static_cast<double>(prev_pow2);
+  std::vector<size_t> kpb_values;
+  if (ratio < 1.3) {
+    kpb_values = {3};  // kpb=2 wastes bucket space
+  } else if (ratio > 1.7) {
+    kpb_values = {2};  // kpb=2 and 3 give same bucket count
+  } else {
+    kpb_values = {3, 2};  // try both
+  }
+
+  // Replicate configs (with different hash_key) to keep most workers busy.
+  const size_t permutations =
+      kHeadroomPercents.size() * kSliceShifts.size() * kpb_values.size();
+  reps_per_config =
+      HWY_MIN(kMaxAttempts, RoundUpToPow2(num_workers / permutations));
+  HWY_ASSERT(reps_per_config != 0);
+
+  AlignedVector<PhastConfig> configs;
+  configs.reserve(permutations * reps_per_config);
+
+  size_t permutation_idx = 0;
+  for (size_t kpb : kpb_values) {
+    for (int h : kHeadroomPercents) {
+      for (size_t slice_shift : kSliceShifts) {
+        const size_t slice_length = min_slice_length << slice_shift;
+
+        // Different seed for each config to increase diversity.
+        const uint32_t seed_base = (permutation_idx++) * kMaxAttempts;
+        for (size_t rep = 0; rep < reps_per_config; ++rep) {
+          const uint32_t seed = seed_base + rep;
+          configs.push_back(MakeConfig(num_keys, h, kpb, slice_length, seed));
+        }
+      }
+    }
+  }
+  HWY_ASSERT(configs.size() == permutations * reps_per_config);
+
+  // Should already be in order, but just in case.
+  std::sort(configs.begin(), configs.end(),
+            [](const PhastConfig& a, const PhastConfig& b) {
+              return a.extra_bytes < b.extra_bytes;
+            });
+  return configs;
+}
 
 // --------------------------------------------------------------------------
 
 // Tracks which slots are occupied during building; holds one bit per slot.
 class Occupancy {
  public:
+  Occupancy() = default;
   explicit Occupancy(size_t num_slots)
       : bits_(DivCeil(num_slots, size_t{32})) {}
-
-  void Reset() { ZeroBytes(bits_.data(), bits_.size() * sizeof(bits_[0])); }
 
   bool IsOccupied(uint32_t pos) const {
     return (bits_[pos >> 5] >> (pos & 31)) & 1;
@@ -88,9 +180,9 @@ class Occupancy {
   }
 
   // Returns occupancy in the 32-position neighborhood of `pos`. This steers
-  // placements toward sparse neighborhoods. 32-bit words are required for SIMD,
-  // otherwise we could use 64. One popcount outperforms 3x64 neighborhoods.
-  // First-viable and max_pos tiebreakers were worse.
+  // placements toward sparse neighborhoods. 32-bit words are required for
+  // SIMD, otherwise we could use 64. One popcount outperforms 3x64
+  // neighborhoods. First-viable and max_pos tiebreakers were worse.
   uint32_t NeighborDensity(uint32_t pos) const {
     return static_cast<uint32_t>(hwy::PopCount(bits_[pos >> 5]));
   }
@@ -100,119 +192,42 @@ class Occupancy {
 };
 
 // --------------------------------------------------------------------------
-// Placement helpers (same as in Phast, duplicated here to avoid depending on
-// the query-time class during building).
 
-// 16-bit bijective hash.
-static HWY_INLINE uint16_t Hash16(uint16_t x) {
-  x = static_cast<uint16_t>(x ^ (x >> 8));
-  const uint16_t x2 = static_cast<uint16_t>(uint32_t{x} * x);
-  x = static_cast<uint16_t>(x + static_cast<uint16_t>(uint32_t{x2} * 0xca32));
-  x = static_cast<uint16_t>(x ^ (x >> 12));
-  x = static_cast<uint16_t>(uint32_t{x} * 0x3929u);
-  return x;
-}
+// Reused for multiple MaybeBuild() calls per worker to reduce allocation cost.
+class PerWorkerBuilder {
+  static constexpr size_t kMaxHashesPerBucket = 32;
 
-static HWY_INLINE uint32_t Placement(const uint32_t hash, const uint32_t seed) {
-  const uint16_t combined = static_cast<uint16_t>((hash >> 16) + seed);
-  return Hash16(combined);  // caller will AND
-}
-
-static HWY_INLINE uint32_t QueryWithSeeds(const uint32_t hash,
-                                          const uint32_t seed,
-                                          const PhastConfig& config) {
-  const uint32_t slice_offset = LemireMod(hash, config.NumSliceOffsets());
-  const uint32_t within_slice = Placement(hash, seed) & config.SliceMask();
-  return slice_offset + within_slice;
-}
-
-// 16-bit bijective hash (SIMD version).
-template <class DU16, class VU16 = Vec<DU16>>
-static HWY_INLINE VU16 Hash16Vec(DU16 du16, VU16 x) {
-  x = Xor(x, ShiftRight<8>(x));
-  x = Add(x, Mul(Set(du16, 0xca32), Mul(x, x)));
-  x = Xor(x, ShiftRight<12>(x));
-  x = Mul(x, Set(du16, 0x3929));
-  return x;
-}
-
-template <class DU32, class VU32 = Vec<DU32>>
-static HWY_INLINE void QueryWithSeedsVec(DU32 du32, const VU32 hash0,
-                                         const VU32 hash1, const VU32 seed0,
-                                         const VU32 seed1,
-                                         const PhastConfig& config, VU32& idx0,
-                                         VU32& idx1) {
-  // Compute slice offsets via Lemire modulo.
-  const VU32 num_slice_offsets = Set(du32, config.NumSliceOffsets());
-  const VU32 slice_offset0 = MulHigh(hash0, num_slice_offsets);
-  const VU32 slice_offset1 = MulHigh(hash1, num_slice_offsets);
-
-  // Compute placements within slices.
-  const RepartitionToNarrow<DU32> du16;
-  using VU16 = Vec<decltype(du16)>;
-
-  // Odd/Even packing allows PromoteEvenTo.
-  const VU16 seeds =
-      OddEven(BitCast(du16, ShiftLeft<16>(seed1)), BitCast(du16, seed0));
-  const VU16 hashes =
-      OddEven(BitCast(du16, hash1), BitCast(du16, ShiftRight<16>(hash0)));
-  const VU16 combined = Add(hashes, seeds);
-  const VU16 hashed = Hash16Vec(du16, combined);
-  VU32 ofs0 = PromoteEvenTo(du32, hashed);
-  VU32 ofs1 = PromoteOddTo(du32, hashed);
-
-  const VU32 slice_mask = Set(du32, config.SliceMask());
-  idx0 = Add(slice_offset0, And(ofs0, slice_mask));
-  idx1 = Add(slice_offset1, And(ofs1, slice_mask));
-}
-
-// --------------------------------------------------------------------------
-// PhastBuilder
-
-// Per-thread.
-class PhastBuilder {
  public:
-  PhastBuilder(PhastConfig config)
-      : config_(config),
-        num_keys_(config.NumKeys()),  // for brevity
-        num_buckets_(config.NumBuckets()),
-        engine_(/*deterministic=*/true),
-        occupancy_(config.NumSlots()),
-        seeds_packed_(config.NumBuckets()) {
-    hash_for_key_idx_.resize(num_keys_);
-    all_pos_.resize(size_t{kMaxHashesPerBucket} * 256);
-    num_hashes_for_bucket_.resize(num_buckets_);
-    key_idx_for_pos_.resize(num_keys_);
-    total_hashes_before_bucket_.resize(num_buckets_ + 1);
-    write_pos_.resize(num_buckets_);
-    bucket_idx_largest_first_.resize(num_buckets_);
-    committed_seeds_.resize(num_buckets_);
-  }
+  explicit PerWorkerBuilder(size_t num_keys)
+      : hash_for_key_idx_(num_keys),
+        all_pos_(size_t{kMaxHashesPerBucket} * 256),
+        key_idx_for_pos_(num_keys) {}
 
   // This can be used for validating keys are unique without another copy.
   uint32_t* MutableHashes() { return hash_for_key_idx_.data(); }
 
-  // Attempts to build with a given hash. After this, RankOr0() is 0 on
-  // success, or the rank of the first bucket that failed to be seeded, which is
-  // a measure of progress or how close we came to success. On failure, first
-  // try increasing the config's max retries, then increase headroom by several
-  // percent. You may also try tuning the constants in TryCuckooSwap. The
-  // caller parallelizes; each thread tries one global seed. Expect 1-2 sec for
-  // 1M keys.
-  void MaybeBuild(const uint32_t* keys, const uint32_t global_seed) {
+  // Attempts to build with a given config and hash_key, which overrides
+  // config_.hash_key. Call Succeeded() to check success.
+  void MaybeBuild(const uint32_t* keys, const PhastConfig& config,
+                  uint32_t hash_key) {
     PROFILER_FUNC;
     HWY_ALIGN uint32_t seed_candidates[256];
 
-    seeds_packed_.Reset();
-    occupancy_.Reset();
+    config_ = config;
+    config_.hash_key = hash_key;
+    const size_t num_buckets = config.NumBuckets();
+    hash_ = Triple32(hash_key);
+    occupancy_ = Occupancy(config.num_slots);
+    seeds_ = PhastSeeds(num_buckets);
+    committed_seeds_.resize(num_buckets);
 
-    hash_ = Triple32(engine_, global_seed);
-    global_seed_ = global_seed;
-    {
-      PROFILER_ZONE("HashArray");
-      HashArray(hash_, keys, MutableHashes(), num_keys_);
-    }
-    const size_t num_buckets = PopulateBuckets(num_keys_);
+    num_hashes_for_bucket_.resize(num_buckets);
+    total_hashes_before_bucket_.resize(num_buckets + 1);
+    bucket_idx_largest_first_.resize(num_buckets);
+
+    const size_t num_keys = hash_for_key_idx_.size();
+    HashArray(hash_, keys, MutableHashes(), num_keys);  // Negligible time.
+    PopulateBuckets(num_keys);
 
     // Process all non-empty buckets in descending size order.
     const size_t num_ge1_buckets = num_buckets - num_buckets_with_size_[0];
@@ -226,23 +241,22 @@ class PhastBuilder {
 
       // Greedy placement failed; try single-bucket cuckoo swaps.
       if (HWY_UNLIKELY(!TryCuckooSwap(rank, seed_candidates))) {
-        rank_or_0_ = rank + 1;  // Failed, report how close we came.
+        succeeded_ = false;  // Failed. rank indicates how close we got.
         return;
       }
     }
 
-    rank_or_0_ = 0;  // Success.
+    succeeded_ = true;
   }
 
-  // Must not call before MaybeBuild().
-  uint32_t RankOr0() const { return rank_or_0_; }
+  // Call after MaybeBuild().
+  bool Succeeded() const { return succeeded_; }
 
-  PhastData Take() {
-    PhastData data;
-    config_.SetGlobalSeed(global_seed_);
-    data.config = config_;
-    data.seeds_packed = std::move(seeds_packed_);
-    return data;
+  // Only call if Succeeded().
+  PhastData Take(size_t config_idx, size_t attempt_idx) {
+    HWY_ASSERT(Succeeded());
+    HWY_ASSERT(config_.hash_key == hash_.Key());
+    return {config_, std::move(seeds_), config_idx, attempt_idx};
   }
 
  private:
@@ -337,7 +351,7 @@ class PhastBuilder {
   uint32_t ComputeOnePos(size_t b_pos, uint32_t seed) const {
     const uint32_t key_idx = key_idx_for_pos_[b_pos];
     const uint32_t hash = hash_for_key_idx_[key_idx];
-    return QueryWithSeeds(hash, seed, config_);
+    return Phast::PosFromHashAndSeed(config_.placement, hash, seed);
   }
 
   // Computes positions for all keys in a bucket, storing at indices
@@ -358,7 +372,8 @@ class PhastBuilder {
         const VU32 s0 = Iota(du32, seed);
         const VU32 s1 = Iota(du32, seed + NU32);
         VU32 pos0, pos1;
-        QueryWithSeedsVec(du32, hash, hash, s0, s1, config_, pos0, pos1);
+        Phast::PosFromHashAndSeed(config_.placement, du32, hash, hash, s0, s1,
+                                  pos0, pos1);
         StoreU(pos0, du32, &all_pos_[idx * 256 + seed]);
         StoreU(pos1, du32, &all_pos_[idx * 256 + seed + NU32]);
       }
@@ -415,7 +430,7 @@ class PhastBuilder {
     for (size_t idx = 0; idx < b_size; ++idx) {
       occupancy_.SetOccupied(all_pos_[idx * 256 + best_seed]);
     }
-    seeds_packed_.SetSeed(bucket_idx_largest_first_[rank], best_seed);
+    seeds_.SetSeed(bucket_idx_largest_first_[rank], best_seed);
     return best_seed;
   }
 
@@ -429,7 +444,7 @@ class PhastBuilder {
     for (size_t idx = 0; idx < b_size; ++idx) {
       occupancy_.ClearOccupied(ComputeOnePos(b_begin + idx, seed));
     }
-    seeds_packed_.Clear(bucket_idx);
+    seeds_.Clear(bucket_idx);
   }
 
   // Places a bucket with a known-valid seed (no candidate search).
@@ -443,20 +458,17 @@ class PhastBuilder {
     for (size_t idx = 0; idx < b_size; ++idx) {
       occupancy_.SetOccupied(ComputeOnePos(b_begin + idx, seed));
     }
-    seeds_packed_.SetSeed(bucket_idx, seed);
+    seeds_.SetSeed(bucket_idx, seed);
   }
 
   size_t BucketIdxFromKeyIdx(size_t key_idx) const {
-    return hash_for_key_idx_[key_idx] & config_.BucketMask();
+    return hash_for_key_idx_[key_idx] & config_.bucket_mask;
   }
 
-  static constexpr size_t kMaxHashesPerBucket = 32;
-
-  size_t PopulateBuckets(size_t num_keys) {
+  void PopulateBuckets(size_t num_keys) {
     PROFILER_FUNC;
-    const size_t num_buckets = config_.NumBuckets();
-
     // O(N) scan: increment counts for each bucket.
+    const size_t num_buckets = num_hashes_for_bucket_.size();
     ZeroBytes(num_hashes_for_bucket_.data(),
               num_buckets * sizeof(num_hashes_for_bucket_[0]));
     for (size_t key_idx = 0; key_idx < num_keys; ++key_idx) {
@@ -484,11 +496,12 @@ class PhastBuilder {
     }
 
     // Store key_idx grouped by bucket_idx.
-    CopyBytes(total_hashes_before_bucket_.data(), write_pos_.data(),
+    AlignedVector<uint32_t> write_pos(num_buckets);  // write cursor
+    CopyBytes(total_hashes_before_bucket_.data(), write_pos.data(),
               num_buckets * sizeof(uint32_t));
     for (uint32_t key_idx = 0; key_idx < num_keys; ++key_idx) {
       const size_t bucket_idx = BucketIdxFromKeyIdx(key_idx);
-      key_idx_for_pos_[write_pos_[bucket_idx]++] = key_idx;
+      key_idx_for_pos_[write_pos[bucket_idx]++] = key_idx;
     }
 
     // Compute suffix sums: order_begin[s] = number of buckets with size > s.
@@ -503,8 +516,6 @@ class PhastBuilder {
       const size_t size = num_hashes_for_bucket_[bucket_idx];
       bucket_idx_largest_first_[order_begin[size]++] = bucket_idx;
     }
-
-    return num_buckets;
   }
 
   // Writes seed candidates for which slots are unoccupied for all bucket keys
@@ -537,109 +548,112 @@ class PhastBuilder {
     return num_candidates;
   }
 
-  PhastConfig config_;
-  size_t num_keys_;
-  size_t num_buckets_;
-  AesCtrEngine engine_;
-  Triple32 hash_;
-  uint32_t global_seed_ = 0;
-
   AlignedVector<uint32_t> hash_for_key_idx_;  // [num_keys]
   // Indexed by [local_idx * 256 + seed], computed per bucket.
   AlignedVector<uint32_t> all_pos_;  // [kMaxHashesPerBucket*256]
 
-  AlignedVector<uint8_t> num_hashes_for_bucket_;        // [num_buckets]
-  AlignedVector<uint32_t> total_hashes_before_bucket_;  // [num_buckets + 1]
-  AlignedVector<uint32_t> write_pos_;                   // write cursor, copied
-  uint32_t num_buckets_with_size_[kMaxHashesPerBucket + 1];
-
   // Access via key_idx_for_pos_[total_hashes_before_bucket_[bucket_idx] + i]
   // for i-th key in bucket_idx.
   AlignedVector<uint32_t> key_idx_for_pos_;  // [num_keys]
+
+  // Set by MaybeBuild():
+
+  PhastConfig config_;
+  Triple32 hash_;
+  Occupancy occupancy_;
+  PhastSeeds seeds_;
+  AlignedVector<uint8_t> committed_seeds_;  // seed per rank, for backtracking
+
+  AlignedVector<uint8_t> num_hashes_for_bucket_;        // [num_buckets]
+  AlignedVector<uint32_t> total_hashes_before_bucket_;  // [num_buckets + 1]
+  uint32_t num_buckets_with_size_[kMaxHashesPerBucket + 1];
+
   // Bucket indices sorted by decreasing bucket size.
   AlignedVector<uint32_t> bucket_idx_largest_first_;  // [num_buckets]
 
-  Occupancy occupancy_;
-  PackedSeeds seeds_packed_;
-  AlignedVector<uint8_t> committed_seeds_;  // seed per rank, for backtracking
-
-  uint32_t rank_or_0_ = ~0u;  // set by MaybeBuild().
+  bool succeeded_ = false;
 };
 
-// Builds from a set of distinct keys. Returns PhastData with IsEmpty() if
-// max_retries is exceeded. Checks global_seed in parallel, one per worker.
-static PhastData BuildPhastBest(const uint32_t* keys, PhastConfig config,
-                                ThreadPool& pool, PhastStats* stats) {
+// --------------------------------------------------------------------------
+
+// Enumerates configs, tries each with parallel workers, returns the best.
+static PhastData BuildPhastImpl(const uint32_t* keys, size_t num_keys,
+                                ThreadPool& pool) {
   const size_t num_workers = pool.NumWorkers();
-  AlignedVector<PhastBuilder> per_worker;
+
+  // Allocate per-worker builders once; reused across all configs.
+  AlignedVector<PerWorkerBuilder> per_worker;
   per_worker.reserve(num_workers);
   for (size_t i = 0; i < num_workers; ++i) {
-    per_worker.emplace_back(config);
+    per_worker.emplace_back(num_keys);
   }
 
-  // Ensure keys are distinct, otherwise, building would fail. Sort the hashes
+  // Ensure keys are distinct, otherwise building would fail. Sort the hashes
   // because `keys` are immutable, and the hash function is a permutation,
   // hence hash collisions imply duplicate keys.
   AesCtrEngine engine(/*deterministic=*/true);
-  const size_t num_keys = config.NumKeys();
   HashArray(Triple32(engine, 0), keys, per_worker[0].MutableHashes(), num_keys);
   VQSortStatic(per_worker[0].MutableHashes(), num_keys, SortAscending());
   uint32_t* end = per_worker[0].MutableHashes() + num_keys;
   HWY_ASSERT_M(end == std::unique(per_worker[0].MutableHashes(), end),
                "Collision detected");
 
-  Stats s_rank;
-  // One seed per worker, then check if any succeeded, then repeat.
-  const size_t max_rounds = DivCeil(size_t{config.MaxRetries()}, num_workers);
-  for (size_t round = 0; round < max_rounds; ++round) {
-    pool.Run(0, num_workers, [&](uint64_t task_idx, size_t worker) {
-      HWY_ASSERT(task_idx == worker);  // one task per worker
-      PhastBuilder& builder = per_worker[worker];
-      const uint32_t global_seed =
-          static_cast<uint32_t>(round * num_workers + task_idx);
-      builder.MaybeBuild(keys, global_seed);
-    });
+  // Enumerate configs sorted by extra_bytes ascending.
+  size_t reps_per_config;
+  AlignedVector<PhastConfig> configs =
+      EnumerateConfigs(num_keys, num_workers, reps_per_config);
+  const Divisor div_reps(static_cast<uint32_t>(reps_per_config));
+  const size_t outer_reps = div_reps.Divide(kMaxAttempts);
 
-    for (size_t worker = 0; worker < num_workers; ++worker) {
-      uint32_t rank = per_worker[worker].RankOr0();
-      if (rank == 0) {  // Success
-        if (stats != nullptr) {
-          stats->success = true;
-          stats->round = round;
-          stats->worker = worker;
+  // Attempt configs in batches of up to num_workers.
+  for (size_t config_idx = 0; config_idx < configs.size();
+       config_idx += num_workers) {
+    const size_t num_tasks = HWY_MIN(num_workers, configs.size() - config_idx);
+    for (size_t outer_rep = 0; outer_rep < outer_reps; ++outer_rep) {
+      pool.Run(0, num_tasks, [&](uint64_t task_idx, size_t worker) {
+        const PhastConfig& config = configs[config_idx + task_idx];
+        HWY_ASSERT(task_idx == worker);  // one task per worker
+        // config.hash_key = permutation_idx * kMaxAttempts + rep, where
+        // rep < reps_per_config. Adding outer_rep * reps_per_config makes for a
+        // contiguous range < kMaxAttempts.
+        const uint64_t seed = config.hash_key + outer_rep * reps_per_config;
+        const uint32_t hash_key =
+            static_cast<uint32_t>(RngStream(engine, seed)());
+        per_worker[worker].MaybeBuild(keys, config, hash_key);
+      });
+
+      // Tasks are sorted by size, hence the first to succeed is the best.
+      const size_t attempt_idx = outer_rep * reps_per_config;
+      for (size_t worker = 0; worker < num_tasks; ++worker) {
+        if (per_worker[worker].Succeeded()) {
+          return per_worker[worker].Take(
+              config_idx + div_reps.Divide(worker),
+              attempt_idx + div_reps.Remainder(worker));
         }
-        return per_worker[worker].Take();
       }
-      s_rank.Notify(static_cast<float>(rank));
     }
   }
 
-  if (stats != nullptr) {
-    stats->success = false;
-    stats->s_rank = s_rank;
-  }
   return PhastData();
 }
 
 #else   // HWY_TARGET == HWY_SCALAR
-static PhastData BuildPhastBest(const uint32_t*, PhastConfig, ThreadPool&,
-                                PhastStats*) {
+static PhastData BuildPhastImpl(const uint32_t*, size_t, ThreadPool&) {
   return PhastData();
 }
 #endif  // HWY_TARGET != HWY_SCALAR
-
+}  // namespace
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
 namespace hwy {
-HWY_EXPORT(BuildPhastBest);
+HWY_EXPORT(BuildPhastImpl);
 
 HWY_CONTRIB_DLLEXPORT PhastData BuildPhast(const uint32_t* keys,
-                                           PhastConfig config, ThreadPool& pool,
-                                           PhastStats* stats) {
-  return HWY_DYNAMIC_DISPATCH(BuildPhastBest)(keys, config, pool, stats);
+                                           size_t num_keys, ThreadPool& pool) {
+  return HWY_DYNAMIC_DISPATCH(BuildPhastImpl)(keys, num_keys, pool);
 }
 
 }  // namespace hwy

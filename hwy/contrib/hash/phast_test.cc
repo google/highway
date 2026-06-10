@@ -19,7 +19,6 @@
 #include <stdio.h>
 
 #include <algorithm>  // std::unique
-#include <utility>    // std::move
 
 #ifndef HWY_DISABLED_TARGETS
 #define HWY_DISABLED_TARGETS (HWY_SSE2 | HWY_SSSE3 | HWY_SSE4)
@@ -40,7 +39,6 @@
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 // After foreach_target
 #include "hwy/contrib/hash/phast-inl.h"
-#include "hwy/contrib/random/random-inl.h"
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
 
@@ -49,12 +47,10 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
 
-// --------------------------------------------------------------------------
-// AesCtrEngine requires AES-NI, which is not available on HWY_SCALAR.
+// Phast is not supported on HWY_SCALAR and too slow on HWY_EMU128.
 #if (HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128) && !HWY_IDE
-HWY_NOINLINE void TestAllRoundtrip() {}
 HWY_NOINLINE void TestQueryConsistency() {}
-HWY_NOINLINE void TestHeadroomSweep() {}
+HWY_NOINLINE void TestMultipleSizes() {}
 #else
 
 static ThreadPool MakePool() {
@@ -64,81 +60,16 @@ static ThreadPool MakePool() {
   return ThreadPool(topology.packages[0].cores.size() - 1);
 }
 
-// --------------------------------------------------------------------------
-// Test: round-trip, coverage, collision
-
-// Mutates input.
-void CheckUniqueAndRange(uint32_t* indices, uint32_t num_indices,
-                         uint32_t num_slots) {
-  VQSort(indices, num_indices, SortAscending());
-  uint32_t* end = std::unique(indices, indices + num_indices);
-  HWY_ASSERT_M(end == indices + num_indices, "Collision detected");
-
-  for (uint32_t i = 0; i < num_indices; ++i) {
-    HWY_ASSERT_M(indices[i] < num_slots, "Index out of range");
-  }
-}
-
-void TestRoundTrip(const uint32_t num_keys, const uint32_t keys_per_bucket,
-                   const uint32_t slice_length) {
-  // Generate distinct keys: Triple32(iota).
-  AlignedVector<uint32_t> keys(num_keys);
-  AesCtrEngine engine(/*deterministic=*/true);
-  Triple32 permutation(engine, 0);
-  for (uint32_t i = 0; i < num_keys; ++i) {
-    keys[i] = permutation(i);
-  }
-
-  const double t0 = platform::Now();
-  const uint32_t headroom_percent = 6;  // small num_keys -> higher headroom
-  const uint32_t max_retries = 1000;
-  const PhastConfig config(num_keys, keys_per_bucket, slice_length,
-                           headroom_percent, max_retries);
-  ThreadPool pool = MakePool();
-  PhastData data = BuildPhast(keys.data(), config, pool);
-  const double elapsed = platform::Now() - t0;
-  HWY_ASSERT_M(!data.IsEmpty(), "Build failed");
-  const Phast phast(std::move(data));
-  fprintf(stderr, "  Build(%u keys, lambda=%u, L=%u): %.2f ms\n", num_keys,
-          keys_per_bucket, slice_length, elapsed * 1e3);
-
-  // Check that all keys map to distinct indices in [0, num_slots).
-  AlignedVector<uint32_t> indices(num_keys);
-  phast.QueryBatch(keys.data(), num_keys, indices.data());
-  CheckUniqueAndRange(indices.data(), num_keys, phast.Config().NumSlots());
-
-  // Report space usage.
-  const double bits_per_key =
-      static_cast<double>(phast.Config().ExtraBytes() * 8) /
-      static_cast<double>(num_keys);
-  fprintf(stderr, "  Space: %.2f bits/key\n", bits_per_key);
-}
-
-HWY_NOINLINE void TestAllRoundtrip() {
-  fprintf(stderr, "=== TestSmall ===\n");
-  TestRoundTrip(/*num_keys=*/10 * 1000, /*keys_per_bucket=*/3,
-                /*slice_length=*/1024);
-  fprintf(stderr, "=== TestMedium ===\n");
-  TestRoundTrip(/*num_keys=*/100 * 1000, /*keys_per_bucket=*/2,
-                /*slice_length=*/2048);
-}
-
-// --------------------------------------------------------------------------
-// Test: queries are repeatable.
-
 HWY_NOINLINE void TestQueryConsistency() {
   fprintf(stderr, "=== TestQueryConsistency ===\n");
-  const uint32_t num_keys = 5000;
+  const uint32_t num_keys = AdjustedReps(5'000);
   AlignedVector<uint32_t> keys(num_keys);
   for (uint32_t i = 0; i < num_keys; ++i) {
     keys[i] = i * 37 + 1;  // Distinct, non-sequential.
   }
 
-  PhastConfig config(num_keys);
   ThreadPool pool = MakePool();
-  PhastData data = BuildPhast(keys.data(), config, pool);
-  HWY_ASSERT_M(!data.IsEmpty(), "Build failed");
-  Phast phast(std::move(data));
+  Phast phast = MakePhast(keys.data(), num_keys, pool);
 
   // Query each key twice and verify same result.
   for (uint32_t i = 0; i < num_keys; ++i) {
@@ -150,65 +81,85 @@ HWY_NOINLINE void TestQueryConsistency() {
 }
 
 // --------------------------------------------------------------------------
-// Headroom sweep: find minimum viable overprovisioning
+// Main test: query all keys, ensure indices distinct and in range.
 
-HWY_NOINLINE void TestHeadroomSweep() {
-  fprintf(stderr, "bytes   h%% kpb L\n");
+// Outputs indices for a batch of keys. Considerably higher throughput than
+// repeated single queries: 7.8 GB/s on Turin for 1M keys.
+void QueryBatch(const uint32_t* HWY_RESTRICT keys, size_t num_keys,
+                const Phast& phast, uint32_t* HWY_RESTRICT indices) {
+  const ScalableTag<uint32_t> du32;
+  using VU32 = Vec<decltype(du32)>;
+  HWY_LANES_CONSTEXPR size_t N = Lanes(du32);
 
-  // Pre-generate keys once at max size. Smaller problem size on debug builds
-  // and non-x86 (might be emulated).
-  const size_t kMaxN =
-      (HWY_IS_DEBUG_BUILD || !HWY_ARCH_X86) ? 50 * 1000 : 1000 * 1000;
-  AesCtrEngine engine(/*deterministic=*/true);
-  AlignedVector<uint32_t> all_keys = FillRandom<uint32_t>(kMaxN, engine, 0);
-  VQSort(all_keys.data(), kMaxN, SortAscending());
-  // Remove duplicates.
-  uint32_t* unique = std::unique(all_keys.data(), all_keys.data() + kMaxN);
-  const size_t num_keys = unique - all_keys.data();
-
-  // Generate configs to check.
-  AlignedVector<PhastConfig> configs;
-  for (uint32_t keys_per_bucket : {2}) {
-    for (uint32_t slice_length : {4096, 8192}) {
-      // Test the greedy path by including 4 (no Cuckoo swaps required).
-      for (uint32_t headroom : {2, 4}) {
-        constexpr uint32_t kMaxRetries = 300;
-        configs.emplace_back(num_keys, keys_per_bucket, slice_length, headroom,
-                             kMaxRetries);
-      }
+  size_t i = 0;
+  if (HWY_LIKELY(num_keys >= 2 * N)) {
+    for (; i <= num_keys - 2 * N; i += 2 * N) {
+      VU32 v0 = Load(du32, keys + i + 0 * N);
+      VU32 v1 = Load(du32, keys + i + 1 * N);
+      VU32 idx0, idx1;
+      phast(du32, v0, v1, idx0, idx1);
+      Store(idx0, du32, indices + i + 0 * N);
+      Store(idx1, du32, indices + i + 1 * N);
     }
   }
+  if (HWY_UNLIKELY(i != num_keys)) {
+    const size_t remaining = num_keys - i;
+    HWY_DASSERT(remaining < 2 * N);
+    const size_t remaining1 = remaining <= N ? 0 : remaining - N;
+    VU32 v0 = LoadN(du32, keys + i + 0 * N, remaining);
+    VU32 v1 = LoadN(du32, keys + i + 1 * N, remaining1);
+    VU32 idx0, idx1;
+    phast(du32, v0, v1, idx0, idx1);
+    StoreN(idx0, du32, indices + i + 0 * N, remaining);
+    StoreN(idx1, du32, indices + i + 1 * N, remaining1);
+  }
+}
 
+// Mutates input.
+void CheckDistinctAndRange(uint32_t* indices, uint32_t num_indices,
+                           uint32_t num_slots) {
+  VQSort(indices, num_indices, SortAscending());
+  uint32_t* end = std::unique(indices, indices + num_indices);
+  HWY_ASSERT_M(end == indices + num_indices, "Collision detected");
+
+  for (uint32_t i = 0; i < num_indices; ++i) {
+    HWY_ASSERT_M(indices[i] < num_slots, "Index out of range");
+  }
+}
+
+void TestDistinctAndRange(const size_t num_keys) {
   ThreadPool pool = MakePool();
-  for (PhastConfig& in_config : configs) {
-    PhastStats stats;
-    PhastData data = BuildPhast(all_keys.data(), in_config, pool, &stats);
-    HWY_ASSERT(stats.success == !data.IsEmpty());
-    const Phast phast(std::move(data));
-    const PhastConfig& config = phast.Config();
+  AlignedVector<uint32_t> keys = FillRandomDistinct<uint32_t>(num_keys, 0);
 
-    char config_str[100];
-    if (stats.success) {
-      config.ToString(config_str, sizeof(config_str));
-      fprintf(stderr, "%s round %zu worker %zu\n", config_str, stats.round,
-              stats.worker);
+  const double t0 = platform::Now();
+  const Phast phast = MakePhast(keys.data(), num_keys, pool);
+  const double elapsed = platform::Now() - t0;
+  const PhastData& data = phast.Data();
+  fprintf(stderr,
+          "    Build(%7zu keys): %7.2f ms, %7zu slots, %.2f b/key config %2zu, "
+          "attempt %2zu\n",
+          num_keys, elapsed * 1E3, data.NumSlots(),
+          phast.Data().ExtraBytes() * 8 / static_cast<double>(num_keys),
+          data.config_idx, data.attempt_idx);
 
-      // Verify correctness.
-      AlignedVector<uint32_t> indices(num_keys);
-      phast.QueryBatch(all_keys.data(), num_keys, indices.data());
-      CheckUniqueAndRange(indices.data(), num_keys, config.NumSlots());
-    } else {
-      in_config.ToString(config_str, sizeof(config_str));
-      fprintf(stderr, "%s failed; rank: %s\n", config_str,
-              stats.s_rank.ToString().c_str());
-    }
-  }
+  // Check that all keys map to distinct indices in [0, num_slots).
+  AlignedVector<uint32_t> indices(num_keys);
+  QueryBatch(keys.data(), num_keys, phast, indices.data());
+  CheckDistinctAndRange(indices.data(), num_keys, data.NumSlots());
+}
+
+HWY_NOINLINE void TestMultipleSizes() {
+  fprintf(stderr, "=== TestSmall ===\n");
+  TestDistinctAndRange(/*num_keys=*/AdjustedReps(6'000));
+  fprintf(stderr, "=== TestMedium ===\n");
+  TestDistinctAndRange(/*num_keys=*/AdjustedReps(60'000));
+  fprintf(stderr, "=== TestLarge ===\n");
+  TestDistinctAndRange(/*num_keys=*/AdjustedReps(AdjustedReps(1000)) * 1024);
 
   PROFILER_PRINT_RESULTS();
 }
 
 #endif  // HWY_TARGET != HWY_SCALAR && HWY_TARGET != HWY_EMU128
-
 }  // namespace
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -217,9 +168,8 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 namespace hwy {
 HWY_BEFORE_TEST(PhastTest);
-HWY_EXPORT_AND_TEST_BEST_P(PhastTest, TestAllRoundtrip);
 HWY_EXPORT_AND_TEST_BEST_P(PhastTest, TestQueryConsistency);
-HWY_EXPORT_AND_TEST_BEST_P(PhastTest, TestHeadroomSweep);
+HWY_EXPORT_AND_TEST_BEST_P(PhastTest, TestMultipleSizes);
 HWY_AFTER_TEST();
 }  // namespace hwy
 #endif  // HWY_ONCE

@@ -2917,6 +2917,16 @@ template <typename TI>
              : static_cast<size_t>(FloorLog2(static_cast<TI>(x - 1)) + 1);
 }
 
+template <typename TI>
+constexpr TI RoundUpToPow2(TI x) {
+  return (x == 0) ? TI{1} : (TI{1} << CeilLog2(x));
+}
+
+template <typename TI>
+constexpr TI RoundDownToPow2(TI x) {
+  return (x == 0) ? TI{1} : (TI{1} << FloorLog2(x));
+}
+
 template <typename T, typename T2, HWY_IF_FLOAT(T), HWY_IF_NOT_SPECIAL_FLOAT(T)>
 HWY_INLINE constexpr T AddWithWraparound(T t, T2 increment) {
   return t + static_cast<T>(increment);
