@@ -7834,8 +7834,8 @@ HWY_API VFromD<DU32> SumOfMulQuadAccumulate(
 #define HWY_NATIVE_U8_I8_SUMOFMULQUADACCUMULATE
 #endif
 
-#if defined(__ARM_FEATURE_MATMUL_INT8) ||                               \
-    (HWY_TARGET == HWY_NEON_BF16 && HWY_OS_APPLE && HWY_ARCH_ARM_A64 && \
+#if defined(__ARM_FEATURE_MATMUL_INT8) ||           \
+    (HWY_TARGET == HWY_NEON_BF16 && HWY_OS_APPLE && \
      HWY_HAVE_RUNTIME_DISPATCH)
 
 template <class DI32, HWY_IF_I32_D(DI32), HWY_IF_V_SIZE_LE_D(DI32, 8)>
@@ -10957,6 +10957,31 @@ namespace detail {  // for code folding
 #undef HWY_NEON_IF_EMULATED_D
 #undef HWY_NEON_IF_NOT_EMULATED_D
 }  // namespace detail
+
+// ------------------------------ PerBlock2x2MatMul (Neon hardware overrides)
+#if defined(__ARM_FEATURE_MATMUL_INT8) ||           \
+    (HWY_TARGET == HWY_NEON_BF16 && HWY_OS_APPLE && \
+     HWY_HAVE_RUNTIME_DISPATCH)
+template <size_t N>
+HWY_API Vec128<int32_t, N> PerBlock2x2MatMul(
+    Simd<int32_t, N, 0> /* d */,
+    Vec128<int8_t, N * 4> a,
+    Vec128<int8_t, N * 4> b,
+    Vec128<int32_t, N> c) {
+  return Vec128<int32_t, N>{vmmlaq_s32(c.raw, a.raw, b.raw)};
+}
+#endif
+
+#if defined(__ARM_FEATURE_BF16_VECTOR_ARITHMETIC) || HWY_TARGET == HWY_NEON_BF16
+template <size_t N>
+HWY_API Vec128<float, N> PerBlock2x2MatMul(
+    Simd<float, N, 0> /* d */,
+    Vec128<hwy::bfloat16_t, N * 2> a,
+    Vec128<hwy::bfloat16_t, N * 2> b,
+    Vec128<float, N> c) {
+  return Vec128<float, N>{vbfmmlaq_f32(c.raw, a.raw, b.raw)};
+}
+#endif
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
