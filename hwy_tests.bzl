@@ -62,6 +62,13 @@ HWY_CONTRIB_TESTS = (
         "math_hyper_test",
         [":math"],
     ),
+    # copybara:strip_begin(internal)
+    (
+        "hwy/contrib/pipeline/",
+        "prefetch_pipeline_test",
+        [":prefetch_pipeline"],
+    ),
+    # copybara:strip_end
     (
         "hwy/contrib/math/",
         "math_tan_test",
