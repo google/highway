@@ -907,6 +907,7 @@ set(HWY_TEST_FILES
   hwy/tests/masked_arithmetic_test.cc
   hwy/tests/masked_compare_test.cc
   hwy/tests/masked_minmax_test.cc
+  hwy/tests/matmul_op_test.cc
   hwy/tests/memory_test.cc
   hwy/tests/minmax_magnitude_test.cc
   hwy/tests/minmax_number_test.cc

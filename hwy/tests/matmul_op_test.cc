@@ -35,7 +35,7 @@ namespace {
 struct TestInt8PerBlock2x2MatMul {
   template <typename TN, class DN>
   HWY_NOINLINE void operator()(TN /*unused*/, DN dn) {
-#if HWY_NATIVE_PER_BLOCK_2X2_MATMUL_INT8
+#if HWY_TARGET != HWY_SCALAR
     static_assert(IsSame<TN, int32_t>(), "TN should be int32_t");
     const Repartition<int8_t, DN> di8;
     using VI8 = Vec<decltype(di8)>;
@@ -62,10 +62,10 @@ struct TestInt8PerBlock2x2MatMul {
     // Scalar emulation loop (matching hardware svmmla interleaving)
     for (size_t block = 0; block < N; block += 4) {
       const size_t block_i8 = block * 4;
-      for (int i = 0; i < 2; ++i) {
-        for (int j = 0; j < 2; ++j) {
+      for (size_t i = 0; i < 2; ++i) {
+        for (size_t j = 0; j < 2; ++j) {
           int32_t sum = 0;
-          for (int k = 0; k < 8; ++k) {
+          for (size_t k = 0; k < 8; ++k) {
             sum += static_cast<int32_t>(in_a[block_i8 + i * 8 + k]) *
                    static_cast<int32_t>(in_b[block_i8 + j * 8 + k]);
           }
@@ -93,7 +93,7 @@ HWY_NOINLINE void TestAllInt8PerBlock2x2MatMul() {
 struct TestBf16PerBlock2x2MatMul {
   template <typename TN, class DN>
   HWY_NOINLINE void operator()(TN /*unused*/, DN dn) {
-#if HWY_NATIVE_PER_BLOCK_2X2_MATMUL_BF16
+#if HWY_TARGET != HWY_SCALAR
     static_assert(IsSame<TN, float>(), "TN should be float");
     const Repartition<hwy::bfloat16_t, DN> dbf;
     using VBF = Vec<decltype(dbf)>;
@@ -117,10 +117,10 @@ struct TestBf16PerBlock2x2MatMul {
 
     for (size_t block = 0; block < N; block += 4) {
       const size_t block_bf = block * 2;
-      for (int i = 0; i < 2; ++i) {
-        for (int j = 0; j < 2; ++j) {
+      for (size_t i = 0; i < 2; ++i) {
+        for (size_t j = 0; j < 2; ++j) {
           float sum = 0.0f;
-          for (int k = 0; k < 4; ++k) {
+          for (size_t k = 0; k < 4; ++k) {
             sum += hwy::ConvertScalarTo<float>(in_a[block_bf + i * 4 + k]) *
                    hwy::ConvertScalarTo<float>(in_b[block_bf + j * 4 + k]);
           }

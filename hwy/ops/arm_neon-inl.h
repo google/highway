@@ -10959,27 +10959,23 @@ namespace detail {  // for code folding
 }  // namespace detail
 
 // ------------------------------ PerBlock2x2MatMul (Neon hardware overrides)
-#if defined(__ARM_FEATURE_MATMUL_INT8) ||           \
-    (HWY_TARGET == HWY_NEON_BF16 && HWY_OS_APPLE && \
-     HWY_HAVE_RUNTIME_DISPATCH)
-template <size_t N>
-HWY_API Vec128<int32_t, N> PerBlock2x2MatMul(
-    Simd<int32_t, N, 0> /* d */,
-    Vec128<int8_t, N * 4> a,
-    Vec128<int8_t, N * 4> b,
-    Vec128<int32_t, N> c) {
-  return Vec128<int32_t, N>{vmmlaq_s32(c.raw, a.raw, b.raw)};
+#if defined(__ARM_FEATURE_MATMUL_INT8) || \
+    (HWY_TARGET == HWY_NEON_BF16 && HWY_OS_APPLE && HWY_HAVE_RUNTIME_DISPATCH)
+template <class DI32, HWY_IF_I32_D(DI32), HWY_IF_V_SIZE_D(DI32, 16)>
+HWY_API VFromD<DI32> PerBlock2x2MatMul(DI32 /* d */,
+                                       VFromD<Repartition<int8_t, DI32>> a,
+                                       VFromD<Repartition<int8_t, DI32>> b,
+                                       VFromD<DI32> c) {
+  return VFromD<DI32>{vmmlaq_s32(c.raw, a.raw, b.raw)};
 }
 #endif
 
 #if defined(__ARM_FEATURE_BF16_VECTOR_ARITHMETIC) || HWY_TARGET == HWY_NEON_BF16
-template <size_t N>
-HWY_API Vec128<float, N> PerBlock2x2MatMul(
-    Simd<float, N, 0> /* d */,
-    Vec128<hwy::bfloat16_t, N * 2> a,
-    Vec128<hwy::bfloat16_t, N * 2> b,
-    Vec128<float, N> c) {
-  return Vec128<float, N>{vbfmmlaq_f32(c.raw, a.raw, b.raw)};
+template <class DF32, HWY_IF_F32_D(DF32), HWY_IF_V_SIZE_D(DF32, 16)>
+HWY_API VFromD<DF32> PerBlock2x2MatMul(
+    DF32 /* d */, VFromD<Repartition<hwy::bfloat16_t, DF32>> a,
+    VFromD<Repartition<hwy::bfloat16_t, DF32>> b, VFromD<DF32> c) {
+  return VFromD<DF32>{vbfmmlaq_f32(c.raw, a.raw, b.raw)};
 }
 #endif
 
