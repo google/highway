@@ -124,9 +124,9 @@ static AlignedVector<PhastConfig> EnumerateConfigs(size_t num_keys,
         const size_t slice_length = min_slice_length << slice_shift;
 
         // Different seed for each config to increase diversity.
-        const uint32_t seed_base = (permutation_idx++) * kMaxAttempts;
+        const size_t seed_base = (permutation_idx++) * kMaxAttempts;
         for (size_t rep = 0; rep < reps_per_config; ++rep) {
-          const uint32_t seed = seed_base + rep;
+          const uint32_t seed = static_cast<uint32_t>(seed_base + rep);
           configs.push_back(MakeConfig(num_keys, h, kpb, slice_length, seed));
         }
       }
@@ -528,7 +528,7 @@ class PerWorkerBuilder {
     using MU32 = Mask<decltype(du32)>;
 
     size_t num_candidates = 0;
-    for (uint32_t seed = 0; seed < 256; seed += 2 * NU32) {
+    for (size_t seed = 0; seed < 256; seed += 2 * NU32) {
       const VU32 s0 = Iota(du32, seed);
       const VU32 s1 = Iota(du32, seed + NU32);
       MU32 avail0 = SetMask(du32, true);
@@ -611,7 +611,8 @@ static PhastData BuildPhastImpl(const uint32_t* keys, size_t num_keys,
     const size_t num_tasks = HWY_MIN(num_workers, configs.size() - config_idx);
     for (size_t outer_rep = 0; outer_rep < outer_reps; ++outer_rep) {
       pool.Run(0, num_tasks, [&](uint64_t task_idx, size_t worker) {
-        const PhastConfig& config = configs[config_idx + task_idx];
+        const PhastConfig& config =
+            configs[config_idx + static_cast<size_t>(task_idx)];
         HWY_ASSERT(task_idx == worker);  // one task per worker
         // config.hash_key = permutation_idx * kMaxAttempts + rep, where
         // rep < reps_per_config. Adding outer_rep * reps_per_config makes for a
@@ -627,8 +628,8 @@ static PhastData BuildPhastImpl(const uint32_t* keys, size_t num_keys,
       for (size_t worker = 0; worker < num_tasks; ++worker) {
         if (per_worker[worker].Succeeded()) {
           return per_worker[worker].Take(
-              config_idx + div_reps.Divide(worker),
-              attempt_idx + div_reps.Remainder(worker));
+              config_idx + div_reps.Divide(static_cast<uint32_t>(worker)),
+              attempt_idx + div_reps.Remainder(static_cast<uint32_t>(worker)));
         }
       }
     }

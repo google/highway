@@ -219,6 +219,10 @@ file(GLOB HWY_CONTRIB_SOURCES "hwy/contrib/sort/vqsort_*.cc")
 list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/bit_pack/bit_pack-inl.h
     hwy/contrib/dot/dot-inl.h
+    hwy/contrib/hash/hash-inl.h
+    hwy/contrib/hash/phast.cc
+    hwy/contrib/hash/phast.h
+    hwy/contrib/hash/phast-inl.h
     hwy/contrib/image/image.cc
     hwy/contrib/image/image.h
     hwy/contrib/math/fast_math-inl.h

@@ -154,6 +154,8 @@ HWY_NOINLINE void TestBW() {
 // Benchmarks PHAST used as a hash table, with an extra Gather at the returned
 // index to verify set membership.
 HWY_NOINLINE void TestThroughput() {
+  // Too slow under MSAN/TSAN.
+#if !HWY_IS_MSAN && !HWY_IS_TSAN
   ThreadPool pool = MakePool();
   pool.SetWaitMode(PoolWaitMode::kSpin);
 
@@ -216,11 +218,13 @@ HWY_NOINLINE void TestThroughput() {
       "measurement MAD=%4.2f%%\n",
       kNumKeys / 1024, static_cast<double>(bytes) / result.ns,
       result.mad_percent);
+#endif  // !HWY_IS_MSAN && !HWY_IS_TSAN
 }
 
 // Compare with absl::flat_hash_set - just set membership.
 HWY_NOINLINE void TestAbslThroughput() {
-#if HWY_HAVE_ABSL
+  // Too slow under MSAN/TSAN.
+#if HWY_HAVE_ABSL && !HWY_IS_MSAN && !HWY_IS_TSAN
   ThreadPool pool = MakePool();
   pool.SetWaitMode(PoolWaitMode::kSpin);
 

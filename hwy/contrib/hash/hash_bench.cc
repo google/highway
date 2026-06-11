@@ -63,9 +63,6 @@ HWY_NOINLINE void TestLatency(const IHash& hash) {
   }
 }
 
-// Each Hash* only provides TwoVec. This adapter avoids duplicating a loop for
-// each hash function.
-
 template <class IHash>
 HWY_NOINLINE void TestThroughput(const IHash& hash) {
   const size_t kNumU32 = 4096;
