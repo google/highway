@@ -55,18 +55,18 @@ namespace {
 namespace hn = hwy::HWY_NAMESPACE;
 
 // Scalar baseline matrix transpose.
-void TransposeScalar(const uint32_t* HWY_RESTRICT input, uint32_t R, uint32_t C,
+void TransposeScalar(const uint32_t* HWY_RESTRICT input, size_t R, size_t C,
                      uint32_t* HWY_RESTRICT output) {
-  for (uint32_t r = 0; r < R; ++r) {
-    for (uint32_t c = 0; c < C; ++c) {
+  for (size_t r = 0; r < R; ++r) {
+    for (size_t c = 0; c < C; ++c) {
       output[c * R + r] = input[r * C + c];
     }
   }
 }
 
 // Transpose via Scatter: Contiguous Load -> Strided Scatter Store.
-void TransposeScatter(const uint32_t* HWY_RESTRICT input, uint32_t R,
-                      uint32_t C, uint32_t* HWY_RESTRICT output) {
+void TransposeScatter(const uint32_t* HWY_RESTRICT input, size_t R, size_t C,
+                      uint32_t* HWY_RESTRICT output) {
   using D = hn::ScalableTag<uint32_t>;
   const D d;
   using V = hn::Vec<D>;
@@ -81,8 +81,8 @@ void TransposeScatter(const uint32_t* HWY_RESTRICT input, uint32_t R,
       hn::Mul(hn::Iota(di, 0), hn::Set(di, static_cast<int32_t>(R)));
 
   // Loop over input rows
-  for (uint32_t r = 0; r < R; ++r) {
-    uint32_t c = 0;
+  for (size_t r = 0; r < R; ++r) {
+    size_t c = 0;
     // Process columns in blocks of Lanes (N)
     for (; c + N <= C; c += N) {
       // Load contiguous row slice from input
@@ -94,7 +94,7 @@ void TransposeScatter(const uint32_t* HWY_RESTRICT input, uint32_t R,
     }
 
     // Handle remainder columns
-    uint32_t remainder = C - c;
+    size_t remainder = C - c;
     if (remainder > 0) {
       // Load remainder using LoadN
       V row = hn::LoadN(d, input + r * C + c, remainder);
@@ -105,7 +105,7 @@ void TransposeScatter(const uint32_t* HWY_RESTRICT input, uint32_t R,
 }
 
 // Transpose via Gather: Strided Gather Load -> Contiguous Store.
-void TransposeGather(const uint32_t* HWY_RESTRICT input, uint32_t R, uint32_t C,
+void TransposeGather(const uint32_t* HWY_RESTRICT input, size_t R, size_t C,
                      uint32_t* HWY_RESTRICT output) {
   using D = hn::ScalableTag<uint32_t>;
   const D d;
@@ -121,8 +121,8 @@ void TransposeGather(const uint32_t* HWY_RESTRICT input, uint32_t R, uint32_t C,
       hn::Mul(hn::Iota(di, 0), hn::Set(di, static_cast<int32_t>(C)));
 
   // Loop over output rows (which are input columns)
-  for (uint32_t c = 0; c < C; ++c) {
-    uint32_t r = 0;
+  for (size_t c = 0; c < C; ++c) {
+    size_t r = 0;
     // Process output columns (input rows) in blocks of Lanes (N)
     for (; r + N <= R; r += N) {
       // Gather column slice from input using constant strided indices and
@@ -134,7 +134,7 @@ void TransposeGather(const uint32_t* HWY_RESTRICT input, uint32_t R, uint32_t C,
     }
 
     // Handle remainder rows
-    uint32_t remainder = R - r;
+    size_t remainder = R - r;
     if (remainder > 0) {
       // Gather remainder using GatherIndexN
       V col = hn::GatherIndexN(d, input + r * C + c, stride_indices, remainder);
@@ -156,11 +156,11 @@ HWY_EXPORT(TransposeScatter);
 HWY_EXPORT(TransposeGather);
 
 // Visualizes a subgrid of the matrix in console.
-static void PrintMatrix(const uint32_t* m, uint32_t R, uint32_t C,
+static void PrintMatrix(const uint32_t* m, size_t R, size_t C,
                         uint32_t C_stride, const char* label) {
   std::cout << label << " (" << R << "x" << C << "):\n";
-  for (uint32_t r = 0; r < R; ++r) {
-    for (uint32_t c = 0; c < C; ++c) {
+  for (size_t r = 0; r < R; ++r) {
+    for (size_t c = 0; c < C; ++c) {
       printf("%3u ", m[r * C_stride + c]);
     }
     std::cout << "\n";
@@ -170,8 +170,8 @@ static void PrintMatrix(const uint32_t* m, uint32_t R, uint32_t C,
 
 static void Run() {
   // Dimensions 64x64
-  const uint32_t R = 64;
-  const uint32_t C = 64;
+  const size_t R = 64;
+  const size_t C = 64;
   const size_t size = R * C;
 
   AlignedVector<uint32_t> input(size);
