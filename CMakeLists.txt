@@ -464,7 +464,7 @@ else()
       -mfpu=neon-vfpv4
       -mfloat-abi=hard  # must match the toolchain specified as CXX=
       -DHWY_HAVE_SCALAR_F16_TYPE=0  # See #2625
-      -DHWY_NEON_HAVE_F16C=0
+      -DHWY_ARM_HAVE_FP16=0
     )
     if(${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
       # using GCC

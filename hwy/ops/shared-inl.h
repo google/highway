@@ -76,13 +76,16 @@ using VecArg = V;
 
 namespace detail {
 
+// Native := whatever the intrinsics expect for the given lane type.
 template <typename T>
 struct NativeLaneTypeT {
   using type = T;
 };
 template <>
 struct NativeLaneTypeT<hwy::float16_t> {
-#if HWY_HAVE_SCALAR_F16_TYPE
+#if HWY_ARM_HAVE_FP16
+  using type = __fp16;
+#elif HWY_HAVE_SCALAR_F16_TYPE
   using type = hwy::float16_t::Native;
 #else
   using type = uint16_t;
@@ -117,9 +120,11 @@ HWY_INLINE T* NativeLanePointer(T* p) {
   return p;
 }
 template <typename T, typename NT = NativeLaneType<RemoveConst<T>>,
-          HWY_IF_F16(T)>
-HWY_INLINE constexpr If<IsConst<T>(), const NT*, NT*> NativeLanePointer(T* p) {
-#if HWY_HAVE_SCALAR_F16_TYPE
+          typename Ret = If<IsConst<T>(), const NT*, NT*>, HWY_IF_F16(T)>
+HWY_INLINE Ret NativeLanePointer(T* p) {
+#if HWY_ARM_HAVE_FP16
+  return reinterpret_cast<Ret>(&p->native);
+#elif HWY_HAVE_SCALAR_F16_TYPE
   return &p->native;
 #else
   return &p->bits;

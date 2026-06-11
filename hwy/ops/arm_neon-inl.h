@@ -1,5 +1,6 @@
 // Copyright 2019 Google LLC
-// Copyright 2024-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
+// Copyright 2024-2026 Arm Limited and/or its affiliates
+// <open-source-office@arm.com>
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: BSD-3-Clause
 //
@@ -153,7 +154,7 @@ namespace detail {  // for code folding and Raw128
 #define HWY_NEON_DEF_FUNCTION_BFLOAT_16(name, prefix, infix, args)
 #endif
 
-// Used for conversion instructions if HWY_NEON_HAVE_F16C.
+// Used for conversion instructions if HWY_ARM_HAVE_FP16.
 #define HWY_NEON_DEF_FUNCTION_FLOAT_16_UNCONDITIONAL(name, prefix, infix, \
                                                      args)                \
   HWY_NEON_DEF_FUNCTION(float16, 8, name, prefix##q, infix, f16, args)    \
@@ -699,7 +700,7 @@ struct Raw128<double, 1> {
 };
 #endif  // HWY_HAVE_FLOAT64
 
-#if HWY_NEON_HAVE_F16C
+#if HWY_ARM_HAVE_FP16
 
 template <>
 struct Tuple2<float16_t, 8> {
@@ -737,7 +738,7 @@ struct Raw128<float16_t, N> {
   using type = float16x4_t;
 };
 
-#else  // !HWY_NEON_HAVE_F16C
+#else  // !HWY_ARM_HAVE_FP16
 
 template <size_t N>
 struct Tuple2<float16_t, N> : public Tuple2<uint16_t, N> {};
@@ -748,7 +749,7 @@ struct Tuple4<float16_t, N> : public Tuple4<uint16_t, N> {};
 template <size_t N>
 struct Raw128<float16_t, N> : public Raw128<uint16_t, N> {};
 
-#endif  // HWY_NEON_HAVE_F16C
+#endif  // HWY_ARM_HAVE_FP16
 
 #if HWY_NEON_HAVE_BFLOAT16
 
@@ -922,7 +923,7 @@ HWY_NEON_DEF_FUNCTION_UINT_32(BitCastToByte, vreinterpret, _u8_, HWY_CAST_TO_U8)
 HWY_NEON_DEF_FUNCTION_UINT_64(BitCastToByte, vreinterpret, _u8_, HWY_CAST_TO_U8)
 
 #if !HWY_HAVE_FLOAT16
-#if HWY_NEON_HAVE_F16C
+#if HWY_ARM_HAVE_FP16
 HWY_NEON_DEF_FUNCTION_FLOAT_16_UNCONDITIONAL(BitCastToByte, vreinterpret, _u8_,
                                              HWY_CAST_TO_U8)
 #else
@@ -930,7 +931,7 @@ template <size_t N>
 HWY_INLINE Vec128<uint8_t, N * 2> BitCastToByte(Vec128<float16_t, N> v) {
   return BitCastToByte(Vec128<uint16_t, N>(v.raw));
 }
-#endif  // HWY_NEON_HAVE_F16C
+#endif  // HWY_ARM_HAVE_FP16
 #endif  // !HWY_HAVE_FLOAT16
 
 #if !HWY_NEON_HAVE_BFLOAT16
@@ -987,10 +988,10 @@ HWY_INLINE Vec64<int64_t> BitCastFromByte(D /* tag */, Vec64<uint8_t> v) {
   return Vec64<int64_t>(vreinterpret_s64_u8(v.raw));
 }
 
-// Cannot use HWY_NEON_IF_EMULATED_D due to the extra HWY_NEON_HAVE_F16C.
+// Cannot use HWY_NEON_IF_EMULATED_D due to the extra HWY_ARM_HAVE_FP16.
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F16_D(D)>
 HWY_INLINE VFromD<D> BitCastFromByte(D, VFromD<Repartition<uint8_t, D>> v) {
-#if HWY_HAVE_FLOAT16 || HWY_NEON_HAVE_F16C
+#if HWY_HAVE_FLOAT16 || HWY_ARM_HAVE_FP16
   return VFromD<D>(vreinterpret_f16_u8(v.raw));
 #else
   const RebindToUnsigned<D> du;
@@ -1064,10 +1065,10 @@ HWY_INLINE Vec128<double> BitCastFromByte(D /* tag */, Vec128<uint8_t> v) {
 }
 #endif  // HWY_HAVE_FLOAT64
 
-// Cannot use HWY_NEON_IF_EMULATED_D due to the extra HWY_NEON_HAVE_F16C.
+// Cannot use HWY_NEON_IF_EMULATED_D due to the extra HWY_ARM_HAVE_FP16.
 template <class D, HWY_IF_F16_D(D)>
 HWY_INLINE VFromD<D> BitCastFromByte(D, Vec128<uint8_t> v) {
-#if HWY_HAVE_FLOAT16 || HWY_NEON_HAVE_F16C
+#if HWY_HAVE_FLOAT16 || HWY_ARM_HAVE_FP16
   return VFromD<D>(vreinterpretq_f16_u8(v.raw));
 #else
   return VFromD<D>(BitCastFromByte(RebindToUnsigned<D>(), v).raw);
@@ -1130,6 +1131,7 @@ HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
 // ------------------------------ Set
 
 namespace detail {
+
 // We want to route any combination of N/kPow2 to the intrinsics depending on
 // whether the requested size is <= 64 bits or 128. HWY_NEON_BUILD_TPL is
 // unconditional and currently does not accept inputs (such as whether the
@@ -1143,18 +1145,13 @@ namespace detail {
 #define HWY_NEON_BUILD_ARG_HWY_SET t
 
 HWY_NEON_DEF_FUNCTION_ALL_TYPES(NativeSet, vdup, _n_, HWY_SET)
-#if !HWY_HAVE_FLOAT16 && HWY_NEON_HAVE_F16C && HWY_HAVE_SCALAR_F16_TYPE
-HWY_NEON_DEF_FUNCTION_FLOAT_16_UNCONDITIONAL(NativeSet, vdup, _n_, HWY_SET)
-#endif
 HWY_NEON_DEF_FUNCTION_BFLOAT_16(NativeSet, vdup, _n_, HWY_SET)
 
-#if !HWY_NEON_HAVE_F16C || !HWY_HAVE_SCALAR_F16_TYPE
 template <class D, HWY_IF_F16_D(D)>
 HWY_API VFromD<D> NativeSet(D d, TFromD<D> t) {
   const uint16_t tu = BitCastScalar<uint16_t>(t);
   return BitCast(d, Set(RebindToUnsigned<D>(), tu));
 }
-#endif
 
 #if !HWY_NEON_HAVE_BFLOAT16
 template <class D, HWY_IF_BF16_D(D)>
@@ -1437,7 +1434,7 @@ HWY_API VFromD<D> Dup128VecFromValues(D d, TFromD<D> t0, TFromD<D> t1,
                      BitCastScalar<int16_t>(t6), BitCastScalar<int16_t>(t7)));
 }
 
-#if (HWY_COMPILER_GCC || HWY_COMPILER_CLANGCL) && HWY_NEON_HAVE_F16C && \
+#if (HWY_COMPILER_GCC || HWY_COMPILER_CLANGCL) && HWY_ARM_HAVE_FP16 && \
     HWY_HAVE_SCALAR_F16_TYPE
 template <class D, HWY_IF_F16_D(D), HWY_IF_V_SIZE_LE_D(D, 8)>
 HWY_API VFromD<D> Dup128VecFromValues(D d, TFromD<D> t0, TFromD<D> t1,
@@ -1465,7 +1462,7 @@ HWY_API VFromD<D> Dup128VecFromValues(D d, TFromD<D> t0, TFromD<D> t1,
   return VFromD<D>(reinterpret_cast<typename VFromD<D>::Raw>(raw));
 }
 #else
-// Generic for all vector lengths if MSVC or !HWY_NEON_HAVE_F16C
+// Generic for all vector lengths if MSVC or !HWY_ARM_HAVE_FP16
 template <class D, HWY_IF_F16_D(D)>
 HWY_API VFromD<D> Dup128VecFromValues(D d, TFromD<D> t0, TFromD<D> t1,
                                       TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
@@ -1479,7 +1476,7 @@ HWY_API VFromD<D> Dup128VecFromValues(D d, TFromD<D> t0, TFromD<D> t1,
                      BitCastScalar<int16_t>(t4), BitCastScalar<int16_t>(t5),
                      BitCastScalar<int16_t>(t6), BitCastScalar<int16_t>(t7)));
 }
-#endif  // (HWY_COMPILER_GCC || HWY_COMPILER_CLANGCL) && HWY_NEON_HAVE_F16C
+#endif  // (HWY_COMPILER_GCC || HWY_COMPILER_CLANGCL) && HWY_ARM_HAVE_FP16
 
 namespace detail {
 
@@ -4660,7 +4657,7 @@ HWY_API VFromD<D> PromoteTo(D d, V v) {
   return PromoteTo(d, PromoteTo(di32, v));
 }
 
-#if HWY_NEON_HAVE_F16C
+#if HWY_ARM_HAVE_FP16
 
 // Per-target flag to prevent generic_ops-inl.h from defining f16 conversions.
 #ifdef HWY_NATIVE_F16C
@@ -4678,7 +4675,7 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<float16_t, D>> v) {
   return VFromD<D>(vget_low_f32(vcvt_f32_f16(v.raw)));
 }
 
-#endif  // HWY_NEON_HAVE_F16C
+#endif  // HWY_ARM_HAVE_FP16
 
 #if HWY_HAVE_FLOAT64
 
@@ -4852,14 +4849,14 @@ HWY_API Vec128<int64_t> PromoteUpperTo(D /* tag */, Vec128<int32_t> v) {
   return Vec128<int64_t>(vmovl_high_s32(v.raw));
 }
 
-#if HWY_NEON_HAVE_F16C
+#if HWY_ARM_HAVE_FP16
 
 template <class D, HWY_IF_F32_D(D)>
 HWY_API Vec128<float> PromoteUpperTo(D /* tag */, Vec128<float16_t> v) {
   return Vec128<float>(vcvt_high_f32_f16(v.raw));
 }
 
-#endif  // HWY_NEON_HAVE_F16C
+#endif  // HWY_ARM_HAVE_FP16
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F32_D(D)>
 HWY_API VFromD<D> PromoteUpperTo(D df32, VFromD<Repartition<bfloat16_t, D>> v) {
@@ -5055,7 +5052,7 @@ HWY_API VFromD<D> DemoteTo(D d, Vec64<uint64_t> v) {
   return DemoteTo(d, DemoteTo(du32, v));
 }
 
-#if HWY_NEON_HAVE_F16C
+#if HWY_ARM_HAVE_FP16
 
 // We already toggled HWY_NATIVE_F16C above.
 
@@ -5068,7 +5065,7 @@ HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<Rebind<float, D>> v) {
   return VFromD<D>(vcvt_f16_f32(vcombine_f32(v.raw, v.raw)));
 }
 
-#endif  // HWY_NEON_HAVE_F16C
+#endif  // HWY_ARM_HAVE_FP16
 
 #if HWY_NEON_HAVE_F32_TO_BF16C
 #ifdef HWY_NATIVE_DEMOTE_F32_TO_BF16
@@ -5262,7 +5259,7 @@ HWY_API Vec128<uint8_t, N> U8FromU32(Vec128<uint32_t, N> v) {
 }
 
 // ------------------------------ ShiftRightAndDemoteTo (vqshrn, vqshrun)
-// ------------------------------ RoundingShiftRightAndDemoteTo (vqrshrn, vqrshrun)
+// -------------------- RoundingShiftRightAndDemoteTo (vqrshrn, vqrshrun)
 
 #ifdef HWY_NATIVE_SHIFT_RIGHT_AND_DEMOTE
 #undef HWY_NATIVE_SHIFT_RIGHT_AND_DEMOTE
@@ -7826,7 +7823,7 @@ HWY_API VFromD<DU32> SumOfMulQuadAccumulate(
   return VFromD<DU32>(vdotq_u32(sum.raw, a.raw, b.raw));
 }
 
-#endif //__ARM_FEATURE_DOTPROD || HWY_TARGET == HWY_NEON_BF16
+#endif  //__ARM_FEATURE_DOTPROD || HWY_TARGET == HWY_NEON_BF16
 
 #ifdef HWY_NATIVE_U8_I8_SUMOFMULQUADACCUMULATE
 #undef HWY_NATIVE_U8_I8_SUMOFMULQUADACCUMULATE
