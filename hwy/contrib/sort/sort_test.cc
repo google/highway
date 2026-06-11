@@ -348,9 +348,11 @@ void TestSelectWithNaNForType() {
 }
 
 void TestSelectWithNaN() {
+#if HWY_HAVE_FLOAT16
   if (hwy::HaveFloat16()) {
     TestSelectWithNaNForType<float16_t>();
   }
+#endif
   TestSelectWithNaNForType<float>();
   if (hwy::HaveFloat64()) {
     TestSelectWithNaNForType<double>();
