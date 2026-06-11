@@ -354,9 +354,11 @@ void TestSelectWithNaN() {
   }
 #endif
   TestSelectWithNaNForType<float>();
+#if HWY_HAVE_FLOAT64
   if (hwy::HaveFloat64()) {
     TestSelectWithNaNForType<double>();
   }
+#endif
 }
 
 }  // namespace
