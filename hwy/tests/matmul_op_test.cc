@@ -62,10 +62,10 @@ struct TestInt8PerBlock2x2MatMul {
     // Scalar emulation loop (matching hardware svmmla interleaving)
     for (size_t block = 0; block < N; block += 4) {
       const size_t block_i8 = block * 4;
-      for (int i = 0; i < 2; ++i) {
-        for (int j = 0; j < 2; ++j) {
+      for (size_t i = 0; i < 2; ++i) {
+        for (size_t j = 0; j < 2; ++j) {
           int32_t sum = 0;
-          for (int k = 0; k < 8; ++k) {
+          for (size_t k = 0; k < 8; ++k) {
             sum += static_cast<int32_t>(in_a[block_i8 + i * 8 + k]) *
                    static_cast<int32_t>(in_b[block_i8 + j * 8 + k]);
           }
@@ -117,10 +117,10 @@ struct TestBf16PerBlock2x2MatMul {
 
     for (size_t block = 0; block < N; block += 4) {
       const size_t block_bf = block * 2;
-      for (int i = 0; i < 2; ++i) {
-        for (int j = 0; j < 2; ++j) {
+      for (size_t i = 0; i < 2; ++i) {
+        for (size_t j = 0; j < 2; ++j) {
           float sum = 0.0f;
-          for (int k = 0; k < 4; ++k) {
+          for (size_t k = 0; k < 4; ++k) {
             sum += hwy::ConvertScalarTo<float>(in_a[block_bf + i * 4 + k]) *
                    hwy::ConvertScalarTo<float>(in_b[block_bf + j * 4 + k]);
           }
