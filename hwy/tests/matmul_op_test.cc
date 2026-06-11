@@ -35,7 +35,7 @@ namespace {
 struct TestInt8PerBlock2x2MatMul {
   template <typename TN, class DN>
   HWY_NOINLINE void operator()(TN /*unused*/, DN dn) {
-#if HWY_TARGET != HWY_SCALAR
+#if HWY_NATIVE_PER_BLOCK_2X2_MATMUL_INT8
     static_assert(IsSame<TN, int32_t>(), "TN should be int32_t");
     const Repartition<int8_t, DN> di8;
     using VI8 = Vec<decltype(di8)>;
@@ -93,7 +93,7 @@ HWY_NOINLINE void TestAllInt8PerBlock2x2MatMul() {
 struct TestBf16PerBlock2x2MatMul {
   template <typename TN, class DN>
   HWY_NOINLINE void operator()(TN /*unused*/, DN dn) {
-#if HWY_TARGET != HWY_SCALAR
+#if HWY_NATIVE_PER_BLOCK_2X2_MATMUL_BF16
     static_assert(IsSame<TN, float>(), "TN should be float");
     const Repartition<hwy::bfloat16_t, DN> dbf;
     using VBF = Vec<decltype(dbf)>;

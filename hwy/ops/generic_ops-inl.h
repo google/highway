@@ -7746,55 +7746,6 @@ HWY_API V Per4LaneBlockShuffle(V v) {
 }
 #endif
 
-// ------------------------------ PerBlock2x2MatMul
-#if HWY_TARGET != HWY_SCALAR || HWY_IDE
-
-#if !HWY_NATIVE_PER_BLOCK_2X2_MATMUL_INT8
-template <class DI32, HWY_IF_I32_D(DI32), HWY_IF_V_SIZE_GT_D(DI32, 8)>
-HWY_API VFromD<DI32> PerBlock2x2MatMul(DI32 di32,
-                                       VFromD<Repartition<int8_t, DI32>> a,
-                                       VFromD<Repartition<int8_t, DI32>> b,
-                                       VFromD<DI32> c) {
-  const Repartition<int8_t, decltype(di32)> di8;
-
-  const auto vi32_a = BitCast(di32, a);
-  const auto vi32_b = BitCast(di32, b);
-
-  const auto a0 = BitCast(di8, DupEven(vi32_a));
-  const auto a1 = BitCast(di8, DupOdd(vi32_a));
-
-  const auto b0 = BitCast(di8, Per4LaneBlockShuffle<2, 0, 2, 0>(vi32_b));
-  const auto b1 = BitCast(di8, Per4LaneBlockShuffle<3, 1, 3, 1>(vi32_b));
-
-  return SumOfMulQuadAccumulate(di32, a1, b1,
-                                SumOfMulQuadAccumulate(di32, a0, b0, c));
-}
-#endif
-
-#if !HWY_NATIVE_PER_BLOCK_2X2_MATMUL_BF16
-template <class DF32, HWY_IF_F32_D(DF32), HWY_IF_V_SIZE_GT_D(DF32, 8)>
-HWY_API VFromD<DF32> PerBlock2x2MatMul(
-    DF32 df32, VFromD<Repartition<hwy::bfloat16_t, DF32>> a,
-    VFromD<Repartition<hwy::bfloat16_t, DF32>> b, VFromD<DF32> c) {
-  const Repartition<hwy::bfloat16_t, decltype(df32)> dbf16;
-
-  const auto vf32_a = BitCast(df32, a);
-  const auto vf32_b = BitCast(df32, b);
-
-  const auto a0 = BitCast(dbf16, DupEven(vf32_a));
-  const auto a1 = BitCast(dbf16, DupOdd(vf32_a));
-
-  const auto b0 = BitCast(dbf16, Per4LaneBlockShuffle<2, 0, 2, 0>(vf32_b));
-  const auto b1 = BitCast(dbf16, Per4LaneBlockShuffle<3, 1, 3, 1>(vf32_b));
-
-  return Add(
-      Add(WidenMulPairwiseAdd(df32, a1, b1), WidenMulPairwiseAdd(df32, a0, b0)),
-      c);
-}
-#endif
-
-#endif  // HWY_TARGET != HWY_SCALAR
-
 // ------------------------------ PairwiseAdd128/PairwiseSub128
 //                                (Per4LaneBlockShuffle)
 #if (defined(HWY_NATIVE_PAIRWISE_ADD_128) == defined(HWY_TARGET_TOGGLE))
