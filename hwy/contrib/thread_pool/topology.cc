@@ -209,7 +209,7 @@ HWY_CONTRIB_DLLEXPORT size_t TotalLogicalProcessors() {
     const PROCESSOR_RELATIONSHIP& p = info.Processor;
     total_lps += NumBits(p.GroupCount, p.GroupMask);
   });
-#elif HWY_OS_LINUX
+#elif HWY_OS_LINUX || HWY_OS_FREEBSD
   // Only check "online" because sysfs entries such as topology are missing for
   // offline CPUs, which will cause `DetectPackages` to fail.
   const long ret = sysconf(_SC_NPROCESSORS_ONLN);  // NOLINT(runtime/int)
