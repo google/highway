@@ -48,7 +48,6 @@ fmod, ilogb, lgamma, logb, modf, nextafter, nexttoward, scalbn, tgamma
 *   EqualSpan
 *   ReverseSpan
 *   ShuffleSpan
-*   IsSorted
 *   Reduce
 
 ### Range coder
@@ -105,6 +104,7 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 
 ## Done
 
+*   ~~IsSorted~~ (algo)
 *   ~~Signbit~~
 *   ~~ConvertF64<->I32~~ (math-inl)
 *   ~~Copysign~~ (math)

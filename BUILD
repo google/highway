@@ -317,6 +317,7 @@ cc_library(
         "hwy/contrib/algo/copy-inl.h",
         "hwy/contrib/algo/count-inl.h",
         "hwy/contrib/algo/find-inl.h",
+        "hwy/contrib/algo/is_sorted-inl.h",
         "hwy/contrib/algo/minmax-inl.h",
         "hwy/contrib/algo/transform-inl.h",
     ],

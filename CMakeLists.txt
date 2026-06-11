@@ -247,6 +247,7 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/algo/copy-inl.h
     hwy/contrib/algo/count-inl.h
     hwy/contrib/algo/find-inl.h
+    hwy/contrib/algo/is_sorted-inl.h
     hwy/contrib/algo/minmax-inl.h
     hwy/contrib/algo/transform-inl.h
     hwy/contrib/unroller/unroller-inl.h
@@ -950,6 +951,7 @@ list(APPEND HWY_TEST_FILES
   hwy/contrib/algo/copy_test.cc
   hwy/contrib/algo/count_value_test.cc
   hwy/contrib/algo/find_test.cc
+  hwy/contrib/algo/is_sorted_test.cc
   hwy/contrib/algo/minmax_value_test.cc
   hwy/contrib/algo/transform_test.cc
   hwy/contrib/bit_pack/bit_pack_test.cc
