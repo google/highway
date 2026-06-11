@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include <algorithm>
 #include <numeric>  // std::iota
 #include <random>
 #include <vector>
@@ -285,6 +286,77 @@ void TestPartialSortKEqualsN() {
   }
 }
 
+// VQSelect on a floating-point array containing NaN must still leave a
+// permutation of the input (NaNs allowed anywhere): no value may be created or
+// lost.
+template <typename T>
+void TestSelectWithNaNForType() {
+  const size_t num = AdjustedReps(100000);
+  const size_t k = num / 2;
+
+  std::vector<T> keys(num);
+  std::iota(keys.begin(), keys.end(), T{0});
+  std::mt19937_64 rng(123456789);
+  std::shuffle(keys.begin(), keys.end(), rng);
+
+  // Inject NaN at a handful of positions.
+  const ScalableTag<T> d;
+  const T kNaN = GetLane(NaN(d));
+  size_t injected = 0;
+  for (size_t i = 0; i < num; i += 9999) {
+    keys[i] = kNaN;
+    ++injected;
+  }
+
+  // Multiset of the finite values that a correct partition must preserve.
+  std::vector<T> finite_in;
+  for (T x : keys) {
+    if (x == x) finite_in.push_back(x);  // x != x  <=>  NaN
+  }
+  std::sort(finite_in.begin(), finite_in.end());
+
+  hwy::VQSelect(keys.data(), num, k, hwy::SortAscending());
+
+  const T kInf = GetLane(Inf(d));
+  size_t num_inf = 0, num_nan = 0;
+  std::vector<T> finite_out;
+  for (T x : keys) {
+    if (x != x) {
+      ++num_nan;
+    } else if (x == kInf || x == -kInf) {
+      ++num_inf;
+    } else {
+      finite_out.push_back(x);
+    }
+  }
+  std::sort(finite_out.begin(), finite_out.end());
+
+  if (num_inf != 0) {
+    HWY_ABORT("VQSelect leaked %zu inf into a NaN array (sizeof(T)=%zu)\n",
+              num_inf, sizeof(T));
+  }
+  if (num_nan != injected) {
+    HWY_ABORT("VQSelect changed NaN count: got %zu, want %zu (sizeof(T)=%zu)\n",
+              num_nan, injected, sizeof(T));
+  }
+  if (finite_out != finite_in) {
+    HWY_ABORT(
+        "VQSelect did not preserve the finite multiset: result is not a "
+        "permutation of the input (sizeof(T)=%zu)\n",
+        sizeof(T));
+  }
+}
+
+void TestSelectWithNaN() {
+  if (hwy::HaveFloat16()) {
+    TestSelectWithNaNForType<float16_t>();
+  }
+  TestSelectWithNaNForType<float>();
+  if (hwy::HaveFloat64()) {
+    TestSelectWithNaNForType<double>();
+  }
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -300,6 +372,7 @@ HWY_EXPORT_AND_TEST_P(SortTest, TestAllSort);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllSelect);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllPartialSort);
 HWY_EXPORT_AND_TEST_P(SortTest, TestPartialSortKEqualsN);
+HWY_EXPORT_AND_TEST_P(SortTest, TestSelectWithNaN);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy

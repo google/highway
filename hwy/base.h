@@ -1149,19 +1149,30 @@ HWY_API HWY_BITCASTSCALAR_CONSTEXPR To BitCastScalar(const From& val) {
 
 #pragma pack(push, 1)
 
-#ifndef HWY_NEON_HAVE_F16C  // allow override
+#ifndef HWY_ARM_HAVE_FLOAT16_TYPE  // allow override
+// Compiler supports _Float16: clang does on armv7 and armv8, GCC requires 13+.
+// Note that the clang intrinsics still use __fp16.
+#if HWY_ARCH_ARM_A64 && (HWY_COMPILER_CLANG || HWY_COMPILER_GCC_ACTUAL >= 1300)
+#define HWY_ARM_HAVE_FLOAT16_TYPE 1
+#else
+#define HWY_ARM_HAVE_FLOAT16_TYPE 0
+#endif
+#endif  // HWY_ARM_HAVE_FLOAT16_TYPE
+
+#ifndef HWY_ARM_HAVE_FP16  // allow override
 // Compiler supports __fp16 and load/store/conversion NEON intrinsics, which are
 // included in Armv8 and VFPv4 (except with MSVC). On Armv7 Clang requires
 // __ARM_FP & 2 whereas Armv7 GCC requires -mfp16-format=ieee.
 #if (HWY_ARCH_ARM_A64 && !HWY_COMPILER_MSVC) ||                    \
     (HWY_COMPILER_CLANG && defined(__ARM_FP) && (__ARM_FP & 2)) || \
     (HWY_COMPILER_GCC_ACTUAL && defined(__ARM_FP16_FORMAT_IEEE))
-#define HWY_NEON_HAVE_F16C 1
+#define HWY_ARM_HAVE_FP16 1
 #else
-#define HWY_NEON_HAVE_F16C 0
+#define HWY_ARM_HAVE_FP16 0
 #endif
-#endif  // HWY_NEON_HAVE_F16C
+#endif  // HWY_ARM_HAVE_FP16
 
+#ifndef HWY_RVV_HAVE_F16_VEC  // allow override
 // RVV with f16 extension supports _Float16 and f16 vector ops. If set, implies
 // HWY_HAVE_FLOAT16.
 #if HWY_ARCH_RISCV && defined(__riscv_zvfh) && HWY_COMPILER_CLANG >= 1600
@@ -1169,7 +1180,9 @@ HWY_API HWY_BITCASTSCALAR_CONSTEXPR To BitCastScalar(const From& val) {
 #else
 #define HWY_RVV_HAVE_F16_VEC 0
 #endif
+#endif  // HWY_RVV_HAVE_F16_VEC
 
+#ifndef HWY_SSE2_HAVE_F16_TYPE  // allow override
 // x86 compiler supports _Float16, not necessarily with operators.
 // Avoid clang-cl because it lacks __extendhfsf2.
 #if HWY_ARCH_X86 && defined(__SSE2__) && defined(__FLT16_MAX__) && \
@@ -1179,11 +1192,13 @@ HWY_API HWY_BITCASTSCALAR_CONSTEXPR To BitCastScalar(const From& val) {
 #else
 #define HWY_SSE2_HAVE_F16_TYPE 0
 #endif
+#endif  // HWY_SSE2_HAVE_F16_TYPE
 
 #ifndef HWY_HAVE_SCALAR_F16_TYPE  // allow override
-// Compiler supports _Float16, not necessarily with operators.
-#if HWY_NEON_HAVE_F16C || HWY_RVV_HAVE_F16_VEC || HWY_SSE2_HAVE_F16_TYPE || \
-    __SPIRV_DEVICE__
+// Highway's float16_t is a wrapper around a native type, though operators are
+// not necessarily supported. Otherwise, float16_t wraps uint16_t.
+#if HWY_ARM_HAVE_FLOAT16_TYPE || HWY_ARM_HAVE_FP16 || HWY_RVV_HAVE_F16_VEC || \
+    HWY_SSE2_HAVE_F16_TYPE || __SPIRV_DEVICE__
 #define HWY_HAVE_SCALAR_F16_TYPE 1
 #else
 #define HWY_HAVE_SCALAR_F16_TYPE 0
@@ -1234,20 +1249,14 @@ using NativeSpecialFloatToWrapper =
 // typedef to the native type to ensure that the same symbols, e.g. for VQSort,
 // are generated regardless of F16 support; see #1684.
 struct alignas(2) float16_t {
-#if HWY_HAVE_SCALAR_F16_TYPE
-#if HWY_RVV_HAVE_F16_VEC || HWY_SSE2_HAVE_F16_TYPE || __SPIRV_DEVICE__
-  using Native = _Float16;
-#elif HWY_NEON_HAVE_F16C
+#if HWY_ARM_HAVE_FP16
   using Native = __fp16;
-#else
-#error "Logic error: condition should be 'all but NEON_HAVE_F16C'"
-#endif
-#elif HWY_IDE
-  using Native = uint16_t;
+#elif HWY_HAVE_SCALAR_F16_TYPE
+  using Native = _Float16;
 #endif  // HWY_HAVE_SCALAR_F16_TYPE
 
   union {
-#if HWY_HAVE_SCALAR_F16_TYPE || HWY_IDE
+#if HWY_HAVE_SCALAR_F16_TYPE
     // Accessed via NativeLaneType, and used directly if
     // HWY_HAVE_SCALAR_F16_OPERATORS.
     Native native;
@@ -1268,13 +1277,11 @@ struct alignas(2) float16_t {
   // float16_t(intrinsic()), but user code expects implicit conversions.
   constexpr float16_t(Native arg) noexcept : native(arg) {}
   constexpr operator Native() const noexcept { return native; }
-#endif
 
-#if HWY_HAVE_SCALAR_F16_TYPE
   static HWY_BITCASTSCALAR_CONSTEXPR float16_t FromBits(uint16_t bits) {
     return float16_t(BitCastScalar<Native>(bits));
   }
-#else
+#else   // !HWY_HAVE_SCALAR_F16_TYPE
 
  private:
   struct F16FromU16BitsTag {};
@@ -1285,7 +1292,7 @@ struct alignas(2) float16_t {
   static constexpr float16_t FromBits(uint16_t bits) {
     return float16_t(F16FromU16BitsTag(), bits);
   }
-#endif
+#endif  // HWY_HAVE_SCALAR_F16_TYPE
 
   // When backed by a native type, ensure the wrapper behaves like the native
   // type by forwarding all operators. Unfortunately it seems difficult to reuse

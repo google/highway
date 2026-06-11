@@ -1956,6 +1956,44 @@ HWY_INLINE size_t CountAndReplaceNaN(D, Traits, T* HWY_RESTRICT, size_t) {
   return 0;
 }
 
+// Scans the array for sentinel values (st.LastValue) that were substituted for
+// NaN by CountAndReplaceNaN, and replaces exactly `num_nan` of them back to
+// NaN. Unlike Fill() at the tail, this is safe for Select/PartialSort where
+// the sentinels may not have migrated to the back of the array.
+template <class D, class Traits, typename T, HWY_IF_FLOAT(T)>
+HWY_INLINE void ReplaceSentinelWithNaN(D d, Traits st, T* HWY_RESTRICT keys,
+                                       size_t num, size_t num_nan) {
+  const size_t N = Lanes(d);
+  const Vec<D> sentinel = st.LastValue(d);
+  const Vec<D> nan = NaN(d);
+  size_t replaced = 0;
+  size_t i = 0;
+  if (num >= N) {
+    for (; i <= num - N; i += N) {
+      const Vec<D> v = LoadU(d, keys + i);
+      const Mask<D> is_sentinel = Eq(v, sentinel);
+      const size_t count = CountTrue(d, is_sentinel);
+      BlendedStore(nan, is_sentinel, d, keys + i);
+      replaced += count;
+      if (replaced >= num_nan) return;
+    }
+  }
+
+  const size_t remaining = num - i;
+  if (remaining != 0) {
+    const Vec<D> v = LoadN(d, keys + i, remaining);
+    const Mask<D> is_sentinel = Eq(v, sentinel);
+    const size_t count = CountTrue(d, is_sentinel);
+    StoreN(IfThenElse(is_sentinel, nan, v), d, keys + i, remaining);
+    replaced += count;
+  }
+  HWY_DASSERT(replaced == num_nan);
+}
+
+template <class D, class Traits, typename T, HWY_IF_NOT_FLOAT(T)>
+HWY_INLINE void ReplaceSentinelWithNaN(D, Traits, T* HWY_RESTRICT, size_t,
+                                       size_t) {}
+
 }  // namespace detail
 
 // Old interface with user-specified buffer, retained for compatibility. Called
@@ -2045,7 +2083,9 @@ void PartialSort(D d, Traits st, T* HWY_RESTRICT keys, size_t num, size_t k,
 #endif  // VQSORT_ENABLED
 
   if (num_nan != 0) {
-    Fill(d, GetLane(NaN(d)), num_nan, keys + num - num_nan);
+    // Unlike a full sort, partial sort does not guarantee all sentinels end up
+    // at the back, so we must scan for them rather than blindly overwriting.
+    detail::ReplaceSentinelWithNaN(d, st, keys, num, num_nan);
   }
 }
 
@@ -2086,7 +2126,9 @@ void Select(D d, Traits st, T* HWY_RESTRICT keys, const size_t num,
 #endif  // VQSORT_ENABLED
 
   if (num_nan != 0) {
-    Fill(d, GetLane(NaN(d)), num_nan, keys + num - num_nan);
+    // Unlike a full sort, select does not guarantee all sentinels end up at
+    // the back, so we must scan for them rather than blindly overwriting.
+    detail::ReplaceSentinelWithNaN(d, st, keys, num, num_nan);
   }
 }
 

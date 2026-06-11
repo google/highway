@@ -279,7 +279,7 @@ else
             '-mfpu=neon-vfpv4',
             '-mfloat-abi=hard',
             '-DHWY_HAVE_SCALAR_F16_TYPE=0',  # See #2625
-            '-DHWY_NEON_HAVE_F16C=0',
+            '-DHWY_ARM_HAVE_FP16=0',
         ]
         if cpp.get_id() == 'gcc'
             hwy_cpp_args += '-mfp16-format=ieee'
