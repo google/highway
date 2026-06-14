@@ -1292,6 +1292,24 @@ struct alignas(2) float16_t {
   static constexpr float16_t FromBits(uint16_t bits) {
     return float16_t(F16FromU16BitsTag(), bits);
   }
+
+  // Emulated scalar operators so generic code (e.g. std::iota, unary minus)
+  // also compiles when there is no native _Float16. Construction and
+  // increment/decrement use ConvertScalarTo, defined after the struct, so they
+  // are declared here and defined out-of-class below.
+  template <typename T, HWY_IF_NOT_F16(T)>
+  explicit constexpr float16_t(T arg);
+
+  // Unary minus is an exact sign-bit flip; no conversion needed.
+  constexpr float16_t operator-() const noexcept {
+    return FromBits(static_cast<uint16_t>(bits ^ uint16_t{0x8000}));
+  }
+  constexpr float16_t operator+() const noexcept { return *this; }
+
+  HWY_CXX14_CONSTEXPR float16_t& operator++() noexcept;
+  HWY_CXX14_CONSTEXPR float16_t operator++(int) noexcept;
+  HWY_CXX14_CONSTEXPR float16_t& operator--() noexcept;
+  HWY_CXX14_CONSTEXPR float16_t operator--(int) noexcept;
 #endif  // HWY_HAVE_SCALAR_F16_TYPE
 
   // When backed by a native type, ensure the wrapper behaves like the native
@@ -1701,11 +1719,13 @@ HWY_F16_CONSTEXPR inline std::partial_ordering operator<=>(
 #endif  // HWY_SSE2_HAVE_SCALAR_BF16_TYPE
 
 // Compiler supports __bf16, not necessarily with operators.
+#ifndef HWY_HAVE_SCALAR_BF16_TYPE  // allow override
 #if HWY_ARM_HAVE_SCALAR_BF16_TYPE || HWY_SSE2_HAVE_SCALAR_BF16_TYPE
 #define HWY_HAVE_SCALAR_BF16_TYPE 1
 #else
 #define HWY_HAVE_SCALAR_BF16_TYPE 0
 #endif
+#endif  // HWY_HAVE_SCALAR_BF16_TYPE
 
 #ifndef HWY_HAVE_SCALAR_BF16_OPERATORS
 // Recent enough compiler also has operators. aarch64 clang 18 hits internal
@@ -1772,6 +1792,20 @@ struct alignas(2) bfloat16_t {
   static constexpr bfloat16_t FromBits(uint16_t bits) {
     return bfloat16_t(BF16FromU16BitsTag(), bits);
   }
+
+  // Emulated scalar operators (mirrors float16_t).
+  template <typename T, HWY_IF_NOT_BF16(T)>
+  explicit constexpr bfloat16_t(T arg);
+
+  constexpr bfloat16_t operator-() const noexcept {
+    return FromBits(static_cast<uint16_t>(bits ^ uint16_t{0x8000}));
+  }
+  constexpr bfloat16_t operator+() const noexcept { return *this; }
+
+  HWY_CXX14_CONSTEXPR bfloat16_t& operator++() noexcept;
+  HWY_CXX14_CONSTEXPR bfloat16_t operator++(int) noexcept;
+  HWY_CXX14_CONSTEXPR bfloat16_t& operator--() noexcept;
+  HWY_CXX14_CONSTEXPR bfloat16_t operator--(int) noexcept;
 #endif
 
   // When backed by a native type, ensure the wrapper behaves like the native
@@ -2718,6 +2752,61 @@ HWY_API constexpr TTo ConvertScalarTo(TFrom in) {
                   : 0>(),
           static_cast<TFrom&&>(in)));
 }
+
+#if !HWY_HAVE_SCALAR_F16_TYPE
+// Emulated float16_t operators (declared in the struct). ConvertScalarTo
+// converts any scalar to/from f16 without spelling out the F32/F64 converter.
+template <typename T,
+          hwy::EnableIf<!hwy::IsSame<hwy::RemoveCvRef<T>, hwy::float16_t>()>*>
+constexpr float16_t::float16_t(T arg)
+    : float16_t(ConvertScalarTo<float16_t>(arg)) {}
+
+HWY_CXX14_CONSTEXPR inline float16_t& float16_t::operator++() noexcept {
+  bits = ConvertScalarTo<float16_t>(ConvertScalarTo<float>(*this) + 1.0f).bits;
+  return *this;
+}
+HWY_CXX14_CONSTEXPR inline float16_t float16_t::operator++(int) noexcept {
+  const float16_t result = *this;
+  ++*this;
+  return result;
+}
+HWY_CXX14_CONSTEXPR inline float16_t& float16_t::operator--() noexcept {
+  bits = ConvertScalarTo<float16_t>(ConvertScalarTo<float>(*this) - 1.0f).bits;
+  return *this;
+}
+HWY_CXX14_CONSTEXPR inline float16_t float16_t::operator--(int) noexcept {
+  const float16_t result = *this;
+  --*this;
+  return result;
+}
+#endif  // !HWY_HAVE_SCALAR_F16_TYPE
+
+#if !HWY_HAVE_SCALAR_BF16_TYPE
+// Emulated bfloat16_t operators (mirrors float16_t).
+template <typename T,
+          hwy::EnableIf<!hwy::IsSame<hwy::RemoveCvRef<T>, hwy::bfloat16_t>()>*>
+constexpr bfloat16_t::bfloat16_t(T arg)
+    : bfloat16_t(ConvertScalarTo<bfloat16_t>(arg)) {}
+
+HWY_CXX14_CONSTEXPR inline bfloat16_t& bfloat16_t::operator++() noexcept {
+  bits = ConvertScalarTo<bfloat16_t>(ConvertScalarTo<float>(*this) + 1.0f).bits;
+  return *this;
+}
+HWY_CXX14_CONSTEXPR inline bfloat16_t bfloat16_t::operator++(int) noexcept {
+  const bfloat16_t result = *this;
+  ++*this;
+  return result;
+}
+HWY_CXX14_CONSTEXPR inline bfloat16_t& bfloat16_t::operator--() noexcept {
+  bits = ConvertScalarTo<bfloat16_t>(ConvertScalarTo<float>(*this) - 1.0f).bits;
+  return *this;
+}
+HWY_CXX14_CONSTEXPR inline bfloat16_t bfloat16_t::operator--(int) noexcept {
+  const bfloat16_t result = *this;
+  --*this;
+  return result;
+}
+#endif  // !HWY_HAVE_SCALAR_BF16_TYPE
 
 //------------------------------------------------------------------------------
 // Helper functions
