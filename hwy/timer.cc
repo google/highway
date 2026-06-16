@@ -20,6 +20,10 @@
 #include <chrono>  // NOLINT
 #include <ratio>   // NOLINT
 
+#if HWY_OS_APPLE
+#include <sys/sysctl.h>
+#endif
+
 #include "hwy/base.h"
 #include "hwy/robust_statistics.h"
 #include "hwy/x86_cpuid.h"
@@ -113,6 +117,16 @@ HWY_DLLEXPORT bool GetCpuString(char* cpu100) {
   cpu100[48] = '\0';
   return true;
 #else
+#if HWY_OS_APPLE && (HWY_ARCH_X86 || HWY_ARCH_ARM_A64)
+  size_t len;
+
+  // This will only work on macOS; other Apple XNU/Darwin platforms do not expose this value
+  if (sysctlbyname("machdep.cpu.brand_string", NULL, &len, NULL, 0) == 0) {
+    if (len < 99 && sysctlbyname("machdep.cpu.brand_string", cpu100, &len, NULL, 0) == 0) {
+      return true;
+    }
+  }
+#endif
   cpu100[0] = '?';
   cpu100[1] = '\0';
   return false;
