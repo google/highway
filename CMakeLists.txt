@@ -87,6 +87,14 @@ set(HWY_ENABLE_EXAMPLES ON CACHE BOOL "Build examples")
 set(HWY_ENABLE_INSTALL ON CACHE BOOL "Install library")
 set(HWY_ENABLE_TESTS ON CACHE BOOL "Enable HWY tests")
 
+# CMake 3.21 introduces PROJECT_IS_TOP_LEVEL / <PROJECT-NAME>_IS_TOP_LEVEL
+if(NOT DEFINED PROJECT_IS_TOP_LEVEL OR NOT DEFINED ${PROJECT_NAME}_IS_TOP_LEVEL)
+  set(PROJECT_IS_TOP_LEVEL ${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_SOURCE_DIR})
+  set(${PROJECT_NAME}_IS_TOP_LEVEL ${PROJECT_IS_TOP_LEVEL})
+endif()
+
+set(HWY_ENABLE_LIST_TARGETS ${PROJECT_IS_TOP_LEVEL} CACHE BOOL "Build hwy_list_targets")
+
 if (MSVC)
 set(HWY_TEST_STANDALONE ON CACHE BOOL "Disable use of googletest")
 else()
@@ -625,7 +633,7 @@ if(UNIX AND NOT APPLE)
 endif()
 endif()  # HWY_ENABLE_TESTS
 
-if (CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+if (HWY_ENABLE_LIST_TARGETS)
 # -------------------------------------------------------- hwy_list_targets
 # Generate a tool to print the compiled-in targets as defined by the current
 # flags. This tool will print to stderr at build time, after building hwy.
