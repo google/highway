@@ -295,7 +295,10 @@ void TestSelectWithNaNForType() {
   const size_t k = num / 2;
 
   std::vector<T> keys(num);
-  std::iota(keys.begin(), keys.end(), T{0});
+  // Not std::iota: emulated float16_t lacks construction from int.
+  for (size_t i = 0; i < num; ++i) {
+    keys[i] = ConvertScalarTo<T>(i);
+  }
   std::mt19937_64 rng(123456789);
   std::shuffle(keys.begin(), keys.end(), rng);
 
@@ -323,7 +326,7 @@ void TestSelectWithNaNForType() {
   for (T x : keys) {
     if (x != x) {
       ++num_nan;
-    } else if (x == kInf || x == -kInf) {
+    } else if (ScalarAbs(x) == kInf) {  // emulated float16_t lacks unary minus
       ++num_inf;
     } else {
       finite_out.push_back(x);
