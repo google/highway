@@ -680,6 +680,7 @@ if tests_enabled
             'hwy/contrib/algo/transform_test.cc',
             'hwy/contrib/bit_pack/bit_pack_test.cc',
             'hwy/contrib/dot/dot_test.cc',
+            'hwy/contrib/dot/dot_bench.cc',
             'hwy/contrib/matvec/matvec_test.cc',
             'hwy/contrib/image/image_test.cc',
             'hwy/contrib/math/fast_math_test.cc',

@@ -43,6 +43,11 @@ HWY_CONTRIB_TESTS = (
         [":dot"],
     ),
     (
+        "hwy/contrib/dot/",
+        "dot_bench",
+        (":dot", ":random"),
+    ),
+    (
         "hwy/contrib/image/",
         "image_test",
         [":image"],
