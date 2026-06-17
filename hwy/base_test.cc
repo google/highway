@@ -846,6 +846,42 @@ struct TestSpecialFloat {
             hwy::EnableIf<!EnableSpecialFloatArithOpTest<T>()>* = nullptr>
   static HWY_INLINE void TestSpecialFloatArithOperators(T /*unused*/) {}
 
+  // The emulated scalar operators (value ctor, unary minus, ++/--) are provided
+  // when the special float lacks a native type. When a native type exists they
+  // are only available if the native operators are (HWY_HAVE_SCALAR_*_OPERATORS).
+  template <class T>
+  static constexpr bool EnableSpecialFloatScalarOpsTest() {
+    return (hwy::IsSame<T, float16_t>() &&
+            (HWY_HAVE_SCALAR_F16_OPERATORS || !HWY_HAVE_SCALAR_F16_TYPE)) ||
+           (hwy::IsSame<T, bfloat16_t>() &&
+            (HWY_HAVE_SCALAR_BF16_OPERATORS || !HWY_HAVE_SCALAR_BF16_TYPE));
+  }
+
+  // Value construction, unary minus, and increment/decrement work for both
+  // special floats on every target, including those that emulate them with a
+  // uint16_t (where these previously failed to compile). Both float16_t and
+  // bfloat16_t now provide them.
+  template <class T,
+            hwy::EnableIf<EnableSpecialFloatScalarOpsTest<T>()>* = nullptr>
+  static HWY_NOINLINE void TestSpecialFloatScalarOps(T /*unused*/) {
+    HWY_ASSERT_EQ(2.0f, ConvertScalarTo<float>(T(2)));    // value ctor from int
+    HWY_ASSERT_EQ(2.5f, ConvertScalarTo<float>(T(2.5)));  // value ctor from double
+    HWY_ASSERT_EQ(-3.0f, ConvertScalarTo<float>(-T(3)));  // unary minus
+    // Start from a value the compiler cannot predict, then PreventElision on
+    // the result so the increment/decrement is not optimized away.
+    T inc = T(Unpredictable1());  // == 1
+    ++inc;                        // 2
+    HWY_ASSERT_EQ(2.0f, ConvertScalarTo<float>(inc));  // pre-increment
+    PreventElision(inc);
+    T dec = T(Unpredictable1());  // == 1
+    --dec;                        // 0
+    HWY_ASSERT_EQ(0.0f, ConvertScalarTo<float>(dec));  // pre-decrement
+    PreventElision(dec);
+  }
+  template <class T,
+            hwy::EnableIf<!EnableSpecialFloatScalarOpsTest<T>()>* = nullptr>
+  static HWY_INLINE void TestSpecialFloatScalarOps(T /*unused*/) {}
+
   template <class T>
   HWY_NOINLINE void operator()(T /*unused*/) const {
     static_assert(IsSpecialFloat<T>(), "IsSpecialFloat<T>() must be true");
@@ -894,6 +930,7 @@ struct TestSpecialFloat {
     HWY_ASSERT(ConvertScalarTo<T>(41984.0f) >= ConvertScalarTo<T>(370.0f));
 
     TestSpecialFloatArithOperators(T());
+    TestSpecialFloatScalarOps(T());
   }
 };
 
