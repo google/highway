@@ -92,13 +92,7 @@ class Phast {
   HWY_INLINE void operator()(DU32 du32, VU32 key0, VU32 key1, VU32& idx0,
                              VU32& idx1) const {
     hash_.TwoVec(du32, key0, key1);
-
-    const VU32 bucket_mask = Set(du32, data_.config.bucket_mask);
-    const VU32 seed0 = GatherSeeds(du32, And(key0, bucket_mask));
-    const VU32 seed1 = GatherSeeds(du32, And(key1, bucket_mask));
-
-    PosFromHashAndSeed(data_.config.placement, du32, key0, key1, seed0, seed1,
-                       idx0, idx1);
+    PosFromHash(du32, key0, key1, idx0, idx1);
   }
 
   // Maps (hash, seed) -> position. Used by the query operators above and
@@ -129,6 +123,18 @@ class Phast {
     Placement(du32, hash0, hash1, seed0, seed1, ofs0, ofs1);
     idx0 = Add(slice_offset0, And(ofs0, slice_mask));
     idx1 = Add(slice_offset1, And(ofs1, slice_mask));
+  }
+
+  // For when we already have the hash values, but not yet the seeds.
+  template <class DU32, class VU32 = Vec<DU32>>
+  HWY_INLINE void PosFromHash(DU32 du32, const VU32 hash0, const VU32 hash1,
+                              VU32& idx0, VU32& idx1) const {
+    const VU32 bucket_mask = Set(du32, data_.config.bucket_mask);
+    const VU32 seed0 = GatherSeeds(du32, And(hash0, bucket_mask));
+    const VU32 seed1 = GatherSeeds(du32, And(hash1, bucket_mask));
+
+    PosFromHashAndSeed(data_.config.placement, du32, hash0, hash1, seed0, seed1,
+                       idx0, idx1);
   }
 
  private:
@@ -194,16 +200,27 @@ class Phast {
     const RebindToSigned<DU32> di32;
     const Repartition<uint8_t, DU32> du8;
     using VU8 = Vec<decltype(du8)>;
+
     const VU32 word_idx = ShiftRight<2>(bucket_idx);
-    const VU32 words =
-        GatherIndex(du32, data_.seeds.Data(), BitCast(di32, word_idx));
-    // 0-3 in the low byte of each u32 lane; upper bytes are 0.
-    const VU8 byte_idx = BitCast(du8, And(bucket_idx, Set(du32, 3)));
+
     // Add 4*iota to byte_idx, setting the starting offset for each u32 lane.
     // Setting the upper 3 bytes >= 0x80 ensures they are zeroed.
     const VU8 kBase =
         Dup128VecFromValues(du8, 0, 0x80, 0x80, 0x80, 4, 0x80, 0x80, 0x80, 8,
                             0x80, 0x80, 0x80, 12, 0x80, 0x80, 0x80);
+
+#if HWY_TARGET == HWY_AVX2
+    // AVX2 GatherIndex sets up a mask, but we already have one from kBase.
+    // The MSB is set, which is sufficient for MaskedGatherIndex.
+    const auto mask = MaskFromVec(BitCast(du32, kBase));
+    const VU32 words = MaskedGatherIndex(mask, du32, data_.seeds.Data(),
+                                         BitCast(di32, word_idx));
+#else
+    const VU32 words =
+        GatherIndex(du32, data_.seeds.Data(), BitCast(di32, word_idx));
+#endif
+    // 0-3 in the low byte of each u32 lane; upper bytes are 0.
+    const VU8 byte_idx = BitCast(du8, And(bucket_idx, Set(du32, 3)));
     const VU8 indices = Or(byte_idx, kBase);
     return BitCast(du32, TableLookupBytesOr0(words, indices));
   }

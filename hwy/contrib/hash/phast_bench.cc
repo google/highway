@@ -151,8 +151,8 @@ HWY_NOINLINE void TestBW() {
          num_bytes / elapsed * 1E-9);
 }
 
-// Benchmarks PHAST used as a hash table, with an extra Gather at the returned
-// index to verify set membership.
+// Benchmarks PHAST + u16 verification, which saves memory while still only
+// using native u32 gathers.
 HWY_NOINLINE void TestThroughput() {
   // Too slow under MSAN/TSAN.
 #if !HWY_IS_MSAN && !HWY_IS_TSAN
@@ -161,6 +161,7 @@ HWY_NOINLINE void TestThroughput() {
 
   const AlignedVector<uint32_t> keys = GenerateKeys(kNumKeys);
   const Phast phast = MakePhast(keys.data(), keys.size(), pool);
+  const Triple32 hash(phast.Data().config.hash_key);
 
   const ScalableTag<uint32_t> du32;
   const RebindToSigned<decltype(du32)> di32;
@@ -169,46 +170,82 @@ HWY_NOINLINE void TestThroughput() {
   HWY_LANES_CONSTEXPR size_t N = Lanes(du32);
   HWY_ASSERT(kNumKeys % (2 * N) == 0);  // See GenerateKeys().
 
-  // Scatter keys to the verification slots. Could also sort K32V32 and copy.
-  AlignedVector<uint32_t> key_verify(phast.Data().NumSlots());
+  // Store u16 fingerprints at PHAST positions. The fps array is indexed as
+  // u16, but we gather as u32 (pairs of adjacent fps).
+  const size_t num_slots = phast.Data().NumSlots();
+  // +1 to ensure the last odd-indexed u16 has a valid u32 to gather from.
+  AlignedVector<uint32_t> fp_u32(DivCeil(num_slots + 1, size_t{2}));
+  const VU32 k1 = Set(du32, 1);
+
+  // Populate fp_u32: non-vectorized due to scatter conflicts: updates to the
+  // same u32 word from different lanes would be lost. This is anyway a
+  // build-time operation.
   for (size_t i = 0; i < kNumKeys; i += 2 * N) {
-    const VU32 keys0 = Load(du32, &keys[i]);
-    const VU32 keys1 = Load(du32, &keys[i + N]);
+    VU32 h0 = Load(du32, &keys[i]);
+    VU32 h1 = Load(du32, &keys[i + N]);
+    hash.TwoVec(du32, h0, h1);
     VU32 idx0, idx1;
-    phast(du32, keys0, keys1, idx0, idx1);
-    ScatterIndex(keys0, du32, key_verify.data(), BitCast(di32, idx0));
-    ScatterIndex(keys1, du32, key_verify.data(), BitCast(di32, idx1));
+    phast.PosFromHash(du32, h0, h1, idx0, idx1);
+    HWY_ALIGN uint32_t fp_buf[4 * MaxLanes(du32)];
+    Store(ShiftRight<16>(h0), du32, fp_buf);
+    Store(ShiftRight<16>(h1), du32, fp_buf + 1 * N);
+    Store(idx0, du32, fp_buf + 2 * N);
+    Store(idx1, du32, fp_buf + 3 * N);
+    for (size_t j = 0; j < 2 * N; ++j) {
+      const uint32_t idx = fp_buf[2 * N + j];
+      const uint32_t fp = fp_buf[j];
+      const uint32_t word_idx = idx >> 1;
+      const uint32_t shift = (idx & 1) * 16;
+      fp_u32[word_idx] |= (fp << shift);
+    }
   }
 
-  // Each worker starts at a different offset in the keys to avoid unrealistic
-  // cache behavior, without requiring separate per-worker allocations.
+  // Each worker starts at a different offset in the keys.
   const size_t keys_per_chunk =
       RoundDownTo(kNumKeys / pool.NumWorkers(), 2 * N);
 
+  const VU32 kFPMask = Set(du32, 0xFFFF);
+
   AlignedVector<uint8_t> per_worker(pool.NumWorkers() * HWY_ALIGNMENT);
-  MeasureResult result =
-      Measure([&](FuncInput func_input) {
-        pool.Run(0, pool.NumWorkers(), [&](uint64_t task_idx, size_t worker) {
-          MU32 eq0 = SetMask(du32, true);
-          MU32 eq1 = SetMask(du32, true);
-          for (size_t i = 0; i < kNumKeys; i += 2 * N) {
-            // Faster to wrap than have two loops (likely due to code size).
-            const size_t wrapped_i = (worker * keys_per_chunk + i) % kNumKeys;
-            const VU32 keys0 = Load(du32, &keys[wrapped_i]);
-            const VU32 keys1 = Load(du32, &keys[wrapped_i + N]);
-            VU32 idx0, idx1;
-            phast(du32, keys0, keys1, idx0, idx1);
-            eq0 = MaskedEq(
-                eq0, keys0,
-                GatherIndex(du32, key_verify.data(), BitCast(di32, idx0)));
-            eq1 = MaskedEq(
-                eq1, keys1,
-                GatherIndex(du32, key_verify.data(), BitCast(di32, idx1)));
-          }
-          per_worker[worker * HWY_ALIGNMENT] = AllTrue(du32, And(eq0, eq1));
-        });
-        return per_worker[Unpredictable1() * HWY_ALIGNMENT];
-      });
+  MeasureResult result = Measure([&](FuncInput func_input) {
+    pool.Run(0, pool.NumWorkers(), [&](uint64_t task_idx, size_t worker) {
+      MU32 eq0 = SetMask(du32, true);
+      MU32 eq1 = SetMask(du32, true);
+      for (size_t i = 0; i < kNumKeys; i += 2 * N) {
+        // Faster to wrap than have two loops (likely due to code size).
+        const size_t wrapped_i = (worker * keys_per_chunk + i) % kNumKeys;
+        VU32 hash0 = Load(du32, &keys[wrapped_i]);
+        VU32 hash1 = Load(du32, &keys[wrapped_i + N]);
+
+        // Hash keys - for expected fingerprints (upper 16 bits) and PHAST.
+        hash.TwoVec(du32, hash0, hash1);
+        const VU32 expected0 = ShiftRight<16>(hash0);
+        const VU32 expected1 = ShiftRight<16>(hash1);
+        VU32 idx0, idx1;
+        phast.PosFromHash(du32, hash0, hash1, idx0, idx1);
+
+        // Gather u32 words containing our u16 fp (one u32 gather per N).
+        const VU32 word_idx0 = ShiftRight<1>(idx0);
+        const VU32 word_idx1 = ShiftRight<1>(idx1);
+        const VU32 word0 = MaskedGatherIndex(eq0, du32, fp_u32.data(),
+                                             BitCast(di32, word_idx0));
+        const VU32 word1 = MaskedGatherIndex(eq1, du32, fp_u32.data(),
+                                             BitCast(di32, word_idx1));
+
+        // Extract correct u16: if pos is odd, shift right by 16.
+        const MU32 is_odd0 = Ne(And(idx0, k1), Zero(du32));
+        const MU32 is_odd1 = Ne(And(idx1, k1), Zero(du32));
+        const VU32 shifted0 = MaskedShiftRightOr<16>(word0, is_odd0, word0);
+        const VU32 shifted1 = MaskedShiftRightOr<16>(word1, is_odd1, word1);
+        const VU32 our_fp0 = And(shifted0, kFPMask);
+        const VU32 our_fp1 = And(shifted1, kFPMask);
+        eq0 = MaskedEq(eq0, expected0, our_fp0);
+        eq1 = MaskedEq(eq1, expected1, our_fp1);
+      }
+      per_worker[worker * HWY_ALIGNMENT] = AllTrue(du32, And(eq0, eq1));
+    });
+    return per_worker[Unpredictable1() * HWY_ALIGNMENT];
+  });
   for (size_t i = 0; i < pool.NumWorkers(); ++i) {
     HWY_ASSERT(per_worker[i * HWY_ALIGNMENT]);
   }
