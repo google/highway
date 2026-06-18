@@ -1183,7 +1183,7 @@ HWY_SVE_FOREACH_U(HWY_SVE_SHIFT_Z, MaskedShiftRight, lsr_n)
 
 #undef HWY_SVE_SHIFT_Z
 
-// ------------------------------ MaskedShiftRightOr
+// ------------------------------ MaskedShift[Left/Right]Or
 
 #define HWY_SVE_SHIFT_OR(BASE, CHAR, BITS, HALF, NAME, OP)                  \
   template <int kBits>                                                      \
@@ -1193,6 +1193,7 @@ HWY_SVE_FOREACH_U(HWY_SVE_SHIFT_Z, MaskedShiftRight, lsr_n)
     return svsel##_##CHAR##BITS(m, sv##OP##_##CHAR##BITS##_z(m, v, shifts), \
                                 no);                                        \
   }
+HWY_SVE_FOREACH_UI(HWY_SVE_SHIFT_OR, MaskedShiftLeftOr, lsl_n)
 HWY_SVE_FOREACH_I(HWY_SVE_SHIFT_OR, MaskedShiftRightOr, asr_n)
 HWY_SVE_FOREACH_U(HWY_SVE_SHIFT_OR, MaskedShiftRightOr, lsr_n)
 

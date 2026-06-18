@@ -1197,6 +1197,10 @@ A compound shift on 64-bit values:
     int` or `0` if `mask[i]` is false.
 
 *   `V`: `{u,i}` \
+    <code>V **MaskedShiftLeftOr**&lt;int&gt;(V no, M mask, V a)</code> returns
+    `a[i] << int` or `no[i]` if `mask[i]` is false.
+
+*   `V`: `{u,i}` \
     <code>V **MaskedShiftRightOr**&lt;int&gt;(V no, M mask, V a)</code> returns
     `a[i] >> int` or `no[i]` if `mask[i]` is false.
 

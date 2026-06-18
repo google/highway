@@ -6102,6 +6102,164 @@ HWY_API Mask128<double, N> MaskedIsNaN(Mask128<double, N> m,
       m.raw, v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
 }
 
+// ------------------------------ MaskedShift*
+
+// Left Shift
+template <int kShift, typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec128<T, N> MaskedShiftLeft(Mask128<T, N> m, Vec128<T, N> a) {
+  return IfThenElseZero(m, ShiftLeft<kShift>(a));
+}
+template <int kShift, size_t N>
+HWY_API Vec128<uint16_t, N> MaskedShiftLeft(Mask128<uint16_t, N> m,
+                                            Vec128<uint16_t, N> a) {
+  return Vec128<uint16_t, N>{_mm_maskz_slli_epi16(m.raw, a.raw, kShift)};
+}
+template <int kShift, size_t N>
+HWY_API Vec128<int16_t, N> MaskedShiftLeft(Mask128<int16_t, N> m,
+                                           Vec128<int16_t, N> a) {
+  return Vec128<int16_t, N>{_mm_maskz_slli_epi16(m.raw, a.raw, kShift)};
+}
+template <int kShift, size_t N>
+HWY_API Vec128<uint32_t, N> MaskedShiftLeft(Mask128<uint32_t, N> m,
+                                            Vec128<uint32_t, N> a) {
+  return Vec128<uint32_t, N>{_mm_maskz_slli_epi32(m.raw, a.raw, kShift)};
+}
+template <int kShift, size_t N>
+HWY_API Vec128<int32_t, N> MaskedShiftLeft(Mask128<int32_t, N> m,
+                                           Vec128<int32_t, N> a) {
+  return Vec128<int32_t, N>{_mm_maskz_slli_epi32(m.raw, a.raw, kShift)};
+}
+template <int kShift, size_t N>
+HWY_API Vec128<uint64_t, N> MaskedShiftLeft(Mask128<uint64_t, N> m,
+                                            Vec128<uint64_t, N> a) {
+  return Vec128<uint64_t, N>{_mm_maskz_slli_epi64(m.raw, a.raw, kShift)};
+}
+template <int kShift, size_t N>
+HWY_API Vec128<int64_t, N> MaskedShiftLeft(Mask128<int64_t, N> m,
+                                           Vec128<int64_t, N> a) {
+  return Vec128<int64_t, N>{_mm_maskz_slli_epi64(m.raw, a.raw, kShift)};
+}
+
+template <int kShift, typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec128<T, N> MaskedShiftLeftOr(Vec128<T, N> no, Mask128<T, N> m,
+                                       Vec128<T, N> a) {
+  return IfThenElse(m, ShiftLeft<kShift>(a), no);
+}
+template <int kShift, size_t N>
+HWY_API Vec128<uint16_t, N> MaskedShiftLeftOr(Vec128<uint16_t, N> no,
+                                              Mask128<uint16_t, N> m,
+                                              Vec128<uint16_t, N> a) {
+  return Vec128<uint16_t, N>{_mm_mask_slli_epi16(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, size_t N>
+HWY_API Vec128<int16_t, N> MaskedShiftLeftOr(Vec128<int16_t, N> no,
+                                             Mask128<int16_t, N> m,
+                                             Vec128<int16_t, N> a) {
+  return Vec128<int16_t, N>{_mm_mask_slli_epi16(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, size_t N>
+HWY_API Vec128<uint32_t, N> MaskedShiftLeftOr(Vec128<uint32_t, N> no,
+                                              Mask128<uint32_t, N> m,
+                                              Vec128<uint32_t, N> a) {
+  return Vec128<uint32_t, N>{_mm_mask_slli_epi32(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, size_t N>
+HWY_API Vec128<int32_t, N> MaskedShiftLeftOr(Vec128<int32_t, N> no,
+                                             Mask128<int32_t, N> m,
+                                             Vec128<int32_t, N> a) {
+  return Vec128<int32_t, N>{_mm_mask_slli_epi32(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, size_t N>
+HWY_API Vec128<uint64_t, N> MaskedShiftLeftOr(Vec128<uint64_t, N> no,
+                                              Mask128<uint64_t, N> m,
+                                              Vec128<uint64_t, N> a) {
+  return Vec128<uint64_t, N>{_mm_mask_slli_epi64(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, size_t N>
+HWY_API Vec128<int64_t, N> MaskedShiftLeftOr(Vec128<int64_t, N> no,
+                                             Mask128<int64_t, N> m,
+                                             Vec128<int64_t, N> a) {
+  return Vec128<int64_t, N>{_mm_mask_slli_epi64(no.raw, m.raw, a.raw, kShift)};
+}
+
+// Right Shift
+template <int kShift, typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec128<T, N> MaskedShiftRight(Mask128<T, N> m, Vec128<T, N> a) {
+  return IfThenElseZero(m, ShiftRight<kShift>(a));
+}
+template <int kShift, size_t N>
+HWY_API Vec128<uint16_t, N> MaskedShiftRight(Mask128<uint16_t, N> m,
+                                             Vec128<uint16_t, N> a) {
+  return Vec128<uint16_t, N>{_mm_maskz_srli_epi16(m.raw, a.raw, kShift)};
+}
+template <int kShift, size_t N>
+HWY_API Vec128<int16_t, N> MaskedShiftRight(Mask128<int16_t, N> m,
+                                            Vec128<int16_t, N> a) {
+  return Vec128<int16_t, N>{_mm_maskz_srai_epi16(m.raw, a.raw, kShift)};
+}
+template <int kShift, size_t N>
+HWY_API Vec128<uint32_t, N> MaskedShiftRight(Mask128<uint32_t, N> m,
+                                             Vec128<uint32_t, N> a) {
+  return Vec128<uint32_t, N>{_mm_maskz_srli_epi32(m.raw, a.raw, kShift)};
+}
+template <int kShift, size_t N>
+HWY_API Vec128<int32_t, N> MaskedShiftRight(Mask128<int32_t, N> m,
+                                            Vec128<int32_t, N> a) {
+  return Vec128<int32_t, N>{_mm_maskz_srai_epi32(m.raw, a.raw, kShift)};
+}
+template <int kShift, size_t N>
+HWY_API Vec128<uint64_t, N> MaskedShiftRight(Mask128<uint64_t, N> m,
+                                             Vec128<uint64_t, N> a) {
+  return Vec128<uint64_t, N>{_mm_maskz_srli_epi64(m.raw, a.raw, kShift)};
+}
+template <int kShift, size_t N>
+HWY_API Vec128<int64_t, N> MaskedShiftRight(Mask128<int64_t, N> m,
+                                            Vec128<int64_t, N> a) {
+  return Vec128<int64_t, N>{_mm_maskz_srai_epi64(m.raw, a.raw, kShift)};
+}
+
+template <int kShift, typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec128<T, N> MaskedShiftRightOr(Vec128<T, N> no, Mask128<T, N> m,
+                                        Vec128<T, N> a) {
+  return IfThenElse(m, ShiftRight<kShift>(a), no);
+}
+template <int kShift, size_t N>
+HWY_API Vec128<uint16_t, N> MaskedShiftRightOr(Vec128<uint16_t, N> no,
+                                               Mask128<uint16_t, N> m,
+                                               Vec128<uint16_t, N> a) {
+  return Vec128<uint16_t, N>{_mm_mask_srli_epi16(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, size_t N>
+HWY_API Vec128<int16_t, N> MaskedShiftRightOr(Vec128<int16_t, N> no,
+                                              Mask128<int16_t, N> m,
+                                              Vec128<int16_t, N> a) {
+  return Vec128<int16_t, N>{_mm_mask_srai_epi16(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, size_t N>
+HWY_API Vec128<uint32_t, N> MaskedShiftRightOr(Vec128<uint32_t, N> no,
+                                               Mask128<uint32_t, N> m,
+                                               Vec128<uint32_t, N> a) {
+  return Vec128<uint32_t, N>{_mm_mask_srli_epi32(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, size_t N>
+HWY_API Vec128<int32_t, N> MaskedShiftRightOr(Vec128<int32_t, N> no,
+                                              Mask128<int32_t, N> m,
+                                              Vec128<int32_t, N> a) {
+  return Vec128<int32_t, N>{_mm_mask_srai_epi32(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, size_t N>
+HWY_API Vec128<uint64_t, N> MaskedShiftRightOr(Vec128<uint64_t, N> no,
+                                               Mask128<uint64_t, N> m,
+                                               Vec128<uint64_t, N> a) {
+  return Vec128<uint64_t, N>{_mm_mask_srli_epi64(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, size_t N>
+HWY_API Vec128<int64_t, N> MaskedShiftRightOr(Vec128<int64_t, N> no,
+                                              Mask128<int64_t, N> m,
+                                              Vec128<int64_t, N> a) {
+  return Vec128<int64_t, N>{_mm_mask_srai_epi64(no.raw, m.raw, a.raw, kShift)};
+}
+
 #endif  // HWY_TARGET <= HWY_AVX3
 
 // ------------------------------ Floating-point multiply-add variants
@@ -6866,7 +7024,8 @@ HWY_API VFromD<D> MaskedGatherIndexOr(VFromD<D> no, MFromD<D> m, D d,
   return detail::NativeMaskedGatherOr128<sizeof(T)>(no, m, base, indices);
 }
 
-// Generic for all vector lengths.
+// Generic for all vector lengths. Note that there is no zero-masked
+// instruction on AVX2 nor AVX-512.
 template <class D>
 HWY_API VFromD<D> MaskedGatherIndex(MFromD<D> m, D d,
                                     const TFromD<D>* HWY_RESTRICT base,

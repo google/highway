@@ -3402,6 +3402,126 @@ HWY_API Mask256<double> MaskedIsNaN(Mask256<double> m, Vec256<double> v) {
       m.raw, v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
 }
 
+// ------------------------------ MaskedShift*
+
+// Left Shift
+template <int kShift, typename T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec256<T> MaskedShiftLeft(Mask256<T> m, Vec256<T> a) {
+  return IfThenElseZero(m, ShiftLeft<kShift>(a));
+}
+template <int kShift, typename T, HWY_IF_U16(T)>
+HWY_API Vec256<T> MaskedShiftLeft(Mask256<T> m, Vec256<T> a) {
+  return Vec256<T>{_mm256_maskz_slli_epi16(m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_I16(T)>
+HWY_API Vec256<T> MaskedShiftLeft(Mask256<T> m, Vec256<T> a) {
+  return Vec256<T>{_mm256_maskz_slli_epi16(m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_U32(T)>
+HWY_API Vec256<T> MaskedShiftLeft(Mask256<T> m, Vec256<T> a) {
+  return Vec256<T>{_mm256_maskz_slli_epi32(m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_I32(T)>
+HWY_API Vec256<T> MaskedShiftLeft(Mask256<T> m, Vec256<T> a) {
+  return Vec256<T>{_mm256_maskz_slli_epi32(m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_U64(T)>
+HWY_API Vec256<T> MaskedShiftLeft(Mask256<T> m, Vec256<T> a) {
+  return Vec256<T>{_mm256_maskz_slli_epi64(m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_I64(T)>
+HWY_API Vec256<T> MaskedShiftLeft(Mask256<T> m, Vec256<T> a) {
+  return Vec256<T>{_mm256_maskz_slli_epi64(m.raw, a.raw, kShift)};
+}
+
+template <int kShift, typename T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec256<T> MaskedShiftLeftOr(Vec256<T> no, Mask256<T> m, Vec256<T> a) {
+  return IfThenElse(m, ShiftLeft<kShift>(a), no);
+}
+template <int kShift, typename T, HWY_IF_U16(T)>
+HWY_API Vec256<T> MaskedShiftLeftOr(Vec256<T> no, Mask256<T> m, Vec256<T> a) {
+  return Vec256<T>{_mm256_mask_slli_epi16(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_I16(T)>
+HWY_API Vec256<T> MaskedShiftLeftOr(Vec256<T> no, Mask256<T> m, Vec256<T> a) {
+  return Vec256<T>{_mm256_mask_slli_epi16(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_U32(T)>
+HWY_API Vec256<T> MaskedShiftLeftOr(Vec256<T> no, Mask256<T> m, Vec256<T> a) {
+  return Vec256<T>{_mm256_mask_slli_epi32(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_I32(T)>
+HWY_API Vec256<T> MaskedShiftLeftOr(Vec256<T> no, Mask256<T> m, Vec256<T> a) {
+  return Vec256<T>{_mm256_mask_slli_epi32(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_U64(T)>
+HWY_API Vec256<T> MaskedShiftLeftOr(Vec256<T> no, Mask256<T> m, Vec256<T> a) {
+  return Vec256<T>{_mm256_mask_slli_epi64(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_I64(T)>
+HWY_API Vec256<T> MaskedShiftLeftOr(Vec256<T> no, Mask256<T> m, Vec256<T> a) {
+  return Vec256<T>{_mm256_mask_slli_epi64(no.raw, m.raw, a.raw, kShift)};
+}
+
+// Right Shift
+template <int kShift, typename T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec256<T> MaskedShiftRight(Mask256<T> m, Vec256<T> a) {
+  return IfThenElseZero(m, ShiftRight<kShift>(a));
+}
+template <int kShift, typename T, HWY_IF_U16(T)>
+HWY_API Vec256<T> MaskedShiftRight(Mask256<T> m, Vec256<T> a) {
+  return Vec256<T>{_mm256_maskz_srli_epi16(m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_I16(T)>
+HWY_API Vec256<T> MaskedShiftRight(Mask256<T> m, Vec256<T> a) {
+  return Vec256<T>{_mm256_maskz_srai_epi16(m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_U32(T)>
+HWY_API Vec256<T> MaskedShiftRight(Mask256<T> m, Vec256<T> a) {
+  return Vec256<T>{_mm256_maskz_srli_epi32(m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_I32(T)>
+HWY_API Vec256<T> MaskedShiftRight(Mask256<T> m, Vec256<T> a) {
+  return Vec256<T>{_mm256_maskz_srai_epi32(m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_U64(T)>
+HWY_API Vec256<T> MaskedShiftRight(Mask256<T> m, Vec256<T> a) {
+  return Vec256<T>{_mm256_maskz_srli_epi64(m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_I64(T)>
+HWY_API Vec256<T> MaskedShiftRight(Mask256<T> m, Vec256<T> a) {
+  return Vec256<T>{_mm256_maskz_srai_epi64(m.raw, a.raw, kShift)};
+}
+
+template <int kShift, typename T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec256<T> MaskedShiftRightOr(Vec256<T> no, Mask256<T> m, Vec256<T> a) {
+  return IfThenElse(m, ShiftRight<kShift>(a), no);
+}
+template <int kShift, typename T, HWY_IF_U16(T)>
+HWY_API Vec256<T> MaskedShiftRightOr(Vec256<T> no, Mask256<T> m, Vec256<T> a) {
+  return Vec256<T>{_mm256_mask_srli_epi16(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_I16(T)>
+HWY_API Vec256<T> MaskedShiftRightOr(Vec256<T> no, Mask256<T> m, Vec256<T> a) {
+  return Vec256<T>{_mm256_mask_srai_epi16(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_U32(T)>
+HWY_API Vec256<T> MaskedShiftRightOr(Vec256<T> no, Mask256<T> m, Vec256<T> a) {
+  return Vec256<T>{_mm256_mask_srli_epi32(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_I32(T)>
+HWY_API Vec256<T> MaskedShiftRightOr(Vec256<T> no, Mask256<T> m, Vec256<T> a) {
+  return Vec256<T>{_mm256_mask_srai_epi32(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_U64(T)>
+HWY_API Vec256<T> MaskedShiftRightOr(Vec256<T> no, Mask256<T> m, Vec256<T> a) {
+  return Vec256<T>{_mm256_mask_srli_epi64(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_I64(T)>
+HWY_API Vec256<T> MaskedShiftRightOr(Vec256<T> no, Mask256<T> m, Vec256<T> a) {
+  return Vec256<T>{_mm256_mask_srai_epi64(no.raw, m.raw, a.raw, kShift)};
+}
+
 #endif  // HWY_TARGET <= HWY_AVX3
 
 // ------------------------------ Floating-point multiply-add variants

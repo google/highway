@@ -2548,6 +2548,126 @@ HWY_API Mask512<double> MaskedIsNaN(Mask512<double> m, Vec512<double> v) {
       m.raw, v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
 }
 
+// ------------------------------ MaskedShift*
+
+// Left Shift
+template <int kShift, typename T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec512<T> MaskedShiftLeft(Mask512<T> m, Vec512<T> a) {
+  return IfThenElseZero(m, ShiftLeft<kShift>(a));
+}
+template <int kShift, typename T, HWY_IF_U16(T)>
+HWY_API Vec512<T> MaskedShiftLeft(Mask512<T> m, Vec512<T> a) {
+  return Vec512<T>{_mm512_maskz_slli_epi16(m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_I16(T)>
+HWY_API Vec512<T> MaskedShiftLeft(Mask512<T> m, Vec512<T> a) {
+  return Vec512<T>{_mm512_maskz_slli_epi16(m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_U32(T)>
+HWY_API Vec512<T> MaskedShiftLeft(Mask512<T> m, Vec512<T> a) {
+  return Vec512<T>{_mm512_maskz_slli_epi32(m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_I32(T)>
+HWY_API Vec512<T> MaskedShiftLeft(Mask512<T> m, Vec512<T> a) {
+  return Vec512<T>{_mm512_maskz_slli_epi32(m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_U64(T)>
+HWY_API Vec512<T> MaskedShiftLeft(Mask512<T> m, Vec512<T> a) {
+  return Vec512<T>{_mm512_maskz_slli_epi64(m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_I64(T)>
+HWY_API Vec512<T> MaskedShiftLeft(Mask512<T> m, Vec512<T> a) {
+  return Vec512<T>{_mm512_maskz_slli_epi64(m.raw, a.raw, kShift)};
+}
+
+template <int kShift, typename T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec512<T> MaskedShiftLeftOr(Vec512<T> no, Mask512<T> m, Vec512<T> a) {
+  return IfThenElse(m, ShiftLeft<kShift>(a), no);
+}
+template <int kShift, typename T, HWY_IF_U16(T)>
+HWY_API Vec512<T> MaskedShiftLeftOr(Vec512<T> no, Mask512<T> m, Vec512<T> a) {
+  return Vec512<T>{_mm512_mask_slli_epi16(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_I16(T)>
+HWY_API Vec512<T> MaskedShiftLeftOr(Vec512<T> no, Mask512<T> m, Vec512<T> a) {
+  return Vec512<T>{_mm512_mask_slli_epi16(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_U32(T)>
+HWY_API Vec512<T> MaskedShiftLeftOr(Vec512<T> no, Mask512<T> m, Vec512<T> a) {
+  return Vec512<T>{_mm512_mask_slli_epi32(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_I32(T)>
+HWY_API Vec512<T> MaskedShiftLeftOr(Vec512<T> no, Mask512<T> m, Vec512<T> a) {
+  return Vec512<T>{_mm512_mask_slli_epi32(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_U64(T)>
+HWY_API Vec512<T> MaskedShiftLeftOr(Vec512<T> no, Mask512<T> m, Vec512<T> a) {
+  return Vec512<T>{_mm512_mask_slli_epi64(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_I64(T)>
+HWY_API Vec512<T> MaskedShiftLeftOr(Vec512<T> no, Mask512<T> m, Vec512<T> a) {
+  return Vec512<T>{_mm512_mask_slli_epi64(no.raw, m.raw, a.raw, kShift)};
+}
+
+// Right Shift
+template <int kShift, typename T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec512<T> MaskedShiftRight(Mask512<T> m, Vec512<T> a) {
+  return IfThenElseZero(m, ShiftRight<kShift>(a));
+}
+template <int kShift, typename T, HWY_IF_U16(T)>
+HWY_API Vec512<T> MaskedShiftRight(Mask512<T> m, Vec512<T> a) {
+  return Vec512<T>{_mm512_maskz_srli_epi16(m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_I16(T)>
+HWY_API Vec512<T> MaskedShiftRight(Mask512<T> m, Vec512<T> a) {
+  return Vec512<T>{_mm512_maskz_srai_epi16(m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_U32(T)>
+HWY_API Vec512<T> MaskedShiftRight(Mask512<T> m, Vec512<T> a) {
+  return Vec512<T>{_mm512_maskz_srli_epi32(m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_I32(T)>
+HWY_API Vec512<T> MaskedShiftRight(Mask512<T> m, Vec512<T> a) {
+  return Vec512<T>{_mm512_maskz_srai_epi32(m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_U64(T)>
+HWY_API Vec512<T> MaskedShiftRight(Mask512<T> m, Vec512<T> a) {
+  return Vec512<T>{_mm512_maskz_srli_epi64(m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_I64(T)>
+HWY_API Vec512<T> MaskedShiftRight(Mask512<T> m, Vec512<T> a) {
+  return Vec512<T>{_mm512_maskz_srai_epi64(m.raw, a.raw, kShift)};
+}
+
+template <int kShift, typename T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec512<T> MaskedShiftRightOr(Vec512<T> no, Mask512<T> m, Vec512<T> a) {
+  return IfThenElse(m, ShiftRight<kShift>(a), no);
+}
+template <int kShift, typename T, HWY_IF_U16(T)>
+HWY_API Vec512<T> MaskedShiftRightOr(Vec512<T> no, Mask512<T> m, Vec512<T> a) {
+  return Vec512<T>{_mm512_mask_srli_epi16(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_I16(T)>
+HWY_API Vec512<T> MaskedShiftRightOr(Vec512<T> no, Mask512<T> m, Vec512<T> a) {
+  return Vec512<T>{_mm512_mask_srai_epi16(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_U32(T)>
+HWY_API Vec512<T> MaskedShiftRightOr(Vec512<T> no, Mask512<T> m, Vec512<T> a) {
+  return Vec512<T>{_mm512_mask_srli_epi32(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_I32(T)>
+HWY_API Vec512<T> MaskedShiftRightOr(Vec512<T> no, Mask512<T> m, Vec512<T> a) {
+  return Vec512<T>{_mm512_mask_srai_epi32(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_U64(T)>
+HWY_API Vec512<T> MaskedShiftRightOr(Vec512<T> no, Mask512<T> m, Vec512<T> a) {
+  return Vec512<T>{_mm512_mask_srli_epi64(no.raw, m.raw, a.raw, kShift)};
+}
+template <int kShift, typename T, HWY_IF_I64(T)>
+HWY_API Vec512<T> MaskedShiftRightOr(Vec512<T> no, Mask512<T> m, Vec512<T> a) {
+  return Vec512<T>{_mm512_mask_srai_epi64(no.raw, m.raw, a.raw, kShift)};
+}
+
 // ------------------------------ Floating-point multiply-add variants
 
 #if HWY_HAVE_FLOAT16

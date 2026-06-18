@@ -715,6 +715,26 @@ template <class V, class M>
 HWY_API V MaskedSatSubOr(V no, M m, V a, V b) {
   return IfThenElse(m, SaturatedSub(a, b), no);
 }
+
+template <int kShift, class V, class M>
+HWY_API V MaskedShiftLeft(M m, V a) {
+  return IfThenElseZero(m, ShiftLeft<kShift>(a));
+}
+
+template <int kShift, class V, class M>
+HWY_API V MaskedShiftLeftOr(V no, M m, V a) {
+  return IfThenElse(m, ShiftLeft<kShift>(a), no);
+}
+
+template <int kShift, class V, class M>
+HWY_API V MaskedShiftRight(M m, V a) {
+  return IfThenElseZero(m, ShiftRight<kShift>(a));
+}
+
+template <int kShift, class V, class M>
+HWY_API V MaskedShiftRightOr(V no, M m, V a) {
+  return IfThenElse(m, ShiftRight<kShift>(a), no);
+}
 #endif  // HWY_NATIVE_MASKED_ARITH
 
 #if (defined(HWY_NATIVE_ZERO_MASKED_ARITH) == defined(HWY_TARGET_TOGGLE))
@@ -787,20 +807,6 @@ HWY_API VFromD<DF> MaskedWidenMulPairwiseAdd(DF df, M m, VBF a, VBF b) {
 #endif  // HWY_NATIVE_ZERO_MASKED_ARITH
 
 // ------------------------------ MaskedShift
-template <int kShift, class V, class M>
-HWY_API V MaskedShiftLeft(M m, V a) {
-  return IfThenElseZero(m, ShiftLeft<kShift>(a));
-}
-
-template <int kShift, class V, class M>
-HWY_API V MaskedShiftRight(M m, V a) {
-  return IfThenElseZero(m, ShiftRight<kShift>(a));
-}
-
-template <int kShift, class V, class M>
-HWY_API V MaskedShiftRightOr(V no, M m, V a) {
-  return IfThenElse(m, ShiftRight<kShift>(a), no);
-}
 
 template <class V, class M>
 HWY_API V MaskedShrOr(V no, M m, V a, V shifts) {

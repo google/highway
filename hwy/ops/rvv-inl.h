@@ -1265,6 +1265,38 @@ HWY_RVV_FOREACH_I(HWY_RVV_SHIFT, ShiftRight, sra, _ALL)
 
 #undef HWY_RVV_SHIFT
 
+// ------------------------------ MaskedShift[Left/Right]
+
+#define HWY_RVV_MASKED_SHIFT(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                             SHIFT, MLEN, NAME, OP)                           \
+  template <int kBits>                                                        \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                          \
+      NAME(HWY_RVV_M(MLEN) m, HWY_RVV_V(BASE, SEW, LMUL) v) {                 \
+    const DFromV<decltype(v)> d;                                              \
+    return __riscv_v##OP##_vx_##CHAR##SEW##LMUL##_mu(                         \
+        m, Zero(d), v, kBits, HWY_RVV_AVL(SEW, SHIFT));                       \
+  }
+HWY_RVV_FOREACH_UI(HWY_RVV_MASKED_SHIFT, MaskedShiftLeft, sll, _ALL)
+HWY_RVV_FOREACH_U(HWY_RVV_MASKED_SHIFT, MaskedShiftRight, srl, _ALL)
+HWY_RVV_FOREACH_I(HWY_RVV_MASKED_SHIFT, MaskedShiftRight, sra, _ALL)
+#undef HWY_RVV_MASKED_SHIFT
+
+// ------------------------------ MaskedShift[Left/Right]Or
+
+#define HWY_RVV_MASKED_SHIFT_OR(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD,      \
+                                LMULH, SHIFT, MLEN, NAME, OP)                  \
+  template <int kBits>                                                         \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                           \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) no, HWY_RVV_M(MLEN) m,                   \
+           HWY_RVV_V(BASE, SEW, LMUL) v) {                                     \
+    return __riscv_v##OP##_vx_##CHAR##SEW##LMUL##_mu(                          \
+        m, no, v, kBits, HWY_RVV_AVL(SEW, SHIFT));                             \
+  }
+HWY_RVV_FOREACH_UI(HWY_RVV_MASKED_SHIFT_OR, MaskedShiftLeftOr, sll, _ALL)
+HWY_RVV_FOREACH_U(HWY_RVV_MASKED_SHIFT_OR, MaskedShiftRightOr, srl, _ALL)
+HWY_RVV_FOREACH_I(HWY_RVV_MASKED_SHIFT_OR, MaskedShiftRightOr, sra, _ALL)
+#undef HWY_RVV_MASKED_SHIFT_OR
+
 // ------------------------------ RoundingShiftRight[Same]
 
 #ifdef HWY_NATIVE_ROUNDING_SHR
