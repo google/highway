@@ -1956,43 +1956,40 @@ HWY_INLINE size_t CountAndReplaceNaN(D, Traits, T* HWY_RESTRICT, size_t) {
   return 0;
 }
 
-// Scans the array for sentinel values (st.LastValue) that were substituted for
-// NaN by CountAndReplaceNaN, and replaces exactly `num_nan` of them back to
-// NaN. Unlike Fill() at the tail, this is safe for Select/PartialSort where
-// the sentinels may not have migrated to the back of the array.
+// Compacts non-NaN keys to the front, fills the tail with canonical NaN, and
+// returns the NaN count; Select/PartialSort then operate on keys[0, num-num_nan).
+// Detecting NaN by IsNaN avoids the CountAndReplaceNaN sentinel, whose value
+// (+inf when ascending) is indistinguishable from real +inf after a partial op.
+// In-place CompressStore is safe (the write cursor never overtakes the reader,
+// as in StoreLeftRight); slots past it are cleared by the Fill.
 template <class D, class Traits, typename T, HWY_IF_FLOAT(T)>
-HWY_INLINE void ReplaceSentinelWithNaN(D d, Traits st, T* HWY_RESTRICT keys,
-                                       size_t num, size_t num_nan) {
+HWY_INLINE size_t PartitionNaNToBack(D d, Traits, T* HWY_RESTRICT keys,
+                                     size_t num) {
   const size_t N = Lanes(d);
-  const Vec<D> sentinel = st.LastValue(d);
-  const Vec<D> nan = NaN(d);
-  size_t replaced = 0;
-  size_t i = 0;
+  size_t w = 0, i = 0;
   if (num >= N) {
     for (; i <= num - N; i += N) {
       const Vec<D> v = LoadU(d, keys + i);
-      const Mask<D> is_sentinel = Eq(v, sentinel);
-      const size_t count = CountTrue(d, is_sentinel);
-      BlendedStore(nan, is_sentinel, d, keys + i);
-      replaced += count;
-      if (replaced >= num_nan) return;
+      w += CompressStore(v, Not(IsNaN(v)), d, keys + w);
     }
   }
-
   const size_t remaining = num - i;
   if (remaining != 0) {
-    const Vec<D> v = LoadN(d, keys + i, remaining);
-    const Mask<D> is_sentinel = Eq(v, sentinel);
-    const size_t count = CountTrue(d, is_sentinel);
-    StoreN(IfThenElse(is_sentinel, nan, v), d, keys + i, remaining);
-    replaced += count;
+    const Vec<D> v = LoadN(d, keys + i, remaining);  // pads with non-NaN zero
+    const Mask<D> keep = And(FirstN(d, remaining), Not(IsNaN(v)));
+    const size_t count = CountTrue(d, keep);
+    StoreN(Compress(v, keep), d, keys + w, count);
+    w += count;
   }
-  HWY_DASSERT(replaced == num_nan);
+  Fill(d, GetLane(NaN(d)), num - w, keys + w);
+  return num - w;
 }
 
+// IsNaN is not implemented for non-float, so this is a no-op there.
 template <class D, class Traits, typename T, HWY_IF_NOT_FLOAT(T)>
-HWY_INLINE void ReplaceSentinelWithNaN(D, Traits, T* HWY_RESTRICT, size_t,
-                                       size_t) {}
+HWY_INLINE size_t PartitionNaNToBack(D, Traits, T* HWY_RESTRICT, size_t) {
+  return 0;
+}
 
 }  // namespace detail
 
@@ -2056,21 +2053,25 @@ void PartialSort(D d, Traits st, T* HWY_RESTRICT keys, size_t num, size_t k,
   }
 #endif  // HWY_MAX_BYTES > 64
 
-  const size_t num_nan = detail::CountAndReplaceNaN(d, st, keys, num);
+  // Move NaNs to the back and operate on the non-NaN prefix; k past num_valid
+  // lands in the (already-ordered) NaN region, so clamp the range to num_valid.
+  const size_t num_valid = num - detail::PartitionNaNToBack(d, st, keys, num);
+  const size_t k_valid = (k < num_valid) ? k : num_valid;
+  if (num_valid == 0) return;
 
 #if VQSORT_ENABLED || HWY_IDE
-  if (!detail::HandleSpecialCases(d, st, keys, num, buf)) {  // TODO
+  if (!detail::HandleSpecialCases(d, st, keys, num_valid, buf)) {  // TODO
     uint64_t* HWY_RESTRICT state = hwy::detail::GetGeneratorStateStatic();
     // Introspection: switch to worst-case N*logN heapsort after this many.
     // Should never be reached, so computing log2 exactly does not help.
     const size_t max_levels = 50;
-    // When k == num, selecting all elements is a no-op; skip to avoid
-    // assertion failure in Select, which requires k < num.
-    if (k < num) {
-      detail::Recurse<detail::RecurseMode::kSelect>(d, st, keys, num, buf,
-                                                    state, max_levels, k);
+    // k_valid == num_valid selects all elements (a no-op); skip, as Select
+    // requires k < num.
+    if (k_valid < num_valid) {
+      detail::Recurse<detail::RecurseMode::kSelect>(d, st, keys, num_valid, buf,
+                                                    state, max_levels, k_valid);
     }
-    detail::Recurse<detail::RecurseMode::kSort>(d, st, keys, k, buf, state,
+    detail::Recurse<detail::RecurseMode::kSort>(d, st, keys, k_valid, buf, state,
                                                 max_levels);
   }
 #else   // !VQSORT_ENABLED
@@ -2079,14 +2080,8 @@ void PartialSort(D d, Traits st, T* HWY_RESTRICT keys, size_t num, size_t k,
   if (VQSORT_PRINT >= 1) {
     HWY_WARN("using slow HeapSort because vqsort disabled\n");
   }
-  detail::HeapPartialSort(st, keys, num, k);
+  detail::HeapPartialSort(st, keys, num_valid, k_valid);
 #endif  // VQSORT_ENABLED
-
-  if (num_nan != 0) {
-    // Unlike a full sort, partial sort does not guarantee all sentinels end up
-    // at the back, so we must scan for them rather than blindly overwriting.
-    detail::ReplaceSentinelWithNaN(d, st, keys, num, num_nan);
-  }
 }
 
 template <class D, class Traits, typename T>
@@ -2105,16 +2100,19 @@ void Select(D d, Traits st, T* HWY_RESTRICT keys, const size_t num,
   }
 #endif  // HWY_MAX_BYTES > 64
 
-  const size_t num_nan = detail::CountAndReplaceNaN(d, st, keys, num);
+  // Move NaNs to the back and select over the non-NaN prefix; if k is in the
+  // NaN region the postcondition already holds (non-NaN all precede NaN).
+  const size_t num_valid = num - detail::PartitionNaNToBack(d, st, keys, num);
+  if (k >= num_valid) return;
 
 #if VQSORT_ENABLED || HWY_IDE
-  if (!detail::HandleSpecialCases(d, st, keys, num, buf)) {  // TODO
+  if (!detail::HandleSpecialCases(d, st, keys, num_valid, buf)) {  // TODO
     uint64_t* HWY_RESTRICT state = hwy::detail::GetGeneratorStateStatic();
     // Introspection: switch to worst-case N*logN heapsort after this many.
     // Should never be reached, so computing log2 exactly does not help.
     const size_t max_levels = 50;
-    detail::Recurse<detail::RecurseMode::kSelect>(d, st, keys, num, buf, state,
-                                                  max_levels, k);
+    detail::Recurse<detail::RecurseMode::kSelect>(d, st, keys, num_valid, buf,
+                                                  state, max_levels, k);
   }
 #else   // !VQSORT_ENABLED
   (void)d;
@@ -2122,14 +2120,8 @@ void Select(D d, Traits st, T* HWY_RESTRICT keys, const size_t num,
   if (VQSORT_PRINT >= 1) {
     HWY_WARN("using slow HeapSort because vqsort disabled\n");
   }
-  detail::HeapSelect(st, keys, num, k);
+  detail::HeapSelect(st, keys, num_valid, k);
 #endif  // VQSORT_ENABLED
-
-  if (num_nan != 0) {
-    // Unlike a full sort, select does not guarantee all sentinels end up at
-    // the back, so we must scan for them rather than blindly overwriting.
-    detail::ReplaceSentinelWithNaN(d, st, keys, num, num_nan);
-  }
 }
 
 // Sorts `keys[0..num-1]` according to the order defined by `st.Compare`.

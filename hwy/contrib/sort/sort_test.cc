@@ -286,80 +286,160 @@ void TestPartialSortKEqualsN() {
   }
 }
 
-// VQSelect on a floating-point array containing NaN must still leave a
-// permutation of the input (NaNs allowed anywhere): no value may be created or
-// lost.
+// Shuffled finite values (within float16_t's exact range to avoid overflow to
+// inf), with a few NaN and a few real +inf at spread-out positions. The +inf
+// is the case a by-value sentinel scan confuses with NaN. Returns the NaN count.
 template <typename T>
-void TestSelectWithNaNForType() {
-  const size_t num = AdjustedReps(100000);
-  const size_t k = num / 2;
+std::vector<T> MakeNaNInfInput(size_t num, uint64_t seed, size_t& num_nan) {
+  std::vector<float> vals(num);
+  for (size_t i = 0; i < num; ++i) vals[i] = static_cast<float>(i % 1024);
+  std::mt19937_64 rng(seed);
+  std::shuffle(vals.begin(), vals.end(), rng);
 
   std::vector<T> keys(num);
-  // Not std::iota: emulated float16_t lacks construction from int.
-  for (size_t i = 0; i < num; ++i) {
-    keys[i] = ConvertScalarTo<T>(i);
-  }
-  std::mt19937_64 rng(123456789);
-  std::shuffle(keys.begin(), keys.end(), rng);
+  for (size_t i = 0; i < num; ++i) keys[i] = ConvertScalarTo<T>(vals[i]);
 
-  // Inject NaN at a handful of positions.
   const ScalableTag<T> d;
   const T kNaN = GetLane(NaN(d));
-  size_t injected = 0;
-  for (size_t i = 0; i < num; i += 9999) {
-    keys[i] = kNaN;
-    ++injected;
-  }
-
-  // Multiset of the finite values that a correct partition must preserve.
-  std::vector<T> finite_in;
-  for (T x : keys) {
-    if (x == x) finite_in.push_back(x);  // x != x  <=>  NaN
-  }
-  std::sort(finite_in.begin(), finite_in.end());
-
-  hwy::VQSelect(keys.data(), num, k, hwy::SortAscending());
-
   const T kInf = GetLane(Inf(d));
-  size_t num_inf = 0, num_nan = 0;
-  std::vector<T> finite_out;
-  for (T x : keys) {
-    if (x != x) {
-      ++num_nan;
-    } else if (ScalarAbs(x) == kInf) {  // emulated float16_t lacks unary minus
-      ++num_inf;
-    } else {
-      finite_out.push_back(x);
+  const size_t kNumNaN = 8, kNumInf = 6, kTotal = kNumNaN + kNumInf;
+  for (size_t m = 0; m < kTotal; ++m) {
+    const size_t pos = (m + 1) * num / (kTotal + 1);
+    keys[pos] = (m < kNumNaN) ? kNaN : kInf;
+  }
+  num_nan = kNumNaN;
+  return keys;
+}
+
+// VQSelect must leave a permutation of the input (NaN ordered to the back) with
+// keys[k] matching that order, even with real +inf present. Verification is in
+// float via bit-pattern helpers so T = float16_t works without native f16 ops.
+template <typename T, class Order>
+void TestSelectWithNaNForType(Order order) {
+  const size_t num = AdjustedReps(100000);
+  if (num < 32) return;
+  constexpr bool asc = hwy::IsSame<Order, hwy::SortAscending>();
+
+  size_t num_nan;
+  const std::vector<T> input = MakeNaNInfInput<T>(num, 123456789, num_nan);
+
+  // Float reference order (NaN last) and the preserved non-NaN multiset.
+  std::vector<float> ref(num), nonnan_in;
+  for (size_t i = 0; i < num; ++i) ref[i] = ConvertScalarTo<float>(input[i]);
+  for (float x : ref) {
+    if (!ScalarIsNaN(x)) nonnan_in.push_back(x);
+  }
+  std::sort(nonnan_in.begin(), nonnan_in.end());
+  std::sort(ref.begin(), ref.end(), [](float a, float b) {
+    if (ScalarIsNaN(a)) return false;  // NaN sorts to the back
+    if (ScalarIsNaN(b)) return true;
+    return asc ? (a < b) : (a > b);
+  });
+
+  // A finite-region k and a NaN-region k; the latter catches the +inf/NaN
+  // collision (keys[k] must be NaN, not a leaked +inf).
+  for (const size_t k : {num / 2, num - 2}) {
+    std::vector<T> keys = input;
+    hwy::VQSelect(keys.data(), num, k, order);
+
+    size_t got_nan = 0;
+    std::vector<float> nonnan_out;
+    for (T x : keys) {
+      const float f = ConvertScalarTo<float>(x);
+      if (ScalarIsNaN(f)) {
+        ++got_nan;
+      } else {
+        nonnan_out.push_back(f);
+      }
+    }
+    std::sort(nonnan_out.begin(), nonnan_out.end());
+
+    const float got = ConvertScalarTo<float>(keys[k]);
+    const bool kth_ok =
+        (got == ref[k]) || (ScalarIsNaN(got) && ScalarIsNaN(ref[k]));
+    if (got_nan != num_nan || nonnan_out != nonnan_in || !kth_ok) {
+      HWY_ABORT(
+          "VQSelect NaN/inf wrong: nan=%zu/%zu multiset=%d kth=%d "
+          "(sizeof(T)=%zu k=%zu asc=%d)\n",
+          got_nan, num_nan, static_cast<int>(nonnan_out == nonnan_in),
+          static_cast<int>(kth_ok), sizeof(T), k, static_cast<int>(asc));
     }
   }
-  std::sort(finite_out.begin(), finite_out.end());
+}
 
-  if (num_inf != 0) {
-    HWY_ABORT("VQSelect leaked %zu inf into a NaN array (sizeof(T)=%zu)\n",
-              num_inf, sizeof(T));
+// Same for VQPartialSort, also checking the first min(k, num_valid) elements
+// are sorted; k = num exercises k > num_valid.
+template <typename T, class Order>
+void TestPartialSortWithNaNForType(Order order) {
+  const size_t num = AdjustedReps(100000);
+  if (num < 32) return;
+  constexpr bool asc = hwy::IsSame<Order, hwy::SortAscending>();
+
+  size_t num_nan;
+  const std::vector<T> input = MakeNaNInfInput<T>(num, 424242, num_nan);
+  const size_t num_valid = num - num_nan;
+
+  std::vector<float> nonnan_in;
+  for (T x : input) {
+    const float f = ConvertScalarTo<float>(x);
+    if (!ScalarIsNaN(f)) nonnan_in.push_back(f);
   }
-  if (num_nan != injected) {
-    HWY_ABORT("VQSelect changed NaN count: got %zu, want %zu (sizeof(T)=%zu)\n",
-              num_nan, injected, sizeof(T));
+  std::sort(nonnan_in.begin(), nonnan_in.end());
+
+  for (const size_t k : {num / 2, num}) {
+    std::vector<T> keys = input;
+    hwy::VQPartialSort(keys.data(), num, k, order);
+
+    size_t got_nan = 0;
+    std::vector<float> nonnan_out;
+    for (T x : keys) {
+      const float f = ConvertScalarTo<float>(x);
+      if (ScalarIsNaN(f)) {
+        ++got_nan;
+      } else {
+        nonnan_out.push_back(f);
+      }
+    }
+    std::sort(nonnan_out.begin(), nonnan_out.end());
+
+    const size_t sorted_len = (k < num_valid) ? k : num_valid;
+    bool prefix_ok = true;
+    for (size_t i = 1; i < sorted_len; ++i) {
+      const float a = ConvertScalarTo<float>(keys[i - 1]);
+      const float b = ConvertScalarTo<float>(keys[i]);
+      if (asc ? (a > b) : (a < b)) {
+        prefix_ok = false;
+        break;
+      }
+    }
+    if (got_nan != num_nan || nonnan_out != nonnan_in || !prefix_ok) {
+      HWY_ABORT(
+          "VQPartialSort NaN/inf wrong: nan=%zu/%zu multiset=%d prefix=%d "
+          "(sizeof(T)=%zu k=%zu asc=%d)\n",
+          got_nan, num_nan, static_cast<int>(nonnan_out == nonnan_in),
+          static_cast<int>(prefix_ok), sizeof(T), k, static_cast<int>(asc));
+    }
   }
-  if (finite_out != finite_in) {
-    HWY_ABORT(
-        "VQSelect did not preserve the finite multiset: result is not a "
-        "permutation of the input (sizeof(T)=%zu)\n",
-        sizeof(T));
-  }
+}
+
+template <typename T>
+void TestSelectAndPartialSortWithNaNForType() {
+  TestSelectWithNaNForType<T>(hwy::SortAscending());
+  TestSelectWithNaNForType<T>(hwy::SortDescending());
+  TestPartialSortWithNaNForType<T>(hwy::SortAscending());
+  TestPartialSortWithNaNForType<T>(hwy::SortDescending());
 }
 
 void TestSelectWithNaN() {
 #if HWY_HAVE_FLOAT16
   if (hwy::HaveFloat16()) {
-    TestSelectWithNaNForType<float16_t>();
+    TestSelectAndPartialSortWithNaNForType<float16_t>();
   }
 #endif
-  TestSelectWithNaNForType<float>();
+  TestSelectAndPartialSortWithNaNForType<float>();
 #if HWY_HAVE_FLOAT64
   if (hwy::HaveFloat64()) {
-    TestSelectWithNaNForType<double>();
+    TestSelectAndPartialSortWithNaNForType<double>();
   }
 #endif
 }
