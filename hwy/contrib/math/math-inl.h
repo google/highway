@@ -1964,6 +1964,9 @@ HWY_INLINE V Atan2(const D d, V y, V x) {
   const V ax = Abs(x);
   const V ay = Abs(y);
 
+  // Pre-sort to ensure num <= den, mapping the input to the [0, 1] range.
+  // This avoids a second division that would otherwise occur inside Atan()
+  // flow for domain reduction.
   const V num = Min(ax, ay);
   const V den = Max(ax, ay);
 

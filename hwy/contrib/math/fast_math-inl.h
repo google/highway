@@ -542,10 +542,15 @@ HWY_INLINE V FastAtan(D d, V val) {
   const V z4 = Mul(z2, z2);
 
   // Estrin scheme for polynomial in z
+  // term0 = p1*z + p0
   const V term0 = MulAdd(p1, z, p0);
+  // term1 = p3*z + p2
   const V term1 = MulAdd(p3, z, p2);
+  // term2 = p5*z + p4
   const V term2 = MulAdd(p5, z, p4);
+  // term3 = term1 * z^2 + term0
   const V term3 = MulAdd(term1, z2, term0);
+  // p_val = term2 * z^4 + term3
   const V p_val = MulAdd(term2, z4, term3);
 
   const V poly = Mul(mapped_y, p_val);
@@ -581,6 +586,9 @@ HWY_INLINE V FastAtan2(const D d, V y, V x) {
   const V ax = Abs(x);
   const V ay = Abs(y);
 
+  // Pre-sort to ensure num <= den, mapping the input to the [0, 1] range.
+  // This avoids a second division that would otherwise occur inside FastAtan()
+  // flow for domain reduction.
   const V num = Min(ax, ay);
   const V den = Max(ax, ay);
 
@@ -601,10 +609,15 @@ HWY_INLINE V FastAtan2(const D d, V y, V x) {
   const V z4 = Mul(z2, z2);
 
   // Estrin scheme for polynomial in z
+  // term0 = p1*z + p0
   const V term0 = MulAdd(p1, z, p0);
+  // term1 = p3*z + p2
   const V term1 = MulAdd(p3, z, p2);
+  // term2 = p5*z + p4
   const V term2 = MulAdd(p5, z, p4);
+  // term3 = term1 * z^2 + term0
   const V term3 = MulAdd(term1, z2, term0);
+  // p_val = term2 * z^4 + term3
   const V p_val = MulAdd(term2, z4, term3);
 
   const V poly = Mul(mapped_y, p_val);
@@ -1014,13 +1027,13 @@ HWY_INLINE V FastTanh(D d, V val) {
   const auto y2 = Mul(y, y);
   // term0 = e*y + f
   const auto term0 = MulAdd(e, y, f);
-  // term1 = c*y + d
+  // term1 = c*y + d_val
   const auto term1 = MulAdd(c, y, d_val);
   // term2 = a*y + b
   const auto term2 = MulAdd(a, y, b);
-  // term3 = term2 * y2 + term1
+  // term3 = term2 * y^2 + term1
   const auto term3 = MulAdd(term2, y2, term1);
-  // result = term3 * y2 + term0
+  // result = term3 * y^2 + term0
   auto result = MulAdd(term3, y2, term0);
 
   const auto kSmall = Set(d, static_cast<T>(0.001));
@@ -1256,10 +1269,14 @@ HWY_INLINE V FastLog(D d, V x) {
                                    a, b, c, d_val);
   }
   // Math: approx = (a*z + b)*z^2 + (c*z + d_val)
+  // Using Estrin's scheme
   const auto z2 = Mul(z, z);
-  const auto pab = MulAdd(a, z, b);
-  const auto pcd = MulAdd(c, z, d_val);
-  approx = MulAdd(pab, z2, pcd);
+  // term0 = a*z + b
+  const auto term0 = MulAdd(a, z, b);
+  // term1 = c*z + d_val
+  const auto term1 = MulAdd(c, z, d_val);
+  // approx = term0 * z^2 + term1
+  approx = MulAdd(term0, z2, term1);
 
   return MulAdd(exp, kLn2, approx);
 }
@@ -1564,10 +1581,14 @@ HWY_INLINE V FastLog2(D d, V x) {
                                    a, b, c, d_val);
   }
   // Math: approx = (a*z + b)*z^2 + (c*z + d_val)
+  // Using Estrin's scheme
   const auto z2 = Mul(z, z);
-  const auto pab = MulAdd(a, z, b);
-  const auto pcd = MulAdd(c, z, d_val);
-  approx = MulAdd(pab, z2, pcd);
+  // term0 = a*z + b
+  const auto term0 = MulAdd(a, z, b);
+  // term1 = c*z + d_val
+  const auto term1 = MulAdd(c, z, d_val);
+  // approx = term0 * z^2 + term1
+  approx = MulAdd(term0, z2, term1);
 
   return Add(exp, approx);
 }
@@ -1652,10 +1673,14 @@ HWY_INLINE V FastLog10(D d, V x) {
                                    a, b, c, d_val);
   }
   // Math: approx = (a*z + b)*z^2 + (c*z + d_val)
+  // Using Estrin's scheme
   const auto z2 = Mul(z, z);
-  const auto pab = MulAdd(a, z, b);
-  const auto pcd = MulAdd(c, z, d_val);
-  approx = MulAdd(pab, z2, pcd);
+  // term0 = a*z + b
+  const auto term0 = MulAdd(a, z, b);
+  // term1 = c*z + d_val
+  const auto term1 = MulAdd(c, z, d_val);
+  // approx = term0 * z^2 + term1
+  approx = MulAdd(term0, z2, term1);
 
   const auto kLog10_2 = Set(d, static_cast<T>(0.3010299956639812));  // log10(2)
   // Computes exp * log10(2) + approx. Since approx was scaled by 1/Ln(10)
