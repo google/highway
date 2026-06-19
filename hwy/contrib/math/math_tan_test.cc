@@ -475,7 +475,7 @@ struct TestFastAtan2 {
     Atan2TestCases(t, d, padded, in_y, in_x, expected);
 
     // Constants for error checking
-    const T rel_limit = static_cast<T>(0.000035);
+    const T rel_limit = static_cast<T>(6e-6);
     const T tiny_threshold = static_cast<T>(1e-20);
     const Vec<D> v_rel_limit = Set(d, rel_limit);
     const Vec<D> v_tiny_threshold = Set(d, tiny_threshold);
