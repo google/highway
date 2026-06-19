@@ -543,14 +543,13 @@ HWY_INLINE V FastAtan(D d, V val) {
 
   const V z = Mul(mapped_y, mapped_y);
   const V z2 = Mul(z, z);
-  const V z4 = Mul(z2, z2);
 
   // Estrin scheme for polynomial in z
   const V term0 = MulAdd(p1, z, p0);
   const V term1 = MulAdd(p3, z, p2);
   const V term2 = MulAdd(p5, z, p4);
-  const V term3 = MulAdd(term1, z2, term0);
-  const V p_val = MulAdd(term2, z4, term3);
+  const V term23 = MulAdd(term2, z2, term1);
+  const V p_val = MulAdd(term23, z2, term0);
 
   const V poly = Mul(mapped_y, p_val);
 
@@ -602,14 +601,13 @@ HWY_INLINE V FastAtan2(const D d, V y, V x) {
 
   const V z = Mul(mapped_y, mapped_y);
   const V z2 = Mul(z, z);
-  const V z4 = Mul(z2, z2);
 
   // Estrin scheme for polynomial in z
   const V term0 = MulAdd(p1, z, p0);
   const V term1 = MulAdd(p3, z, p2);
   const V term2 = MulAdd(p5, z, p4);
-  const V term3 = MulAdd(term1, z2, term0);
-  const V p_val = MulAdd(term2, z4, term3);
+  const V term23 = MulAdd(term2, z2, term1);
+  const V p_val = MulAdd(term23, z2, term0);
 
   const V poly = Mul(mapped_y, p_val);
 
