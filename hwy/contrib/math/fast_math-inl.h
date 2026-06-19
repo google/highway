@@ -38,9 +38,6 @@ template <class D, class V = VFromD<D>>
 HWY_INLINE void ReduceAngleTan(D d, V ang, V& x_red, V& sign) {
   using T = TFromD<D>;
   const auto pi = Set(d, static_cast<T>(3.14159265358979323846));
-  const auto zero = Set(d, static_cast<T>(0.0));
-  const auto one = Set(d, static_cast<T>(1.0));
-  const auto minus_one = Set(d, static_cast<T>(-1.0));
 
   const auto inv_pi = Set(d, static_cast<T>(0.31830988618379067153777));
 
@@ -50,8 +47,7 @@ HWY_INLINE void ReduceAngleTan(D d, V ang, V& x_red, V& sign) {
   auto ang_mod = NegMulAdd(quotient, pi, ang);
 
   // Determine sign
-  auto mask_neg = Lt(ang_mod, zero);
-  sign = IfThenElse(mask_neg, minus_one, one);
+  sign = ang_mod;
 
   // Absolute value
   x_red = Abs(ang_mod);
