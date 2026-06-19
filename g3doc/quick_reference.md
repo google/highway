@@ -2296,27 +2296,27 @@ or `ConcatOdd` followed by `PromoteLowerTo`:
     `TFromD<D>` integer \
     <code>Vec&lt;D&gt; **ReorderShiftRightAndDemote2To**&lt;int kShiftAmt&gt;(D, V
     a, V b)</code>: equivalent to `ReorderDemote2To(D, ShiftRight<kShiftAmt>(a),
-    ShiftRight<kShiftAmt>(b))`. TODO: implement on SVE2/RVV/LSX/LASX.
+    ShiftRight<kShiftAmt>(b))`. TODO: implement on SVE2/LSX/LASX.
 
 *   `V`,`D`: any `(V, D)` accepted by `ReorderDemote2To`, with `V` and
     `TFromD<D>` integer \
     <code>Vec&lt;D&gt; **ReorderRoundingShiftRightAndDemote2To**&lt;int
     kShiftAmt&gt;(D, V a, V b)</code>: equivalent to `ReorderDemote2To(D,
     RoundingShiftRight<kShiftAmt>(a), RoundingShiftRight<kShiftAmt>(b))`. TODO:
-    implement on SVE2/RVV/LSX/LASX.
+    implement on SVE2/LSX/LASX.
 
 *   `V`,`D`: any `(V, D)` accepted by `OrderedDemote2To`, with `V` and
     `TFromD<D>` integer \
     <code>Vec&lt;D&gt; **OrderedShiftRightAndDemote2To**&lt;int kShiftAmt&gt;(D, V
     a, V b)</code>: equivalent to `OrderedDemote2To(D, ShiftRight<kShiftAmt>(a),
-    ShiftRight<kShiftAmt>(b))`. TODO: implement on SVE2/RVV/LSX/LASX.
+    ShiftRight<kShiftAmt>(b))`. TODO: implement on SVE2/LSX/LASX.
 
 *   `V`,`D`: any `(V, D)` accepted by `OrderedDemote2To`, with `V` and
     `TFromD<D>` integer \
     <code>Vec&lt;D&gt; **OrderedRoundingShiftRightAndDemote2To**&lt;int
     kShiftAmt&gt;(D, V a, V b)</code>: equivalent to `OrderedDemote2To(D,
     RoundingShiftRight<kShiftAmt>(a), RoundingShiftRight<kShiftAmt>(b))`. TODO:
-    implement on SVE2/RVV/LSX/LASX.
+    implement on SVE2/LSX/LASX.
 
 *   `V`,`D`: (`u16,u8`), (`u32,u16`), (`u64,u32`), \
     <code>Vec&lt;D&gt; **OrderedTruncate2To**(D d, V a, V b)</code>: as above,

@@ -6666,6 +6666,119 @@ HWY_API VFromD<DN> OrderedDemote2To(DN dn, V a, V b) {
   return ReorderDemote2To(dn, a, b);
 }
 
+// ------------------------------ ReorderShiftRightAndDemote2To (ReorderDemote2To)
+// ------------------------------ OrderedShiftRightAndDemote2To (OrderedDemote2To)
+
+// These reuse the fused [Rounding]ShiftRightAndDemoteTo above, exactly as
+// ReorderDemote2To reuses DemoteTo: at LMUL <= 2 we Combine the two inputs and
+// do one fused narrow; at the max LMUL we fused-narrow each half and Combine.
+// Multi-step narrowing falls back to the generic
+// ReorderDemote2To(dn, [Rounding]ShiftRight<k>(...)) path. The same
+// HWY_RVV_AVOID_VXRM reasoning as the single-vector op applies, so this block is
+// also omitted under that flag, leaving the generic path in place.
+#ifndef HWY_RVV_AVOID_VXRM
+
+#ifdef HWY_NATIVE_SHIFT_RIGHT_AND_REORDER_DEMOTE2
+#undef HWY_NATIVE_SHIFT_RIGHT_AND_REORDER_DEMOTE2
+#else
+#define HWY_NATIVE_SHIFT_RIGHT_AND_REORDER_DEMOTE2
+#endif
+
+// If LMUL is not the max, Combine first to avoid a second fused narrow.
+template <int kShiftAmt, class DN, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DN),
+          HWY_IF_POW2_LE_D(DN, 2), class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
+          class V2 = VFromD<Repartition<TFromV<V>, DN>>,
+          hwy::EnableIf<DFromV<V>().Pow2() == DFromV<V2>().Pow2()>* = nullptr>
+HWY_API VFromD<DN> ReorderShiftRightAndDemote2To(DN dn, V a, V b) {
+  const Rebind<TFromV<V>, DN> dt;
+  return ShiftRightAndDemoteTo<kShiftAmt>(dn, Combine(dt, b, a));
+}
+
+// Max LMUL: must narrow first, then Combine.
+template <int kShiftAmt, class DN, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DN),
+          HWY_IF_POW2_GT_D(DN, 2), class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
+          class V2 = VFromD<Repartition<TFromV<V>, DN>>,
+          hwy::EnableIf<DFromV<V>().Pow2() == DFromV<V2>().Pow2()>* = nullptr>
+HWY_API VFromD<DN> ReorderShiftRightAndDemote2To(DN dn, V a, V b) {
+  const Half<decltype(dn)> dnh;
+  return Combine(dn, ShiftRightAndDemoteTo<kShiftAmt>(dnh, b),
+                 ShiftRightAndDemoteTo<kShiftAmt>(dnh, a));
+}
+
+// If LMUL is not the max, Combine first to avoid a second fused narrow.
+template <int kShiftAmt, class DN, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DN),
+          HWY_IF_POW2_LE_D(DN, 2), class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
+          class V2 = VFromD<Repartition<TFromV<V>, DN>>,
+          hwy::EnableIf<DFromV<V>().Pow2() == DFromV<V2>().Pow2()>* = nullptr>
+HWY_API VFromD<DN> ReorderRoundingShiftRightAndDemote2To(DN dn, V a, V b) {
+  const Rebind<TFromV<V>, DN> dt;
+  return RoundingShiftRightAndDemoteTo<kShiftAmt>(dn, Combine(dt, b, a));
+}
+
+// Max LMUL: must narrow first, then Combine.
+template <int kShiftAmt, class DN, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DN),
+          HWY_IF_POW2_GT_D(DN, 2), class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
+          class V2 = VFromD<Repartition<TFromV<V>, DN>>,
+          hwy::EnableIf<DFromV<V>().Pow2() == DFromV<V2>().Pow2()>* = nullptr>
+HWY_API VFromD<DN> ReorderRoundingShiftRightAndDemote2To(DN dn, V a, V b) {
+  const Half<decltype(dn)> dnh;
+  return Combine(dn, RoundingShiftRightAndDemoteTo<kShiftAmt>(dnh, b),
+                 RoundingShiftRightAndDemoteTo<kShiftAmt>(dnh, a));
+}
+
+// Ordered forwards to Reorder because ReorderDemote2To is ordered on RVV.
+template <int kShiftAmt, class DN, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DN), class V,
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          hwy::EnableIf<(sizeof(TFromD<DN>) < sizeof(TFromV<V>))>* = nullptr>
+HWY_API VFromD<DN> OrderedShiftRightAndDemote2To(DN dn, V a, V b) {
+  return ReorderShiftRightAndDemote2To<kShiftAmt>(dn, a, b);
+}
+
+template <int kShiftAmt, class DN, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DN), class V,
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          hwy::EnableIf<(sizeof(TFromD<DN>) < sizeof(TFromV<V>))>* = nullptr>
+HWY_API VFromD<DN> OrderedRoundingShiftRightAndDemote2To(DN dn, V a, V b) {
+  return ReorderRoundingShiftRightAndDemote2To<kShiftAmt>(dn, a, b);
+}
+
+// Catch-all fallback for multi-step narrowing such as i32 to i8, which has no
+// single-step Combine path. The bodies are identical to the generic_ops-inl.h
+// templates of the same name; we duplicate here because
+// HWY_NATIVE_SHIFT_RIGHT_AND_REORDER_DEMOTE2 suppresses those on RVV.
+template <
+    int kShiftAmt, class DN, class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DN),
+    HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+    hwy::EnableIf<(sizeof(TFromD<DN>) < sizeof(TFromV<V>) &&
+                   sizeof(TFromV<V>) != sizeof(TFromD<DN>) * 2)>* = nullptr>
+HWY_API VFromD<DN> ReorderShiftRightAndDemote2To(DN dn, V a, V b) {
+  using T = TFromV<V>;
+  static_assert(
+      0 <= kShiftAmt && kShiftAmt <= static_cast<int>(sizeof(T) * 8 - 1),
+      "kShiftAmt is out of range");
+  return ReorderDemote2To(dn, ShiftRight<kShiftAmt>(a),
+                          ShiftRight<kShiftAmt>(b));
+}
+
+template <
+    int kShiftAmt, class DN, class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DN),
+    HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+    hwy::EnableIf<(sizeof(TFromD<DN>) < sizeof(TFromV<V>) &&
+                   sizeof(TFromV<V>) != sizeof(TFromD<DN>) * 2)>* = nullptr>
+HWY_API VFromD<DN> ReorderRoundingShiftRightAndDemote2To(DN dn, V a, V b) {
+  using T = TFromV<V>;
+  static_assert(
+      0 <= kShiftAmt && kShiftAmt <= static_cast<int>(sizeof(T) * 8 - 1),
+      "kShiftAmt is out of range");
+  return ReorderDemote2To(dn, RoundingShiftRight<kShiftAmt>(a),
+                          RoundingShiftRight<kShiftAmt>(b));
+}
+
+#endif  // !HWY_RVV_AVOID_VXRM
+
 // ------------------------------ WidenMulPairwiseAdd
 
 template <class DF, HWY_IF_F32_D(DF),

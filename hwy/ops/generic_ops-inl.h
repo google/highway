@@ -5654,8 +5654,8 @@ HWY_API VFromD<DN> RoundingShiftRightAndDemoteTo(DN dn, V v) {
 // ------------------------------ ReorderShiftRightAndDemote2To (ReorderDemote2To)
 // ------------------------------ OrderedShiftRightAndDemote2To (OrderedDemote2To)
 
-// NEON overrides these with a fused saturating shift-narrow.
-// TODO: also override on SVE2/RVV/LSX/LASX.
+// NEON and RVV override these with a fused saturating shift-narrow.
+// TODO: also override on SVE2/LSX/LASX.
 #if (defined(HWY_NATIVE_SHIFT_RIGHT_AND_REORDER_DEMOTE2) == \
      defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_SHIFT_RIGHT_AND_REORDER_DEMOTE2
