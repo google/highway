@@ -128,6 +128,11 @@ hwy_sources = files(
 hwy_contrib_headers = files(
     'hwy/contrib/bit_pack/bit_pack-inl.h',
     'hwy/contrib/dot/dot-inl.h',
+    'hwy/contrib/hash/hash-inl.h',
+    'hwy/contrib/hash/phast.h',
+    'hwy/contrib/hash/phast-inl.h',
+    'hwy/contrib/hash/cuckoo2x2.h',
+    'hwy/contrib/hash/cuckoo2x2-inl.h',
     'hwy/contrib/image/image.h',
     'hwy/contrib/math/fast_math-inl.h',
     'hwy/contrib/intdiv/intdiv-inl.h',
@@ -156,6 +161,8 @@ hwy_contrib_headers = files(
 
 hwy_contrib_sources = files(
     'hwy/contrib/image/image.cc',
+    'hwy/contrib/hash/cuckoo2x2.cc',
+    'hwy/contrib/hash/phast.cc',
     'hwy/contrib/sort/vqsort.cc',
     'hwy/contrib/thread_pool/thread_pool.cc',
     'hwy/contrib/thread_pool/topology.cc',
@@ -680,13 +687,18 @@ if tests_enabled
             'hwy/contrib/algo/transform_test.cc',
             'hwy/contrib/bit_pack/bit_pack_test.cc',
             'hwy/contrib/dot/dot_test.cc',
-            'hwy/contrib/matvec/matvec_test.cc',
+            'hwy/contrib/hash/hash_bench.cc',
+            'hwy/contrib/hash/cuckoo2x2_test.cc',
+            'hwy/contrib/hash/phast_bench.cc',
+            'hwy/contrib/hash/phast_test.cc',
             'hwy/contrib/image/image_test.cc',
+            'hwy/contrib/intdiv/intdiv_test.cc',
             'hwy/contrib/math/fast_math_test.cc',
-            'hwy/contrib/math/math_test.cc',
             'hwy/contrib/math/math_hyper_test.cc',
             'hwy/contrib/math/math_tan_test.cc',
+            'hwy/contrib/math/math_test.cc',
             'hwy/contrib/math/math_trig_test.cc',
+            'hwy/contrib/matvec/matvec_test.cc',
             'hwy/contrib/random/random_test.cc',
             'hwy/contrib/sort/bench_sort.cc',
             'hwy/contrib/sort/sort_test.cc',
@@ -695,7 +707,6 @@ if tests_enabled
             'hwy/contrib/thread_pool/thread_pool_test.cc',
             'hwy/contrib/thread_pool/topology_test.cc',
             'hwy/contrib/unroller/unroller_test.cc',
-            'hwy/contrib/intdiv/intdiv_test.cc',
         )
 
         foreach test_src : hwy_contrib_test_files

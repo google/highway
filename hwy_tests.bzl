@@ -143,6 +143,18 @@ HWY_CONTRIB_TESTS = (
             ":thread_pool",
             ":topology",
             # Placeholder for flat_hash_set, do not remove
+            # Placeholder2 for flat_hash_set, do not remove
+        ],
+    ),
+    (
+        "hwy/contrib/hash/",
+        "cuckoo2x2_test",
+        [
+            ":hash",
+            ":profiler",
+            ":random",
+            ":thread_pool",
+            ":topology",
         ],
     ),
     (

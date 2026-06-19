@@ -49,20 +49,23 @@ struct PhastPlacement {
 struct PhastConfig {
   PhastConfig() = default;
   PhastConfig(size_t num_keys, size_t num_slots, size_t num_buckets,
-              uint32_t hash_key, const PhastPlacement& placement)
+              uint32_t hash_key, const PhastPlacement& placement_in)
       : num_slots(num_slots),
-        extra_bytes((num_slots - num_keys) * sizeof(uint32_t) + num_buckets),
         hash_key(hash_key),
         bucket_mask(static_cast<uint32_t>(num_buckets - 1)),
-        placement(placement) {
+        placement(placement_in) {
     HWY_DASSERT(num_slots >= num_keys);
     HWY_DASSERT(num_buckets <= 0xFFFFFFFFu);
+    (void)num_keys;
   }
 
   size_t NumBuckets() const { return bucket_mask + 1; }
+  size_t AllocatedBytes(size_t payload_bytes) const {
+    return num_slots * payload_bytes +
+           RoundUpTo(NumBuckets(), sizeof(uint32_t));
+  }
 
   size_t num_slots = 0;  // 0 if build failed
-  size_t extra_bytes = 0;
   uint32_t hash_key = 0;
   uint32_t bucket_mask = 0;
 
@@ -107,7 +110,9 @@ class PhastSeeds {
 // Build result returned by BuildPhast.
 struct PhastData {
   size_t NumSlots() const { return config.num_slots; }
-  size_t ExtraBytes() const { return config.extra_bytes; }
+  size_t AllocatedBytes(size_t payload_bytes) const {
+    return config.AllocatedBytes(payload_bytes);
+  }
 
   PhastConfig config;
   PhastSeeds seeds;
@@ -118,9 +123,12 @@ struct PhastData {
 };
 
 // Builds from a set of distinct keys. Uses thread pool for parallel attempts.
-// Takes about 1 second for 1M keys.
-HWY_CONTRIB_DLLEXPORT PhastData BuildPhast(const uint32_t* keys,
-                                           size_t num_keys, ThreadPool& pool);
+// Takes about 1 second for 1M keys. `payload_bytes` is the number of bytes
+// required per slot, i.e. potential index returned from queries. This allows us
+// to optimize memory usage.
+HWY_CONTRIB_DLLEXPORT PhastData BuildPhast(Span<const uint32_t> keys,
+                                           size_t payload_bytes,
+                                           ThreadPool& pool);
 
 }  // namespace hwy
 

@@ -15,6 +15,7 @@
 
 // If set, we also benchmark absl::flat_hash_set.
 #define HWY_HAVE_ABSL 0
+#define HWY_HAVE_TCMALLOC 0
 
 #include <stdint.h>
 #include <stdio.h>
@@ -23,6 +24,9 @@
 
 #if HWY_HAVE_ABSL
 #include "third_party/absl/container/flat_hash_set.h"
+#endif
+#if HWY_HAVE_TCMALLOC
+#include // Placeholder for tcmalloc, do not remove
 #endif
 
 #ifndef HWY_DISABLED_TARGETS
@@ -42,6 +46,7 @@
 // clang-format on
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 // After foreach_target
+#include "hwy/contrib/hash/cuckoo2x2-inl.h"
 #include "hwy/contrib/hash/phast-inl.h"
 #include "hwy/contrib/random/random-inl.h"
 #include "hwy/highway.h"
@@ -58,6 +63,10 @@ namespace {
 HWY_INLINE_VAR constexpr size_t kNumKeys =
     AdjustedReps(AdjustedReps(1024)) * 1024;
 
+// Set to true to benchmark across a range of key counts.
+HWY_INLINE_VAR constexpr bool kSweepThroughput = false;
+HWY_INLINE_VAR constexpr bool kSweepLatency = false;
+
 static ThreadPool MakePool() {
   static Topology topology;
   if (topology.packages.empty()) return ThreadPool(ThreadPool::MaxThreads());
@@ -70,6 +79,32 @@ HWY_NOINLINE AlignedVector<uint32_t> GenerateKeys(size_t num_keys) {
   num_keys = RoundUpTo(num_keys, 2 * VectorBytes() / sizeof(uint32_t));
   // Must be distinct, hence do not use FillRandom().
   return FillRandomDistinct<uint32_t>(num_keys, Unpredictable1());
+}
+
+size_t AllocatedBefore() {
+#if HWY_HAVE_TCMALLOC
+  return tcmalloc::MallocExtension::GetNumericProperty(
+             "generic.current_allocated_bytes")
+      .value_or(0);
+#else
+  return 0;
+#endif  // HWY_HAVE_TCMALLOC
+}
+
+size_t AllocatedBytes(size_t before, size_t guessed) {
+#if HWY_HAVE_TCMALLOC
+  const size_t after = tcmalloc::MallocExtension::GetNumericProperty(
+                           "generic.current_allocated_bytes")
+                           .value_or(0);
+  size_t allocated_bytes = after - before;
+  if (allocated_bytes == 0) {
+    return guessed;
+    HWY_WARN("tcmalloc tracking returned 0, estimating from capacity.");
+  }
+  return allocated_bytes;
+#else
+  return guessed;
+#endif  // HWY_HAVE_TCMALLOC
 }
 
 struct MeasureResult {
@@ -94,18 +129,6 @@ MeasureResult Measure(const Func& func) {
     HWY_WARN("Measurement failed.");
     return MeasureResult{};
   }
-}
-
-HWY_NOINLINE void TestLatency() {
-  const AlignedVector<uint32_t> keys = GenerateKeys(1000);
-  ThreadPool pool = MakePool();
-  const Phast phast = MakePhast(keys.data(), keys.size(), pool);
-
-  MeasureResult result = Measure([&phast](FuncInput func_input) {
-    return phast(static_cast<uint32_t>(func_input));
-  });
-  printf("Query latency: %6.2f ns; measurement MAD=%4.2f%%\n", result.ns,
-         result.mad_percent);
 }
 
 HWY_NOINLINE void TestBW() {
@@ -151,96 +174,81 @@ HWY_NOINLINE void TestBW() {
          num_bytes / elapsed * 1E-9);
 }
 
-// Benchmarks PHAST + u16 verification, which saves memory while still only
-// using native u32 gathers.
-HWY_NOINLINE void TestThroughput() {
+// Benchmarks PHAST + u32 key verification. Stores the full key at each PHAST
+// position, guaranteeing zero false positives (at 4 bytes/key payload).
+HWY_NOINLINE void TestPhastThroughput(size_t num_keys) {
   // Too slow under MSAN/TSAN.
-#if !HWY_IS_MSAN && !HWY_IS_TSAN
+  if constexpr (HWY_IS_MSAN || HWY_IS_TSAN) return;
   ThreadPool pool = MakePool();
   pool.SetWaitMode(PoolWaitMode::kSpin);
-
-  const AlignedVector<uint32_t> keys = GenerateKeys(kNumKeys);
-  const Phast phast = MakePhast(keys.data(), keys.size(), pool);
-  const Triple32 hash(phast.Data().config.hash_key);
 
   const ScalableTag<uint32_t> du32;
   const RebindToSigned<decltype(du32)> di32;
   using VU32 = Vec<decltype(du32)>;
   using MU32 = Mask<decltype(du32)>;
   HWY_LANES_CONSTEXPR size_t N = Lanes(du32);
-  HWY_ASSERT(kNumKeys % (2 * N) == 0);  // See GenerateKeys().
+  HWY_ASSERT(num_keys % (2 * N) == 0);  // See GenerateKeys().
 
-  // Store u16 fingerprints at PHAST positions. The fps array is indexed as
-  // u16, but we gather as u32 (pairs of adjacent fps).
+  const AlignedVector<uint32_t> keys = GenerateKeys(num_keys);
+  num_keys = keys.size();  // May have been rounded up.
+
+  const size_t before = AllocatedBefore();
+  constexpr size_t kPayloadBytes = sizeof(uint32_t);
+  const Phast phast = MakePhast(Span(keys), kPayloadBytes, pool);
+  const Triple32 hash(phast.Data().config.hash_key);
+
+  // Store the full key at each PHAST position for verification. The complex
+  // PHAST index assignment function does not allow the same u16 fingerprint
+  // trick that we use in Cuckoo2x2.
   const size_t num_slots = phast.Data().NumSlots();
-  // +1 to ensure the last odd-indexed u16 has a valid u32 to gather from.
-  AlignedVector<uint32_t> fp_u32(DivCeil(num_slots + 1, size_t{2}));
-  const VU32 k1 = Set(du32, 1);
+  AlignedVector<uint32_t> stored_keys(num_slots);
 
-  // Populate fp_u32: non-vectorized due to scatter conflicts: updates to the
-  // same u32 word from different lanes would be lost. This is anyway a
-  // build-time operation.
-  for (size_t i = 0; i < kNumKeys; i += 2 * N) {
+  const size_t allocated_bytes =
+      AllocatedBytes(before, phast.Data().AllocatedBytes(kPayloadBytes));
+
+  // Populate stored_keys via scatter. No conflicts because PHAST is a perfect
+  // hash: all member keys have unique indices.
+  for (size_t i = 0; i < num_keys; i += 2 * N) {
     VU32 h0 = Load(du32, &keys[i]);
     VU32 h1 = Load(du32, &keys[i + N]);
+    const VU32 key0 = h0;  // Save original keys before hashing.
+    const VU32 key1 = h1;
     hash.TwoVec(du32, h0, h1);
     VU32 idx0, idx1;
     phast.PosFromHash(du32, h0, h1, idx0, idx1);
-    HWY_ALIGN uint32_t fp_buf[4 * MaxLanes(du32)];
-    Store(ShiftRight<16>(h0), du32, fp_buf);
-    Store(ShiftRight<16>(h1), du32, fp_buf + 1 * N);
-    Store(idx0, du32, fp_buf + 2 * N);
-    Store(idx1, du32, fp_buf + 3 * N);
-    for (size_t j = 0; j < 2 * N; ++j) {
-      const uint32_t idx = fp_buf[2 * N + j];
-      const uint32_t fp = fp_buf[j];
-      const uint32_t word_idx = idx >> 1;
-      const uint32_t shift = (idx & 1) * 16;
-      fp_u32[word_idx] |= (fp << shift);
-    }
+    ScatterIndex(key0, du32, stored_keys.data(), BitCast(di32, idx0));
+    ScatterIndex(key1, du32, stored_keys.data(), BitCast(di32, idx1));
   }
 
   // Each worker starts at a different offset in the keys.
   const size_t keys_per_chunk =
-      RoundDownTo(kNumKeys / pool.NumWorkers(), 2 * N);
-
-  const VU32 kFPMask = Set(du32, 0xFFFF);
+      RoundDownTo(num_keys / pool.NumWorkers(), 2 * N);
 
   AlignedVector<uint8_t> per_worker(pool.NumWorkers() * HWY_ALIGNMENT);
   MeasureResult result = Measure([&](FuncInput func_input) {
     pool.Run(0, pool.NumWorkers(), [&](uint64_t task_idx, size_t worker) {
       MU32 eq0 = SetMask(du32, true);
       MU32 eq1 = SetMask(du32, true);
-      for (size_t i = 0; i < kNumKeys; i += 2 * N) {
+      for (size_t i = 0; i < num_keys; i += 2 * N) {
         // Faster to wrap than have two loops (likely due to code size).
-        const size_t wrapped_i = (worker * keys_per_chunk + i) % kNumKeys;
-        VU32 hash0 = Load(du32, &keys[wrapped_i]);
-        VU32 hash1 = Load(du32, &keys[wrapped_i + N]);
+        const size_t wrapped_i = (worker * keys_per_chunk + i) % num_keys;
+        const VU32 key0 = Load(du32, &keys[wrapped_i]);
+        const VU32 key1 = Load(du32, &keys[wrapped_i + N]);
+        VU32 hash0 = key0;
+        VU32 hash1 = key1;
 
-        // Hash keys - for expected fingerprints (upper 16 bits) and PHAST.
+        // Hash keys for PHAST position lookup.
         hash.TwoVec(du32, hash0, hash1);
-        const VU32 expected0 = ShiftRight<16>(hash0);
-        const VU32 expected1 = ShiftRight<16>(hash1);
         VU32 idx0, idx1;
         phast.PosFromHash(du32, hash0, hash1, idx0, idx1);
 
-        // Gather u32 words containing our u16 fp (one u32 gather per N).
-        const VU32 word_idx0 = ShiftRight<1>(idx0);
-        const VU32 word_idx1 = ShiftRight<1>(idx1);
-        const VU32 word0 = MaskedGatherIndex(eq0, du32, fp_u32.data(),
-                                             BitCast(di32, word_idx0));
-        const VU32 word1 = MaskedGatherIndex(eq1, du32, fp_u32.data(),
-                                             BitCast(di32, word_idx1));
-
-        // Extract correct u16: if pos is odd, shift right by 16.
-        const MU32 is_odd0 = Ne(And(idx0, k1), Zero(du32));
-        const MU32 is_odd1 = Ne(And(idx1, k1), Zero(du32));
-        const VU32 shifted0 = MaskedShiftRightOr<16>(word0, is_odd0, word0);
-        const VU32 shifted1 = MaskedShiftRightOr<16>(word1, is_odd1, word1);
-        const VU32 our_fp0 = And(shifted0, kFPMask);
-        const VU32 our_fp1 = And(shifted1, kFPMask);
-        eq0 = MaskedEq(eq0, expected0, our_fp0);
-        eq1 = MaskedEq(eq1, expected1, our_fp1);
+        // Gather stored keys and compare directly.
+        const VU32 stored0 = MaskedGatherIndex(eq0, du32, stored_keys.data(),
+                                               BitCast(di32, idx0));
+        const VU32 stored1 = MaskedGatherIndex(eq1, du32, stored_keys.data(),
+                                               BitCast(di32, idx1));
+        eq0 = MaskedEq(eq0, key0, stored0);
+        eq1 = MaskedEq(eq1, key1, stored1);
       }
       per_worker[worker * HWY_ALIGNMENT] = AllTrue(du32, And(eq0, eq1));
     });
@@ -249,30 +257,89 @@ HWY_NOINLINE void TestThroughput() {
   for (size_t i = 0; i < pool.NumWorkers(); ++i) {
     HWY_ASSERT(per_worker[i * HWY_ALIGNMENT]);
   }
-  const size_t bytes = kNumKeys * sizeof(uint32_t) * pool.NumWorkers();
+  const size_t bytes = num_keys * sizeof(uint32_t) * pool.NumWorkers();
   printf(
-      "Batch verify throughput: %4zuK keys = %4.1f GB/s; "
-      "measurement MAD=%4.2f%%\n",
-      kNumKeys / 1024, static_cast<double>(bytes) / result.ns,
-      result.mad_percent);
-#endif  // !HWY_IS_MSAN && !HWY_IS_TSAN
+      "Batch PHAST u32 verify throughput: %4zuKi keys = %4.1f GB/s; "
+      "measurement MAD=%5.2f%%, allocated %5zu KiB\n",
+      num_keys / 1024, static_cast<double>(bytes) / result.ns,
+      result.mad_percent, allocated_bytes / 1024);
 }
 
-// Compare with absl::flat_hash_set - just set membership.
-HWY_NOINLINE void TestAbslThroughput() {
+// Benchmarks Cuckoo2x2 used as a set membership test, checking returned masks.
+HWY_NOINLINE void TestCuckoo2x2Throughput(size_t num_keys) {
   // Too slow under MSAN/TSAN.
-#if HWY_HAVE_ABSL && !HWY_IS_MSAN && !HWY_IS_TSAN
+  if constexpr (HWY_IS_MSAN || HWY_IS_TSAN) return;
   ThreadPool pool = MakePool();
   pool.SetWaitMode(PoolWaitMode::kSpin);
 
-  const AlignedVector<uint32_t> keys = GenerateKeys(kNumKeys);
+  const AlignedVector<uint32_t> keys = GenerateKeys(num_keys);
+  num_keys = keys.size();  // May have been rounded up.
+
+  const size_t before = AllocatedBefore();
+  const Cuckoo2x2 set = MakeCuckoo2x2(Span(keys), pool);
+  const size_t allocated_bytes =
+      AllocatedBytes(before, set.Data().AllocatedBytes());
+
+  const ScalableTag<uint32_t> du32;
+  using VU32 = Vec<decltype(du32)>;
+  using MU32 = Mask<decltype(du32)>;
+  HWY_LANES_CONSTEXPR size_t N = Lanes(du32);
+  HWY_ASSERT(num_keys % N == 0);  // See GenerateKeys().
+
+  // Each worker starts at a different offset in the keys to avoid unrealistic
+  // cache behavior, without requiring separate per-worker allocations.
+  const size_t keys_per_chunk = RoundDownTo(num_keys / pool.NumWorkers(), N);
+
+  AlignedVector<uint8_t> per_worker(pool.NumWorkers() * HWY_ALIGNMENT);
+  MeasureResult result = Measure([&](FuncInput func_input) {
+    pool.Run(0, pool.NumWorkers(), [&](uint64_t task_idx, size_t worker) {
+      MU32 any_missing = SetMask(du32, false);
+      for (size_t i = 0; i < num_keys; i += N) {
+        // Faster to wrap than have two loops (likely due to code size).
+        const size_t wrapped_i = (worker * keys_per_chunk + i) % num_keys;
+        const VU32 vkeys = Load(du32, &keys[wrapped_i]);
+        any_missing = Or(any_missing, set(du32, vkeys));
+      }
+      per_worker[worker * HWY_ALIGNMENT] = AllFalse(du32, any_missing);
+    });
+    return per_worker[Unpredictable1() * HWY_ALIGNMENT];
+  });
+  for (size_t i = 0; i < pool.NumWorkers(); ++i) {
+    HWY_ASSERT(per_worker[i * HWY_ALIGNMENT]);
+  }
+  const size_t bytes = num_keys * sizeof(uint32_t) * pool.NumWorkers();
+  printf(
+      "Batch Cuckoo2x2 verify throughput: %4zuKi keys = %4.1f GB/s; "
+      "measurement MAD=%5.2f%%, allocated %5zu KiB\n",
+      num_keys / 1024, static_cast<double>(bytes) / result.ns,
+      result.mad_percent, allocated_bytes / 1024);
+}
+
+// Compare with absl::flat_hash_set - just set membership.
+HWY_NOINLINE void TestAbslThroughput(size_t num_keys) {
+  // Too slow under MSAN/TSAN.
+  if constexpr (HWY_IS_MSAN || HWY_IS_TSAN) return;
+
+#if HWY_HAVE_ABSL
+  ThreadPool pool = MakePool();
+  pool.SetWaitMode(PoolWaitMode::kSpin);
+
+  const AlignedVector<uint32_t> keys = GenerateKeys(num_keys);
+  num_keys = keys.size();  // May have been rounded up.
+
+  const size_t before = AllocatedBefore();
+
   absl::flat_hash_set<uint32_t> set(keys.begin(), keys.end());
+  // Capacity + 1 control byte per slot + group sentinel.
+  const size_t absl_allocated_bytes =
+      set.capacity() * (sizeof(uint32_t) + 1) + 16;
+  const size_t allocated_bytes = AllocatedBytes(before, absl_allocated_bytes);
 
   // Each worker starts at a different offset in the keys to avoid unrealistic
   // cache behavior, without requiring separate per-worker allocations.
   const size_t N = VectorBytes() / sizeof(uint32_t);
   const size_t keys_per_chunk =
-      RoundDownTo(kNumKeys / pool.NumWorkers(), 2 * N);
+      RoundDownTo(num_keys / pool.NumWorkers(), 2 * N);
 
   AlignedVector<uint8_t> per_worker(pool.NumWorkers() * HWY_ALIGNMENT);
   MeasureResult result =
@@ -281,7 +348,7 @@ HWY_NOINLINE void TestAbslThroughput() {
           bool all_found = true;
           const size_t offset = worker * keys_per_chunk;
           // First loop from the per-worker offset to end.
-          for (size_t i = offset; i < kNumKeys; ++i) {
+          for (size_t i = offset; i < num_keys; ++i) {
             all_found &= set.contains(keys[i]);
           }
           // Second loop from the beginning to the per-worker offset.
@@ -295,22 +362,111 @@ HWY_NOINLINE void TestAbslThroughput() {
   for (size_t i = 0; i < pool.NumWorkers(); ++i) {
     HWY_ASSERT(per_worker[i * HWY_ALIGNMENT]);
   }
-  const size_t bytes = kNumKeys * sizeof(uint32_t) * pool.NumWorkers();
+  const size_t bytes = num_keys * sizeof(uint32_t) * pool.NumWorkers();
   printf(
-      "Batch absl verify throughput: %4zuK keys = %4.1f GB/s; "
-      "measurement MAD=%4.2f%%\n",
-      kNumKeys / 1024, static_cast<double>(bytes) / result.ns,
-      result.mad_percent);
+      "Batch absl::set verify throughput: %4zuKi keys = %4.1f GB/s; "
+      "measurement MAD=%5.2f%%, allocated %5zu KiB\n",
+      num_keys / 1024, static_cast<double>(bytes) / result.ns,
+      result.mad_percent, allocated_bytes / 1024);
 #else
+  (void)num_keys;
   HWY_WARN("absl::flat_hash_set not available, skipping test.");
 #endif  // HWY_HAVE_ABSL
 }
 
+HWY_NOINLINE void TestPhastLatency(size_t num_keys) {
+  const AlignedVector<uint32_t> keys = GenerateKeys(num_keys);
+  ThreadPool pool = MakePool();
+  const Phast phast = MakePhast(Span(keys), 0, pool);
+
+  MeasureResult result = Measure([&phast](FuncInput func_input) {
+    return phast(static_cast<uint32_t>(func_input));
+  });
+  printf(
+      "Single PHAST latency: %5zu keys, %6.2f ns; measurement "
+      "MAD=%5.2f%%\n",
+      num_keys, result.ns, result.mad_percent);
+}
+
+HWY_NOINLINE void TestCuckoo2x2Latency(size_t num_keys) {
+  const AlignedVector<uint32_t> keys = GenerateKeys(num_keys);
+  ThreadPool pool = MakePool();
+  const Cuckoo2x2 set = MakeCuckoo2x2(Span(keys), pool);
+
+  MeasureResult result = Measure([&set](FuncInput func_input) {
+    return set.Contains(static_cast<uint32_t>(func_input));
+  });
+  printf(
+      "Single Ck2x2 latency: %5zu keys, %6.2f ns; measurement "
+      "MAD=%5.2f%%\n",
+      num_keys, result.ns, result.mad_percent);
+}
+
+HWY_NOINLINE void TestAbslLatency(size_t num_keys) {
+#if HWY_HAVE_ABSL
+  const AlignedVector<uint32_t> keys = GenerateKeys(num_keys);
+  absl::flat_hash_set<uint32_t> set(keys.begin(), keys.end());
+
+  MeasureResult result = Measure([&set](FuncInput func_input) {
+    return set.contains(static_cast<uint32_t>(func_input));
+  });
+  printf("Single Absl  latency: %5zu keys, %6.2f ns; measurement MAD=%5.2f%%\n",
+         num_keys, result.ns, result.mad_percent);
+#else
+  (void)num_keys;
+  HWY_WARN("absl::flat_hash_set not available, skipping test.");
+#endif  // HWY_HAVE_ABSL
+}
+
+// Driver functions: sweep across sizes or run once.
+
+HWY_NOINLINE void TestLatencySweep() {
+  if (kSweepLatency) {
+    // Powers of ten: 100-10K.
+    for (size_t n = 100; n <= 10'000; n *= 10) {
+      TestPhastLatency(n);
+      TestCuckoo2x2Latency(n);
+      TestAbslLatency(n);
+    }
+    // Powers of two
+    for (size_t n = 512; n <= 4096; n *= 2) {
+      TestPhastLatency(n);
+      TestCuckoo2x2Latency(n);
+      TestAbslLatency(n);
+    }
+  } else {
+    const size_t n = 1000;
+    TestPhastLatency(n);
+    TestCuckoo2x2Latency(n);
+    TestAbslLatency(n);
+  }
+}
+
+HWY_NOINLINE void TestThroughputSweep() {
+  if (kSweepThroughput) {
+    // Powers of ten: 10K-10M.
+    for (size_t n = 10'000; n <= 10'000'000; n *= 10) {
+      TestPhastThroughput(n);
+      TestCuckoo2x2Throughput(n);
+      TestAbslThroughput(n);
+    }
+    // Powers of two: 32K-4M.
+    for (size_t n = (32 << 10); n <= (size_t{4} << 20); n *= 2) {
+      TestPhastThroughput(n);
+      TestCuckoo2x2Throughput(n);
+      TestAbslThroughput(n);
+    }
+  } else {
+    TestPhastThroughput(kNumKeys);
+    TestCuckoo2x2Throughput(kNumKeys);
+    TestAbslThroughput(kNumKeys);
+  }
+}
+
 #else   // HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128
-void TestLatency() {}
 void TestBW() {}
-void TestThroughput() {}
-void TestAbslThroughput() {}
+void TestThroughputSweep() {}
+void TestLatencySweep() {}
 #endif  // HWY_TARGET != HWY_SCALAR && HWY_TARGET != HWY_EMU128
 
 }  // namespace
@@ -322,11 +478,10 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 namespace hwy {
 HWY_BEFORE_TEST(PhastBench);
-HWY_EXPORT_AND_TEST_BEST_P(PhastBench, TestThroughput);
-HWY_EXPORT_AND_TEST_BEST_P(PhastBench, TestAbslThroughput);
+HWY_EXPORT_AND_TEST_BEST_P(PhastBench, TestThroughputSweep);
 // Measure last so they reflect the current (less-boosted) CPU clock rate.
 HWY_EXPORT_AND_TEST_BEST_P(PhastBench, TestBW);
-HWY_EXPORT_AND_TEST_BEST_P(PhastBench, TestLatency);
+HWY_EXPORT_AND_TEST_BEST_P(PhastBench, TestLatencySweep);
 HWY_AFTER_TEST();
 }  // namespace hwy
 #endif  // HWY_ONCE

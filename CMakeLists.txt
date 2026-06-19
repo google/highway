@@ -223,6 +223,9 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/hash/phast.cc
     hwy/contrib/hash/phast.h
     hwy/contrib/hash/phast-inl.h
+    hwy/contrib/hash/cuckoo2x2.cc
+    hwy/contrib/hash/cuckoo2x2.h
+    hwy/contrib/hash/cuckoo2x2-inl.h
     hwy/contrib/image/image.cc
     hwy/contrib/image/image.h
     hwy/contrib/math/fast_math-inl.h
@@ -957,10 +960,12 @@ list(APPEND HWY_TEST_FILES
   hwy/contrib/bit_pack/bit_pack_test.cc
   hwy/contrib/dot/dot_test.cc
   hwy/contrib/matvec/matvec_test.cc
+  hwy/contrib/hash/cuckoo2x2_test.cc
+  hwy/contrib/hash/hash_bench.cc
+  hwy/contrib/hash/phast_test.cc
+  hwy/contrib/hash/phast_bench.cc
   hwy/contrib/intdiv/intdiv_test.cc
   hwy/contrib/image/image_test.cc
-  # Disabled due to SIGILL in clang7 debug build during gtest discovery phase,
-  # not reproducible locally. Still tested via bazel build.
   hwy/contrib/math/math_test.cc
   hwy/contrib/math/fast_math_test.cc
   hwy/contrib/math/math_hyper_test.cc

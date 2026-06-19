@@ -160,6 +160,26 @@ class Triple32 {
   uint32_t key_ = 0;
 };
 
+class MulGolden {
+ public:
+  static constexpr const char* Name() { return "MulGolden"; }
+
+  MulGolden() = default;
+
+  uint32_t operator()(uint32_t x) const { return x * 0x9E3779B9u; }
+
+  template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
+  HWY_INLINE VU32 OneVec(DU32 du32, const VU32 in) const {
+    return Mul(in, Set(du32, 0x9E3779B9u));
+  }
+
+  template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
+  HWY_INLINE void TwoVec(DU32 du32, VU32& inout0, VU32& inout1) const {
+    inout0 = OneVec(du32, inout0);
+    inout1 = OneVec(du32, inout1);
+  }
+};
+
 // Round-reduced ARX cipher. Considerably slower than Triple32 on AVX2 due to
 // the rotates, but slightly faster than Feistel4Mul2 on Turin.
 class Speck32 {

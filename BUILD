@@ -445,9 +445,11 @@ cc_library(
 cc_library(
     name = "hash",
     srcs = [
+        "hwy/contrib/hash/cuckoo2x2.cc",
         "hwy/contrib/hash/phast.cc",
     ],
     hdrs = [
+        "hwy/contrib/hash/cuckoo2x2.h",
         "hwy/contrib/hash/phast.h",
     ],
     compatible_with = [],
@@ -455,6 +457,7 @@ cc_library(
     textual_hdrs = [
         "hwy/contrib/hash/hash-inl.h",
         "hwy/contrib/hash/phast-inl.h",
+        "hwy/contrib/hash/cuckoo2x2-inl.h",
     ],
     deps = [
         ":algo",
@@ -647,6 +650,20 @@ HWY_TEST_DEPS = [
 ] + select({
     ":compiler_msvc": [],
     "//conditions:default": ["@com_google_googletest//:gtest_main"],
+})
+
+config_setting(
+    name = "linux_x64",
+    constraint_values = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+)
+
+# tcmalloc does not build on all platforms.
+HWY_MALLOC = select({
+    ":linux_x64": "//third_party/tcmalloc",
+    "//conditions:default": "//base:system_malloc",
 })
 
 [

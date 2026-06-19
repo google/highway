@@ -39,6 +39,15 @@
 // buckets that overlap with the failed bucket. This halves required headroom
 // from 4% to 2% for 1M keys.
 
+#include <stddef.h>
+#include <stdint.h>
+
+#include <utility>  // std::move
+
+#include "hwy/aligned_allocator.h"
+#include "hwy/contrib/hash/phast.h"
+#include "hwy/contrib/thread_pool/thread_pool.h"
+
 #if defined(HIGHWAY_HWY_CONTRIB_HASH_PHAST_INL_H_) == \
     defined(HWY_TARGET_TOGGLE)  // NOLINT
 #ifdef HIGHWAY_HWY_CONTRIB_HASH_PHAST_INL_H_
@@ -47,15 +56,10 @@
 #define HIGHWAY_HWY_CONTRIB_HASH_PHAST_INL_H_
 #endif
 
-#include <stddef.h>
-#include <stdint.h>
-
-#include <utility>  // std::move
-
 #include "hwy/contrib/hash/hash-inl.h"
-#include "hwy/contrib/hash/phast.h"
-#include "hwy/contrib/thread_pool/thread_pool.h"
 #include "hwy/highway.h"
+
+static_assert(HWY_CXX_LANG >= 201703L, "requires C++17 or later.");
 
 #if HWY_TARGET != HWY_SCALAR
 HWY_BEFORE_NAMESPACE();
@@ -229,9 +233,9 @@ class Phast {
   Triple32 hash_;
 };
 
-inline Phast MakePhast(const uint32_t* keys, size_t num_keys,
+inline Phast MakePhast(Span<const uint32_t> keys, size_t payload_bytes,
                        ThreadPool& pool) {
-  return Phast(BuildPhast(keys, num_keys, pool));
+  return Phast(BuildPhast(keys, payload_bytes, pool));
 }
 
 }  // namespace HWY_NAMESPACE

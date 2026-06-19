@@ -69,7 +69,7 @@ HWY_NOINLINE void TestQueryConsistency() {
   }
 
   ThreadPool pool = MakePool();
-  Phast phast = MakePhast(keys.data(), num_keys, pool);
+  Phast phast = MakePhast(Span(keys), 0, pool);
 
   // Query each key twice and verify same result.
   for (uint32_t i = 0; i < num_keys; ++i) {
@@ -132,14 +132,16 @@ void TestDistinctAndRange(const size_t num_keys) {
   AlignedVector<uint32_t> keys = FillRandomDistinct<uint32_t>(num_keys, 0);
 
   const double t0 = platform::Now();
-  const Phast phast = MakePhast(keys.data(), num_keys, pool);
+  const size_t payload_bytes = 0;
+  const Phast phast = MakePhast(Span(keys), payload_bytes, pool);
   const double elapsed = platform::Now() - t0;
   const PhastData& data = phast.Data();
   fprintf(stderr,
           "    Build(%7zu keys): %7.2f ms, %7zu slots, %.2f b/key config %2zu, "
           "attempt %2zu\n",
           num_keys, elapsed * 1E3, data.NumSlots(),
-          phast.Data().ExtraBytes() * 8 / static_cast<double>(num_keys),
+          phast.Data().AllocatedBytes(payload_bytes) * 8.0 /
+              static_cast<double>(num_keys),
           data.config_idx, data.attempt_idx);
 
   // Check that all keys map to distinct indices in [0, num_slots).

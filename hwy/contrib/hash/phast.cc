@@ -54,7 +54,7 @@ namespace {
 // --------------------------------------------------------------------------
 // Enumerate feasible configs.
 
-HWY_INLINE_VAR constexpr size_t kMaxAttempts = 256;  // pow2 for faster mul/div.
+HWY_INLINE_VAR constexpr size_t kMaxAttempts = 512;  // pow2 for faster mul/div.
 
 PhastConfig MakeConfig(size_t num_keys, int headroom_percent,
                        size_t keys_per_bucket, size_t slice_length,
@@ -82,14 +82,15 @@ size_t MinSliceLength(size_t num_keys) {
   return 2048;
 }
 
-// Enumerates feasible configs and sorts by extra_bytes ascending.
+// Enumerates feasible configs and sorts by AllocatedBytes() ascending.
 static AlignedVector<PhastConfig> EnumerateConfigs(size_t num_keys,
+                                                   size_t payload_bytes,
                                                    size_t num_workers,
                                                    size_t& reps_per_config) {
   const size_t min_slice_length = MinSliceLength(num_keys);
   HWY_ASSERT(min_slice_length < num_keys);
 
-  const std::vector<int> kHeadroomPercents = {1, 2, 3, 4, 10};
+  const std::vector<int> kHeadroomPercents = {1, 2, 3, 4, 10, 15, 20};
   const std::vector<size_t> kSliceShifts = {0, 1};
   // If num_keys is less than 30% above a power of 2, kpb=3 is preferred
   // because kpb=2 would nearly double the bucket count (wasteful).
@@ -136,8 +137,9 @@ static AlignedVector<PhastConfig> EnumerateConfigs(size_t num_keys,
 
   // Should already be in order, but just in case.
   std::sort(configs.begin(), configs.end(),
-            [](const PhastConfig& a, const PhastConfig& b) {
-              return a.extra_bytes < b.extra_bytes;
+            [payload_bytes](const PhastConfig& a, const PhastConfig& b) {
+              return a.AllocatedBytes(payload_bytes) <
+                     b.AllocatedBytes(payload_bytes);
             });
   return configs;
 }
@@ -208,9 +210,10 @@ class PerWorkerBuilder {
 
   // Attempts to build with a given config and hash_key, which overrides
   // config_.hash_key. Call Succeeded() to check success.
-  void MaybeBuild(const uint32_t* keys, const PhastConfig& config,
+  void MaybeBuild(Span<const uint32_t> keys, const PhastConfig& config,
                   uint32_t hash_key) {
     PROFILER_FUNC;
+    HWY_ASSERT(keys.size() == hash_for_key_idx_.size());
     HWY_ALIGN uint32_t seed_candidates[256];
 
     config_ = config;
@@ -225,9 +228,9 @@ class PerWorkerBuilder {
     total_hashes_before_bucket_.resize(num_buckets + 1);
     bucket_idx_largest_first_.resize(num_buckets);
 
-    const size_t num_keys = hash_for_key_idx_.size();
-    HashArray(hash_, keys, MutableHashes(), num_keys);  // Negligible time.
-    PopulateBuckets(num_keys);
+    // Negligible CPU time.
+    HashArray(hash_, keys.data(), MutableHashes(), keys.size());
+    PopulateBuckets(keys.size());
 
     // Process all non-empty buckets in descending size order.
     const size_t num_ge1_buckets = num_buckets - num_buckets_with_size_[0];
@@ -577,8 +580,9 @@ class PerWorkerBuilder {
 // --------------------------------------------------------------------------
 
 // Enumerates configs, tries each with parallel workers, returns the best.
-static PhastData BuildPhastImpl(const uint32_t* keys, size_t num_keys,
-                                ThreadPool& pool) {
+static PhastData BuildPhastImpl(Span<const uint32_t> keys,
+                                const size_t payload_bytes, ThreadPool& pool) {
+  const size_t num_keys = keys.size();
   const size_t num_workers = pool.NumWorkers();
 
   // Allocate per-worker builders once; reused across all configs.
@@ -592,16 +596,17 @@ static PhastData BuildPhastImpl(const uint32_t* keys, size_t num_keys,
   // because `keys` are immutable, and the hash function is a permutation,
   // hence hash collisions imply duplicate keys.
   AesCtrEngine engine(/*deterministic=*/true);
-  HashArray(Triple32(engine, 0), keys, per_worker[0].MutableHashes(), num_keys);
+  HashArray(Triple32(engine, 0), keys.data(), per_worker[0].MutableHashes(),
+            num_keys);
   VQSortStatic(per_worker[0].MutableHashes(), num_keys, SortAscending());
   uint32_t* end = per_worker[0].MutableHashes() + num_keys;
   HWY_ASSERT_M(end == std::unique(per_worker[0].MutableHashes(), end),
                "Collision detected");
 
-  // Enumerate configs sorted by extra_bytes ascending.
+  // Enumerate configs sorted by AllocatedBytes ascending.
   size_t reps_per_config;
   AlignedVector<PhastConfig> configs =
-      EnumerateConfigs(num_keys, num_workers, reps_per_config);
+      EnumerateConfigs(num_keys, payload_bytes, num_workers, reps_per_config);
   const Divisor div_reps(static_cast<uint32_t>(reps_per_config));
   const size_t outer_reps = div_reps.Divide(kMaxAttempts);
 
@@ -639,7 +644,7 @@ static PhastData BuildPhastImpl(const uint32_t* keys, size_t num_keys,
 }
 
 #else   // HWY_TARGET == HWY_SCALAR
-static PhastData BuildPhastImpl(const uint32_t*, size_t, ThreadPool&) {
+static PhastData BuildPhastImpl(Span<const uint32_t>, size_t, ThreadPool&) {
   return PhastData();
 }
 #endif  // HWY_TARGET != HWY_SCALAR
@@ -652,9 +657,10 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 HWY_EXPORT(BuildPhastImpl);
 
-HWY_CONTRIB_DLLEXPORT PhastData BuildPhast(const uint32_t* keys,
-                                           size_t num_keys, ThreadPool& pool) {
-  return HWY_DYNAMIC_DISPATCH(BuildPhastImpl)(keys, num_keys, pool);
+HWY_CONTRIB_DLLEXPORT PhastData BuildPhast(Span<const uint32_t> keys,
+                                           size_t payload_bytes,
+                                           ThreadPool& pool) {
+  return HWY_DYNAMIC_DISPATCH(BuildPhastImpl)(keys, payload_bytes, pool);
 }
 
 }  // namespace hwy
