@@ -256,6 +256,21 @@ HWY_NOINLINE void TestAllPopCount() {
   HWY_ASSERT_EQ(size_t{64}, PopCount(0xFFFFFFFFFFFFFFFFull));
 }
 
+HWY_NOINLINE void TestAllDivCeil() {
+  static_assert(DivCeil(size_t{0}, size_t{1}) == size_t{0},
+                "DivCeil must handle zero dividends");
+  static_assert(DivCeil(size_t{7}, size_t{7}) == size_t{1},
+                "DivCeil must remain constexpr");
+
+  HWY_ASSERT_EQ(size_t{0}, DivCeil(size_t{0}, size_t{1}));
+  HWY_ASSERT_EQ(size_t{0}, DivCeil(size_t{0}, size_t{7}));
+  HWY_ASSERT_EQ(size_t{1}, DivCeil(size_t{1}, size_t{7}));
+  HWY_ASSERT_EQ(size_t{2}, DivCeil(size_t{8}, size_t{7}));
+
+  constexpr size_t kMax = std::numeric_limits<size_t>::max();
+  HWY_ASSERT_EQ(kMax / size_t{2} + size_t{1}, DivCeil(kMax, size_t{2}));
+}
+
 // Exhaustive test for small/large dividends and divisors
 HWY_NOINLINE void TestAllDivisor() {
   // Small d, small n
@@ -949,6 +964,32 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 namespace hwy {
 namespace {
+#ifdef GTEST_HAS_DEATH_TEST
+#if HWY_CXX_LANG >= 201703L
+TEST(BaseDeathTest, DivCeilByZero) {
+  ASSERT_DEATH({ (void)DivCeil(size_t{1}, size_t{0}); }, "Assert b != T2");
+}
+#endif  // HWY_CXX_LANG >= 201703L
+
+TEST(BaseDeathTest, DivisorZero) {
+  ASSERT_DEATH(
+      {
+        Divisor divisor(0);
+        (void)divisor;
+      },
+      "Assert divisor != 0");
+}
+
+TEST(BaseDeathTest, Divisor64Zero) {
+  ASSERT_DEATH(
+      {
+        Divisor64 divisor(0);
+        (void)divisor;
+      },
+      "Assert divisor != 0");
+}
+#endif  // GTEST_HAS_DEATH_TEST
+
 HWY_BEFORE_TEST(BaseTest);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestUnreachable);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllLimits);
@@ -957,6 +998,7 @@ HWY_EXPORT_AND_TEST_P(BaseTest, TestAllType);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllIsSame);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllBitScan);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllPopCount);
+HWY_EXPORT_AND_TEST_P(BaseTest, TestAllDivCeil);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllDivisor);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllDivisor64);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllScalarShr);

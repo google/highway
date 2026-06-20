@@ -2822,9 +2822,9 @@ HWY_API uint32_t LemireMod(uint32_t in, uint32_t range) {
 template <typename T1, typename T2>
 constexpr T1 DivCeil(T1 a, T2 b) {
 #if HWY_CXX_LANG >= 201703L
-  HWY_DASSERT(b != T2{0});
+  HWY_ASSERT(b != T2{0});
 #endif
-  return (a + b - 1) / b;
+  return a == T1{0} ? T1{0} : T1{1} + (a - T1{1}) / b;
 }
 
 // Works for any non-zero `align`; if a power of two, compiler emits ADD+AND.
@@ -3097,7 +3097,8 @@ HWY_API int64_t Mul128(int64_t a, int64_t b, int64_t* HWY_RESTRICT upper) {
 class Divisor {
  public:
   explicit Divisor(uint32_t divisor) : divisor_(divisor) {
-    if (divisor <= 1) return;
+    HWY_ASSERT(divisor != 0);
+    if (divisor == 1) return;
 
     const uint32_t len =
         static_cast<uint32_t>(31 - Num0BitsAboveMS1Bit_Nonzero32(divisor - 1));
@@ -3155,7 +3156,8 @@ class Divisor {
 class Divisor64 {
  public:
   explicit Divisor64(uint64_t divisor) : divisor_(divisor) {
-    if (divisor <= 1) return;
+    HWY_ASSERT(divisor != 0);
+    if (divisor == 1) return;
 
     const uint64_t len =
         static_cast<uint64_t>(63 - Num0BitsAboveMS1Bit_Nonzero64(divisor - 1));
@@ -3214,7 +3216,9 @@ class Divisor64 {
 // No Div128 available, use built-in 64-bit division on each call.
 class Divisor64 {
  public:
-  explicit Divisor64(uint64_t divisor) : divisor_(divisor) {}
+  explicit Divisor64(uint64_t divisor) : divisor_(divisor) {
+    HWY_ASSERT(divisor != 0);
+  }
 
   uint64_t GetDivisor() const { return divisor_; }
 
