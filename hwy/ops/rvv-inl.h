@@ -2999,6 +2999,98 @@ HWY_API VFromD<D> DemoteTo(D d, VFromD<Rebind<int64_t, D>> v) {
 
 #undef HWY_RVV_DEMOTE
 
+// ------------------------------ ShiftRightAndDemoteTo (vnclip, vnclipu)
+// -------------------- RoundingShiftRightAndDemoteTo (vnclip with RNU rounding)
+
+// vnclip/vnclipu fuse the right shift, narrowing and saturation into a single
+// instruction, which the compiler does not derive from DemoteTo(d,
+// [Rounding]ShiftRight<k>(v)). vnclip always rounds per vxrm: the non-rounding
+// op needs RDN (truncate) and the rounding op needs RNU. When
+// HWY_RVV_AVOID_VXRM is set the intrinsic ignores the vxrm argument and uses
+// the CSR default, so RDN cannot be guaranteed; there we leave the generic
+// (DemoteTo + shift) path in place by not defining the toggle below.
+#ifndef HWY_RVV_AVOID_VXRM
+
+#ifdef HWY_NATIVE_SHIFT_RIGHT_AND_DEMOTE
+#undef HWY_NATIVE_SHIFT_RIGHT_AND_DEMOTE
+#else
+#define HWY_NATIVE_SHIFT_RIGHT_AND_DEMOTE
+#endif
+
+// SEW is for the source so we can use _DEMOTE_VIRT, like HWY_RVV_DEMOTE.
+// HWY_RVV_SHR_DEMOTE_VXRM selects the rounding mode (RDN vs RNU).
+#define HWY_RVV_SHIFT_RIGHT_AND_DEMOTE(BASE, CHAR, SEW, SEWD, SEWH, LMUL,    \
+                                       LMULD, LMULH, SHIFT, MLEN, NAME, OP)  \
+  template <int kShiftAmt, size_t N>                                         \
+  HWY_API HWY_RVV_V(BASE, SEWH, LMULH) NAME(                                 \
+      HWY_RVV_D(BASE, SEWH, N, SHIFT - 1) d, HWY_RVV_V(BASE, SEW, LMUL) v) { \
+    static_assert(0 <= kShiftAmt && kShiftAmt <= static_cast<int>(SEW - 1),  \
+                  "kShiftAmt is out of range");                              \
+    return __riscv_v##OP##CHAR##SEWH##LMULH(                                 \
+        v, static_cast<size_t>(kShiftAmt),                                   \
+        HWY_RVV_INSERT_VXRM(HWY_RVV_SHR_DEMOTE_VXRM, Lanes(d)));             \
+  }
+
+// Signed -> signed and unsigned -> unsigned have a single fused instruction.
+#define HWY_RVV_SHR_DEMOTE_VXRM __RISCV_VXRM_RDN
+HWY_RVV_FOREACH_I16(HWY_RVV_SHIFT_RIGHT_AND_DEMOTE, ShiftRightAndDemoteTo,
+                    nclip_wx_, _DEMOTE_VIRT)
+HWY_RVV_FOREACH_I32(HWY_RVV_SHIFT_RIGHT_AND_DEMOTE, ShiftRightAndDemoteTo,
+                    nclip_wx_, _DEMOTE_VIRT)
+HWY_RVV_FOREACH_I64(HWY_RVV_SHIFT_RIGHT_AND_DEMOTE, ShiftRightAndDemoteTo,
+                    nclip_wx_, _DEMOTE_VIRT)
+HWY_RVV_FOREACH_U16(HWY_RVV_SHIFT_RIGHT_AND_DEMOTE, ShiftRightAndDemoteTo,
+                    nclipu_wx_, _DEMOTE_VIRT)
+HWY_RVV_FOREACH_U32(HWY_RVV_SHIFT_RIGHT_AND_DEMOTE, ShiftRightAndDemoteTo,
+                    nclipu_wx_, _DEMOTE_VIRT)
+HWY_RVV_FOREACH_U64(HWY_RVV_SHIFT_RIGHT_AND_DEMOTE, ShiftRightAndDemoteTo,
+                    nclipu_wx_, _DEMOTE_VIRT)
+#undef HWY_RVV_SHR_DEMOTE_VXRM
+
+#define HWY_RVV_SHR_DEMOTE_VXRM __RISCV_VXRM_RNU
+HWY_RVV_FOREACH_I16(HWY_RVV_SHIFT_RIGHT_AND_DEMOTE,
+                    RoundingShiftRightAndDemoteTo, nclip_wx_, _DEMOTE_VIRT)
+HWY_RVV_FOREACH_I32(HWY_RVV_SHIFT_RIGHT_AND_DEMOTE,
+                    RoundingShiftRightAndDemoteTo, nclip_wx_, _DEMOTE_VIRT)
+HWY_RVV_FOREACH_I64(HWY_RVV_SHIFT_RIGHT_AND_DEMOTE,
+                    RoundingShiftRightAndDemoteTo, nclip_wx_, _DEMOTE_VIRT)
+HWY_RVV_FOREACH_U16(HWY_RVV_SHIFT_RIGHT_AND_DEMOTE,
+                    RoundingShiftRightAndDemoteTo, nclipu_wx_, _DEMOTE_VIRT)
+HWY_RVV_FOREACH_U32(HWY_RVV_SHIFT_RIGHT_AND_DEMOTE,
+                    RoundingShiftRightAndDemoteTo, nclipu_wx_, _DEMOTE_VIRT)
+HWY_RVV_FOREACH_U64(HWY_RVV_SHIFT_RIGHT_AND_DEMOTE,
+                    RoundingShiftRightAndDemoteTo, nclipu_wx_, _DEMOTE_VIRT)
+#undef HWY_RVV_SHR_DEMOTE_VXRM
+#undef HWY_RVV_SHIFT_RIGHT_AND_DEMOTE
+
+// Catch-all fallback for combinations without a fused instruction, e.g. uint16
+// to int8 or two-step narrowing such as i32 to i8. The bodies are identical to
+// the generic_ops-inl.h templates of the same name; we duplicate here because
+// HWY_NATIVE_SHIFT_RIGHT_AND_DEMOTE suppresses those on RVV.
+template <int kShiftAmt, class DN, class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DN),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          hwy::EnableIf<(sizeof(TFromD<DN>) < sizeof(TFromV<V>))>* = nullptr>
+HWY_API VFromD<DN> ShiftRightAndDemoteTo(DN dn, V v) {
+  using T = TFromV<V>;
+  static_assert(
+      0 <= kShiftAmt && kShiftAmt <= static_cast<int>(sizeof(T) * 8 - 1),
+      "kShiftAmt is out of range");
+  return DemoteTo(dn, ShiftRight<kShiftAmt>(v));
+}
+
+template <int kShiftAmt, class DN, class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DN),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          hwy::EnableIf<(sizeof(TFromD<DN>) < sizeof(TFromV<V>))>* = nullptr>
+HWY_API VFromD<DN> RoundingShiftRightAndDemoteTo(DN dn, V v) {
+  using T = TFromV<V>;
+  static_assert(
+      0 <= kShiftAmt && kShiftAmt <= static_cast<int>(sizeof(T) * 8 - 1),
+      "kShiftAmt is out of range");
+  return DemoteTo(dn, RoundingShiftRight<kShiftAmt>(v));
+}
+
+#endif  // !HWY_RVV_AVOID_VXRM
+
 // ------------------------------ DemoteTo F
 
 // SEW is for the source so we can use _DEMOTE_VIRT.
