@@ -158,6 +158,17 @@ HWY_CONTRIB_TESTS = (
         ],
     ),
     (
+        "hwy/contrib/hash/",
+        "cuckoo_test",
+        [
+            ":algo",
+            ":hash",
+            ":random",
+            "//hwy/contrib/sort:vqsort",
+            "//third_party/ortools/ortools/graph:min_cost_flow",  # copybara:strip
+        ],
+    ),
+    (
         "hwy/contrib/matvec/",
         "matvec_test",
         [":matvec", ":algo", ":topology", ":thread_pool"],

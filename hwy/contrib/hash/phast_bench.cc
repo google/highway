@@ -46,6 +46,7 @@
 // clang-format on
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 // After foreach_target
+#include "hwy/contrib/hash/cuckoo-inl.h"
 #include "hwy/contrib/hash/cuckoo2x2-inl.h"
 #include "hwy/contrib/hash/phast-inl.h"
 #include "hwy/contrib/random/random-inl.h"
@@ -342,23 +343,22 @@ HWY_NOINLINE void TestAbslThroughput(size_t num_keys) {
       RoundDownTo(num_keys / pool.NumWorkers(), 2 * N);
 
   AlignedVector<uint8_t> per_worker(pool.NumWorkers() * HWY_ALIGNMENT);
-  MeasureResult result =
-      Measure([&](FuncInput func_input) {
-        pool.Run(0, pool.NumWorkers(), [&](uint64_t task_idx, size_t worker) {
-          bool all_found = true;
-          const size_t offset = worker * keys_per_chunk;
-          // First loop from the per-worker offset to end.
-          for (size_t i = offset; i < num_keys; ++i) {
-            all_found &= set.contains(keys[i]);
-          }
-          // Second loop from the beginning to the per-worker offset.
-          for (size_t i = 0; i < offset; ++i) {
-            all_found &= set.contains(keys[i]);
-          }
-          per_worker[worker * HWY_ALIGNMENT] = all_found;
-        });
-        return per_worker[Unpredictable1() * HWY_ALIGNMENT];
-      });
+  MeasureResult result = Measure([&](FuncInput func_input) {
+    pool.Run(0, pool.NumWorkers(), [&](uint64_t task_idx, size_t worker) {
+      bool all_found = true;
+      const size_t offset = worker * keys_per_chunk;
+      // First loop from the per-worker offset to end.
+      for (size_t i = offset; i < num_keys; ++i) {
+        all_found &= set.contains(keys[i]);
+      }
+      // Second loop from the beginning to the per-worker offset.
+      for (size_t i = 0; i < offset; ++i) {
+        all_found &= set.contains(keys[i]);
+      }
+      per_worker[worker * HWY_ALIGNMENT] = all_found;
+    });
+    return per_worker[Unpredictable1() * HWY_ALIGNMENT];
+  });
   for (size_t i = 0; i < pool.NumWorkers(); ++i) {
     HWY_ASSERT(per_worker[i * HWY_ALIGNMENT]);
   }
@@ -418,8 +418,61 @@ HWY_NOINLINE void TestAbslLatency(size_t num_keys) {
 #endif  // HWY_HAVE_ABSL
 }
 
-// Driver functions: sweep across sizes or run once.
+HWY_NOINLINE void TestCuckooThroughput(size_t num_keys) {
+  const AlignedVector<uint32_t> keys = GenerateKeys(num_keys);
+  const size_t before = AllocatedBefore();
+  const CuckooTable cuckoo =
+      CuckooBuild(keys.data(), keys.size(), /*epsilon=*/0.1,
+                  /*max_attempts=*/100, /*optimize_primary=*/true);
+  const size_t allocated_bytes =
+      AllocatedBytes(before, cuckoo.AllocatedBytes());
+  if (cuckoo.IsEmpty()) {
+    HWY_WARN("Cuckoo build failed, skipping throughput test.\n");
+    return;
+  }
 
+  const double pct_pri = 100.0 * cuckoo.NumPrimary() / keys.size();
+  const double pct_sec =
+      100.0 * (keys.size() - cuckoo.NumPrimary()) / keys.size();
+  fprintf(stderr,
+          "Cuckoo hashing fill stats: %.2f%% primary, %.2f%% secondary\n",
+          pct_pri, pct_sec);
+
+  ThreadPool pool = MakePool();
+  pool.SetWaitMode(PoolWaitMode::kSpin);
+
+  // Each worker starts at a different offset in the keys to avoid unrealistic
+  // cache behavior, without requiring separate per-worker allocations.
+  const ScalableTag<uint32_t> du32;
+  HWY_LANES_CONSTEXPR size_t N = Lanes(du32);
+  const size_t keys_per_chunk = RoundDownTo(num_keys / pool.NumWorkers(), N);
+  HWY_ASSERT(num_keys % N == 0);
+
+  AlignedVector<uint8_t> per_worker(pool.NumWorkers() * HWY_ALIGNMENT);
+  MeasureResult result = Measure([&](FuncInput func_input) {
+    pool.Run(0, pool.NumWorkers(), [&](uint64_t task_idx, size_t worker) {
+      bool all_found = true;
+      for (size_t i = 0; i < num_keys; i += N) {
+        const size_t wrapped_i = (worker * keys_per_chunk + i) % num_keys;
+        const auto not_found = cuckoo.QueryBatch(du32, &keys[wrapped_i]);
+        all_found &= AllFalse(du32, not_found);
+      }
+      per_worker[worker * HWY_ALIGNMENT] = all_found;
+    });
+    return per_worker[Unpredictable1() * HWY_ALIGNMENT];
+  });
+  for (size_t i = 0; i < pool.NumWorkers(); ++i) {
+    HWY_ASSERT(per_worker[i * HWY_ALIGNMENT]);
+  }
+  const size_t bytes = num_keys * sizeof(uint32_t) * pool.NumWorkers();
+  printf(
+      "Cuckoo 2x16 u32 throughput: %4zuKi keys = %4.1f GB/s; "
+      "measurement MAD=%4.2f%%, allocated %5zu KiB\n",
+      num_keys / 1024, static_cast<double>(bytes) / result.ns,
+      result.mad_percent, allocated_bytes / 1024);
+}
+
+// Driver functions: sweep across sizes or run once.
 HWY_NOINLINE void TestLatencySweep() {
   if (kSweepLatency) {
     // Powers of ten: 100-10K.
@@ -449,12 +502,14 @@ HWY_NOINLINE void TestThroughputSweep() {
       TestPhastThroughput(n);
       TestCuckoo2x2Throughput(n);
       TestAbslThroughput(n);
+      TestCuckooThroughput(n);
     }
     // Powers of two: 32K-4M.
     for (size_t n = (32 << 10); n <= (size_t{4} << 20); n *= 2) {
       TestPhastThroughput(n);
       TestCuckoo2x2Throughput(n);
       TestAbslThroughput(n);
+      TestCuckooThroughput(n);
     }
   } else {
     TestPhastThroughput(kNumKeys);
@@ -476,6 +531,7 @@ void TestLatencySweep() {}
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
+
 namespace hwy {
 HWY_BEFORE_TEST(PhastBench);
 HWY_EXPORT_AND_TEST_BEST_P(PhastBench, TestThroughputSweep);

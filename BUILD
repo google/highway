@@ -455,6 +455,7 @@ cc_library(
     compatible_with = [],
     copts = COPTS,
     textual_hdrs = [
+        "hwy/contrib/hash/cuckoo-inl.h",
         "hwy/contrib/hash/hash-inl.h",
         "hwy/contrib/hash/phast-inl.h",
         "hwy/contrib/hash/cuckoo2x2-inl.h",
