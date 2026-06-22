@@ -43,7 +43,7 @@ namespace {
 
 template <class IHash>
 HWY_NOINLINE void TestLatency(const IHash& hash) {
-  FuncInput input = Unpredictable1();
+  FuncInput input = static_cast<FuncInput>(Unpredictable1());
   Params params = DefaultBenchmarkParams();
   params.verbose = false;
   Result results[1];
@@ -57,7 +57,8 @@ HWY_NOINLINE void TestLatency(const IHash& hash) {
     const double ns =
         results[0].ticks / platform::InvariantTicksPerSecond() * 1E9;
     printf("%12s: %6.2f ns = %4.1f GB/s; measurement MAD=%4.2f%%\n",
-           hash.Name(), ns, VectorBytes() / ns, results[0].variability * 100.0);
+           hash.Name(), ns, static_cast<double>(VectorBytes()) / ns,
+           results[0].variability * 100.0);
   } else {
     HWY_WARN("Measurement failed.");
   }
@@ -71,7 +72,7 @@ HWY_NOINLINE void TestThroughput(const IHash& hash) {
     inout[i] = static_cast<uint32_t>(Unpredictable1());
   }
 
-  FuncInput input = Unpredictable1();
+  FuncInput input = static_cast<FuncInput>(Unpredictable1());
   Result results[1];
   Params params = DefaultBenchmarkParams();
   params.verbose = false;

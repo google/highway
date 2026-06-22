@@ -74,7 +74,7 @@ PhastConfig MakeConfig(size_t num_keys, int headroom_percent,
 size_t MinSliceLength(size_t num_keys) {
   HWY_ASSERT(num_keys >= 1);
   // Based on suggestions from the PHAST paper, section 5.1.
-  if (num_keys < 64) return RoundDownToPow2(num_keys);
+  if (num_keys < 64) return RoundDownToPow2(num_keys / 2);
   if (num_keys < 1'300) return 64;
   if (num_keys < 9'500) return 128;
   if (num_keys < 12'000) return 256;
@@ -88,7 +88,7 @@ static AlignedVector<PhastConfig> EnumerateConfigs(size_t num_keys,
                                                    size_t num_workers,
                                                    size_t& reps_per_config) {
   const size_t min_slice_length = MinSliceLength(num_keys);
-  HWY_ASSERT(min_slice_length < num_keys);
+  HWY_ASSERT(num_keys == 1 || min_slice_length < num_keys);
 
   const std::vector<int> kHeadroomPercents = {1, 2, 3, 4, 10, 15, 20};
   const std::vector<size_t> kSliceShifts = {0, 1};

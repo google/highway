@@ -75,6 +75,36 @@ class Feistel4Mul2 {
   }
 
   template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
+  HWY_INLINE HWY_MUST_USE_RESULT VU32 OneVec(DU32 du32,
+                                             const VU32 inout0) const {
+    const Rebind<uint16_t, DU32> du16;
+    using VU16 = Vec<decltype(du16)>;
+
+    // Feistel turns any F into a bijection. Split each u32 into its even
+    // (lower) and odd (upper) u16. Randen also splits, but into 128-bit blocks.
+    VU16 LL = TruncateTo(du16, inout0);
+    VU16 RR = TruncateTo(du16, ShiftRight<16>(inout0));
+
+    // Feistel must apply the same function to all lanes, hence broadcast.
+    const VU16 kKey0 = Set(du16, keys_[0]);
+    const VU16 kKey1 = Set(du16, keys_[1]);
+    const VU16 kMul0 = Set(du16, 0xA3D3u);
+    const VU16 kMul1 = Set(du16, 0x4B2Du);
+
+    // Alternate keys for at least some variation.
+    LL = FeistelMul(du16, RR, LL, kKey0, kMul0, kMul1);
+    RR = FeistelMul(du16, LL, RR, kKey1, kMul0, kMul1);
+    LL = FeistelMul(du16, RR, LL, kKey0, kMul0, kMul1);
+    RR = FeistelMul(du16, LL, RR, kKey1, kMul0, kMul1);
+
+    // Re-interleave LL and RR back into u32.
+    const Twice<decltype(du16)> du16t;
+    const VU16 lo = InterleaveWholeLower(du16, LL, RR);
+    const VU16 hi = InterleaveWholeUpper(du16, LL, RR);
+    return BitCast(du32, Combine(du16t, lo, hi));
+  }
+
+  template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
   HWY_INLINE void TwoVec(DU32 du32, VU32& inout0, VU32& inout1) const {
     const RepartitionToNarrow<DU32> du16;
     using VU16 = Vec<decltype(du16)>;
@@ -138,7 +168,7 @@ class Triple32 {
 
   // Used by Phast.
   template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
-  HWY_INLINE VU32 OneVec(DU32 du32, const VU32 in) const {
+  HWY_INLINE HWY_MUST_USE_RESULT VU32 OneVec(DU32 du32, const VU32 in) const {
     VU32 hash = Xor(in, Set(du32, key_));
     hash = Xor(hash, ShiftRight<17>(hash));
     hash = Mul(hash, Set(du32, 0xED5AD4BBu));
@@ -169,7 +199,7 @@ class MulGolden {
   uint32_t operator()(uint32_t x) const { return x * 0x9E3779B9u; }
 
   template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
-  HWY_INLINE VU32 OneVec(DU32 du32, const VU32 in) const {
+  HWY_INLINE HWY_MUST_USE_RESULT VU32 OneVec(DU32 du32, const VU32 in) const {
     return Mul(in, Set(du32, 0x9E3779B9u));
   }
 
@@ -221,6 +251,32 @@ class Speck32 {
     // Re-interleave x0 and x1 back into u32.
     inout0 = BitCast(du32, InterleaveWholeLower(du16, x0, x1));
     inout1 = BitCast(du32, InterleaveWholeUpper(du16, x0, x1));
+  }
+
+  template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
+  HWY_INLINE HWY_MUST_USE_RESULT VU32 OneVec(DU32 du32, const VU32 in) const {
+    const Rebind<uint16_t, DU32> du16;
+    using VU16 = Vec<decltype(du16)>;
+
+    // Split each u32 into its even (lower) and odd (upper) u16.
+    VU16 x0 = TruncateTo(du16, in);
+    VU16 x1 = TruncateTo(du16, ShiftRight<16>(in));
+
+    // 8 unrolled rounds, one key each.
+    Round(du16, x0, x1, Set(du16, keys_[0]));
+    Round(du16, x0, x1, Set(du16, keys_[1]));
+    Round(du16, x0, x1, Set(du16, keys_[2]));
+    Round(du16, x0, x1, Set(du16, keys_[3]));
+    Round(du16, x0, x1, Set(du16, keys_[4]));
+    Round(du16, x0, x1, Set(du16, keys_[5]));
+    Round(du16, x0, x1, Set(du16, keys_[6]));
+    Round(du16, x0, x1, Set(du16, keys_[7]));
+
+    // Re-interleave x0 and x1 back into u32.
+    const Twice<decltype(du16)> du16t;
+    const VU16 lo = InterleaveWholeLower(du16, x0, x1);
+    const VU16 hi = InterleaveWholeUpper(du16, x0, x1);
+    return BitCast(du32, Combine(du16t, lo, hi));
   }
 
  private:
@@ -330,7 +386,7 @@ class Murmur3 {
 
  private:
   template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
-  HWY_INLINE VU32 OneVec(DU32 du32, const VU32 in) const {
+  HWY_INLINE HWY_MUST_USE_RESULT VU32 OneVec(DU32 du32, const VU32 in) const {
     const VU32 c1 = Set(du32, 0xcc9e2d51);
     const VU32 c2 = Set(du32, 0x1b873593);
     const VU32 m = Set(du32, 5);
@@ -382,7 +438,7 @@ class WeakTwoMul {
 
  private:
   template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
-  HWY_INLINE VU32 OneVec(DU32 du32, const VU32 in) const {
+  HWY_INLINE HWY_MUST_USE_RESULT VU32 OneVec(DU32 du32, const VU32 in) const {
     VU32 hash = Xor(in, Set(du32, keys_[0]));
     hash = Xor(hash, ShiftRight<16>(hash));
     hash = Mul(hash, Set(du32, 0x21F0AAADu));
@@ -416,7 +472,7 @@ class WeakNMHash {
 
  private:
   template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
-  HWY_INLINE VU32 OneVec(DU32 du32, const VU32 in) const {
+  HWY_INLINE HWY_MUST_USE_RESULT VU32 OneVec(DU32 du32, const VU32 in) const {
     VU32 hash = Xor(in, Set(du32, keys_[0]));
     hash = Mul(hash, Set(du32, 0xBDAB1EA9u));
     hash = Xor(hash, ShiftRight<18>(hash));
@@ -455,8 +511,16 @@ static void HashArray(const Hash& hash, uint32_t* HWY_RESTRICT inout,
       Store(v3, du32, inout + i + 3 * N);
     }
   }
-  for (; i < count; ++i) {
-    inout[i] = hash(inout[i]);
+  size_t remaining = count - i;
+  for (; remaining >= N; i += N, remaining -= N) {
+    VU32 v0 = Load(du32, inout + i);
+    v0 = hash.OneVec(du32, v0);
+    Store(v0, du32, inout + i);
+  }
+  {
+    VU32 v0 = LoadN(du32, inout + i, remaining);
+    v0 = hash.OneVec(du32, v0);
+    StoreN(v0, du32, inout + i, remaining);
   }
 }
 
@@ -483,8 +547,16 @@ static void HashArray(const Hash& hash, const uint32_t* HWY_RESTRICT in,
       Store(v3, du32, out + i + 3 * N);
     }
   }
-  for (; i < count; ++i) {
-    out[i] = hash(in[i]);
+  size_t remaining = count - i;
+  for (; remaining >= N; i += N, remaining -= N) {
+    VU32 v0 = Load(du32, in + i);
+    v0 = hash.OneVec(du32, v0);
+    Store(v0, du32, out + i);
+  }
+  {
+    VU32 v0 = LoadN(du32, in + i, remaining);
+    v0 = hash.OneVec(du32, v0);
+    StoreN(v0, du32, out + i, remaining);
   }
 }
 
@@ -507,7 +579,7 @@ AlignedVector<T> FillRandomDistinct(size_t count, uint32_t key) {
   AlignedVector<T> v;
   v.reserve(count);
   for (size_t i = 0; i < count; ++i) {
-    v.push_back(permutation(i));
+    v.push_back(permutation(static_cast<uint32_t>(i)));
   }
   return v;
 }

@@ -140,7 +140,8 @@ void TestBuildAndQuery(const size_t num_keys) {
           "    Build(%7zu keys): %7.2f ms, %7zu buckets, %.2f b/key "
           "config %2zu, attempt %2zu\n",
           num_keys, elapsed * 1E3, data.NumBuckets(),
-          data.AllocatedBytes() * 8.0 / static_cast<double>(num_keys),
+          static_cast<double>(data.AllocatedBytes()) * 8.0 /
+              static_cast<double>(num_keys),
           data.config_idx, data.attempt_idx);
 
   // Check all keys found via scalar.

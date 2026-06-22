@@ -119,9 +119,9 @@ static HWY_NOINLINE void TestAvalanche(const Hash& hash) {
 
     for (size_t ibit = 0; ibit < 32; ++ibit) {
       for (size_t obit = 0; obit < 32; ++obit) {
-        const int32_t actual = flip_count[ibit][obit];
+        const int32_t actual = static_cast<int32_t>(flip_count[ibit][obit]);
         const int32_t abs_diff = std::abs(actual - expected);
-        sum_abs_diff += abs_diff;
+        sum_abs_diff = sum_abs_diff + static_cast<uint64_t>(abs_diff);
         max_abs_diff = HWY_MAX(max_abs_diff, abs_diff);
 
         if (actual < lo || actual > hi) {
@@ -136,7 +136,7 @@ static HWY_NOINLINE void TestAvalanche(const Hash& hash) {
       }
     }
 
-    all_max_abs_diff[worker * 8] = max_abs_diff;
+    all_max_abs_diff[worker * 8] = static_cast<size_t>(max_abs_diff);
     const double avg_abs_diff = static_cast<double>(sum_abs_diff) / (32 * 32);
     WarnIfNotNear("avg abs diff", 40.0, avg_abs_diff, 0.06);
 
@@ -230,11 +230,11 @@ static HWY_NOINLINE void TestBuckets(const Hash& hash) {
     HWY_LANES_CONSTEXPR size_t N = Lanes(du32);
     HWY_ALIGN uint32_t out[2 * MaxLanes(du32)];
 
-    const size_t in_begin = task << 24;
-    const size_t in_end = (task + 1) << 24;
-    for (size_t in_pos = in_begin; in_pos < in_end; in_pos += 2 * N) {
-      VU32 v0 = Iota(du32, in_pos + 0 * N);
-      VU32 v1 = Iota(du32, in_pos + 1 * N);
+    const uint64_t in_begin = task << 24;
+    const uint64_t in_end = (task + 1) << 24;
+    for (uint64_t in_pos = in_begin; in_pos < in_end; in_pos += 2 * N) {
+      VU32 v0 = Iota(du32, static_cast<uint32_t>(in_pos + 0 * N));
+      VU32 v1 = Iota(du32, static_cast<uint32_t>(in_pos + 1 * N));
       hash.TwoVec(du32, v0, v1);
       Store(v0, du32, out);
       Store(v1, du32, out + N);
@@ -258,7 +258,7 @@ static HWY_NOINLINE void TestBuckets(const Hash& hash) {
   Stats s_bucket;
   for (size_t i = 0; i < kNumBuckets; ++i) {
     sum += all_buckets[i];
-    s_bucket.Notify(all_buckets[i]);
+    s_bucket.Notify(static_cast<float>(all_buckets[i]));
   }
   HWY_ASSERT(sum == (uint64_t{1} << 32));
 
@@ -312,21 +312,22 @@ static HWY_NOINLINE void TestBijection(const Hash& hash) {
   // Here, all workers must test the same permutation!
 
   ThreadPool pool = MakePool(HWY_MIN(pool::kMaxThreads, 255));
-  pool.Run(0, 256, [&](uint64_t task, size_t worker) {
+  pool.Run(0, 256, [&](uint64_t task, size_t /*worker*/) {
     const ScalableTag<uint32_t> du32;
     using VU32 = Vec<decltype(du32)>;
 
     HWY_LANES_CONSTEXPR size_t N = Lanes(du32);
     HWY_ALIGN uint32_t out[4 * MaxLanes(du32)];
-    const VU32 out_first = Set(du32, task << 24);
-    const VU32 out_last = Set(du32, ((task + 1) << 24) - 1);
+    const VU32 out_first = Set(du32, static_cast<uint32_t>(task << 24));
+    const VU32 out_last =
+        Set(du32, static_cast<uint32_t>(((task + 1) << 24) - 1));
     HWY_ASSERT(GetLane(out_last) - GetLane(out_first) == kNumU32 / 256 - 1);
 
-    for (size_t in_pos = 0; in_pos < kNumU32; in_pos += 4 * N) {
-      VU32 v0 = Iota(du32, in_pos + 0 * N);
-      VU32 v1 = Iota(du32, in_pos + 1 * N);
-      VU32 v2 = Iota(du32, in_pos + 2 * N);
-      VU32 v3 = Iota(du32, in_pos + 3 * N);
+    for (uint64_t in_pos = 0; in_pos < kNumU32; in_pos += 4 * N) {
+      VU32 v0 = Iota(du32, static_cast<uint32_t>(in_pos + 0 * N));
+      VU32 v1 = Iota(du32, static_cast<uint32_t>(in_pos + 1 * N));
+      VU32 v2 = Iota(du32, static_cast<uint32_t>(in_pos + 2 * N));
+      VU32 v3 = Iota(du32, static_cast<uint32_t>(in_pos + 3 * N));
       hash.TwoVec(du32, v0, v1);
       hash.TwoVec(du32, v2, v3);
       // Only keep if in range (2x speedup vs. scalar branching)

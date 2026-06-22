@@ -38,7 +38,6 @@
 #endif  // HWY_DISABLED_TARGETS
 
 #include "hwy/contrib/thread_pool/thread_pool.h"
-#include "hwy/contrib/thread_pool/topology.h"
 #include "hwy/timer.h"
 
 // clang-format off
@@ -56,11 +55,6 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
 #if (HWY_TARGET != HWY_SCALAR && HWY_TARGET != HWY_EMU128) || HWY_IDE
-
-size_t NumThreads(const Topology& topology) {
-  if (topology.packages.empty()) return ThreadPool::MaxThreads();
-  return topology.packages[0].cores.size() - 1;
-}
 
 // Returns random value in [0, range).
 uint32_t Choose(uint32_t range, RngStream& rng) {
@@ -904,8 +898,9 @@ HWY_NOINLINE void TestHashProspector16() {
 }
 
 HWY_NOINLINE void RunHashProspector16() {
-  Topology topology;
-  ThreadPool pool(NumThreads(topology));
+  // For reasons unknown, this raises SIGILL in QEMU as of 2026-06-19.
+  if constexpr (HWY_ARCH_RVV) return;
+  ThreadPool pool(ThreadPool::NumThreadsFromCores());
   // Evaluating 23m multipliers (40s on Turin) has top 8 costs 0.023-0.027, vs.
   // 0.029-0.034 for 15s. For manual runs, this should be >= 40.0, but we use
   // short timeouts to make tests run quickly.

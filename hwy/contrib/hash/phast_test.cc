@@ -62,22 +62,22 @@ static ThreadPool MakePool() {
 
 HWY_NOINLINE void TestQueryConsistency() {
   fprintf(stderr, "=== TestQueryConsistency ===\n");
-  const uint32_t num_keys = AdjustedReps(5'000);
+  const size_t num_keys = AdjustedReps(5'000);
   AlignedVector<uint32_t> keys(num_keys);
-  for (uint32_t i = 0; i < num_keys; ++i) {
-    keys[i] = i * 37 + 1;  // Distinct, non-sequential.
+  for (size_t i = 0; i < num_keys; ++i) {
+    keys[i] = static_cast<uint32_t>(i * 37 + 1);  // Distinct, non-sequential.
   }
 
   ThreadPool pool = MakePool();
   Phast phast = MakePhast(Span(keys), 0, pool);
 
   // Query each key twice and verify same result.
-  for (uint32_t i = 0; i < num_keys; ++i) {
+  for (size_t i = 0; i < num_keys; ++i) {
     const uint32_t idx1 = phast(keys[i]);
     const uint32_t idx2 = phast(keys[i]);
     HWY_ASSERT_M(idx1 == idx2, "Query not deterministic");
   }
-  fprintf(stderr, "  OK: %u queries consistent\n", num_keys);
+  fprintf(stderr, "  OK: %zu queries consistent\n", num_keys);
 }
 
 // --------------------------------------------------------------------------
@@ -116,13 +116,13 @@ void QueryBatch(const uint32_t* HWY_RESTRICT keys, size_t num_keys,
 }
 
 // Mutates input.
-void CheckDistinctAndRange(uint32_t* indices, uint32_t num_indices,
-                           uint32_t num_slots) {
+void CheckDistinctAndRange(uint32_t* indices, size_t num_indices,
+                           size_t num_slots) {
   VQSort(indices, num_indices, SortAscending());
   uint32_t* end = std::unique(indices, indices + num_indices);
   HWY_ASSERT_M(end == indices + num_indices, "Collision detected");
 
-  for (uint32_t i = 0; i < num_indices; ++i) {
+  for (size_t i = 0; i < num_indices; ++i) {
     HWY_ASSERT_M(indices[i] < num_slots, "Index out of range");
   }
 }
@@ -140,8 +140,8 @@ void TestDistinctAndRange(const size_t num_keys) {
           "    Build(%7zu keys): %7.2f ms, %7zu slots, %.2f b/key config %2zu, "
           "attempt %2zu\n",
           num_keys, elapsed * 1E3, data.NumSlots(),
-          phast.Data().AllocatedBytes(payload_bytes) * 8.0 /
-              static_cast<double>(num_keys),
+          static_cast<double>(phast.Data().AllocatedBytes(payload_bytes)) *
+              8.0 / static_cast<double>(num_keys),
           data.config_idx, data.attempt_idx);
 
   // Check that all keys map to distinct indices in [0, num_slots).
@@ -151,12 +151,17 @@ void TestDistinctAndRange(const size_t num_keys) {
 }
 
 HWY_NOINLINE void TestMultipleSizes() {
+  const size_t kMul = 1;  // increase for larger tests.
   fprintf(stderr, "=== TestSmall ===\n");
-  TestDistinctAndRange(/*num_keys=*/AdjustedReps(6'000));
+  for (size_t num_keys = 1; num_keys < 64; ++num_keys) {
+    TestDistinctAndRange(num_keys);
+  }
+  TestDistinctAndRange(/*num_keys=*/AdjustedReps(AdjustedReps(100 * kMul)));
   fprintf(stderr, "=== TestMedium ===\n");
-  TestDistinctAndRange(/*num_keys=*/AdjustedReps(60'000));
+  TestDistinctAndRange(/*num_keys=*/AdjustedReps(AdjustedReps(500 * kMul)));
   fprintf(stderr, "=== TestLarge ===\n");
-  TestDistinctAndRange(/*num_keys=*/AdjustedReps(AdjustedReps(1000)) * 1024);
+  TestDistinctAndRange(
+      /*num_keys=*/AdjustedReps(AdjustedReps(2 * kMul)) * 1024);
 
   PROFILER_PRINT_RESULTS();
 }

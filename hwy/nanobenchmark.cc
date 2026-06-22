@@ -46,6 +46,33 @@ timer::Ticks SampleUntilStable(const double max_rel_mad, double* rel_mad,
   timer::Ticks t1 = timer::Stop();  // Caller checks HaveTimerStop
   timer::Ticks est = t1 - t0;
   static const double ticks_per_second = platform::InvariantTicksPerSecond();
+
+  // For long-running functions, taking the median of a few samples is
+  // sufficient and avoids excessive total measurement time.
+  const double est_seconds = static_cast<double>(est) / ticks_per_second;
+  if (est_seconds > p.seconds_per_eval * 25.0) {  // default 100 ms
+    constexpr size_t kExtraSamples = 4;           // plus the 1 we already have
+    std::vector<timer::Ticks> samples;
+    samples.reserve(1 + kExtraSamples);
+    samples.push_back(est);
+    for (size_t i = 0; i < kExtraSamples; ++i) {
+      t0 = timer::Start();
+      lambda();
+      t1 = timer::Stop();
+      samples.push_back(t1 - t0);
+    }
+    est = robust_statistics::Median(samples.data(), samples.size());
+    *rel_mad = static_cast<double>(robust_statistics::MedianAbsoluteDeviation(
+                   samples.data(), samples.size(), est)) /
+               static_cast<double>(est);
+    if (p.verbose) {
+      printf("%6d samples (long) => %5d (rel_mad=%4.2f%%)\n",
+             static_cast<int>(samples.size()), static_cast<int>(est),
+             *rel_mad * 100.0);
+    }
+    return est;
+  }
+
   const size_t ticks_per_eval =
       static_cast<size_t>(ticks_per_second * p.seconds_per_eval);
   size_t samples_per_eval = est == 0
@@ -78,7 +105,7 @@ timer::Ticks SampleUntilStable(const double max_rel_mad, double* rel_mad,
       est = robust_statistics::Median(samples.data(), samples.size());
     }
     if (est == 0) {
-      HWY_WARN("estimated duration is 0\n");
+      continue;  // Collect more samples; avoid division by zero below.
     }
 
     // Median absolute deviation (mad) is a robust measure of 'variability'.
@@ -252,8 +279,7 @@ HWY_DLLEXPORT size_t Measure(const Func func, const uint8_t* arg,
 
   const InputVec& unique = UniqueInputs(inputs, num_inputs);
 
-  const size_t num_skip = NumSkip(func, arg, unique, p);  // never 0
-  if (num_skip == 0) return 0;  // NumSkip already printed error message
+  const size_t num_skip = HWY_MAX(size_t{1}, NumSkip(func, arg, unique, p));
   // (slightly less work on x86 to cast from signed integer)
   const float mul = 1.0f / static_cast<float>(static_cast<int>(num_skip));
 

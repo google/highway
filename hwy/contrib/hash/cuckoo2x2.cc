@@ -68,6 +68,8 @@ static AlignedVector<Cuckoo2x2Config> EnumerateConfigs(
   AlignedVector<Cuckoo2x2Config> configs;
   configs.reserve(num_mul * reps_per_config);
 
+  AesCtrEngine engine(/*deterministic=*/true);
+
   for (size_t mul_idx = 0; mul_idx < num_mul; ++mul_idx) {
     size_t num_buckets = base * kMultipliers[mul_idx];
     // Ensure >= 256K buckets so that 18 bucket bits + 14 fingerprint bits = 32,
@@ -76,8 +78,9 @@ static AlignedVector<Cuckoo2x2Config> EnumerateConfigs(
 
     const size_t seed_base = mul_idx * kMaxAttempts;
     for (size_t rep = 0; rep < reps_per_config; ++rep) {
-      const uint32_t seed = static_cast<uint32_t>(seed_base + rep);
-      configs.push_back(Cuckoo2x2Config(num_buckets, /*hash_key=*/seed));
+      const uint32_t hash_key =
+          static_cast<uint32_t>(RngStream(engine, seed_base + rep)());
+      configs.push_back(Cuckoo2x2Config(num_buckets, hash_key));
     }
   }
 

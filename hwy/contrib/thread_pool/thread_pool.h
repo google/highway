@@ -1314,6 +1314,15 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
     return static_cast<size_t>(std::thread::hardware_concurrency() - 1);
   }
 
+  // Returns the number of threads to pass to the ctor such that we will have
+  // one worker per core on the first package.
+  static size_t NumThreadsFromCores() {
+    if (!HaveThreadingSupport()) return 0;
+    Topology topology;
+    if (topology.packages.empty()) return ThreadPool::MaxThreads();
+    return topology.packages[0].cores.size() - 1;
+  }
+
   // `num_threads` is the number of *additional* threads to spawn, which should
   // not exceed `MaxThreads()`. Note that the main thread also performs work.
   // `mapping` indicates how to map local worker_idx to global.

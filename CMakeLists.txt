@@ -967,18 +967,17 @@ list(APPEND HWY_TEST_FILES
   hwy/contrib/algo/transform_test.cc
   hwy/contrib/bit_pack/bit_pack_test.cc
   hwy/contrib/dot/dot_test.cc
-  hwy/contrib/matvec/matvec_test.cc
   hwy/contrib/hash/cuckoo2x2_test.cc
-  hwy/contrib/hash/hash_bench.cc
+  hwy/contrib/hash/hash_test.cc
   hwy/contrib/hash/phast_test.cc
-  hwy/contrib/hash/phast_bench.cc
-  hwy/contrib/intdiv/intdiv_test.cc
   hwy/contrib/image/image_test.cc
-  hwy/contrib/math/math_test.cc
+  hwy/contrib/intdiv/intdiv_test.cc
   hwy/contrib/math/fast_math_test.cc
   hwy/contrib/math/math_hyper_test.cc
   hwy/contrib/math/math_tan_test.cc
+  hwy/contrib/math/math_test.cc
   hwy/contrib/math/math_trig_test.cc
+  hwy/contrib/matvec/matvec_test.cc
   hwy/contrib/random/random_test.cc
   hwy/contrib/sort/bench_sort.cc
   hwy/contrib/sort/sort_test.cc
