@@ -24,7 +24,6 @@
 
 #include "hwy/contrib/hash/cuckoo2x2.h"
 #include "hwy/contrib/thread_pool/thread_pool.h"
-#include "hwy/contrib/thread_pool/topology.h"
 #include "hwy/nanobenchmark.h"
 #include "hwy/profiler.h"
 #include "hwy/timer.h"
@@ -51,9 +50,7 @@ HWY_NOINLINE void TestMultipleSizes() {}
 #else
 
 static ThreadPool MakePool() {
-  static Topology topology;
-  if (topology.packages.empty()) return ThreadPool(ThreadPool::MaxThreads());
-  return ThreadPool(topology.packages[0].cores.size() - 1);
+  return ThreadPool(ThreadPool::NumThreadsFromCores());
 }
 
 // --------------------------------------------------------------------------

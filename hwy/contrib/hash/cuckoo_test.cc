@@ -15,12 +15,10 @@
 
 // Tests for static cuckoo hashing.
 
+#define HWY_HAVE_ORTOOLS 0
+
 #include <stdint.h>
 #include <stdio.h>
-
-#include <algorithm>
-#include <chrono>  // NOLINT
-#include <set>
 
 #ifndef HWY_DISABLED_TARGETS
 #define HWY_DISABLED_TARGETS (HWY_SSE2 | HWY_SSSE3 | HWY_SSE4)
@@ -29,7 +27,9 @@
 #include "hwy/contrib/sort/vqsort.h"
 #include "hwy/nanobenchmark.h"
 #include "hwy/timer.h"
+#if HWY_HAVE_ORTOOLS
 #include "third_party/ortools/ortools/graph/min_cost_flow.h"
+#endif
 
 // clang-format off
 #undef HWY_TARGET_INCLUDE
@@ -61,21 +61,21 @@ HWY_NOINLINE void TestAllMinCostFlowComparison() {}
 // --------------------------------------------------------------------------
 // Helper: generate distinct keys using a permutation.
 
-static AlignedVector<uint32_t> GenerateKeys(uint32_t num_keys,
+static AlignedVector<uint32_t> GenerateKeys(size_t num_keys,
                                             uint64_t seed = 0) {
   if (num_keys >= 1000000) {
-    fprintf(stderr, "GenerateKeys(%u) starting...\n", num_keys);
+    fprintf(stderr, "GenerateKeys(%zu) starting...\n", num_keys);
   }
   AlignedVector<uint32_t> keys(num_keys);
   AesCtrEngine engine(/*deterministic=*/true);
   Triple32 perm(engine, seed);
-  for (uint32_t i = 0; i < num_keys; ++i) {
-    keys[i] = perm(i);
+  for (size_t i = 0; i < num_keys; ++i) {
+    keys[i] = perm(static_cast<uint32_t>(i));
     // Ensure no key equals the sentinel value.
     if (keys[i] == CuckooConfig::kEmpty) keys[i] = 0;
   }
   if (num_keys >= 1000000) {
-    fprintf(stderr, "GenerateKeys(%u) finished.\n", num_keys);
+    fprintf(stderr, "GenerateKeys(%zu) finished.\n", num_keys);
   }
   return keys;
 }
@@ -84,7 +84,7 @@ static AlignedVector<uint32_t> GenerateKeys(uint32_t num_keys,
 // Test: small build (100 keys)
 
 namespace {
-void TestKeys(uint32_t num_keys) {
+void TestKeys(size_t num_keys) {
   auto keys = GenerateKeys(num_keys);
 
   CuckooBuildStats stats;
@@ -97,7 +97,7 @@ void TestKeys(uint32_t num_keys) {
   HWY_ASSERT_M(stats.success, "Build failed for 100 keys");
   HWY_ASSERT_M(!table.IsEmpty(), "Table should not be empty");
 
-  fprintf(stderr, "  Build(%u keys): %.2f ms, attempt=%u, primary=%u/%u\n",
+  fprintf(stderr, "  Build(%zu keys): %.2f ms, attempt=%u, primary=%u/%zu\n",
           num_keys, elapsed * 1e3, stats.global_seed, stats.num_primary,
           num_keys);
 }
@@ -121,24 +121,24 @@ HWY_NOINLINE void TestAllBuildMedium() {
 
 HWY_NOINLINE void TestAllQueryCorrectness() {
   fprintf(stderr, "=== TestQueryCorrectness ===\n");
-  const uint32_t num_keys = 5000;
+  const size_t num_keys = 5000;
   auto keys = GenerateKeys(num_keys);
 
   CuckooTable table = CuckooBuild(keys.data(), num_keys, /*epsilon=*/0.25);
   HWY_ASSERT_M(!table.IsEmpty(), "Build failed");
 
   // Every inserted key must be found.
-  for (uint32_t i = 0; i < num_keys; ++i) {
+  for (size_t i = 0; i < num_keys; ++i) {
     HWY_ASSERT_M(table.QueryOne(keys[i]), "QueryOne missed a key");
   }
 
   // A key that was not inserted should (very likely) not be found.
   // Use a different permutation to generate non-member keys.
   auto non_keys = GenerateKeys(1000, /*seed=*/999);
-  for (uint32_t i = 0; i < 1000; ++i) {
+  for (size_t i = 0; i < 1000; ++i) {
     // Skip if this key happens to be in the original set.
     bool is_member = false;
-    for (uint32_t j = 0; j < num_keys; ++j) {
+    for (size_t j = 0; j < num_keys; ++j) {
       if (non_keys[i] == keys[j]) {
         is_member = true;
         break;
@@ -153,7 +153,7 @@ HWY_NOINLINE void TestAllQueryCorrectness() {
 
 HWY_NOINLINE void TestAllBatchQuery() {
   fprintf(stderr, "=== TestBatchQuery ===\n");
-  const uint32_t num_keys = 2000;
+  const size_t num_keys = 2000;
   auto keys = GenerateKeys(num_keys);
 
   CuckooTable table = CuckooBuild(keys.data(), num_keys, /*epsilon=*/0.25);
@@ -185,7 +185,7 @@ HWY_NOINLINE void TestAllBatchQuery() {
   HWY_ASSERT_M(AllTrue(du32, not_found),
                "QueryBatchSmallEpsilon false positive on non-key");
 
-  fprintf(stderr, "  OK: batch query matches single query for %u keys\n",
+  fprintf(stderr, "  OK: batch query matches single query for %zu keys\n",
           num_keys);
 }
 
@@ -194,7 +194,7 @@ HWY_NOINLINE void TestAllBatchQuery() {
 
 HWY_NOINLINE void TestAllEpsilonSweep() {
   fprintf(stderr, "=== TestEpsilonSweep ===\n");
-  const uint32_t num_keys = HWY_IS_DEBUG_BUILD ? 1000 : 5000;
+  const size_t num_keys = HWY_IS_DEBUG_BUILD ? 1000 : 5000;
 
   auto keys = GenerateKeys(num_keys);
 
@@ -206,7 +206,7 @@ HWY_NOINLINE void TestAllEpsilonSweep() {
     (void)table;
 
     if (stats.success) {
-      fprintf(stderr, "  eps=%.2f: OK, attempt=%u, primary=%u/%u (%.1f%%)\n",
+      fprintf(stderr, "  eps=%.2f: OK, attempt=%u, primary=%u/%zu (%.1f%%)\n",
               eps, stats.global_seed, stats.num_primary, num_keys,
               100.0 * stats.num_primary / num_keys);
     } else {
@@ -222,7 +222,7 @@ HWY_NOINLINE void TestAllEpsilonSweep() {
 
 HWY_NOINLINE void TestAllOptimizedBuild() {
   fprintf(stderr, "=== TestOptimizedBuild ===\n");
-  const uint32_t num_keys = AdjustedReps(10'000);
+  const size_t num_keys = AdjustedReps(10'000);
   auto keys = GenerateKeys(num_keys);
 
   for (double eps : {0.05, 0.10, 0.25, 0.50}) {
@@ -240,30 +240,36 @@ HWY_NOINLINE void TestAllOptimizedBuild() {
       HWY_ASSERT(stats_opt.num_primary >= stats_basic.num_primary);
 
       // Verify query correctness of optimized table.
-      for (uint32_t i = 0; i < num_keys; ++i) {
+      for (size_t i = 0; i < num_keys; ++i) {
         HWY_ASSERT_M(table_opt.QueryOne(keys[i]), "Optimized table lost a key");
       }
 
       fprintf(stderr,
-              "  eps=%.2f: basic=%u/%u (%.1f%%), optimized=%u/%u (%.1f%%)\n",
+              "  eps=%.2f: basic=%u/%zu (%.1f%%), optimized=%u/%zu (%.1f%%)\n",
               eps, stats_basic.num_primary, num_keys,
-              100.0 * stats_basic.num_primary / num_keys, stats_opt.num_primary,
-              num_keys, 100.0 * stats_opt.num_primary / num_keys);
+              100.0 * static_cast<double>(stats_basic.num_primary) /
+                  static_cast<double>(num_keys),
+              stats_opt.num_primary, num_keys,
+              100.0 * static_cast<double>(stats_opt.num_primary) /
+                  static_cast<double>(num_keys));
     }
   }
 }
 
 // copybara:strip_begin
+#if HWY_HAVE_ORTOOLS
 // --------------------------------------------------------------------------
 // Test: comparison against SimpleMinCostFlow
 
 HWY_NOINLINE void TestAllMinCostFlowComparison() {
   fprintf(stderr, "=== TestMinCostFlowComparison ===\n");
-  const uint32_t key_counts[] = {10'000, 100'000, 500'000};
+  const size_t key_counts[] = {AdjustedReps(AdjustedReps(10'000)),
+                               AdjustedReps(AdjustedReps(100'000)),
+                               AdjustedReps(AdjustedReps(500'000))};
   const double epsilons[] = {0.01};
   const bool verify_min_cost_flow = true;
 
-  for (uint32_t num_keys : key_counts) {
+  for (size_t num_keys : key_counts) {
     auto keys = GenerateKeys(num_keys);
     for (double eps : epsilons) {
       CuckooBuildStats stats;
@@ -278,14 +284,14 @@ HWY_NOINLINE void TestAllMinCostFlowComparison() {
       fprintf(stderr, "  CuckooBuild full runtime: %.2f ms\n", cuckoo_ms);
 
       if (!stats.success) {
-        fprintf(stderr, "  keys=%u, eps=%.2f: matching failed\n", num_keys,
+        fprintf(stderr, "  keys=%zu, eps=%.2f: matching failed\n", num_keys,
                 eps);
         continue;
       }
 
       uint32_t optimal_primary = stats.num_primary;
       if (verify_min_cost_flow) {
-        auto t0 = std::chrono::high_resolution_clock::now();
+        const double t0 = platform::Now();
         CuckooConfig config(num_keys, eps);
         const uint32_t num_buckets = config.NumBuckets();
 
@@ -303,7 +309,7 @@ HWY_NOINLINE void TestAllMinCostFlowComparison() {
         min_cost_flow.SetNodeSupply(source, num_keys);
         min_cost_flow.SetNodeSupply(sink, -static_cast<int64_t>(num_keys));
 
-        for (uint32_t i = 0; i < num_keys; ++i) {
+        for (size_t i = 0; i < num_keys; ++i) {
           const int32_t key_node = key_base + static_cast<int32_t>(i);
           min_cost_flow.AddArcWithCapacityAndUnitCost(source, key_node, 1, 0);
 
@@ -322,15 +328,13 @@ HWY_NOINLINE void TestAllMinCostFlowComparison() {
               CuckooConfig::kBucketSize, 0);
         }
 
-        auto t1 = std::chrono::high_resolution_clock::now();
+        const double t1 = platform::Now();
         HWY_ASSERT(min_cost_flow.Solve() ==
                    ::operations_research::SimpleMinCostFlow::OPTIMAL);
-        auto t2 = std::chrono::high_resolution_clock::now();
+        const double t2 = platform::Now();
 
-        double setup_ms =
-            std::chrono::duration<double, std::milli>(t1 - t0).count();
-        double solve_ms =
-            std::chrono::duration<double, std::milli>(t2 - t1).count();
+        const double setup_ms = (t1 - t0) * 1E3;
+        const double solve_ms = (t2 - t1) * 1E3;
         fprintf(stderr,
                 "  SimpleMinCostFlow setup: %.2f ms, Solve: %.2f ms (Total: "
                 "%.2f ms)\n",
@@ -342,7 +346,7 @@ HWY_NOINLINE void TestAllMinCostFlowComparison() {
       }
 
       fprintf(stderr,
-              "  keys=%u, eps=%.2f: CuckooBuilder primary=%u, "
+              "  keys=%zu, eps=%.2f: CuckooBuilder primary=%u, "
               "OR-Tools optimal=%u, greedy unassigned=%u\n",
               num_keys, eps, stats.num_primary, optimal_primary,
               stats.num_unmatched_after_greedy);
@@ -362,6 +366,7 @@ HWY_NOINLINE void TestAllMinCostFlowComparison() {
     }
   }
 }
+#endif  // HWY_HAVE_ORTOOLS
 // copybara:strip_end
 
 #endif  // HWY_TARGET != HWY_SCALAR && HWY_TARGET != HWY_EMU128
@@ -380,7 +385,9 @@ HWY_EXPORT_AND_TEST_BEST_P(CuckooTest, TestAllQueryCorrectness);
 HWY_EXPORT_AND_TEST_BEST_P(CuckooTest, TestAllBatchQuery);
 HWY_EXPORT_AND_TEST_BEST_P(CuckooTest, TestAllEpsilonSweep);
 HWY_EXPORT_AND_TEST_BEST_P(CuckooTest, TestAllOptimizedBuild);
+#if HWY_HAVE_ORTOOLS
 HWY_EXPORT_AND_TEST_BEST_P(CuckooTest, TestAllMinCostFlowComparison);
+#endif
 HWY_AFTER_TEST();
 }  // namespace hwy
 #endif  // HWY_ONCE

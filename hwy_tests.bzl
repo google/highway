@@ -95,33 +95,6 @@ HWY_CONTRIB_TESTS = (
     ),
     (
         "hwy/contrib/hash/",
-        "hash_bench",
-        [":hash", ":random"],
-    ),
-    (
-        "hwy/contrib/hash/",
-        "hash_eval",
-        [
-            ":hash",
-            ":profiler",
-            ":random",
-            ":stats",
-            ":thread_pool",
-            ":topology",
-            "//hwy/contrib/sort:vqsort",
-        ],
-    ),
-    (
-        "hwy/contrib/hash/",
-        "hash_prospector16",
-        [
-            ":random",
-            ":thread_pool",
-            ":topology",
-        ],
-    ),
-    (
-        "hwy/contrib/hash/",
         "phast_test",
         [
             ":hash",
@@ -130,20 +103,6 @@ HWY_CONTRIB_TESTS = (
             ":thread_pool",
             ":topology",
             "//hwy/contrib/sort:vqsort",
-        ],
-    ),
-    (
-        "hwy/contrib/hash/",
-        "phast_bench",
-        [
-            ":hash",
-            ":profiler",
-            ":random",
-            ":robust_statistics",
-            ":thread_pool",
-            ":topology",
-            # Placeholder for flat_hash_set, do not remove
-            # Placeholder2 for flat_hash_set, do not remove
         ],
     ),
     (
@@ -165,7 +124,7 @@ HWY_CONTRIB_TESTS = (
             ":hash",
             ":random",
             "//hwy/contrib/sort:vqsort",
-            "//third_party/ortools/ortools/graph:min_cost_flow",  # copybara:strip
+            # Placeholder for ortools, do not remove
         ],
     ),
     (

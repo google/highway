@@ -18,6 +18,8 @@
 
 #include <cmath>
 
+#include "hwy/base.h"
+
 #ifndef HWY_DISABLED_TARGETS
 #define HWY_DISABLED_TARGETS (HWY_SSE2 | HWY_SSSE3 | HWY_SSE4)
 #endif  // HWY_DISABLED_TARGETS
@@ -87,7 +89,7 @@ static HWY_NOINLINE void TestAvalanche(const Hash& hash) {
     // flips. `flip_count[input_bit][output_bit]` = output bit flips.
     uint32_t flip_count[32][32] = {};
 
-    constexpr size_t kNumTrials = 10 * 1000;
+    constexpr size_t kNumTrials = AdjustedReps(10'000);
     for (size_t trial = 0; trial < kNumTrials; ++trial) {
       const uint32_t base = static_cast<uint32_t>(rng() & 0xFFFFFFFFu);
 
@@ -174,7 +176,7 @@ static HWY_NOINLINE void TestBias(const Hash& hash) {
 
     uint32_t bit_count[32] = {};  // Count of 1s in each output bit position.
 
-    constexpr uint32_t kNumTrials = 100 * 1000;
+    constexpr uint32_t kNumTrials = AdjustedReps(100'000);
     for (uint32_t trial = 0; trial < kNumTrials; ++trial) {
       const uint32_t val = static_cast<uint32_t>(rng() & 0xFFFFFFFFu);
       const uint32_t h = hash(val);
@@ -209,9 +211,11 @@ static HWY_NOINLINE void TestAllBias() {
 }
 
 // Enumerates all 2^32 inputs and computes histogram of hash values.
-// Parallelized and vectorized, < 1 sec.
+// Parallelized and vectorized, < 1 sec in opt builds.
 template <class Hash>
 static HWY_NOINLINE void TestBuckets(const Hash& hash) {
+  if constexpr (HWY_IS_DEBUG_BUILD) return;  // too slow
+
   // Each worker hashes a range of inputs and updates its bucket counts.
   constexpr size_t kNumBuckets = 0x10000;  // one per 64k output values
 
@@ -371,7 +375,7 @@ static HWY_NOINLINE void TestLanesEqual(const Hash& hash) {
 
     HWY_ALIGN uint32_t out[2 * MaxLanes(du32)];
 
-    constexpr size_t kNumTrials = 50 * 1000;
+    constexpr size_t kNumTrials = AdjustedReps(50'000);
     for (size_t trial = 0; trial < kNumTrials; ++trial) {
       VU32 vout0 = Set(du32, static_cast<uint32_t>(rng()));
       VU32 vout1 = vout0;

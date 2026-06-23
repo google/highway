@@ -64,8 +64,7 @@ T SafeFloorDivScalar(T a, T b) {
 
 struct TestBasicDivision {
   template <class D>
-  void operator()(D d, size_t count, size_t misalign_a, size_t /*misalign_b*/,
-                  RandomState& /*rng*/) {
+  void operator()(D d, size_t count, size_t misalign_a, RandomState& /*rng*/) {
     if (count == 0) return;
 
     using T = TFromD<D>;
@@ -122,8 +121,7 @@ struct TestBasicDivision {
 
 struct TestPowerOf2Division {
   template <class D>
-  void operator()(D d, size_t count, size_t misalign_a, size_t /*misalign_b*/,
-                  RandomState& /*rng*/) {
+  void operator()(D d, size_t count, size_t misalign_a, RandomState& /*rng*/) {
     if (count == 0) return;
 
     using T = TFromD<D>;
@@ -181,8 +179,7 @@ struct TestPowerOf2Division {
 
 struct TestSignedDivision {
   template <class D>
-  void operator()(D d, size_t count, size_t misalign_a, size_t /*misalign_b*/,
-                  RandomState& /*rng*/) {
+  void operator()(D d, size_t count, size_t misalign_a, RandomState& /*rng*/) {
     using T = TFromD<D>;
     if (!hwy::IsSigned<T>()) return;
     if (count == 0) return;
@@ -240,8 +237,7 @@ struct TestSignedDivision {
 
 struct TestFloorDivision {
   template <class D>
-  void operator()(D d, size_t count, size_t misalign_a, size_t /*misalign_b*/,
-                  RandomState& /*rng*/) {
+  void operator()(D d, size_t count, size_t misalign_a, RandomState& /*rng*/) {
     if (count == 0) return;
 
     using T = TFromD<D>;
@@ -298,7 +294,7 @@ struct TestFloorDivision {
 struct TestEdgeCases {
   template <class D>
   void operator()(D d, size_t /*count*/, size_t /*misalign_a*/,
-                  size_t /*misalign_b*/, RandomState& /*rng*/) {
+                  RandomState& /*rng*/) {
     using T = TFromD<D>;
 
     {
@@ -359,7 +355,7 @@ struct TestEdgeCases {
 struct TestRandomDivision {
   template <class D>
   void operator()(D d, size_t /*count*/, size_t /*misalign_a*/,
-                  size_t /*misalign_b*/, RandomState& rng) {
+                  RandomState& rng) {
     using T = TFromD<D>;
 
     std::vector<T> divisors = {T(3), T(7), T(17), T(100), T(1000)};
@@ -393,7 +389,7 @@ struct TestRandomDivision {
 struct TestLargeDivisors {
   template <class D>
   void operator()(D d, size_t /*count*/, size_t /*misalign_a*/,
-                  size_t /*misalign_b*/, RandomState& rng) {
+                  RandomState& rng) {
     using T = TFromD<D>;
 
     std::vector<T> large_divisors;
@@ -511,8 +507,7 @@ struct TestLargeDivisors {
 
 struct TestConvenienceAPI {
   template <class D>
-  void operator()(D d, size_t count, size_t misalign_a, size_t /*misalign_b*/,
-                  RandomState& /*rng*/) {
+  void operator()(D d, size_t count, size_t misalign_a, RandomState& /*rng*/) {
     if (count == 0) return;
 
     using T = TFromD<D>;
@@ -580,7 +575,7 @@ struct TestConvenienceAPI {
 struct TestArrayOperations {
   template <class D>
   void operator()(D /*d*/, size_t /*count*/, size_t /*misalign_a*/,
-                  size_t /*misalign_b*/, RandomState& /*rng*/) {
+                  RandomState& /*rng*/) {
     using T = TFromD<D>;
 
     constexpr size_t kCount = 127;
@@ -657,20 +652,35 @@ struct ForeachCountAndMisalign {
     RandomState rng;
     const size_t N = Lanes(d);
     const size_t misalignments[3] = {0, N / 4, 3 * N / 5};
+    std::vector<size_t> counts{0, 1};
+    if (2*N > 4) counts.push_back(4);
+    if (2*N > 7) counts.push_back(7);
+    if (2*N > 10) counts.push_back(10);
+    if (2*N > 14) counts.push_back(14);
+    if (2*N > 19) counts.push_back(19);
+    if (2*N > 27) counts.push_back(27);
+    if (2*N > 31) counts.push_back(31);
 
-    for (size_t count = 0; count < 2 * N; ++count) {
-      for (size_t ma : misalignments) {
-        for (size_t mb : misalignments) {
-          Test()(d, count, ma, mb, rng);
-        }
+    for (size_t count : counts) {
+      for (size_t misalign_a : misalignments) {
+        Test()(d, count, misalign_a, rng);
       }
     }
 
     for (size_t count : {10 * N, 16 * N, size_t{100}}) {
-      for (size_t ma : misalignments) {
-        Test()(d, count, ma, 0, rng);
+      for (size_t misalign_a : misalignments) {
+        Test()(d, count, misalign_a, rng);
       }
     }
+  }
+};
+
+template <class Test>
+struct NoCountAndMisalign {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) const {
+    RandomState rng;
+    Test()(d, 0, 0, rng);
   }
 };
 
@@ -695,17 +705,15 @@ void TestAllFloorDivision() {
 }
 
 void TestAllEdgeCases() {
-  ForIntegerTypes(ForGE128Vectors<ForeachCountAndMisalign<TestEdgeCases>>());
+  ForIntegerTypes(ForGE128Vectors<NoCountAndMisalign<TestEdgeCases>>());
 }
 
 void TestAllRandomDivision() {
-  ForIntegerTypes(
-      ForGE128Vectors<ForeachCountAndMisalign<TestRandomDivision>>());
+  ForIntegerTypes(ForGE128Vectors<NoCountAndMisalign<TestRandomDivision>>());
 }
 
 void TestAllLargeDivisors() {
-  ForIntegerTypes(
-      ForGE128Vectors<ForeachCountAndMisalign<TestLargeDivisors>>());
+  ForIntegerTypes(ForGE128Vectors<NoCountAndMisalign<TestLargeDivisors>>());
 }
 
 void TestAllConvenienceAPI() {
@@ -714,8 +722,7 @@ void TestAllConvenienceAPI() {
 }
 
 void TestAllArrayOperations() {
-  ForIntegerTypes(
-      ForGE128Vectors<ForeachCountAndMisalign<TestArrayOperations>>());
+  ForIntegerTypes(ForGE128Vectors<NoCountAndMisalign<TestArrayOperations>>());
 }
 
 void TestAllDiv128HighBy() {

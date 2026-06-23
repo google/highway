@@ -27,7 +27,6 @@
 #include "hwy/contrib/hash/phast.h"
 #include "hwy/contrib/sort/vqsort.h"
 #include "hwy/contrib/thread_pool/thread_pool.h"
-#include "hwy/contrib/thread_pool/topology.h"
 #include "hwy/nanobenchmark.h"
 #include "hwy/profiler.h"
 #include "hwy/timer.h"
@@ -54,10 +53,7 @@ HWY_NOINLINE void TestMultipleSizes() {}
 #else
 
 static ThreadPool MakePool() {
-  static Topology topology;
-  if (topology.packages.empty()) return ThreadPool(ThreadPool::MaxThreads());
-  // Minus one because these are in addition to the main thread.
-  return ThreadPool(topology.packages[0].cores.size() - 1);
+  return ThreadPool(ThreadPool::NumThreadsFromCores());
 }
 
 HWY_NOINLINE void TestQueryConsistency() {

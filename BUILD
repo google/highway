@@ -727,6 +727,86 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "hash_eval",
+    size = "medium",
+    timeout = "long",
+    srcs = ["hwy/contrib/hash/hash_eval.cc"],
+    copts = COPTS + HWY_TEST_COPTS,
+    local_defines = ["HWY_IS_TEST"],
+    tags = [
+        "manual",
+        "notap",
+    ],
+    deps = HWY_TEST_DEPS + [
+        ":hash",
+        ":profiler",
+        ":random",
+        ":stats",
+        ":thread_pool",
+        ":topology",
+        "//hwy/contrib/sort:vqsort",
+    ],
+)
+
+cc_test(
+    name = "hash_prospector16",
+    size = "medium",
+    timeout = "long",
+    srcs = ["hwy/contrib/hash/hash_prospector16.cc"],
+    copts = COPTS + HWY_TEST_COPTS,
+    local_defines = ["HWY_IS_TEST"],
+    tags = [
+        "manual",
+        "notap",
+    ],
+    deps = HWY_TEST_DEPS + [
+        ":random",
+        ":thread_pool",
+        ":topology",
+    ],
+)
+
+cc_test(
+    name = "hash_bench",
+    size = "medium",
+    timeout = "long",
+    srcs = ["hwy/contrib/hash/hash_bench.cc"],
+    copts = COPTS + HWY_TEST_COPTS,
+    local_defines = ["HWY_IS_TEST"],
+    tags = [
+        "manual",
+        "notap",
+    ],
+    deps = HWY_TEST_DEPS + [
+        ":hash",
+        ":random",
+    ],
+)
+
+cc_test(
+    name = "phast_bench",
+    size = "medium",
+    timeout = "long",
+    srcs = ["hwy/contrib/hash/phast_bench.cc"],
+    copts = COPTS + HWY_TEST_COPTS,
+    local_defines = ["HWY_IS_TEST"],
+    tags = [
+        "manual",
+        "notap",
+    ],
+    deps = HWY_TEST_DEPS + [
+        ":hash",
+        ":profiler",
+        ":random",
+        ":robust_statistics",
+        ":thread_pool",
+        ":topology",
+        # Placeholder for flat_hash_set, do not remove
+        # Placeholder2 for flat_hash_set, do not remove
+    ],
+)
+
 # For manually building the tests we define here (:all does not work in --config=msvc)
 test_suite(
     name = "hwy_ops_tests",

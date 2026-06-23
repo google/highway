@@ -24,10 +24,20 @@
 //   1. Call CuckooBuild() with your keys and desired epsilon.
 //   2. The returned CuckooTable supports QueryOne() and QueryBatch().
 
-#include <utility>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 
+#include <deque>
+#include <utility>
+#include <vector>
+
+#include "hwy/aligned_allocator.h"
 #include "hwy/base.h"
+#include "hwy/cache_control.h"
 #include "hwy/timer.h"
+
 #if defined(HIGHWAY_HWY_CONTRIB_HASH_CUCKOO_INL_H_) == \
     defined(HWY_TARGET_TOGGLE)  // NOLINT
 #ifdef HIGHWAY_HWY_CONTRIB_HASH_CUCKOO_INL_H_
@@ -36,16 +46,6 @@
 #define HIGHWAY_HWY_CONTRIB_HASH_CUCKOO_INL_H_
 #endif
 
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <string.h>
-
-#include <deque>
-#include <vector>
-
-#include "hwy/aligned_allocator.h"
-#include "hwy/cache_control.h"
 #include "hwy/contrib/algo/find-inl.h"
 #include "hwy/contrib/hash/hash-inl.h"
 #include "hwy/contrib/random/random-inl.h"

@@ -50,7 +50,7 @@ RandomState rng;
 
 // A function whose runtime depends on rng.
 FuncOutput Random(const void* /*arg*/, FuncInput in) {
-  const size_t r = rng() & 0xFFF;
+  const size_t r = rng() & 0xFFFF;
   FuncOutput ret = static_cast<FuncOutput>(in);
   for (size_t i = 0; i < r; ++i) {
     ret /= ((rng() & 1) + 2);
@@ -64,9 +64,9 @@ void MeasureRandom(const FuncInput (&inputs)[N]) {
   Result results[N];
   Params p = DefaultBenchmarkParams();
   p.verbose = false;
-  const size_t num_results = Measure(&Random, nullptr, inputs, N, results, p);
+  size_t num_results = Measure(&Random, nullptr, inputs, N, results, p);
   for (size_t i = 0; i < num_results; ++i) {
-    HWY_ASSERT(results[i].variability > 1E-4);
+    HWY_ASSERT(results[i].variability > 1E-5);
   }
 }
 

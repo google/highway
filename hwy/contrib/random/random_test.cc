@@ -4,7 +4,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cstdint>
+#include <stdint.h>
+
 #include <cstdio>
 #include <ctime>
 #include <iostream>  // cerr
@@ -25,13 +26,14 @@ namespace hwy {
 namespace HWY_NAMESPACE {  // required: unique per target
 namespace {
 
-constexpr std::uint64_t tests = 1UL << 10;
+// Power of two because tests do not check for vector remainders.
+constexpr uint64_t kNumReps = RoundUpToPow2(AdjustedReps(1UL << 10));
 
-std::uint64_t GetSeed() { return static_cast<uint64_t>(std::time(nullptr)); }
+uint64_t GetSeed() { return static_cast<uint64_t>(std::time(nullptr)); }
 
-void RngLoop(const std::uint64_t seed, std::uint64_t* HWY_RESTRICT result,
+void RngLoop(const uint64_t seed, uint64_t* HWY_RESTRICT result,
              const size_t size) {
-  const ScalableTag<std::uint64_t> d;
+  const ScalableTag<uint64_t> d;
   VectorXoshiro generator{seed};
   for (size_t i = 0; i < size; i += Lanes(d)) {
     Store(generator(), d, result + i);
@@ -39,7 +41,7 @@ void RngLoop(const std::uint64_t seed, std::uint64_t* HWY_RESTRICT result,
 }
 
 #if HWY_HAVE_FLOAT64
-void UniformLoop(const std::uint64_t seed, double* HWY_RESTRICT result,
+void UniformLoop(const uint64_t seed, double* HWY_RESTRICT result,
                  const size_t size) {
   const ScalableTag<double> d;
   VectorXoshiro generator{seed};
@@ -50,15 +52,15 @@ void UniformLoop(const std::uint64_t seed, double* HWY_RESTRICT result,
 #endif
 
 void TestSeeding() {
-  const std::uint64_t seed = GetSeed();
+  const uint64_t seed = GetSeed();
   VectorXoshiro generator{seed};
   internal::Xoshiro reference{seed};
   const auto& state = generator.GetState();
-  const ScalableTag<std::uint64_t> d;
-  const std::size_t lanes = Lanes(d);
-  for (std::size_t i = 0UL; i < lanes; ++i) {
+  const ScalableTag<uint64_t> d;
+  const size_t lanes = Lanes(d);
+  for (size_t i = 0UL; i < lanes; ++i) {
     const auto& reference_state = reference.GetState();
-    for (std::size_t j = 0UL; j < reference_state.size(); ++j) {
+    for (size_t j = 0UL; j < reference_state.size(); ++j) {
       if (state[{j}][i] != reference_state[j]) {
         std::cerr << "SEED: " << seed << "\n";
         std::cerr << "TEST SEEDING ERROR: ";
@@ -72,21 +74,21 @@ void TestSeeding() {
 }
 
 void TestMultiThreadSeeding() {
-  const std::uint64_t seed = GetSeed();
-  const std::uint64_t threadId = GetSeed() % 1000;
+  const uint64_t seed = GetSeed();
+  const uint64_t threadId = GetSeed() % 1000;
   VectorXoshiro generator{seed, threadId};
   internal::Xoshiro reference{seed};
 
-  for (std::size_t i = 0UL; i < threadId; ++i) {
+  for (size_t i = 0UL; i < threadId; ++i) {
     reference.LongJump();
   }
 
   const auto& state = generator.GetState();
-  const ScalableTag<std::uint64_t> d;
-  const std::size_t lanes = Lanes(d);
-  for (std::size_t i = 0UL; i < lanes; ++i) {
+  const ScalableTag<uint64_t> d;
+  const size_t lanes = Lanes(d);
+  for (size_t i = 0UL; i < lanes; ++i) {
     const auto& reference_state = reference.GetState();
-    for (std::size_t j = 0UL; j < reference_state.size(); ++j) {
+    for (size_t j = 0UL; j < reference_state.size(); ++j) {
       if (state[{j}][i] != reference_state[j]) {
         std::cerr << "SEED: " << seed << std::endl;
         std::cerr << "TEST SEEDING ERROR: ";
@@ -100,22 +102,22 @@ void TestMultiThreadSeeding() {
 }
 
 void TestRandomUint64() {
-  const std::uint64_t seed = GetSeed();
-  const auto result_array = hwy::MakeUniqueAlignedArray<std::uint64_t>(tests);
-  RngLoop(seed, result_array.get(), tests);
+  const uint64_t seed = GetSeed();
+  const auto result_array = hwy::MakeUniqueAlignedArray<uint64_t>(kNumReps);
+  RngLoop(seed, result_array.get(), kNumReps);
   std::vector<internal::Xoshiro> reference;
   reference.emplace_back(seed);
-  const ScalableTag<std::uint64_t> d;
-  const std::size_t lanes = Lanes(d);
-  for (std::size_t i = 1UL; i < lanes; ++i) {
+  const ScalableTag<uint64_t> d;
+  const size_t lanes = Lanes(d);
+  for (size_t i = 1UL; i < lanes; ++i) {
     auto rng = reference.back();
     rng.Jump();
     reference.emplace_back(rng);
   }
 
-  for (std::size_t i = 0UL; i < tests; i += lanes) {
-    for (std::size_t lane = 0UL; lane < lanes; ++lane) {
-      const std::uint64_t result = reference[lane]();
+  for (size_t i = 0UL; i < kNumReps; i += lanes) {
+    for (size_t lane = 0UL; lane < lanes; ++lane) {
+      const uint64_t result = reference[lane]();
       if (result_array[i + lane] != result) {
         std::cerr << "SEED: " << seed << std::endl;
         std::cerr << "TEST UINT64 GENERATOR ERROR: result_array[" << i + lane
@@ -128,13 +130,13 @@ void TestRandomUint64() {
 }
 void TestUniformDist() {
 #if HWY_HAVE_FLOAT64
-  const std::uint64_t seed = GetSeed();
-  const auto result_array = hwy::MakeUniqueAlignedArray<double>(tests);
-  UniformLoop(seed, result_array.get(), tests);
+  const uint64_t seed = GetSeed();
+  const auto result_array = hwy::MakeUniqueAlignedArray<double>(kNumReps);
+  UniformLoop(seed, result_array.get(), kNumReps);
   internal::Xoshiro reference{seed};
   const ScalableTag<double> d;
-  const std::size_t lanes = Lanes(d);
-  for (std::size_t i = 0UL; i < tests; i += lanes) {
+  const size_t lanes = Lanes(d);
+  for (size_t i = 0UL; i < kNumReps; i += lanes) {
     const double result = reference.Uniform();
     if (result_array[i] != result) {
       std::cerr << "SEED: " << seed << std::endl;
@@ -147,22 +149,22 @@ void TestUniformDist() {
 }
 
 void TestNextNRandomUint64() {
-  const std::uint64_t seed = GetSeed();
+  const uint64_t seed = GetSeed();
   VectorXoshiro generator{seed};
-  const auto result_array = generator.operator()(tests);
+  const auto result_array = generator.operator()(kNumReps);
   std::vector<internal::Xoshiro> reference;
   reference.emplace_back(seed);
-  const ScalableTag<std::uint64_t> d;
-  const std::size_t lanes = Lanes(d);
-  for (std::size_t i = 1UL; i < lanes; ++i) {
+  const ScalableTag<uint64_t> d;
+  const size_t lanes = Lanes(d);
+  for (size_t i = 1UL; i < lanes; ++i) {
     auto rng = reference.back();
     rng.Jump();
     reference.emplace_back(rng);
   }
 
-  for (std::size_t i = 0UL; i < tests; i += lanes) {
-    for (std::size_t lane = 0UL; lane < lanes; ++lane) {
-      const std::uint64_t result = reference[lane]();
+  for (size_t i = 0UL; i < kNumReps; i += lanes) {
+    for (size_t lane = 0UL; lane < lanes; ++lane) {
+      const uint64_t result = reference[lane]();
       if (result_array[i + lane] != result) {
         std::cerr << "SEED: " << seed << std::endl;
         std::cerr << "TEST UINT64 GENERATOR ERROR: result_array[" << i + lane
@@ -175,22 +177,22 @@ void TestNextNRandomUint64() {
 }
 
 void TestNextFixedNRandomUint64() {
-  const std::uint64_t seed = GetSeed();
+  const uint64_t seed = GetSeed();
   VectorXoshiro generator{seed};
-  const auto result_array = generator.operator()<tests>();
+  const auto result_array = generator.operator()<kNumReps>();
   std::vector<internal::Xoshiro> reference;
   reference.emplace_back(seed);
-  const ScalableTag<std::uint64_t> d;
-  const std::size_t lanes = Lanes(d);
-  for (std::size_t i = 1UL; i < lanes; ++i) {
+  const ScalableTag<uint64_t> d;
+  const size_t lanes = Lanes(d);
+  for (size_t i = 1UL; i < lanes; ++i) {
     auto rng = reference.back();
     rng.Jump();
     reference.emplace_back(rng);
   }
 
-  for (std::size_t i = 0UL; i < tests; i += lanes) {
-    for (std::size_t lane = 0UL; lane < lanes; ++lane) {
-      const std::uint64_t result = reference[lane]();
+  for (size_t i = 0UL; i < kNumReps; i += lanes) {
+    for (size_t lane = 0UL; lane < lanes; ++lane) {
+      const uint64_t result = reference[lane]();
       if (result_array[i + lane] != result) {
         std::cerr << "SEED: " << seed << std::endl;
         std::cerr << "TEST UINT64 GENERATOR ERROR: result_array[" << i + lane
@@ -202,15 +204,16 @@ void TestNextFixedNRandomUint64() {
     }
   }
 }
+
 void TestNextNUniformDist() {
 #if HWY_HAVE_FLOAT64
-  const std::uint64_t seed = GetSeed();
+  const uint64_t seed = GetSeed();
   VectorXoshiro generator{seed};
-  const auto result_array = generator.Uniform(tests);
+  const auto result_array = generator.Uniform(kNumReps);
   internal::Xoshiro reference{seed};
   const ScalableTag<double> d;
-  const std::size_t lanes = Lanes(d);
-  for (std::size_t i = 0UL; i < tests; i += lanes) {
+  const size_t lanes = Lanes(d);
+  for (size_t i = 0UL; i < kNumReps; i += lanes) {
     const double result = reference.Uniform();
     if (result_array[i] != result) {
       std::cerr << "SEED: " << seed << std::endl;
@@ -225,13 +228,13 @@ void TestNextNUniformDist() {
 
 void TestNextFixedNUniformDist() {
 #if HWY_HAVE_FLOAT64
-  const std::uint64_t seed = GetSeed();
+  const uint64_t seed = GetSeed();
   VectorXoshiro generator{seed};
-  const auto result_array = generator.Uniform<tests>();
+  const auto result_array = generator.Uniform<kNumReps>();
   internal::Xoshiro reference{seed};
   const ScalableTag<double> d;
-  const std::size_t lanes = Lanes(d);
-  for (std::size_t i = 0UL; i < tests; i += lanes) {
+  const size_t lanes = Lanes(d);
+  for (size_t i = 0UL; i < kNumReps; i += lanes) {
     const double result = reference.Uniform();
     if (result_array[i] != result) {
       std::cerr << "SEED: " << seed << std::endl;
@@ -244,23 +247,23 @@ void TestNextFixedNUniformDist() {
 }
 
 void TestCachedXorshiro() {
-  const std::uint64_t seed = GetSeed();
+  const uint64_t seed = GetSeed();
 
   CachedXoshiro<> generator{seed};
   std::vector<internal::Xoshiro> reference;
   reference.emplace_back(seed);
-  const ScalableTag<std::uint64_t> d;
-  const std::size_t lanes = Lanes(d);
-  for (std::size_t i = 1UL; i < lanes; ++i) {
+  const ScalableTag<uint64_t> d;
+  const size_t lanes = Lanes(d);
+  for (size_t i = 1UL; i < lanes; ++i) {
     auto rng = reference.back();
     rng.Jump();
     reference.emplace_back(rng);
   }
 
-  for (std::size_t i = 0UL; i < tests; i += lanes) {
-    for (std::size_t lane = 0UL; lane < lanes; ++lane) {
-      const std::uint64_t result = reference[lane]();
-      const std::uint64_t got = generator();
+  for (size_t i = 0UL; i < kNumReps; i += lanes) {
+    for (size_t lane = 0UL; lane < lanes; ++lane) {
+      const uint64_t result = reference[lane]();
+      const uint64_t got = generator();
       if (got != result) {
         std::cerr << "SEED: " << seed << std::endl;
         std::cerr << "TEST CachedXoshiro GENERATOR ERROR: result_array["
@@ -274,11 +277,11 @@ void TestCachedXorshiro() {
 }
 void TestUniformCachedXorshiro() {
 #if HWY_HAVE_FLOAT64
-  const std::uint64_t seed = GetSeed();
+  const uint64_t seed = GetSeed();
 
   CachedXoshiro<> generator{seed};
   std::uniform_real_distribution<double> distribution{0., 1.};
-  for (std::size_t i = 0UL; i < tests; ++i) {
+  for (size_t i = 0UL; i < kNumReps; ++i) {
     const double result = distribution(generator);
 
     if (result < 0. || result >= 1.) {
@@ -309,7 +312,7 @@ void TestAesCtrDeterministic() {
   HWY_ASSERT(r0 == rng2());
   HWY_ASSERT(r1 == rng2());
 
-  for (size_t i = 0; i < 1000; ++i) {
+  for (size_t i = 0; i < AdjustedReps(1000); ++i) {
     HWY_ASSERT(rng1() == rng2());
   }
 
@@ -337,7 +340,7 @@ void TestAesCtrStreamsDiffer() {
   AesCtrEngine engine(/*deterministic=*/true);
   // Compare random streams for more coverage than just the first N streams.
   RngStream rng_for_stream(engine, 0);
-  for (size_t i = 0; i < 1000; ++i) {
+  for (size_t i = 0; i < AdjustedReps(1000); ++i) {
     RngStream rng1(engine, rng_for_stream());
     RngStream rng2(engine, rng_for_stream());
     // It would be very unlucky to have even one 64-bit value match, and two are
@@ -354,32 +357,33 @@ void TestAesCtrStreamsDiffer() {
 void TestAesCtrBitDistribution() {
   AesCtrEngine engine(/*deterministic=*/true);
   RngStream rng(engine, 0);
-  constexpr size_t kU64 = 2 * 1000 * 1000;
+  constexpr size_t kCount = AdjustedReps(AdjustedReps(200'000));
   uint64_t one_bits = 0;
-  for (size_t i = 0; i < kU64; ++i) {
+  for (size_t i = 0; i < kCount; ++i) {
     one_bits += hwy::PopCount(rng());
   }
-  const uint64_t total_bits = kU64 * 64;
+  const uint64_t total_bits = kCount * 64;
   const double one_ratio = static_cast<double>(one_bits) / total_bits;
   fprintf(stderr, "AesCtr 1-bit ratio %.5f\n", one_ratio);
-  HWY_ASSERT(0.4999 <= one_ratio && one_ratio <= 0.5001);
+  const double kTol = kCount < 10'000 ? 0.01 : 0.001;
+  HWY_ASSERT(0.5 - kTol <= one_ratio && one_ratio <= 0.5 + kTol);
 }
 
 void TestAesCtrChiSquared() {
   AesCtrEngine engine(/*deterministic=*/true);
   RngStream rng(engine, 0);
-  constexpr size_t kU64 = 1 * 1000 * 1000;
+  constexpr size_t kCount = AdjustedReps(AdjustedReps(100'000));
 
   // Test each byte separately.
   for (size_t shift = 0; shift < 64; shift += 8) {
     size_t counts[256] = {};
-    for (size_t i = 0; i < kU64; ++i) {
+    for (size_t i = 0; i < kCount; ++i) {
       const size_t byte = (rng() >> shift) & 0xFF;
       counts[byte]++;
     }
 
     double chi_squared = 0.0;
-    const double expected = static_cast<double>(kU64) / 256.0;
+    const double expected = static_cast<double>(kCount) / 256.0;
     for (size_t i = 0; i < 256; ++i) {
       const double diff = static_cast<double>(counts[i]) - expected;
       chi_squared += diff * diff / expected;
@@ -395,7 +399,7 @@ void TestAesCtrChiSquared() {
 void TestRandomNormalizedFloat() {
   AesCtrEngine engine(/*deterministic=*/true);
   RngStream rng(engine, 0);
-  constexpr size_t kCount = 100000;
+  constexpr size_t kCount = AdjustedReps(50'000);
   double sum = 0.0;
   for (size_t i = 0; i < kCount; ++i) {
     const float f = RandomNormalizedFloat(rng);
@@ -405,7 +409,8 @@ void TestRandomNormalizedFloat() {
   // Mean should be near 0 for uniform [-1, 1).
   const double mean = sum / kCount;
   fprintf(stderr, "RandomNormalizedFloat mean: %.6f\n", mean);
-  HWY_ASSERT(-0.01 < mean && mean < 0.01);
+  const double kTol = kCount < 10'000 ? 0.1 : 0.01;
+  HWY_ASSERT(-kTol < mean && mean < kTol);
 }
 
 #else

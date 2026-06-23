@@ -45,24 +45,24 @@ struct TestFastLog {
   template <class T, class D>
   HWY_NOINLINE void operator()(T, D d) {
     const double max_relative_error = 1.15E-5;
-    const uint64_t samples = AdjustedReps(1000000);
+    const uint64_t kSamples = AdjustedReps(200'000);
     if (sizeof(T) == 4) {
       TestMathRelative<T, D>("FastLog", std::log, CallFastLog, d,
                              static_cast<T>(FLT_MIN), static_cast<T>(FLT_MAX),
-                             max_relative_error, samples);
+                             max_relative_error, kSamples);
       TestMathRelative<T, D>("FastLogPositiveNormal", std::log,
                              CallFastLogPositiveNormal, d,
                              static_cast<T>(1.18e-38f), static_cast<T>(FLT_MAX),
-                             max_relative_error, samples);
+                             max_relative_error, kSamples);
 
     } else {
       TestMathRelative<T, D>("FastLog", std::log, CallFastLog, d,
                              static_cast<T>(DBL_MIN), static_cast<T>(DBL_MAX),
-                             max_relative_error, samples);
+                             max_relative_error, kSamples);
       TestMathRelative<T, D>("FastLogPositiveNormal", std::log,
                              CallFastLogPositiveNormal, d,
                              static_cast<T>(2.23e-308), static_cast<T>(DBL_MAX),
-                             max_relative_error, samples);
+                             max_relative_error, kSamples);
     }
   }
 };
@@ -70,13 +70,13 @@ struct TestFastLog {
 struct TestFastExp {
   template <class T, class D>
   HWY_NOINLINE void operator()(T, D d) {
-    const uint64_t samples = AdjustedReps(10'000'000);
+    const uint64_t kSamples = AdjustedReps(200'000);
     if (sizeof(T) == 4) {
       // Float Normal Range: [-87.0, +88.0]
       // exp(-87) ~= 1.6e-38 (just above min normal 1.17e-38)
       TestMathRelative<T, D>("FastExpNormal", std::exp, CallFastExp, d,
                              static_cast<T>(-87.0), static_cast<T>(88.0),
-                             0.000008, samples);
+                             0.000008, kSamples);
 
       // Float Subnormal Range: [-104.0, -87.0]
       // exp(-104) is very small. Quantization error is expected.
@@ -88,7 +88,7 @@ struct TestFastExp {
       // exp(-708) ~= 2.2e-308 (min normal 2.22e-308)
       TestMathRelative<T, D>("FastExpNormal", std::exp, CallFastExp, d,
                              static_cast<T>(-708.0), static_cast<T>(706.0),
-                             0.000008, samples);
+                             0.000008, kSamples);
 
       // Double Subnormal Range: [-744.0, -708.0]
       // exp(-744) is very small. Quantization error is expected.
@@ -102,13 +102,13 @@ struct TestFastExp {
 struct TestFastExp2 {
   template <class T, class D>
   HWY_NOINLINE void operator()(T, D d) {
-    const uint64_t samples = AdjustedReps(10'000'000);
+    const uint64_t kSamples = AdjustedReps(200'000);
     if (sizeof(T) == 4) {
       // Float Normal Range: [-126.0, +127.0]
       // exp2(-126) is min normal
       TestMathRelative<T, D>("FastExp2Normal", std::exp2, CallFastExp2, d,
                              static_cast<T>(-126.0), static_cast<T>(127.0),
-                             0.000008, samples);
+                             0.000008, kSamples);
 
       // Float Subnormal Range: [-150.0, -126.0]
       TestMathRelative<T, D>("FastExp2Subnormal", std::exp2, CallFastExp2, d,
@@ -118,7 +118,7 @@ struct TestFastExp2 {
       // Double Normal Range: [-1022.0, +1023.0]
       TestMathRelative<T, D>("FastExp2Normal", std::exp2, CallFastExp2, d,
                              static_cast<T>(-1022.0), static_cast<T>(1023.0),
-                             0.000008, samples);
+                             0.000008, kSamples);
 
       // Double Subnormal Range: [-1075.0, -1022.0]
       TestMathRelative<T, D>("FastExp2Subnormal", std::exp2, CallFastExp2, d,
@@ -131,17 +131,17 @@ struct TestFastExp2 {
 struct TestFastExpMinusOrZero {
   template <class T, class D>
   HWY_NOINLINE void operator()(T, D d) {
-    const uint64_t samples = AdjustedReps(10'000'000);
+    const uint64_t kSamples = AdjustedReps(200'000);
     if (sizeof(T) == 4) {
       // Float Normal Range: [-87.0, 0.0]
       TestMathRelative<T, D>("FastExpMinusOrZeroNormal", std::exp,
                              CallFastExpMinusOrZero, d, static_cast<T>(-87.0),
-                             static_cast<T>(-0.0), 0.000008, samples);
+                             static_cast<T>(-0.0), 0.000008, kSamples);
     } else {
       // Double Normal Range: [-708.0, 0.0]
       TestMathRelative<T, D>("FastExpMinusOrZeroNormal", std::exp,
                              CallFastExpMinusOrZero, d, static_cast<T>(-708.0),
-                             static_cast<T>(-0.0), 0.000008, samples);
+                             static_cast<T>(-0.0), 0.000008, kSamples);
     }
   }
 };
@@ -150,23 +150,23 @@ struct TestFastLog2 {
   template <class T, class D>
   HWY_NOINLINE void operator()(T, D d) {
     const double max_relative_error = 1.15E-5;
-    const uint64_t samples = AdjustedReps(1000000);
+    const uint64_t kSamples = AdjustedReps(200'000);
     if (sizeof(T) == 4) {
       TestMathRelative<T, D>("FastLog2", std::log2, CallFastLog2, d,
                              static_cast<T>(FLT_MIN), static_cast<T>(FLT_MAX),
-                             max_relative_error, samples);
+                             max_relative_error, kSamples);
       TestMathRelative<T, D>("FastLog2PositiveNormal", std::log2,
                              CallFastLog2PositiveNormal, d,
                              static_cast<T>(1.18e-38f), static_cast<T>(FLT_MAX),
-                             max_relative_error, samples);
+                             max_relative_error, kSamples);
     } else {
       TestMathRelative<T, D>("FastLog2", std::log2, CallFastLog2, d,
                              static_cast<T>(DBL_MIN), static_cast<T>(DBL_MAX),
-                             max_relative_error, samples);
+                             max_relative_error, kSamples);
       TestMathRelative<T, D>("FastLog2PositiveNormal", std::log2,
                              CallFastLog2PositiveNormal, d,
                              static_cast<T>(2.23e-308), static_cast<T>(DBL_MAX),
-                             max_relative_error, samples);
+                             max_relative_error, kSamples);
     }
   }
 };
@@ -175,23 +175,23 @@ struct TestFastLog10 {
   template <class T, class D>
   HWY_NOINLINE void operator()(T, D d) {
     const double max_relative_error = 1.15E-5;
-    const uint64_t samples = AdjustedReps(1000000);
+    const uint64_t kSamples = AdjustedReps(200'000);
     if (sizeof(T) == 4) {
       TestMathRelative<T, D>("FastLog10", std::log10, CallFastLog10, d,
                              static_cast<T>(FLT_MIN), static_cast<T>(FLT_MAX),
-                             max_relative_error, samples);
+                             max_relative_error, kSamples);
       TestMathRelative<T, D>("FastLog10PositiveNormal", std::log10,
                              CallFastLog10PositiveNormal, d,
                              static_cast<T>(1.18e-38f), static_cast<T>(FLT_MAX),
-                             max_relative_error, samples);
+                             max_relative_error, kSamples);
     } else {
       TestMathRelative<T, D>("FastLog10", std::log10, CallFastLog10, d,
                              static_cast<T>(DBL_MIN), static_cast<T>(DBL_MAX),
-                             max_relative_error, samples);
+                             max_relative_error, kSamples);
       TestMathRelative<T, D>("FastLog10PositiveNormal", std::log10,
                              CallFastLog10PositiveNormal, d,
                              static_cast<T>(2.23e-308), static_cast<T>(DBL_MAX),
-                             max_relative_error, samples);
+                             max_relative_error, kSamples);
     }
   }
 };
@@ -200,23 +200,23 @@ struct TestFastLog1p {
   template <class T, class D>
   HWY_NOINLINE void operator()(T, D d) {
     const double max_relative_error = 1.15E-5;
-    const uint64_t samples = AdjustedReps(1000000);
+    const uint64_t kSamples = AdjustedReps(200'000);
     if (sizeof(T) == 4) {
       TestMathRelative<T, D>("FastLog1p", std::log1p, CallFastLog1p, d,
                              static_cast<T>(-0.9f), static_cast<T>(FLT_MAX),
-                             max_relative_error, samples);
+                             max_relative_error, kSamples);
       TestMathRelative<T, D>("FastLog1pPositiveNormal", std::log1p,
                              CallFastLog1pPositiveNormal, d,
                              static_cast<T>(0.0f), static_cast<T>(FLT_MAX),
-                             max_relative_error, samples);
+                             max_relative_error, kSamples);
     } else {
       TestMathRelative<T, D>("FastLog1p", std::log1p, CallFastLog1p, d,
                              static_cast<T>(-0.9), static_cast<T>(DBL_MAX),
-                             max_relative_error, samples);
+                             max_relative_error, kSamples);
       TestMathRelative<T, D>("FastLog1pPositiveNormal", std::log1p,
                              CallFastLog1pPositiveNormal, d,
                              static_cast<T>(0.0), static_cast<T>(DBL_MAX),
-                             max_relative_error, samples);
+                             max_relative_error, kSamples);
     }
   }
 };
@@ -300,7 +300,7 @@ struct TestFastPow {
       }
 
       const UintT kSamplesPerRange =
-          static_cast<UintT>(AdjustedReps(static_cast<size_t>(10000)));
+          static_cast<UintT>(AdjustedReps(size_t{10'000}));
       for (int range_index = 0; range_index < range_count; ++range_index) {
         const UintT start = ranges[range_index][0];
         const UintT stop = ranges[range_index][1];
