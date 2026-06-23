@@ -123,3 +123,36 @@ jobs:
           cmake -DCMAKE_C_COMPILER_TARGET="loongarch64-unknown-linux-gnu" -DCMAKE_CXX_COMPILER_TARGET="loongarch64-unknown-linux-gnu" -DCMAKE_CROSSCOMPILING=true -DCMAKE_CROSSCOMPILING_EMULATOR="qemu-loongarch64;-cpu;max;-L;/opt/cross-tools/target" -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=loongarch64 -B out .
           cmake --build out
           ctest --test-dir out
+
+  riscv64_cmake:
+    name: Build and test GCC on RISC-V 64
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit  # cannot be block - runner does git checkout
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install deps
+        run: |
+          sudo apt-get update && sudo apt-get install qemu-user \
+            g++-14-riscv64-linux-gnu
+
+      - name: Build and test
+        run: |
+          export CMAKE_BUILD_PARALLEL_LEVEL=2
+          export CTEST_PARALLEL_LEVEL=2
+          CXXFLAGS="-DHWY_COMPILE_ONLY_STATIC=1" \
+            CC=riscv64-linux-gnu-gcc-14 \
+            CXX=riscv64-linux-gnu-g++-14 \
+            cmake -DHWY_WARNINGS_ARE_ERRORS=ON -DCMAKE_CXX_STANDARD=17 \
+            -DCMAKE_C_COMPILER_TARGET=riscv64-linux-gnu \
+            -DCMAKE_CXX_COMPILER_TARGET=riscv64-linux-gnu \
+            -DCMAKE_CROSSCOMPILING=true \
+            -DCMAKE_CROSSCOMPILING_EMULATOR="qemu-riscv64;-cpu;max;-L;/usr/riscv64-linux-gnu" \
+            -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=riscv64 \
+            -B out .
+          cmake --build out
+          ctest --test-dir out
