@@ -167,9 +167,9 @@ HWY_NOINLINE void TestAllBatchQuery() {
   for (; i + N <= num_keys; i += N) {
     auto not_found = table.QueryBatch(du32, keys.data() + i);
     HWY_ASSERT_M(AllFalse(du32, not_found), "Batch query missed a key");
-    not_found = table.QueryBatchSmallEpsilon(du32, keys.data() + i);
+    not_found = table.QueryBatch<true>(du32, keys.data() + i);
     HWY_ASSERT_M(AllFalse(du32, not_found),
-                 "Batch query missed a key (small epsilon)");
+                 "Batch query missed a key (precompute secondary)");
   }
 
   for (; i < num_keys; ++i) {
@@ -181,9 +181,9 @@ HWY_NOINLINE void TestAllBatchQuery() {
   for (size_t j = 0; j < non_keys.size(); ++j) {
     non_keys[j] = num_keys + 1000 + static_cast<uint32_t>(j);
   }
-  const auto not_found = table.QueryBatchSmallEpsilon(du32, non_keys.data());
+  const auto not_found = table.QueryBatch<true>(du32, non_keys.data());
   HWY_ASSERT_M(AllTrue(du32, not_found),
-               "QueryBatchSmallEpsilon false positive on non-key");
+               "QueryBatch<true> false positive on non-key");
 
   fprintf(stderr, "  OK: batch query matches single query for %zu keys\n",
           num_keys);

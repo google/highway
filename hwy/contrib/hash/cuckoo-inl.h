@@ -161,12 +161,17 @@ class CuckooTable {
   }
 
   // SIMD set membership for N u32 keys, checking both primary and secondary
-  // buckets. For small epsilon (precomputes both bucket offsets upfront).
-  // Returns "not-found" mask (true = key NOT in set), matching Cuckoo2x2.
-  // `keys` must point to N aligned uint32_t values.
-  template <class DU32, class MU32 = Mask<DU32>>
-  HWY_INLINE MU32 QueryBatchSmallEpsilon(
-      DU32 du32, const uint32_t* HWY_RESTRICT keys) const {
+  // buckets. Returns "not-found" mask (true = key NOT in set), matching
+  // Cuckoo2x2. `keys` must point to N aligned uint32_t values.
+  //
+  // If kPrecomputeSecondary is true, both primary and secondary bucket offsets
+  // are computed upfront via SIMD, which is beneficial for small epsilon where
+  // most keys need the secondary check. If false (default), secondary bucket
+  // offsets are computed on-the-fly only for lanes that missed in the primary.
+  template <bool kPrecomputeSecondary = false, class DU32,
+            class MU32 = Mask<DU32>>
+  HWY_INLINE MU32 QueryBatch(DU32 du32,
+                              const uint32_t* HWY_RESTRICT keys) const {
     using VU32 = Vec<DU32>;
     HWY_LANES_CONSTEXPR size_t N = Lanes(du32);
     const uint32_t bucket_mask = config_.BucketMask();
@@ -176,17 +181,19 @@ class CuckooTable {
     const VU32 vkeys = Load(du32, keys);
 
     HWY_ALIGN uint32_t pri_offsets[MaxLanes(du32)];
-    HWY_ALIGN uint32_t sec_offsets[MaxLanes(du32)];
 
     // Compute primary bucket offsets for all N lanes.
     VU32 h_pri = hash_primary_.OneVec(du32, vkeys);
     const VU32 b_pri = ShiftLeft<4>(And(h_pri, vmask));
     Store(b_pri, du32, pri_offsets);
 
-    // Compute secondary bucket offsets for all N lanes.
-    VU32 h_sec = hash_secondary_.OneVec(du32, vkeys);
-    const VU32 b_sec = ShiftLeft<4>(And(h_sec, vmask));
-    Store(b_sec, du32, sec_offsets);
+    // Optionally precompute secondary bucket offsets for all N lanes.
+    HWY_ALIGN uint32_t sec_offsets[MaxLanes(du32)];
+    if constexpr (kPrecomputeSecondary) {
+      VU32 h_sec = hash_secondary_.OneVec(du32, vkeys);
+      const VU32 b_sec = ShiftLeft<4>(And(h_sec, vmask));
+      Store(b_sec, du32, sec_offsets);
+    }
 
     if constexpr (kPrefetchMode == PrefetchMode::kGather) {
       const RebindToSigned<decltype(du32)> di32;
@@ -220,70 +227,14 @@ class CuckooTable {
     const size_t num_miss = CompressStore(Iota(du32, 0), miss, du32, miss_idx);
     for (size_t j = 0; j < num_miss; ++j) {
       const uint32_t lane = miss_idx[j];
-      found_arr[lane] =
-          QueryBucket(keys[lane], sec_offsets[lane]) ? 1u : 0u;
-    }
-
-    // Return not-found mask: true = key NOT in set.
-    const VU32 result = Load(du32, found_arr);
-    return Eq(result, vzero);
-  }
-
-  // SIMD set membership for N u32 keys. Returns "not-found" mask
-  // (true = key NOT in set), matching Cuckoo2x2::operator().
-  // `keys` must point to N aligned uint32_t values.
-  template <class DU32, class MU32 = Mask<DU32>>
-  HWY_INLINE MU32 QueryBatch(DU32 du32,
-                              const uint32_t* HWY_RESTRICT keys) const {
-    using VU32 = Vec<DU32>;
-    HWY_LANES_CONSTEXPR size_t N = Lanes(du32);
-    const uint32_t bucket_mask = config_.BucketMask();
-    const VU32 vmask = Set(du32, bucket_mask);
-    const uint32_t* base_slots = slots_.data();
-
-    const VU32 vkeys = Load(du32, keys);
-
-    HWY_ALIGN uint32_t offsets[MaxLanes(du32)];
-
-    VU32 h0 = hash_primary_.OneVec(du32, vkeys);
-    VU32 b0 = ShiftLeft<4>(And(h0, vmask));
-    Store(b0, du32, offsets);
-
-    if constexpr (kPrefetchMode == PrefetchMode::kGather) {
-      const RebindToSigned<decltype(du32)> di32;
-      VU32 g0 = GatherIndex(du32, base_slots, BitCast(di32, b0));
-#if defined(HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT)
-      asm volatile(
-          ""
-          : "+" HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT(GetRaw(g0, 0))::"memory");
-#elif HWY_COMPILER_GCC || HWY_COMPILER_CLANG
-      asm volatile("" : : "g"(GetRaw(g0, 0)) : "memory");
-#endif
-    }
-    if constexpr (kPrefetchMode == PrefetchMode::kPrefetch) {
-      for (size_t lane = 0; lane < N; ++lane) {
-        hwy::Prefetch(base_slots + offsets[lane]);
+      if constexpr (kPrecomputeSecondary) {
+        found_arr[lane] =
+            QueryBucket(keys[lane], sec_offsets[lane]) ? 1u : 0u;
+      } else {
+        const uint32_t key = keys[lane];
+        const uint32_t b2 = SecondaryBucketOffset(key);
+        found_arr[lane] = QueryBucket(key, b2) ? 1u : 0u;
       }
-    }
-
-    // Pass 1: check all primary buckets.
-    HWY_ALIGN uint32_t found_arr[MaxLanes(du32)];
-    for (size_t lane = 0; lane < N; ++lane) {
-      found_arr[lane] = QueryBucket(keys[lane], offsets[lane]) ? 1u : 0u;
-    }
-
-    const VU32 found0 = Load(du32, found_arr);
-
-    // Pass 2: only check secondary for lanes that missed in primary.
-    const VU32 vzero = Zero(du32);
-    const auto miss0 = Eq(found0, vzero);
-    HWY_ALIGN uint32_t miss_idx[MaxLanes(du32)];
-    const size_t num_miss = CompressStore(Iota(du32, 0), miss0, du32, miss_idx);
-    for (size_t j = 0; j < num_miss; ++j) {
-      const uint32_t lane = miss_idx[j];
-      const uint32_t key = keys[lane];
-      const uint32_t b2 = SecondaryBucketOffset(key);
-      found_arr[lane] = QueryBucket(key, b2) ? 1u : 0u;
     }
 
     // Return not-found mask: true = key NOT in set.
