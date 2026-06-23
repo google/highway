@@ -1014,9 +1014,9 @@ HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGV, Not, not, _ALL)
 
 template <class V, HWY_IF_FLOAT_V(V)>
 HWY_API V Not(const V v) {
-  using DF = DFromV<V>;
-  using DU = RebindToUnsigned<DF>;
-  return BitCast(DF(), Not(BitCast(DU(), v)));
+  const DFromV<V> df;
+  const RebindToUnsigned<decltype(df)> du;
+  return BitCast(df, Not(BitCast(du, v)));
 }
 
 // ------------------------------ And
@@ -1030,9 +1030,9 @@ HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, And, and, _ALL)
 
 template <class V, HWY_IF_FLOAT_V(V)>
 HWY_API V And(const V a, const V b) {
-  using DF = DFromV<V>;
-  using DU = RebindToUnsigned<DF>;
-  return BitCast(DF(), And(BitCast(DU(), a), BitCast(DU(), b)));
+  const DFromV<V> df;
+  const RebindToUnsigned<decltype(df)> du;
+  return BitCast(df, And(BitCast(du, a), BitCast(du, b)));
 }
 
 // ------------------------------ Or
@@ -1041,9 +1041,111 @@ HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, Or, or, _ALL)
 
 template <class V, HWY_IF_FLOAT_V(V)>
 HWY_API V Or(const V a, const V b) {
-  using DF = DFromV<V>;
-  using DU = RebindToUnsigned<DF>;
-  return BitCast(DF(), Or(BitCast(DU(), a), BitCast(DU(), b)));
+  const DFromV<V> df;
+  const RebindToUnsigned<decltype(df)> du;
+  return BitCast(df, Or(BitCast(du, a), BitCast(du, b)));
+}
+
+// ------------------------------ MaskedOr
+#ifdef HWY_NATIVE_MASKED_OR
+#undef HWY_NATIVE_MASKED_OR
+#else
+#define HWY_NATIVE_MASKED_OR
+#endif
+
+#define HWY_RVV_MASKED_OR(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,     \
+                          SHIFT, MLEN, NAME, OP)                               \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                           \
+      NAME(HWY_RVV_M(MLEN) m, HWY_RVV_V(BASE, SEW, LMUL) a,                    \
+           HWY_RVV_V(BASE, SEW, LMUL) b) {                                     \
+    const HWY_RVV_D(BASE, SEW, HWY_LANES(HWY_RVV_T(BASE, SEW)), SHIFT) d;      \
+    return __riscv_v##OP##_vv_##CHAR##SEW##LMUL##_mu(m, Zero(d), a, b,         \
+                                                     HWY_RVV_AVL(SEW, SHIFT)); \
+  }
+HWY_RVV_FOREACH_UI(HWY_RVV_MASKED_OR, MaskedOr, or, _ALL)
+
+template <class M, class V, HWY_IF_FLOAT_V(V)>
+HWY_API V MaskedOr(const M mask, const V a, const V b) {
+  const DFromV<V> df;
+  const RebindToUnsigned<decltype(df)> du;
+  return BitCast(
+      df, MaskedOr(RebindMask(du, mask), BitCast(du, a), BitCast(du, b)));
+}
+
+// ------------------------------ MaskedXor
+#ifdef HWY_NATIVE_MASKED_XOR
+#undef HWY_NATIVE_MASKED_XOR
+#else
+#define HWY_NATIVE_MASKED_XOR
+#endif
+
+#define HWY_RVV_MASKED_XOR(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,    \
+                           SHIFT, MLEN, NAME, OP)                              \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                           \
+      NAME(HWY_RVV_M(MLEN) m, HWY_RVV_V(BASE, SEW, LMUL) a,                    \
+           HWY_RVV_V(BASE, SEW, LMUL) b) {                                     \
+    const HWY_RVV_D(BASE, SEW, HWY_LANES(HWY_RVV_T(BASE, SEW)), SHIFT) d;      \
+    return __riscv_v##OP##_vv_##CHAR##SEW##LMUL##_mu(m, Zero(d), a, b,         \
+                                                     HWY_RVV_AVL(SEW, SHIFT)); \
+  }
+HWY_RVV_FOREACH_UI(HWY_RVV_MASKED_XOR, MaskedXor, xor, _ALL)
+
+template <class M, class V, HWY_IF_FLOAT_V(V)>
+HWY_API V MaskedXor(const M mask, const V a, const V b) {
+  const DFromV<V> df;
+  const RebindToUnsigned<decltype(df)> du;
+  return BitCast(
+      df, MaskedXor(RebindMask(du, mask), BitCast(du, a), BitCast(du, b)));
+}
+
+// ------------------------------ MaskedOrOr
+#ifdef HWY_NATIVE_MASKED_OR_OR
+#undef HWY_NATIVE_MASKED_OR_OR
+#else
+#define HWY_NATIVE_MASKED_OR_OR
+#endif
+
+#define HWY_RVV_MASKED_OR_OR(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,  \
+                             SHIFT, MLEN, NAME, OP)                            \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                           \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) no, HWY_RVV_M(MLEN) m,                   \
+           HWY_RVV_V(BASE, SEW, LMUL) a, HWY_RVV_V(BASE, SEW, LMUL) b) {       \
+    return __riscv_v##OP##_vv_##CHAR##SEW##LMUL##_mu(m, no, a, b,              \
+                                                     HWY_RVV_AVL(SEW, SHIFT)); \
+  }
+HWY_RVV_FOREACH_UI(HWY_RVV_MASKED_OR_OR, MaskedOrOr, or, _ALL)
+
+template <class M, class V, HWY_IF_FLOAT_V(V)>
+HWY_API V MaskedOrOr(const V no, const M mask, const V a, const V b) {
+  const DFromV<V> df;
+  const RebindToUnsigned<decltype(df)> du;
+  return BitCast(df, MaskedOrOr(BitCast(du, no), RebindMask(du, mask),
+                                BitCast(du, a), BitCast(du, b)));
+}
+
+// ------------------------------ MaskedXorOr
+#ifdef HWY_NATIVE_MASKED_XOR_OR
+#undef HWY_NATIVE_MASKED_XOR_OR
+#else
+#define HWY_NATIVE_MASKED_XOR_OR
+#endif
+
+#define HWY_RVV_MASKED_XOR_OR(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                              SHIFT, MLEN, NAME, OP)                           \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                           \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) no, HWY_RVV_M(MLEN) m,                   \
+           HWY_RVV_V(BASE, SEW, LMUL) a, HWY_RVV_V(BASE, SEW, LMUL) b) {       \
+    return __riscv_v##OP##_vv_##CHAR##SEW##LMUL##_mu(m, no, a, b,              \
+                                                     HWY_RVV_AVL(SEW, SHIFT)); \
+  }
+HWY_RVV_FOREACH_UI(HWY_RVV_MASKED_XOR_OR, MaskedXorOr, xor, _ALL)
+
+template <class M, class V, HWY_IF_FLOAT_V(V)>
+HWY_API V MaskedXorOr(const V no, const M mask, const V a, const V b) {
+  const DFromV<V> df;
+  const RebindToUnsigned<decltype(df)> du;
+  return BitCast(df, MaskedXorOr(BitCast(du, no), RebindMask(du, mask),
+                                 BitCast(du, a), BitCast(du, b)));
 }
 
 // ------------------------------ Xor
@@ -1057,9 +1159,9 @@ HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, Xor, xor, _ALL)
 
 template <class V, HWY_IF_FLOAT_V(V)>
 HWY_API V Xor(const V a, const V b) {
-  using DF = DFromV<V>;
-  using DU = RebindToUnsigned<DF>;
-  return BitCast(DF(), Xor(BitCast(DU(), a), BitCast(DU(), b)));
+  const DFromV<V> df;
+  const RebindToUnsigned<decltype(df)> du;
+  return BitCast(df, Xor(BitCast(du, a), BitCast(du, b)));
 }
 
 // ------------------------------ AndNot
@@ -1419,6 +1521,138 @@ HWY_RVV_FOREACH_I(HWY_RVV_SHIFT_II, Shr, sra, _ALL)
 #undef HWY_RVV_SHIFT_II
 #undef HWY_RVV_SHIFT_VV
 
+// ------------------------------ MaskedShrOr
+
+#ifdef HWY_NATIVE_MASKED_SHR_OR
+#undef HWY_NATIVE_MASKED_SHR_OR
+#else
+#define HWY_NATIVE_MASKED_SHR_OR
+#endif
+
+#define HWY_RVV_MASKED_SHR_OR_U(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD,      \
+                                LMULH, SHIFT, MLEN, NAME, OP)                  \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                           \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) no, HWY_RVV_M(MLEN) m,                   \
+           HWY_RVV_V(BASE, SEW, LMUL) a, HWY_RVV_V(BASE, SEW, LMUL) b) {       \
+    return __riscv_v##OP##_vv_##CHAR##SEW##LMUL##_mu(m, no, a, b,              \
+                                                     HWY_RVV_AVL(SEW, SHIFT)); \
+  }
+HWY_RVV_FOREACH_U(HWY_RVV_MASKED_SHR_OR_U, MaskedShrOr, srl, _ALL)
+
+#define HWY_RVV_MASKED_SHR_OR_I(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD,      \
+                                LMULH, SHIFT, MLEN, NAME, OP)                  \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                           \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) no, HWY_RVV_M(MLEN) m,                   \
+           HWY_RVV_V(BASE, SEW, LMUL) a, HWY_RVV_V(BASE, SEW, LMUL) b) {       \
+    const HWY_RVV_D(uint, SEW, HWY_LANES(HWY_RVV_T(BASE, SEW)), SHIFT) du;     \
+    return __riscv_v##OP##_vv_##CHAR##SEW##LMUL##_mu(m, no, a, BitCast(du, b), \
+                                                     HWY_RVV_AVL(SEW, SHIFT)); \
+  }
+HWY_RVV_FOREACH_I(HWY_RVV_MASKED_SHR_OR_I, MaskedShrOr, sra, _ALL)
+
+#undef HWY_RVV_MASKED_SHR_OR_U
+#undef HWY_RVV_MASKED_SHR_OR_I
+
+// ------------------------------ MaskedShr
+
+#ifdef HWY_NATIVE_MASKED_SHR
+#undef HWY_NATIVE_MASKED_SHR
+#else
+#define HWY_NATIVE_MASKED_SHR
+#endif
+
+#define HWY_RVV_MASKED_SHR_U(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,  \
+                             SHIFT, MLEN, NAME, OP)                            \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                           \
+      NAME(HWY_RVV_M(MLEN) m, HWY_RVV_V(BASE, SEW, LMUL) a,                    \
+           HWY_RVV_V(BASE, SEW, LMUL) b) {                                     \
+    const HWY_RVV_D(BASE, SEW, HWY_LANES(HWY_RVV_T(BASE, SEW)), SHIFT) d;      \
+    return __riscv_v##OP##_vv_##CHAR##SEW##LMUL##_mu(m, Zero(d), a, b,         \
+                                                     HWY_RVV_AVL(SEW, SHIFT)); \
+  }
+HWY_RVV_FOREACH_U(HWY_RVV_MASKED_SHR_U, MaskedShr, srl, _ALL)
+
+#define HWY_RVV_MASKED_SHR_I(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                             SHIFT, MLEN, NAME, OP)                           \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                          \
+      NAME(HWY_RVV_M(MLEN) m, HWY_RVV_V(BASE, SEW, LMUL) a,                   \
+           HWY_RVV_V(BASE, SEW, LMUL) b) {                                    \
+    const HWY_RVV_D(uint, SEW, HWY_LANES(HWY_RVV_T(BASE, SEW)), SHIFT) du;    \
+    const HWY_RVV_D(BASE, SEW, HWY_LANES(HWY_RVV_T(BASE, SEW)), SHIFT) d;     \
+    return __riscv_v##OP##_vv_##CHAR##SEW##LMUL##_mu(                         \
+        m, Zero(d), a, BitCast(du, b), HWY_RVV_AVL(SEW, SHIFT));              \
+  }
+HWY_RVV_FOREACH_I(HWY_RVV_MASKED_SHR_I, MaskedShr, sra, _ALL)
+
+#undef HWY_RVV_MASKED_SHR_U
+#undef HWY_RVV_MASKED_SHR_I
+
+// ------------------------------ MaskedShlOr
+
+#ifdef HWY_NATIVE_MASKED_SHL_OR
+#undef HWY_NATIVE_MASKED_SHL_OR
+#else
+#define HWY_NATIVE_MASKED_SHL_OR
+#endif
+
+#define HWY_RVV_MASKED_SHL_OR_U(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD,      \
+                                LMULH, SHIFT, MLEN, NAME, OP)                  \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                           \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) no, HWY_RVV_M(MLEN) m,                   \
+           HWY_RVV_V(BASE, SEW, LMUL) a, HWY_RVV_V(BASE, SEW, LMUL) b) {       \
+    return __riscv_v##OP##_vv_##CHAR##SEW##LMUL##_mu(m, no, a, b,              \
+                                                     HWY_RVV_AVL(SEW, SHIFT)); \
+  }
+HWY_RVV_FOREACH_U(HWY_RVV_MASKED_SHL_OR_U, MaskedShlOr, sll, _ALL)
+
+#define HWY_RVV_MASKED_SHL_OR_I(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD,      \
+                                LMULH, SHIFT, MLEN, NAME, OP)                  \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                           \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) no, HWY_RVV_M(MLEN) m,                   \
+           HWY_RVV_V(BASE, SEW, LMUL) a, HWY_RVV_V(BASE, SEW, LMUL) b) {       \
+    const HWY_RVV_D(uint, SEW, HWY_LANES(HWY_RVV_T(BASE, SEW)), SHIFT) du;     \
+    return __riscv_v##OP##_vv_##CHAR##SEW##LMUL##_mu(m, no, a, BitCast(du, b), \
+                                                     HWY_RVV_AVL(SEW, SHIFT)); \
+  }
+HWY_RVV_FOREACH_I(HWY_RVV_MASKED_SHL_OR_I, MaskedShlOr, sll, _ALL)
+
+#undef HWY_RVV_MASKED_SHL_OR_U
+#undef HWY_RVV_MASKED_SHL_OR_I
+
+// ------------------------------ MaskedShl
+
+#ifdef HWY_NATIVE_MASKED_SHL
+#undef HWY_NATIVE_MASKED_SHL
+#else
+#define HWY_NATIVE_MASKED_SHL
+#endif
+
+#define HWY_RVV_MASKED_SHL_U(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,  \
+                             SHIFT, MLEN, NAME, OP)                            \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                           \
+      NAME(HWY_RVV_M(MLEN) m, HWY_RVV_V(BASE, SEW, LMUL) a,                    \
+           HWY_RVV_V(BASE, SEW, LMUL) b) {                                     \
+    const HWY_RVV_D(BASE, SEW, HWY_LANES(HWY_RVV_T(BASE, SEW)), SHIFT) d;      \
+    return __riscv_v##OP##_vv_##CHAR##SEW##LMUL##_mu(m, Zero(d), a, b,         \
+                                                     HWY_RVV_AVL(SEW, SHIFT)); \
+  }
+HWY_RVV_FOREACH_U(HWY_RVV_MASKED_SHL_U, MaskedShl, sll, _ALL)
+
+#define HWY_RVV_MASKED_SHL_I(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                             SHIFT, MLEN, NAME, OP)                           \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                          \
+      NAME(HWY_RVV_M(MLEN) m, HWY_RVV_V(BASE, SEW, LMUL) a,                   \
+           HWY_RVV_V(BASE, SEW, LMUL) b) {                                    \
+    const HWY_RVV_D(uint, SEW, HWY_LANES(HWY_RVV_T(BASE, SEW)), SHIFT) du;    \
+    const HWY_RVV_D(BASE, SEW, HWY_LANES(HWY_RVV_T(BASE, SEW)), SHIFT) d;     \
+    return __riscv_v##OP##_vv_##CHAR##SEW##LMUL##_mu(                         \
+        m, Zero(d), a, BitCast(du, b), HWY_RVV_AVL(SEW, SHIFT));              \
+  }
+HWY_RVV_FOREACH_I(HWY_RVV_MASKED_SHL_I, MaskedShl, sll, _ALL)
+
+#undef HWY_RVV_MASKED_SHL_U
+#undef HWY_RVV_MASKED_SHL_I
+
 // ------------------------------ RoundingShr
 #define HWY_RVV_ROUNDING_SHR_VV(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD,   \
                                 LMULH, SHIFT, MLEN, NAME, OP)               \
@@ -1572,6 +1806,22 @@ HWY_RVV_FOREACH_I(HWY_RVV_RETV_ARGMVV, MaskedSatSubOr, ssub, _ALL)
 
 HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGV, ApproximateReciprocal, frec7, _ALL)
 
+// ------------------------------ MaskedApproximateReciprocal
+#ifdef HWY_NATIVE_MASKED_APPROX_RECIP
+#undef HWY_NATIVE_MASKED_APPROX_RECIP
+#else
+#define HWY_NATIVE_MASKED_APPROX_RECIP
+#endif
+
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGMV, MaskedApproximateReciprocalOr, frec7,
+                  _ALL)
+
+template <class V, HWY_IF_FLOAT_V(V), class M>
+HWY_API V MaskedApproximateReciprocal(M m, V v) {
+  const DFromV<V> d;
+  return MaskedApproximateReciprocalOr(Zero(d), m, v);
+}
+
 // ------------------------------ Sqrt
 HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGV, Sqrt, fsqrt, _ALL)
 
@@ -1598,6 +1848,22 @@ HWY_API V MaskedSqrt(M m, V v) {
 #endif
 
 HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGV, ApproximateReciprocalSqrt, frsqrt7, _ALL)
+
+// ------------------------------ MaskedApproximateReciprocalSqrt
+#ifdef HWY_NATIVE_MASKED_APPROX_RSQRT
+#undef HWY_NATIVE_MASKED_APPROX_RSQRT
+#else
+#define HWY_NATIVE_MASKED_APPROX_RSQRT
+#endif
+
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGMV, MaskedApproximateReciprocalSqrtOr,
+                  frsqrt7, _ALL)
+
+template <class V, HWY_IF_FLOAT_V(V), class M>
+HWY_API V MaskedApproximateReciprocalSqrt(M m, V v) {
+  const DFromV<V> d;
+  return MaskedApproximateReciprocalSqrtOr(Zero(d), m, v);
+}
 
 // ------------------------------ MulAdd
 
