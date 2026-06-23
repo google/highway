@@ -1803,9 +1803,10 @@ HWY_INLINE V StirlingLogGamma(D d, V w, V& lo) {
 
 // Computes signed Gamma(a). For a < 0.5 uses w = 1 - a; then a [2, 3)
 // polynomial below kStirlingLimit, Stirling above.
-template <class D, class V = VFromD<D>>
-HWY_INLINE V gammak(D d, V a) {
+template <class D, class V = VFromD<D>, class M = MFromD<D>>
+HWY_INLINE V Gamma(D d, V a) {
   using T = TFromD<D>;
+  static_assert(IsFloat<T>(), "Only makes sense for floating-point");
   constexpr bool kIsF32 = (sizeof(T) == 4);
   GammaImpl<T> impl;
 
@@ -1818,8 +1819,8 @@ HWY_INLINE V gammak(D d, V a) {
   const V kStirlingLimit = impl.StirlingLimit(d);
 
   // Reduce to w >= 0.5: w = 1 - a when a < 0.5.
-  const auto neg = Lt(a, kHalf);
-  V w = IfThenElse(neg, Sub(kOne, a), a);
+  const M neg = Lt(a, kHalf);
+  V w = MaskedSubOr(a, neg, kOne, a);
 
   // Shift w into [2, 3) via Gamma(x+1) = x*Gamma(x).
   V wa = w;
@@ -1827,18 +1828,17 @@ HWY_INLINE V gammak(D d, V a) {
   V den_hi = kOne, den_lo = kZero;
 
   for (int i = 0; i < 2; ++i) {
-    const auto up = Lt(wa, kTwo);
+    const M up = Lt(wa, kTwo);
     V d_lo;
     const V d_hi = DDMulV(den_hi, den_lo, wa, d_lo);
     den_hi = IfThenElse(up, d_hi, den_hi);
     den_lo = IfThenElse(up, d_lo, den_lo);
-    wa = IfThenElse(up, Add(wa, kOne), wa);
+    wa = MaskedAddOr(wa, up, wa, kOne);
   }
 
   for (int i = 0; i < GammaImpl<T>::kReduceSteps; ++i) {
-    const auto down = Ge(wa, kThree);
-    const V wd = Sub(wa, kOne);
-    wa = IfThenElse(down, wd, wa);
+    const M down = Ge(wa, kThree);
+    wa = MaskedSubOr(wa, down, wa, kOne);
     V m_lo;
     const V m_hi = DDMulV(num_hi, num_lo, wa, m_lo);
     num_hi = IfThenElse(down, m_hi, num_hi);
@@ -1864,7 +1864,7 @@ HWY_INLINE V gammak(D d, V a) {
   const V frac = Sub(a, ra);
   const V s_mag = Sin(d, Mul(kPi, frac));
   const RebindToSigned<decltype(d)> di;
-  const auto odd =
+  const M odd =
       RebindMask(d, Ne(And(ConvertTo(di, ra), Set(di, 1)), Zero(di)));
   const V s_signed = IfThenElse(odd, Neg(s_mag), s_mag);
   const V refl = Div(kPi, Mul(s_signed, gamma_w));
@@ -2911,10 +2911,10 @@ HWY_INLINE V Tgamma(const D d, V x) {
   const V kOverflow =
       Set(d, static_cast<T>(sizeof(T) == 4 ? 35.040095 : 171.61447887182298));
 
-  V result = impl::gammak(d, x);
+  V result = impl::Gamma(d, x);
 
   result = IfThenElse(Gt(x, kOverflow), Inf(d), result);
-  const auto is_neg_int = And(Eq(x, Round(x)), Lt(x, kZero));
+  const MFromD<D> is_neg_int = And(Eq(x, Round(x)), Lt(x, kZero));
   result = IfThenElse(is_neg_int, NaN(d), result);
   result = IfThenElse(Eq(x, kZero), CopySign(Inf(d), x), result);
   result = IfThenElse(IsNaN(x), x, result);
