@@ -985,10 +985,10 @@ to, and potentially more efficient than, `IfThenElseZero(m, Add(a, b));` etc.
 
 *   `V`: `{i,f}` \
     <code>V **MaskedAbs**(M m, V a)</code>: returns the absolute value of `a[i]`
-    where m is active and returns zero otherwise.
+    or `0` if `m[i]` is false.
 
-*   <code>V **MaskedMax**(M m, V a, V b)</code>: returns `Max(a, b)[i]` or
-    `zero` if `m[i]` is false.
+*   <code>V **MaskedMax**(M m, V a, V b)</code>: returns `Max(a, b)[i]` or `0`
+    if `m[i]` is false.
 
 *   <code>V **MaskedAdd**(M m, V a, V b)</code>: returns `a[i] + b[i]` or `0` if
     `m[i]` is false.
@@ -1205,6 +1205,18 @@ A compound shift on 64-bit values:
     `a[i] >> int` or `no[i]` if `mask[i]` is false.
 
 *   `V`: `{u,i}` \
+    <code>V **MaskedShl**(M mask, V a, V shifts)</code> returns `a[i] <<
+    shifts[i]` or `0` if `mask[i]` is false.
+
+*   `V`: `{u,i}` \
+    <code>V **MaskedShlOr**(V no, M mask, V a, V shifts)</code> returns `a[i] <<
+    shifts[i]` or `no[i]` if `mask[i]` is false.
+
+*   `V`: `{u,i}` \
+    <code>V **MaskedShr**(M mask, V a, V shifts)</code> returns `a[i] >>
+    shifts[i]` or `0` if `mask[i]` is false.
+
+*   `V`: `{u,i}` \
     <code>V **MaskedShrOr**(V no, M mask, V a, V shifts)</code> returns `a[i] >>
     shifts[i]` or `no[i]` if `mask[i]` is false.
 
@@ -1309,8 +1321,17 @@ types, and on SVE/RVV.
 
 *   <code>V **AndNot**(V a, V b)</code>: returns `~a[i] & b[i]`.
 
-*   <code>V **MaskedOr**(M m, V a, V b)</code>: returns `a[i] | b[i]` or `zero`
-    if `m[i]` is false.
+*   <code>V **MaskedOrOr**(V no, M m, V a, V b)</code>: returns `a[i] | b[i]` or
+    `no[i]` if `m[i]` is false.
+
+*   <code>V **MaskedOr**(M m, V a, V b)</code>: returns `a[i] | b[i]` or `0` if
+    `m[i]` is false.
+
+*   <code>V **MaskedXorOr**(V no, M m, V a, V b)</code>: returns `a[i] ^ b[i]`
+    or `no[i]` if `m[i]` is false.
+
+*   <code>V **MaskedXor**(M m, V a, V b)</code>: returns `a[i] ^ b[i]` or `0` if
+    `m[i]` is false.
 
 The following three-argument functions may be more efficient than assembling
 them from 2-argument functions:

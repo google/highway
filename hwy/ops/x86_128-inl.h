@@ -1905,6 +1905,220 @@ HWY_API Mask128<T, N> ExclusiveNeither(const Mask128<T, N> a, Mask128<T, N> b) {
   return detail::ExclusiveNeither(hwy::SizeTag<sizeof(T)>(), a, b);
 }
 
+// ------------------------------ MaskedOr
+
+#ifdef HWY_NATIVE_MASKED_OR
+#undef HWY_NATIVE_MASKED_OR
+#else
+#define HWY_NATIVE_MASKED_OR
+#endif
+
+template <size_t N>
+HWY_API Vec128<uint32_t, N> MaskedOr(Mask128<uint32_t, N> m,
+                                     Vec128<uint32_t, N> a,
+                                     Vec128<uint32_t, N> b) {
+  return Vec128<uint32_t, N>{_mm_maskz_or_epi32(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int32_t, N> MaskedOr(Mask128<int32_t, N> m, Vec128<int32_t, N> a,
+                                    Vec128<int32_t, N> b) {
+  return Vec128<int32_t, N>{_mm_maskz_or_epi32(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint64_t, N> MaskedOr(Mask128<uint64_t, N> m,
+                                     Vec128<uint64_t, N> a,
+                                     Vec128<uint64_t, N> b) {
+  return Vec128<uint64_t, N>{_mm_maskz_or_epi64(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int64_t, N> MaskedOr(Mask128<int64_t, N> m, Vec128<int64_t, N> a,
+                                    Vec128<int64_t, N> b) {
+  return Vec128<int64_t, N>{_mm_maskz_or_epi64(m.raw, a.raw, b.raw)};
+}
+
+// Generic for all vector lengths.
+template <class V, class D = DFromV<V>, class M = MFromD<D>, HWY_IF_UI8_D(D)>
+HWY_API V MaskedOr(M m, V a, V b) {
+  return IfThenElseZero(m, Or(a, b));
+}
+template <class V, class D = DFromV<V>, class M = MFromD<D>, HWY_IF_UI16_D(D)>
+HWY_API V MaskedOr(M m, V a, V b) {
+  return IfThenElseZero(m, Or(a, b));
+}
+
+// Generic for all vector lengths.
+template <class V, class D = DFromV<V>, class M = MFromD<D>, HWY_IF_FLOAT_D(D)>
+HWY_API V MaskedOr(M m, V a, V b) {
+  const D d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d,
+                 MaskedOr(RebindMask(du, m), BitCast(du, a), BitCast(du, b)));
+}
+
+// ------------------------------ MaskedXor
+
+#ifdef HWY_NATIVE_MASKED_XOR
+#undef HWY_NATIVE_MASKED_XOR
+#else
+#define HWY_NATIVE_MASKED_XOR
+#endif
+
+template <size_t N>
+HWY_API Vec128<uint32_t, N> MaskedXor(Mask128<uint32_t, N> m,
+                                      Vec128<uint32_t, N> a,
+                                      Vec128<uint32_t, N> b) {
+  return Vec128<uint32_t, N>{_mm_maskz_xor_epi32(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int32_t, N> MaskedXor(Mask128<int32_t, N> m,
+                                     Vec128<int32_t, N> a,
+                                     Vec128<int32_t, N> b) {
+  return Vec128<int32_t, N>{_mm_maskz_xor_epi32(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint64_t, N> MaskedXor(Mask128<uint64_t, N> m,
+                                      Vec128<uint64_t, N> a,
+                                      Vec128<uint64_t, N> b) {
+  return Vec128<uint64_t, N>{_mm_maskz_xor_epi64(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int64_t, N> MaskedXor(Mask128<int64_t, N> m,
+                                     Vec128<int64_t, N> a,
+                                     Vec128<int64_t, N> b) {
+  return Vec128<int64_t, N>{_mm_maskz_xor_epi64(m.raw, a.raw, b.raw)};
+}
+
+// Generic for all vector lengths.
+template <class V, class D = DFromV<V>, class M = MFromD<D>, HWY_IF_UI8_D(D)>
+HWY_API V MaskedXor(M m, V a, V b) {
+  return IfThenElseZero(m, Xor(a, b));
+}
+template <class V, class D = DFromV<V>, class M = MFromD<D>, HWY_IF_UI16_D(D)>
+HWY_API V MaskedXor(M m, V a, V b) {
+  return IfThenElseZero(m, Xor(a, b));
+}
+
+// Generic for all vector lengths.
+template <class V, class D = DFromV<V>, class M = MFromD<D>, HWY_IF_FLOAT_D(D)>
+HWY_API V MaskedXor(M m, V a, V b) {
+  const D d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d,
+                 MaskedXor(RebindMask(du, m), BitCast(du, a), BitCast(du, b)));
+}
+
+// ------------------------------ MaskedOrOr
+
+#ifdef HWY_NATIVE_MASKED_OR_OR
+#undef HWY_NATIVE_MASKED_OR_OR
+#else
+#define HWY_NATIVE_MASKED_OR_OR
+#endif
+
+template <size_t N>
+HWY_API Vec128<uint32_t, N> MaskedOrOr(Vec128<uint32_t, N> no,
+                                       Mask128<uint32_t, N> m,
+                                       Vec128<uint32_t, N> a,
+                                       Vec128<uint32_t, N> b) {
+  return Vec128<uint32_t, N>{_mm_mask_or_epi32(no.raw, m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int32_t, N> MaskedOrOr(Vec128<int32_t, N> no,
+                                      Mask128<int32_t, N> m,
+                                      Vec128<int32_t, N> a,
+                                      Vec128<int32_t, N> b) {
+  return Vec128<int32_t, N>{_mm_mask_or_epi32(no.raw, m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint64_t, N> MaskedOrOr(Vec128<uint64_t, N> no,
+                                       Mask128<uint64_t, N> m,
+                                       Vec128<uint64_t, N> a,
+                                       Vec128<uint64_t, N> b) {
+  return Vec128<uint64_t, N>{_mm_mask_or_epi64(no.raw, m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int64_t, N> MaskedOrOr(Vec128<int64_t, N> no,
+                                      Mask128<int64_t, N> m,
+                                      Vec128<int64_t, N> a,
+                                      Vec128<int64_t, N> b) {
+  return Vec128<int64_t, N>{_mm_mask_or_epi64(no.raw, m.raw, a.raw, b.raw)};
+}
+
+// Generic for all vector lengths.
+template <class V, class D = DFromV<V>, class M = MFromD<D>, HWY_IF_UI8_D(D)>
+HWY_API V MaskedOrOr(V no, M m, V a, V b) {
+  return IfThenElse(m, Or(a, b), no);
+}
+template <class V, class D = DFromV<V>, class M = MFromD<D>, HWY_IF_UI16_D(D)>
+HWY_API V MaskedOrOr(V no, M m, V a, V b) {
+  return IfThenElse(m, Or(a, b), no);
+}
+
+// Generic for all vector lengths.
+template <class V, class D = DFromV<V>, class M = MFromD<D>, HWY_IF_FLOAT_D(D)>
+HWY_API V MaskedOrOr(V no, M m, V a, V b) {
+  const D d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, MaskedOrOr(BitCast(du, no), RebindMask(du, m),
+                               BitCast(du, a), BitCast(du, b)));
+}
+
+// ------------------------------ MaskedXorOr
+
+#ifdef HWY_NATIVE_MASKED_XOR_OR
+#undef HWY_NATIVE_MASKED_XOR_OR
+#else
+#define HWY_NATIVE_MASKED_XOR_OR
+#endif
+
+template <size_t N>
+HWY_API Vec128<uint32_t, N> MaskedXorOr(Vec128<uint32_t, N> no,
+                                        Mask128<uint32_t, N> m,
+                                        Vec128<uint32_t, N> a,
+                                        Vec128<uint32_t, N> b) {
+  return Vec128<uint32_t, N>{_mm_mask_xor_epi32(no.raw, m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int32_t, N> MaskedXorOr(Vec128<int32_t, N> no,
+                                       Mask128<int32_t, N> m,
+                                       Vec128<int32_t, N> a,
+                                       Vec128<int32_t, N> b) {
+  return Vec128<int32_t, N>{_mm_mask_xor_epi32(no.raw, m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint64_t, N> MaskedXorOr(Vec128<uint64_t, N> no,
+                                        Mask128<uint64_t, N> m,
+                                        Vec128<uint64_t, N> a,
+                                        Vec128<uint64_t, N> b) {
+  return Vec128<uint64_t, N>{_mm_mask_xor_epi64(no.raw, m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int64_t, N> MaskedXorOr(Vec128<int64_t, N> no,
+                                       Mask128<int64_t, N> m,
+                                       Vec128<int64_t, N> a,
+                                       Vec128<int64_t, N> b) {
+  return Vec128<int64_t, N>{_mm_mask_xor_epi64(no.raw, m.raw, a.raw, b.raw)};
+}
+
+// Generic for all vector lengths.
+template <class V, class D = DFromV<V>, class M = MFromD<D>, HWY_IF_UI8_D(D)>
+HWY_API V MaskedXorOr(V no, M m, V a, V b) {
+  return IfThenElse(m, Xor(a, b), no);
+}
+template <class V, class D = DFromV<V>, class M = MFromD<D>, HWY_IF_UI16_D(D)>
+HWY_API V MaskedXorOr(V no, M m, V a, V b) {
+  return IfThenElse(m, Xor(a, b), no);
+}
+
+// Generic for all vector lengths.
+template <class V, class D = DFromV<V>, class M = MFromD<D>, HWY_IF_FLOAT_D(D)>
+HWY_API V MaskedXorOr(V no, M m, V a, V b) {
+  const D d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, MaskedXorOr(BitCast(du, no), RebindMask(du, m),
+                                BitCast(du, a), BitCast(du, b)));
+}
+
 #else  // AVX2 or below
 
 // ------------------------------ Mask
@@ -5319,6 +5533,32 @@ HWY_API Vec128<double> ApproximateReciprocal(Vec128<double> v) {
 HWY_API Vec64<double> ApproximateReciprocal(Vec64<double> v) {
   return Vec64<double>{_mm_rcp14_sd(v.raw, v.raw)};
 }
+
+// ------------------------------ MaskedApproximateReciprocal
+#ifdef HWY_NATIVE_MASKED_APPROX_RECIP
+#undef HWY_NATIVE_MASKED_APPROX_RECIP
+#else
+#define HWY_NATIVE_MASKED_APPROX_RECIP
+#endif
+
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Vec128<float16_t, N> MaskedApproximateReciprocal(
+    Mask128<float16_t, N> m, Vec128<float16_t, N> v) {
+  return Vec128<float16_t, N>{_mm_maskz_rcp_ph(m.raw, v.raw)};
+}
+#endif
+template <size_t N>
+HWY_API Vec128<float, N> MaskedApproximateReciprocal(Mask128<float, N> m,
+                                                     Vec128<float, N> v) {
+  return Vec128<float, N>{_mm_maskz_rcp14_ps(m.raw, v.raw)};
+}
+template <size_t N>
+HWY_API Vec128<double, N> MaskedApproximateReciprocal(Mask128<double, N> m,
+                                                      Vec128<double, N> v) {
+  return Vec128<double, N>{_mm_maskz_rcp14_pd(m.raw, v.raw)};
+}
+
 #endif
 
 // Generic for all vector lengths.
@@ -6260,6 +6500,226 @@ HWY_API Vec128<int64_t, N> MaskedShiftRightOr(Vec128<int64_t, N> no,
   return Vec128<int64_t, N>{_mm_mask_srai_epi64(no.raw, m.raw, a.raw, kShift)};
 }
 
+// ------------------------------ MaskedShrOr
+#ifdef HWY_NATIVE_MASKED_SHR_OR
+#undef HWY_NATIVE_MASKED_SHR_OR
+#else
+#define HWY_NATIVE_MASKED_SHR_OR
+#endif
+
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec128<T, N> MaskedShrOr(Vec128<T, N> no, Mask128<T, N> m,
+                                 Vec128<T, N> a, Vec128<T, N> shifts) {
+  return IfThenElse(m, Shr(a, shifts), no);
+}
+template <size_t N>
+HWY_API Vec128<uint16_t, N> MaskedShrOr(Vec128<uint16_t, N> no,
+                                        Mask128<uint16_t, N> m,
+                                        Vec128<uint16_t, N> a,
+                                        Vec128<uint16_t, N> shifts) {
+  return Vec128<uint16_t, N>{
+      _mm_mask_srlv_epi16(no.raw, m.raw, a.raw, shifts.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int16_t, N> MaskedShrOr(Vec128<int16_t, N> no,
+                                       Mask128<int16_t, N> m,
+                                       Vec128<int16_t, N> a,
+                                       Vec128<int16_t, N> shifts) {
+  return Vec128<int16_t, N>{
+      _mm_mask_srav_epi16(no.raw, m.raw, a.raw, shifts.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint32_t, N> MaskedShrOr(Vec128<uint32_t, N> no,
+                                        Mask128<uint32_t, N> m,
+                                        Vec128<uint32_t, N> a,
+                                        Vec128<uint32_t, N> shifts) {
+  return Vec128<uint32_t, N>{
+      _mm_mask_srlv_epi32(no.raw, m.raw, a.raw, shifts.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int32_t, N> MaskedShrOr(Vec128<int32_t, N> no,
+                                       Mask128<int32_t, N> m,
+                                       Vec128<int32_t, N> a,
+                                       Vec128<int32_t, N> shifts) {
+  return Vec128<int32_t, N>{
+      _mm_mask_srav_epi32(no.raw, m.raw, a.raw, shifts.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint64_t, N> MaskedShrOr(Vec128<uint64_t, N> no,
+                                        Mask128<uint64_t, N> m,
+                                        Vec128<uint64_t, N> a,
+                                        Vec128<uint64_t, N> shifts) {
+  return Vec128<uint64_t, N>{
+      _mm_mask_srlv_epi64(no.raw, m.raw, a.raw, shifts.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int64_t, N> MaskedShrOr(Vec128<int64_t, N> no,
+                                       Mask128<int64_t, N> m,
+                                       Vec128<int64_t, N> a,
+                                       Vec128<int64_t, N> shifts) {
+  return Vec128<int64_t, N>{
+      _mm_mask_srav_epi64(no.raw, m.raw, a.raw, shifts.raw)};
+}
+
+// ------------------------------ MaskedShr
+#ifdef HWY_NATIVE_MASKED_SHR
+#undef HWY_NATIVE_MASKED_SHR
+#else
+#define HWY_NATIVE_MASKED_SHR
+#endif
+
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec128<T, N> MaskedShr(Mask128<T, N> m, Vec128<T, N> a,
+                               Vec128<T, N> shifts) {
+  return IfThenElseZero(m, Shr(a, shifts));
+}
+template <size_t N>
+HWY_API Vec128<uint16_t, N> MaskedShr(Mask128<uint16_t, N> m,
+                                      Vec128<uint16_t, N> a,
+                                      Vec128<uint16_t, N> shifts) {
+  return Vec128<uint16_t, N>{_mm_maskz_srlv_epi16(m.raw, a.raw, shifts.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int16_t, N> MaskedShr(Mask128<int16_t, N> m,
+                                     Vec128<int16_t, N> a,
+                                     Vec128<int16_t, N> shifts) {
+  return Vec128<int16_t, N>{_mm_maskz_srav_epi16(m.raw, a.raw, shifts.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint32_t, N> MaskedShr(Mask128<uint32_t, N> m,
+                                      Vec128<uint32_t, N> a,
+                                      Vec128<uint32_t, N> shifts) {
+  return Vec128<uint32_t, N>{_mm_maskz_srlv_epi32(m.raw, a.raw, shifts.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int32_t, N> MaskedShr(Mask128<int32_t, N> m,
+                                     Vec128<int32_t, N> a,
+                                     Vec128<int32_t, N> shifts) {
+  return Vec128<int32_t, N>{_mm_maskz_srav_epi32(m.raw, a.raw, shifts.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint64_t, N> MaskedShr(Mask128<uint64_t, N> m,
+                                      Vec128<uint64_t, N> a,
+                                      Vec128<uint64_t, N> shifts) {
+  return Vec128<uint64_t, N>{_mm_maskz_srlv_epi64(m.raw, a.raw, shifts.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int64_t, N> MaskedShr(Mask128<int64_t, N> m,
+                                     Vec128<int64_t, N> a,
+                                     Vec128<int64_t, N> shifts) {
+  return Vec128<int64_t, N>{_mm_maskz_srav_epi64(m.raw, a.raw, shifts.raw)};
+}
+
+// ------------------------------ MaskedShlOr
+#ifdef HWY_NATIVE_MASKED_SHL_OR
+#undef HWY_NATIVE_MASKED_SHL_OR
+#else
+#define HWY_NATIVE_MASKED_SHL_OR
+#endif
+
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec128<T, N> MaskedShlOr(Vec128<T, N> no, Mask128<T, N> m,
+                                 Vec128<T, N> a, Vec128<T, N> shifts) {
+  return IfThenElse(m, Shl(a, shifts), no);
+}
+template <size_t N>
+HWY_API Vec128<uint16_t, N> MaskedShlOr(Vec128<uint16_t, N> no,
+                                        Mask128<uint16_t, N> m,
+                                        Vec128<uint16_t, N> a,
+                                        Vec128<uint16_t, N> shifts) {
+  return Vec128<uint16_t, N>{
+      _mm_mask_sllv_epi16(no.raw, m.raw, a.raw, shifts.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int16_t, N> MaskedShlOr(Vec128<int16_t, N> no,
+                                       Mask128<int16_t, N> m,
+                                       Vec128<int16_t, N> a,
+                                       Vec128<int16_t, N> shifts) {
+  return Vec128<int16_t, N>{
+      _mm_mask_sllv_epi16(no.raw, m.raw, a.raw, shifts.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint32_t, N> MaskedShlOr(Vec128<uint32_t, N> no,
+                                        Mask128<uint32_t, N> m,
+                                        Vec128<uint32_t, N> a,
+                                        Vec128<uint32_t, N> shifts) {
+  return Vec128<uint32_t, N>{
+      _mm_mask_sllv_epi32(no.raw, m.raw, a.raw, shifts.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int32_t, N> MaskedShlOr(Vec128<int32_t, N> no,
+                                       Mask128<int32_t, N> m,
+                                       Vec128<int32_t, N> a,
+                                       Vec128<int32_t, N> shifts) {
+  return Vec128<int32_t, N>{
+      _mm_mask_sllv_epi32(no.raw, m.raw, a.raw, shifts.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint64_t, N> MaskedShlOr(Vec128<uint64_t, N> no,
+                                        Mask128<uint64_t, N> m,
+                                        Vec128<uint64_t, N> a,
+                                        Vec128<uint64_t, N> shifts) {
+  return Vec128<uint64_t, N>{
+      _mm_mask_sllv_epi64(no.raw, m.raw, a.raw, shifts.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int64_t, N> MaskedShlOr(Vec128<int64_t, N> no,
+                                       Mask128<int64_t, N> m,
+                                       Vec128<int64_t, N> a,
+                                       Vec128<int64_t, N> shifts) {
+  return Vec128<int64_t, N>{
+      _mm_mask_sllv_epi64(no.raw, m.raw, a.raw, shifts.raw)};
+}
+
+// ------------------------------ MaskedShl
+#ifdef HWY_NATIVE_MASKED_SHL
+#undef HWY_NATIVE_MASKED_SHL
+#else
+#define HWY_NATIVE_MASKED_SHL
+#endif
+
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec128<T, N> MaskedShl(Mask128<T, N> m, Vec128<T, N> a,
+                               Vec128<T, N> shifts) {
+  return IfThenElseZero(m, Shl(a, shifts));
+}
+template <size_t N>
+HWY_API Vec128<uint16_t, N> MaskedShl(Mask128<uint16_t, N> m,
+                                      Vec128<uint16_t, N> a,
+                                      Vec128<uint16_t, N> shifts) {
+  return Vec128<uint16_t, N>{_mm_maskz_sllv_epi16(m.raw, a.raw, shifts.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int16_t, N> MaskedShl(Mask128<int16_t, N> m,
+                                     Vec128<int16_t, N> a,
+                                     Vec128<int16_t, N> shifts) {
+  return Vec128<int16_t, N>{_mm_maskz_sllv_epi16(m.raw, a.raw, shifts.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint32_t, N> MaskedShl(Mask128<uint32_t, N> m,
+                                      Vec128<uint32_t, N> a,
+                                      Vec128<uint32_t, N> shifts) {
+  return Vec128<uint32_t, N>{_mm_maskz_sllv_epi32(m.raw, a.raw, shifts.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int32_t, N> MaskedShl(Mask128<int32_t, N> m,
+                                     Vec128<int32_t, N> a,
+                                     Vec128<int32_t, N> shifts) {
+  return Vec128<int32_t, N>{_mm_maskz_sllv_epi32(m.raw, a.raw, shifts.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint64_t, N> MaskedShl(Mask128<uint64_t, N> m,
+                                      Vec128<uint64_t, N> a,
+                                      Vec128<uint64_t, N> shifts) {
+  return Vec128<uint64_t, N>{_mm_maskz_sllv_epi64(m.raw, a.raw, shifts.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int64_t, N> MaskedShl(Mask128<int64_t, N> m,
+                                     Vec128<int64_t, N> a,
+                                     Vec128<int64_t, N> shifts) {
+  return Vec128<int64_t, N>{_mm_maskz_sllv_epi64(m.raw, a.raw, shifts.raw)};
+}
+
 #endif  // HWY_TARGET <= HWY_AVX3
 
 // ------------------------------ Floating-point multiply-add variants
@@ -6465,12 +6925,38 @@ HWY_API Vec64<double> ApproximateReciprocalSqrt(Vec64<double> v) {
 HWY_API Vec128<double> ApproximateReciprocalSqrt(Vec128<double> v) {
 #if HWY_COMPILER_MSVC
   const DFromV<decltype(v)> d;
-  return Vec128<double>{_mm_mask_rsqrt14_pd(
-      Undefined(d).raw, static_cast<__mmask8>(0xFF), v.raw)};
+  return Vec128<double>{
+      _mm_mask_rsqrt14_pd(v.raw, static_cast<__mmask8>(0xFF), v.raw)};
 #else
   return Vec128<double>{_mm_rsqrt14_pd(v.raw)};
 #endif
 }
+
+// ------------------------------ MaskedApproximateReciprocalSqrt
+#ifdef HWY_NATIVE_MASKED_APPROX_RSQRT
+#undef HWY_NATIVE_MASKED_APPROX_RSQRT
+#else
+#define HWY_NATIVE_MASKED_APPROX_RSQRT
+#endif
+
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Vec128<float16_t, N> MaskedApproximateReciprocalSqrt(
+    Mask128<float16_t, N> m, Vec128<float16_t, N> v) {
+  return Vec128<float16_t, N>{_mm_maskz_rsqrt_ph(m.raw, v.raw)};
+}
+#endif
+template <size_t N>
+HWY_API Vec128<float, N> MaskedApproximateReciprocalSqrt(Mask128<float, N> m,
+                                                         Vec128<float, N> v) {
+  return Vec128<float, N>{_mm_maskz_rsqrt14_ps(m.raw, v.raw)};
+}
+template <size_t N>
+HWY_API Vec128<double, N> MaskedApproximateReciprocalSqrt(Mask128<double, N> m,
+                                                          Vec128<double, N> v) {
+  return Vec128<double, N>{_mm_maskz_rsqrt14_pd(m.raw, v.raw)};
+}
+
 #endif
 
 // ------------------------------ Min (Gt, IfThenElse)
@@ -14688,12 +15174,12 @@ HWY_API VFromD<D> Max128Upper(D d, VFromD<D> a, VFromD<D> b) {
 #define HWY_NATIVE_LEADING_ZERO_COUNT
 #endif
 
-template <class V, HWY_IF_UI32(TFromV<V>), HWY_IF_V_SIZE_LE_D(DFromV<V>, 16)>
+template <class V, HWY_IF_UI32(TFromV<V>), HWY_IF_V_SIZE_LE_V(V, 16)>
 HWY_API V LeadingZeroCount(V v) {
   return V{_mm_lzcnt_epi32(v.raw)};
 }
 
-template <class V, HWY_IF_UI64(TFromV<V>), HWY_IF_V_SIZE_LE_D(DFromV<V>, 16)>
+template <class V, HWY_IF_UI64(TFromV<V>), HWY_IF_V_SIZE_LE_V(V, 16)>
 HWY_API V LeadingZeroCount(V v) {
   return V{_mm_lzcnt_epi64(v.raw)};
 }
@@ -14701,6 +15187,27 @@ HWY_API V LeadingZeroCount(V v) {
 // HighestSetBitIndex and TrailingZeroCount is implemented in x86_512-inl.h
 // for AVX3 targets
 
+// -------------------- MaskedLeadingZeroCount
+#ifdef HWY_NATIVE_MASKED_LEADING_ZERO_COUNT
+#undef HWY_NATIVE_MASKED_LEADING_ZERO_COUNT
+#else
+#define HWY_NATIVE_MASKED_LEADING_ZERO_COUNT
+#endif
+
+template <class V, HWY_IF_T_SIZE_LE(TFromV<V>, 2), HWY_IF_V_SIZE_LE_V(V, 16)>
+HWY_API V MaskedLeadingZeroCount(MFromD<DFromV<V>> m, V v) {
+  return IfThenElseZero(m, LeadingZeroCount(v));
+}
+
+template <class V, HWY_IF_UI32(TFromV<V>), HWY_IF_V_SIZE_LE_V(V, 16)>
+HWY_API V MaskedLeadingZeroCount(MFromD<DFromV<V>> m, V v) {
+  return V{_mm_maskz_lzcnt_epi32(m.raw, v.raw)};
+}
+
+template <class V, HWY_IF_UI64(TFromV<V>), HWY_IF_V_SIZE_LE_V(V, 16)>
+HWY_API V MaskedLeadingZeroCount(MFromD<DFromV<V>> m, V v) {
+  return V{_mm_maskz_lzcnt_epi64(m.raw, v.raw)};
+}
 #endif  // HWY_TARGET <= HWY_AVX3
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

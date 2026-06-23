@@ -806,12 +806,65 @@ HWY_API VFromD<DF> MaskedWidenMulPairwiseAdd(DF df, M m, VBF a, VBF b) {
 }
 #endif  // HWY_NATIVE_ZERO_MASKED_ARITH
 
-// ------------------------------ MaskedShift
+// ------------------------------ MaskedShrOr
+
+#if (defined(HWY_NATIVE_MASKED_SHR_OR) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MASKED_SHR_OR
+#undef HWY_NATIVE_MASKED_SHR_OR
+#else
+#define HWY_NATIVE_MASKED_SHR_OR
+#endif
 
 template <class V, class M>
 HWY_API V MaskedShrOr(V no, M m, V a, V shifts) {
   return IfThenElse(m, Shr(a, shifts), no);
 }
+#endif  // HWY_NATIVE_MASKED_SHR_OR
+
+// ------------------------------ MaskedShr
+
+#if (defined(HWY_NATIVE_MASKED_SHR) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MASKED_SHR
+#undef HWY_NATIVE_MASKED_SHR
+#else
+#define HWY_NATIVE_MASKED_SHR
+#endif
+
+template <class V, class M>
+HWY_API V MaskedShr(M m, V a, V shifts) {
+  return IfThenElseZero(m, Shr(a, shifts));
+}
+#endif  // HWY_NATIVE_MASKED_SHR
+
+// ------------------------------ MaskedShlOr
+
+#if (defined(HWY_NATIVE_MASKED_SHL_OR) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MASKED_SHL_OR
+#undef HWY_NATIVE_MASKED_SHL_OR
+#else
+#define HWY_NATIVE_MASKED_SHL_OR
+#endif
+
+template <class V, class M>
+HWY_API V MaskedShlOr(V no, M m, V a, V shifts) {
+  return IfThenElse(m, Shl(a, shifts), no);
+}
+#endif  // HWY_NATIVE_MASKED_SHL_OR
+
+// ------------------------------ MaskedShl
+
+#if (defined(HWY_NATIVE_MASKED_SHL) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MASKED_SHL
+#undef HWY_NATIVE_MASKED_SHL
+#else
+#define HWY_NATIVE_MASKED_SHL
+#endif
+
+template <class V, class M>
+HWY_API V MaskedShl(M m, V a, V shifts) {
+  return IfThenElseZero(m, Shl(a, shifts));
+}
+#endif  // HWY_NATIVE_MASKED_SHL
 
 // ------------------------------ MaskedEq etc.
 #if (defined(HWY_NATIVE_MASKED_COMP) == defined(HWY_TARGET_TOGGLE))
@@ -6052,10 +6105,19 @@ HWY_API V ApproximateReciprocal(V v) {
 #endif  // HWY_NATIVE_F64_APPROX_RECIP
 
 // ------------------------------ MaskedApproximateReciprocal
+
+#if (defined(HWY_NATIVE_MASKED_APPROX_RECIP) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MASKED_APPROX_RECIP
+#undef HWY_NATIVE_MASKED_APPROX_RECIP
+#else
+#define HWY_NATIVE_MASKED_APPROX_RECIP
+#endif
+
 template <class V, HWY_IF_FLOAT_V(V), class M>
 HWY_API V MaskedApproximateReciprocal(M m, V v) {
   return IfThenElseZero(m, ApproximateReciprocal(v));
 }
+#endif  // HWY_NATIVE_MASKED_APPROX_RECIP
 
 // ------------------------------ F64 ApproximateReciprocalSqrt
 
@@ -6083,10 +6145,19 @@ HWY_API V ApproximateReciprocalSqrt(V v) {
 #endif  // HWY_NATIVE_F64_APPROX_RSQRT
 
 // ------------------------------ MaskedApproximateReciprocalSqrt
+
+#if (defined(HWY_NATIVE_MASKED_APPROX_RSQRT) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MASKED_APPROX_RSQRT
+#undef HWY_NATIVE_MASKED_APPROX_RSQRT
+#else
+#define HWY_NATIVE_MASKED_APPROX_RSQRT
+#endif
+
 template <class V, HWY_IF_FLOAT_V(V), class M>
 HWY_API V MaskedApproximateReciprocalSqrt(M m, V v) {
   return IfThenElseZero(m, ApproximateReciprocalSqrt(v));
 }
+#endif  // HWY_NATIVE_MASKED_APPROX_RSQRT
 
 // ------------------------------ Compress*
 
@@ -8253,10 +8324,66 @@ HWY_API V BitShuffle(V v, VI idx) {
 
 #endif  // HWY_NATIVE_BITSHUFFLE
 
+// ------------------------------ MaskedOr
+
+#if (defined(HWY_NATIVE_MASKED_OR) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MASKED_OR
+#undef HWY_NATIVE_MASKED_OR
+#else
+#define HWY_NATIVE_MASKED_OR
+#endif
+
 template <class V, class M>
 HWY_API V MaskedOr(M m, V a, V b) {
   return IfThenElseZero(m, Or(a, b));
 }
+#endif  // HWY_NATIVE_MASKED_OR
+
+// ------------------------------ MaskedXor
+
+#if (defined(HWY_NATIVE_MASKED_XOR) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MASKED_XOR
+#undef HWY_NATIVE_MASKED_XOR
+#else
+#define HWY_NATIVE_MASKED_XOR
+#endif
+
+template <class V, class M>
+HWY_API V MaskedXor(M m, V a, V b) {
+  return IfThenElseZero(m, Xor(a, b));
+}
+#endif  // HWY_NATIVE_MASKED_XOR
+
+// ------------------------------ MaskedOrOr
+
+#if (defined(HWY_NATIVE_MASKED_OR_OR) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MASKED_OR_OR
+#undef HWY_NATIVE_MASKED_OR_OR
+#else
+#define HWY_NATIVE_MASKED_OR_OR
+#endif
+
+template <class V, class M>
+HWY_API V MaskedOrOr(V no, M m, V a, V b) {
+  return IfThenElse(m, Or(a, b), no);
+}
+#endif  // HWY_NATIVE_MASKED_OR_OR
+
+// ------------------------------ MaskedXorOr
+
+#if (defined(HWY_NATIVE_MASKED_XOR_OR) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MASKED_XOR_OR
+#undef HWY_NATIVE_MASKED_XOR_OR
+#else
+#define HWY_NATIVE_MASKED_XOR_OR
+#endif
+
+template <class V, class M>
+HWY_API V MaskedXorOr(V no, M m, V a, V b) {
+  return IfThenElse(m, Xor(a, b), no);
+}
+#endif  // HWY_NATIVE_MASKED_XOR_OR
+
 // ------------------------------ AllBits1/AllBits0
 #if (defined(HWY_NATIVE_ALLONES) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_ALLONES

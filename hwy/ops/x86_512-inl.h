@@ -733,6 +733,82 @@ HWY_API Vec512<double> Or(const Vec512<double> a, const Vec512<double> b) {
   return Vec512<double>{_mm512_or_pd(a.raw, b.raw)};
 }
 
+// ------------------------------ MaskedOr
+
+HWY_API Vec512<uint32_t> MaskedOr(Mask512<uint32_t> m, Vec512<uint32_t> a,
+                                  Vec512<uint32_t> b) {
+  return Vec512<uint32_t>{_mm512_maskz_or_epi32(m.raw, a.raw, b.raw)};
+}
+HWY_API Vec512<int32_t> MaskedOr(Mask512<int32_t> m, Vec512<int32_t> a,
+                                 Vec512<int32_t> b) {
+  return Vec512<int32_t>{_mm512_maskz_or_epi32(m.raw, a.raw, b.raw)};
+}
+HWY_API Vec512<uint64_t> MaskedOr(Mask512<uint64_t> m, Vec512<uint64_t> a,
+                                  Vec512<uint64_t> b) {
+  return Vec512<uint64_t>{_mm512_maskz_or_epi64(m.raw, a.raw, b.raw)};
+}
+HWY_API Vec512<int64_t> MaskedOr(Mask512<int64_t> m, Vec512<int64_t> a,
+                                 Vec512<int64_t> b) {
+  return Vec512<int64_t>{_mm512_maskz_or_epi64(m.raw, a.raw, b.raw)};
+}
+
+// ------------------------------ MaskedXor
+
+HWY_API Vec512<uint32_t> MaskedXor(Mask512<uint32_t> m, Vec512<uint32_t> a,
+                                   Vec512<uint32_t> b) {
+  return Vec512<uint32_t>{_mm512_maskz_xor_epi32(m.raw, a.raw, b.raw)};
+}
+HWY_API Vec512<int32_t> MaskedXor(Mask512<int32_t> m, Vec512<int32_t> a,
+                                  Vec512<int32_t> b) {
+  return Vec512<int32_t>{_mm512_maskz_xor_epi32(m.raw, a.raw, b.raw)};
+}
+HWY_API Vec512<uint64_t> MaskedXor(Mask512<uint64_t> m, Vec512<uint64_t> a,
+                                   Vec512<uint64_t> b) {
+  return Vec512<uint64_t>{_mm512_maskz_xor_epi64(m.raw, a.raw, b.raw)};
+}
+HWY_API Vec512<int64_t> MaskedXor(Mask512<int64_t> m, Vec512<int64_t> a,
+                                  Vec512<int64_t> b) {
+  return Vec512<int64_t>{_mm512_maskz_xor_epi64(m.raw, a.raw, b.raw)};
+}
+
+// ------------------------------ MaskedOrOr
+
+HWY_API Vec512<uint32_t> MaskedOrOr(Vec512<uint32_t> no, Mask512<uint32_t> m,
+                                    Vec512<uint32_t> a, Vec512<uint32_t> b) {
+  return Vec512<uint32_t>{_mm512_mask_or_epi32(no.raw, m.raw, a.raw, b.raw)};
+}
+HWY_API Vec512<int32_t> MaskedOrOr(Vec512<int32_t> no, Mask512<int32_t> m,
+                                   Vec512<int32_t> a, Vec512<int32_t> b) {
+  return Vec512<int32_t>{_mm512_mask_or_epi32(no.raw, m.raw, a.raw, b.raw)};
+}
+HWY_API Vec512<uint64_t> MaskedOrOr(Vec512<uint64_t> no, Mask512<uint64_t> m,
+                                    Vec512<uint64_t> a, Vec512<uint64_t> b) {
+  return Vec512<uint64_t>{_mm512_mask_or_epi64(no.raw, m.raw, a.raw, b.raw)};
+}
+HWY_API Vec512<int64_t> MaskedOrOr(Vec512<int64_t> no, Mask512<int64_t> m,
+                                   Vec512<int64_t> a, Vec512<int64_t> b) {
+  return Vec512<int64_t>{_mm512_mask_or_epi64(no.raw, m.raw, a.raw, b.raw)};
+}
+
+// ------------------------------ MaskedXorOr
+
+HWY_API Vec512<uint32_t> MaskedXorOr(Vec512<uint32_t> no, Mask512<uint32_t> m,
+                                     Vec512<uint32_t> a, Vec512<uint32_t> b) {
+  return Vec512<uint32_t>{_mm512_mask_xor_epi32(no.raw, m.raw, a.raw, b.raw)};
+}
+HWY_API Vec512<int32_t> MaskedXorOr(Vec512<int32_t> no, Mask512<int32_t> m,
+                                    Vec512<int32_t> a, Vec512<int32_t> b) {
+  return Vec512<int32_t>{_mm512_mask_xor_epi32(no.raw, m.raw, a.raw, b.raw)};
+}
+HWY_API Vec512<uint64_t> MaskedXorOr(Vec512<uint64_t> no, Mask512<uint64_t> m,
+                                     Vec512<uint64_t> a, Vec512<uint64_t> b) {
+  return Vec512<uint64_t>{_mm512_mask_xor_epi64(no.raw, m.raw, a.raw, b.raw)};
+}
+HWY_API Vec512<int64_t> MaskedXorOr(Vec512<int64_t> no, Mask512<int64_t> m,
+                                    Vec512<int64_t> a, Vec512<int64_t> b) {
+  return Vec512<int64_t>{_mm512_mask_xor_epi64(no.raw, m.raw, a.raw, b.raw)};
+}
+
 // ------------------------------ Xor
 
 template <typename T>
@@ -1882,6 +1958,23 @@ HWY_API Vec512<double> ApproximateReciprocal(Vec512<double> v) {
   return Vec512<double>{_mm512_rcp14_pd(v.raw)};
 }
 
+// ------------------------------ MaskedApproximateReciprocal
+
+#if HWY_HAVE_FLOAT16
+HWY_API Vec512<float16_t> MaskedApproximateReciprocal(Mask512<float16_t> m,
+                                                      Vec512<float16_t> v) {
+  return Vec512<float16_t>{_mm512_maskz_rcp_ph(m.raw, v.raw)};
+}
+#endif
+HWY_API Vec512<float> MaskedApproximateReciprocal(Mask512<float> m,
+                                                  Vec512<float> v) {
+  return Vec512<float>{_mm512_maskz_rcp14_ps(m.raw, v.raw)};
+}
+HWY_API Vec512<double> MaskedApproximateReciprocal(Mask512<double> m,
+                                                   Vec512<double> v) {
+  return Vec512<double>{_mm512_maskz_rcp14_pd(m.raw, v.raw)};
+}
+
 // ------------------------------ GetExponent
 
 #if HWY_HAVE_FLOAT16
@@ -2668,6 +2761,170 @@ HWY_API Vec512<T> MaskedShiftRightOr(Vec512<T> no, Mask512<T> m, Vec512<T> a) {
   return Vec512<T>{_mm512_mask_srai_epi64(no.raw, m.raw, a.raw, kShift)};
 }
 
+// ------------------------------ MaskedShrOr
+#ifdef HWY_NATIVE_MASKED_SHR_OR
+#undef HWY_NATIVE_MASKED_SHR_OR
+#else
+#define HWY_NATIVE_MASKED_SHR_OR
+#endif
+
+template <typename T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec512<T> MaskedShrOr(Vec512<T> no, Mask512<T> m, Vec512<T> a,
+                              Vec512<T> shifts) {
+  return IfThenElse(m, Shr(a, shifts), no);
+}
+HWY_API Vec512<uint16_t> MaskedShrOr(Vec512<uint16_t> no, Mask512<uint16_t> m,
+                                     Vec512<uint16_t> a,
+                                     Vec512<uint16_t> shifts) {
+  return Vec512<uint16_t>{
+      _mm512_mask_srlv_epi16(no.raw, m.raw, a.raw, shifts.raw)};
+}
+HWY_API Vec512<int16_t> MaskedShrOr(Vec512<int16_t> no, Mask512<int16_t> m,
+                                    Vec512<int16_t> a, Vec512<int16_t> shifts) {
+  return Vec512<int16_t>{
+      _mm512_mask_srav_epi16(no.raw, m.raw, a.raw, shifts.raw)};
+}
+HWY_API Vec512<uint32_t> MaskedShrOr(Vec512<uint32_t> no, Mask512<uint32_t> m,
+                                     Vec512<uint32_t> a,
+                                     Vec512<uint32_t> shifts) {
+  return Vec512<uint32_t>{
+      _mm512_mask_srlv_epi32(no.raw, m.raw, a.raw, shifts.raw)};
+}
+HWY_API Vec512<int32_t> MaskedShrOr(Vec512<int32_t> no, Mask512<int32_t> m,
+                                    Vec512<int32_t> a, Vec512<int32_t> shifts) {
+  return Vec512<int32_t>{
+      _mm512_mask_srav_epi32(no.raw, m.raw, a.raw, shifts.raw)};
+}
+HWY_API Vec512<uint64_t> MaskedShrOr(Vec512<uint64_t> no, Mask512<uint64_t> m,
+                                     Vec512<uint64_t> a,
+                                     Vec512<uint64_t> shifts) {
+  return Vec512<uint64_t>{
+      _mm512_mask_srlv_epi64(no.raw, m.raw, a.raw, shifts.raw)};
+}
+HWY_API Vec512<int64_t> MaskedShrOr(Vec512<int64_t> no, Mask512<int64_t> m,
+                                    Vec512<int64_t> a, Vec512<int64_t> shifts) {
+  return Vec512<int64_t>{
+      _mm512_mask_srav_epi64(no.raw, m.raw, a.raw, shifts.raw)};
+}
+
+// ------------------------------ MaskedShr
+#ifdef HWY_NATIVE_MASKED_SHR
+#undef HWY_NATIVE_MASKED_SHR
+#else
+#define HWY_NATIVE_MASKED_SHR
+#endif
+
+template <typename T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec512<T> MaskedShr(Mask512<T> m, Vec512<T> a, Vec512<T> shifts) {
+  return IfThenElseZero(m, Shr(a, shifts));
+}
+HWY_API Vec512<uint16_t> MaskedShr(Mask512<uint16_t> m, Vec512<uint16_t> a,
+                                   Vec512<uint16_t> shifts) {
+  return Vec512<uint16_t>{_mm512_maskz_srlv_epi16(m.raw, a.raw, shifts.raw)};
+}
+HWY_API Vec512<int16_t> MaskedShr(Mask512<int16_t> m, Vec512<int16_t> a,
+                                  Vec512<int16_t> shifts) {
+  return Vec512<int16_t>{_mm512_maskz_srav_epi16(m.raw, a.raw, shifts.raw)};
+}
+HWY_API Vec512<uint32_t> MaskedShr(Mask512<uint32_t> m, Vec512<uint32_t> a,
+                                   Vec512<uint32_t> shifts) {
+  return Vec512<uint32_t>{_mm512_maskz_srlv_epi32(m.raw, a.raw, shifts.raw)};
+}
+HWY_API Vec512<int32_t> MaskedShr(Mask512<int32_t> m, Vec512<int32_t> a,
+                                  Vec512<int32_t> shifts) {
+  return Vec512<int32_t>{_mm512_maskz_srav_epi32(m.raw, a.raw, shifts.raw)};
+}
+HWY_API Vec512<uint64_t> MaskedShr(Mask512<uint64_t> m, Vec512<uint64_t> a,
+                                   Vec512<uint64_t> shifts) {
+  return Vec512<uint64_t>{_mm512_maskz_srlv_epi64(m.raw, a.raw, shifts.raw)};
+}
+HWY_API Vec512<int64_t> MaskedShr(Mask512<int64_t> m, Vec512<int64_t> a,
+                                  Vec512<int64_t> shifts) {
+  return Vec512<int64_t>{_mm512_maskz_srav_epi64(m.raw, a.raw, shifts.raw)};
+}
+
+// ------------------------------ MaskedShlOr
+#ifdef HWY_NATIVE_MASKED_SHL_OR
+#undef HWY_NATIVE_MASKED_SHL_OR
+#else
+#define HWY_NATIVE_MASKED_SHL_OR
+#endif
+
+template <typename T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec512<T> MaskedShlOr(Vec512<T> no, Mask512<T> m, Vec512<T> a,
+                              Vec512<T> shifts) {
+  return IfThenElse(m, Shl(a, shifts), no);
+}
+HWY_API Vec512<uint16_t> MaskedShlOr(Vec512<uint16_t> no, Mask512<uint16_t> m,
+                                     Vec512<uint16_t> a,
+                                     Vec512<uint16_t> shifts) {
+  return Vec512<uint16_t>{
+      _mm512_mask_sllv_epi16(no.raw, m.raw, a.raw, shifts.raw)};
+}
+HWY_API Vec512<int16_t> MaskedShlOr(Vec512<int16_t> no, Mask512<int16_t> m,
+                                    Vec512<int16_t> a, Vec512<int16_t> shifts) {
+  return Vec512<int16_t>{
+      _mm512_mask_sllv_epi16(no.raw, m.raw, a.raw, shifts.raw)};
+}
+HWY_API Vec512<uint32_t> MaskedShlOr(Vec512<uint32_t> no, Mask512<uint32_t> m,
+                                     Vec512<uint32_t> a,
+                                     Vec512<uint32_t> shifts) {
+  return Vec512<uint32_t>{
+      _mm512_mask_sllv_epi32(no.raw, m.raw, a.raw, shifts.raw)};
+}
+HWY_API Vec512<int32_t> MaskedShlOr(Vec512<int32_t> no, Mask512<int32_t> m,
+                                    Vec512<int32_t> a, Vec512<int32_t> shifts) {
+  return Vec512<int32_t>{
+      _mm512_mask_sllv_epi32(no.raw, m.raw, a.raw, shifts.raw)};
+}
+HWY_API Vec512<uint64_t> MaskedShlOr(Vec512<uint64_t> no, Mask512<uint64_t> m,
+                                     Vec512<uint64_t> a,
+                                     Vec512<uint64_t> shifts) {
+  return Vec512<uint64_t>{
+      _mm512_mask_sllv_epi64(no.raw, m.raw, a.raw, shifts.raw)};
+}
+HWY_API Vec512<int64_t> MaskedShlOr(Vec512<int64_t> no, Mask512<int64_t> m,
+                                    Vec512<int64_t> a, Vec512<int64_t> shifts) {
+  return Vec512<int64_t>{
+      _mm512_mask_sllv_epi64(no.raw, m.raw, a.raw, shifts.raw)};
+}
+
+// ------------------------------ MaskedShl
+#ifdef HWY_NATIVE_MASKED_SHL
+#undef HWY_NATIVE_MASKED_SHL
+#else
+#define HWY_NATIVE_MASKED_SHL
+#endif
+
+template <typename T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec512<T> MaskedShl(Mask512<T> m, Vec512<T> a, Vec512<T> shifts) {
+  return IfThenElseZero(m, Shl(a, shifts));
+}
+HWY_API Vec512<uint16_t> MaskedShl(Mask512<uint16_t> m, Vec512<uint16_t> a,
+                                   Vec512<uint16_t> shifts) {
+  return Vec512<uint16_t>{_mm512_maskz_sllv_epi16(m.raw, a.raw, shifts.raw)};
+}
+HWY_API Vec512<int16_t> MaskedShl(Mask512<int16_t> m, Vec512<int16_t> a,
+                                  Vec512<int16_t> shifts) {
+  return Vec512<int16_t>{_mm512_maskz_sllv_epi16(m.raw, a.raw, shifts.raw)};
+}
+HWY_API Vec512<uint32_t> MaskedShl(Mask512<uint32_t> m, Vec512<uint32_t> a,
+                                   Vec512<uint32_t> shifts) {
+  return Vec512<uint32_t>{_mm512_maskz_sllv_epi32(m.raw, a.raw, shifts.raw)};
+}
+HWY_API Vec512<int32_t> MaskedShl(Mask512<int32_t> m, Vec512<int32_t> a,
+                                  Vec512<int32_t> shifts) {
+  return Vec512<int32_t>{_mm512_maskz_sllv_epi32(m.raw, a.raw, shifts.raw)};
+}
+HWY_API Vec512<uint64_t> MaskedShl(Mask512<uint64_t> m, Vec512<uint64_t> a,
+                                   Vec512<uint64_t> shifts) {
+  return Vec512<uint64_t>{_mm512_maskz_sllv_epi64(m.raw, a.raw, shifts.raw)};
+}
+HWY_API Vec512<int64_t> MaskedShl(Mask512<int64_t> m, Vec512<int64_t> a,
+                                  Vec512<int64_t> shifts) {
+  return Vec512<int64_t>{_mm512_maskz_sllv_epi64(m.raw, a.raw, shifts.raw)};
+}
+
 // ------------------------------ Floating-point multiply-add variants
 
 #if HWY_HAVE_FLOAT16
@@ -2778,6 +3035,23 @@ HWY_API Vec512<float> ApproximateReciprocalSqrt(Vec512<float> v) {
 
 HWY_API Vec512<double> ApproximateReciprocalSqrt(Vec512<double> v) {
   return Vec512<double>{_mm512_rsqrt14_pd(v.raw)};
+}
+
+// ------------------------------ MaskedApproximateReciprocalSqrt
+
+#if HWY_HAVE_FLOAT16
+HWY_API Vec512<float16_t> MaskedApproximateReciprocalSqrt(Mask512<float16_t> m,
+                                                          Vec512<float16_t> v) {
+  return Vec512<float16_t>{_mm512_maskz_rsqrt_ph(m.raw, v.raw)};
+}
+#endif
+HWY_API Vec512<float> MaskedApproximateReciprocalSqrt(Mask512<float> m,
+                                                      Vec512<float> v) {
+  return Vec512<float>{_mm512_maskz_rsqrt14_ps(m.raw, v.raw)};
+}
+HWY_API Vec512<double> MaskedApproximateReciprocalSqrt(Mask512<double> m,
+                                                       Vec512<double> v) {
+  return Vec512<double>{_mm512_maskz_rsqrt14_pd(m.raw, v.raw)};
 }
 
 // ------------------------------ Floating-point rounding
@@ -8153,6 +8427,22 @@ HWY_API V LeadingZeroCount(V v) {
   return V{_mm512_lzcnt_epi64(v.raw)};
 }
 
+// -------------------- MaskedLeadingZeroCount
+
+template <class V, HWY_IF_T_SIZE_LE(TFromV<V>, 2), HWY_IF_V_SIZE_V(V, 64)>
+HWY_API V MaskedLeadingZeroCount(MFromD<DFromV<V>> m, V v) {
+  return IfThenElseZero(m, LeadingZeroCount(v));
+}
+
+template <class V, HWY_IF_UI32(TFromV<V>), HWY_IF_V_SIZE_V(V, 64)>
+HWY_API V MaskedLeadingZeroCount(MFromD<DFromV<V>> m, V v) {
+  return V{_mm512_maskz_lzcnt_epi32(m.raw, v.raw)};
+}
+
+template <class V, HWY_IF_UI64(TFromV<V>), HWY_IF_V_SIZE_V(V, 64)>
+HWY_API V MaskedLeadingZeroCount(MFromD<DFromV<V>> m, V v) {
+  return V{_mm512_maskz_lzcnt_epi64(m.raw, v.raw)};
+}
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
