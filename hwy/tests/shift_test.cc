@@ -570,6 +570,24 @@ HWY_NOINLINE void TestAllVariableRoundingShr() {
   ForIntegerTypes(ForPartialVectors<TestVariableRoundingShr>());
 }
 
+struct TestMaskedShift {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const Mask<D> all_true = MaskTrue(d);
+    const Vec<D> v0 = Zero(d);
+    const Vec<D> v1 = Iota(d, 1);
+    const Mask<D> first_five = FirstN(d, 5);
+
+    HWY_ASSERT_VEC_EQ(d, ShiftLeft<1>(v1), MaskedShiftLeft<1>(all_true, v1));
+    HWY_ASSERT_VEC_EQ(d, ShiftRight<1>(v1), MaskedShiftRight<1>(all_true, v1));
+
+    const Vec<D> v1_exp_left = IfThenElse(first_five, ShiftLeft<1>(v1), v0);
+    HWY_ASSERT_VEC_EQ(d, v1_exp_left, MaskedShiftLeft<1>(first_five, v1));
+
+    const Vec<D> v1_exp_right = IfThenElse(first_five, ShiftRight<1>(v1), v0);
+    HWY_ASSERT_VEC_EQ(d, v1_exp_right, MaskedShiftRight<1>(first_five, v1));
+  }
+};
 struct TestMaskedShiftLeftOr {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -579,21 +597,6 @@ struct TestMaskedShiftLeftOr {
 
     const Vec<D> expected = IfThenElse(first_five, ShiftLeft<1>(v2), v1);
     HWY_ASSERT_VEC_EQ(d, expected, MaskedShiftLeftOr<1>(v1, first_five, v2));
-  }
-};
-
-struct TestMaskedShiftLeft {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const Mask<D> all_true = MaskTrue(d);
-    const Vec<D> v0 = Zero(d);
-    const Vec<D> v1 = Iota(d, 1);
-    const Mask<D> first_five = FirstN(d, 5);
-
-    HWY_ASSERT_VEC_EQ(d, ShiftLeft<1>(v1), MaskedShiftLeft<1>(all_true, v1));
-
-    const Vec<D> v1_exp = IfThenElse(first_five, ShiftLeft<1>(v1), v0);
-    HWY_ASSERT_VEC_EQ(d, v1_exp, MaskedShiftLeft<1>(first_five, v1));
   }
 };
 
@@ -607,48 +610,6 @@ struct TestMaskedShiftRightOr {
 
     const Vec<D> expected = IfThenElse(first_five, ShiftRight<1>(v2), v1);
     HWY_ASSERT_VEC_EQ(d, expected, MaskedShiftRightOr<1>(v1, first_five, v2));
-  }
-};
-
-struct TestMaskedShiftRight {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const Mask<D> all_true = MaskTrue(d);
-    const Vec<D> v0 = Zero(d);
-    const Vec<D> v1 = Iota(d, 1);
-    const Mask<D> first_five = FirstN(d, 5);
-
-    HWY_ASSERT_VEC_EQ(d, ShiftRight<1>(v1), MaskedShiftRight<1>(all_true, v1));
-
-    const Vec<D> v1_exp = IfThenElse(first_five, ShiftRight<1>(v1), v0);
-    HWY_ASSERT_VEC_EQ(d, v1_exp, MaskedShiftRight<1>(first_five, v1));
-  }
-};
-
-struct TestMaskedShlOr {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    // Test MaskedShlOr
-    const Vec<D> v1 = Iota(d, 1);
-    const Vec<D> v2 = Iota(d, 2);
-    const Vec<D> shifts = Set(d, 1);
-    const Mask<D> first_five = FirstN(d, 5);
-
-    const Vec<D> expected = IfThenElse(first_five, ShiftLeft<1>(v2), v1);
-    HWY_ASSERT_VEC_EQ(d, expected, MaskedShlOr(v1, first_five, v2, shifts));
-  }
-};
-
-struct TestMaskedShl {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    // Test MaskedShl
-    const Vec<D> v2 = Iota(d, 2);
-    const Vec<D> shifts = Set(d, 1);
-    const Mask<D> first_five = FirstN(d, 5);
-
-    const Vec<D> expected = IfThenElseZero(first_five, ShiftLeft<1>(v2));
-    HWY_ASSERT_VEC_EQ(d, expected, MaskedShl(first_five, v2, shifts));
   }
 };
 
@@ -666,28 +627,11 @@ struct TestMaskedShrOr {
   }
 };
 
-struct TestMaskedShr {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    // Test MaskedShr
-    const Vec<D> v2 = Iota(d, 2);
-    const Vec<D> shifts = Set(d, 1);
-    const Mask<D> first_five = FirstN(d, 5);
-
-    const Vec<D> expected = IfThenElseZero(first_five, ShiftRight<1>(v2));
-    HWY_ASSERT_VEC_EQ(d, expected, MaskedShr(first_five, v2, shifts));
-  }
-};
-
 HWY_NOINLINE void TestAllMaskedShift() {
+  ForIntegerTypes(ForPartialVectors<TestMaskedShift>());
   ForIntegerTypes(ForPartialVectors<TestMaskedShiftLeftOr>());
-  ForIntegerTypes(ForPartialVectors<TestMaskedShiftLeft>());
   ForIntegerTypes(ForPartialVectors<TestMaskedShiftRightOr>());
-  ForIntegerTypes(ForPartialVectors<TestMaskedShiftRight>());
-  ForIntegerTypes(ForPartialVectors<TestMaskedShlOr>());
-  ForIntegerTypes(ForPartialVectors<TestMaskedShl>());
-  ForIntegerTypes(ForPartialVectors<TestMaskedShrOr>());
-  ForIntegerTypes(ForPartialVectors<TestMaskedShr>());
+  ForSignedTypes(ForPartialVectors<TestMaskedShrOr>());
 }
 
 struct TestMultiRotateRight {

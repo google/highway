@@ -815,38 +815,7 @@ HWY_API V Or(const V a, const V b) {
 }
 
 // ------------------------------ MaskedOr
-#ifdef HWY_NATIVE_MASKED_OR
-#undef HWY_NATIVE_MASKED_OR
-#else
-#define HWY_NATIVE_MASKED_OR
-#endif
-
 HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV_Z, MaskedOr, orr)
-
-template <class M, class V, HWY_IF_FLOAT_V(V)>
-HWY_API V MaskedOr(const M mask, const V a, const V b) {
-  const DFromV<V> df;
-  const RebindToUnsigned<decltype(df)> du;
-  return BitCast(
-      df, MaskedOr(RebindMask(du, mask), BitCast(du, a), BitCast(du, b)));
-}
-
-// ------------------------------ MaskedXor
-#ifdef HWY_NATIVE_MASKED_XOR
-#undef HWY_NATIVE_MASKED_XOR
-#else
-#define HWY_NATIVE_MASKED_XOR
-#endif
-
-HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV_Z, MaskedXor, eor)
-
-template <class M, class V, HWY_IF_FLOAT_V(V)>
-HWY_API V MaskedXor(const M mask, const V a, const V b) {
-  const DFromV<V> df;
-  const RebindToUnsigned<decltype(df)> du;
-  return BitCast(
-      df, MaskedXor(RebindMask(du, mask), BitCast(du, a), BitCast(du, b)));
-}
 
 // ------------------------------ Xor
 
@@ -1278,45 +1247,6 @@ HWY_SVE_FOREACH_U(HWY_SVE_SHIFT, Shr, lsr)
 HWY_SVE_FOREACH_I(HWY_SVE_SHIFT, Shr, asr)
 
 #undef HWY_SVE_SHIFT
-
-// ------------------------------ MaskedShr
-
-#ifdef HWY_NATIVE_MASKED_SHR
-#undef HWY_NATIVE_MASKED_SHR
-#else
-#define HWY_NATIVE_MASKED_SHR
-#endif
-
-#define HWY_SVE_MASKED_SHR(BASE, CHAR, BITS, HALF, NAME, OP)                  \
-  HWY_API HWY_SVE_V(BASE, BITS)                                               \
-      NAME(svbool_t m, HWY_SVE_V(BASE, BITS) v, HWY_SVE_V(BASE, BITS) bits) { \
-    const RebindToUnsigned<DFromV<decltype(v)>> du;                           \
-    return sv##OP##_##CHAR##BITS##_z(m, v, BitCast(du, bits));                \
-  }
-
-HWY_SVE_FOREACH_U(HWY_SVE_MASKED_SHR, MaskedShr, lsr)
-HWY_SVE_FOREACH_I(HWY_SVE_MASKED_SHR, MaskedShr, asr)
-
-#undef HWY_SVE_MASKED_SHR
-
-// ------------------------------ MaskedShl
-
-#ifdef HWY_NATIVE_MASKED_SHL
-#undef HWY_NATIVE_MASKED_SHL
-#else
-#define HWY_NATIVE_MASKED_SHL
-#endif
-
-#define HWY_SVE_MASKED_SHL(BASE, CHAR, BITS, HALF, NAME, OP)                  \
-  HWY_API HWY_SVE_V(BASE, BITS)                                               \
-      NAME(svbool_t m, HWY_SVE_V(BASE, BITS) v, HWY_SVE_V(BASE, BITS) bits) { \
-    const RebindToUnsigned<DFromV<decltype(v)>> du;                           \
-    return sv##OP##_##CHAR##BITS##_z(m, v, BitCast(du, bits));                \
-  }
-
-HWY_SVE_FOREACH_UI(HWY_SVE_MASKED_SHL, MaskedShl, lsl)
-
-#undef HWY_SVE_MASKED_SHL
 
 // ------------------------------ RoundingShiftLeft[Same]/RoundingShr
 

@@ -27,7 +27,7 @@
 
 // clang-format off
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "hwy/contrib/math/math_tan_test.cc"  // NOLINT
+#define HWY_TARGET_INCLUDE "hwy/contrib/math/math_tan_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
 #include "hwy/contrib/math/math-inl.h"
@@ -45,9 +45,9 @@ DEFINE_MATH_TEST(Atan,
   std::atan,  CallAtan,  -FLT_MAX,   +FLT_MAX,    3,
   std::atan,  CallAtan,  -DBL_MAX,   +DBL_MAX,    3)
 
-// 300 ULP max error for float32 accommodates for architectures without FMA
-// (such as SSE4) where rounding errors accumulate higher due to separate
-// multiply and add instructions. With FMA, the max error is ~64 ULP.
+// 300 ULP max error for float32 accommodates for architectures without FMA (like SSE4)
+// where rounding errors accumulate higher due to separate multiply and add instructions.
+// On hardware with FMA, the max error is ~64 ULP.
 DEFINE_MATH_TEST(Tan,
   std::tan,  CallTan,  -39000.0,   +39000.0,    (HWY_NATIVE_FMA ? 64 : 300),
   std::tan,  CallTan,  -39000.0,   +39000.0,    2)
