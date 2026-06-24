@@ -460,4 +460,5 @@ HWY_EXPORT_AND_TEST_BEST_P(HashTest, TestAllLanesEqual);
 HWY_EXPORT_AND_TEST_BEST_P(HashTest, TestAllEdgeCases);
 HWY_AFTER_TEST();
 }  // namespace hwy
+HWY_TEST_MAIN();
 #endif  // HWY_ONCE

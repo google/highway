@@ -390,4 +390,5 @@ HWY_EXPORT_AND_TEST_BEST_P(CuckooTest, TestAllMinCostFlowComparison);
 #endif
 HWY_AFTER_TEST();
 }  // namespace hwy
+HWY_TEST_MAIN();
 #endif  // HWY_ONCE

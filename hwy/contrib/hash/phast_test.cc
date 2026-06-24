@@ -175,4 +175,5 @@ HWY_EXPORT_AND_TEST_BEST_P(PhastTest, TestQueryConsistency);
 HWY_EXPORT_AND_TEST_BEST_P(PhastTest, TestMultipleSizes);
 HWY_AFTER_TEST();
 }  // namespace hwy
+HWY_TEST_MAIN();
 #endif  // HWY_ONCE
