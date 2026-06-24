@@ -176,4 +176,5 @@ HWY_EXPORT_AND_TEST_BEST_P(Cuckoo2x2Test, TestSimdContains);
 HWY_EXPORT_AND_TEST_BEST_P(Cuckoo2x2Test, TestMultipleSizes);
 HWY_AFTER_TEST();
 }  // namespace hwy
+HWY_TEST_MAIN();
 #endif  // HWY_ONCE

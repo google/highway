@@ -293,12 +293,16 @@ GTestFilterPattern::GTestFilterPattern(const char* gtest_filter_pattern_str,
       // subpattern_end - 1 now points to a non-wildcard character
     }
 
+    const size_t subpattern_to_match_len =
+        static_cast<size_t>(subpattern_end - subpattern_start);
+
     // Add the current filter pattern component to pattern_components_
     const FilterPatternComponent curr_filter_component{
         has_match_any_string_wildcard, min_num_of_leading_chars_to_match,
-        subpattern_start,
-        static_cast<size_t>(subpattern_end - subpattern_start)};
+        subpattern_start, subpattern_to_match_len};
     pattern_components_.push_back(curr_filter_component);
+    min_test_name_len +=
+        min_num_of_leading_chars_to_match + subpattern_to_match_len;
 
     // Advance to the next subpattern by setting subpattern_start to
     // subpattern_end
@@ -345,7 +349,7 @@ bool GTestFilterPattern::Matches(const char* test_name,
             test_name[test_name_match_substr_offset] == subpattern_start[0] &&
             test_name[test_name_match_substr_offset + subpattern_to_match_len -
                       1] == subpattern_start[subpattern_to_match_len - 1];
-        if (matches_subpattern) {
+        if (matches_subpattern && subpattern_to_match_len > 2) {
           for (size_t i = 1; i != subpattern_to_match_len - 1; i++) {
             char c1 = test_name[test_name_match_substr_offset + i];
             char c2 = subpattern_start[i];
@@ -579,6 +583,46 @@ static HWY_MAYBE_UNUSED void InitTestProgramOptions(
   }                                                                     \
   /* Disable the mask after the test. */                                \
   hwy::SetSupportedTargetsForTest(0);                                   \
+  static_assert(true, "For requiring trailing semicolon")
+
+// Export and test a function on ONLY the best available target.
+#define HWY_EXPORT_AND_TEST_BEST_P(suite, func_name)                           \
+  full_test_name = #suite;                                                     \
+  full_test_name += "Group/";                                                  \
+  full_test_name += #suite;                                                    \
+  full_test_name += '.';                                                       \
+  full_test_name_suite_prefix_len = full_test_name.length();                   \
+  full_test_name += #func_name;                                                \
+  full_test_name += '/';                                                       \
+  full_test_name_prefix_len = full_test_name.length();                         \
+  HWY_EXPORT(func_name);                                                       \
+  hwy::SetSupportedTargetsForTest(0);                                          \
+  {                                                                            \
+    const int64_t all_supported_targets = SupportedTargets() & HWY_TARGETS;    \
+    if (all_supported_targets != 0) {                                          \
+      const int64_t target = all_supported_targets & (-all_supported_targets); \
+      hwy::SetSupportedTargetsForTest(target);                                 \
+      full_test_name.resize(full_test_name_prefix_len);                        \
+      full_test_name += hwy::TargetName(target);                               \
+      if (hwy::TestNameMatchesGTestFilter(full_test_name)) {                   \
+        if (hwy::ShouldOnlyListHighwayTestNames()) {                           \
+          const char* full_test_name_c_str = full_test_name.c_str();           \
+          if (need_to_output_suite_name) {                                     \
+            need_to_output_suite_name = false;                                 \
+            printf("%sGroup/%s.\n", #suite, #suite);                           \
+          }                                                                    \
+          printf("  %s\n",                                                     \
+                 full_test_name_c_str + full_test_name_suite_prefix_len);      \
+        } else {                                                               \
+          fprintf(stderr, "=== %s for %s:\n", #func_name,                      \
+                  hwy::TargetName(target));                                    \
+          HWY_DYNAMIC_DISPATCH(func_name)();                                   \
+        }                                                                      \
+      }                                                                        \
+    }                                                                          \
+  }                                                                            \
+  /* Disable the mask after the test. */                                       \
+  hwy::SetSupportedTargetsForTest(0);                                          \
   static_assert(true, "For requiring trailing semicolon")
 
 // HWY_BEFORE_TEST may reside inside a namespace, but HWY_AFTER_TEST will define
