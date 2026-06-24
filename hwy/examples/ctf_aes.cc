@@ -92,7 +92,7 @@ HWY_ALIGN constexpr uint8_t kPrefix[16] = {
 // 128-bit fixed-width brute-force solver (processes 1 password at a time).
 uint32_t Solve(const uint8_t* ciphertext, const uint8_t* counter,
                uint32_t max_pass, uint8_t* decrypted_flag) {
-  static_assert(HWY_IS_LITTLE_ENDIAN, "Only little-endian supported");
+#if HWY_TARGET != HWY_SCALAR
   // FixedTag<uint8_t, 16> locks the vector width to exactly 128-bit (16 bytes)
   using D = hn::FixedTag<uint8_t, 16>;
   const D d;
@@ -113,7 +113,13 @@ uint32_t Solve(const uint8_t* ciphertext, const uint8_t* counter,
   HWY_ALIGN uint8_t key_bytes[16] = {0};
 
   for (uint32_t p = 0; p < max_pass; ++p) {
+#if HWY_IS_LITTLE_ENDIAN
     CopyBytes(&p, key_bytes, 3);
+#else
+    key_bytes[0] = static_cast<uint8_t>(p & 0xFF);
+    key_bytes[1] = static_cast<uint8_t>((p >> 8) & 0xFF);
+    key_bytes[2] = static_cast<uint8_t>((p >> 16) & 0xFF);
+#endif
 
     V v_key = hn::Load(d, key_bytes);
 
@@ -132,6 +138,15 @@ uint32_t Solve(const uint8_t* ciphertext, const uint8_t* counter,
       return p;
     }
   }
+#else
+  std::cerr << "WARNING: CTF AES Brute-force Challenge is not supported on "
+               "SCALAR target\n";
+
+  (void)ciphertext;
+  (void)counter;
+  (void)max_pass;
+  (void)decrypted_flag;
+#endif
   return static_cast<uint32_t>(-1);
 }
 
@@ -177,8 +192,8 @@ int main() {
   const double t_start = hwy::platform::Now();
   uint32_t found_pass = hwy::RunSolver(decrypted_flag);
   const double t_end = hwy::platform::Now();
-  std::cout << "[SIMD] Found password: "
-            << static_cast<int32_t>(found_pass) << "\n\n";
+  std::cout << "[SIMD] Found password: " << static_cast<int32_t>(found_pass)
+            << "\n\n";
   std::cout << "Decrypted Flag:\n" << decrypted_flag << "\n\n";
 
   const double duration = (t_end - t_start) * 1000.0;  // in ms

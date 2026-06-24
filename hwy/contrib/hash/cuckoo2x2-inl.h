@@ -119,10 +119,17 @@ class Cuckoo2x2 {
     //   Empty entries (tag=00) can never match (tag always 01 or 10).
     // Note that we have >= 256K buckets, hence bits 0-17 govern the choice of
     // bucket and do not have to be verified.
+#if HWY_IS_BIG_ENDIAN
+    const VU16 fp1 =
+        Or(ShiftRight<2>(DupEven(BitCast(du16, h1))), Set(du16, 0x4000));
+    const VU16 fp2 =
+        Or(ShiftRight<2>(DupEven(BitCast(du16, h2))), Set(du16, 0x8000));
+#else
     const VU16 fp1 =
         Or(ShiftRight<2>(DupOdd(BitCast(du16, h1))), Set(du16, 0x4000));
     const VU16 fp2 =
         Or(ShiftRight<2>(DupOdd(BitCast(du16, h2))), Set(du16, 0x8000));
+#endif
 
     const uint32_t* base = data_.entries.data();
 
