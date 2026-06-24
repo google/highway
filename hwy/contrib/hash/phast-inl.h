@@ -182,13 +182,23 @@ class Phast {
     using VU16 = Vec<decltype(du16)>;
 
     // Odd/Even packing allows PromoteEvenTo.
+#if HWY_IS_BIG_ENDIAN
+    const VU16 seeds =
+        OddEven(BitCast(du16, seed1), BitCast(du16, ShiftLeft<16>(seed0)));
+#else
     const VU16 seeds =
         OddEven(BitCast(du16, ShiftLeft<16>(seed1)), BitCast(du16, seed0));
+#endif
     // Use upper 16 bits of hashes because the lower ~19 (for 1M keys and kpb=2)
     // already selected the bucket and thus seed. Odd lanes have hash1 >> 16,
     // even lanes have hash0 >> 16.
+#if HWY_IS_BIG_ENDIAN
+    const VU16 hashes =
+        OddEven(BitCast(du16, ShiftRight<16>(hash1)), BitCast(du16, hash0));
+#else
     const VU16 hashes =
         OddEven(BitCast(du16, hash1), BitCast(du16, ShiftRight<16>(hash0)));
+#endif
     // XOR is weaker than ADD. Mul together does not work.
     const VU16 combined = Add(hashes, seeds);
     const VU16 hashed = Hash16(du16, combined);
@@ -209,9 +219,15 @@ class Phast {
 
     // Add 4*iota to byte_idx, setting the starting offset for each u32 lane.
     // Setting the upper 3 bytes >= 0x80 ensures they are zeroed.
+#if HWY_IS_BIG_ENDIAN
+    const VU8 kBase =
+        Dup128VecFromValues(du8, 0x80, 0x80, 0x80, 3, 0x80, 0x80, 0x80, 7, 0x80,
+                            0x80, 0x80, 11, 0x80, 0x80, 0x80, 15);
+#else
     const VU8 kBase =
         Dup128VecFromValues(du8, 0, 0x80, 0x80, 0x80, 4, 0x80, 0x80, 0x80, 8,
                             0x80, 0x80, 0x80, 12, 0x80, 0x80, 0x80);
+#endif
 
 #if HWY_TARGET == HWY_AVX2
     // AVX2 GatherIndex sets up a mask, but we already have one from kBase.
@@ -225,7 +241,11 @@ class Phast {
 #endif
     // 0-3 in the low byte of each u32 lane; upper bytes are 0.
     const VU8 byte_idx = BitCast(du8, And(bucket_idx, Set(du32, 3)));
+#if HWY_IS_BIG_ENDIAN
+    const VU8 indices = Xor(byte_idx, kBase);
+#else
     const VU8 indices = Or(byte_idx, kBase);
+#endif
     return BitCast(du32, TableLookupBytesOr0(words, indices));
   }
 
