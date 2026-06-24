@@ -990,7 +990,7 @@ HWY_API Vec32<T> ShuffleTwo1230(const Vec32<T> a, const Vec32<T> b) {
 }
 template <typename T, HWY_IF_T_SIZE(T, 2)>
 HWY_API Vec64<T> ShuffleTwo1230(const Vec64<T> a, const Vec64<T> b) {
-  const int16_t _data_idx[] = {10, 11, 2, 1};
+  const int16_t _data_idx[] = {8, 11, 2, 1};
   __m128i shuffle_idx = __lsx_vld(_data_idx, 0);
   auto t0 = __lsx_vshuf_h(shuffle_idx, a.raw, b.raw);
   return Vec64<T>{t0};
@@ -1011,7 +1011,7 @@ HWY_API Vec32<T> ShuffleTwo3012(const Vec32<T> a, const Vec32<T> b) {
 }
 template <typename T, HWY_IF_T_SIZE(T, 2)>
 HWY_API Vec64<T> ShuffleTwo3012(const Vec64<T> a, const Vec64<T> b) {
-  const int16_t _data_idx[] = {8, 9, 0, 3};
+  const int16_t _data_idx[] = {10, 9, 0, 3};
   __m128i shuffle_idx = __lsx_vld(_data_idx, 0);
   return Vec64<T>{__lsx_vshuf_h(shuffle_idx, a.raw, b.raw)};
 }
