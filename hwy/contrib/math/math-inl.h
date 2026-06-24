@@ -25,6 +25,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "hwy/contrib/math/fp_arith-inl.h"
 #include "hwy/highway.h"
 
 HWY_BEFORE_NAMESPACE();
@@ -718,74 +719,6 @@ HWY_INLINE HWY_MAYBE_UNUSED V InRangeFloatDivRem(V a, V b, V q) {
   const auto p_lo = InRangeLoProduct(q, b, p_hi);
   return Sub(Sub(a, p_hi), p_lo);
 #endif
-}
-
-// Double-double helpers
-// One value stored in two doubles (hi + lo) for ~2x precision, lo is hi's
-// rounding error.
-
-// Returns s = a + b, lo = exact rounding error
-template <class V, HWY_IF_FLOAT_V(V)>
-HWY_INLINE HWY_MAYBE_UNUSED V TwoSum(V a, V b, V& lo) {
-  const V s = Add(a, b);
-  const V v = Sub(s, a);
-  lo = Add(Sub(a, Sub(s, v)), Sub(b, v));
-  return s;
-}
-
-// Returns s = a + b, lo = exact rounding error, only when |a| >= |b|
-template <class V, HWY_IF_FLOAT_V(V)>
-HWY_INLINE HWY_MAYBE_UNUSED V FastTwoSum(V a, V b, V& lo) {
-  const V s = Add(a, b);
-  lo = Add(Sub(a, s), b);
-  return s;
-}
-
-// Returns p = a * b, lo = exact rounding error
-template <class V, HWY_IF_FLOAT_V(V)>
-HWY_INLINE HWY_MAYBE_UNUSED V TwoProd(V a, V b, V& lo) {
-  const V p = Mul(a, b);
-  lo = InRangeLoProduct(a, b, p);
-  return p;
-}
-
-// Returns hi = (a_hi + a_lo) + (b_hi + b_lo), r_lo = low part
-template <class V, HWY_IF_FLOAT_V(V)>
-HWY_INLINE HWY_MAYBE_UNUSED V DDAdd(V a_hi, V a_lo, V b_hi, V b_lo, V& r_lo) {
-  V e;
-  const V s = TwoSum(a_hi, b_hi, e);
-  e = Add(e, Add(a_lo, b_lo));
-  return FastTwoSum(s, e, r_lo);
-}
-
-// Returns hi = (a_hi + a_lo) * b, r_lo = low part
-template <class V, HWY_IF_FLOAT_V(V)>
-HWY_INLINE HWY_MAYBE_UNUSED V DDMulV(V a_hi, V a_lo, V b, V& r_lo) {
-  V p_lo;
-  const V p_hi = TwoProd(a_hi, b, p_lo);
-  p_lo = MulAdd(a_lo, b, p_lo);
-  return FastTwoSum(p_hi, p_lo, r_lo);
-}
-
-// Returns hi = (a_hi + a_lo) * (b_hi + b_lo), r_lo = low part
-template <class V, HWY_IF_FLOAT_V(V)>
-HWY_INLINE HWY_MAYBE_UNUSED V DDMul(V a_hi, V a_lo, V b_hi, V b_lo, V& r_lo) {
-  V p_lo;
-  const V p_hi = TwoProd(a_hi, b_hi, p_lo);
-  p_lo = MulAdd(a_hi, b_lo, MulAdd(a_lo, b_hi, p_lo));
-  return FastTwoSum(p_hi, p_lo, r_lo);
-}
-
-// Returns hi = (a_hi + a_lo) / (b_hi + b_lo), r_lo = low part
-template <class V, HWY_IF_FLOAT_V(V)>
-HWY_INLINE HWY_MAYBE_UNUSED V DDDiv(V a_hi, V a_lo, V b_hi, V b_lo, V& r_lo) {
-  const V q1 = Div(a_hi, b_hi);
-  V qb_lo;
-  const V qb_hi = DDMulV(b_hi, b_lo, q1, qb_lo);
-  V r_hi_lo;
-  const V r_hi = DDAdd(a_hi, a_lo, Neg(qb_hi), Neg(qb_lo), r_hi_lo);
-  const V q2 = Div(r_hi, b_hi);
-  return FastTwoSum(q1, q2, r_lo);
 }
 
 template <class FloatOrDouble>
@@ -1772,7 +1705,7 @@ HWY_INLINE V DDLog(D d, V x, V& lo) {
                                  : static_cast<T>(2.3190468138462996e-17));
   V log2_lo;
   const V log2_hi = ExtPrecLog2ForPow(d, x, log2_lo);
-  return DDMul(log2_hi, log2_lo, kLn2Hi, kLn2Lo, lo);
+  return DDMul(d, log2_hi, log2_lo, kLn2Hi, kLn2Lo, lo);
 }
 
 // Returns logGamma(w) in double-double via Stirling's series for
@@ -1794,11 +1727,11 @@ HWY_INLINE V StirlingLogGamma(D d, V w, V& lo) {
   const V u = Mul(inv_w, inv_w);
   V lnw_lo;
   const V lnw_hi = DDLog(d, w, lnw_lo);
-  V hi = DDMulV(lnw_hi, lnw_lo, Sub(w, kHalf), lo);
-  hi = DDAdd(hi, lo, Neg(w), kZero, lo);
-  hi = DDAdd(hi, lo, kHalfLn2PiHi, kHalfLn2PiLo, lo);
+  V hi = DDMulV(d, lnw_hi, lnw_lo, Sub(w, kHalf), lo);
+  hi = DDAdd(d, hi, lo, Neg(w), kZero, lo);
+  hi = DDAdd(d, hi, lo, kHalfLn2PiHi, kHalfLn2PiLo, lo);
   const V series = Mul(inv_w, impl.StirlingPoly(d, u));
-  return DDAdd(hi, lo, series, kZero, lo);
+  return DDAdd(d, hi, lo, series, kZero, lo);
 }
 
 // Computes signed Gamma(a). For a < 0.5 uses w = 1 - a; then a [2, 3)
@@ -1830,7 +1763,7 @@ HWY_INLINE V Gamma(D d, V a) {
   for (int i = 0; i < 2; ++i) {
     const M up = Lt(wa, kTwo);
     V d_lo;
-    const V d_hi = DDMulV(den_hi, den_lo, wa, d_lo);
+    const V d_hi = DDMulV(d, den_hi, den_lo, wa, d_lo);
     den_hi = IfThenElse(up, d_hi, den_hi);
     den_lo = IfThenElse(up, d_lo, den_lo);
     wa = MaskedAddOr(wa, up, wa, kOne);
@@ -1840,16 +1773,16 @@ HWY_INLINE V Gamma(D d, V a) {
     const M down = Ge(wa, kThree);
     wa = MaskedSubOr(wa, down, wa, kOne);
     V m_lo;
-    const V m_hi = DDMulV(num_hi, num_lo, wa, m_lo);
+    const V m_hi = DDMulV(d, num_hi, num_lo, wa, m_lo);
     num_hi = IfThenElse(down, m_hi, num_hi);
     num_lo = IfThenElse(down, m_lo, num_lo);
   }
 
   const V poly = impl.GammaPoly(d, Sub(wa, Set(d, static_cast<T>(2.5))));
   V np_lo;
-  const V np_hi = DDMulV(num_hi, num_lo, poly, np_lo);
+  const V np_hi = DDMulV(d, num_hi, num_lo, poly, np_lo);
   V gA_lo;
-  const V gamma_a = DDDiv(np_hi, np_lo, den_hi, den_lo, gA_lo);
+  const V gamma_a = DDDiv(d, np_hi, np_lo, den_hi, den_lo, gA_lo);
 
   // Gamma via Stirling logGamma (dd): exp(hi+lo) = exp(hi)*(1+lo).
   V lo;
