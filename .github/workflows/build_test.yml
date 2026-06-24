@@ -26,40 +26,39 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: Clang-11
-            extra_deps: clang-11
-            c_compiler: clang-11
-            cxx_compiler: clang++-11
-            cxx_standard: 17
-
           - name: Clang-12
             extra_deps: clang-12
             c_compiler: clang-12
             cxx_compiler: clang++-12
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 17
 
           - name: Clang-13
             extra_deps: clang-13
             c_compiler: clang-13
             cxx_compiler: clang++-13
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 17
 
           - name: Clang-14
             extra_deps: clang-14
             c_compiler: clang-14
             cxx_compiler: clang++-14
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 17
 
           - name: Clang-15
             extra_deps: clang-15
             c_compiler: clang-15
             cxx_compiler: clang++-15
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 17
 
           - name: Clang-15 (C++20)
             extra_deps: clang-15
             c_compiler: clang-15
             cxx_compiler: clang++-15
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 20
 
           - name: Clang-15 (x86_32)
@@ -68,14 +67,7 @@ jobs:
             cxx_compiler: clang++-15
             # Disable AVX3 targets on x86_32
             cxx_flags: -m32 -DHWY_DISABLED_TARGETS=0x1FF -DHWY_BROKEN_TARGETS=0x1FF
-            extra_cmake_flags: -DCMAKE_C_COMPILER_TARGET=i686-linux-gnu -DCMAKE_CXX_COMPILER_TARGET=i686-linux-gnu -DHWY_CMAKE_SSE2=ON
-            cxx_standard: 17
-
-          - name: GCC-9
-            extra_deps: g++-9
-            c_compiler: gcc-9
-            cxx_compiler: g++-9
-            cxx_flags: -ftrapv
+            extra_cmake_flags: -DCMAKE_C_COMPILER_TARGET=i686-linux-gnu -DCMAKE_CXX_COMPILER_TARGET=i686-linux-gnu -DHWY_CMAKE_SSE2=ON -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 17
 
           - name: GCC-10
@@ -83,6 +75,7 @@ jobs:
             c_compiler: gcc-10
             cxx_compiler: g++-10
             cxx_flags: -ftrapv
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 17
 
           - name: GCC-11
@@ -90,6 +83,7 @@ jobs:
             c_compiler: gcc-11
             cxx_compiler: g++-11
             cxx_flags: -ftrapv
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 17
 
           - name: GCC-11 (C++20)
@@ -97,6 +91,7 @@ jobs:
             c_compiler: gcc-11
             cxx_compiler: g++-11
             cxx_flags: -ftrapv
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 20
 
           - name: GCC-12 (C++11)
@@ -113,6 +108,7 @@ jobs:
             c_compiler: gcc-12
             cxx_compiler: g++-12
             cxx_flags: -ftrapv
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 20
 
           - name: GCC-12 (x86_32)
@@ -121,7 +117,7 @@ jobs:
             cxx_compiler: i686-linux-gnu-g++-12
             # Disable AVX3 targets on x86_32
             cxx_flags: -m32 -ftrapv -DHWY_DISABLED_TARGETS=0x1FF -DHWY_BROKEN_TARGETS=0x1FF
-            extra_cmake_flags: -DCMAKE_C_COMPILER_TARGET=i686-linux-gnu -DCMAKE_CXX_COMPILER_TARGET=i686-linux-gnu -DHWY_CMAKE_SSE2=ON
+            extra_cmake_flags: -DCMAKE_C_COMPILER_TARGET=i686-linux-gnu -DCMAKE_CXX_COMPILER_TARGET=i686-linux-gnu -DHWY_CMAKE_SSE2=ON -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 17
 
     steps:
@@ -158,6 +154,7 @@ jobs:
             # or later when some of the Google Highway tests are compiled with
             # all x86 targets enabled
             cxx_flags: -DHWY_DISABLED_TARGETS=0x58
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 17
 
           - name: Clang-17
@@ -169,6 +166,7 @@ jobs:
             # or later when some of the Google Highway tests are compiled with
             # all x86 targets enabled
             cxx_flags: -DHWY_DISABLED_TARGETS=0x58
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 17
 
           - name: Clang-18
@@ -180,6 +178,7 @@ jobs:
             # or later when some of the Google Highway tests are compiled with
             # all x86 targets enabled
             cxx_flags: -DHWY_DISABLED_TARGETS=0x58
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 17
 
           - name: Clang-18 (C++23)
@@ -191,6 +190,7 @@ jobs:
             # or later when some of the Google Highway tests are compiled with
             # all x86 targets enabled
             cxx_flags: -DHWY_DISABLED_TARGETS=0x58
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 23
 
           - name: Clang-19
@@ -202,35 +202,15 @@ jobs:
             # or later when some of the Google Highway tests are compiled with
             # all x86 targets enabled
             cxx_flags: -DHWY_DISABLED_TARGETS=0x58
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 17
-
-          - name: Clang-19 (VQSort disabled)
-            extra_deps: clang-19
-            c_compiler: clang-19
-            cxx_compiler: clang++-19
-            # Disable AVX3_SPR/AVX3_ZEN4 targets in GitHub workflow build with
-            # Clang 16 or later to work around crashes that occur with Clang 16
-            # or later when some of the Google Highway tests are compiled with
-            # all x86 targets enabled
-            cxx_flags: -DHWY_DISABLED_TARGETS=0x58 -DHWY_DISABLE_VQSORT=1
-            cxx_standard: 17
-
-          - name: Clang-19 (C++23)
-            extra_deps: clang-19
-            c_compiler: clang-19
-            cxx_compiler: clang++-19
-            # Disable AVX3_SPR/AVX3_ZEN4 targets in GitHub workflow build with
-            # Clang 16 or later to work around crashes that occur with Clang 16
-            # or later when some of the Google Highway tests are compiled with
-            # all x86 targets enabled
-            cxx_flags: -DHWY_DISABLED_TARGETS=0x58
-            cxx_standard: 23
 
           - name: GCC-13
             extra_deps: g++-13
             c_compiler: gcc-13
             cxx_compiler: g++-13
             cxx_flags: -ftrapv
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 17
 
           - name: GCC-13 (C++23)
@@ -238,6 +218,7 @@ jobs:
             c_compiler: gcc-13
             cxx_compiler: g++-13
             cxx_flags: -ftrapv
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 23
 
           - name: GCC-14
@@ -245,14 +226,8 @@ jobs:
             c_compiler: gcc-14
             cxx_compiler: g++-14
             cxx_flags: -ftrapv
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 17
-
-          - name: GCC-14 (C++23)
-            extra_deps: g++-14
-            c_compiler: gcc-14
-            cxx_compiler: g++-14
-            cxx_flags: -ftrapv
-            cxx_standard: 23
 
     steps:
       - name: Harden Runner
@@ -288,6 +263,7 @@ jobs:
             # or later when some of the Google Highway tests are compiled with
             # all x86 targets enabled
             cxx_flags: -DHWY_DISABLED_TARGETS=0x58
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 17
 
           - name: Clang-21
@@ -299,6 +275,7 @@ jobs:
             # or later when some of the Google Highway tests are compiled with
             # all x86 targets enabled
             cxx_flags: -DHWY_DISABLED_TARGETS=0x58
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 17
 
           - name: Clang-22
@@ -310,6 +287,17 @@ jobs:
             # or later when some of the Google Highway tests are compiled with
             # all x86 targets enabled
             cxx_flags: -DHWY_DISABLED_TARGETS=0x58
+            cxx_standard: 17
+
+          - name: Clang-22 (VQSort disabled)
+            extra_deps: clang-22
+            c_compiler: clang-22
+            cxx_compiler: clang++-22
+            # Disable AVX3_SPR/AVX3_ZEN4 targets in GitHub workflow build with
+            # Clang 16 or later to work around crashes that occur with Clang 16
+            # or later when some of the Google Highway tests are compiled with
+            # all x86 targets enabled
+            cxx_flags: -DHWY_DISABLED_TARGETS=0x58 -DHWY_DISABLE_VQSORT=1
             cxx_standard: 17
 
           - name: Clang-22 (C++23)
@@ -328,6 +316,7 @@ jobs:
             c_compiler: gcc-15
             cxx_compiler: g++-15
             cxx_flags: -ftrapv
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 17
 
           - name: GCC-16
