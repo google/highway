@@ -53,6 +53,7 @@ HWY_NOINLINE void TestAllBuildSmall() {}
 HWY_NOINLINE void TestAllBuildMedium() {}
 HWY_NOINLINE void TestAllQueryCorrectness() {}
 HWY_NOINLINE void TestAllBatchQuery() {}
+HWY_NOINLINE void TestAllBatchQueryU16() {}
 HWY_NOINLINE void TestAllEpsilonSweep() {}
 HWY_NOINLINE void TestAllOptimizedBuild() {}
 HWY_NOINLINE void TestAllMinCostFlowComparison() {}
@@ -187,6 +188,57 @@ HWY_NOINLINE void TestAllBatchQuery() {
 
   fprintf(stderr, "  OK: batch query matches single query for %zu keys\n",
           num_keys);
+}
+
+// --------------------------------------------------------------------------
+// Test: U16 fingerprint batch query
+
+HWY_NOINLINE void TestAllBatchQueryU16() {
+  fprintf(stderr, "=== TestBatchQueryU16 ===\n");
+  // U16 fingerprints require >= 2^18 buckets. With epsilon=0.25 and
+  // kBucketSize=16, we need ~3.4M keys to reach 2^18 buckets.
+  const uint32_t num_keys =
+      static_cast<uint32_t>(AdjustedReps(100'000));
+  auto keys = GenerateKeys(num_keys);
+
+  CuckooTable table = CuckooBuild(keys.data(), num_keys, /*epsilon=*/0.25);
+  HWY_ASSERT_M(!table.IsEmpty(), "Build failed");
+
+  // Skip if not enough buckets for U16 scheme.
+  if (table.Config().NumBuckets() < CuckooTable::kMinBucketsU16) {
+    fprintf(stderr, "  SKIPPED: num_buckets=%u < 2^18 (need more keys)\n",
+            table.Config().NumBuckets());
+    return;
+  }
+
+  // Build the U16 fingerprint table.
+  table.BuildU16Slots();
+  HWY_ASSERT_M(table.HasU16Slots(), "U16 slots not built");
+
+  const ScalableTag<uint32_t> du32;
+  HWY_LANES_CONSTEXPR size_t N = Lanes(du32);
+
+  // All member keys must be found (no false negatives).
+  size_t i = 0;
+  for (; i + N <= num_keys; i += N) {
+    auto not_found = table.QueryBatchU16(du32, keys.data() + i);
+    HWY_ASSERT_M(AllFalse(du32, not_found),
+                 "QueryBatchU16 missed a member key");
+    not_found = table.QueryBatchU16<true>(du32, keys.data() + i);
+    HWY_ASSERT_M(AllFalse(du32, not_found),
+                 "QueryBatchU16<true> missed a member key");
+  }
+
+  // Check tail with scalar QueryOneU16.
+  for (; i < num_keys; ++i) {
+    HWY_ASSERT_M(table.QueryOneU16(keys[i]),
+                 "QueryOneU16 missed a member key (tail)");
+  }
+
+  fprintf(stderr,
+          "  OK: U16 batch query found all %u member keys (no false "
+          "negatives), num_buckets=%u\n",
+          num_keys, table.Config().NumBuckets());
 }
 
 // --------------------------------------------------------------------------
@@ -383,6 +435,7 @@ HWY_EXPORT_AND_TEST_BEST_P(CuckooTest, TestAllBuildSmall);
 HWY_EXPORT_AND_TEST_BEST_P(CuckooTest, TestAllBuildMedium);
 HWY_EXPORT_AND_TEST_BEST_P(CuckooTest, TestAllQueryCorrectness);
 HWY_EXPORT_AND_TEST_BEST_P(CuckooTest, TestAllBatchQuery);
+HWY_EXPORT_AND_TEST_BEST_P(CuckooTest, TestAllBatchQueryU16);
 HWY_EXPORT_AND_TEST_BEST_P(CuckooTest, TestAllEpsilonSweep);
 HWY_EXPORT_AND_TEST_BEST_P(CuckooTest, TestAllOptimizedBuild);
 #if HWY_HAVE_ORTOOLS

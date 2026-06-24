@@ -418,12 +418,16 @@ HWY_NOINLINE void TestAbslLatency(size_t num_keys) {
 #endif  // HWY_HAVE_ABSL
 }
 
+template <bool kUseU16 = false>
 HWY_NOINLINE void TestCuckooThroughput(size_t num_keys) {
   const AlignedVector<uint32_t> keys = GenerateKeys(num_keys);
   const size_t before = AllocatedBefore();
-  const CuckooTable cuckoo =
+  CuckooTable cuckoo =
       CuckooBuild(keys.data(), keys.size(), /*epsilon=*/0.1,
                   /*max_attempts=*/100, /*optimize_primary=*/true);
+  if constexpr (kUseU16) {
+    cuckoo.BuildU16Slots();
+  }
   const size_t allocated_bytes =
       AllocatedBytes(before, cuckoo.AllocatedBytes());
   if (cuckoo.IsEmpty()) {
@@ -454,8 +458,15 @@ HWY_NOINLINE void TestCuckooThroughput(size_t num_keys) {
       bool all_found = true;
       for (size_t i = 0; i < num_keys; i += N) {
         const size_t wrapped_i = (worker * keys_per_chunk + i) % num_keys;
-        const auto not_found = cuckoo.QueryBatch(du32, &keys[wrapped_i]);
-        all_found &= AllFalse(du32, not_found);
+        if constexpr (kUseU16) {
+          const auto not_found =
+              cuckoo.QueryBatchU16</*kPrecomputeSecondary=*/true>(
+                  du32, &keys[wrapped_i]);
+          all_found &= AllFalse(du32, not_found);
+        } else {
+          const auto not_found = cuckoo.QueryBatch(du32, &keys[wrapped_i]);
+          all_found &= AllFalse(du32, not_found);
+        }
       }
       per_worker[worker * HWY_ALIGNMENT] = all_found;
     });
@@ -465,10 +476,11 @@ HWY_NOINLINE void TestCuckooThroughput(size_t num_keys) {
     HWY_ASSERT(per_worker[i * HWY_ALIGNMENT]);
   }
   const size_t bytes = num_keys * sizeof(uint32_t) * pool.NumWorkers();
+  const char* suffix = kUseU16 ? "u16" : "u32";
   printf(
-      "Cuckoo 2x16 u32 throughput: %4zuKi keys = %4.1f GB/s; "
+      "Cuckoo 2x16 %s throughput: %4zuKi keys = %4.1f GB/s; "
       "measurement MAD=%4.2f%%, allocated %5zu KiB\n",
-      num_keys / 1024, static_cast<double>(bytes) / result.ns,
+      suffix, num_keys / 1024, static_cast<double>(bytes) / result.ns,
       result.mad_percent, allocated_bytes / 1024);
 }
 
@@ -503,6 +515,7 @@ HWY_NOINLINE void TestThroughputSweep() {
       TestCuckoo2x2Throughput(n);
       TestAbslThroughput(n);
       TestCuckooThroughput(n);
+      TestCuckooThroughput</*kUseU16=*/false>(n);
     }
     // Powers of two: 32K-4M.
     for (size_t n = (32 << 10); n <= (size_t{4} << 20); n *= 2) {
@@ -510,6 +523,7 @@ HWY_NOINLINE void TestThroughputSweep() {
       TestCuckoo2x2Throughput(n);
       TestAbslThroughput(n);
       TestCuckooThroughput(n);
+      TestCuckooThroughput</*kUseU16=*/true>(n);
     }
   } else {
     TestPhastThroughput(kNumKeys);

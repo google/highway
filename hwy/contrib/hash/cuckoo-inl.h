@@ -106,6 +106,10 @@ class CuckooConfig {
   // equal it.
   static constexpr uint32_t kEmpty = 0xFFFFFFFFu;
   static constexpr uint32_t kUnmatched = 0xFFFFFFFFu;
+  // Sentinel value for empty uint16_t fingerprint slots (tag=00).
+  // Valid entries have tag 01 (primary) or 10 (secondary) and can never
+  // match this value.
+  static constexpr uint16_t kEmptyU16 = 0;
 
  private:
   uint32_t num_keys_ = 0;
@@ -136,19 +140,22 @@ class CuckooTable {
   bool IsEmpty() const { return config_.NumKeys() == 0; }
   const CuckooConfig& Config() const { return config_; }
 
-  size_t AllocatedBytes() const { return slots_.size() * sizeof(uint32_t); }
+  size_t AllocatedBytes() const {
+    return HasU16Slots() ? slots_u16_.size() * sizeof(uint16_t)
+                         : slots_.size() * sizeof(uint32_t);
+  }
 
   // Returns the number of keys placed in their primary bucket.
   uint32_t NumPrimary() const { return num_primary_; }
 
-  // Query a single bucket (16 slots) for `key`.
+  // Query a single bucket (kBucketSize slots) for `key`.
   HWY_INLINE bool QueryBucket(uint32_t key, uint32_t b) const {
-    const CappedTag<uint32_t, 16> d;
+    const CappedTag<uint32_t, kBucketSize> d;
     HWY_LANES_CONSTEXPR size_t N = Lanes(d);
     const auto vkey = Set(d, key);
     const uint32_t* base = slots_.data() + b;
     auto any_eq = MaskFalse(d);
-    for (size_t i = 0; i < 16; i += N) {
+    for (size_t i = 0; i < kBucketSize; i += N) {
       any_eq = Or(any_eq, Eq(vkey, Load(d, base + i)));
     }
     return !AllFalse(d, any_eq);
@@ -171,7 +178,7 @@ class CuckooTable {
   template <bool kPrecomputeSecondary = false, class DU32,
             class MU32 = Mask<DU32>>
   HWY_INLINE MU32 QueryBatch(DU32 du32,
-                              const uint32_t* HWY_RESTRICT keys) const {
+                             const uint32_t* HWY_RESTRICT keys) const {
     using VU32 = Vec<DU32>;
     HWY_LANES_CONSTEXPR size_t N = Lanes(du32);
     const uint32_t bucket_mask = config_.BucketMask();
@@ -184,14 +191,14 @@ class CuckooTable {
 
     // Compute primary bucket offsets for all N lanes.
     VU32 h_pri = hash_primary_.OneVec(du32, vkeys);
-    const VU32 b_pri = ShiftLeft<4>(And(h_pri, vmask));
+    const VU32 b_pri = ShiftLeft<kLogBucketSize>(And(h_pri, vmask));
     Store(b_pri, du32, pri_offsets);
 
     // Optionally precompute secondary bucket offsets for all N lanes.
     HWY_ALIGN uint32_t sec_offsets[MaxLanes(du32)];
     if constexpr (kPrecomputeSecondary) {
       VU32 h_sec = hash_secondary_.OneVec(du32, vkeys);
-      const VU32 b_sec = ShiftLeft<4>(And(h_sec, vmask));
+      const VU32 b_sec = ShiftLeft<kLogBucketSize>(And(h_sec, vmask));
       Store(b_sec, du32, sec_offsets);
     }
 
@@ -214,22 +221,19 @@ class CuckooTable {
 
     // Pass 1: check all primary buckets.
     HWY_ALIGN uint32_t found_arr[MaxLanes(du32)];
+    HWY_ALIGN uint32_t miss_idx[MaxLanes(du32)];
+    size_t num_miss = 0;
     for (size_t lane = 0; lane < N; ++lane) {
-      found_arr[lane] =
-          QueryBucket(keys[lane], pri_offsets[lane]) ? 1u : 0u;
+      found_arr[lane] = QueryBucket(keys[lane], pri_offsets[lane]) ? 1u : 0u;
+      miss_idx[num_miss] = lane;
+      num_miss += found_arr[lane] == 0;
     }
 
     // Pass 2: check secondary buckets only for lanes that missed.
-    const VU32 found = Load(du32, found_arr);
-    const VU32 vzero = Zero(du32);
-    const auto miss = Eq(found, vzero);
-    HWY_ALIGN uint32_t miss_idx[MaxLanes(du32)];
-    const size_t num_miss = CompressStore(Iota(du32, 0), miss, du32, miss_idx);
     for (size_t j = 0; j < num_miss; ++j) {
       const uint32_t lane = miss_idx[j];
       if constexpr (kPrecomputeSecondary) {
-        found_arr[lane] =
-            QueryBucket(keys[lane], sec_offsets[lane]) ? 1u : 0u;
+        found_arr[lane] = QueryBucket(keys[lane], sec_offsets[lane]) ? 1u : 0u;
       } else {
         const uint32_t key = keys[lane];
         const uint32_t b2 = SecondaryBucketOffset(key);
@@ -239,11 +243,182 @@ class CuckooTable {
 
     // Return not-found mask: true = key NOT in set.
     const VU32 result = Load(du32, found_arr);
-    return Eq(result, vzero);
+    return Eq(result, Zero(du32));
   }
 
-  // Access to slot array for testing.
-  const uint32_t* Slots() const { return slots_.data(); }
+  // Returns true if the U16 fingerprint table has been built.
+  bool HasU16Slots() const { return !slots_u16_.empty(); }
+
+  // --------------------------------------------------------------------------
+  // U16 fingerprint support: approximate set membership using 14-bit
+  // fingerprints plus 2-bit tags, following the cuckoo2x2 approach.
+  //
+  // Each uint16_t slot stores:
+  //   bits 0-13: 14-bit fingerprint (bits 18-31 of the hash)
+  //   bits 14-15: 2-bit tag (01=primary, 10=secondary, 00=empty)
+  //
+  // Empty entries (tag=00) can never match, since valid entries always have
+  // tag 01 or 10. This eliminates sentinel collisions.
+  //
+  // Requires num_buckets >= 2^18 so that bits 0-17 fully govern bucket
+  // selection and bits 18-31 are independent fingerprint bits.
+
+  // Tag constants for primary and secondary hash functions.
+  static constexpr uint16_t kTagPrimary = 0x4000;    // bit 14 = tag 01
+  static constexpr uint16_t kTagSecondary = 0x8000;  // bit 15 = tag 10
+
+  // Minimum number of buckets required for the U16 fingerprint scheme.
+  // With 18 bits for bucket selection, bits 18-31 are free for fingerprinting.
+  static constexpr uint32_t kMinBucketsU16 = 1u << 18;  // 262144
+
+  // Computes a 14-bit fingerprint (bits 18-31 of hash) plus the given 2-bit
+  // tag. The result is a uint16_t with bits 0-13 = fingerprint and
+  // bits 14-15 = tag.
+  static HWY_INLINE uint16_t FingerprintU16(uint32_t hash, uint16_t tag) {
+    return static_cast<uint16_t>((hash >> 18) | tag);
+  }
+
+  // Builds the U16 fingerprint table from the existing key slots. For each
+  // occupied slot, determines which hash function placed the key there
+  // (primary or secondary) and stores the 14-bit fingerprint + 2-bit tag.
+  // Must be called after CuckooBuild.
+  void BuildU16Slots() {
+    HWY_ASSERT_M(config_.NumBuckets() >= kMinBucketsU16,
+                 "U16 fingerprints require >= 2^18 buckets");
+    const uint32_t num_slots = config_.NumSlots();
+    const uint32_t bucket_mask = config_.BucketMask();
+    slots_u16_.resize(num_slots, CuckooConfig::kEmptyU16);
+    for (uint32_t s = 0; s < num_slots; ++s) {
+      if (slots_[s] == CuckooConfig::kEmpty) continue;
+      const uint32_t key = slots_[s];
+      const uint32_t bucket = s / kBucketSize;
+      const uint32_t h1 = hash_primary_(key);
+      if ((h1 & bucket_mask) == bucket) {
+        slots_u16_[s] = FingerprintU16(h1, kTagPrimary);
+      } else {
+        const uint32_t h2 = hash_secondary_(key);
+        HWY_DASSERT((h2 & bucket_mask) == bucket);
+        slots_u16_[s] = FingerprintU16(h2, kTagSecondary);
+      }
+    }
+    slots_.clear();
+    slots_.shrink_to_fit();
+  }
+
+  // Query a single bucket (16 slots) of uint16_t fingerprints.
+  HWY_INLINE bool QueryBucketU16(uint16_t fp, uint32_t b) const {
+    const CappedTag<uint16_t, 16> d;
+    HWY_LANES_CONSTEXPR size_t N = Lanes(d);
+    const auto vfp = Set(d, fp);
+    const uint16_t* base = slots_u16_.data() + b;
+    auto any_eq = MaskFalse(d);
+    for (size_t i = 0; i < 16; i += N) {
+      any_eq = Or(any_eq, Eq(vfp, Load(d, base + i)));
+    }
+    return !AllFalse(d, any_eq);
+  }
+
+  // Query a single key using U16 fingerprints. Returns true if found
+  // (may return false positives).
+  HWY_INLINE bool QueryOneU16(uint32_t key) const {
+    const uint32_t bucket_mask = config_.BucketMask();
+    const uint32_t h1 = hash_primary_(key);
+    const uint16_t fp1 = FingerprintU16(h1, kTagPrimary);
+    const uint32_t b1 = (h1 & bucket_mask) * kBucketSize;
+    if (QueryBucketU16(fp1, b1)) return true;
+    const uint32_t h2 = hash_secondary_(key);
+    const uint16_t fp2 = FingerprintU16(h2, kTagSecondary);
+    const uint32_t b2 = (h2 & bucket_mask) * kBucketSize;
+    return QueryBucketU16(fp2, b2);
+  }
+
+  // SIMD set membership for N u32 keys using U16 fingerprints. Returns
+  // "not-found" mask (true = key NOT in set). This is an approximate query:
+  // it will find all true members but may have false positives.
+  //
+  // If kPrecomputeSecondary is true, both primary and secondary hashes are
+  // computed upfront. If false (default), secondary hashes are computed
+  // on-the-fly only for lanes that missed in the primary.
+  template <bool kPrecomputeSecondary = false, class DU32,
+            class MU32 = Mask<DU32>>
+  HWY_INLINE MU32 QueryBatchU16(DU32 du32,
+                                const uint32_t* HWY_RESTRICT keys) const {
+    using VU32 = Vec<DU32>;
+    const RepartitionToNarrow<DU32> du16;
+    using VU16 = Vec<decltype(du16)>;
+    HWY_LANES_CONSTEXPR size_t N = Lanes(du32);
+    const uint32_t bucket_mask = config_.BucketMask();
+    const VU32 vmask = Set(du32, bucket_mask);
+
+    const VU32 vkeys = Load(du32, keys);
+
+    // Compute primary hashes for all lanes.
+    const VU32 h_pri = hash_primary_.OneVec(du32, vkeys);
+
+    // Extract primary bucket offsets (bucket_idx * 16).
+    HWY_ALIGN uint32_t pri_offsets[MaxLanes(du32)];
+    const VU32 b_pri = ShiftLeft<kLogBucketSize>(And(h_pri, vmask));
+    Store(b_pri, du32, pri_offsets);
+
+    // Extract primary fingerprints via SIMD: BitCast to u16 places the top
+    // 16 bits of each u32 hash at odd indices. ShiftRight<2> moves bits 18-31
+    // into positions 0-13, Or sets the tag. We only read odd indices
+    // (lane*2+1) which hold the correct fingerprints; even indices are garbage.
+    const VU16 fp_pri =
+        Or(ShiftRight<2>(BitCast(du16, h_pri)), Set(du16, kTagPrimary));
+    HWY_ALIGN uint16_t pri_fps[MaxLanes(du16)];
+    Store(fp_pri, du16, pri_fps);
+
+    // Optionally precompute secondary hashes with tag 10.
+    HWY_ALIGN uint32_t sec_offsets[MaxLanes(du32)];
+    HWY_ALIGN uint16_t sec_fps[MaxLanes(du16)];
+    if constexpr (kPrecomputeSecondary) {
+      const VU32 h_sec = hash_secondary_.OneVec(du32, vkeys);
+      const VU32 b_sec = ShiftLeft<kLogBucketSize>(And(h_sec, vmask));
+      Store(b_sec, du32, sec_offsets);
+      const VU16 fp_sec =
+          Or(ShiftRight<2>(BitCast(du16, h_sec)), Set(du16, kTagSecondary));
+      Store(fp_sec, du16, sec_fps);
+    }
+
+    if constexpr (kPrefetchMode == PrefetchMode::kPrefetch) {
+      const uint16_t* base_u16 = slots_u16_.data();
+      for (size_t lane = 0; lane < N; ++lane) {
+        hwy::Prefetch(base_u16 + pri_offsets[lane]);
+      }
+    }
+
+    // Pass 1: check all primary buckets.
+    // Odd u16 indices hold the top-16-bit fingerprints, so use lane*2+1.
+    HWY_ALIGN uint32_t found_arr[MaxLanes(du32)];
+    size_t num_miss = 0;
+    HWY_ALIGN uint32_t miss_idx[MaxLanes(du32)];
+    for (size_t lane = 0; lane < N; ++lane) {
+      found_arr[lane] =
+          QueryBucketU16(pri_fps[lane * 2 + 1], pri_offsets[lane]) ? 1u : 0u;
+      miss_idx[num_miss] = lane;
+      num_miss += found_arr[lane] == 0;
+    }
+
+    // Pass 2: check secondary buckets only for lanes that missed.
+    for (size_t j = 0; j < num_miss; ++j) {
+      const uint32_t lane = miss_idx[j];
+      if constexpr (kPrecomputeSecondary) {
+        found_arr[lane] =
+            QueryBucketU16(sec_fps[lane * 2 + 1], sec_offsets[lane]) ? 1u : 0u;
+      } else {
+        const uint32_t key = keys[lane];
+        const uint32_t h2 = hash_secondary_(key);
+        const uint16_t fp2 = FingerprintU16(h2, kTagSecondary);
+        const uint32_t b2 = (h2 & bucket_mask) * kBucketSize;
+        found_arr[lane] = QueryBucketU16(fp2, b2) ? 1u : 0u;
+      }
+    }
+
+    // Return not-found mask: true = key NOT in set.
+    const VU32 result = Load(du32, found_arr);
+    return Eq(result, Zero(du32));
+  }
 
  private:
   enum class PrefetchMode { kGather, kPrefetch };
@@ -264,11 +439,13 @@ class CuckooTable {
   }
 
   static constexpr auto kBucketSize = CuckooConfig::kBucketSize;
+  static constexpr uint32_t kLogBucketSize = CeilLog2(kBucketSize);
 
   CuckooConfig config_;
   Triple32 hash_primary_;
   Triple32 hash_secondary_;
   AlignedVector<uint32_t> slots_;
+  AlignedVector<uint16_t> slots_u16_;
   uint32_t num_primary_ = 0;
 };
 
