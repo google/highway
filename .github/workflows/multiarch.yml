@@ -1,4 +1,3 @@
-# https://github.com/marketplace/actions/run-on-architecture
 name: Foreign architectures
 
 on: [push, pull_request]
@@ -11,58 +10,178 @@ permissions:
 
 jobs:
   multiarch:
-    runs-on: ubuntu-22.04
+    name: Multiarch build and test for ${{ matrix.arch }} with GCC 16
+    runs-on: ubuntu-26.04
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         include:
           - arch: armv7
-            distro: ubuntu_latest
             cxx_flags: -Wno-psabi
+            compiler_tgt_cpu_arch: arm
+            compiler_tgt_abi_suffix: eabihf
             cmake_flags: -DHWY_CMAKE_ARM7:BOOL=ON
-          - arch: ppc64le
-            distro: ubuntu_latest
+            qemu_emulator: qemu-arm
+          - arch: ppc64
+            cxx_flags: -mcpu=power9 -DHWY_COMPILE_ONLY_STATIC=1
+            compiler_tgt_cpu_arch: powerpc64
+            qemu_emulator: qemu-ppc64
+          - arch: ppc64le (Power8)
+            cxx_flags: -mcpu=power8 -DHWY_DISABLED_TARGETS=0x1800000000000
+            compiler_tgt_cpu_arch: powerpc64le
+            cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
+            qemu_emulator: qemu-ppc64le
+          - arch: ppc64le (Power9)
+            cxx_flags: -mcpu=power9 -DHWY_COMPILE_ONLY_STATIC=1
+            compiler_tgt_cpu_arch: powerpc64le
+            cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
+            qemu_emulator: qemu-ppc64le
+          - arch: ppc64le (Power10)
+            cxx_flags: -mcpu=power10 -DHWY_COMPILE_ONLY_STATIC=1
+            compiler_tgt_cpu_arch: powerpc64le
+            cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
+            qemu_emulator: qemu-ppc64le;-cpu;power10
+          - arch: loongarch64
+            compiler_tgt_cpu_arch: loongarch64
+            cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
+            qemu_emulator: qemu-loongarch64;-cpu;max
+          - arch: s390x (Z14)
+            cxx_flags: -march=z14 -mzvector -DHWY_COMPILE_ONLY_STATIC=1
+            compiler_tgt_cpu_arch: s390x
+            cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
+            qemu_emulator: qemu-s390x
+          - arch: s390x (Z15)
+            cxx_flags: -march=z15 -mzvector -DHWY_COMPILE_ONLY_STATIC=1
+            compiler_tgt_cpu_arch: s390x
+            cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
+            qemu_emulator: qemu-s390x
+          - arch: riscv64
+            cxx_flags: -DHWY_COMPILE_ONLY_STATIC=1
+            compiler_tgt_cpu_arch: riscv64
+            qemu_emulator: qemu-riscv64;-cpu;max,v=true,vlen=256
     steps:
-    - name: Checkout code
-      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-    - name: Build and test
-      uses: uraimo/run-on-arch-action@f9b26e3a1a408d5fd530d20c17b9f3f4428ff8d9 # v3.1.0
-      id: build
+    - name: Harden Runner
+      uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
       with:
-        arch: ${{ matrix.arch }}
-        distro: ${{ matrix.distro }}
-        # Not required, but speeds up builds
-        githubToken: ${{ github.token }}
-        install: |
-          apt-get update -q -y
-          apt-get install -q -y --no-install-recommends \
-                build-essential \
-                cmake \
-                libgtest-dev \
-                ninja-build \
-                ;
-        run: |
-          export CMAKE_BUILD_PARALLEL_LEVEL=2
-          export CTEST_PARALLEL_LEVEL=2
-          CXXFLAGS=${{ matrix.cxx_flags }} cmake -GNinja ${{ matrix.cmake_flags }} -DHWY_SYSTEM_GTEST=ON -DHWY_WARNINGS_ARE_ERRORS=ON -B out .
-          cmake --build out
-          ctest --test-dir out
-  aarch64_cmake:
-    name: Build and test ${{ matrix.name }} on AArch64
-    runs-on: ubuntu-24.04-arm
+        egress-policy: audit  # cannot be block - runner does git checkout
+
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+    - name: Install deps
+      run: |
+        sudo apt-get update && sudo apt-get install qemu-user \
+        "g++-16-${{ matrix.compiler_tgt_cpu_arch }}-linux-gnu${{ matrix.compiler_tgt_abi_suffix }}"
+
+    - name: Build and test
+      run: |
+        export CMAKE_BUILD_PARALLEL_LEVEL=2
+        export CTEST_PARALLEL_LEVEL=2
+        CXXFLAGS="${{ matrix.cxx_flags }}" \
+          CC="${{ matrix.compiler_tgt_cpu_arch }}-linux-gnu${{ matrix.compiler_tgt_abi_suffix }}-gcc-16" \
+          CXX="${{ matrix.compiler_tgt_cpu_arch }}-linux-gnu${{ matrix.compiler_tgt_abi_suffix }}-g++-16" \
+          cmake -DHWY_WARNINGS_ARE_ERRORS=ON -DCMAKE_CXX_STANDARD=17 \
+          -DCMAKE_C_COMPILER_TARGET="${{ matrix.compiler_tgt_cpu_arch }}-linux-gnu${{ matrix.compiler_tgt_abi_suffix }}" \
+          -DCMAKE_CXX_COMPILER_TARGET="${{ matrix.compiler_tgt_cpu_arch }}-linux-gnu${{ matrix.compiler_tgt_abi_suffix }}" \
+          -DCMAKE_CROSSCOMPILING=true \
+          -DCMAKE_CROSSCOMPILING_EMULATOR="${{ matrix.qemu_emulator }};-L;/usr/${{ matrix.compiler_tgt_cpu_arch }}-linux-gnu${{ matrix.compiler_tgt_abi_suffix }}" \
+          -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR="${{ matrix.compiler_tgt_cpu_arch }}" \
+          ${{ matrix.cmake_flags }} -B out .
+        cmake --build out
+        ctest --test-dir out
+  multiarch_clang22:
+    name: Multiarch build and test for ${{ matrix.arch }} with Clang 22
+    runs-on: ubuntu-26.04
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - name: Clang-18
-            extra_deps: clang-18
-            c_compiler: clang-18
-            cxx_compiler: clang++-18
+          - arch: armv7
+            cxx_flags: -Wno-psabi
+            compiler_tgt_cpu_arch: arm
+            compiler_tgt_abi_suffix: eabihf
+            cmake_flags: -DHWY_CMAKE_ARM7:BOOL=ON
+            qemu_emulator: qemu-arm
+          - arch: ppc64
+            cxx_flags: -mcpu=power9 -mabi=ibmlongdouble -DHWY_COMPILE_ONLY_STATIC=1
+            compiler_tgt_cpu_arch: powerpc64
+            qemu_emulator: qemu-ppc64
+          - arch: ppc64le (Power8)
+            cxx_flags: -mcpu=power8 -mabi=ibmlongdouble -DHWY_DISABLED_TARGETS=0x1800000000000
+            compiler_tgt_cpu_arch: powerpc64le
+            cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
+            qemu_emulator: qemu-ppc64le
+          - arch: ppc64le (Power9)
+            cxx_flags: -mcpu=power9 -mabi=ibmlongdouble -DHWY_COMPILE_ONLY_STATIC=1
+            compiler_tgt_cpu_arch: powerpc64le
+            cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
+            qemu_emulator: qemu-ppc64le
+          - arch: ppc64le (Power10)
+            cxx_flags: -mcpu=power10 -mabi=ibmlongdouble -DHWY_COMPILE_ONLY_STATIC=1
+            compiler_tgt_cpu_arch: powerpc64le
+            cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
+            qemu_emulator: qemu-ppc64le;-cpu;power10
+          - arch: loongarch64
+            compiler_tgt_cpu_arch: loongarch64
+            cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
+            qemu_emulator: qemu-loongarch64;-cpu;max
+          - arch: s390x (Z14)
+            cxx_flags: -march=z14 -mzvector -DHWY_COMPILE_ONLY_STATIC=1
+            compiler_tgt_cpu_arch: s390x
+            cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
+            qemu_emulator: qemu-s390x
+          - arch: s390x (Z15)
+            cxx_flags: -march=z15 -mzvector -DHWY_COMPILE_ONLY_STATIC=1
+            compiler_tgt_cpu_arch: s390x
+            cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
+            qemu_emulator: qemu-s390x
+          - arch: riscv64
+            cxx_flags: -DHWY_COMPILE_ONLY_STATIC=1
+            compiler_tgt_cpu_arch: riscv64
+            qemu_emulator: qemu-riscv64;-cpu;max,v=true,vlen=256
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+      with:
+        egress-policy: audit  # cannot be block - runner does git checkout
+
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+    - name: Install deps
+      run: |
+        sudo apt-get update && sudo apt-get install qemu-user clang-22 \
+        "g++-${{ matrix.compiler_tgt_cpu_arch }}-linux-gnu${{ matrix.compiler_tgt_abi_suffix }}"
+
+    - name: Build and test
+      run: |
+        export CMAKE_BUILD_PARALLEL_LEVEL=2
+        export CTEST_PARALLEL_LEVEL=2
+        CXXFLAGS="${{ matrix.cxx_flags }}" \
+          CC="clang-22" CXX="clang++-22" cmake -DHWY_WARNINGS_ARE_ERRORS=ON -DCMAKE_CXX_STANDARD=17 \
+          -DCMAKE_C_COMPILER_TARGET="${{ matrix.compiler_tgt_cpu_arch }}-linux-gnu${{ matrix.compiler_tgt_abi_suffix }}" \
+          -DCMAKE_CXX_COMPILER_TARGET="${{ matrix.compiler_tgt_cpu_arch }}-linux-gnu${{ matrix.compiler_tgt_abi_suffix }}" \
+          -DCMAKE_CROSSCOMPILING=true \
+          -DCMAKE_CROSSCOMPILING_EMULATOR="${{ matrix.qemu_emulator }};-L;/usr/${{ matrix.compiler_tgt_cpu_arch }}-linux-gnu${{ matrix.compiler_tgt_abi_suffix }}" \
+          -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR="${{ matrix.compiler_tgt_cpu_arch }}" \
+          ${{ matrix.cmake_flags }} -B out .
+        cmake --build out
+        ctest --test-dir out
+  aarch64_cmake:
+    name: Build and test ${{ matrix.name }} on AArch64
+    runs-on: ubuntu-26.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Clang-22
+            extra_deps: clang-22
+            c_compiler: clang-22
+            cxx_compiler: clang++-22
             cxx_standard: 17
 
-          - name: GCC-14
-            extra_deps: g++-14
-            c_compiler: gcc-14
-            cxx_compiler: g++-14
+          - name: GCC-16
+            extra_deps: g++-16
+            c_compiler: gcc-16
+            cxx_compiler: g++-16
             cxx_flags: -ftrapv
             cxx_standard: 17
 
@@ -82,44 +201,5 @@ jobs:
           export CMAKE_BUILD_PARALLEL_LEVEL=2
           export CTEST_PARALLEL_LEVEL=2
           CXXFLAGS="${{ matrix.cxx_flags }}" CC=${{ matrix.c_compiler }} CXX=${{ matrix.cxx_compiler }} cmake -DHWY_WARNINGS_ARE_ERRORS=ON -DCMAKE_CXX_STANDARD=${{ matrix.cxx_standard }} ${{ matrix.extra_cmake_flags }} -B out .
-          cmake --build out
-          ctest --test-dir out
-
-  loongarch64_cmake:
-    name: Build and test ${{ matrix.name }} on LoongArch64
-    runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        include:
-          - name: GCC-14
-            extra_deps: qemu-loongarch64
-            c_compiler: loongarch64-unknown-linux-gnu-gcc
-            cxx_compiler: loongarch64-unknown-linux-gnu-g++
-            cxx_standard: 17
-    steps:
-      - name: get cross-tools evn
-        run: |
-          wget https://github.com/loongson/build-tools/releases/download/2025.02.21/x86_64-cross-tools-loongarch64-binutils_2.44-gcc_14.2.0-glibc_2.41.tar.xz
-          sudo tar -xvf x86_64-cross-tools-loongarch64-binutils_2.44-gcc_14.2.0-glibc_2.41.tar.xz -C /opt
-      - name: Harden Runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
-        with:
-          egress-policy: audit  # cannot be block - runner does git checkout
-
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - name: Install deps
-        run: |
-          wget https://github.com/loongson/build-tools/releases/download/2025.02.21/${{ matrix.extra_deps }}
-          chmod +x ${{ matrix.extra_deps }}
-          sudo mv ${{ matrix.extra_deps }} /opt/cross-tools/bin
-      - name: Build and test
-        run: |
-          export CMAKE_BUILD_PARALLEL_LEVEL=2
-          export CTEST_PARALLEL_LEVEL=2
-          export PATH="/opt/cross-tools/bin:$PATH"
-          export LD_LIBRARY_PATH="/opt/cross-tools/loongarch64-unknown-linux-gnu/lib:$LD_LIBRARY_PATH"
-          export CC=${{ matrix.c_compiler }} CXX=${{ matrix.cxx_compiler }}
-          cmake -DCMAKE_C_COMPILER_TARGET="loongarch64-unknown-linux-gnu" -DCMAKE_CXX_COMPILER_TARGET="loongarch64-unknown-linux-gnu" -DCMAKE_CROSSCOMPILING=true -DCMAKE_CROSSCOMPILING_EMULATOR="qemu-loongarch64;-cpu;max;-L;/opt/cross-tools/target" -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=loongarch64 -B out .
           cmake --build out
           ctest --test-dir out
