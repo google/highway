@@ -194,4 +194,4 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~tan~~
 *   ~~pow~~
 *   ~~Lookup32~~
-*   ~~tgamaa~~
+*   ~~tgamma~~

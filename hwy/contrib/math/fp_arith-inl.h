@@ -192,7 +192,7 @@ HWY_INLINE HWY_MAYBE_UNUSED VF DDAdd(DF df, VF a_hi, VF a_lo, VF b_hi, VF b_lo,
 
 // Returns hi = (a_hi + a_lo) * b, r_lo = low part
 template <class DF, HWY_IF_FLOAT3264_D(DF), class VF = Vec<DF>>
-HWY_INLINE HWY_MAYBE_UNUSED VF DDMulV(DF df, VF a_hi, VF a_lo, VF b, VF& r_lo) {
+HWY_INLINE HWY_MAYBE_UNUSED VF DDMul1(DF df, VF a_hi, VF a_lo, VF b, VF& r_lo) {
   VF p_lo;
   const VF p_hi = TwoProducts(df, a_hi, b, p_lo);
   p_lo = MulAdd(a_lo, b, p_lo);
@@ -201,8 +201,8 @@ HWY_INLINE HWY_MAYBE_UNUSED VF DDMulV(DF df, VF a_hi, VF a_lo, VF b, VF& r_lo) {
 
 // Returns hi = (a_hi + a_lo) * (b_hi + b_lo), r_lo = low part
 template <class DF, HWY_IF_FLOAT3264_D(DF), class VF = Vec<DF>>
-HWY_INLINE HWY_MAYBE_UNUSED VF DDMul(DF df, VF a_hi, VF a_lo, VF b_hi, VF b_lo,
-                                     VF& r_lo) {
+HWY_INLINE HWY_MAYBE_UNUSED VF DDMul2(DF df, VF a_hi, VF a_lo, VF b_hi, VF b_lo,
+                                      VF& r_lo) {
   VF p_lo;
   const VF p_hi = TwoProducts(df, a_hi, b_hi, p_lo);
   p_lo = MulAdd(a_hi, b_lo, MulAdd(a_lo, b_hi, p_lo));
@@ -215,7 +215,7 @@ HWY_INLINE HWY_MAYBE_UNUSED VF DDDiv(DF df, VF a_hi, VF a_lo, VF b_hi, VF b_lo,
                                      VF& r_lo) {
   const VF q1 = Div(a_hi, b_hi);
   VF qb_lo;
-  const VF qb_hi = DDMulV(df, b_hi, b_lo, q1, qb_lo);
+  const VF qb_hi = DDMul1(df, b_hi, b_lo, q1, qb_lo);
   VF r_hi_lo;
   const VF r_hi = DDAdd(df, a_hi, a_lo, Neg(qb_hi), Neg(qb_lo), r_hi_lo);
   const VF q2 = Div(r_hi, b_hi);
