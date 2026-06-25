@@ -21,12 +21,14 @@ jobs:
             c_compiler: clang-15
             cxx_compiler: clang++-15
             cxx_flags: -DHWY_DISABLED_TARGETS=0x59d8  # disable every x86 target except AVX2
+            extra_setup_args: -Dcontrib=disabled
 
           - compiler: GCC-12
             extra_deps: g++-12
             c_compiler: gcc-12
             cxx_compiler: g++-12
             cxx_flags: -ftrapv -DHWY_DISABLED_TARGETS=0x59d8 
+            extra_setup_args: -Dcontrib=disabled
 
     steps:
       - name: Harden Runner
@@ -156,6 +158,65 @@ jobs:
       - name: Test
         run: meson test -C out -j 2 --print-errorlogs ${{ matrix.extra_test_args }}
 
+  ubuntu_resolute_x86_64:
+    name: Meson build and test ${{ matrix.compiler }} (C++${{ matrix.cxx_standard }}) on Resolute x86_64
+    runs-on: ubuntu-26.04
+    strategy:
+      matrix:
+        compiler: [Clang-22, GCC-16, powerpc64le-linux-gnu-gcc-16]
+        cxx_standard: [17]
+        include:
+            - compiler: Clang-22
+              extra_deps: clang-22
+              c_compiler: clang-22
+              cxx_compiler: clang++-22
+              cxx_flags: -DHWY_DISABLED_TARGETS=0x59d8
+
+            - compiler: GCC-16
+              extra_deps: g++-16
+              c_compiler: gcc-16
+              cxx_compiler: g++-16
+              cxx_flags: -ftrapv -DHWY_DISABLED_TARGETS=0x59d8
+
+            - compiler: powerpc64le-linux-gnu-gcc-16
+              extra_deps: g++-16-powerpc64le-linux-gnu qemu-user
+              c_compiler: powerpc64le-linux-gnu-gcc-16
+              cxx_compiler: powerpc64le-linux-gnu-g++-16
+              cxx_flags: -mcpu=power9 -DHWY_COMPILE_ONLY_STATIC=1
+              extra_setup_args: -Dcontrib=disabled --cross-file .github/meson/gcc_16_ppc64le_meson_cross_compile_config.txt
+              emulator_cmd: qemu-ppc64le -cpu power10 -L /usr/powerpc64le-linux-gnu
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit  # cannot be block - runner does git checkout
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+        # meson on resolute is at 1.10.1
+      - name: Install deps
+        run: sudo apt-get update && sudo apt-get install ninja-build meson libgtest-dev ${{ matrix.extra_deps }}
+
+      - name: Configure Build
+        run: meson setup out -Dcpp_std=c++${{ matrix.cxx_standard }} ${{env.meson_setup_args}} ${{ matrix.extra_setup_args }}
+        env:
+          CXX: ${{matrix.cxx_compiler}}
+          CC: ${{matrix.c_compiler}}
+          CXXFLAGS: ${{ matrix.cxx_flags }}
+
+      # builds libhwy and compiles the target list executable
+      - name: Report Targets
+        run: |
+          meson compile -C out -v hwy_list_targets
+          ${{ matrix.emulator_cmd }} out/hwy_list_targets
+
+      - name: Build
+        run: meson compile -C out -j 2 -v
+
+      - name: Test
+        run: meson test -C out -j 2 --print-errorlogs
+
   win:
     name: Meson build and test ${{ matrix.compiler }} (C++${{matrix.cxx_standard}}) on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -204,41 +265,3 @@ jobs:
 
       - name: Test
         run: meson test -C out -j 2 --print-errorlogs ${{ matrix.extra_test_args }}
-
-  run_on_arch:
-    runs-on: ubuntu-22.04
-    strategy:
-      fail-fast: true
-      matrix:
-        include:
-          - arch: ppc64le
-            distro: ubuntu_latest
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-    - name: Build and test
-      uses: uraimo/run-on-arch-action@f9b26e3a1a408d5fd530d20c17b9f3f4428ff8d9 # v3.1.0
-      id: build
-      with:
-        arch: ${{ matrix.arch }}
-        distro: ${{ matrix.distro }}
-        # Not required, but speeds up builds
-        githubToken: ${{ github.token }}
-        install: |
-          apt-get update -q -y
-          apt-get install -q -y --no-install-recommends \
-                build-essential \
-                libgtest-dev \
-                ninja-build \
-                meson \
-                ;
-        run: |
-          CXXFLAGS=${{ matrix.cxx_flags }} meson setup out ${{env.meson_setup_args}} ${{ matrix.meson_flags }}
-          
-          # compile just the libhwy and list targets
-          meson compile -C out -v hwy_list_targets
-          out/hwy_list_targets
-
-          # dry run the rest of the compile commands
-          meson compile -C out -j 2 -v --ninja-args=-n,-d,explain
-          # meson test -C out -j 2 --print-errorlogs

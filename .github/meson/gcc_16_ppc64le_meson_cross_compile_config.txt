@@ -1,0 +1,17 @@
+[binaries]
+c = 'powerpc64le-linux-gnu-gcc-16'
+cpp = 'powerpc64le-linux-gnu-g++-16'
+ar = 'powerpc64le-linux-gnu-ar'
+strip = 'powerpc64le-linux-gnu-strip'
+ld = 'powerpc64le-linux-gnu-ld'
+
+exe_wrapper = ['qemu-ppc64le', '-cpu', 'power10', '-L', '/usr/powerpc64le-linux-gnu']
+
+[properties]
+root = '/usr/powerpc64le-linux-gnu'
+
+[host_machine]
+system = 'linux'
+cpu_family = 'ppc64'
+cpu = 'power10'
+endian = 'little'
