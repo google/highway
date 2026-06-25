@@ -91,6 +91,7 @@ HWY_CONTRIB_TESTS = (
             ":stats",
             ":thread_pool",
             ":bit_set",
+            "//hwy/contrib/sort:vqsort",
         ],
     ),
     (

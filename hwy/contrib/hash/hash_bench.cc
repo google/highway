@@ -43,6 +43,7 @@ namespace {
 
 template <class IHash>
 HWY_NOINLINE void TestLatency(const IHash& hash) {
+  using LaneType = typename IHash::LaneType;
   FuncInput input = static_cast<FuncInput>(Unpredictable1());
   Params params = DefaultBenchmarkParams();
   params.verbose = false;
@@ -50,7 +51,7 @@ HWY_NOINLINE void TestLatency(const IHash& hash) {
 
   const size_t num_results = MeasureClosure(
       [&hash](FuncInput func_input) {
-        return hash(static_cast<uint32_t>(func_input));
+        return hash(static_cast<LaneType>(func_input));
       },
       &input, 1, results, params);
   if (num_results == 1) {
@@ -66,10 +67,11 @@ HWY_NOINLINE void TestLatency(const IHash& hash) {
 
 template <class IHash>
 HWY_NOINLINE void TestThroughput(const IHash& hash) {
-  const size_t kNumU32 = 4096;
-  HWY_ALIGN_MAX uint32_t inout[kNumU32];
-  for (size_t i = 0; i < kNumU32; ++i) {
-    inout[i] = static_cast<uint32_t>(Unpredictable1());
+  using LaneType = typename IHash::LaneType;
+  const size_t kNumKeys = 4096;
+  HWY_ALIGN_MAX LaneType inout[kNumKeys];
+  for (size_t i = 0; i < kNumKeys; ++i) {
+    inout[i] = static_cast<LaneType>(Unpredictable1());
   }
 
   FuncInput input = static_cast<FuncInput>(Unpredictable1());
@@ -79,7 +81,7 @@ HWY_NOINLINE void TestThroughput(const IHash& hash) {
 
   const size_t num_results = MeasureClosure(
       [&](FuncInput func_input) {
-        HashArray(hash, inout, kNumU32);
+        HashArray(hash, inout, kNumKeys);
         return inout[func_input];
       },
       &input, 1, results, params);
@@ -87,7 +89,7 @@ HWY_NOINLINE void TestThroughput(const IHash& hash) {
     const double ns =
         results[0].ticks / platform::InvariantTicksPerSecond() * 1E9;
     printf("%12s: %7.2f ns = %4.1f GB/s; measurement MAD=%4.2f%%\n",
-           hash.Name(), ns, kNumU32 * sizeof(uint32_t) / ns,
+           hash.Name(), ns, kNumKeys * sizeof(LaneType) / ns,
            results[0].variability * 100.0);
   } else {
     HWY_WARN("Measurement failed.");
@@ -97,11 +99,13 @@ HWY_NOINLINE void TestThroughput(const IHash& hash) {
 HWY_NOINLINE void TestAllLatency() {
   AesCtrEngine engine(/*deterministic=*/true);
   ForeachHash(engine, 0, [](const auto& hash) { TestLatency(hash); });
+  ForeachHash64(engine, 0, [](const auto& hash) { TestLatency(hash); });
 }
 
 HWY_NOINLINE void TestAllThroughput() {
   AesCtrEngine engine(/*deterministic=*/true);
   ForeachHash(engine, 0, [](const auto& hash) { TestThroughput(hash); });
+  ForeachHash64(engine, 0, [](const auto& hash) { TestThroughput(hash); });
 }
 
 #else   // HWY_TARGET == HWY_SCALAR

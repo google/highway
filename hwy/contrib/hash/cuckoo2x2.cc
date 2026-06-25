@@ -122,9 +122,9 @@ class PerWorkerBuilder {
     ZeroBytes(count_.data(), num_buckets * sizeof(count_[0]));
     ZeroBytes(entries_.data(), num_buckets * sizeof(entries_[0]));
 
-    // Vectorized hashing via Triple32 and MulGolden.
+    // Vectorized hashing via Triple32 and WeakOneMul.
     HashArray(hash1_, keys.data(), hashes1_.data(), num_keys);
-    HashArray(MulGolden(), keys.data(), hashes2_.data(), num_keys);
+    HashArray(WeakOneMul(), keys.data(), hashes2_.data(), num_keys);
 
     // Cuckoo insertion with displacement; fail if cycle detected.
     if (!CuckooAssign(num_keys)) {

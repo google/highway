@@ -54,6 +54,7 @@ namespace {
 
 using KeyType = uint32_t;
 using HashType = uint32_t;
+HWY_INLINE_VAR constexpr bool kRunSlowEvals = false;
 HWY_INLINE_VAR constexpr size_t kKeyBits = sizeof(KeyType) * 8;
 HWY_INLINE_VAR constexpr size_t kHashBits = sizeof(HashType) * 8;
 
@@ -199,9 +200,9 @@ class BiasBins {
   AlignedVector<uint32_t> bins_;
 };
 
-inline void FlipBit(uint32_t& val, uint32_t bit) {
-  bit &= 31;
-  val ^= (uint32_t{1} << bit);
+inline void FlipBit(KeyType& val, size_t bit) {
+  bit &= kKeyBits - 1;
+  val ^= (KeyType{1} << bit);
 }
 
 template <typename HashFunction>
@@ -342,7 +343,8 @@ void TestDiff(const HashFunction& hash, EvalCtx& ctx) {
   AlignedVector<Diffs> all_diffs;
   all_diffs.resize(ctx.pool.NumWorkers());
 
-  const int diffbits = 5;
+  // C(kKeyBits, diffbits) per rep; reduce for wider keys.
+  const int diffbits = (kKeyBits <= 32) ? 5 : 3;
   const size_t reps = 1000;
   const IndexRangePartition tasks = ctx.StaticPartition(reps);
   ctx.pool.Run(
@@ -433,7 +435,7 @@ Result TestDistribution(const AlignedVector<HashType>& hashes, EvalCtx& ctx) {
       const ScalableTag<HashType> dh;
       HWY_LANES_CONSTEXPR size_t NH = Lanes(dh);
       using VH = Vec<decltype(dh)>;
-      HWY_ALIGN uint32_t indices[MaxLanes(dh)];
+      HWY_ALIGN HashType indices[MaxLanes(dh)];
 
       size_t i = 0;
       if (HWY_LIKELY(hashes.size() >= NH)) {
@@ -554,11 +556,11 @@ void TestMulCounter(const HashFunction& hash, EvalCtx& ctx) {
   ComputeHashes(0, hashes, ctx,
                 [&](auto dh, size_t NH, RngStream& /*rng*/, size_t i, auto& h0,
                     auto& h1) HWY_ATTR {
-                  // Hash Iota*mul.
+                  // Hash Iota << 16 (equivalent to Iota*0x10000).
+                  // ShiftLeft works for all lane types unlike Mul.
                   using VH = Vec<decltype(dh)>;
-                  const VH kMul = Set(dh, 0x10000);
-                  VH k0 = Mul(Iota(dh, i), kMul);
-                  VH k1 = Mul(Iota(dh, i + NH), kMul);
+                  VH k0 = ShiftLeft<16>(Iota(dh, i));
+                  VH k1 = ShiftLeft<16>(Iota(dh, i + NH));
                   hash.TwoVec(dh, k0, k1);
                   h0 = k0;
                   h1 = k1;
@@ -713,7 +715,8 @@ void SparseKeygenR(int start, int bitsleft, KeyType& k,
 }
 
 HWY_MAYBE_UNUSED AlignedVector<HashType> SparseKeygen() {
-  const int kNonzeroBits = 6;
+  // C(kKeyBits, kNonzeroBits) keys; reduce for wider keys.
+  const int kNonzeroBits = (kKeyBits <= 32) ? 6 : 5;
 
   AlignedVector<HashType> keys;
   keys.reserve(2 * 1000 * 1000);
@@ -729,8 +732,11 @@ HWY_MAYBE_UNUSED AlignedVector<HashType> CyclicKeygen() {
   keys.reserve(255 * 255);
   for (int valA = 1; valA <= 255; ++valA) {
     for (int valB = 1; valB <= 255; ++valB) {
-      const KeyType cycle = valA * 256 + valB;
-      keys.push_back(cycle * 0x00010001u);
+      const KeyType cycle = static_cast<KeyType>(valA * 256 + valB);
+      // Replicate the 16-bit pattern across all bytes of KeyType.
+      // u32: 0x00010001, u64: 0x0001000100010001.
+      constexpr KeyType kRep = static_cast<KeyType>(~KeyType{0}) / 0xFFFF;
+      keys.push_back(cycle * kRep);
     }
   }
   return keys;
@@ -790,7 +796,7 @@ void RunTests(const HashFunction& hash) {
   TestCyclic(hash, ctx);
 
   // Re-enable for manual runs; we want tests to be fast by default.
-  if constexpr (false) {
+  if constexpr (kRunSlowEvals) {
     TestAvalanche(hash, ctx);
     TestDiff(hash, ctx);
 
@@ -804,7 +810,11 @@ void RunTests(const HashFunction& hash) {
 
 HWY_NOINLINE void RunAll() {
   AesCtrEngine engine(/*deterministic=*/true);
-  ForeachHash(engine, 0, [](const auto& hash) { RunTests(hash); });
+  if constexpr (sizeof(HashType) == 4) {
+    ForeachHash(engine, 0, [](const auto& hash) { RunTests(hash); });
+  } else {
+    ForeachHash64(engine, 0, [](const auto& hash) { RunTests(hash); });
+  }
   PROFILER_PRINT_RESULTS();
 }
 

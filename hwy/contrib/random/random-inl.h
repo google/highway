@@ -457,7 +457,9 @@ class alignas(16) AesCtrEngine {
 };
 
 // Flyweight per-thread adapter that maintains the counter. Conforms to C++
-// `UniformRandomBitGenerator`.
+// `UniformRandomBitGenerator`. Note that this is not a permutation. It is
+// possible but very unlikely that two identical u64 values are returned from
+// operator(), because we only return the lower half of the AES-CTR output.
 class RngStream {
  public:
   RngStream() = default;  // Allow C arrays with subsequent initialization.

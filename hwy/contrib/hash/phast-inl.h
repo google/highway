@@ -19,7 +19,8 @@
 // high-throughput SIMD queries: 2.8 and 7.8 GB/s on AMD Milan and Turin for 1M
 // queries. This is actually memory-bound, not compute-bound. The tradeoff is
 // higher storage requirements: 4.8 bits/key (2 keys per bucket, plus only 2%
-// headroom, i.e. extra slots).
+// headroom, i.e. extra slots). This is generally a bit slower than Cuckoo2x2,
+// except when Cuckoo2x2 does not fit into L3, because PHAST seeds are smaller.
 //
 // Jenkins' https://burtleburtle.net/bob/hash/perfect.html manages perfect
 // hashing (i.e. 0% headroom) in 3-8 bits/key, but also requires two

@@ -36,6 +36,7 @@
 #include "hwy/bit_set.h"
 #include "hwy/contrib/hash/hash-inl.h"
 #include "hwy/contrib/random/random-inl.h"
+#include "hwy/contrib/sort/vqsort.h"
 #include "hwy/contrib/thread_pool/thread_pool.h"
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
@@ -189,8 +190,9 @@ static HWY_NOINLINE void TestBias(const Hash& hash) {
     }
 
     // Each bit should be ~50% ones. 2.5% tolerance.
-    const uint32_t lo = static_cast<uint32_t>(kNumTrials * 0.475);
-    const uint32_t hi = static_cast<uint32_t>(kNumTrials * 0.525);
+    const double kTol = kNumTrials < 20'000 ? 0.05 : 0.025;
+    const uint32_t lo = static_cast<uint32_t>(kNumTrials * (0.5 - kTol));
+    const uint32_t hi = static_cast<uint32_t>(kNumTrials * (0.5 + kTol));
 
     for (size_t bit = 0; bit < 32; ++bit) {
       if (bit_count[bit] < lo || bit_count[bit] > hi) {
@@ -300,7 +302,7 @@ static HWY_NOINLINE void TestAllBuckets() {
 // a bit array. Takes 12 seconds on Milan.
 template <class Hash>
 static HWY_NOINLINE void TestBijection(const Hash& hash) {
-  // Verified for Murmur3, Speck32, Feistel4Mul2 and Triple32. TestBuckets also
+  // Verified for WeakTwoMul, Triple32, Murmur3, and Speck32. TestBuckets also
   // verifies bijection, but faster, hence disable.
   if (Unpredictable1()) GTEST_SKIP();
 
@@ -434,6 +436,108 @@ static HWY_NOINLINE void TestAllEdgeCases() {
   });
 }
 
+// ---------- 64-bit hash tests ----------
+
+// Minimal edge-case tests for 64-bit hash permutations.
+template <class Hash>
+static HWY_NOINLINE void TestEdgeCases64(const Hash& hash) {
+  // hash(0) != 0 (non-trivial).
+  HWY_ASSERT(hash(uint64_t{0}) != 0);
+
+  // hash(0) != hash(1) (distinct).
+  HWY_ASSERT(hash(uint64_t{0}) != hash(uint64_t{1}));
+
+  // hash(max) should be non-trivial.
+  const uint64_t all_ones = ~uint64_t{0};
+  HWY_ASSERT(hash(all_ones) != 0);
+  HWY_ASSERT(hash(all_ones) != all_ones);
+
+  // Consecutive inputs produce different outputs.
+  for (uint64_t i = 0; i < 1000; ++i) {
+    HWY_ASSERT(hash(i) != hash(i + 1));
+  }
+
+  // Large inputs also produce distinct outputs.
+  const uint64_t large = uint64_t{1} << 40;
+  for (uint64_t i = large; i < large + 1000; ++i) {
+    HWY_ASSERT(hash(i) != hash(i + 1));
+  }
+
+  // Different seeds produce different permutations.
+  AesCtrEngine engine(/*deterministic=*/true);
+  Hash hash2(engine, 1);
+  HWY_ASSERT(hash(uint64_t{42}) != hash2(uint64_t{42}));
+}
+
+static HWY_NOINLINE void TestAllEdgeCases64() {
+  AesCtrEngine engine(/*deterministic=*/true);
+  ForeachHash64(engine, 0, [](const auto& hash) {
+    fprintf(stderr, "%s (64-bit)\n", hash.Name());
+    TestEdgeCases64(hash);
+  });
+}
+
+// Probabilistic bijection test for 64-bit hashes. Since we cannot enumerate
+// all 2^64 inputs, we hash many random inputs and check for collisions.
+template <class Hash>
+static HWY_NOINLINE void TestBijection64(const Hash& hash) {
+  AesCtrEngine engine(/*deterministic=*/true);
+
+  ThreadPool pool = MakePool();
+
+  // Each worker hashes random inputs and stores outputs in a sorted array,
+  // then we check for duplicates. Any collision very likely indicates a bug.
+  constexpr size_t kNumTrials = AdjustedReps(500'000);
+
+  pool.Run(0, pool.NumWorkers(), [&](uint64_t task, size_t /*worker*/) {
+    RngStream rng(engine, task);
+
+    const ScalableTag<uint64_t> du64;
+    using VU64 = Vec<decltype(du64)>;
+    HWY_LANES_CONSTEXPR size_t N = Lanes(du64);
+    HWY_ALIGN uint64_t out[2 * MaxLanes(du64)];
+
+    AlignedVector<uint64_t> outputs;
+    outputs.reserve(kNumTrials);
+
+    for (size_t trial = 0; trial < kNumTrials; trial += 2 * N) {
+      // Generate inputs that are unique with overwhelming probability.
+      // Within each vector, inputs = rng_base ^ Iota, which are unique
+      // because XOR with a constant is a bijection. Across vectors, the rng
+      // bases differ (AES-CTR outputs are pseudo-random), so collisions
+      // require a 64-bit coincidence: P(any collision) ~ kNumTrials^2/2^65,
+      // which is negligible.
+      VU64 v0 = Xor(Set(du64, rng()), Iota(du64, trial));
+      VU64 v1 = Xor(Set(du64, rng()), Iota(du64, trial + N));
+      hash.TwoVec(du64, v0, v1);
+      Store(v0, du64, out);
+      Store(v1, du64, out + N);
+      const size_t count = HWY_MIN(2 * N, kNumTrials - trial);
+      for (size_t i = 0; i < count; ++i) {
+        outputs.push_back(out[i]);
+      }
+    }
+
+    // Sort and check for duplicates.
+    VQSort(outputs.data(), outputs.size(), SortAscending());
+    for (size_t i = 1; i < outputs.size(); ++i) {
+      if (outputs[i] == outputs[i - 1]) {
+        HWY_ABORT("Collision in 64-bit hash: stream %zu, value %016llx",
+                  static_cast<size_t>(task),
+                  static_cast<unsigned long long>(outputs[i]));
+      }
+    }
+  });
+}
+
+static HWY_NOINLINE void TestAllBijection64() {
+  AesCtrEngine engine(/*deterministic=*/true);
+  ForeachHash64(engine, 0, [](const auto& hash) {
+    fprintf(stderr, "%s (64-bit)\n", hash.Name());
+    TestBijection64(hash);
+  });
+}
+
 #else   // HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128
 static void TestAllAvalanche() {}
 static void TestAllBias() {}
@@ -441,6 +545,8 @@ static void TestAllBuckets() {}
 static void TestAllBijection() {}
 static void TestAllLanesEqual() {}
 static void TestAllEdgeCases() {}
+static void TestAllEdgeCases64() {}
+static void TestAllBijection64() {}
 #endif  // HWY_TARGET != HWY_SCALAR && HWY_TARGET != HWY_EMU128
 
 }  // namespace
@@ -458,6 +564,8 @@ HWY_EXPORT_AND_TEST_BEST_P(HashTest, TestAllBuckets);
 HWY_EXPORT_AND_TEST_BEST_P(HashTest, TestAllBijection);
 HWY_EXPORT_AND_TEST_BEST_P(HashTest, TestAllLanesEqual);
 HWY_EXPORT_AND_TEST_BEST_P(HashTest, TestAllEdgeCases);
+HWY_EXPORT_AND_TEST_BEST_P(HashTest, TestAllEdgeCases64);
+HWY_EXPORT_AND_TEST_BEST_P(HashTest, TestAllBijection64);
 HWY_AFTER_TEST();
 }  // namespace hwy
 HWY_TEST_MAIN();

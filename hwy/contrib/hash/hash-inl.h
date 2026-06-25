@@ -13,10 +13,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Vectorized hash functions, initially 32-bit because this doubles throughput
-// compared to 64-bit. To allow hashing millions of keys, which is very large
-// relative to the sqrt(2^32) birthday bound, we only implement permutations
-// (bijections) using only reversible operations. This rules out any collisions.
+// Vectorized hash functions for u16, u32 and u64. To allow hashing millions of
+// u32 keys, which is very large relative to the sqrt(2^32) birthday bound, we
+// only implement permutations (bijections) using only reversible operations.
+// This rules out any collisions.
 //
 // This space does not seem to have been well-explored yet. Most hashes using
 // SIMD, including our own HighwayHash, absorb register-sized chunks of strings
@@ -26,14 +26,19 @@
 // Many recent hash functions rely on operations unavailable or expensive on
 // SIMD. For example, rapidhash et al. use u64 x u64 = u128 multiplications and
 // others use CRC. Both often lack native SIMD instructions and are expensive to
-// emulate. Even 32-bit multiplications might be slower than expected. Intel is
+// emulate. 64-bit multiplications require three Mul or two MulEven. Intel is
 // speculated to implement their u32 x u32 = u64 and u32 x u32 = u32
 // instructions using two invocations of 16-bit multipliers, which explains
 // their higher latency.
 // [https://fgiesen.wordpress.com/2024/10/26/why-those-particular-integer-multiplies/]
 //
-// However, 32-bit multiplications (Triple32) turn out to be clear winners in
-// mixing quality per throughput, even on Intel.
+// However, for u32, 32-bit multiplications (Triple32) turn out to be clear
+// winners in mixing quality per throughput, even on Intel. For u64, balanced
+// Feistel networks (used in many symmetric block ciphers, see
+// https://en.wikipedia.org/wiki/Feistel_cipher) are hard to beat in terms of
+// throughput. They split u64 elements into u32 halves, and in each of 3 or 4
+// rounds, swap the halves, and XOR into one of them a function of the other.
+// This means the function can be computed for u32 halves from two u64 vectors.
 
 #if defined(HIGHWAY_HWY_CONTRIB_HASH_HASH_INL_H_) == \
     defined(HWY_TARGET_TOGGLE)  // NOLINT
@@ -55,103 +60,73 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
-// Each class provides an operator() and TwoVec. Both are used by hash_bench
-// and hash_eval.
+// Each class provides an operator(), OneVec, and TwoVec.
 
-// Theoretically sound, but always at least 2x slower than Triple32.
-class Feistel4Mul2 {
+// Fastest: just one multiply, for use by Cuckoo2x2. Lower bits are not
+// well-mixed.
+class WeakOneMul {
  public:
-  static constexpr const char* Name() { return "Feistel4Mul2"; }
+  using LaneType = uint32_t;
+  static constexpr const char* Name() { return "WeakOneMul"; }
 
-  Feistel4Mul2(AesCtrEngine& engine, uint64_t seed)
-      : keys_(FillRandom<uint16_t>(2, engine, seed)) {}
+  WeakOneMul() = default;
 
-  uint32_t operator()(uint32_t inout) const {
-    ScalableTag<uint32_t> du32;
-    auto inout0 = Set(du32, inout);
-    auto inout1 = inout0;
-    TwoVec(du32, inout0, inout1);
-    return GetLane(inout1);
-  }
+  uint32_t operator()(uint32_t x) const { return x * 0x9E3779B9u; }
 
   template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
-  HWY_INLINE HWY_MUST_USE_RESULT VU32 OneVec(DU32 du32,
-                                             const VU32 inout0) const {
-    const Rebind<uint16_t, DU32> du16;
-    using VU16 = Vec<decltype(du16)>;
-
-    // Feistel turns any F into a bijection. Split each u32 into its even
-    // (lower) and odd (upper) u16. Randen also splits, but into 128-bit blocks.
-    VU16 LL = TruncateTo(du16, inout0);
-    VU16 RR = TruncateTo(du16, ShiftRight<16>(inout0));
-
-    // Feistel must apply the same function to all lanes, hence broadcast.
-    const VU16 kKey0 = Set(du16, keys_[0]);
-    const VU16 kKey1 = Set(du16, keys_[1]);
-    const VU16 kMul0 = Set(du16, 0xA3D3u);
-    const VU16 kMul1 = Set(du16, 0x4B2Du);
-
-    // Alternate keys for at least some variation.
-    LL = FeistelMul(du16, RR, LL, kKey0, kMul0, kMul1);
-    RR = FeistelMul(du16, LL, RR, kKey1, kMul0, kMul1);
-    LL = FeistelMul(du16, RR, LL, kKey0, kMul0, kMul1);
-    RR = FeistelMul(du16, LL, RR, kKey1, kMul0, kMul1);
-
-    // Re-interleave LL and RR back into u32.
-    const Twice<decltype(du16)> du16t;
-    const VU16 lo = InterleaveWholeLower(du16, LL, RR);
-    const VU16 hi = InterleaveWholeUpper(du16, LL, RR);
-    return BitCast(du32, Combine(du16t, lo, hi));
+  HWY_INLINE HWY_MUST_USE_RESULT VU32 OneVec(DU32 du32, const VU32 in) const {
+    return Mul(in, Set(du32, 0x9E3779B9u));
   }
 
   template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
   HWY_INLINE void TwoVec(DU32 du32, VU32& inout0, VU32& inout1) const {
-    const RepartitionToNarrow<DU32> du16;
-    using VU16 = Vec<decltype(du16)>;
+    inout0 = OneVec(du32, inout0);
+    inout1 = OneVec(du32, inout1);
+  }
+};
 
-    // Feistel turns any F into a bijection. Split each u32 into its even
-    // (lower) and odd (upper) u16. Randen also splits, but into 128-bit blocks.
-    const VU16 lo = BitCast(du16, inout0);
-    const VU16 hi = BitCast(du16, inout1);
-    VU16 LL = ConcatEven(du16, hi, lo);
-    VU16 RR = ConcatOdd(du16, hi, lo);
+// Two-multiply + xor-fold by Chris Wellons and TheIronBorn:
+// https://github.com/skeeto/hash-prospector/issues/19
+// Faster than Triple32 but insufficient to pass SMHasher, especially for
+// cyclic keys. Used by Feistel4Mul2.
+class WeakTwoMul {
+ public:
+  using LaneType = uint32_t;
+  static constexpr const char* Name() { return "WeakTwoMul"; }
 
-    // Feistel must apply the same function to all lanes, hence broadcast.
-    const VU16 kKey0 = Set(du16, keys_[0]);
-    const VU16 kKey1 = Set(du16, keys_[1]);
-    const VU16 kMul0 = Set(du16, 0xA3D3u);
-    const VU16 kMul1 = Set(du16, 0x4B2Du);
+  WeakTwoMul(AesCtrEngine& engine, uint64_t seed)
+      : key_(static_cast<uint32_t>(RngStream(engine, seed)())) {}
 
-    // Alternate keys for at least some variation.
-    LL = FeistelMul(du16, RR, LL, kKey0, kMul0, kMul1);
-    RR = FeistelMul(du16, LL, RR, kKey1, kMul0, kMul1);
-    LL = FeistelMul(du16, RR, LL, kKey0, kMul0, kMul1);
-    RR = FeistelMul(du16, LL, RR, kKey1, kMul0, kMul1);
+  uint32_t operator()(uint32_t x) const {
+    ScalableTag<uint32_t> du32;
+    return GetLane(OneVec(du32, Set(du32, x)));
+  }
 
-    // Re-interleave LL and RR back into u32.
-    inout0 = BitCast(du32, InterleaveWholeLower(du16, LL, RR));
-    inout1 = BitCast(du32, InterleaveWholeUpper(du16, LL, RR));
+  template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
+  HWY_INLINE HWY_MUST_USE_RESULT VU32 OneVec(DU32 du32, const VU32 in) const {
+    VU32 hash = Xor(in, Set(du32, key_));
+    hash = Xor(hash, ShiftRight<16>(hash));
+    hash = Mul(hash, Set(du32, 0x21F0AAADu));
+    hash = Xor(hash, ShiftRight<15>(hash));
+    hash = Mul(hash, Set(du32, 0xF35A2D97u));
+    hash = Xor(hash, ShiftRight<15>(hash));
+    return hash;
+  }
+
+  template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
+  HWY_INLINE void TwoVec(DU32 du32, VU32& inout0, VU32& inout1) const {
+    inout0 = OneVec(du32, inout0);
+    inout1 = OneVec(du32, inout1);
   }
 
  private:
-  template <class DU16, class VU16 = Vec<DU16>, HWY_IF_U16_D(DU16)>
-  static HWY_INLINE VU16 FeistelMul(DU16, VU16 x, const VU16 other,
-                                    const VU16 kKey, const VU16 kMul0,
-                                    const VU16 kMul1) {
-    x = Xor(x, ShiftRight<8>(x));
-    x = Mul(x, kMul0);
-    x = Xor(x, ShiftRight<7>(x));
-    x = Mul(x, kMul1);
-    x = Xor(x, ShiftRight<9>(x));
-    return Xor3(x, kKey, other);
-  }
-
-  AlignedVector<uint16_t> keys_;
+  uint32_t key_;
 };
 
-// Low bias, fastest.
+// Good quality and reasonable speed. Used by Cuckoo2x2 and Feistel3Mul3.
 class Triple32 {
  public:
+  using LaneType = uint32_t;
   static constexpr const char* Name() { return "Triple32"; }
 
   Triple32() = default;
@@ -190,30 +165,147 @@ class Triple32 {
   uint32_t key_ = 0;
 };
 
-class MulGolden {
+// ----------------------------------------------------------------------------
+// 64-bit hashes
+
+// Feistel using four rounds of WeakTwoMul. Splits each u64 into two u32 halves,
+// Slightly faster than Feistel3Mul3 on Zen5, with ~same hash_eval score.
+class Feistel4Mul2 {
  public:
-  static constexpr const char* Name() { return "MulGolden"; }
+  using LaneType = uint64_t;
+  static constexpr const char* Name() { return "Feistel4Mul2"; }
 
-  MulGolden() = default;
+  Feistel4Mul2(AesCtrEngine& engine, uint64_t seed)
+      : f0_(engine, 2 * seed + 0), f1_(engine, 2 * seed + 1) {}
 
-  uint32_t operator()(uint32_t x) const { return x * 0x9E3779B9u; }
-
-  template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
-  HWY_INLINE HWY_MUST_USE_RESULT VU32 OneVec(DU32 du32, const VU32 in) const {
-    return Mul(in, Set(du32, 0x9E3779B9u));
+  uint64_t operator()(uint64_t x) const {
+    ScalableTag<uint64_t> du64;
+    return GetLane(OneVec(du64, Set(du64, x)));
   }
 
-  template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
-  HWY_INLINE void TwoVec(DU32 du32, VU32& inout0, VU32& inout1) const {
-    inout0 = OneVec(du32, inout0);
-    inout1 = OneVec(du32, inout1);
+  template <class DU64, class VU64 = Vec<DU64>, HWY_IF_U64_D(DU64)>
+  HWY_INLINE HWY_MUST_USE_RESULT VU64 OneVec(DU64 du64, const VU64 in) const {
+    const Rebind<uint32_t, DU64> du32;
+    using VU32 = Vec<decltype(du32)>;
+
+    // Split each u64 into lower and upper u32.
+    VU32 LL = TruncateTo(du32, in);
+    VU32 RR = TruncateTo(du32, ShiftRight<32>(in));
+
+    // 4 Feistel rounds, alternating between f0_ and f1_.
+    LL = Xor(LL, f0_.OneVec(du32, RR));
+    RR = Xor(RR, f1_.OneVec(du32, LL));
+    LL = Xor(LL, f0_.OneVec(du32, RR));
+    RR = Xor(RR, f1_.OneVec(du32, LL));
+
+    // Re-interleave LL and RR back into u64.
+    const Twice<decltype(du32)> du32t;
+    const VU32 lo = InterleaveWholeLower(du32, LL, RR);
+    const VU32 hi = InterleaveWholeUpper(du32, LL, RR);
+    return BitCast(du64, Combine(du32t, hi, lo));
   }
+
+  template <class DU64, class VU64 = Vec<DU64>, HWY_IF_U64_D(DU64)>
+  HWY_INLINE void TwoVec(DU64 du64, VU64& inout0, VU64& inout1) const {
+    const RepartitionToNarrow<DU64> du32;
+    using VU32 = Vec<decltype(du32)>;
+
+    // Split each u64 into lower and upper u32.
+    const VU32 lo = BitCast(du32, inout0);
+    const VU32 hi = BitCast(du32, inout1);
+    VU32 LL = ConcatEven(du32, hi, lo);
+    VU32 RR = ConcatOdd(du32, hi, lo);
+
+    // 4 Feistel rounds, alternating between f0_ and f1_.
+    LL = Xor(LL, f0_.OneVec(du32, RR));
+    RR = Xor(RR, f1_.OneVec(du32, LL));
+    LL = Xor(LL, f0_.OneVec(du32, RR));
+    RR = Xor(RR, f1_.OneVec(du32, LL));
+
+    // Re-interleave LL and RR back into u64.
+    inout0 = BitCast(du64, InterleaveWholeLower(du32, LL, RR));
+    inout1 = BitCast(du64, InterleaveWholeUpper(du32, LL, RR));
+  }
+
+ private:
+  WeakTwoMul f0_;
+  WeakTwoMul f1_;
 };
 
+// Feistel using three rounds of Triple32. Splits each u64 into two u32 halves.
+// The round pattern (LL, RR, LL) ensures the lower 32 bits are mixed twice,
+// which is important because they are used as bucket indices.
+class Feistel3Mul3 {
+ public:
+  using LaneType = uint64_t;
+  static constexpr const char* Name() { return "Feistel3Mul3"; }
+
+  Feistel3Mul3(AesCtrEngine& engine, uint64_t seed)
+      : f0_(engine, 3 * seed + 0),
+        f1_(engine, 3 * seed + 1),
+        f2_(engine, 3 * seed + 2) {}
+
+  uint64_t operator()(uint64_t x) const {
+    ScalableTag<uint64_t> du64;
+    return GetLane(OneVec(du64, Set(du64, x)));
+  }
+
+  template <class DU64, class VU64 = Vec<DU64>, HWY_IF_U64_D(DU64)>
+  HWY_INLINE HWY_MUST_USE_RESULT VU64 OneVec(DU64 du64, const VU64 in) const {
+    const Rebind<uint32_t, DU64> du32;
+    using VU32 = Vec<decltype(du32)>;
+
+    // Split each u64 into lower and upper u32.
+    VU32 LL = TruncateTo(du32, in);
+    VU32 RR = TruncateTo(du32, ShiftRight<32>(in));
+
+    // 3 Feistel rounds: lower bits (LL) are mixed in rounds 1 and 3.
+    LL = Xor(LL, f0_.OneVec(du32, RR));
+    RR = Xor(RR, f1_.OneVec(du32, LL));
+    LL = Xor(LL, f2_.OneVec(du32, RR));
+
+    // Re-interleave LL and RR back into u64.
+    const Twice<decltype(du32)> du32t;
+    const VU32 lo = InterleaveWholeLower(du32, LL, RR);
+    const VU32 hi = InterleaveWholeUpper(du32, LL, RR);
+    return BitCast(du64, Combine(du32t, hi, lo));
+  }
+
+  template <class DU64, class VU64 = Vec<DU64>, HWY_IF_U64_D(DU64)>
+  HWY_INLINE void TwoVec(DU64 du64, VU64& inout0, VU64& inout1) const {
+    const RepartitionToNarrow<DU64> du32;
+    using VU32 = Vec<decltype(du32)>;
+
+    // Split each u64 into lower and upper u32.
+    const VU32 lo = BitCast(du32, inout0);
+    const VU32 hi = BitCast(du32, inout1);
+    VU32 LL = ConcatEven(du32, hi, lo);
+    VU32 RR = ConcatOdd(du32, hi, lo);
+
+    // 3 Feistel rounds: lower bits (LL) are mixed in rounds 1 and 3.
+    LL = Xor(LL, f0_.OneVec(du32, RR));
+    RR = Xor(RR, f1_.OneVec(du32, LL));
+    LL = Xor(LL, f2_.OneVec(du32, RR));
+
+    // Re-interleave LL and RR back into u64.
+    inout0 = BitCast(du64, InterleaveWholeLower(du32, LL, RR));
+    inout1 = BitCast(du64, InterleaveWholeUpper(du32, LL, RR));
+  }
+
+ private:
+  Triple32 f0_;
+  Triple32 f1_;
+  Triple32 f2_;
+};
+
+// ----------------------------------------------------------------------------
+#if 0  // obsolete - use one of the above instead
+
 // Round-reduced ARX cipher. Considerably slower than Triple32 on AVX2 due to
-// the rotates, but slightly faster than Feistel4Mul2 on Turin.
+// the rotates.
 class Speck32 {
  public:
+  using LaneType = uint32_t;
   static constexpr const char* Name() { return "Speck32"; }
 
   Speck32(AesCtrEngine& engine, uint64_t seed)
@@ -293,14 +385,13 @@ class Speck32 {
   AlignedVector<uint16_t> keys_;
 };
 
-#if 0  // obsolete - use one of the above instead
-
 // Lai-Massey diffuses faster than Feistel because it updates both halves
 // concurrently, but this is also a weakness in that input differentials
 // partially cancel, leading to collisions in DiffDist. By contrast, Feistel
 // updates one half at a time and has more nonlinear depth.
 class WeakLaiMassey3Mul2 {
  public:
+  using LaneType = uint32_t;
   static constexpr const char* Name() { return "WeakLaiMassey3Mul2"; }
 
   WeakLaiMassey3Mul2(AesCtrEngine& engine, uint64_t seed)
@@ -368,6 +459,7 @@ class WeakLaiMassey3Mul2 {
 // Adapted from the Murmur string hash. Obsoleted by Triple32.
 class Murmur3 {
  public:
+  using LaneType = uint32_t;
   static constexpr const char* Name() { return "Murmur3"; }
 
   Murmur3(AesCtrEngine& engine, uint64_t seed)
@@ -416,44 +508,10 @@ class Murmur3 {
   AlignedVector<uint32_t> keys_;
 };
 
-// Better constants found by TheIronBorn. Super-fast but insufficient to pass
-// SMHasher, especially for cyclic keys.
-class WeakTwoMul {
- public:
-  static constexpr const char* Name() { return "WeakTwoMul"; }
-
-  WeakTwoMul(AesCtrEngine& engine, uint64_t seed)
-      : keys_(FillRandom<uint32_t>(1, engine, seed)) {}
-
-  uint32_t operator()(uint32_t x) const {
-    ScalableTag<uint32_t> du32;
-    return GetLane(OneVec(du32, Set(du32, x)));
-  }
-
-  template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
-  HWY_INLINE void TwoVec(DU32 du32, VU32& inout0, VU32& inout1) const {
-    inout0 = OneVec(du32, inout0);
-    inout1 = OneVec(du32, inout1);
-  }
-
- private:
-  template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
-  HWY_INLINE HWY_MUST_USE_RESULT VU32 OneVec(DU32 du32, const VU32 in) const {
-    VU32 hash = Xor(in, Set(du32, keys_[0]));
-    hash = Xor(hash, ShiftRight<16>(hash));
-    hash = Mul(hash, Set(du32, 0x21F0AAADu));
-    hash = Xor(hash, ShiftRight<15>(hash));
-    hash = Mul(hash, Set(du32, 0xF35A2D97u));
-    hash = Xor(hash, ShiftRight<15>(hash));
-    return hash;
-  }
-
-  AlignedVector<uint32_t> keys_;
-};
-
 // https://github.com/gzm55/hash-garage/tree/master; fails DiffDist.
 class WeakNMHash {
  public:
+  using LaneType = uint32_t;
   static constexpr const char* Name() { return "WeakNMHash"; }
 
   WeakNMHash(AesCtrEngine& engine, uint64_t seed)
@@ -489,86 +547,90 @@ class WeakNMHash {
 #endif  // obsolete
 
 // In-place version.
-template <class Hash>
-static void HashArray(const Hash& hash, uint32_t* HWY_RESTRICT inout,
-                      size_t count) {
-  const ScalableTag<uint32_t> du32;
-  using VU32 = Vec<decltype(du32)>;
-  HWY_LANES_CONSTEXPR size_t N = Lanes(du32);
+template <class Hash, typename T = typename Hash::LaneType>
+static void HashArray(const Hash& hash, T* HWY_RESTRICT inout, size_t count) {
+  const ScalableTag<T> d;
+  using V = Vec<decltype(d)>;
+  HWY_LANES_CONSTEXPR size_t N = Lanes(d);
 
   size_t i = 0;
   if (HWY_LIKELY(count >= 4 * N)) {
     for (; i <= count - 4 * N; i += 4 * N) {
-      VU32 v0 = Load(du32, inout + i + 0 * N);
-      VU32 v1 = Load(du32, inout + i + 1 * N);
-      VU32 v2 = Load(du32, inout + i + 2 * N);
-      VU32 v3 = Load(du32, inout + i + 3 * N);
-      hash.TwoVec(du32, v0, v1);
-      hash.TwoVec(du32, v2, v3);
-      Store(v0, du32, inout + i + 0 * N);
-      Store(v1, du32, inout + i + 1 * N);
-      Store(v2, du32, inout + i + 2 * N);
-      Store(v3, du32, inout + i + 3 * N);
+      V v0 = Load(d, inout + i + 0 * N);
+      V v1 = Load(d, inout + i + 1 * N);
+      V v2 = Load(d, inout + i + 2 * N);
+      V v3 = Load(d, inout + i + 3 * N);
+      hash.TwoVec(d, v0, v1);
+      hash.TwoVec(d, v2, v3);
+      Store(v0, d, inout + i + 0 * N);
+      Store(v1, d, inout + i + 1 * N);
+      Store(v2, d, inout + i + 2 * N);
+      Store(v3, d, inout + i + 3 * N);
     }
   }
   size_t remaining = count - i;
   for (; remaining >= N; i += N, remaining -= N) {
-    VU32 v0 = Load(du32, inout + i);
-    v0 = hash.OneVec(du32, v0);
-    Store(v0, du32, inout + i);
+    V v0 = Load(d, inout + i);
+    v0 = hash.OneVec(d, v0);
+    Store(v0, d, inout + i);
   }
   {
-    VU32 v0 = LoadN(du32, inout + i, remaining);
-    v0 = hash.OneVec(du32, v0);
-    StoreN(v0, du32, inout + i, remaining);
+    V v0 = LoadN(d, inout + i, remaining);
+    v0 = hash.OneVec(d, v0);
+    StoreN(v0, d, inout + i, remaining);
   }
 }
 
 // Same, but separate input and output arrays.
-template <class Hash>
-static void HashArray(const Hash& hash, const uint32_t* HWY_RESTRICT in,
-                      uint32_t* HWY_RESTRICT out, size_t count) {
-  const ScalableTag<uint32_t> du32;
-  using VU32 = Vec<decltype(du32)>;
-  HWY_LANES_CONSTEXPR size_t N = Lanes(du32);
+template <class Hash, typename T = typename Hash::LaneType>
+static void HashArray(const Hash& hash, const T* HWY_RESTRICT in,
+                      T* HWY_RESTRICT out, size_t count) {
+  const ScalableTag<T> d;
+  using V = Vec<decltype(d)>;
+  HWY_LANES_CONSTEXPR size_t N = Lanes(d);
 
   size_t i = 0;
   if (HWY_LIKELY(count >= 4 * N)) {
     for (; i <= count - 4 * N; i += 4 * N) {
-      VU32 v0 = Load(du32, in + i + 0 * N);
-      VU32 v1 = Load(du32, in + i + 1 * N);
-      VU32 v2 = Load(du32, in + i + 2 * N);
-      VU32 v3 = Load(du32, in + i + 3 * N);
-      hash.TwoVec(du32, v0, v1);
-      hash.TwoVec(du32, v2, v3);
-      Store(v0, du32, out + i + 0 * N);
-      Store(v1, du32, out + i + 1 * N);
-      Store(v2, du32, out + i + 2 * N);
-      Store(v3, du32, out + i + 3 * N);
+      V v0 = Load(d, in + i + 0 * N);
+      V v1 = Load(d, in + i + 1 * N);
+      V v2 = Load(d, in + i + 2 * N);
+      V v3 = Load(d, in + i + 3 * N);
+      hash.TwoVec(d, v0, v1);
+      hash.TwoVec(d, v2, v3);
+      Store(v0, d, out + i + 0 * N);
+      Store(v1, d, out + i + 1 * N);
+      Store(v2, d, out + i + 2 * N);
+      Store(v3, d, out + i + 3 * N);
     }
   }
   size_t remaining = count - i;
   for (; remaining >= N; i += N, remaining -= N) {
-    VU32 v0 = Load(du32, in + i);
-    v0 = hash.OneVec(du32, v0);
-    Store(v0, du32, out + i);
+    V v0 = Load(d, in + i);
+    v0 = hash.OneVec(d, v0);
+    Store(v0, d, out + i);
   }
   {
-    VU32 v0 = LoadN(du32, in + i, remaining);
-    v0 = hash.OneVec(du32, v0);
-    StoreN(v0, du32, out + i, remaining);
+    V v0 = LoadN(d, in + i, remaining);
+    v0 = hash.OneVec(d, v0);
+    StoreN(v0, d, out + i, remaining);
   }
 }
 
 template <class Func>
 void ForeachHash(AesCtrEngine& engine, uint64_t seed, const Func& func) {
-  func(Feistel4Mul2(engine, seed));
   func(Triple32(engine, seed));
-  func(Speck32(engine, seed));
+  // func(Speck32(engine, seed));
   // func(WeakLaiMassey3Mul2(engine, seed));
   // func(Murmur3(engine, seed));
   // func(WeakTwoMul(engine, seed));
   // func(WeakNMHash(engine, seed));
+}
+
+template <class Func>
+void ForeachHash64(AesCtrEngine& engine, uint64_t seed, const Func& func) {
+  func(Feistel4Mul2(engine, seed));
+  func(Feistel3Mul3(engine, seed));
 }
 
 // Returns vector filled with a bijection of a counter. This is not the same as
