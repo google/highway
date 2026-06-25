@@ -258,23 +258,14 @@ jobs:
             extra_deps: clang-20
             c_compiler: clang-20
             cxx_compiler: clang++-20
-            # Disable AVX3_SPR/AVX3_ZEN4 targets in GitHub workflow build with
-            # Clang 16 or later to work around crashes that occur with Clang 16
-            # or later when some of the Google Highway tests are compiled with
-            # all x86 targets enabled
-            cxx_flags: -DHWY_DISABLED_TARGETS=0x58
             extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 17
 
-          - name: Clang-21
+          - name: Clang-21 (VQSort disabled)
             extra_deps: clang-21
             c_compiler: clang-21
             cxx_compiler: clang++-21
-            # Disable AVX3_SPR/AVX3_ZEN4 targets in GitHub workflow build with
-            # Clang 16 or later to work around crashes that occur with Clang 16
-            # or later when some of the Google Highway tests are compiled with
-            # all x86 targets enabled
-            cxx_flags: -DHWY_DISABLED_TARGETS=0x58
+            cxx_flags: -DHWY_DISABLE_VQSORT=1
             extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 17
 
@@ -282,33 +273,12 @@ jobs:
             extra_deps: clang-22
             c_compiler: clang-22
             cxx_compiler: clang++-22
-            # Disable AVX3_SPR/AVX3_ZEN4 targets in GitHub workflow build with
-            # Clang 16 or later to work around crashes that occur with Clang 16
-            # or later when some of the Google Highway tests are compiled with
-            # all x86 targets enabled
-            cxx_flags: -DHWY_DISABLED_TARGETS=0x58
-            cxx_standard: 17
-
-          - name: Clang-22 (VQSort disabled)
-            extra_deps: clang-22
-            c_compiler: clang-22
-            cxx_compiler: clang++-22
-            # Disable AVX3_SPR/AVX3_ZEN4 targets in GitHub workflow build with
-            # Clang 16 or later to work around crashes that occur with Clang 16
-            # or later when some of the Google Highway tests are compiled with
-            # all x86 targets enabled
-            cxx_flags: -DHWY_DISABLED_TARGETS=0x58 -DHWY_DISABLE_VQSORT=1
             cxx_standard: 17
 
           - name: Clang-22 (C++23)
             extra_deps: clang-22
             c_compiler: clang-22
             cxx_compiler: clang++-22
-            # Disable AVX3_SPR/AVX3_ZEN4 targets in GitHub workflow build with
-            # Clang 16 or later to work around crashes that occur with Clang 16
-            # or later when some of the Google Highway tests are compiled with
-            # all x86 targets enabled
-            cxx_flags: -DHWY_DISABLED_TARGETS=0x58
             cxx_standard: 23
 
           - name: GCC-15
