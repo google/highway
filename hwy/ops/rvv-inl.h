@@ -946,10 +946,7 @@ HWY_RVV_FOREACH_I163264(HWY_RVV_CAST_VIRT_IF, _, reinterpret, _VIRT)
 HWY_RVV_FOREACH_F(HWY_RVV_CAST_IF, _, reinterpret, _ALL)
 HWY_RVV_FOREACH_F(HWY_RVV_CAST_VIRT_IF, _, reinterpret, _VIRT)
 #if HWY_HAVE_FLOAT16     // HWY_RVV_FOREACH_F already covered float16_
-#elif HWY_RVV_HAVE_F16C  // zvfhmin provides reinterpret* intrinsics:
-HWY_RVV_FOREACH_F16_UNCONDITIONAL(HWY_RVV_CAST_IF, _, reinterpret, _ALL)
-HWY_RVV_FOREACH_F16_UNCONDITIONAL(HWY_RVV_CAST_VIRT_IF, _, reinterpret, _VIRT)
-#else
+#else  // !HWY_HAVE_FLOAT16: VFromD is vuint16, delegate to uint16 BitCast.
 template <class D, HWY_IF_F16_D(D)>
 HWY_INLINE VFromD<RebindToUnsigned<D>> BitCastFromByte(
     D /* d */, VFromD<Repartition<uint8_t, D>> v) {
@@ -2629,11 +2626,27 @@ HWY_RVV_FOREACH_I16(HWY_RVV_PROMOTE, PromoteTo, sext_vf2_, _EXT_VIRT)
 HWY_RVV_FOREACH_I32(HWY_RVV_PROMOTE, PromoteTo, sext_vf2_, _EXT_VIRT)
 HWY_RVV_FOREACH_F32(HWY_RVV_PROMOTE, PromoteTo, fwcvt_f_f_v_, _EXT_VIRT)
 
-#if HWY_HAVE_FLOAT16 || HWY_RVV_HAVE_F16C
-
+#if HWY_HAVE_FLOAT16
 HWY_RVV_FOREACH_F16_UNCONDITIONAL(HWY_RVV_PROMOTE, PromoteTo, fwcvt_f_f_v_,
                                   _EXT_VIRT)
+#elif HWY_RVV_HAVE_F16C
+// VFromD for float16 is vuint16 when !HWY_HAVE_FLOAT16. Reinterpret to
+// vfloat16 for the widening conversion intrinsic.
+#define HWY_RVV_PROMOTE_F16(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                            SHIFT, MLEN, NAME, OP)                             \
+  template <size_t N>                                                          \
+  HWY_API HWY_RVV_V(BASE, SEWD, LMULD) NAME(                                   \
+      HWY_RVV_D(BASE, SEWD, N, SHIFT + 1) d,                                   \
+      HWY_RVV_V(uint, SEW, LMUL) v) {                                          \
+    return __riscv_v##OP##CHAR##SEWD##LMULD(                                    \
+        __riscv_vreinterpret_v_u##SEW##LMUL##_##CHAR##SEW##LMUL(v), Lanes(d)); \
+  }
+HWY_RVV_FOREACH_F16_UNCONDITIONAL(HWY_RVV_PROMOTE_F16, PromoteTo,
+                                  fwcvt_f_f_v_, _EXT_VIRT)
+#undef HWY_RVV_PROMOTE_F16
+#endif  // HWY_HAVE_FLOAT16
 
+#if HWY_HAVE_FLOAT16 || HWY_RVV_HAVE_F16C
 // Per-target flag to prevent generic_ops-inl.h from defining f16 conversions.
 #ifdef HWY_NATIVE_F16C
 #undef HWY_NATIVE_F16C
@@ -3368,8 +3381,23 @@ HWY_API VFromD<DN> RoundingShiftRightAndDemoteTo(DN dn, V v) {
     return __riscv_v##OP##SEWH##LMULH(v, Lanes(d));                          \
   }
 
-#if HWY_HAVE_FLOAT16 || HWY_RVV_HAVE_F16C
+#if HWY_HAVE_FLOAT16
 HWY_RVV_FOREACH_F32(HWY_RVV_DEMOTE_F, DemoteTo, fncvt_f_f_w_f, _DEMOTE_VIRT)
+#elif HWY_RVV_HAVE_F16C
+// VFromD for float16 is vuint16 when !HWY_HAVE_FLOAT16. Reinterpret from
+// vfloat16 result of the narrowing conversion intrinsic.
+#define HWY_RVV_DEMOTE_F16(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,  \
+                           SHIFT, MLEN, NAME, OP)                              \
+  template <size_t N>                                                          \
+  HWY_API vuint##SEWH##LMULH##_t NAME(                                         \
+      HWY_RVV_D(BASE, SEWH, N, SHIFT - 1) d,                                   \
+      HWY_RVV_V(BASE, SEW, LMUL) v) {                                          \
+    return __riscv_vreinterpret_v_##CHAR##SEWH##LMULH##_u##SEWH##LMULH(         \
+        __riscv_v##OP##SEWH##LMULH(v, Lanes(d)));                              \
+  }
+HWY_RVV_FOREACH_F32(HWY_RVV_DEMOTE_F16, DemoteTo, fncvt_f_f_w_f,
+                     _DEMOTE_VIRT)
+#undef HWY_RVV_DEMOTE_F16
 #endif
 HWY_RVV_FOREACH_F64(HWY_RVV_DEMOTE_F, DemoteTo, fncvt_f_f_w_f, _DEMOTE_VIRT)
 
