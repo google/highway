@@ -7114,7 +7114,7 @@ HWY_INLINE Vec<D> Lookup8(D d, const T* HWY_RESTRICT table, VI indices) {
 
     // Now ensure indices for the second half of the table point to the second
     // vector. Note that SVE2_128 and SVE_256 are handled by the fixed-size case
-    // above. The adjustment factor is 0 for 128-bit SIMD, which can happen with
+    // above. The adjustment factor is 0 for 128-bit SIMD, which can happen with
     // 128-bit SVE1 hardware, but we do not know that at compile time.
     using TI = TFromD<decltype(di)>;
     const VI adjust = Set(di, static_cast<TI>(Lanes(d) - 4));
@@ -7180,7 +7180,7 @@ HWY_INLINE Vec<D> Lookup16(D d, const T* HWY_RESTRICT table, VI indices) {
 
     // Now ensure indices for the second half of the table point to the second
     // vector. Note that SVE2_128 and SVE_256 are handled by the fixed-size case
-    // above. The adjustment factor is 0 for 128-bit SIMD, which can happen with
+    // above. The adjustment factor is 0 for 128-bit SIMD, which can happen with
     // 128-bit SVE1 hardware, but we do not know that at compile time.
     using TI = TFromD<decltype(di)>;
     const VI adjust = Set(di, static_cast<TI>(Lanes(d) - 8));
@@ -8003,6 +8003,22 @@ HWY_API VFromD<D> Slide1Down(D d, VFromD<D> v) {
 #endif  // HWY_TARGET != HWY_SCALAR
 
 #endif  // HWY_NATIVE_SLIDE1_UP_DOWN
+
+// ------------------------------ SlideUpLanesOr
+#if (defined(HWY_NATIVE_SLIDE_UP_LANES_OR) == defined(HWY_TARGET_TOGGLE))
+
+#ifdef HWY_NATIVE_SLIDE_UP_LANES_OR
+#undef HWY_NATIVE_SLIDE_UP_LANES_OR
+#else
+#define HWY_NATIVE_SLIDE_UP_LANES_OR
+#endif
+
+template <class D>
+HWY_API VFromD<D> SlideUpLanesOr(VFromD<D> lo, D d, VFromD<D> hi, size_t amt) {
+  return IfThenElse(FirstN(d, amt), lo, SlideUpLanes(d, hi, amt));
+}
+
+#endif  // HWY_NATIVE_SLIDE_UP_LANES_OR
 
 // ------------------------------ SlideUpBlocks
 

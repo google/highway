@@ -3812,6 +3812,18 @@ HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
   return detail::SlideUp(Zero(d), v, amt);
 }
 
+#ifdef HWY_NATIVE_SLIDE_UP_LANES_OR
+#undef HWY_NATIVE_SLIDE_UP_LANES_OR
+#else
+#define HWY_NATIVE_SLIDE_UP_LANES_OR
+#endif
+
+template <class D>
+HWY_API VFromD<D> SlideUpLanesOr(VFromD<D> lo, D /*d*/, VFromD<D> hi,
+                                 size_t amt) {
+  return detail::SlideUp(lo, hi, amt);
+}
+
 // ------------------------------ SlideDownLanes
 template <class D>
 HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
