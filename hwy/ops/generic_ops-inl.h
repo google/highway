@@ -5618,8 +5618,8 @@ HWY_API V RoundingShr(V v, V amt) {
 
 // ------------------------------ ShiftRightAndDemoteTo (DemoteTo, ShiftRight)
 
-// NEON and RVV override this with a fused saturating shift-narrow.
-// TODO: also override on SVE2/LSX/LASX.
+// NEON, RVV, and LSX override this with a fused saturating shift-narrow.
+// TODO: also override on SVE2/LASX.
 #if (defined(HWY_NATIVE_SHIFT_RIGHT_AND_DEMOTE) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_SHIFT_RIGHT_AND_DEMOTE
 #undef HWY_NATIVE_SHIFT_RIGHT_AND_DEMOTE

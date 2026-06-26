@@ -5267,7 +5267,7 @@ HWY_API Vec128<uint8_t, N> U8FromU32(Vec128<uint32_t, N> v) {
 #define HWY_NATIVE_SHIFT_RIGHT_AND_DEMOTE
 #endif
 
-// TODO: also override on SVE2/LSX/LASX.
+// TODO: also override on SVE2/LASX.
 
 // Macro args: `intrinsic` is the vqshrn/vqshrun family prefix; `op_suffix` is
 // its trailing token (e.g. `_n_s16`); `combine_suffix` is the vcombine trailing
