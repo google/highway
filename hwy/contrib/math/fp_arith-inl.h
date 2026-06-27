@@ -37,23 +37,6 @@ namespace HWY_NAMESPACE {
 //------------------------------------------------------------------------------
 // Exact multiplication
 
-namespace detail {
-
-// Returns non-overlapping `x` and `y` such that `x + y` = `a` and |x| >= |y|.
-// Notation from Algorithm 3.1 in Handbook of Floating-Point Arithmetic. 4 ops.
-template <class DF, HWY_IF_FLOAT3264_D(DF), class VF = Vec<DF>>
-static HWY_INLINE void VeltkampSplit(DF df, VF a, VF& x, VF& y) {
-  using TF = TFromD<DF>;
-  constexpr int t = hwy::MantissaBits<TF>() + 1;  // = -log2(epsilon)
-  constexpr int s = hwy::DivCeil(t, 2);
-  const VF factor = Set(df, hwy::ConvertScalarTo<TF>((1ULL << s) + 1));
-  const VF c = Mul(factor, a);
-  x = Sub(c, Sub(c, a));
-  y = Sub(a, x);
-}
-
-}  // namespace detail
-
 // Scalar variant of TwoSums; see below. Knuth98/Moller65, 6 ops.
 template <typename T, HWY_IF_FLOAT3264(T)>
 static inline T TwoSum(T a, T b, T& err) {
@@ -76,14 +59,24 @@ static HWY_INLINE VF TwoProducts(DF df, VF a, VF b, VF& err) {
   if constexpr (HWY_NATIVE_FMA) {
     err = MulSub(a, b, prod);
   } else {
-    // Non-FMA fallback: we assume these calculations do not overflow.
-    VF a1, a2, b1, b2;
-    detail::VeltkampSplit(df, a, a1, a2);
-    detail::VeltkampSplit(df, b, b1, b2);
-    const VF m = Sub(prod, Mul(a1, b1));
-    const VF n = Sub(m, Mul(a2, b1));
-    const VF o = Sub(n, Mul(a1, b2));
-    err = Sub(Mul(a2, b2), o);
+    // Non-FMA fallback, splits into half-mantissa hi/lo parts so the partial
+    // products are exact
+    using TF = TFromD<DF>;
+    const RebindToUnsigned<DF> du;
+    constexpr int kMant = hwy::MantissaBits<TF>();
+    // Bits to drop so each half is narrow enough to multiply exactly
+    constexpr int kHalf = (kMant | 1) - (kMant >> 1);
+    // Split a and b into hi (high half) + lo (low half)
+    const VF a_hi = BitCast(
+        df, ShiftLeft<kHalf>(RoundingShiftRight<kHalf>(BitCast(du, a))));
+    const VF b_hi = BitCast(
+        df, ShiftLeft<kHalf>(RoundingShiftRight<kHalf>(BitCast(du, b))));
+    const VF a_lo = Sub(a, a_hi);
+    const VF b_lo = Sub(b, b_hi);
+    // Sum the exact partial products into the low part
+    err = MulAdd(
+        a_lo, b_lo,
+        Add(MulAdd(a_hi, b_lo, Mul(a_lo, b_hi)), MulSub(a_hi, b_hi, prod)));
   }
   return prod;
 }

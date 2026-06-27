@@ -28,13 +28,6 @@
 #include "hwy/contrib/math/fp_arith-inl.h"
 #include "hwy/highway.h"
 
-// Disable FMA contraction so each mul/add in the error-free transforms 
-// rounds on its own.
-#if HWY_COMPILER_GCC && !HWY_COMPILER_CLANG
-#pragma GCC push_options
-#pragma GCC optimize("fp-contract=off")
-#endif
-
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
@@ -2864,9 +2857,5 @@ HWY_INLINE V Tgamma(const D d, V x) {
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
-
-#if HWY_COMPILER_GCC && !HWY_COMPILER_CLANG
-#pragma GCC pop_options
-#endif
 
 #endif  // HIGHWAY_HWY_CONTRIB_MATH_MATH_INL_H_
