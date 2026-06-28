@@ -373,7 +373,7 @@ HWY_NOINLINE V CallTanh(const D d, VecArg<V> x) {
  * Highway SIMD version of std::tgamma(x).
  *
  * Valid Lane Types: float32, float64
- *        Max Error: ULP = 6
+ *        Max Error: ULP = 6 (float32), 8 (float64)
  *      Valid Range: float32(0, +35], float64(0, +171.6]
  * @return gamma function of 'x'
  */
