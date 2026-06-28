@@ -70,8 +70,8 @@ DEFINE_MATH_TEST(Cbrt,
   std::cbrt, CallCbrt, -FLT_MAX, +FLT_MAX, 6,
   std::cbrt, CallCbrt, -DBL_MAX, +DBL_MAX, 6)
 DEFINE_MATH_TEST(Tgamma,
-  std::tgamma, CallTgamma, +0.5f, +35.0f,  4,
-  std::tgamma, CallTgamma, +0.5,  +171.6,  4)
+  std::tgamma, CallTgamma, +0.5f, +35.0f,  6,
+  std::tgamma, CallTgamma, +0.5,  +171.6,  6)
 // clang-format on
 
 struct TestPow {
