@@ -235,6 +235,26 @@ class Feistel4Mul2 {
 // Feistel using three rounds of Triple32. Splits each u64 into two u32 halves.
 // The round pattern (LL, RR, LL) ensures the lower 32 bits are mixed twice,
 // which is important because they are used as bucket indices.
+//
+// This could also be modified into a bijection on [0, 2^k) aka a "masked hash".
+// That would enable the same Cuckoo2x2 trick to be used for u64: with 2^18
+// buckets (and thus 18 verified lower bits), 30-bit fingerprints would suffice
+// to verify 48-bit keys without false positives. We could store two of them
+// per u64 alongside their two-bit tags.
+// Note that Wang's masked integer hash consists of xor-folds and multiplies by
+// odd: the same as `Triple32`, but worse quality because the multipliers have
+// low popcount. However, we can adapt Wang's technique of masking after each
+// multiply to ensure a bijection. The xor-fold is upper-triangular and is
+// already invertible without masking. A balanced Feistel with k/2 = 24 bits in
+// each branch has the advantage of only requiring masking after the round
+// function, instead of after each multiply (2..3 per round). It is safe to
+// simply truncate the round function because the Feistel construction ensures
+// bijectivity regardless of the round function. Putting it all together: first
+// split the input into two halves, each with k/2 bits (assuming k is even).
+// Then wrap the `f0_.OneVec` etc. calls in `And()` with (1u << (k / 2)) - 1.
+// Finally, re-assemble the two k/2-bit halves into the output. Note that
+// `Feistel3Mul3` has a slight advantage over `Feistel4Mul2`, which has one
+// more round and thus `And()`.
 class Feistel3Mul3 {
  public:
   using LaneType = uint64_t;
