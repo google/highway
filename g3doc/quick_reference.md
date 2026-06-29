@@ -2697,6 +2697,13 @@ The following `ReverseN` must not be called if `Lanes(D()) < N`:
 
     The result of SlideUpLanes is implementation-defined if `N >= Lanes(d)`.
 
+*   <code>V **SlideUpLanesOr**(V lo, D d, V hi, size_t N)</code>: slides up `hi`
+    by `N` lanes and returns `lo[i]` in the lower `N` lanes.
+
+    `SlideUpLanesOr(lo, d, hi, N)` is equivalent to
+    `IfThenElse(FirstN(d, N), lo, SlideUpLanes(d, hi, N))`, but SlideUpLanesOr
+    is more efficient on some targets, including SVE and RVV.
+
 *   <code>V **SlideDownLanes**(D d, V v, size_t N)</code>: slides down `v` by
     `N` lanes
 

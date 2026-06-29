@@ -176,6 +176,40 @@ HWY_NOINLINE void TestAllSlideUpLanes() {
   ForAllTypes(ForPartialVectors<TestSlideUpLanes>());
 }
 
+struct TestSlideUpLanesOr {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    auto expected = AllocateAligned<T>(N);
+    auto a_lanes = AllocateAligned<T>(N);
+    auto b_lanes = AllocateAligned<T>(N);
+
+    HWY_ASSERT(expected);
+    HWY_ASSERT(a_lanes);
+    HWY_ASSERT(b_lanes);
+
+    const Rebind<If<IsSigned<T>(), T, MakeSigned<T>>, decltype(d)> d_neg;
+
+    const auto a = BitCast(d, PositiveIota(d_neg, 1));
+    const auto b = BitCast(d, Neg(BitCast(d_neg, a)));
+
+    Store(a, d, a_lanes.get());
+    Store(b, d, b_lanes.get());
+
+    for (size_t i = 0; i < N; i++) {
+      for (size_t j = 0; j < N; j++) {
+        expected[j] = (j < i) ? a_lanes[j] : b_lanes[j - i];
+      }
+
+      HWY_ASSERT_VEC_EQ(d, expected.get(), SlideUpLanesOr(a, d, b, i));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllSlideUpLanesOr() {
+  ForAllTypes(ForPartialVectors<TestSlideUpLanesOr>());
+}
+
 #if !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 && !HWY_TARGET_IS_SVE
 // DoTestSlideDownLanes needs to be inlined on targets where
 // DoTestSlideDownLanesWithConstAmt_0_7, DoTestSlideDownLanesWithConstAmt_8_15,
@@ -454,6 +488,7 @@ namespace hwy {
 namespace {
 HWY_BEFORE_TEST(HwySlideUpDownTest);
 HWY_EXPORT_AND_TEST_P(HwySlideUpDownTest, TestAllSlideUpLanes);
+HWY_EXPORT_AND_TEST_P(HwySlideUpDownTest, TestAllSlideUpLanesOr);
 HWY_EXPORT_AND_TEST_P(HwySlideUpDownTest, TestAllSlideDownLanes);
 HWY_EXPORT_AND_TEST_P(HwySlideUpDownTest, TestAllSlide1);
 HWY_EXPORT_AND_TEST_P(HwySlideUpDownTest, TestAllSlideBlocks);
