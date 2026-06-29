@@ -790,8 +790,18 @@ HWY_API V MaskedMulAdd(M m, V mul, V x, V add) {
 }
 
 template <class V, class M>
+HWY_API V MaskedMulSub(M m, V mul, V x, V sub) {
+  return IfThenElseZero(m, MulSub(mul, x, sub));
+}
+
+template <class V, class M>
 HWY_API V MaskedNegMulAdd(M m, V mul, V x, V add) {
   return IfThenElseZero(m, NegMulAdd(mul, x, add));
+}
+
+template <class V, class M>
+HWY_API V MaskedNegMulSub(M m, V mul, V x, V sub) {
+  return IfThenElseZero(m, NegMulSub(mul, x, sub));
 }
 
 template <class D, class M, HWY_IF_UI32_D(D),
@@ -1057,6 +1067,14 @@ HWY_API V SaturatedAbs(V v) {
 #endif
 
 // ------------------------------ MaskedAbsOr
+
+#if (defined(HWY_NATIVE_MASKED_ABS) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MASKED_ABS
+#undef HWY_NATIVE_MASKED_ABS
+#else
+#define HWY_NATIVE_MASKED_ABS
+#endif
+
 template <class V, HWY_IF_SIGNED_V(V), class M>
 HWY_API V MaskedAbsOr(V no, M m, V v) {
   return IfThenElse(m, Abs(v), no);
@@ -1067,6 +1085,7 @@ template <class V, HWY_IF_SIGNED_V(V), class M>
 HWY_API V MaskedAbs(M m, V v) {
   return IfThenElseZero(m, Abs(v));
 }
+#endif  // HWY_NATIVE_MASKED_ABS
 
 // ------------------------------ Reductions
 
@@ -4793,19 +4812,13 @@ HWY_API V MulRound(V a, V b) {
   return Round(Mul(a, b));
 }
 
-// ------------------------------ MulAdd / NegMulAdd
+// ------------------------------ Integer [Neg]MulAdd
 
 #if (defined(HWY_NATIVE_INT_FMA) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_INT_FMA
 #undef HWY_NATIVE_INT_FMA
 #else
 #define HWY_NATIVE_INT_FMA
-#endif
-
-#ifdef HWY_NATIVE_INT_FMSUB
-#undef HWY_NATIVE_INT_FMSUB
-#else
-#define HWY_NATIVE_INT_FMSUB
 #endif
 
 template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
@@ -4818,11 +4831,8 @@ HWY_API V NegMulAdd(V mul, V x, V add) {
   return Sub(add, Mul(mul, x));
 }
 
-template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
-HWY_API V MulSub(V mul, V x, V sub) {
-  return Sub(Mul(mul, x), sub);
-}
 #endif  // HWY_NATIVE_INT_FMA
+
 // ------------------------------ MulComplex* / MaskedMulComplex*
 
 #if (defined(HWY_NATIVE_CPLX) == defined(HWY_TARGET_TOGGLE))
@@ -4889,44 +4899,45 @@ HWY_API V MaskedMulComplexOr(V no, M mask, V a, V b) {
 
 #endif  // HWY_NATIVE_CPLX
 
-// ------------------------------ MaskedMulAddOr
-#if (defined(HWY_NATIVE_MASKED_INT_FMA) == defined(HWY_TARGET_TOGGLE))
-#ifdef HWY_NATIVE_MASKED_INT_FMA
-#undef HWY_NATIVE_MASKED_INT_FMA
-#else
-#define HWY_NATIVE_MASKED_INT_FMA
-#endif
+// ------------------------------ Merge-masked FMA
+
+// No target has native FMA + merge-masking because this would require 5 inputs.
+// If there is native masking, we can reduce energy use, otherwise just blend.
 
 template <class V, class M>
 HWY_API V MaskedMulAddOr(V no, M m, V mul, V x, V add) {
-  return IfThenElse(m, MulAdd(mul, x, add), no);
-}
-
-#endif  // HWY_NATIVE_MASKED_INT_FMA
-
-// ------------------------------ Integer MulSub / NegMulSub
-#if (defined(HWY_NATIVE_INT_FMSUB) == defined(HWY_TARGET_TOGGLE))
-#ifdef HWY_NATIVE_INT_FMSUB
-#undef HWY_NATIVE_INT_FMSUB
+#if HWY_NATIVE_MASK
+  return IfThenElse(m, MaskedMulAdd(m, mul, x, add), no);
 #else
-#define HWY_NATIVE_INT_FMSUB
+  return IfThenElse(m, MulAdd(mul, x, add), no);
 #endif
-
-template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
-HWY_API V MulSub(V mul, V x, V sub) {
-  const DFromV<decltype(mul)> d;
-  const RebindToSigned<decltype(d)> di;
-  return MulAdd(mul, x, BitCast(d, Neg(BitCast(di, sub))));
 }
 
-#endif  // HWY_NATIVE_INT_FMSUB
+template <class V, class M>
+HWY_API V MaskedNegMulAddOr(V no, M m, V mul, V x, V add) {
+#if HWY_NATIVE_MASK
+  return IfThenElse(m, MaskedNegMulAdd(m, mul, x, add), no);
+#else
+  return IfThenElse(m, NegMulAdd(mul, x, add), no);
+#endif
+}
 
-template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
-HWY_API V NegMulSub(V mul, V x, V sub) {
-  const DFromV<decltype(mul)> d;
-  const RebindToSigned<decltype(d)> di;
+template <class V, class M>
+HWY_API V MaskedMulSubOr(V no, M m, V mul, V x, V sub) {
+#if HWY_NATIVE_MASK
+  return IfThenElse(m, MaskedMulSub(m, mul, x, sub), no);
+#else
+  return IfThenElse(m, MulSub(mul, x, sub), no);
+#endif
+}
 
-  return BitCast(d, Neg(BitCast(di, MulAdd(mul, x, sub))));
+template <class V, class M>
+HWY_API V MaskedNegMulSubOr(V no, M m, V mul, V x, V sub) {
+#if HWY_NATIVE_MASK
+  return IfThenElse(m, MaskedNegMulSub(m, mul, x, sub), no);
+#else
+  return IfThenElse(m, NegMulSub(mul, x, sub), no);
+#endif
 }
 
 // ------------------------------ MulAddSub
@@ -5651,8 +5662,8 @@ HWY_API VFromD<DN> RoundingShiftRightAndDemoteTo(DN dn, V v) {
 
 #endif  // HWY_NATIVE_SHIFT_RIGHT_AND_DEMOTE
 
-// ------------------------------ ReorderShiftRightAndDemote2To (ReorderDemote2To)
-// ------------------------------ OrderedShiftRightAndDemote2To (OrderedDemote2To)
+// ---------------------------- ReorderShiftRightAndDemote2To (ReorderDemote2To)
+// ---------------------------- OrderedShiftRightAndDemote2To (OrderedDemote2To)
 
 // NEON overrides these with a fused saturating shift-narrow.
 // TODO: also override on SVE2/RVV/LSX/LASX.

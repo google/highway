@@ -700,12 +700,6 @@ HWY_API Vec256<T> operator^(const Vec256<T> a, const Vec256<T> b) {
 // 8/16 require BITALG, 32/64 require VPOPCNTDQ.
 #if HWY_TARGET <= HWY_AVX3_DL
 
-#ifdef HWY_NATIVE_POPCNT
-#undef HWY_NATIVE_POPCNT
-#else
-#define HWY_NATIVE_POPCNT
-#endif
-
 namespace detail {
 
 template <typename T>
@@ -3207,6 +3201,429 @@ HWY_API Vec256<T> MaskedSatSubOr(Vec256<T> no, Mask256<T> m, Vec256<T> a,
   return Vec256<T>{_mm256_mask_subs_epu16(no.raw, m.raw, a.raw, b.raw)};
 }
 
+// ------------------------------ MaskedAbsOr
+
+template <typename T, HWY_IF_I8(T)>
+HWY_API Vec256<T> MaskedAbsOr(Vec256<T> no, Mask256<T> m, Vec256<T> v) {
+  return Vec256<T>{_mm256_mask_abs_epi8(no.raw, m.raw, v.raw)};
+}
+
+template <typename T, HWY_IF_I16(T)>
+HWY_API Vec256<T> MaskedAbsOr(Vec256<T> no, Mask256<T> m, Vec256<T> v) {
+  return Vec256<T>{_mm256_mask_abs_epi16(no.raw, m.raw, v.raw)};
+}
+
+template <typename T, HWY_IF_I32(T)>
+HWY_API Vec256<T> MaskedAbsOr(Vec256<T> no, Mask256<T> m, Vec256<T> v) {
+  return Vec256<T>{_mm256_mask_abs_epi32(no.raw, m.raw, v.raw)};
+}
+
+template <typename T, HWY_IF_I64(T)>
+HWY_API Vec256<T> MaskedAbsOr(Vec256<T> no, Mask256<T> m, Vec256<T> v) {
+  return Vec256<T>{_mm256_mask_abs_epi64(no.raw, m.raw, v.raw)};
+}
+
+// ------------------------------ MaskedAbs
+
+template <typename T, HWY_IF_I8(T)>
+HWY_API Vec256<T> MaskedAbs(Mask256<T> m, Vec256<T> v) {
+  return Vec256<T>{_mm256_maskz_abs_epi8(m.raw, v.raw)};
+}
+
+template <typename T, HWY_IF_I16(T)>
+HWY_API Vec256<T> MaskedAbs(Mask256<T> m, Vec256<T> v) {
+  return Vec256<T>{_mm256_maskz_abs_epi16(m.raw, v.raw)};
+}
+
+template <typename T, HWY_IF_I32(T)>
+HWY_API Vec256<T> MaskedAbs(Mask256<T> m, Vec256<T> v) {
+  return Vec256<T>{_mm256_maskz_abs_epi32(m.raw, v.raw)};
+}
+
+template <typename T, HWY_IF_I64(T)>
+HWY_API Vec256<T> MaskedAbs(Mask256<T> m, Vec256<T> v) {
+  return Vec256<T>{_mm256_maskz_abs_epi64(m.raw, v.raw)};
+}
+
+// ------------------------------ MaskedSaturatedAdd
+
+template <typename T, HWY_IF_I8(T)>
+HWY_API Vec256<T> MaskedSaturatedAdd(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_adds_epi8(m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_U8(T)>
+HWY_API Vec256<T> MaskedSaturatedAdd(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_adds_epu8(m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_I16(T)>
+HWY_API Vec256<T> MaskedSaturatedAdd(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_adds_epi16(m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_U16(T)>
+HWY_API Vec256<T> MaskedSaturatedAdd(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_adds_epu16(m.raw, a.raw, b.raw)};
+}
+
+// ------------------------------ MaskedSaturatedSub
+
+template <typename T, HWY_IF_I8(T)>
+HWY_API Vec256<T> MaskedSaturatedSub(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_subs_epi8(m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_U8(T)>
+HWY_API Vec256<T> MaskedSaturatedSub(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_subs_epu8(m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_I16(T)>
+HWY_API Vec256<T> MaskedSaturatedSub(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_subs_epi16(m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_U16(T)>
+HWY_API Vec256<T> MaskedSaturatedSub(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_subs_epu16(m.raw, a.raw, b.raw)};
+}
+
+// ------------------------------ MaskedMax
+
+template <typename T, HWY_IF_U8(T)>
+HWY_API Vec256<T> MaskedMax(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_max_epu8(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_I8(T)>
+HWY_API Vec256<T> MaskedMax(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_max_epi8(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_U16(T)>
+HWY_API Vec256<T> MaskedMax(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_max_epu16(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_I16(T)>
+HWY_API Vec256<T> MaskedMax(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_max_epi16(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_U32(T)>
+HWY_API Vec256<T> MaskedMax(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_max_epu32(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_I32(T)>
+HWY_API Vec256<T> MaskedMax(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_max_epi32(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_U64(T)>
+HWY_API Vec256<T> MaskedMax(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_max_epu64(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_I64(T)>
+HWY_API Vec256<T> MaskedMax(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_max_epi64(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_F32(T)>
+HWY_API Vec256<T> MaskedMax(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_max_ps(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_F64(T)>
+HWY_API Vec256<T> MaskedMax(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_max_pd(m.raw, a.raw, b.raw)};
+}
+#if HWY_HAVE_FLOAT16
+template <typename T, HWY_IF_F16(T)>
+HWY_API Vec256<T> MaskedMax(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_max_ph(m.raw, a.raw, b.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
+// ------------------------------ MaskedAdd
+
+template <typename T, HWY_IF_UI8(T)>
+HWY_API Vec256<T> MaskedAdd(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_add_epi8(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_UI16(T)>
+HWY_API Vec256<T> MaskedAdd(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_add_epi16(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_UI32(T)>
+HWY_API Vec256<T> MaskedAdd(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_add_epi32(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_UI64(T)>
+HWY_API Vec256<T> MaskedAdd(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_add_epi64(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_F32(T)>
+HWY_API Vec256<T> MaskedAdd(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_add_ps(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_F64(T)>
+HWY_API Vec256<T> MaskedAdd(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_add_pd(m.raw, a.raw, b.raw)};
+}
+#if HWY_HAVE_FLOAT16
+template <typename T, HWY_IF_F16(T)>
+HWY_API Vec256<T> MaskedAdd(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_add_ph(m.raw, a.raw, b.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
+// ------------------------------ MaskedSub
+
+template <typename T, HWY_IF_UI8(T)>
+HWY_API Vec256<T> MaskedSub(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_sub_epi8(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_UI16(T)>
+HWY_API Vec256<T> MaskedSub(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_sub_epi16(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_UI32(T)>
+HWY_API Vec256<T> MaskedSub(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_sub_epi32(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_UI64(T)>
+HWY_API Vec256<T> MaskedSub(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_sub_epi64(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_F32(T)>
+HWY_API Vec256<T> MaskedSub(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_sub_ps(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_F64(T)>
+HWY_API Vec256<T> MaskedSub(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_sub_pd(m.raw, a.raw, b.raw)};
+}
+#if HWY_HAVE_FLOAT16
+template <typename T, HWY_IF_F16(T)>
+HWY_API Vec256<T> MaskedSub(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_sub_ph(m.raw, a.raw, b.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
+// ------------------------------ MaskedMul
+
+template <typename T, HWY_IF_UI16(T)>
+HWY_API Vec256<T> MaskedMul(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_mullo_epi16(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_UI32(T)>
+HWY_API Vec256<T> MaskedMul(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_mullo_epi32(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_UI64(T)>
+HWY_API Vec256<T> MaskedMul(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_mullo_epi64(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_F32(T)>
+HWY_API Vec256<T> MaskedMul(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_mul_ps(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_F64(T)>
+HWY_API Vec256<T> MaskedMul(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_mul_pd(m.raw, a.raw, b.raw)};
+}
+#if HWY_HAVE_FLOAT16
+template <typename T, HWY_IF_F16(T)>
+HWY_API Vec256<T> MaskedMul(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_mul_ph(m.raw, a.raw, b.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
+// ------------------------------ MaskedDiv
+
+template <typename T, HWY_IF_F32(T)>
+HWY_API Vec256<T> MaskedDiv(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_div_ps(m.raw, a.raw, b.raw)};
+}
+template <typename T, HWY_IF_F64(T)>
+HWY_API Vec256<T> MaskedDiv(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_div_pd(m.raw, a.raw, b.raw)};
+}
+#if HWY_HAVE_FLOAT16
+template <typename T, HWY_IF_F16(T)>
+HWY_API Vec256<T> MaskedDiv(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_maskz_div_ph(m.raw, a.raw, b.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
+// ------------------------------ MaskedMulAdd
+
+HWY_API Vec256<float> MaskedMulAdd(Mask256<float> m, Vec256<float> mul,
+                                   Vec256<float> x, Vec256<float> add) {
+  return Vec256<float>{_mm256_maskz_fmadd_ps(m.raw, mul.raw, x.raw, add.raw)};
+}
+HWY_API Vec256<double> MaskedMulAdd(Mask256<double> m, Vec256<double> mul,
+                                    Vec256<double> x, Vec256<double> add) {
+  return Vec256<double>{_mm256_maskz_fmadd_pd(m.raw, mul.raw, x.raw, add.raw)};
+}
+#if HWY_HAVE_FLOAT16
+HWY_API Vec256<float16_t> MaskedMulAdd(Mask256<float16_t> m,
+                                       Vec256<float16_t> mul,
+                                       Vec256<float16_t> x,
+                                       Vec256<float16_t> add) {
+  return Vec256<float16_t>{
+      _mm256_maskz_fmadd_ph(m.raw, mul.raw, x.raw, add.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
+// ------------------------------ MaskedNegMulAdd
+
+HWY_API Vec256<float> MaskedNegMulAdd(Mask256<float> m, Vec256<float> mul,
+                                      Vec256<float> x, Vec256<float> add) {
+  return Vec256<float>{_mm256_maskz_fnmadd_ps(m.raw, mul.raw, x.raw, add.raw)};
+}
+HWY_API Vec256<double> MaskedNegMulAdd(Mask256<double> m, Vec256<double> mul,
+                                       Vec256<double> x, Vec256<double> add) {
+  return Vec256<double>{_mm256_maskz_fnmadd_pd(m.raw, mul.raw, x.raw, add.raw)};
+}
+#if HWY_HAVE_FLOAT16
+HWY_API Vec256<float16_t> MaskedNegMulAdd(Mask256<float16_t> m,
+                                          Vec256<float16_t> mul,
+                                          Vec256<float16_t> x,
+                                          Vec256<float16_t> add) {
+  return Vec256<float16_t>{
+      _mm256_maskz_fnmadd_ph(m.raw, mul.raw, x.raw, add.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
+// ------------------------------ MaskedMulSub
+
+HWY_API Vec256<float> MaskedMulSub(Mask256<float> m, Vec256<float> mul,
+                                   Vec256<float> x, Vec256<float> sub) {
+  return Vec256<float>{_mm256_maskz_fmsub_ps(m.raw, mul.raw, x.raw, sub.raw)};
+}
+HWY_API Vec256<double> MaskedMulSub(Mask256<double> m, Vec256<double> mul,
+                                    Vec256<double> x, Vec256<double> sub) {
+  return Vec256<double>{_mm256_maskz_fmsub_pd(m.raw, mul.raw, x.raw, sub.raw)};
+}
+#if HWY_HAVE_FLOAT16
+HWY_API Vec256<float16_t> MaskedMulSub(Mask256<float16_t> m,
+                                       Vec256<float16_t> mul,
+                                       Vec256<float16_t> x,
+                                       Vec256<float16_t> sub) {
+  return Vec256<float16_t>{
+      _mm256_maskz_fmsub_ph(m.raw, mul.raw, x.raw, sub.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
+// ------------------------------ MaskedNegMulSub
+
+HWY_API Vec256<float> MaskedNegMulSub(Mask256<float> m, Vec256<float> mul,
+                                      Vec256<float> x, Vec256<float> sub) {
+  return Vec256<float>{_mm256_maskz_fnmsub_ps(m.raw, mul.raw, x.raw, sub.raw)};
+}
+HWY_API Vec256<double> MaskedNegMulSub(Mask256<double> m, Vec256<double> mul,
+                                       Vec256<double> x, Vec256<double> sub) {
+  return Vec256<double>{_mm256_maskz_fnmsub_pd(m.raw, mul.raw, x.raw, sub.raw)};
+}
+#if HWY_HAVE_FLOAT16
+HWY_API Vec256<float16_t> MaskedNegMulSub(Mask256<float16_t> m,
+                                          Vec256<float16_t> mul,
+                                          Vec256<float16_t> x,
+                                          Vec256<float16_t> sub) {
+  return Vec256<float16_t>{
+      _mm256_maskz_fnmsub_ph(m.raw, mul.raw, x.raw, sub.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
+template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+HWY_API Vec256<T> MaskedMulAdd(Mask256<T> m, Vec256<T> mul, Vec256<T> x,
+                               Vec256<T> add) {
+  return IfThenElseZero(m, MulAdd(mul, x, add));
+}
+template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+HWY_API Vec256<T> MaskedMulSub(Mask256<T> m, Vec256<T> mul, Vec256<T> x,
+                               Vec256<T> sub) {
+  return IfThenElseZero(m, MulSub(mul, x, sub));
+}
+template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+HWY_API Vec256<T> MaskedNegMulAdd(Mask256<T> m, Vec256<T> mul, Vec256<T> x,
+                                  Vec256<T> add) {
+  return IfThenElseZero(m, NegMulAdd(mul, x, add));
+}
+template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+HWY_API Vec256<T> MaskedNegMulSub(Mask256<T> m, Vec256<T> mul, Vec256<T> x,
+                                  Vec256<T> sub) {
+  return IfThenElseZero(m, NegMulSub(mul, x, sub));
+}
+
+template <class T, HWY_IF_UI8(T)>
+HWY_API Vec256<T> MaskedMul(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return IfThenElseZero(m, Mul(a, b));
+}
+
+template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+HWY_API Vec256<T> MaskedDiv(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
+  return IfThenElseZero(m, Div(a, b));
+}
+
+template <class T, HWY_IF_I16(T)>
+HWY_API Vec256<T> MaskedMulFixedPoint15(Mask256<T> m, Vec256<T> a,
+                                        Vec256<T> b) {
+  return IfThenElseZero(m, MulFixedPoint15(a, b));
+}
+
+// ------------------------------ MaskedSqrt
+
+template <typename T, HWY_IF_F32(T)>
+HWY_API Vec256<T> MaskedSqrt(Mask256<T> m, Vec256<T> v) {
+  return Vec256<T>{_mm256_maskz_sqrt_ps(m.raw, v.raw)};
+}
+template <typename T, HWY_IF_F64(T)>
+HWY_API Vec256<T> MaskedSqrt(Mask256<T> m, Vec256<T> v) {
+  return Vec256<T>{_mm256_maskz_sqrt_pd(m.raw, v.raw)};
+}
+#if HWY_HAVE_FLOAT16
+template <typename T, HWY_IF_F16(T)>
+HWY_API Vec256<T> MaskedSqrt(Mask256<T> m, Vec256<T> v) {
+  return Vec256<T>{_mm256_maskz_sqrt_ph(m.raw, v.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
+// ------------------------------ MaskedSqrtOr
+
+template <typename T, HWY_IF_F32(T)>
+HWY_API Vec256<T> MaskedSqrtOr(Vec256<T> no, Mask256<T> m, Vec256<T> v) {
+  return Vec256<T>{_mm256_mask_sqrt_ps(no.raw, m.raw, v.raw)};
+}
+template <typename T, HWY_IF_F64(T)>
+HWY_API Vec256<T> MaskedSqrtOr(Vec256<T> no, Mask256<T> m, Vec256<T> v) {
+  return Vec256<T>{_mm256_mask_sqrt_pd(no.raw, m.raw, v.raw)};
+}
+#if HWY_HAVE_FLOAT16
+template <typename T, HWY_IF_F16(T)>
+HWY_API Vec256<T> MaskedSqrtOr(Vec256<T> no, Mask256<T> m, Vec256<T> v) {
+  return Vec256<T>{_mm256_mask_sqrt_ph(no.raw, m.raw, v.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
+// ------------------------------ MaskedWidenMulPairwiseAdd
+
+template <class D32, HWY_IF_I32_D(D32), HWY_IF_V_SIZE_D(D32, 32),
+          class V16 = VFromD<RepartitionToNarrow<D32>>>
+HWY_API VFromD<D32> MaskedWidenMulPairwiseAdd(D32 /* tag */, MFromD<D32> m,
+                                              V16 a, V16 b) {
+  return VFromD<D32>{_mm256_maskz_madd_epi16(m.raw, a.raw, b.raw)};
+}
+
+template <class D32, HWY_IF_U32_D(D32), HWY_IF_V_SIZE_D(D32, 32),
+          class V16 = VFromD<RepartitionToNarrow<D32>>>
+HWY_API VFromD<D32> MaskedWidenMulPairwiseAdd(D32 d32, MFromD<D32> m, V16 a,
+                                              V16 b) {
+  return IfThenElseZero(m, WidenMulPairwiseAdd(d32, a, b));
+}
+
+template <class DF, HWY_IF_F32_D(DF), HWY_IF_V_SIZE_D(DF, 32),
+          class VBF = VFromD<RepartitionToNarrow<DF>>>
+HWY_API VFromD<DF> MaskedWidenMulPairwiseAdd(DF df, MFromD<DF> m, VBF a,
+                                             VBF b) {
+  return IfThenElseZero(m, WidenMulPairwiseAdd(df, a, b));
+}
+
 // ------------------------------ MaskedEq etc.
 
 // ----- MaskedEq
@@ -3621,11 +4038,6 @@ HWY_API Vec256<T> MaskedShiftRightOr(Vec256<T> no, Mask256<T> m, Vec256<T> a) {
 }
 
 // ------------------------------ MaskedShrOr
-#ifdef HWY_NATIVE_MASKED_SHR_OR
-#undef HWY_NATIVE_MASKED_SHR_OR
-#else
-#define HWY_NATIVE_MASKED_SHR_OR
-#endif
 
 template <typename T, HWY_IF_T_SIZE(T, 1)>
 HWY_API Vec256<T> MaskedShrOr(Vec256<T> no, Mask256<T> m, Vec256<T> a,
@@ -3667,11 +4079,6 @@ HWY_API Vec256<int64_t> MaskedShrOr(Vec256<int64_t> no, Mask256<int64_t> m,
 }
 
 // ------------------------------ MaskedShr
-#ifdef HWY_NATIVE_MASKED_SHR
-#undef HWY_NATIVE_MASKED_SHR
-#else
-#define HWY_NATIVE_MASKED_SHR
-#endif
 
 template <typename T, HWY_IF_T_SIZE(T, 1)>
 HWY_API Vec256<T> MaskedShr(Mask256<T> m, Vec256<T> a, Vec256<T> shifts) {
@@ -3703,11 +4110,6 @@ HWY_API Vec256<int64_t> MaskedShr(Mask256<int64_t> m, Vec256<int64_t> a,
 }
 
 // ------------------------------ MaskedShlOr
-#ifdef HWY_NATIVE_MASKED_SHL_OR
-#undef HWY_NATIVE_MASKED_SHL_OR
-#else
-#define HWY_NATIVE_MASKED_SHL_OR
-#endif
 
 template <typename T, HWY_IF_T_SIZE(T, 1)>
 HWY_API Vec256<T> MaskedShlOr(Vec256<T> no, Mask256<T> m, Vec256<T> a,
@@ -3749,11 +4151,6 @@ HWY_API Vec256<int64_t> MaskedShlOr(Vec256<int64_t> no, Mask256<int64_t> m,
 }
 
 // ------------------------------ MaskedShl
-#ifdef HWY_NATIVE_MASKED_SHL
-#undef HWY_NATIVE_MASKED_SHL
-#else
-#define HWY_NATIVE_MASKED_SHL
-#endif
 
 template <typename T, HWY_IF_T_SIZE(T, 1)>
 HWY_API Vec256<T> MaskedShl(Mask256<T> m, Vec256<T> a, Vec256<T> shifts) {
@@ -9572,19 +9969,13 @@ HWY_API V BitShuffle(V v, VI idx) {
 
 #if HWY_TARGET <= HWY_AVX3_DL
 
-#ifdef HWY_NATIVE_MULTIROTATERIGHT
-#undef HWY_NATIVE_MULTIROTATERIGHT
-#else
-#define HWY_NATIVE_MULTIROTATERIGHT
-#endif
-
 template <class V, class VI, HWY_IF_UI64(TFromV<V>), HWY_IF_UI8(TFromV<VI>),
           HWY_IF_V_SIZE_V(V, 32), HWY_IF_V_SIZE_V(VI, HWY_MAX_LANES_V(V) * 8)>
 HWY_API V MultiRotateRight(V v, VI idx) {
   return V{_mm256_multishift_epi64_epi8(idx.raw, v.raw)};
 }
 
-#endif
+#endif  // HWY_TARGET <= HWY_AVX3_DL
 
 // ------------------------------ LeadingZeroCount
 

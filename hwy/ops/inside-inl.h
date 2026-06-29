@@ -682,6 +682,24 @@ HWY_API VFromD<D> PromoteOddTo(D d, V v) {
 }
 #endif  // HWY_TARGET != HWY_SCALAR
 
+// ------------------------------ MulSub / NegMulSub (Sub, Mul, MulAdd)
+
+// Currently, no target implements these for integers, and this is used in the
+// implementation of `MaskedMulSub`.
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V MulSub(V mul, V x, V sub) {
+  return Sub(Mul(mul, x), sub);
+}
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V NegMulSub(V mul, V x, V sub) {
+  // Cast because Neg is not defined for unsigned types.
+  const DFromV<decltype(mul)> d;
+  const RebindToSigned<decltype(d)> di;
+  return BitCast(d, Neg(BitCast(di, MulAdd(mul, x, sub))));
+}
+
 #ifdef HWY_INSIDE_END_NAMESPACE
 #undef HWY_INSIDE_END_NAMESPACE
 // NOLINTNEXTLINE(google-readability-namespace-comments)

@@ -380,7 +380,7 @@ HWY_NOINLINE void TestAllFloatExceptions() {
   ForFloatTypes(ForPartialVectors<TestFloatExceptions>());
 }
 
-struct TestMaskedMulAdd {
+struct TestMaskedMulAddOr {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     RandomState rng;
@@ -395,6 +395,8 @@ struct TestMaskedMulAdd {
     auto bool_lanes = AllocateAligned<TI>(N);
     auto expected = AllocateAligned<T>(N);
     HWY_ASSERT(bool_lanes && expected);
+
+    // MaskedMulAddOr: m ? mul*x+add : no
     HWY_ASSERT_VEC_EQ(d, k0, MaskedMulAddOr(v1, MaskTrue(d), k0, k0, k0));
     HWY_ASSERT_VEC_EQ(d, v2, MaskedMulAddOr(v1, MaskTrue(d), k0, v1, v2));
     HWY_ASSERT_VEC_EQ(d, v2, MaskedMulAddOr(v1, MaskTrue(d), v1, k0, v2));
@@ -423,11 +425,222 @@ struct TestMaskedMulAdd {
       }
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), MaskedMulAddOr(v2, mask, v2, v2, v1));
+
+    // MaskedMulAdd (zero-masked): m ? mul*x+add : 0
+    HWY_ASSERT_VEC_EQ(d, k0, MaskedMulAdd(MaskTrue(d), k0, k0, k0));
+    HWY_ASSERT_VEC_EQ(d, v2, MaskedMulAdd(MaskTrue(d), k0, v1, v2));
+    HWY_ASSERT_VEC_EQ(d, v2, MaskedMulAdd(MaskTrue(d), v1, k0, v2));
+    HWY_ASSERT_VEC_EQ(d, k0, MaskedMulAdd(MaskFalse(d), k0, v1, v2));
+    HWY_ASSERT_VEC_EQ(d, k0, MaskedMulAdd(MaskFalse(d), v1, k0, v2));
+
+    for (size_t i = 0; i < N; ++i) {
+      if (bool_lanes[i]) {
+        expected[i] = ConvertScalarTo<T>((i + 1) * (i + 2));
+      } else {
+        expected[i] = ConvertScalarTo<T>(0);
+      }
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MaskedMulAdd(mask, v2, v1, k0));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MaskedMulAdd(mask, v1, v2, k0));
+
+    for (size_t i = 0; i < N; ++i) {
+      if (bool_lanes[i]) {
+        expected[i] = ConvertScalarTo<T>((i + 2) * (i + 2) + (i + 1));
+      } else {
+        expected[i] = ConvertScalarTo<T>(0);
+      }
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MaskedMulAdd(mask, v2, v2, v1));
   }
 };
 
-HWY_NOINLINE void TestAllMaskedMulAdd() {
-  ForAllTypes(ForPartialVectors<TestMaskedMulAdd>());
+HWY_NOINLINE void TestAllMaskedMulAddOr() {
+  ForAllTypes(ForPartialVectors<TestMaskedMulAddOr>());
+}
+
+struct TestMaskedMulSubOr {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    RandomState rng;
+    const Vec<D> k0 = Zero(d);
+    const Vec<D> v1 = Iota(d, 1);
+    const Vec<D> v2 = Iota(d, 2);
+
+    using TI = MakeSigned<T>;  // For mask > 0 comparison
+    const Rebind<TI, D> di;
+    using VI = Vec<decltype(di)>;
+    const size_t N = Lanes(d);
+    auto bool_lanes = AllocateAligned<TI>(N);
+    auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(bool_lanes && expected);
+
+    // MaskedMulSubOr: m ? mul*x-sub : no
+    HWY_ASSERT_VEC_EQ(d, k0, MaskedMulSubOr(v1, MaskTrue(d), k0, k0, k0));
+    HWY_ASSERT_VEC_EQ(d, v1, MaskedMulSubOr(v1, MaskFalse(d), k0, k0, k0));
+
+    for (size_t i = 0; i < N; ++i) {
+      bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
+      if (bool_lanes[i]) {
+        // mul*x - sub = v2*v1 - k0 = (i+2)*(i+1)
+        expected[i] = ConvertScalarTo<T>((i + 1) * (i + 2));
+      } else {
+        expected[i] = ConvertScalarTo<T>(i + 1);
+      }
+    }
+    const VI mask_i = Load(di, bool_lanes.get());
+    const Mask<D> mask = RebindMask(d, Gt(mask_i, Zero(di)));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MaskedMulSubOr(v1, mask, v2, v1, k0));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MaskedMulSubOr(v1, mask, v1, v2, k0));
+
+    for (size_t i = 0; i < N; ++i) {
+      if (bool_lanes[i]) {
+        // mul*x - sub = v2*v2 - v1 = (i+2)*(i+2) - (i+1)
+        expected[i] = ConvertScalarTo<T>((i + 2) * (i + 2) - (i + 1));
+      } else {
+        expected[i] = ConvertScalarTo<T>(i + 2);
+      }
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MaskedMulSubOr(v2, mask, v2, v2, v1));
+
+    // MaskedMulSub (zero-masked): m ? mul*x-sub : 0
+    HWY_ASSERT_VEC_EQ(d, k0, MaskedMulSub(MaskTrue(d), k0, k0, k0));
+    HWY_ASSERT_VEC_EQ(d, k0, MaskedMulSub(MaskFalse(d), v2, v1, k0));
+
+    for (size_t i = 0; i < N; ++i) {
+      if (bool_lanes[i]) {
+        expected[i] = ConvertScalarTo<T>((i + 1) * (i + 2));
+      } else {
+        expected[i] = ConvertScalarTo<T>(0);
+      }
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MaskedMulSub(mask, v2, v1, k0));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MaskedMulSub(mask, v1, v2, k0));
+
+    for (size_t i = 0; i < N; ++i) {
+      if (bool_lanes[i]) {
+        expected[i] = ConvertScalarTo<T>((i + 2) * (i + 2) - (i + 1));
+      } else {
+        expected[i] = ConvertScalarTo<T>(0);
+      }
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MaskedMulSub(mask, v2, v2, v1));
+  }
+};
+
+HWY_NOINLINE void TestAllMaskedMulSubOr() {
+  ForAllTypes(ForPartialVectors<TestMaskedMulSubOr>());
+}
+
+struct TestMaskedNegMulAddOr {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    RandomState rng;
+    const Vec<D> k0 = Zero(d);
+    const Vec<D> v1 = Iota(d, 1);
+    const Vec<D> v2 = Iota(d, 2);
+
+    using TI = MakeSigned<T>;  // For mask > 0 comparison
+    const Rebind<TI, D> di;
+    using VI = Vec<decltype(di)>;
+    const size_t N = Lanes(d);
+    auto bool_lanes = AllocateAligned<TI>(N);
+    auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(bool_lanes && expected);
+
+    // MaskedNegMulAddOr: m ? -mul*x+add : no
+    HWY_ASSERT_VEC_EQ(d, k0, MaskedNegMulAddOr(v1, MaskTrue(d), k0, k0, k0));
+    HWY_ASSERT_VEC_EQ(d, v1, MaskedNegMulAddOr(v1, MaskFalse(d), k0, k0, k0));
+
+    for (size_t i = 0; i < N; ++i) {
+      bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
+      if (bool_lanes[i]) {
+        // -mul*x + add = -v1*v1 + v2 = -(i+1)*(i+1) + (i+2)
+        expected[i] = ConvertScalarTo<T>(
+            static_cast<TI>(-(TI(i) + 1) * (TI(i) + 1) + (TI(i) + 2)));
+      } else {
+        expected[i] = ConvertScalarTo<T>(i + 1);
+      }
+    }
+    const VI mask_i = Load(di, bool_lanes.get());
+    const Mask<D> mask = RebindMask(d, Gt(mask_i, Zero(di)));
+    HWY_ASSERT_VEC_EQ(d, expected.get(),
+                      MaskedNegMulAddOr(v1, mask, v1, v1, v2));
+
+    // MaskedNegMulAdd (zero-masked): m ? -mul*x+add : 0
+    HWY_ASSERT_VEC_EQ(d, k0, MaskedNegMulAdd(MaskTrue(d), k0, k0, k0));
+    HWY_ASSERT_VEC_EQ(d, k0, MaskedNegMulAdd(MaskFalse(d), v1, v1, v2));
+
+    for (size_t i = 0; i < N; ++i) {
+      if (bool_lanes[i]) {
+        expected[i] = ConvertScalarTo<T>(
+            static_cast<TI>(-(TI(i) + 1) * (TI(i) + 1) + (TI(i) + 2)));
+      } else {
+        expected[i] = ConvertScalarTo<T>(0);
+      }
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MaskedNegMulAdd(mask, v1, v1, v2));
+  }
+};
+
+HWY_NOINLINE void TestAllMaskedNegMulAddOr() {
+  ForAllTypes(ForPartialVectors<TestMaskedNegMulAddOr>());
+}
+
+struct TestMaskedNegMulSubOr {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    RandomState rng;
+    const Vec<D> k0 = Zero(d);
+    const Vec<D> v1 = Iota(d, 1);
+    const Vec<D> v2 = Iota(d, 2);
+
+    using TI = MakeSigned<T>;  // For mask > 0 comparison
+    const Rebind<TI, D> di;
+    using VI = Vec<decltype(di)>;
+    const size_t N = Lanes(d);
+    auto bool_lanes = AllocateAligned<TI>(N);
+    auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(bool_lanes && expected);
+
+    // MaskedNegMulSubOr: m ? -mul*x-sub : no
+    HWY_ASSERT_VEC_EQ(d, k0, MaskedNegMulSubOr(v1, MaskTrue(d), k0, k0, k0));
+    HWY_ASSERT_VEC_EQ(d, v1, MaskedNegMulSubOr(v1, MaskFalse(d), k0, k0, k0));
+
+    for (size_t i = 0; i < N; ++i) {
+      bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
+      if (bool_lanes[i]) {
+        // -mul*x - sub = -v1*v1 - v2 = -(i+1)*(i+1) - (i+2)
+        expected[i] = ConvertScalarTo<T>(
+            -(ConvertScalarTo<T>(i + 1) * ConvertScalarTo<T>(i + 1)) -
+            ConvertScalarTo<T>(i + 2));
+      } else {
+        expected[i] = ConvertScalarTo<T>(i + 1);
+      }
+    }
+    const VI mask_i = Load(di, bool_lanes.get());
+    const Mask<D> mask = RebindMask(d, Gt(mask_i, Zero(di)));
+    HWY_ASSERT_VEC_EQ(d, expected.get(),
+                      MaskedNegMulSubOr(v1, mask, v1, v1, v2));
+
+    // MaskedNegMulSub (zero-masked): m ? -mul*x-sub : 0
+    HWY_ASSERT_VEC_EQ(d, k0, MaskedNegMulSub(MaskTrue(d), k0, k0, k0));
+    HWY_ASSERT_VEC_EQ(d, k0, MaskedNegMulSub(MaskFalse(d), v1, v1, v2));
+
+    for (size_t i = 0; i < N; ++i) {
+      if (bool_lanes[i]) {
+        expected[i] = ConvertScalarTo<T>(
+            -(ConvertScalarTo<T>(i + 1) * ConvertScalarTo<T>(i + 1)) -
+            ConvertScalarTo<T>(i + 2));
+      } else {
+        expected[i] = ConvertScalarTo<T>(0);
+      }
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MaskedNegMulSub(mask, v1, v1, v2));
+  }
+};
+
+HWY_NOINLINE void TestAllMaskedNegMulSubOr() {
+  ForFloatTypes(ForPartialVectors<TestMaskedNegMulSubOr>());
 }
 
 struct TestMaskedAddSubMul {
@@ -888,7 +1101,10 @@ HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllSatAddSub);
 HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllDiv);
 HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllIntegerDivMod);
 HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllFloatExceptions);
-HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllMaskedMulAdd);
+HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllMaskedMulAddOr);
+HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllMaskedMulSubOr);
+HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllMaskedNegMulAddOr);
+HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllMaskedNegMulSubOr);
 
 HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllMaskedAddSubMul);
 HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllMaskedSatAddSub);

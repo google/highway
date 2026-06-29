@@ -2732,9 +2732,8 @@ HWY_NEON_DEF_FUNCTION_UI_8_16_32(AbsDiff, vabd, _, 2)  // no UI64
 #define HWY_NATIVE_INTEGER_ABS_DIFF
 #endif
 
-// ------------------------------ Integer multiply-add
+// ------------------------------ Integer [Neg]MulAdd
 
-// Per-target flag to prevent generic_ops-inl.h from defining int MulAdd.
 #ifdef HWY_NATIVE_INT_FMA
 #undef HWY_NATIVE_INT_FMA
 #else

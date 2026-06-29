@@ -913,9 +913,11 @@ variants are somewhat slower on Arm, and unavailable for integer inputs; if the
 
 *   <code>V **NegMulAdd**(V a, V b, V c)</code>: returns `-a[i] * b[i] + c[i]`.
 
-*   <code>V **MulSub**(V a, V b, V c)</code>: returns `a[i] * b[i] - c[i]`.
+*   <code>V **MulSub**(V a, V b, V c)</code>: returns `a[i] * b[i] - c[i]`. Note
+    that this requires two instructions for integers.
 
 *   <code>V **NegMulSub**(V a, V b, V c)</code>: returns `-a[i] * b[i] - c[i]`.
+    Note that this requires two or three instructions for integers.
 
 *   <code>V **MulAddSub**(V a, V b, V c)</code>: returns `a[i] * b[i] - c[i]` in
     the even lanes and `a[i] * b[i] + c[i]` in the odd lanes.
@@ -938,7 +940,7 @@ variants are somewhat slower on Arm, and unavailable for integer inputs; if the
     potentially more efficient than `MulAdd(PromoteOddTo(d, a), PromoteOddTo(d,
     b), c)`.
 
-#### Masked arithmetic
+#### Merge-masked arithmetic
 
 All ops in this section return `no` for `mask=false` lanes, and suppress any
 exceptions for those lanes if that is supported by the ISA. When exceptions are
@@ -971,14 +973,24 @@ not a concern, these are equivalent to, and potentially more efficient than,
     <code>V **MaskedSatSubOr**(V no, M m, V a, V b)</code>: returns `a[i] +
     b[i]` saturated to the minimum/maximum representable value, or `no[i]` if
     `m[i]` is false.
-*   <code>V **MaskedMulAddOr**(V no, M m, V mul, V x, V add)</code>: returns
-    `mul[i] * x[i] + add[i]` or `no[i]` if `m[i]` is false.
-
 *   `V`: `{i,f}` \
     <code>V **MaskedAbsOr**(V no, M m, V a)</code>: returns the absolute value
     of `a[i]` where m is active and returns `no[i]` otherwise.
 
-#### Zero masked arithmetic
+The following are not natively supported on any target (that would require 5
+input ports, which no architecture has), but can still be more energy-efficient
+than emulating via `IfThenElse` because they use zero-masking where supported.
+
+*   <code>V **MaskedMulAddOr**(V no, M m, V mul, V x, V add)</code>: returns
+    `mul[i] * x[i] + add[i]` or `no[i]` if `m[i]` is false.
+*   <code>V **MaskedMulSubOr**(V no, M m, V mul, V x, V sub)</code>: returns
+    `mul[i] * x[i] - sub[i]` or `no[i]` if `m[i]` is false.
+*   <code>V **MaskedNegMulAddOr**(V no, M m, V mul, V x, V add)</code>: returns
+    `-mul[i] * x[i] + add[i]` or `no[i]` if `m[i]` is false.
+*   <code>V **MaskedNegMulSubOr**(V no, M m, V mul, V x, V add)</code>: returns
+    `-mul[i] * x[i] - sub[i]` or `no[i]` if `m[i]` is false.
+
+#### Zero-masked arithmetic
 
 All ops in this section return `0` for `mask=false` lanes. These are equivalent
 to, and potentially more efficient than, `IfThenElseZero(m, Add(a, b));` etc.
@@ -1020,8 +1032,14 @@ to, and potentially more efficient than, `IfThenElseZero(m, Add(a, b));` etc.
 *   <code>V **MaskedMulAdd**(M m, V a, V b, V c)</code>: returns `a[i] * b[i] +
     c[i]` or `0` if `m[i]` is false.
 
+*   <code>V **MaskedMulSub**(M m, V a, V b, V c)</code>: returns `a[i] * b[i] -
+    c[i]` or `0` if `m[i]` is false.
+
 *   <code>V **MaskedNegMulAdd**(M m, V a, V b, V c)</code>: returns `-a[i] *
     b[i] + c[i]` or `0` if `m[i]` is false.
+
+*   <code>V **MaskedNegMulSub**(M m, V a, V b, V c)</code>: returns `-a[i] *
+    b[i] - c[i]` or `0` if `m[i]` is false.
 
 *   `V`: `{bf,u,i}16`, `D`: `RepartitionToWide<DFromV<V>>` \
     <code>Vec&lt;D&gt; **MaskedWidenMulPairwiseAdd**(D d, M m, V a, V b)</code>:
@@ -3016,9 +3034,9 @@ supported for the `HWY_SCALAR` target.
     implemented as `Add(Mul(f, m), a)`. Checking this can be useful for
     increasing the tolerance of expected results (around 1E-5 or 1E-6).
 
-*   `HWY_NATIVE_MASK` expands to 1 if the `Masked*` etc. ops use native masking.
-    If so, the masking is zero-cost, otherwise they typically involve an extra
-    AND operation.
+*   `HWY_NATIVE_MASK` expands to 1 if the `Masked*` etc. ops use native (zero-
+    or merge-)masking. If so, such masking is zero-cost, otherwise they
+    typically involve an extra AND operation.
 
 *   `HWY_NATIVE_DOT_BF16` expands to 1 if `ReorderWidenMulAccumulate` uses a
     native instruction rather than masking and f32 `MulAdd`.

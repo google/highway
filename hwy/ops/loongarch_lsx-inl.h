@@ -2422,8 +2422,9 @@ HWY_API V AbsDiff(V a, V b) {
   return Abs(a - b);
 }
 
-// ------------------------------ Integer/Float multiply-add
+// ------------------------------ Integer/Float [Neg]MulAdd
 
+// Per-target flag to prevent generic_ops-inl.h from defining int MulAdd.
 #ifdef HWY_NATIVE_INT_FMA
 #undef HWY_NATIVE_INT_FMA
 #else
@@ -2462,14 +2463,12 @@ HWY_API Vec128<double, N> MulAdd(Vec128<double, N> mul, Vec128<double, N> x,
   return Vec128<double, N>{__lsx_vfmadd_d(mul.raw, x.raw, add.raw)};
 }
 
-// Unsinged
+// Unsigned
 template <typename T, size_t N, HWY_IF_UNSIGNED(T)>
 HWY_API Vec128<T, N> MulAdd(Vec128<T, N> mul, Vec128<T, N> x,
                             Vec128<T, N> add) {
   return mul * x + add;
 }
-
-// ------------------------------ Integer/Float NegMulAdd
 
 template <size_t N>
 HWY_API Vec128<int8_t, N> NegMulAdd(Vec128<int8_t, N> mul, Vec128<int8_t, N> x,

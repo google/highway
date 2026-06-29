@@ -1865,9 +1865,8 @@ HWY_API V MaskedApproximateReciprocalSqrt(M m, V v) {
   return MaskedApproximateReciprocalSqrtOr(Zero(d), m, v);
 }
 
-// ------------------------------ MulAdd
+// ------------------------------ [Neg]MulAdd
 
-// Per-target flag to prevent generic_ops-inl.h from defining int MulAdd.
 #ifdef HWY_NATIVE_INT_FMA
 #undef HWY_NATIVE_INT_FMA
 #else
@@ -1887,7 +1886,6 @@ HWY_API V MaskedApproximateReciprocalSqrt(M m, V v) {
 HWY_RVV_FOREACH_UI(HWY_RVV_FMA, MulAdd, macc, _ALL)
 HWY_RVV_FOREACH_F(HWY_RVV_FMA, MulAdd, fmacc, _ALL)
 
-// ------------------------------ NegMulAdd
 HWY_RVV_FOREACH_UI(HWY_RVV_FMA, NegMulAdd, nmsac, _ALL)
 HWY_RVV_FOREACH_F(HWY_RVV_FMA, NegMulAdd, fnmsac, _ALL)
 
@@ -4651,8 +4649,83 @@ HWY_API VFromD<D> ConcatEven(D d, VFromD<D> hi, VFromD<D> lo) {
   return Combine(d, LowerHalf(dh, hi_even), LowerHalf(dh, lo_even));
 }
 
-// ------------------------------ PromoteEvenTo/PromoteOddTo
+// ------------------------------ PromoteEvenTo/PromoteOddTo/MulSub
 #include "hwy/ops/inside-inl.h"
+
+// ------------------------------ Zero-masking (IfThenElseZero, MulSub etc.)
+
+#ifdef HWY_NATIVE_ZERO_MASKED_ARITH
+#undef HWY_NATIVE_ZERO_MASKED_ARITH
+#else
+#define HWY_NATIVE_ZERO_MASKED_ARITH
+#endif
+
+template <class V, class M>
+HWY_API V MaskedMax(M m, V a, V b) {
+  const DFromV<V> d;
+  return MaskedMaxOr(Zero(d), m, a, b);
+}
+
+template <class V, class M>
+HWY_API V MaskedAdd(M m, V a, V b) {
+  const DFromV<V> d;
+  return MaskedAddOr(Zero(d), m, a, b);
+}
+
+template <class V, class M>
+HWY_API V MaskedSub(M m, V a, V b) {
+  const DFromV<V> d;
+  return MaskedSubOr(Zero(d), m, a, b);
+}
+
+template <class V, class M>
+HWY_API V MaskedMul(M m, V a, V b) {
+  const DFromV<V> d;
+  return MaskedMulOr(Zero(d), m, a, b);
+}
+
+template <class V, class M>
+HWY_API V MaskedDiv(M m, V a, V b) {
+  const DFromV<V> d;
+  return MaskedDivOr(Zero(d), m, a, b);
+}
+
+template <class V, class M>
+HWY_API V MaskedSaturatedAdd(M m, V a, V b) {
+  const DFromV<V> d;
+  return MaskedSatAddOr(Zero(d), m, a, b);
+}
+
+template <class V, class M>
+HWY_API V MaskedSaturatedSub(M m, V a, V b) {
+  const DFromV<V> d;
+  return MaskedSatSubOr(Zero(d), m, a, b);
+}
+
+template <class V, class M, typename D = DFromV<V>, HWY_IF_I16_D(D)>
+HWY_API V MaskedMulFixedPoint15(M m, V a, V b) {
+  return IfThenElseZero(m, MulFixedPoint15(a, b));
+}
+
+template <class V, class M>
+HWY_API V MaskedMulAdd(M m, V mul, V x, V add) {
+  return IfThenElseZero(m, MulAdd(mul, x, add));
+}
+
+template <class V, class M>
+HWY_API V MaskedNegMulAdd(M m, V mul, V x, V add) {
+  return IfThenElseZero(m, NegMulAdd(mul, x, add));
+}
+
+template <class V, class M>
+HWY_API V MaskedMulSub(M m, V mul, V x, V sub) {
+  return IfThenElseZero(m, MulSub(mul, x, sub));
+}
+
+template <class V, class M>
+HWY_API V MaskedNegMulSub(M m, V mul, V x, V sub) {
+  return IfThenElseZero(m, NegMulSub(mul, x, sub));
+}
 
 // ================================================== BLOCKWISE
 
@@ -6285,6 +6358,23 @@ HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGV2, Abs, fsgnjx, _ALL)
 
 #undef HWY_RVV_RETV_ARGV2
 
+#ifdef HWY_NATIVE_MASKED_ABS
+#undef HWY_NATIVE_MASKED_ABS
+#else
+#define HWY_NATIVE_MASKED_ABS
+#endif
+
+template <class V, HWY_IF_SIGNED_V(V), class M>
+HWY_API V MaskedAbsOr(V no, M m, V v) {
+  return IfThenElse(m, Abs(v), no);
+}
+
+template <class V, HWY_IF_SIGNED_V(V), class M>
+HWY_API V MaskedAbs(M m, V v) {
+  const DFromV<V> d;
+  return MaskedAbsOr(Zero(d), m, v);
+}
+
 // ------------------------------ AbsDiff (Abs, Sub)
 template <class V, HWY_IF_FLOAT_V(V)>
 HWY_API V AbsDiff(const V a, const V b) {
@@ -6694,6 +6784,17 @@ template <class D, HWY_IF_UI32_D(D), class V16 = VFromD<RepartitionToNarrow<D>>>
 HWY_API VFromD<D> WidenMulPairwiseAdd(D d32, V16 a, V16 b) {
   return MulAdd(PromoteEvenTo(d32, a), PromoteEvenTo(d32, b),
                 Mul(PromoteOddTo(d32, a), PromoteOddTo(d32, b)));
+}
+
+template <class D, class M, HWY_IF_UI32_D(D),
+          class V16 = VFromD<RepartitionToNarrow<D>>>
+HWY_API VFromD<D> MaskedWidenMulPairwiseAdd(D d32, M m, V16 a, V16 b) {
+  return IfThenElseZero(m, WidenMulPairwiseAdd(d32, a, b));
+}
+
+template <class DF, class M, HWY_IF_F32_D(DF), class VBF>
+HWY_API VFromD<DF> MaskedWidenMulPairwiseAdd(DF df, M m, VBF a, VBF b) {
+  return IfThenElseZero(m, WidenMulPairwiseAdd(df, a, b));
 }
 
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)

@@ -1470,15 +1470,6 @@ HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGV, ApproximateReciprocal, recpe)
 // ------------------------------ Sqrt
 HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGPV, Sqrt, sqrt)
 
-// ------------------------------ MaskedSqrt
-#ifdef HWY_NATIVE_MASKED_SQRT
-#undef HWY_NATIVE_MASKED_SQRT
-#else
-#define HWY_NATIVE_MASKED_SQRT
-#endif
-
-HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMV_Z, MaskedSqrt, sqrt)
-
 // ------------------------------ ApproximateReciprocalSqrt
 #ifdef HWY_NATIVE_F64_APPROX_RSQRT
 #undef HWY_NATIVE_F64_APPROX_RSQRT
@@ -1488,9 +1479,8 @@ HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMV_Z, MaskedSqrt, sqrt)
 
 HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGV, ApproximateReciprocalSqrt, rsqrte)
 
-// ------------------------------ MulAdd
+// ------------------------------ [Neg]MulAdd
 
-// Per-target flag to prevent generic_ops-inl.h from defining int MulAdd.
 #ifdef HWY_NATIVE_INT_FMA
 #undef HWY_NATIVE_INT_FMA
 #else
@@ -1505,8 +1495,6 @@ HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGV, ApproximateReciprocalSqrt, rsqrte)
   }
 
 HWY_SVE_FOREACH(HWY_SVE_FMA, MulAdd, mad)
-
-// ------------------------------ NegMulAdd
 HWY_SVE_FOREACH(HWY_SVE_FMA, NegMulAdd, msb)
 
 // ------------------------------ MulSub
@@ -1768,7 +1756,6 @@ HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV, MaskedMul, mul)
 HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMVV, MaskedDiv, div)
 HWY_SVE_FOREACH_UI32(HWY_SVE_RETV_ARGMVV, MaskedDiv, div)
 HWY_SVE_FOREACH_UI64(HWY_SVE_RETV_ARGMVV, MaskedDiv, div)
-HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMV, MaskedSqrt, sqrt)
 #if HWY_SVE_HAVE_2
 HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV, MaskedSatAdd, qadd)
 HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV, MaskedSatSub, qsub)
@@ -1832,29 +1819,19 @@ HWY_API V MaskedSatSubOr(V no, M m, V a, V b) {
 }
 #endif
 
-// ------------------------------ MaskedMulAddOr
-namespace detail {
-HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVVV, MaskedMulAdd, mad)
-}
-
-// Per-target flag to prevent generic_ops-inl.h from defining int
-// MaskedMulAddOr.
-#ifdef HWY_NATIVE_MASKED_INT_FMA
-#undef HWY_NATIVE_MASKED_INT_FMA
+// ------------------------------ MaskedSqrt
+#ifdef HWY_NATIVE_MASKED_SQRT
+#undef HWY_NATIVE_MASKED_SQRT
 #else
-#define HWY_NATIVE_MASKED_INT_FMA
+#define HWY_NATIVE_MASKED_SQRT
 #endif
 
-template <class V, class M>
-HWY_API V MaskedMulAddOr(V no, M m, V mul, V x, V add) {
-  return IfThenElse(m, detail::MaskedMulAdd(m, mul, x, add), no);
-}
+HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMV_Z, MaskedSqrt, sqrt)
 
 template <class V, HWY_IF_FLOAT_V(V), class M>
 HWY_API V MaskedSqrtOr(V no, M m, V v) {
-  return IfThenElse(m, detail::MaskedSqrt(m, v), no);
+  return IfThenElse(m, MaskedSqrt(m, v), no);
 }
-
 // ================================================== REDUCE
 
 #ifdef HWY_NATIVE_REDUCE_SCALAR
@@ -1979,7 +1956,10 @@ HWY_SVE_FOREACH_UI32(HWY_SVE_RETV_ARGMVV_Z, MaskedDiv, div)
 HWY_SVE_FOREACH_UI64(HWY_SVE_RETV_ARGMVV_Z, MaskedDiv, div)
 HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVVV_Z, MaskedMulAdd, mad)
 HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVVV_Z, MaskedNegMulAdd, msb)
+HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMVVV_Z, MaskedMulSub, nmsb)
+HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMVVV_Z, MaskedNegMulSub, nmad)
 
+// Integer MaskedMulSub and MaskedNegMulSub must come after inside-inl.h.
 // I8/U8/I16/U16 MaskedDiv is implemented after I8/U8/I16/U16 Div
 
 #if HWY_SVE_HAVE_2
@@ -3337,6 +3317,18 @@ HWY_SVE_FOREACH_UI64(HWY_SVE_RETV_ARGPV, NativePromoteEvenTo, extw)
 }  // namespace detail
 
 #include "hwy/ops/inside-inl.h"
+
+// ------------------------------ MaskedMulSub, MaskedNegMulSub (MulSub)
+
+template <class V, class M, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V MaskedMulSub(M m, V mul, V x, V sub) {
+  return IfThenElseZero(m, MulSub(mul, x, sub));
+}
+
+template <class V, class M, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V MaskedNegMulSub(M m, V mul, V x, V sub) {
+  return IfThenElseZero(m, NegMulSub(mul, x, sub));
+}
 
 // ------------------------------ DemoteTo F
 
