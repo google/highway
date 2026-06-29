@@ -210,9 +210,17 @@ class VectorXoshiro {
     auto s1 = Load(tag, state_[{1}].data());
     auto s2 = Load(tag, state_[{2}].data());
     auto s3 = Load(tag, state_[{3}].data());
-    for (std::uint64_t i = 0; i < n; i += Lanes(tag)) {
+    const size_t lanes = Lanes(tag);
+    // Full vectors use the cheap Store; StoreN (which can be expensive on some
+    // targets) is only used once, for the final partial vector.
+    size_t i = 0;
+    for (; i + lanes <= n; i += lanes) {
       const auto next = Update(s0, s1, s2, s3);
       Store(next, tag, result.data() + i);
+    }
+    if (i < n) {
+      const auto next = Update(s0, s1, s2, s3);
+      StoreN(next, tag, result.data() + i, n - i);
     }
     Store(s0, tag, state_[{0}].data());
     Store(s1, tag, state_[{1}].data());
@@ -229,9 +237,15 @@ class VectorXoshiro {
     auto s1 = Load(tag, state_[{1}].data());
     auto s2 = Load(tag, state_[{2}].data());
     auto s3 = Load(tag, state_[{3}].data());
-    for (std::uint64_t i = 0; i < N; i += Lanes(tag)) {
+    const size_t lanes = Lanes(tag);
+    size_t i = 0;
+    for (; i + lanes <= N; i += lanes) {
       const auto next = Update(s0, s1, s2, s3);
       Store(next, tag, result.data() + i);
+    }
+    if (i < N) {
+      const auto next = Update(s0, s1, s2, s3);
+      StoreN(next, tag, result.data() + i, N - i);
     }
     Store(s0, tag, state_[{0}].data());
     Store(s1, tag, state_[{1}].data());
@@ -267,12 +281,21 @@ class VectorXoshiro {
     auto s2 = Load(tag, state_[{2}].data());
     auto s3 = Load(tag, state_[{3}].data());
 
-    for (std::uint64_t i = 0; i < n; i += Lanes(real_tag)) {
+    const size_t lanes = Lanes(real_tag);
+    size_t i = 0;
+    for (; i + lanes <= n; i += lanes) {
       const auto next = Update(s0, s1, s2, s3);
       const auto bits = ShiftRight<11>(next);
       const auto real = ConvertTo(real_tag, bits);
       const auto uniform = Mul(real, MUL_VALUE);
       Store(uniform, real_tag, result.data() + i);
+    }
+    if (i < n) {
+      const auto next = Update(s0, s1, s2, s3);
+      const auto bits = ShiftRight<11>(next);
+      const auto real = ConvertTo(real_tag, bits);
+      const auto uniform = Mul(real, MUL_VALUE);
+      StoreN(uniform, real_tag, result.data() + i, n - i);
     }
 
     Store(s0, tag, state_[{0}].data());
@@ -294,12 +317,21 @@ class VectorXoshiro {
     auto s2 = Load(tag, state_[{2}].data());
     auto s3 = Load(tag, state_[{3}].data());
 
-    for (std::uint64_t i = 0; i < N; i += Lanes(real_tag)) {
+    const size_t lanes = Lanes(real_tag);
+    size_t i = 0;
+    for (; i + lanes <= N; i += lanes) {
       const auto next = Update(s0, s1, s2, s3);
       const auto bits = ShiftRight<11>(next);
       const auto real = ConvertTo(real_tag, bits);
       const auto uniform = Mul(real, MUL_VALUE);
       Store(uniform, real_tag, result.data() + i);
+    }
+    if (i < N) {
+      const auto next = Update(s0, s1, s2, s3);
+      const auto bits = ShiftRight<11>(next);
+      const auto real = ConvertTo(real_tag, bits);
+      const auto uniform = Mul(real, MUL_VALUE);
+      StoreN(uniform, real_tag, result.data() + i, N - i);
     }
 
     Store(s0, tag, state_[{0}].data());
