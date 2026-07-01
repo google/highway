@@ -146,6 +146,32 @@ void TestAllCountIf() {
   ForAllTypes(ForGE128Vectors<ForeachCountAndMisalign<TestCountIf>>());
 }
 
+// Regression test for a 16-bit accumulator overflow: the inner-loop cap was
+// 32768, so a lane that matched on every one of those iterations reached
+// 32768, overflowing the signed int16 accumulator (to -32768) before it was
+// widened. On HWY_NATIVE_MASK targets the accumulator was fed straight to the
+// signed pairwise widening, so the count was wrong. An all-matching run longer
+// than one cap chunk must still count correctly.
+struct TestLargeMatchingCount {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) const {
+    if (sizeof(T) != 2) return;  // exercises the 16-bit Count path
+    const size_t N = Lanes(d);
+    if (N < 2) return;
+    const size_t count = size_t{32768} * 4 * N;  // one full (pre-fix) cap chunk
+    AlignedFreeUniquePtr<T[]> storage = AllocateAligned<T>(count);
+    HWY_ASSERT(storage);
+    T* in = storage.get();
+    const T value = ConvertScalarTo<T>(7);
+    for (size_t i = 0; i < count; ++i) in[i] = value;
+    HWY_ASSERT_EQ(count, Count(d, value, in, count));
+  }
+};
+
+void TestAllLargeMatchingCount() {
+  ForAllTypes(ForGE128Vectors<TestLargeMatchingCount>());
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -158,6 +184,7 @@ namespace {
 HWY_BEFORE_TEST(CountTest);
 HWY_EXPORT_AND_TEST_P(CountTest, TestAllCount);
 HWY_EXPORT_AND_TEST_P(CountTest, TestAllCountIf);
+HWY_EXPORT_AND_TEST_P(CountTest, TestAllLargeMatchingCount);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy
