@@ -68,7 +68,9 @@
 // If 1, both __bf16 and a limited set of *_bf16 SVE intrinsics are available:
 // create/get/set/dup, ld/st, sel, rev, trn, uzp, zip.
 // Consulted below, hence define here rather than in arm_sve-inl.h.
-#if HWY_ARM_HAVE_SCALAR_BF16_TYPE && defined(__ARM_FEATURE_SVE_BF16)
+#undef HWY_SVE_HAVE_BF16_FEATURE
+#if (HWY_ARM_HAVE_SCALAR_BF16_TYPE && defined(__ARM_FEATURE_SVE_BF16))
+  || HWY_TARGET == HWY_SVE2_128
 #define HWY_SVE_HAVE_BF16_FEATURE 1
 #else
 #define HWY_SVE_HAVE_BF16_FEATURE 0
@@ -637,7 +639,7 @@
 #define HWY_HAVE_FLOAT64 1
 #define HWY_MEM_OPS_MIGHT_FAULT 0
 #define HWY_NATIVE_FMA 1
-#if HWY_SVE_HAVE_BF16_FEATURE || HWY_TARGET == HWY_SVE2_128
+#if HWY_SVE_HAVE_BF16_FEATURE
 #define HWY_NATIVE_DOT_BF16 1
 #else
 #define HWY_NATIVE_DOT_BF16 0
