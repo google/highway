@@ -377,6 +377,14 @@ class AlignedNDArray {
     memory_shape_[axes - 1] = RoundUpTo(memory_shape_[axes - 1], VectorBytes());
     memory_sizes_ = ComputeSizes(memory_shape_);
     buffer_ = hwy::AllocateAligned<T>(memory_size());
+    // AllocateAligned returns nullptr if the allocation failed or the byte
+    // count (memory_size() * sizeof(T)) overflowed size_t. ZeroBytes is memset,
+    // so zeroing a null buffer is a null-pointer write (UB); abort with a clear
+    // message instead, mirroring the overflow check in ComputeSizes().
+    if (HWY_UNLIKELY(buffer_.get() == nullptr)) {
+      HWY_ABORT("AlignedNDArray: failed to allocate %zu elements",
+                memory_size());
+    }
     hwy::ZeroBytes(buffer_.get(), memory_size() * sizeof(T));
   }
 
