@@ -25,8 +25,6 @@ LoadnPair: Gather with optimizations in particular for 2x64-bit, which use
 128-bit loads plus Combine.
 Also StorePair
 
-Lookup32 for 32-bit, Lookup16 for 64-bit. permutex2var on AVX-512, else Gather.
-
 ReduceMin/MaxOrNaN
 
 Document Reduce/Min NaN behavior
@@ -195,3 +193,4 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~cosh~~
 *   ~~tan~~
 *   ~~pow~~
+*   ~~Lookup32~~
