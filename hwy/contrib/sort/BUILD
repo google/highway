@@ -117,6 +117,7 @@ VQSORT_TEXTUAL_HDRS = [
     "sorting_networks-inl.h",
     "traits-inl.h",
     "traits128-inl.h",
+    "order-emulate-inl.h",
     "vqsort-inl.h",
     # Placeholder for internal instrumentation. Do not remove.
 ]
