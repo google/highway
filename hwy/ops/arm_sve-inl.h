@@ -4483,6 +4483,18 @@ HWY_API V BroadcastBlock(V v) {
 
 // ------------------------------ Compress (PromoteTo)
 
+#ifdef HWY_NATIVE_COMPRESS8
+#undef HWY_NATIVE_COMPRESS8
+#else
+#define HWY_NATIVE_COMPRESS8
+#endif
+
+#ifdef HWY_NATIVE_COMPRESS16_32_64
+#undef HWY_NATIVE_COMPRESS16_32_64
+#else
+#define HWY_NATIVE_COMPRESS16_32_64
+#endif
+
 template <typename T>
 struct CompressIsPartition {
 #if HWY_TARGET == HWY_SVE_256 || HWY_TARGET == HWY_SVE2_128
@@ -4527,9 +4539,7 @@ HWY_API V Compress(V v, svbool_t mask) {
       0, 1, 3, 2, 2, 3, 0, 1, 0, 2, 3, 1, 1, 2, 3, 0, 0, 1, 2, 3};
   return TableLookupLanes(v, SetTableIndices(d, table + offset));
 }
-
-#endif  // HWY_TARGET == HWY_SVE_256
-#if HWY_TARGET == HWY_SVE2_128 || HWY_IDE
+#elif HWY_TARGET == HWY_SVE2_128
 template <class V, HWY_IF_T_SIZE_V(V, 8)>
 HWY_API V Compress(V v, svbool_t mask) {
   // If mask == 10: swap via splice. A mask of 00 or 11 leaves v unchanged, 10
@@ -4540,56 +4550,95 @@ HWY_API V Compress(V v, svbool_t mask) {
   const svbool_t maskLL = svzip1_b64(mask, mask);  // broadcast lower lane
   return detail::Splice(v, v, AndNot(maskLL, mask));
 }
+#endif  // HWY_TARGET == HWY_SVE_256
 
-#endif  // HWY_TARGET == HWY_SVE2_128
+template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 4) | (1 << 8))>
+HWY_API VFromD<D> Compress(D /*d*/, VFromD<D> v, const svbool_t mask) {
+  return Compress(v, mask);
+}
 
-template <class V, HWY_IF_T_SIZE_V(V, 2)>
-HWY_API V Compress(V v, svbool_t mask16) {
-  static_assert(!IsSame<V, svfloat16_t>(), "Must use overload");
-  const DFromV<V> d16;
+namespace detail {
 
-  // Promote vector and mask to 32-bit
-  const RepartitionToWide<decltype(d16)> dw;
-  const auto v32L = PromoteTo(dw, v);
-  const auto v32H = detail::PromoteUpperTo(dw, v);
-  const svbool_t mask32L = svunpklo_b(mask16);
-  const svbool_t mask32H = svunpkhi_b(mask16);
+template <class D>
+static constexpr bool NeedToSplitForCompress8Or16() {
+  return (HWY_MAX_LANES_D(D) * sizeof(TFromD<D>)) >=
+             ((HWY_TARGET == HWY_SVE_256) ? 32 : 16) &&
+         HWY_POW2_D(D) >= 0;
+}
 
-  const auto compressedL = Compress(v32L, mask32L);
-  const auto compressedH = Compress(v32H, mask32H);
+}  // namespace detail
 
-  // Demote to 16-bit (already in range) - separately so we can splice
-  const V evenL = BitCast(d16, compressedL);
-  const V evenH = BitCast(d16, compressedH);
-  const V v16L = detail::ConcatEvenFull(evenL, evenL);  // lower half
-  const V v16H = detail::ConcatEvenFull(evenH, evenH);
+template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)),
+          hwy::EnableIf<
+              detail::NeedToSplitForCompress8Or16<RemoveCvRef<D>>()>* = nullptr>
+HWY_API VFromD<D> Compress(D d, VFromD<D> v, const svbool_t mask) {
+  const DFromV<decltype(v)> d_full;
+  const RebindToUnsigned<decltype(d_full)> du;
+  const RepartitionToWide<decltype(du)> dw;
+
+  const auto vu = BitCast(du, v);
+  const auto vw_lo = PromoteTo(dw, vu);
+  const auto vw_hi = detail::PromoteUpperTo(dw, vu);
+
+  const auto mask_lo = svunpklo_b(mask);
+  const auto mask_hi = svunpkhi_b(mask);
+
+  const auto lo_compress_result = TruncateTo(du, Compress(dw, vw_lo, mask_lo));
+  const auto hi_compress_result = TruncateTo(du, Compress(dw, vw_hi, mask_hi));
 
   // We need to combine two vectors of non-constexpr length, so the only option
   // is Splice, which requires us to synthesize a mask. NOTE: this function uses
   // full vectors (SV_ALL instead of SV_POW2), hence we need unmasked svcnt.
-  const size_t countL = detail::CountTrueFull(dw, mask32L);
-  const auto compressed_maskL = FirstN(d16, countL);
-  return detail::Splice(v16H, v16L, compressed_maskL);
+  const size_t lo_count = detail::CountTrueFull(dw, mask_lo);
+  const auto lo_compressed_mask = FirstN(du, lo_count);
+
+  return BitCast(d, detail::Splice(hi_compress_result, lo_compress_result,
+                                   lo_compressed_mask));
 }
 
-// Must treat float16_t as integers so we can ConcatEven.
-HWY_API svfloat16_t Compress(svfloat16_t v, svbool_t mask16) {
-  const DFromV<decltype(v)> df;
-  const RebindToSigned<decltype(df)> di;
-  return BitCast(df, Compress(BitCast(di, v), mask16));
+template <
+    class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)),
+    hwy::EnableIf<!detail::NeedToSplitForCompress8Or16<RemoveCvRef<D>>()>* =
+        nullptr>
+HWY_API VFromD<D> Compress(D d, VFromD<D> v, const svbool_t mask) {
+  using T = TFromD<D>;
+  using TU = MakeUnsigned<T>;
+
+  using TW =
+      If<(sizeof(T) == 1 &&
+          ((HWY_POW2_D(D) <= -2) ||
+           (HWY_MAX_LANES_D(D) <= ((HWY_TARGET == HWY_SVE_256) ? 8 : 4)))),
+         uint32_t, MakeWide<TU>>;
+
+  const ScalableTag<TW> dw;
+  const Repartition<TU, decltype(dw)> du;
+
+  const auto vu = BitCast(du, v);
+  return BitCast(d, TruncateTo(du, Compress(dw, PromoteTo(dw, vu),
+                                            PromoteMaskTo(dw, du, mask))));
+}
+
+template <class V, HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2))>
+HWY_API V Compress(V v, const svbool_t mask) {
+  return Compress(DFromV<V>(), v, mask);
 }
 
 // ------------------------------ CompressNot
 
-// 2 or 4 bytes
-template <class V, HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 2) | (1 << 4))>
+// 1, 2, or 4 bytes
+template <class V, HWY_IF_NOT_T_SIZE_V(V, 8)>
 HWY_API V CompressNot(V v, const svbool_t mask) {
   return Compress(v, Not(mask));
 }
 
+template <class D, HWY_IF_NOT_T_SIZE_D(D, 8)>
+HWY_API VFromD<D> CompressNot(D d, VFromD<D> v, const svbool_t mask) {
+  return Compress(d, v, Not(mask));
+}
+
 template <class V, HWY_IF_T_SIZE_V(V, 8)>
 HWY_API V CompressNot(V v, svbool_t mask) {
-#if HWY_TARGET == HWY_SVE2_128 || HWY_IDE
+#if HWY_TARGET == HWY_SVE2_128
   // If mask == 01: swap via splice. A mask of 00 or 11 leaves v unchanged, 10
   // swaps upper/lower (the lower half is set to the upper half, and the
   // remaining upper half is filled from the lower half of the second v), and
@@ -4597,8 +4646,7 @@ HWY_API V CompressNot(V v, svbool_t mask) {
   // 01 to 10, and everything else to 00.
   const svbool_t maskLL = svzip1_b64(mask, mask);  // broadcast lower lane
   return detail::Splice(v, v, AndNot(mask, maskLL));
-#endif
-#if HWY_TARGET == HWY_SVE_256 || HWY_IDE
+#elif HWY_TARGET == HWY_SVE_256
   const DFromV<V> d;
   const RebindToUnsigned<decltype(d)> du64;
 
@@ -4615,18 +4663,29 @@ HWY_API V CompressNot(V v, svbool_t mask) {
       0, 2, 0, 3, 1, 2, 3, 0, 1, 2, 0, 1, 2, 3, 1, 2, 0, 3, 0, 2, 1, 3,
       2, 0, 1, 3, 0, 1, 2, 3, 1, 0, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3};
   return TableLookupLanes(v, SetTableIndices(d, table + offset));
-#endif  // HWY_TARGET == HWY_SVE_256
-
+#else
   return Compress(v, Not(mask));
+#endif
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 8)>
+HWY_API VFromD<D> CompressNot(D /*d*/, VFromD<D> v, const svbool_t mask) {
+  return CompressNot(v, mask);
 }
 
 // ------------------------------ CompressBlocksNot
+
+#ifdef HWY_NATIVE_COMPRESS_BLOCKS_NOT
+#undef HWY_NATIVE_COMPRESS_BLOCKS_NOT
+#else
+#define HWY_NATIVE_COMPRESS_BLOCKS_NOT
+#endif
+
 HWY_API svuint64_t CompressBlocksNot(svuint64_t v, svbool_t mask) {
 #if HWY_TARGET == HWY_SVE2_128
   (void)mask;
   return v;
-#endif
-#if HWY_TARGET == HWY_SVE_256 || HWY_IDE
+#elif HWY_TARGET == HWY_SVE_256 || HWY_IDE
   uint64_t bits = 0;           // predicate reg is 32-bit
   CopyBytes<4>(&mask, &bits);  // not same size - 64-bit more efficient
   // Concatenate LSB for upper and lower blocks, pre-scale by 4 for table idx.
@@ -4636,26 +4695,26 @@ HWY_API svuint64_t CompressBlocksNot(svuint64_t v, svbool_t mask) {
                                                         0, 1, 2, 3, 0, 1, 2, 3};
   const ScalableTag<uint64_t> d;
   return TableLookupLanes(v, SetTableIndices(d, table + offset));
-#endif
-
+#else
   return CompressNot(v, mask);
+#endif
 }
 
 // ------------------------------ CompressStore
-template <class V, class D, HWY_IF_NOT_T_SIZE_D(D, 1)>
+template <class V, class D>
 HWY_API size_t CompressStore(const V v, const svbool_t mask, const D d,
                              TFromD<D>* HWY_RESTRICT unaligned) {
-  StoreU(Compress(v, mask), d, unaligned);
+  StoreU(Compress(d, v, mask), d, unaligned);
   return CountTrue(d, mask);
 }
 
 // ------------------------------ CompressBlendedStore
-template <class V, class D, HWY_IF_NOT_T_SIZE_D(D, 1)>
+template <class V, class D>
 HWY_API size_t CompressBlendedStore(const V v, const svbool_t mask, const D d,
                                     TFromD<D>* HWY_RESTRICT unaligned) {
   const size_t count = CountTrue(d, mask);
   const svbool_t store_mask = FirstN(d, count);
-  BlendedStore(Compress(v, mask), store_mask, d, unaligned);
+  BlendedStore(Compress(d, v, mask), store_mask, d, unaligned);
   return count;
 }
 
@@ -5662,13 +5721,19 @@ HWY_API size_t StoreMaskBits(D d, svbool_t m, uint8_t* bits) {
 }
 
 // ------------------------------ CompressBits (LoadMaskBits)
-template <class V, HWY_IF_NOT_T_SIZE_V(V, 1)>
-HWY_INLINE V CompressBits(V v, const uint8_t* HWY_RESTRICT bits) {
+template <class D>
+HWY_API VFromD<D> CompressBits(D d, VFromD<D> v,
+                               const uint8_t* HWY_RESTRICT bits) {
+  return Compress(d, v, LoadMaskBits(d, bits));
+}
+
+template <class V>
+HWY_API V CompressBits(V v, const uint8_t* HWY_RESTRICT bits) {
   return Compress(v, LoadMaskBits(DFromV<V>(), bits));
 }
 
 // ------------------------------ CompressBitsStore (LoadMaskBits)
-template <class D, HWY_IF_NOT_T_SIZE_D(D, 1)>
+template <class D>
 HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
                                  D d, TFromD<D>* HWY_RESTRICT unaligned) {
   return CompressStore(v, LoadMaskBits(d, bits), d, unaligned);
