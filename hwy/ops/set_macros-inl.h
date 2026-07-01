@@ -786,7 +786,7 @@
 
 #define HWY_NAMESPACE N_RVV
 
-#if HWY_COMPILER_CLANG >= 1900
+#if HWY_COMPILER_CLANG >= 1900 || HWY_COMPILER_GCC_ACTUAL >= 1500
 // https://github.com/riscv/riscv-v-spec/blob/master/v-spec.adoc#181-zvl-minimum-vector-length-standard-extensions
 #define HWY_TARGET_STR "arch=+v"
 #else
