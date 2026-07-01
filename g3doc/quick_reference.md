@@ -2655,16 +2655,16 @@ the ops are still safe to call if `Lanes(D())` >= $X/2. Note that `tbl` must be
 $X-element aligned!
 
 *   `D`: {u,i,f}{16,32,64} \
-    <code>Vec&lt;D&gt; **Lookup8**(D, const TFromD<D>* tbl, VI indices)</code>:
-    as above, with $X = 8.
+    <code>Vec&lt;D&gt; **Lookup8**(D, const TFromD&lt;D&gt;* tbl, VI
+    indices)</code>: as above, with $X = 8.
 
 *   `D`: {u,i,f}{16,32,64} \
-    <code>Vec&lt;D&gt; **Lookup16**(D, const TFromD<D>* tbl, VI indices)</code>:
-    as above, with $X = 16.
+    <code>Vec&lt;D&gt; **Lookup16**(D, const TFromD&lt;D&gt;* tbl, VI
+    indices)</code>: as above, with $X = 16.
 
 *   `D`: {u,i}{8} \
-    <code>Vec&lt;D&gt; **Lookup32**(D, const TFromD<D>* tbl, VI indices)</code>:
-    as above, with $X = 32.
+    <code>Vec&lt;D&gt; **Lookup32**(D, const TFromD&lt;D&gt;* tbl, VI
+    indices)</code>: as above, with $X = 32.
 
 *   <code>unspecified **IndicesFromVec**(D d, V idx)</code> prepares for
     `TableLookupLanes` or `TwoTablesLookupLanes` with integer indices in `idx`,
