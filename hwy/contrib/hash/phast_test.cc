@@ -149,7 +149,8 @@ void TestDistinctAndRange(const size_t num_keys) {
 HWY_NOINLINE void TestMultipleSizes() {
   const size_t kMul = 1;  // increase for larger tests.
   fprintf(stderr, "=== TestSmall ===\n");
-  for (size_t num_keys = 1; num_keys < 64; ++num_keys) {
+  // Includes num_keys == 64, where MinSliceLength(num_keys) == num_keys.
+  for (size_t num_keys = 1; num_keys < 100; ++num_keys) {
     TestDistinctAndRange(num_keys);
   }
   TestDistinctAndRange(/*num_keys=*/AdjustedReps(AdjustedReps(100 * kMul)));
