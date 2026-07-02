@@ -88,7 +88,10 @@ static AlignedVector<PhastConfig> EnumerateConfigs(size_t num_keys,
                                                    size_t num_workers,
                                                    size_t& reps_per_config) {
   const size_t min_slice_length = MinSliceLength(num_keys);
-  HWY_ASSERT(num_keys == 1 || min_slice_length < num_keys);
+  // MinSliceLength may equal num_keys (num_keys == 1, and num_keys == 64 where
+  // it returns 64); MakeConfig clamps num_slots to at least slice_length, so
+  // equality is fine. Only min_slice_length > num_keys would be a bug.
+  HWY_ASSERT(min_slice_length <= num_keys);
 
   const std::vector<int> kHeadroomPercents = {1, 2, 3, 4, 10, 15, 20};
   const std::vector<size_t> kSliceShifts = {0, 1};
