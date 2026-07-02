@@ -25,6 +25,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "hwy/contrib/math/fp_arith-inl.h"
 #include "hwy/highway.h"
 
 HWY_BEFORE_NAMESPACE();
@@ -366,6 +367,21 @@ HWY_INLINE V Tanh(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallTanh(const D d, VecArg<V> x) {
   return Tanh(d, x);
+}
+
+/**
+ * Highway SIMD version of std::tgamma(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 6 (float32), 8 (float64)
+ *      Valid Range: float32(0, +35], float64(0, +171.6]
+ * @return gamma function of 'x'
+ */
+template <class D, class V>
+HWY_INLINE V Tgamma(D d, V x);
+template <class D, class V>
+HWY_NOINLINE V CallTgamma(const D d, VecArg<V> x) {
+  return Tgamma(d, x);
 }
 
 /**
@@ -716,6 +732,8 @@ struct ErfImpl {};
 template <class FloatOrDouble>
 struct ExpImpl {};
 template <class FloatOrDouble>
+struct GammaImpl {};
+template <class FloatOrDouble>
 struct LogImpl {};
 template <class FloatOrDouble>
 struct ExtPrecLog2ForPowImpl;
@@ -950,6 +968,91 @@ struct ErfImpl<double> {
   template <class D, class V = VFromD<D>, HWY_IF_F64_D(D)>
   HWY_INLINE V Limit(D d) {
     return Set(d, +37.519379347);
+  }
+};
+
+#endif
+
+template <>
+struct GammaImpl<float> {
+  // Stirling series via polynomial in 1/(x*x), for x >= StirlingLimit().
+  template <class D, class V = VFromD<D>, HWY_IF_F32_D(D)>
+  HWY_INLINE V StirlingPoly(D d, V u) {
+    const V c0 = Set(d, +0.08333332931388039f);
+    const V c1 = Set(d, -0.0027766148725720703f);
+    const V c2 = Set(d, +0.0007427214288710828f);
+    return Estrin(u, c0, c1, c2);
+  }
+
+  // Use the Stirling asymptotic path for w >= StirlingLimit().
+  template <class D, class V = VFromD<D>, HWY_IF_F32_D(D)>
+  HWY_INLINE V StirlingLimit(D d) {
+    return Set(d, +4.0f);
+  }
+  // Recurrence steps to reduce w into [2, 3): ceil(StirlingLimit - 3).
+  static constexpr int kReduceSteps = 1;
+
+  // Polynomial approximation for Gamma(x) on [2, 3], argument t = x - 2.5.
+  template <class D, class V = VFromD<D>, HWY_IF_F32_D(D)>
+  HWY_INLINE V GammaPoly(D d, V t) {
+    const V c0 = Set(d, +0.001607034915482715f);
+    const V c1 = Set(d, +0.010780565616863308f);
+    const V c2 = Set(d, +0.028360953629043274f);
+    const V c3 = Set(d, +0.10961204737926883f);
+    const V c4 = Set(d, +0.2538712358604304f);
+    const V c5 = Set(d, +0.6545616480372625f);
+    const V c6 = Set(d, +0.934734521715248f);
+    const V c7 = Set(d, +1.3293403641787918f);
+    return Estrin(t, c7, c6, c5, c4, c3, c2, c1, c0);
+  }
+};
+
+#if HWY_HAVE_FLOAT64 && HWY_HAVE_INTEGER64
+
+template <>
+struct GammaImpl<double> {
+  // Stirling series via polynomial in 1/(x*x), for x >= StirlingLimit().
+  template <class D, class V = VFromD<D>, HWY_IF_F64_D(D)>
+  HWY_INLINE V StirlingPoly(D d, V u) {
+    const V c0 = Set(d, +0.0833333333333333);
+    const V c1 = Set(d, -0.002777777777606244);
+    const V c2 = Set(d, +0.0007936506649488252);
+    const V c3 = Set(d, -0.0005952025951802712);
+    const V c4 = Set(d, +0.0008372834512071336);
+    const V c5 = Set(d, -0.0016526004455595122);
+    return Estrin(u, c0, c1, c2, c3, c4, c5);
+  }
+
+  // Use the Stirling asymptotic path for w >= StirlingLimit().
+  template <class D, class V = VFromD<D>, HWY_IF_F64_D(D)>
+  HWY_INLINE V StirlingLimit(D d) {
+    return Set(d, +8.0);
+  }
+  // Recurrence steps to reduce w into [2, 3): ceil(StirlingLimit - 3).
+  static constexpr int kReduceSteps = 5;
+
+  // Polynomial approximation for Gamma(x) on [2, 3], argument t = x - 2.5.
+  template <class D, class V = VFromD<D>, HWY_IF_F64_D(D)>
+  HWY_INLINE V GammaPoly(D d, V t) {
+    const V c0 = Set(d, +2.038631996005556e-07);
+    const V c1 = Set(d, -5.060382483924732e-07);
+    const V c2 = Set(d, +1.0675361551610872e-06);
+    const V c3 = Set(d, -2.5237611386457594e-06);
+    const V c4 = Set(d, +7.257335209971111e-06);
+    const V c5 = Set(d, -1.2810259356350584e-05);
+    const V c6 = Set(d, +6.132951527532448e-05);
+    const V c7 = Set(d, +3.942933739732899e-06);
+    const V c8 = Set(d, +0.0007544741634534283);
+    const V c9 = Set(d, +0.001607400398278153);
+    const V c10 = Set(d, +0.010392403424525895);
+    const V c11 = Set(d, +0.028360780598296692);
+    const V c12 = Set(d, +0.10967323400218487);
+    const V c13 = Set(d, +0.253871246841081);
+    const V c14 = Set(d, +0.6545585779813367);
+    const V c15 = Set(d, +0.9347345216260858);
+    const V c16 = Set(d, +1.329340388179137);
+    return Estrin(t, c16, c15, c14, c13, c12, c11, c10, c9, c8, c7, c6, c5, c4,
+                  c3, c2, c1, c0);
   }
 };
 
@@ -1589,6 +1692,116 @@ HWY_INLINE V ExtPrecLog2ForPow(D d, V x, V& log2_x_lo) {
   log2_x_lo = IfThenElseZero(AndNot(x_is_zero, x_is_finite), log2_x_lo1);
 
   return log2_x_hi;
+}
+
+// Returns ln(x) in double-double for x > 0; lo = low part.
+template <class D, class V = VFromD<D>>
+HWY_INLINE V DDLog(D d, V x, V& lo) {
+  using T = TFromD<D>;
+  constexpr bool kIsF32 = (sizeof(T) == 4);
+  const V kLn2Hi = Set(d, kIsF32 ? static_cast<T>(0.6931471824645996f)
+                                 : static_cast<T>(0.6931471805599453));
+  const V kLn2Lo = Set(d, kIsF32 ? static_cast<T>(-1.9046542121259336e-9f)
+                                 : static_cast<T>(2.3190468138462996e-17));
+  V log2_lo;
+  const V log2_hi = ExtPrecLog2ForPow(d, x, log2_lo);
+  return DDMul2(d, log2_hi, log2_lo, kLn2Hi, kLn2Lo, lo);
+}
+
+// Returns logGamma(w) in double-double via Stirling's series for
+// w >= StirlingLimit(); lo = low part.
+template <class D, class V = VFromD<D>>
+HWY_INLINE V StirlingLogGamma(D d, V w, V& lo) {
+  using T = TFromD<D>;
+  constexpr bool kIsF32 = (sizeof(T) == 4);
+  GammaImpl<T> impl;
+  const V kHalf = Set(d, static_cast<T>(0.5));
+  const V kZero = Zero(d);
+  const V kHalfLn2PiHi = Set(d, kIsF32 ? static_cast<T>(0.9189385175704956f)
+                                       : static_cast<T>(0.9189385332046728));
+  const V kHalfLn2PiLo =
+      Set(d, kIsF32 ? static_cast<T>(1.563417661998301e-8f)
+                    : static_cast<T>(-3.8782941580672414e-17));
+  // (w-0.5)*ln(w) - w + 0.5*ln(2pi) + (1/w)*poly(1/w^2).
+  const V inv_w = Div(Set(d, static_cast<T>(1.0)), w);
+  const V u = Mul(inv_w, inv_w);
+  V lnw_lo;
+  const V lnw_hi = DDLog(d, w, lnw_lo);
+  V hi = DDMul1(d, lnw_hi, lnw_lo, Sub(w, kHalf), lo);
+  hi = DDAdd(d, hi, lo, Neg(w), kZero, lo);
+  hi = DDAdd(d, hi, lo, kHalfLn2PiHi, kHalfLn2PiLo, lo);
+  const V series = Mul(inv_w, impl.StirlingPoly(d, u));
+  return DDAdd(d, hi, lo, series, kZero, lo);
+}
+
+// Computes signed Gamma(a). For a < 0.5 uses w = 1 - a; then a [2, 3)
+// polynomial below kStirlingLimit, Stirling above.
+template <class D, class V = VFromD<D>, class M = MFromD<D>>
+HWY_INLINE V Gamma(D d, V a) {
+  using T = TFromD<D>;
+  static_assert(IsFloat<T>(), "Only makes sense for floating-point");
+  GammaImpl<T> impl;
+
+  const V kHalf = Set(d, static_cast<T>(0.5));
+  const V kOne = Set(d, static_cast<T>(1.0));
+  const V kZero = Zero(d);
+  const V kPi = Set(d, static_cast<T>(+3.14159265358979323846264));
+  const V kTwo = Set(d, static_cast<T>(2.0));
+  const V kThree = Set(d, static_cast<T>(3.0));
+  const V kStirlingLimit = impl.StirlingLimit(d);
+
+  // Reduce to w >= 0.5: w = 1 - a when a < 0.5.
+  const M neg = Lt(a, kHalf);
+  V w = MaskedSubOr(a, neg, kOne, a);
+
+  // Shift w into [2, 3) via Gamma(x+1) = x*Gamma(x).
+  V wa = w;
+  V num_hi = kOne, num_lo = kZero;
+  V den_hi = kOne, den_lo = kZero;
+
+  for (int i = 0; i < 2; ++i) {
+    const M up = Lt(wa, kTwo);
+    V d_lo;
+    const V d_hi = DDMul1(d, den_hi, den_lo, wa, d_lo);
+    den_hi = IfThenElse(up, d_hi, den_hi);
+    den_lo = IfThenElse(up, d_lo, den_lo);
+    wa = MaskedAddOr(wa, up, wa, kOne);
+  }
+
+  for (int i = 0; i < GammaImpl<T>::kReduceSteps; ++i) {
+    const M down = Ge(wa, kThree);
+    wa = MaskedSubOr(wa, down, wa, kOne);
+    V m_lo;
+    const V m_hi = DDMul1(d, num_hi, num_lo, wa, m_lo);
+    num_hi = IfThenElse(down, m_hi, num_hi);
+    num_lo = IfThenElse(down, m_lo, num_lo);
+  }
+
+  const V poly = impl.GammaPoly(d, Sub(wa, Set(d, static_cast<T>(2.5))));
+  V np_lo;
+  const V np_hi = DDMul1(d, num_hi, num_lo, poly, np_lo);
+  V gA_lo;
+  const V gamma_a = DDDiv(d, np_hi, np_lo, den_hi, den_lo, gA_lo);
+
+  // Gamma via Stirling logGamma (dd): exp(hi+lo) = exp(hi)*(1+lo).
+  V lo;
+  const V hi = StirlingLogGamma(d, w, lo);
+  const V exp_hi = Exp(d, hi);
+  const V gamma_b = MulAdd(exp_hi, lo, exp_hi);
+
+  const V gamma_w = IfThenElse(Lt(w, kStirlingLimit), gamma_a, gamma_b);
+
+  // For a < 0.5: Gamma(a) = pi / (sin(pi*a) * Gamma(w)).
+  const V ra = Round(a);
+  const V frac = Sub(a, ra);
+  const V s_mag = Sin(d, Mul(kPi, frac));
+  const RebindToSigned<decltype(d)> di;
+  const M odd =
+      RebindMask(d, Ne(And(ConvertTo(di, ra), Set(di, 1)), Zero(di)));
+  const V s_signed = IfThenElse(odd, Neg(s_mag), s_mag);
+  const V refl = Div(kPi, Mul(s_signed, gamma_w));
+
+  return IfThenElse(neg, refl, gamma_w);
 }
 
 // SinCos
@@ -2621,6 +2834,23 @@ HWY_INLINE V Hypot(const D d, V a, V b) {
   const V scl_hypot = Sqrt(MulAdd(scl_a, scl_a, Mul(scl_b, scl_b)));
   // std::hypot returns inf if one input is +/- inf, even if the other is NaN.
   return IfThenElse(either_inf, Inf(d), Mul(scl_hypot, hypot_scl_factor));
+}
+
+template <class D, class V>
+HWY_INLINE V Tgamma(const D d, V x) {
+  using T = TFromD<D>;
+  const V kZero = Zero(d);
+  const V kOverflow =
+      Set(d, static_cast<T>(sizeof(T) == 4 ? 35.040095 : 171.61447887182298));
+
+  V result = impl::Gamma(d, x);
+
+  result = IfThenElse(Gt(x, kOverflow), Inf(d), result);
+  const MFromD<D> is_neg_int = And(Eq(x, Round(x)), Lt(x, kZero));
+  result = IfThenElse(is_neg_int, NaN(d), result);
+  result = IfThenElse(Eq(x, kZero), CopySign(Inf(d), x), result);
+  result = IfThenElse(IsNaN(x), x, result);
+  return result;
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

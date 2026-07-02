@@ -422,6 +422,7 @@ cc_library(
     textual_hdrs = [
         "hwy/contrib/math/math-inl.h",
         "hwy/contrib/math/fast_math-inl.h",
+        "hwy/contrib/math/fp_arith-inl.h",
     ],
     deps = [
         ":hwy",
