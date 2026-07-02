@@ -77,14 +77,9 @@
 #endif
 
 #elif HWY_OS_FREEBSD && !defined(HWY_DISABLE_FUTEX)
-#include <sys/param.h>  // __FreeBSD_version
-#if __FreeBSD_version >= 600000
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/umtx.h>
-#else
-#define HWY_DISABLE_FUTEX
-#endif
 
 #elif HWY_OS_APPLE && !defined(HWY_DISABLE_FUTEX)
 // These are private APIs, so add an opt-out.
@@ -182,7 +177,7 @@ static inline uint32_t BlockUntilDifferent(
     }
   }
 
-#elif HWY_OS_FREEBSD && !defined(HWY_DISABLE_FUTEX)  // >= 6.0
+#elif HWY_OS_FREEBSD && !defined(HWY_DISABLE_FUTEX)
   // _umtx_op with UMTX_OP_WAIT_UINT_PRIVATE: process-private futex on FreeBSD.
   void* address = const_cast<void*>(static_cast<const void*>(&current));
   for (;;) {
@@ -257,7 +252,7 @@ static inline void WakeAll(std::atomic<uint32_t>& current) {
   HWY_DASSERT(ret >= 0);  // number woken
   (void)ret;
 
-#elif HWY_OS_FREEBSD && !defined(HWY_DISABLE_FUTEX)  // >= 6.0
+#elif HWY_OS_FREEBSD && !defined(HWY_DISABLE_FUTEX)
   void* address = static_cast<void*>(&current);
   const int ret = _umtx_op(address, UMTX_OP_WAKE_PRIVATE, INT_MAX, nullptr,
                            nullptr);
