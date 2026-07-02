@@ -872,6 +872,12 @@ void ForUI163264(const Func& func) {
 }
 
 template <class Func>
+void ForUI(const Func& func) {
+  ForUI8(func);
+  ForUI163264(func);
+}
+
+template <class Func>
 void ForUIF163264(const Func& func) {
   ForUIF16(func);
   ForUIF3264(func);

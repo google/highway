@@ -18,8 +18,6 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include <algorithm>  // std::unique
-
 #ifndef HWY_DISABLED_TARGETS
 #define HWY_DISABLED_TARGETS (HWY_SSE2 | HWY_SSSE3 | HWY_SSE4)
 #endif  // HWY_DISABLED_TARGETS
@@ -37,6 +35,7 @@
 // clang-format on
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 // After foreach_target
+#include "hwy/contrib/algo/find-inl.h"
 #include "hwy/contrib/hash/phast-inl.h"
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
@@ -115,8 +114,9 @@ void QueryBatch(const uint32_t* HWY_RESTRICT keys, size_t num_keys,
 void CheckDistinctAndRange(uint32_t* indices, size_t num_indices,
                            size_t num_slots) {
   VQSort(indices, num_indices, SortAscending());
-  uint32_t* end = std::unique(indices, indices + num_indices);
-  HWY_ASSERT_M(end == indices + num_indices, "Collision detected");
+  const ScalableTag<uint32_t> du32;
+  HWY_ASSERT_M(num_indices == Unique(du32, indices, num_indices),
+               "Collision detected");
 
   for (size_t i = 0; i < num_indices; ++i) {
     HWY_ASSERT_M(indices[i] < num_slots, "Index out of range");

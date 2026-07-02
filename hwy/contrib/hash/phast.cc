@@ -20,7 +20,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <algorithm>  // std::sort, std::unique
+#include <algorithm>  // std::sort
 #include <utility>    // std::move
 #include <vector>
 
@@ -599,9 +599,10 @@ static PhastData BuildPhastImpl(Span<const uint32_t> keys,
   HashArray(Triple32(engine, 0), keys.data(), per_worker[0].MutableHashes(),
             num_keys);
   VQSortStatic(per_worker[0].MutableHashes(), num_keys, SortAscending());
-  uint32_t* end = per_worker[0].MutableHashes() + num_keys;
-  HWY_ASSERT_M(end == std::unique(per_worker[0].MutableHashes(), end),
-               "Collision detected");
+  const ScalableTag<uint32_t> du32;
+  HWY_ASSERT_M(
+      num_keys == Unique(du32, per_worker[0].MutableHashes(), num_keys),
+      "Collision detected");
 
   // Enumerate configs sorted by AllocatedBytes ascending.
   size_t reps_per_config;

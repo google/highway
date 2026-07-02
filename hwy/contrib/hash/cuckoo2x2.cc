@@ -20,7 +20,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <algorithm>  // std::sort, std::unique
+#include <algorithm>  // std::sort
 #include <utility>    // std::move
 
 #include "hwy/aligned_allocator.h"
@@ -37,6 +37,7 @@
 // clang-format on
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 // After foreach_target
+#include "hwy/contrib/algo/find-inl.h"
 #include "hwy/contrib/hash/hash-inl.h"
 #include "hwy/contrib/random/random-inl.h"
 #include "hwy/contrib/sort/vqsort-inl.h"
@@ -282,9 +283,10 @@ static Cuckoo2x2Data BuildCuckoo2x2Impl(Span<const uint32_t> keys,
   HashArray(Triple32(engine, 0), keys.data(), per_worker[0].MutableHashes(),
             num_keys);
   VQSortStatic(per_worker[0].MutableHashes(), num_keys, SortAscending());
-  uint32_t* end = per_worker[0].MutableHashes() + num_keys;
-  HWY_ASSERT_M(end == std::unique(per_worker[0].MutableHashes(), end),
-               "Collision detected");
+  const ScalableTag<uint32_t> du32;
+  HWY_ASSERT_M(
+      num_keys == Unique(du32, per_worker[0].MutableHashes(), num_keys),
+      "Collision detected");
 
   size_t reps_per_config;
   AlignedVector<Cuckoo2x2Config> configs =

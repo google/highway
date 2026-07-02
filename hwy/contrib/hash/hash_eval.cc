@@ -19,7 +19,6 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include <algorithm>  // std::unique
 #include <cmath>
 #include <utility>  // std::move
 #include <vector>
@@ -42,6 +41,7 @@
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 // After foreach_target
 #include "hwy/contrib/hash/hash-inl.h"
+#include "hwy/contrib/algo/find-inl.h"
 #include "hwy/contrib/random/random-inl.h"
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
@@ -485,8 +485,8 @@ Result TestDistribution(const AlignedVector<HashType>& hashes, EvalCtx& ctx) {
 size_t CountCollisions(AlignedVector<HashType>& hashes) {
   PROFILER_FUNC;
   hwy::VQSort(hashes.data(), hashes.size(), hwy::SortAscending());
-  auto end = std::unique(hashes.begin(), hashes.end());
-  return hashes.end() - end;
+  const ScalableTag<HashType> dh;
+  return hashes.size() - Unique(dh, hashes.data(), hashes.size());
 }
 
 // Non-const `hashes` because `FindCollisions` sorts it.

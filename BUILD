@@ -472,6 +472,30 @@ cc_library(
 )
 
 cc_library(
+    name = "shardmul",
+    srcs = [
+        "hwy/contrib/hash/shardmul.cc",
+    ],
+    hdrs = [
+        "hwy/contrib/hash/shardmul.h",
+    ],
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/hash/hash-inl.h",
+        "hwy/contrib/hash/shardmul-inl.h",
+    ],
+    deps = [
+        ":algo",
+        ":hwy",
+        ":profiler",
+        ":random",
+        ":thread_pool",
+        "//hwy/contrib/sort:vqsort",
+    ],
+)
+
+cc_library(
     name = "unroller",
     compatible_with = [],
     copts = COPTS,
@@ -739,6 +763,7 @@ cc_test(
         "notap",
     ],
     deps = HWY_TEST_DEPS + [
+        ":algo",
         ":hash",
         ":profiler",
         ":random",
