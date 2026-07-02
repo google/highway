@@ -1,17 +1,13 @@
-/*
- * Original implementation written in 2019
- * by David Blackman and Sebastiano Vigna (vigna@acm.org)
- * Available at https://prng.di.unimi.it/ with creative commons license:
- * To the extent possible under law, the author has dedicated all copyright
- * and related and neighboring rights to this software to the public domain
- * worldwide. This software is distributed without any warranty.
- * See <http://creativecommons.org/publicdomain/zero/1.0/>.
- *
- * This implementation is a Vector port of the original implementation
- * written by Marco Barbone (m.barbone19@imperial.ac.uk).
- * I take no credit for the original implementation.
- * The code is provided as is and the original license applies.
- */
+// Copyright 2024 Google LLC
+// SPDX-License-Identifier: Apache-2.0 OR BSD-3-Clause
+//
+// See the LICENSE file in the project root for the full license text.
+
+// Vector port by Marco Barbone (m.barbone19@imperial.ac.uk) of the xoshiro256++
+// generator. The algorithm was originally designed in 2019 by David Blackman
+// and Sebastiano Vigna (vigna@acm.org), with the reference implementation
+// available at https://prng.di.unimi.it/. Credit for the algorithm itself
+// belongs to the original authors.
 
 #if defined(HIGHWAY_HWY_CONTRIB_RANDOM_RANDOM_H_) == \
     defined(HWY_TARGET_TOGGLE)  // NOLINT
