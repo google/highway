@@ -1898,10 +1898,14 @@ struct Pack16<11> {
     const VU16 rawD = OrAnd(downD, ShiftRight<4>(packed9), hi3);
     const VU16 rawE = OrAnd(downE, ShiftRight<4>(packedA), hi3);
 
-    // Shift MSB into the top 3-of-11 and mask.
-    const VU16 rawF = Or(downF, Xor3(And(ShiftRight<7>(packed8), hi3),
-                                     And(ShiftRight<6>(packed9), hi3),
-                                     And(ShiftRight<5>(packedA), hi3)));
+    // Shift MSB into the top 3-of-11 and mask. Each of packed8/9/A holds one of
+    // rawF's three top bits in its MSB (bit 15); mask each shifted term to its
+    // own target position so the adjacent rawD/rawE top bits (packed9 bit 14,
+    // packedA bits 13-14) that the shifts also bring into the 0x700 window do
+    // not leak into rawF.
+    const VU16 rawF = Or(downF, Xor3(And(ShiftRight<7>(packed8), Set(d, 0x100u)),
+                                     And(ShiftRight<6>(packed9), Set(d, 0x200u)),
+                                     And(ShiftRight<5>(packedA), Set(d, 0x400u))));
 
     StoreU(raw0, d, raw + 0 * N);
     StoreU(raw1, d, raw + 1 * N);
@@ -2119,8 +2123,11 @@ struct Pack16<13> {
     packedB = OrAnd(packedB, ShiftLeft<2>(rawD), next);
     packedC = OrAnd(packedC, ShiftLeft<2>(rawE), next);
 
-    // Scatter upper 5 bits of rawF into the upper bits.
-    next = ShiftLeft<3>(next);  // = 0x8000u
+    // Scatter upper 5 bits of rawF into the MSB of each of packed8..C.
+    // NB: next is 0x7C00 here (five-bit group), so ShiftLeft<3> would be 0xE000,
+    // not 0x8000 -- that would also overwrite bits 13-14 (the top of the rawA..E
+    // groups) with rawF's lower bits. Set the MSB-only mask explicitly.
+    next = Set(d, 0x8000u);
     packed8 = OrAnd(packed8, ShiftLeft<7>(rawF), next);
     packed9 = OrAnd(packed9, ShiftLeft<6>(rawF), next);
     packedA = OrAnd(packedA, ShiftLeft<5>(rawF), next);
@@ -2184,21 +2191,23 @@ struct Pack16<13> {
     const VU16 raw5 = OrAnd(down5, ShiftLeft<3>(packed8), hi5);
     const VU16 raw6 = OrAnd(down6, ShiftLeft<3>(packed9), hi5);
     const VU16 raw7 = OrAnd(down7, ShiftLeft<3>(packedA), hi5);
-    const VU16 raw8 = OrAnd(down8, ShiftLeft<3>(packed9), hi5);
-    const VU16 raw9 = OrAnd(down9, ShiftLeft<3>(packedA), hi5);
+    const VU16 raw8 = OrAnd(down8, ShiftLeft<3>(packedB), hi5);
+    const VU16 raw9 = OrAnd(down9, ShiftLeft<3>(packedC), hi5);
 
     const VU16 rawA = OrAnd(downA, ShiftRight<2>(packed8), hi5);
     const VU16 rawB = OrAnd(downB, ShiftRight<2>(packed9), hi5);
     const VU16 rawC = OrAnd(downC, ShiftRight<2>(packedA), hi5);
-    const VU16 rawD = OrAnd(downD, ShiftRight<2>(packed9), hi5);
-    const VU16 rawE = OrAnd(downE, ShiftRight<2>(packedA), hi5);
+    const VU16 rawD = OrAnd(downD, ShiftRight<2>(packedB), hi5);
+    const VU16 rawE = OrAnd(downE, ShiftRight<2>(packedC), hi5);
 
-    // Shift MSB into the top 5-of-11 and mask.
-    const VU16 p0 = Xor3(And(ShiftRight<7>(packed8), hi5),  //
-                         And(ShiftRight<6>(packed9), hi5),
-                         And(ShiftRight<5>(packedA), hi5));
-    const VU16 p1 = Xor3(And(ShiftRight<4>(packedB), hi5),
-                         And(ShiftRight<3>(packedC), hi5), downF);
+    // Shift each MSB (bit 15 of packed8..C holds one of rawF's five top bits)
+    // into its own target position and mask to that single bit, so the adjacent
+    // rawB..E top bits the shifts also bring into the 0x1F00 window do not leak.
+    const VU16 p0 = Xor3(And(ShiftRight<7>(packed8), Set(d, 0x100u)),  //
+                         And(ShiftRight<6>(packed9), Set(d, 0x200u)),
+                         And(ShiftRight<5>(packedA), Set(d, 0x400u)));
+    const VU16 p1 = Xor3(And(ShiftRight<4>(packedB), Set(d, 0x800u)),
+                         And(ShiftRight<3>(packedC), Set(d, 0x1000u)), downF);
     const VU16 rawF = Or(p0, p1);
 
     StoreU(raw0, d, raw + 0 * N);
