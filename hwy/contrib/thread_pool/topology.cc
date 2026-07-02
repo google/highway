@@ -396,7 +396,10 @@ class File {
     size_t pos = 0;
     for (;;) {
       // read instead of `pread`, which might not work for sysfs.
-      const auto bytes_read = read(fd_, buf200 + pos, 200 - pos);
+      // Reserve one byte for the terminating '\0': a full 200-byte read would
+      // leave `200 - pos == 0`, and read() with a zero count returns 0, so the
+      // EOF branch below would write buf200[200], one past the end.
+      const auto bytes_read = read(fd_, buf200 + pos, 199 - pos);
       if (bytes_read == 0) {  // EOF: done
         buf200[pos++] = '\0';
         return pos;
@@ -407,7 +410,7 @@ class File {
         return 0;
       }
       pos += static_cast<size_t>(bytes_read);
-      HWY_ASSERT(pos <= 200);
+      HWY_ASSERT(pos <= 199);
     }
   }
 
