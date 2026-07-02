@@ -46,6 +46,10 @@
 #include <AvailabilityMacros.h>
 #endif
 
+#if HWY_OS_OPENBSD
+#include <pthread_np.h>
+#endif
+
 #if PROFILER_ENABLED
 #include <algorithm>  // std::sort
 
@@ -70,6 +74,8 @@ static inline void SetThreadName(const char* format, int thread) {
 #elif HWY_OS_APPLE && (MAC_OS_X_VERSION_MIN_REQUIRED >= 1060)
   // Different interface: single argument, current thread only.
   HWY_ASSERT(0 == pthread_setname_np(buf));
+#elif HWY_OS_OPENBSD
+  pthread_set_name_np(pthread_self(), buf);
 #elif defined(__EMSCRIPTEN__)
   emscripten_set_thread_name(pthread_self(), buf);
 #else
