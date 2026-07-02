@@ -2167,14 +2167,14 @@ obtain the `D` that describes the return type.
     integer \
     <code>Vec&lt;D&gt; **ShiftRightAndDemoteTo**&lt;int kShiftAmt&gt;(D, V
     v)</code>: equivalent to `DemoteTo(D, ShiftRight<kShiftAmt>(v))`. TODO:
-    implement on SVE2/LSX/LASX.
+    implement on SVE2/LASX.
 
 *   `V`,`D`: any `(V, D)` accepted by `DemoteTo`, with `V` and `TFromD<D>`
     integer \
     <code>Vec&lt;D&gt; **RoundingShiftRightAndDemoteTo**&lt;int kShiftAmt&gt;(D,
     V v)</code>: equivalent to
     `DemoteTo(D, RoundingShiftRight<kShiftAmt>(v))`. TODO: implement on
-    SVE2/LSX/LASX.
+    SVE2/LASX.
 
 #### Single vector promotion
 
