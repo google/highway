@@ -175,6 +175,15 @@ HWY_BEFORE_TEST(PhastTest);
 HWY_EXPORT_AND_TEST_BEST_P(PhastTest, TestQueryConsistency);
 HWY_EXPORT_AND_TEST_BEST_P(PhastTest, TestMultipleSizes);
 HWY_AFTER_TEST();
+
+// An empty key set has no perfect hash; BuildPhast must return the empty
+// sentinel (NumSlots() == 0) rather than aborting.
+TEST(PhastEmptyTest, EmptyKeysReturnEmpty) {
+  ThreadPool pool(0);
+  const uint32_t* no_keys = nullptr;
+  const PhastData data = BuildPhast(Span<const uint32_t>(no_keys, 0), 0, pool);
+  EXPECT_EQ(size_t{0}, data.NumSlots());
+}
 }  // namespace hwy
 HWY_TEST_MAIN();
 #endif  // HWY_ONCE

@@ -586,6 +586,10 @@ class PerWorkerBuilder {
 static PhastData BuildPhastImpl(Span<const uint32_t> keys,
                                 const size_t payload_bytes, ThreadPool& pool) {
   const size_t num_keys = keys.size();
+  // An empty key set has no perfect hash to build. Return the same empty/failed
+  // sentinel (NumSlots() == 0) as the build-failure path and the HWY_SCALAR
+  // overload, rather than aborting in MinSliceLength's num_keys >= 1 assert.
+  if (num_keys == 0) return PhastData();
   const size_t num_workers = pool.NumWorkers();
 
   // Allocate per-worker builders once; reused across all configs.
