@@ -139,6 +139,7 @@ hwy_contrib_headers = files(
     'hwy/contrib/hash/cuckoo2x2-inl.h',
     'hwy/contrib/image/image.h',
     'hwy/contrib/math/fast_math-inl.h',
+    'hwy/contrib/math/fp_arith-inl.h',
     'hwy/contrib/intdiv/intdiv-inl.h',
     'hwy/contrib/math/math-inl.h',
     'hwy/contrib/matvec/matvec-inl.h',
