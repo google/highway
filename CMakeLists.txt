@@ -811,6 +811,15 @@ target_link_libraries(dot_product_unroll PRIVATE ${ATOMICS_LIBRARIES})
 set_target_properties(dot_product_unroll
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
 
+# Mixed precision dot product
+add_executable(dot_product_mixed_precision hwy/examples/dot_product_mixed_precision.cc)
+target_compile_options(dot_product_mixed_precision PRIVATE ${HWY_FLAGS})
+target_compile_features(dot_product_mixed_precision PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
+target_link_libraries(dot_product_mixed_precision PRIVATE hwy)
+target_link_libraries(dot_product_mixed_precision PRIVATE ${ATOMICS_LIBRARIES})
+set_target_properties(dot_product_mixed_precision
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
+
 # AES capture the flag example
 add_executable(ctf_aes hwy/examples/ctf_aes.cc)
 target_compile_options(ctf_aes PRIVATE ${HWY_FLAGS})
