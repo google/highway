@@ -76,7 +76,7 @@ static AlignedVector<uint64_t> GenerateClusteredKeys(size_t count) {
     uint8_t* bytes = reinterpret_cast<uint8_t*>(&key);
 
     // Randomly choose 1-5 byte positions to mutate.
-    const size_t num_mutations = 1 + (rng() % 5);
+    const size_t num_mutations = 1 + static_cast<size_t>(rng() % 5);
     for (size_t m = 0; m < num_mutations; ++m) {
       const size_t pos = rng() % 8;
       // UTF-8 byte range: mix of ASCII (0x20-0x7E), continuation (0x80-0xBF),
