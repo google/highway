@@ -286,6 +286,41 @@ void TestPartialSortKEqualsN() {
   }
 }
 
+template <typename T>
+void TestPartialSortKEqualsZeroForType() {
+  const size_t num = 10;
+  std::vector<T> keys(num);
+  std::iota(keys.begin(), keys.end(), T{0});
+  std::reverse(keys.begin(), keys.end());
+  std::vector<T> expected(keys);
+
+  // k == 0 places no elements; this must return (not hang or overrun) and
+  // preserve the multiset. Exercises the heapsort fallback on !VQSORT_ENABLED
+  // builds, where HeapSelect/HeapSort formerly underflowed (k - N1) for k == 0.
+  hwy::VQPartialSort(keys.data(), num, /*k=*/0, hwy::SortAscending());
+
+  std::sort(keys.begin(), keys.end());
+  std::sort(expected.begin(), expected.end());
+  for (size_t i = 0; i < num; ++i) {
+    if (keys[i] != expected[i]) {
+      HWY_ABORT("KEqualsZero mismatch at %zu\n", i);
+    }
+  }
+}
+
+void TestPartialSortKEqualsZero() {
+  TestPartialSortKEqualsZeroForType<uint32_t>();
+  TestPartialSortKEqualsZeroForType<int32_t>();
+  if (hwy::HaveInteger64()) {
+    TestPartialSortKEqualsZeroForType<int64_t>();
+    TestPartialSortKEqualsZeroForType<uint64_t>();
+  }
+  TestPartialSortKEqualsZeroForType<float>();
+  if (hwy::HaveFloat64()) {
+    TestPartialSortKEqualsZeroForType<double>();
+  }
+}
+
 // Shuffled finite values (within float16_t's exact range to avoid overflow to
 // inf), with a few NaN and a few real +inf at spread-out positions. The +inf
 // is the case a by-value sentinel scan confuses with NaN. Returns the NaN count.
@@ -459,6 +494,7 @@ HWY_EXPORT_AND_TEST_P(SortTest, TestAllSort);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllSelect);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllPartialSort);
 HWY_EXPORT_AND_TEST_P(SortTest, TestPartialSortKEqualsN);
+HWY_EXPORT_AND_TEST_P(SortTest, TestPartialSortKEqualsZero);
 HWY_EXPORT_AND_TEST_P(SortTest, TestSelectWithNaN);
 HWY_AFTER_TEST();
 }  // namespace
