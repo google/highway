@@ -88,9 +88,11 @@ void TestAllSortIota() {
     TestSortIota<uint64_t>(pool);
   }
   TestSortIota<float>(pool);
-  if (hwy::HaveFloat64()) {
+#if HWY_HAVE_FLOAT64
+  if (hwy::VQSortHaveFloat64()) {
     TestSortIota<double>(pool);
   }
+#endif  // HWY_HAVE_FLOAT64
 #endif
 }
 
@@ -188,14 +190,14 @@ void CallAllSortTraits(const std::vector<Algo>& algos, size_t num_lanes) {
   // generating denormal inputs.
 #if HWY_HAVE_FLOAT16  // #if protects algo-inl.h's GenerateRandom
   // Must also check whether the dynamic-dispatch target supports float16_t!
-  if (hwy::HaveFloat16()) {
+  if (hwy::VQSortHaveFloat16()) {
     TestAnySort<TraitsLane<OrderAscending<float16_t>>>(algos, num_lanes);
   }
 #endif
   TestAnySort<TraitsLane<OrderAscending<float>>>(algos, num_lanes);
 #if HWY_HAVE_FLOAT64  // #if protects algo-inl.h's GenerateRandom
   // Must also check whether the dynamic-dispatch target supports float64!
-  if (hwy::HaveFloat64()) {
+  if (hwy::VQSortHaveFloat64()) {
     TestAnySort<TraitsLane<OtherOrder<double>>>(algos, num_lanes);
   }
 #endif
@@ -281,9 +283,11 @@ void TestPartialSortKEqualsN() {
     TestPartialSortKEqualsNForType<uint64_t>();
   }
   TestPartialSortKEqualsNForType<float>();
-  if (hwy::HaveFloat64()) {
+#if HWY_HAVE_FLOAT64
+  if (hwy::VQSortHaveFloat64()) {
     TestPartialSortKEqualsNForType<double>();
   }
+#endif
 }
 
 template <typename T>
@@ -316,9 +320,11 @@ void TestPartialSortKEqualsZero() {
     TestPartialSortKEqualsZeroForType<uint64_t>();
   }
   TestPartialSortKEqualsZeroForType<float>();
-  if (hwy::HaveFloat64()) {
+#if HWY_HAVE_FLOAT64
+  if (hwy::VQSortHaveFloat64()) {
     TestPartialSortKEqualsZeroForType<double>();
   }
+#endif
 }
 
 // Shuffled finite values (within float16_t's exact range to avoid overflow to
@@ -467,13 +473,13 @@ void TestSelectAndPartialSortWithNaNForType() {
 
 void TestSelectWithNaN() {
 #if HWY_HAVE_FLOAT16
-  if (hwy::HaveFloat16()) {
+  if (hwy::VQSortHaveFloat16()) {
     TestSelectAndPartialSortWithNaNForType<float16_t>();
   }
 #endif
   TestSelectAndPartialSortWithNaNForType<float>();
 #if HWY_HAVE_FLOAT64
-  if (hwy::HaveFloat64()) {
+  if (hwy::VQSortHaveFloat64()) {
     TestSelectAndPartialSortWithNaNForType<double>();
   }
 #endif

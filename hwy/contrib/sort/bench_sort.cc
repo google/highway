@@ -33,7 +33,6 @@
 #include "hwy/tests/test_util-inl.h"
 #include "hwy/nanobenchmark.h"
 #include "hwy/timer.h"
-#include "hwy/contrib/thread_pool/futex.h"  // NanoSleep
 // clang-format on
 
 // Mode for larger sorts because M1 is able to access more than the per-core
@@ -46,6 +45,10 @@
 #ifndef SORT_BENCH_BASE_AND_PARTITION
 #define SORT_BENCH_BASE_AND_PARTITION (!SORT_ONLY_COLD && 0)
 #endif
+
+#if SORT_ONLY_COLD
+#include "hwy/contrib/thread_pool/futex.h"  // NanoSleep
+#endif  // SORT_ONLY_COLD
 
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
@@ -135,7 +138,7 @@ HWY_NOINLINE void BenchAllColdSort() {
 #endif
 }
 
-#if (VQSORT_ENABLED && SORT_BENCH_BASE_AND_PARTITION) || HWY_IDE
+#if VQSORT_ENABLED && SORT_BENCH_BASE_AND_PARTITION
 
 template <class Traits>
 HWY_NOINLINE void BenchPartition() {
@@ -419,13 +422,13 @@ HWY_NOINLINE void BenchAllSort() {
   for (size_t num_keys : SizesToBenchmark(BenchmarkModes::kSmallPow2)) {
 #if !HAVE_INTEL
 #if HWY_HAVE_FLOAT16
-    if (hwy::HaveFloat16()) {
+    if (VQSortHaveFloat16()) {
       BenchSort<TraitsLane<OtherOrder<float16_t>>>(num_keys);
     }
 #endif
     BenchSort<TraitsLane<OrderAscending<float>>>(num_keys);
 #if HWY_HAVE_FLOAT64
-    if (hwy::HaveFloat64()) {
+    if (VQSortHaveFloat64()) {
       // BenchSort<TraitsLane<OtherOrder<double>>>(num_keys);
     }
 #endif

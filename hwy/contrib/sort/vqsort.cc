@@ -17,7 +17,6 @@
 
 #include "hwy/base.h"
 #include "hwy/contrib/sort/vqsort-inl.h"
-#include "hwy/per_target.h"
 
 // Check if we have getrandom from <sys/random.h>. Because <features.h> is
 // unavailable on Android and non-Linux RVV, we assume that those systems lack
@@ -113,7 +112,7 @@ bool Fill16BytesSecure(void* bytes) {
 
 // Unused, only for ABI compatibility
 void Sorter::Fill24Bytes(const void*, size_t, void*) {}
-bool Sorter::HaveFloat64() { return hwy::HaveFloat64(); }
+bool Sorter::HaveFloat64() { return VQSortHaveFloat64(); }
 Sorter::Sorter() {}
 void Sorter::Delete() {}
 uint64_t* GetGeneratorState() { return hwy::detail::GetGeneratorStateStatic(); }
