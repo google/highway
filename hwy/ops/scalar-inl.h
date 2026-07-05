@@ -1765,36 +1765,9 @@ HWY_API Vec1<T> Reverse8(D /* tag */, const Vec1<T> v) {
 #define HWY_NATIVE_REVERSE_LANE_BYTES
 #endif
 
-HWY_API Vec1<uint16_t> ReverseLaneBytes(Vec1<uint16_t> v) {
-  const uint32_t val{v.raw};
-  return Vec1<uint16_t>(
-      static_cast<uint16_t>(((val << 8) & 0xFF00u) | ((val >> 8) & 0x00FFu)));
-}
-
-HWY_API Vec1<uint32_t> ReverseLaneBytes(Vec1<uint32_t> v) {
-  const uint32_t val = v.raw;
-  return Vec1<uint32_t>(static_cast<uint32_t>(
-      ((val << 24) & 0xFF000000u) | ((val << 8) & 0x00FF0000u) |
-      ((val >> 8) & 0x0000FF00u) | ((val >> 24) & 0x000000FFu)));
-}
-
-HWY_API Vec1<uint64_t> ReverseLaneBytes(Vec1<uint64_t> v) {
-  const uint64_t val = v.raw;
-  return Vec1<uint64_t>(static_cast<uint64_t>(
-      ((val << 56) & 0xFF00000000000000u) |
-      ((val << 40) & 0x00FF000000000000u) |
-      ((val << 24) & 0x0000FF0000000000u) | ((val << 8) & 0x000000FF00000000u) |
-      ((val >> 8) & 0x00000000FF000000u) | ((val >> 24) & 0x0000000000FF0000u) |
-      ((val >> 40) & 0x000000000000FF00u) |
-      ((val >> 56) & 0x00000000000000FFu)));
-}
-
-template <class V, HWY_IF_SIGNED_V(V),
-          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 2) | (1 << 4) | (1 << 8))>
-HWY_API V ReverseLaneBytes(V v) {
-  const DFromV<decltype(v)> d;
-  const RebindToUnsigned<decltype(d)> du;
-  return BitCast(d, ReverseLaneBytes(BitCast(du, v)));
+template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T), HWY_IF_NOT_T_SIZE(T, 1)>
+HWY_API Vec1<T> ReverseLaneBytes(Vec1<T> v) {
+  return Vec1<T>(ScalarByteSwap(v.raw));
 }
 
 // ------------------------------ ReverseBits

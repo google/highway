@@ -636,6 +636,295 @@ HWY_NOINLINE void TestAllEndian() {
 #endif
 }
 
+HWY_NOINLINE void TestAllScalarByteSwap() {
+  static_assert(
+      ScalarByteSwap(static_cast<int8_t>(0x9Au)) == static_cast<int8_t>(0x9Au),
+      "ScalarByteSwap(static_cast<int8_t>(0x9Au)) must be equal to 0x9A");
+  static_assert(
+      ScalarByteSwap(static_cast<int8_t>(0xE4u)) == static_cast<int8_t>(0xE4u),
+      "ScalarByteSwap(static_cast<int8_t>(0xE4u)) must be equal to 0xE4");
+  static_assert(
+      ScalarByteSwap(static_cast<int8_t>(0x1Au)) == static_cast<int8_t>(0x1Au),
+      "ScalarByteSwap(static_cast<int8_t>(0x1Au)) must be equal to 0x1A");
+  static_assert(
+      ScalarByteSwap(static_cast<int8_t>(0x4Eu)) == static_cast<int8_t>(0x4Eu),
+      "ScalarByteSwap(static_cast<int8_t>(0x4Eu)) must be equal to 0x4E");
+
+  static_assert(
+      ScalarByteSwap(static_cast<int16_t>(0x8DBBu)) ==
+          static_cast<int16_t>(0xBB8Du),
+      "ScalarByteSwap(static_cast<int16_t>(0x8DBBu)) must be equal to 0xBB8D");
+  static_assert(
+      ScalarByteSwap(static_cast<int16_t>(0x18EAu)) ==
+          static_cast<int16_t>(0xEA18u),
+      "ScalarByteSwap(static_cast<int16_t>(0x18EAu)) must be equal to 0xEA18");
+  static_assert(
+      ScalarByteSwap(static_cast<int16_t>(0x3021u)) ==
+          static_cast<int16_t>(0x2130u),
+      "ScalarByteSwap(static_cast<int16_t>(0x3021u)) must be equal to 0x2130");
+  static_assert(
+      ScalarByteSwap(static_cast<int16_t>(0x823Eu)) ==
+          static_cast<int16_t>(0x3E82u),
+      "ScalarByteSwap(static_cast<int16_t>(0x823Eu)) must be equal to 0x3E82");
+
+  static_assert(ScalarByteSwap(static_cast<int32_t>(0xF0FB518Eu)) ==
+                    static_cast<int32_t>(0x8E51FBF0u),
+                "ScalarByteSwap(static_cast<int32_t>(0xF0FB518Eu)) must be "
+                "equal to 0x8E51FBF0");
+  static_assert(ScalarByteSwap(static_cast<int32_t>(0x46A94FEDu)) ==
+                    static_cast<int32_t>(0xED4FA946u),
+                "ScalarByteSwap(static_cast<int32_t>(0x46A94FEDu)) must be "
+                "equal to 0xED4FA946");
+  static_assert(ScalarByteSwap(static_cast<int32_t>(0x1FA6D136u)) ==
+                    static_cast<int32_t>(0x36D1A61Fu),
+                "ScalarByteSwap(static_cast<int32_t>(0x1FA6D136u)) must be "
+                "equal to 0x36D1A61F");
+  static_assert(ScalarByteSwap(static_cast<int32_t>(0xCF23BD57u)) ==
+                    static_cast<int32_t>(0x57BD23CFu),
+                "ScalarByteSwap(static_cast<int32_t>(0xCF23BD57u)) must be "
+                "equal to 0x57BD23CF");
+
+  static_assert(ScalarByteSwap(static_cast<int64_t>(0xE37B7E4AA7C605BBULL)) ==
+                    static_cast<int64_t>(0xBB05C6A74A7E7BE3ULL),
+                "ScalarByteSwap(static_cast<int64_t>(0xE37B7E4AA7C605BBULL)) "
+                "must be equal to 0xBB05C6A74A7E7BE3");
+  static_assert(ScalarByteSwap(static_cast<int64_t>(0x3BDFBB720F94DDBAULL)) ==
+                    static_cast<int64_t>(0xBADD940F72BBDF3BULL),
+                "ScalarByteSwap(static_cast<int64_t>(0x3BDFBB720F94DDBAULL)) "
+                "must be equal to 0xBADD940F72BBDF3B");
+  static_assert(ScalarByteSwap(static_cast<int64_t>(0x6B3E7B7C67BC8643ULL)) ==
+                    static_cast<int64_t>(0x4386BC677C7B3E6BULL),
+                "ScalarByteSwap(static_cast<int64_t>(0x6B3E7B7C67BC8643ULL)) "
+                "must be equal to 0x4386BC677C7B3E6B");
+  static_assert(ScalarByteSwap(static_cast<int64_t>(0xEC5C0AFEF0AC2820ULL)) ==
+                    static_cast<int64_t>(0x2028ACF0FE0A5CECULL),
+                "ScalarByteSwap(static_cast<int64_t>(0xEC5C0AFEF0AC2820ULL)) "
+                "must be equal to 0x2028ACF0FE0A5CECULL");
+
+  static_assert(
+      ScalarByteSwap(static_cast<uint8_t>(0xD1u)) ==
+          static_cast<uint8_t>(0xD1u),
+      "ScalarByteSwap(static_cast<uint8_t>(0xD1u)) must be equal to 0xD1");
+  static_assert(
+      ScalarByteSwap(static_cast<uint8_t>(0x90u)) ==
+          static_cast<uint8_t>(0x90u),
+      "ScalarByteSwap(static_cast<uint8_t>(0x90u)) must be equal to 0x90");
+  static_assert(
+      ScalarByteSwap(static_cast<uint8_t>(0x78u)) ==
+          static_cast<uint8_t>(0x78u),
+      "ScalarByteSwap(static_cast<uint8_t>(0x78u)) must be equal to 0x78");
+  static_assert(
+      ScalarByteSwap(static_cast<uint8_t>(0x3Eu)) ==
+          static_cast<uint8_t>(0x3Eu),
+      "ScalarByteSwap(static_cast<uint8_t>(0x3Eu)) must be equal to 0x3E");
+
+  static_assert(
+      ScalarByteSwap(static_cast<uint16_t>(0xD593u)) ==
+          static_cast<uint16_t>(0x93D5u),
+      "ScalarByteSwap(static_cast<uint16_t>(0xD593u)) must be equal to 0x93D5");
+  static_assert(
+      ScalarByteSwap(static_cast<uint16_t>(0x148Bu)) ==
+          static_cast<uint16_t>(0x8B14u),
+      "ScalarByteSwap(static_cast<uint16_t>(0x148Bu)) must be equal to 0x8B14");
+  static_assert(
+      ScalarByteSwap(static_cast<uint16_t>(0x0D51u)) ==
+          static_cast<uint16_t>(0x510Du),
+      "ScalarByteSwap(static_cast<uint16_t>(0x0D51u)) must be equal to 0x510D");
+  static_assert(
+      ScalarByteSwap(static_cast<uint16_t>(0xFA1Au)) ==
+          static_cast<uint16_t>(0x1AFAu),
+      "ScalarByteSwap(static_cast<uint16_t>(0xFA1Au)) must be equal to 0x1AFA");
+
+  static_assert(ScalarByteSwap(static_cast<uint32_t>(0xBB4582E5u)) ==
+                    static_cast<uint32_t>(0xE58245BBu),
+                "ScalarByteSwap(static_cast<uint32_t>(0xBB4582E5u)) must be "
+                "equal to 0xE58245BB");
+  static_assert(ScalarByteSwap(static_cast<uint32_t>(0x2B876DCCu)) ==
+                    static_cast<uint32_t>(0xCC6D872Bu),
+                "ScalarByteSwap(static_cast<uint32_t>(0x2B876DCCu)) must be "
+                "equal to 0xCC6D872B");
+  static_assert(ScalarByteSwap(static_cast<uint32_t>(0x71CD104Bu)) ==
+                    static_cast<uint32_t>(0x4B10CD71u),
+                "ScalarByteSwap(static_cast<uint32_t>(0x71CD104Bu)) must be "
+                "equal to 0x4B10CD71");
+  static_assert(ScalarByteSwap(static_cast<uint32_t>(0x85D7EF06u)) ==
+                    static_cast<uint32_t>(0x06EFD785u),
+                "ScalarByteSwap(static_cast<uint32_t>(0x85D7EF06u)) must be "
+                "equal to 0x06EFD785");
+
+  static_assert(ScalarByteSwap(static_cast<uint64_t>(0xA7B54F853A153699ULL)) ==
+                    static_cast<uint64_t>(0x9936153A854FB5A7ULL),
+                "ScalarByteSwap(static_cast<uint64_t>(0xA7B54F853A153699ULL)) "
+                "must be equal to 0x9936153A854FB5A7");
+  static_assert(ScalarByteSwap(static_cast<uint64_t>(0x11D48571C5EC46F2ULL)) ==
+                    static_cast<uint64_t>(0xF246ECC57185D411ULL),
+                "ScalarByteSwap(static_cast<uint64_t>(0x11D48571C5EC46F2ULL)) "
+                "must be equal to 0xF246ECC57185D411");
+  static_assert(ScalarByteSwap(static_cast<uint64_t>(0x634899428FD79059ULL)) ==
+                    static_cast<uint64_t>(0x5990D78F42994863ULL),
+                "ScalarByteSwap(static_cast<uint64_t>(0x634899428FD79059u)) "
+                "must be equal to 0x5990D78F42994863");
+  static_assert(ScalarByteSwap(static_cast<uint64_t>(0x8BDDFB0D305E5B57ULL)) ==
+                    static_cast<uint64_t>(0x575B5E300DFBDD8BULL),
+                "ScalarByteSwap(static_cast<uint64_t>(0x8BDDFB0D305E5B57ULL)) "
+                "must be equal to 0x575B5E300DFBDD8B");
+
+  const uint64_t u64_zero = static_cast<uint64_t>(hwy::Unpredictable1() - 1);
+
+  HWY_ASSERT_EQ(static_cast<int8_t>(0xA2u),
+                ScalarByteSwap(static_cast<int8_t>(0xA2ULL ^ u64_zero)));
+  HWY_ASSERT_EQ(static_cast<int8_t>(0xD0u),
+                ScalarByteSwap(static_cast<int8_t>(0xD0ULL ^ u64_zero)));
+  HWY_ASSERT_EQ(static_cast<int8_t>(0x2Du),
+                ScalarByteSwap(static_cast<int8_t>(0x2DULL ^ u64_zero)));
+  HWY_ASSERT_EQ(static_cast<int8_t>(0x18u),
+                ScalarByteSwap(static_cast<int8_t>(0x18ULL ^ u64_zero)));
+
+  HWY_ASSERT_EQ(static_cast<int16_t>(0xDAADu),
+                ScalarByteSwap(static_cast<int16_t>(0xADDAULL ^ u64_zero)));
+  HWY_ASSERT_EQ(static_cast<int16_t>(0x897Fu),
+                ScalarByteSwap(static_cast<int16_t>(0x7F89ULL ^ u64_zero)));
+  HWY_ASSERT_EQ(static_cast<int16_t>(0x0052u),
+                ScalarByteSwap(static_cast<int16_t>(0x5200ULL ^ u64_zero)));
+  HWY_ASSERT_EQ(static_cast<int16_t>(0x47E3u),
+                ScalarByteSwap(static_cast<int16_t>(0xE347ULL ^ u64_zero)));
+
+  HWY_ASSERT_EQ(static_cast<int32_t>(0x924B72F3u),
+                ScalarByteSwap(static_cast<int32_t>(0xF3724B92ULL ^ u64_zero)));
+  HWY_ASSERT_EQ(static_cast<int32_t>(0xA858FB53u),
+                ScalarByteSwap(static_cast<int32_t>(0x53FB58A8ULL ^ u64_zero)));
+  HWY_ASSERT_EQ(static_cast<int32_t>(0x0374517Du),
+                ScalarByteSwap(static_cast<int32_t>(0x7D517403ULL ^ u64_zero)));
+  HWY_ASSERT_EQ(static_cast<int32_t>(0x110A87CDu),
+                ScalarByteSwap(static_cast<int32_t>(0xCD870A11ULL ^ u64_zero)));
+
+  HWY_ASSERT_EQ(
+      static_cast<int64_t>(0xB71CB1120DCCFB81ULL),
+      ScalarByteSwap(static_cast<int64_t>(0x81FBCC0D12B11CB7ULL ^ u64_zero)));
+  HWY_ASSERT_EQ(
+      static_cast<int64_t>(0xB9EEDC00E2E25F56ULL),
+      ScalarByteSwap(static_cast<int64_t>(0x565FE2E200DCEEB9ULL ^ u64_zero)));
+  HWY_ASSERT_EQ(
+      static_cast<int64_t>(0x4313B3E415BBD472ULL),
+      ScalarByteSwap(static_cast<int64_t>(0x72D4BB15E4B31343ULL ^ u64_zero)));
+  HWY_ASSERT_EQ(
+      static_cast<int64_t>(0x6C6EE3646E2141A7ULL),
+      ScalarByteSwap(static_cast<int64_t>(0xA741216E64E36E6CULL ^ u64_zero)));
+
+  HWY_ASSERT_EQ(static_cast<uint8_t>(0x96u),
+                ScalarByteSwap(static_cast<uint8_t>(0x96ULL ^ u64_zero)));
+  HWY_ASSERT_EQ(static_cast<uint8_t>(0xD2u),
+                ScalarByteSwap(static_cast<uint8_t>(0xD2ULL ^ u64_zero)));
+  HWY_ASSERT_EQ(static_cast<uint8_t>(0x0Eu),
+                ScalarByteSwap(static_cast<uint8_t>(0x0EULL ^ u64_zero)));
+  HWY_ASSERT_EQ(static_cast<uint8_t>(0x2Fu),
+                ScalarByteSwap(static_cast<uint8_t>(0x2FULL ^ u64_zero)));
+
+  HWY_ASSERT_EQ(static_cast<uint16_t>(0x90A8u),
+                ScalarByteSwap(static_cast<uint16_t>(0xA890ULL ^ u64_zero)));
+  HWY_ASSERT_EQ(static_cast<uint16_t>(0x8207u),
+                ScalarByteSwap(static_cast<uint16_t>(0x0782ULL ^ u64_zero)));
+  HWY_ASSERT_EQ(static_cast<uint16_t>(0x0D15u),
+                ScalarByteSwap(static_cast<uint16_t>(0x150DULL ^ u64_zero)));
+  HWY_ASSERT_EQ(static_cast<uint16_t>(0x1EE4u),
+                ScalarByteSwap(static_cast<uint16_t>(0xE41EULL ^ u64_zero)));
+
+  HWY_ASSERT_EQ(
+      static_cast<uint32_t>(0xB3790AC1u),
+      ScalarByteSwap(static_cast<uint32_t>(0xC10A79B3ULL ^ u64_zero)));
+  HWY_ASSERT_EQ(
+      static_cast<uint32_t>(0xA966BF42u),
+      ScalarByteSwap(static_cast<uint32_t>(0x42BF66A9ULL ^ u64_zero)));
+  HWY_ASSERT_EQ(
+      static_cast<uint32_t>(0x5025F263u),
+      ScalarByteSwap(static_cast<uint32_t>(0x63F22550ULL ^ u64_zero)));
+  HWY_ASSERT_EQ(
+      static_cast<uint32_t>(0x0CC9C6DBu),
+      ScalarByteSwap(static_cast<uint32_t>(0xDBC6C90CULL ^ u64_zero)));
+
+  HWY_ASSERT_EQ(
+      static_cast<uint64_t>(0xE6EC3EE7741291A0u),
+      ScalarByteSwap(static_cast<uint64_t>(0xA0911274E73EECE6ULL ^ u64_zero)));
+  HWY_ASSERT_EQ(
+      static_cast<uint64_t>(0xA42680BA115C6425u),
+      ScalarByteSwap(static_cast<uint64_t>(0x25645C11BA8026A4ULL ^ u64_zero)));
+  HWY_ASSERT_EQ(
+      static_cast<uint64_t>(0x364E7B009D165067u),
+      ScalarByteSwap(static_cast<uint64_t>(0x6750169D007B4E36ULL ^ u64_zero)));
+  HWY_ASSERT_EQ(
+      static_cast<uint64_t>(0x4F02323A5165FEFEu),
+      ScalarByteSwap(static_cast<uint64_t>(0xFEFE65513A32024FULL ^ u64_zero)));
+}
+
+HWY_NOINLINE void TestAllScalarByteSwapIfBigEndian() {
+  static_assert(ScalarByteSwapIfBigEndian(static_cast<int8_t>(-53)) == -53,
+                "ScalarByteSwapIfBigEndian(static_cast<int8_t>(-53)) must be "
+                "equal to -53");
+  static_assert(ScalarByteSwapIfBigEndian(static_cast<uint8_t>(34)) == 34u,
+                "ScalarByteSwapIfBigEndian(static_cast<uint8_t>(34)) must be "
+                "equal to 34");
+  static_assert(ScalarByteSwapIfBigEndian(static_cast<int16_t>(26623)) ==
+                    (HWY_IS_LITTLE_ENDIAN ? 26623 : -153),
+                "ScalarByteSwapIfBigEndian(static_cast<int16_t>(26623)) is not "
+                "equal to expected value");
+  static_assert(ScalarByteSwapIfBigEndian(static_cast<uint16_t>(11595)) ==
+                    (HWY_IS_LITTLE_ENDIAN ? 11595u : 19245u),
+                "ScalarByteSwapIfBigEndian(static_cast<uint16_t>(11595)) is "
+                "not equal to expected value");
+  static_assert(ScalarByteSwapIfBigEndian(static_cast<int32_t>(735768149L)) ==
+                    (HWY_IS_LITTLE_ENDIAN ? 735768149L : 1441716779L),
+                "ScalarByteSwapIfBigEndian(static_cast<int32_t>(735768149L)) "
+                "is not equal to expected value");
+  static_assert(
+      ScalarByteSwapIfBigEndian(static_cast<uint32_t>(2435432080UL)) ==
+          (HWY_IS_LITTLE_ENDIAN ? 2435432080UL : 2428381585UL),
+      "ScalarByteSwapIfBigEndian(static_cast<uint32_t>(2435432080UL)) is not "
+      "equal to expected value");
+  static_assert(
+      ScalarByteSwapIfBigEndian(static_cast<int64_t>(-5291537098829678526L)) ==
+          (HWY_IS_LITTLE_ENDIAN ? -5291537098829678526LL
+                                : 4807720540899872950LL),
+      "ScalarByteSwapIfBigEndian(static_cast<int64_t>(-5291537098829678526L)) "
+      "is not equal to expected value");
+  static_assert(
+      ScalarByteSwapIfBigEndian(static_cast<uint64_t>(799030716849950444ULL)) ==
+          (HWY_IS_LITTLE_ENDIAN ? 799030716849950444ULL
+                                : 17045692594081371659ULL),
+      "ScalarByteSwapIfBigEndian(static_cast<uint64_t>(799030716849950444ULL)) "
+      "is not equal to expected value");
+
+  const int64_t i64_zero = static_cast<int64_t>(hwy::Unpredictable1() - 1);
+  const uint64_t u64_zero = static_cast<uint64_t>(i64_zero);
+
+  HWY_ASSERT_EQ(static_cast<int8_t>(86),
+                ScalarByteSwapIfBigEndian(static_cast<int8_t>(86 ^ i64_zero)));
+  HWY_ASSERT_EQ(
+      static_cast<int8_t>(26u),
+      ScalarByteSwapIfBigEndian(static_cast<uint8_t>(26u ^ u64_zero)));
+  HWY_ASSERT_EQ(
+      static_cast<int16_t>(HWY_IS_LITTLE_ENDIAN ? 11149 : -29397),
+      ScalarByteSwapIfBigEndian(static_cast<int16_t>(11149 ^ i64_zero)));
+  HWY_ASSERT_EQ(
+      static_cast<uint16_t>(HWY_IS_LITTLE_ENDIAN ? 11604u : 21549u),
+      ScalarByteSwapIfBigEndian(static_cast<uint16_t>(11604u ^ u64_zero)));
+  HWY_ASSERT_EQ(
+      static_cast<int32_t>(HWY_IS_LITTLE_ENDIAN ? -1741085891L : 1025718680L),
+      ScalarByteSwapIfBigEndian(static_cast<int32_t>(-1741085891L ^ i64_zero)));
+  HWY_ASSERT_EQ(
+      static_cast<uint32_t>(HWY_IS_LITTLE_ENDIAN ? 243314907UL : 3685777422UL),
+      ScalarByteSwapIfBigEndian(static_cast<uint32_t>(243314907UL ^ u64_zero)));
+  HWY_ASSERT_EQ(
+      static_cast<int64_t>(HWY_IS_LITTLE_ENDIAN ? 7535629653599444402LL
+                                                : -5558091110541192344LL),
+      ScalarByteSwapIfBigEndian(
+          static_cast<int64_t>(7535629653599444402LL ^ i64_zero)));
+  HWY_ASSERT_EQ(
+      static_cast<uint64_t>(HWY_IS_LITTLE_ENDIAN ? 2681831622076265638ULL
+                                                 : 12030314986439391013ULL),
+      ScalarByteSwapIfBigEndian(
+          static_cast<uint64_t>(2681831622076265638ULL ^ u64_zero)));
+}
+
 struct TestSpecialFloat {
   template <class T>
   static constexpr bool EnableSpecialFloatArithOpTest() {
@@ -1004,6 +1293,8 @@ HWY_EXPORT_AND_TEST_P(BaseTest, TestAllDivisor64);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllScalarShr);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllMul128);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllEndian);
+HWY_EXPORT_AND_TEST_P(BaseTest, TestAllScalarByteSwap);
+HWY_EXPORT_AND_TEST_P(BaseTest, TestAllScalarByteSwapIfBigEndian);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllSpecialFloat);
 HWY_AFTER_TEST();
 }  // namespace
