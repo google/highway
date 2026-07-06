@@ -5963,32 +5963,39 @@ HWY_INLINE VFromD<DU> LaneIndicesFromByteIndices(D, svuint8_t idx) {
 template <class V>
 HWY_INLINE V ExpandLoop(V v, svbool_t mask) {
   const DFromV<V> d;
+  const RebindToUnsigned<decltype(d)> du;
+
   using T = TFromV<V>;
+  using TU = MakeUnsigned<T>;
+
+  using VU = VFromD<decltype(du)>;
+
   uint8_t mask_bytes[256 / 8];
   StoreMaskBits(d, mask, mask_bytes);
 
-  // ShiftLeftLanes is expensive, so we're probably better off storing to memory
-  // and loading the final result.
-  alignas(16) T out[2 * MaxLanes(d)];
+  RemoveCvRef<V> result = Zero(d);
 
   svbool_t next = svpfalse_b();
   size_t input_consumed = 0;
-  const V iota = Iota(d, 0);
-  for (size_t i = 0; i < Lanes(d); i += 8) {
+  const VU iota = Iota(du, 0);
+  const size_t N = Lanes(d);
+
+  for (size_t i = 0; i < N; i += 8) {
     uint64_t mask_bits = mask_bytes[i / 8];
 
     // We want to skip past the v lanes already consumed. There is no
     // instruction for variable-shift-reg, but we can splice.
     const V vH = detail::Splice(v, v, next);
     input_consumed += PopCount(mask_bits);
-    next = detail::GeN(iota, ConvertScalarTo<T>(input_consumed));
+    next = detail::GeN(iota, static_cast<TU>(input_consumed));
 
     const auto idx = detail::LaneIndicesFromByteIndices(
         d, detail::IndicesForExpandFromBits(mask_bits));
     const V expand = TableLookupLanes(vH, idx);
-    StoreU(expand, d, out + i);
+    result = SlideUpLanesOr(result, d, expand, i);
   }
-  return LoadU(d, out);
+
+  return result;
 }
 
 }  // namespace detail
