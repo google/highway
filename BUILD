@@ -572,6 +572,17 @@ cc_test(
 )
 
 cc_test(
+    name = "float_distribution",
+    srcs = ["hwy/examples/float_distribution.cc"],
+    copts = COPTS,
+    deps = [
+        ":hwy",
+        ":nanobenchmark",
+        ":timer",
+    ],
+)
+
+cc_test(
     name = "masks_and_logic",
     srcs = ["hwy/examples/masks_and_logic.cc"],
     copts = COPTS,
