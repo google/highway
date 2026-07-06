@@ -94,8 +94,13 @@ class HWY_ALIGN_MAX ShardMul {
     // Split u64 keys into two u32 halves.
     const VU32 lo = BitCast(du32, key0);
     const VU32 hi = BitCast(du32, key1);
+#if HWY_IS_BIG_ENDIAN
+    LL = ConcatOdd(du32, hi, lo);
+    RR = ConcatEven(du32, hi, lo);
+#else
     LL = ConcatEven(du32, hi, lo);
     RR = ConcatOdd(du32, hi, lo);
+#endif
 
     // 4-round Feistel to ensure the two halves are independent (Luby-Rackoff).
     // Even with a stronger round function, three rounds are insufficient
