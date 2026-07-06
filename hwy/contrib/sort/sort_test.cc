@@ -329,7 +329,8 @@ void TestPartialSortKEqualsZero() {
 
 // Shuffled finite values (within float16_t's exact range to avoid overflow to
 // inf), with a few NaN and a few real +inf at spread-out positions. The +inf
-// is the case a by-value sentinel scan confuses with NaN. Returns the NaN count.
+// is the case a by-value sentinel scan confuses with NaN. Returns the NaN
+// count.
 template <typename T>
 std::vector<T> MakeNaNInfInput(size_t num, uint64_t seed, size_t& num_nan) {
   std::vector<float> vals(num);

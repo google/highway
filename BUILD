@@ -491,6 +491,7 @@ cc_library(
         ":hwy",
         ":profiler",
         ":random",
+        ":stats",
         ":thread_pool",
         "//hwy/contrib/sort:vqsort",
     ],
@@ -837,6 +838,7 @@ cc_test(
         ":profiler",
         ":random",
         ":robust_statistics",
+        ":shardmul",
         ":thread_pool",
         ":topology",
         # Placeholder for flat_hash_set, do not remove

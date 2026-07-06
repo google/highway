@@ -135,6 +135,7 @@ HWY_CONTRIB_TESTS = (
         [
             ":shardmul",
             ":algo",
+            ":profiler",
             ":random",
             ":thread_pool",
             ":topology",
