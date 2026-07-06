@@ -126,6 +126,7 @@ cc_library(
     name = "vqsort_shared",
     srcs = [
         "vqsort.cc",
+        "vqsort_have.cc",
     ],
     hdrs = [
         "order.h",  # part of public interface, included by vqsort.h

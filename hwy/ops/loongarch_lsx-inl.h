@@ -2494,7 +2494,19 @@ HWY_API Vec128<int64_t, N> NegMulAdd(Vec128<int64_t, N> mul,
   return Vec128<int64_t, N>{__lsx_vmsub_d(sub.raw, mul.raw, x.raw)};
 }
 
-// Float/unsigned
+// float
+template <size_t N>
+HWY_API Vec128<float, N> NegMulAdd(Vec128<float, N> mul, Vec128<float, N> x,
+                                   Vec128<float, N> add) {
+  return Vec128<float, N>{__lsx_vfnmsub_s(mul.raw, x.raw, add.raw)};
+}
+template <size_t N>
+HWY_API Vec128<double, N> NegMulAdd(Vec128<double, N> mul, Vec128<double, N> x,
+                                    Vec128<double, N> add) {
+  return Vec128<double, N>{__lsx_vfnmsub_d(mul.raw, x.raw, add.raw)};
+}
+
+// unsigned
 template <typename T, size_t N, HWY_IF_NOT_SPECIAL_FLOAT(T)>
 HWY_API Vec128<T, N> NegMulAdd(Vec128<T, N> mul, Vec128<T, N> x,
                                Vec128<T, N> add) {

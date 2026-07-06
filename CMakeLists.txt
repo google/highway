@@ -231,6 +231,9 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/hash/phast.cc
     hwy/contrib/hash/phast.h
     hwy/contrib/hash/phast-inl.h
+    hwy/contrib/hash/shardmul.cc
+    hwy/contrib/hash/shardmul.h
+    hwy/contrib/hash/shardmul-inl.h
     hwy/contrib/hash/cuckoo2x2.cc
     hwy/contrib/hash/cuckoo2x2.h
     hwy/contrib/hash/cuckoo2x2-inl.h
@@ -238,6 +241,7 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/image/image.h
     hwy/contrib/math/fast_math-inl.h
     hwy/contrib/intdiv/intdiv-inl.h
+    hwy/contrib/math/fp_arith-inl.h
     hwy/contrib/math/math-inl.h
     hwy/contrib/matvec/matvec-inl.h
     hwy/contrib/random/random-inl.h
@@ -970,6 +974,7 @@ list(APPEND HWY_TEST_FILES
   hwy/contrib/hash/cuckoo2x2_test.cc
   hwy/contrib/hash/hash_test.cc
   hwy/contrib/hash/phast_test.cc
+  hwy/contrib/hash/shardmul_test.cc
   hwy/contrib/image/image_test.cc
   hwy/contrib/intdiv/intdiv_test.cc
   hwy/contrib/math/fast_math_test.cc

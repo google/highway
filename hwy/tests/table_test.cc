@@ -318,6 +318,54 @@ HWY_NOINLINE void TestAllLookup16() {
 #endif
 }
 
+struct TestLookup32 {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    using V = Vec<D>;
+    const RebindToUnsigned<D> du;
+    using TU = TFromD<decltype(du)>;
+
+    const size_t N = Lanes(d);
+    if (N < 16) return;
+
+    const size_t padded_N = HWY_MAX(N, 32);
+    auto tbl = AllocateAligned<T>(padded_N);
+    auto idx = AllocateAligned<TU>(padded_N);
+    auto expected = AllocateAligned<T>(padded_N);
+    HWY_ASSERT(tbl && idx && expected);
+    ZeroBytes(idx.get(), padded_N * sizeof(TU));
+
+    for (size_t i = 0; i < padded_N; ++i) {
+      tbl[i] = ConvertScalarTo<T>(i + static_cast<size_t>(Unpredictable1()));
+    }
+
+    // Too many permutations to test exhaustively; choose one with repeated
+    // indices. Note that the ops checks that indices do not exceed 31.
+    // For larger vectors, upper lanes will be zero.
+    HWY_ALIGN TU idx_source[32] = {1,  3,  2,  2,  3,  15, 14, 9,
+                                   0,  4,  0,  4,  9,  15, 12, 12,
+                                   16, 31, 28, 20, 17, 25, 30, 22,
+                                   19, 24, 16, 27, 21, 31, 18, 23};
+    for (size_t j = 0; j < padded_N; ++j) {
+      idx[j] = static_cast<TU>(idx_source[j & 31]);
+      expected[j] = ConvertScalarTo<T>(idx[j] + 1);  // == v[idx[j]]
+    }
+
+    const V actual = Lookup32(d, tbl.get(), Load(du, idx.get()));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), actual);
+  }
+};
+
+HWY_NOINLINE void TestAllLookup32() {
+  ForUI8(ForGE128Vectors<TestLookup32>());
+// For Lookup32 with 16-bit lanes, we require a scalable target (fine because
+// the test has a runtime check) or 256 bit vectors: 32 elements across two
+// vectors, hence at least sixteen 2-byte elements per vector.
+#if HWY_HAVE_SCALABLE || HWY_MIN_BYTES / 2 >= 16
+  ForUIF16(ForGE128Vectors<TestLookup32>());
+#endif
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -332,6 +380,7 @@ HWY_EXPORT_AND_TEST_P(HwyTableTest, TestAllTableLookupLanes);
 HWY_EXPORT_AND_TEST_P(HwyTableTest, TestAllTwoTablesLookupLanes);
 HWY_EXPORT_AND_TEST_P(HwyTableTest, TestAllLookup8);
 HWY_EXPORT_AND_TEST_P(HwyTableTest, TestAllLookup16);
+HWY_EXPORT_AND_TEST_P(HwyTableTest, TestAllLookup32);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy

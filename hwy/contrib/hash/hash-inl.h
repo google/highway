@@ -94,6 +94,7 @@ class WeakTwoMul {
   using LaneType = uint32_t;
   static constexpr const char* Name() { return "WeakTwoMul"; }
 
+  explicit WeakTwoMul(uint32_t key) : key_(key) {}
   WeakTwoMul(AesCtrEngine& engine, uint64_t seed)
       : key_(static_cast<uint32_t>(RngStream(engine, seed)())) {}
 

@@ -28,6 +28,7 @@
 #define HWY_SVE_IS_POW2 1
 #endif
 
+#undef HWY_SVE_HAVE_2
 #if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
 #define HWY_SVE_HAVE_2 1
 #else
@@ -36,6 +37,7 @@
 
 // HWY_SVE_HAVE_BF16_VEC is defined to 1 if the SVE svbfloat16_t vector type
 // is supported, even if HWY_SVE_HAVE_BF16_FEATURE (= intrinsics) is 0.
+#undef HWY_SVE_HAVE_BF16_VEC
 #if HWY_SVE_HAVE_BF16_FEATURE ||                                       \
     (HWY_COMPILER_CLANG >= 1200 && defined(__ARM_FEATURE_SVE_BF16)) || \
     HWY_COMPILER_GCC_ACTUAL >= 1000
@@ -47,6 +49,7 @@
 // HWY_SVE_HAVE_F32_TO_BF16C is defined to 1 if the SVE svcvt_bf16_f32_x
 // and svcvtnt_bf16_f32_x intrinsics are available, even if the __bf16 type
 // is disabled
+#undef HWY_SVE_HAVE_F32_TO_BF16C
 #if HWY_SVE_HAVE_BF16_VEC && defined(__ARM_FEATURE_SVE_BF16)
 #define HWY_SVE_HAVE_F32_TO_BF16C 1
 #else

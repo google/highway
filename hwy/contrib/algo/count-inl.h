@@ -116,7 +116,11 @@ size_t Count(D d, T value, const T* HWY_RESTRICT in, size_t count) {
         VI acc1 = Zero(di);
         VI acc2 = Zero(di);
         VI acc3 = Zero(di);
-        const size_t cap = HWY_MIN(i + 32768 * 4 * N, count);
+        // A matching lane increments acc once per iteration, so the cap must
+        // stay within int16 range (max 32767): the 16-bit pairwise widening is
+        // signed, so unlike the 8-bit path above there is no unsigned form to
+        // recover a 32768th match, which would overflow the signed accumulator.
+        const size_t cap = HWY_MIN(i + 32767 * 4 * N, count);
 
         if constexpr (HWY_NATIVE_MASK) {
           const auto k1 = Set(di, TI{1});
@@ -297,7 +301,11 @@ size_t CountIf(D d, const T* HWY_RESTRICT in, size_t count, const Func& func) {
         VI acc1 = Zero(di);
         VI acc2 = Zero(di);
         VI acc3 = Zero(di);
-        const size_t cap = HWY_MIN(i + 32768 * 4 * N, count);
+        // A matching lane increments acc once per iteration, so the cap must
+        // stay within int16 range (max 32767): the 16-bit pairwise widening is
+        // signed, so unlike the 8-bit path above there is no unsigned form to
+        // recover a 32768th match, which would overflow the signed accumulator.
+        const size_t cap = HWY_MIN(i + 32767 * 4 * N, count);
 
         if constexpr (HWY_NATIVE_MASK) {
           const VI k1 = Set(di, TI{1});

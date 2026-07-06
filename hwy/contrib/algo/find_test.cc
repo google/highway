@@ -15,7 +15,7 @@
 
 #include <stdio.h>
 
-#include <algorithm>  // std::find_if
+#include <algorithm>  // std::find_if, std::unique
 #include <vector>
 
 #include "hwy/aligned_allocator.h"
@@ -181,6 +181,115 @@ void TestAllFindIf() {
   ForAllTypes(ForPartialVectors<ForeachCountAndMisalign<TestFindIf>>());
 }
 
+struct TestUnique {
+  template <class D>
+  void operator()(D d, size_t count, size_t misalign, RandomState& rng) {
+    using T = TFromD<D>;
+    if (count == 0) return;  // Unique requires count > 0.
+    const size_t N = Lanes(d);
+
+    // Allocate with extra space for CompressBlendedStore overflow.
+    AlignedFreeUniquePtr<T[]> storage =
+        AllocateAligned<T>(HWY_MAX(1, misalign + count + N));
+    HWY_ASSERT(storage);
+    T* in = storage.get() + misalign;
+
+    // Fill with sorted values that have various duplicate patterns.
+    // Use small range to encourage duplicates.
+    T val = ConvertScalarTo<T>(0);
+    for (size_t i = 0; i < count; ++i) {
+      in[i] = val;
+      // Advance value sometimes (random skip), creating variable-length runs.
+      if ((Random32(&rng) & 3) != 0) {
+        val = static_cast<T>(static_cast<MakeUnsigned<T>>(val) + 1);
+      }
+    }
+
+    // Compute reference via std::unique on a copy.
+    std::vector<T> expected(in, in + count);
+    auto end = std::unique(expected.begin(), expected.end());
+    const size_t expected_count = static_cast<size_t>(end - expected.begin());
+
+    const size_t actual_count = Unique(d, in, count);
+    if (actual_count != expected_count) {
+      HWY_ABORT("%s count %zu: expected %zu unique, got %zu\n",
+                hwy::TypeName(T(), Lanes(d)).c_str(), count, expected_count,
+                actual_count);
+    }
+    for (size_t i = 0; i < expected_count; ++i) {
+      if (!IsEqual(in[i], expected[i])) {
+        HWY_ABORT("%s count %zu: mismatch at %zu, expected %f got %f\n",
+                  hwy::TypeName(T(), Lanes(d)).c_str(), count, i,
+                  ConvertScalarTo<double>(expected[i]),
+                  ConvertScalarTo<double>(in[i]));
+      }
+    }
+  }
+};
+
+// Targeted test for duplicates that straddle the vector boundary, i.e. the
+// last element of one vector equals the first element of the next. Random
+// TestUnique may not reliably hit this alignment.
+struct TestUniqueBoundary {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    if (N < 2) return;
+
+    // Test various counts near multiples of N.
+    for (size_t extra = 1; extra <= HWY_MIN(N, size_t{4}); ++extra) {
+      const size_t count = N + extra;  // crosses at least one boundary
+
+      AlignedFreeUniquePtr<T[]> storage = AllocateAligned<T>(count + N);
+      HWY_ASSERT(storage);
+      T* in = storage.get();
+
+      // Fill with all-distinct sorted values.
+      for (size_t i = 0; i < count; ++i) {
+        in[i] = ConvertScalarTo<T>(i);
+      }
+
+      // Force a duplicate pair that straddles the vector boundary.
+      in[N] = in[N - 1];
+
+      // Compute reference.
+      std::vector<T> expected(in, in + count);
+      auto end = std::unique(expected.begin(), expected.end());
+      const size_t expected_count = static_cast<size_t>(end - expected.begin());
+
+      const size_t actual_count = Unique(d, in, count);
+      if (actual_count != expected_count) {
+        HWY_ABORT(
+            "%s boundary count %zu (N=%zu, extra=%zu): "
+            "expected %zu unique, got %zu\n",
+            hwy::TypeName(T(), Lanes(d)).c_str(), count, N, extra,
+            expected_count, actual_count);
+      }
+      for (size_t i = 0; i < expected_count; ++i) {
+        if (!IsEqual(in[i], expected[i])) {
+          HWY_ABORT("%s boundary count %zu: mismatch at %zu\n",
+                    hwy::TypeName(T(), Lanes(d)).c_str(), count, i);
+        }
+      }
+
+      // Also test: all elements the same (worst case for Unique).
+      for (size_t i = 0; i < count; ++i) {
+        in[i] = ConvertScalarTo<T>(42);
+      }
+      const size_t all_same_count = Unique(d, in, count);
+      if (all_same_count != 1) {
+        HWY_ABORT("%s boundary count %zu: all-same expected 1, got %zu\n",
+                  hwy::TypeName(T(), Lanes(d)).c_str(), count, all_same_count);
+      }
+    }
+  }
+};
+
+void TestAllUnique() {
+  ForUI(ForPartialVectors<ForeachCountAndMisalign<TestUnique>>());
+  ForUI(ForGEVectors<64, TestUniqueBoundary>());
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -193,6 +302,7 @@ namespace {
 HWY_BEFORE_TEST(FindTest);
 HWY_EXPORT_AND_TEST_P(FindTest, TestAllFind);
 HWY_EXPORT_AND_TEST_P(FindTest, TestAllFindIf);
+HWY_EXPORT_AND_TEST_P(FindTest, TestAllUnique);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy

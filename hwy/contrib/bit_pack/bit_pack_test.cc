@@ -52,7 +52,15 @@ namespace {
 
 template <size_t kBits, typename T>
 T Random(RandomState& rng) {
-  return ConvertScalarTo<T>(Random32(&rng) & kBits);
+  // Draw enough random bits for T, then mask to the low kBits (the width the
+  // pack/unpack under test operates on). Note kBits is a bit count, so the
+  // mask is (1 << kBits) - 1, not kBits itself; compute it in 64-bit to avoid
+  // shifting by the full width (kBits == 64 for Pack64).
+  const uint64_t bits =
+      (sizeof(T) <= 4) ? uint64_t{Random32(&rng)} : Random64(&rng);
+  const uint64_t mask =
+      (kBits >= 64) ? ~uint64_t{0} : ((uint64_t{1} << kBits) - 1);
+  return ConvertScalarTo<T>(bits & mask);
 }
 
 template <typename T>

@@ -18,8 +18,6 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include <algorithm>  // std::unique
-
 #ifndef HWY_DISABLED_TARGETS
 #define HWY_DISABLED_TARGETS (HWY_SSE2 | HWY_SSSE3 | HWY_SSE4)
 #endif  // HWY_DISABLED_TARGETS
@@ -37,6 +35,7 @@
 // clang-format on
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 // After foreach_target
+#include "hwy/contrib/algo/find-inl.h"
 #include "hwy/contrib/hash/phast-inl.h"
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
@@ -115,8 +114,9 @@ void QueryBatch(const uint32_t* HWY_RESTRICT keys, size_t num_keys,
 void CheckDistinctAndRange(uint32_t* indices, size_t num_indices,
                            size_t num_slots) {
   VQSort(indices, num_indices, SortAscending());
-  uint32_t* end = std::unique(indices, indices + num_indices);
-  HWY_ASSERT_M(end == indices + num_indices, "Collision detected");
+  const ScalableTag<uint32_t> du32;
+  HWY_ASSERT_M(num_indices == Unique(du32, indices, num_indices),
+               "Collision detected");
 
   for (size_t i = 0; i < num_indices; ++i) {
     HWY_ASSERT_M(indices[i] < num_slots, "Index out of range");
@@ -149,7 +149,8 @@ void TestDistinctAndRange(const size_t num_keys) {
 HWY_NOINLINE void TestMultipleSizes() {
   const size_t kMul = 1;  // increase for larger tests.
   fprintf(stderr, "=== TestSmall ===\n");
-  for (size_t num_keys = 1; num_keys < 64; ++num_keys) {
+  // Includes num_keys == 64, where MinSliceLength(num_keys) == num_keys.
+  for (size_t num_keys = 1; num_keys < 100; ++num_keys) {
     TestDistinctAndRange(num_keys);
   }
   TestDistinctAndRange(/*num_keys=*/AdjustedReps(AdjustedReps(100 * kMul)));
@@ -174,6 +175,15 @@ HWY_BEFORE_TEST(PhastTest);
 HWY_EXPORT_AND_TEST_BEST_P(PhastTest, TestQueryConsistency);
 HWY_EXPORT_AND_TEST_BEST_P(PhastTest, TestMultipleSizes);
 HWY_AFTER_TEST();
+
+// An empty key set has no perfect hash; BuildPhast must return the empty
+// sentinel (NumSlots() == 0) rather than aborting.
+TEST(PhastEmptyTest, EmptyKeysReturnEmpty) {
+  ThreadPool pool(0);
+  const uint32_t* no_keys = nullptr;
+  const PhastData data = BuildPhast(Span<const uint32_t>(no_keys, 0), 0, pool);
+  EXPECT_EQ(size_t{0}, data.NumSlots());
+}
 }  // namespace hwy
 HWY_TEST_MAIN();
 #endif  // HWY_ONCE
