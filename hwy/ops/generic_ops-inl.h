@@ -6761,7 +6761,7 @@ static HWY_INLINE auto GetCompressNot64x2Table() -> const uint8_t (&)[64] {
   return kCompressNot64x2Table;
 }
 
-#if HWY_CAP_GE256
+#if HWY_MIN_BYTES >= 32
 static HWY_INLINE auto GetCompress32x8Table() -> const uint32_t (&)[256] {
   alignas(16) static constexpr uint32_t kCompress32x8Table[256] = {
       // PrintCompress32x8Tables
@@ -7078,7 +7078,7 @@ HWY_API Vec128<T, N> CompressNot(Vec128<T, N> v, Mask128<T, N> mask) {
   }
 }
 
-#if HWY_CAP_GE256
+#if HWY_MIN_BYTES >= 32
 
 namespace detail {
 
@@ -7160,9 +7160,14 @@ static HWY_INLINE Vec256<T> CompressBits(Vec256<T> v,
 
   const auto indices_vec = CompressIndicesFromBits256<T>(mask_bits);
 #if HWY_TARGET == HWY_WASM_EMU256
+  // Need to zero out the upper bits of indices[i] on WASM_EMU256 as U32x8
+  // TableLookupLanes on WASM_EMU256 returns zero in lanes where
+  // indices_vec[i] > 7
   const Indices256<uint32_t> indices =
       IndicesFromVec(du32, And(indices_vec, Set(du32, 7)));
 #else
+  // U32x8 TableLookupLanes on AVX2/AVX3/LASX ignores the upper 29 bits of
+  // indices_vec[i]
   const Indices256<uint32_t> indices{indices_vec.raw};
 #endif
   return BitCast(d, TableLookupLanes(BitCast(du32, v), indices));
@@ -7223,9 +7228,14 @@ static HWY_INLINE Vec256<T> CompressNotBits(Vec256<T> v,
   // no instruction for 4x64).
   const auto indices_vec = CompressIndicesFromNotBits256<T>(mask_bits);
 #if HWY_TARGET == HWY_WASM_EMU256
+  // Need to zero out the upper bits of indices[i] on WASM_EMU256 as U32x8
+  // TableLookupLanes on WASM_EMU256 returns zero in lanes where
+  // indices_vec[i] > 7
   const Indices256<uint32_t> indices =
       IndicesFromVec(du32, And(indices_vec, Set(du32, 7)));
 #else
+  // U32x8 TableLookupLanes on AVX2/AVX3/LASX ignores the upper 29 bits of
+  // indices_vec[i]
   const Indices256<uint32_t> indices{indices_vec.raw};
 #endif
   return BitCast(d, TableLookupLanes(BitCast(du32, v), indices));
@@ -7337,10 +7347,7 @@ HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> m, D d,
   const size_t count = PopCount(mask_bits);
 
   const auto compressed = Compress(v, m);
-#if (HWY_ARCH_S390X && HWY_TARGET <= HWY_Z14) ||           \
-    (HWY_ARCH_PPC_64 && HWY_TARGET <= HWY_PPC9 &&          \
-     (defined(_ARCH_PWR9) || defined(__POWER9_VECTOR__) || \
-      defined(_ARCH_PWR10) || defined(__POWER10_VECTOR__)))
+#if HWY_HAVE_NATIVE_STORE_N
   StoreN(compressed, d, unaligned, count);
 #else
   BlendedStore(compressed, FirstN(d, count), d, unaligned);

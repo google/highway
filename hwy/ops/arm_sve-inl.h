@@ -4539,7 +4539,8 @@ HWY_API V Compress(V v, svbool_t mask) {
       0, 1, 3, 2, 2, 3, 0, 1, 0, 2, 3, 1, 1, 2, 3, 0, 0, 1, 2, 3};
   return TableLookupLanes(v, SetTableIndices(d, table + offset));
 }
-#elif HWY_TARGET == HWY_SVE2_128
+#endif  // HWY_TARGET == HWY_SVE_256
+#if HWY_TARGET == HWY_SVE2_128 || HWY_IDE
 template <class V, HWY_IF_T_SIZE_V(V, 8)>
 HWY_API V Compress(V v, svbool_t mask) {
   // If mask == 10: swap via splice. A mask of 00 or 11 leaves v unchanged, 10
@@ -4561,8 +4562,7 @@ namespace detail {
 
 template <class D>
 static constexpr bool NeedToSplitForCompress8Or16() {
-  return (HWY_MAX_LANES_D(D) * sizeof(TFromD<D>)) >=
-             ((HWY_TARGET == HWY_SVE_256) ? 32 : 16) &&
+  return (HWY_MAX_LANES_D(D) * sizeof(TFromD<D>)) >= HWY_MIN_BYTES &&
          HWY_POW2_D(D) >= 0;
 }
 
@@ -4607,7 +4607,7 @@ HWY_API VFromD<D> Compress(D d, VFromD<D> v, const svbool_t mask) {
   using TW =
       If<(sizeof(T) == 1 &&
           ((HWY_POW2_D(D) <= -2) ||
-           (HWY_MAX_LANES_D(D) <= ((HWY_TARGET == HWY_SVE_256) ? 8 : 4)))),
+           (HWY_MAX_LANES_D(D) <= (HWY_MIN_BYTES / 4)))),
          uint32_t, MakeWide<TU>>;
 
   const ScalableTag<TW> dw;
@@ -4638,7 +4638,7 @@ HWY_API VFromD<D> CompressNot(D d, VFromD<D> v, const svbool_t mask) {
 
 template <class V, HWY_IF_T_SIZE_V(V, 8)>
 HWY_API V CompressNot(V v, svbool_t mask) {
-#if HWY_TARGET == HWY_SVE2_128
+#if HWY_TARGET == HWY_SVE2_128 || HWY_IDE
   // If mask == 01: swap via splice. A mask of 00 or 11 leaves v unchanged, 10
   // swaps upper/lower (the lower half is set to the upper half, and the
   // remaining upper half is filled from the lower half of the second v), and
@@ -4646,7 +4646,8 @@ HWY_API V CompressNot(V v, svbool_t mask) {
   // 01 to 10, and everything else to 00.
   const svbool_t maskLL = svzip1_b64(mask, mask);  // broadcast lower lane
   return detail::Splice(v, v, AndNot(mask, maskLL));
-#elif HWY_TARGET == HWY_SVE_256
+#endif
+#if HWY_TARGET == HWY_SVE_256 || HWY_IDE
   const DFromV<V> d;
   const RebindToUnsigned<decltype(d)> du64;
 
@@ -4663,7 +4664,8 @@ HWY_API V CompressNot(V v, svbool_t mask) {
       0, 2, 0, 3, 1, 2, 3, 0, 1, 2, 0, 1, 2, 3, 1, 2, 0, 3, 0, 2, 1, 3,
       2, 0, 1, 3, 0, 1, 2, 3, 1, 0, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3};
   return TableLookupLanes(v, SetTableIndices(d, table + offset));
-#else
+#endif  // HWY_TARGET == HWY_SVE_256
+#if (HWY_TARGET != HWY_SVE2_128 && HWY_TARGET != HWY_SVE_256) || HWY_IDE
   return Compress(v, Not(mask));
 #endif
 }
@@ -4685,7 +4687,8 @@ HWY_API svuint64_t CompressBlocksNot(svuint64_t v, svbool_t mask) {
 #if HWY_TARGET == HWY_SVE2_128
   (void)mask;
   return v;
-#elif HWY_TARGET == HWY_SVE_256 || HWY_IDE
+#endif
+#if HWY_TARGET == HWY_SVE_256 || HWY_IDE
   uint64_t bits = 0;           // predicate reg is 32-bit
   CopyBytes<4>(&mask, &bits);  // not same size - 64-bit more efficient
   // Concatenate LSB for upper and lower blocks, pre-scale by 4 for table idx.
@@ -4695,7 +4698,9 @@ HWY_API svuint64_t CompressBlocksNot(svuint64_t v, svbool_t mask) {
                                                         0, 1, 2, 3, 0, 1, 2, 3};
   const ScalableTag<uint64_t> d;
   return TableLookupLanes(v, SetTableIndices(d, table + offset));
-#else
+#endif
+
+#if (HWY_TARGET != HWY_SVE2_128 && HWY_TARGET != HWY_SVE_256) || HWY_IDE
   return CompressNot(v, mask);
 #endif
 }
