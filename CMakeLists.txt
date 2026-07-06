@@ -826,6 +826,15 @@ target_link_libraries(dot_product_mixed_precision PRIVATE ${ATOMICS_LIBRARIES})
 set_target_properties(dot_product_mixed_precision
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
 
+# Mandelbrot
+add_executable(mandelbrot hwy/examples/mandelbrot.cc)
+target_compile_options(mandelbrot PRIVATE ${HWY_FLAGS})
+target_compile_features(mandelbrot PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
+target_link_libraries(mandelbrot PRIVATE hwy)
+target_link_libraries(mandelbrot PRIVATE ${ATOMICS_LIBRARIES})
+set_target_properties(mandelbrot
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
+
 # AES capture the flag example
 add_executable(ctf_aes hwy/examples/ctf_aes.cc)
 target_compile_options(ctf_aes PRIVATE ${HWY_FLAGS})
