@@ -4627,6 +4627,117 @@ HWY_API VFromD<D> DemoteTo(D df32, VFromD<Rebind<uint64_t, D>> v) {
   return DemoteTo(df32, adj_f64_val);
 }
 
+// ------------------------------ ShiftRightAndDemoteTo (vssrani, vssrlni)
+// -------------------- RoundingShiftRightAndDemoteTo (vssrarni, vssrlrni)
+
+// The DemoteTo overloads above already emit the fused saturating shift-narrow
+// with the shift immediate fixed to 0, so passing kShiftAmt instead folds the
+// ShiftRight into the same instruction.
+//
+// loongarch_lasx-inl.h includes this header, so scope the override and the
+// HWY_NATIVE_SHIFT_RIGHT_AND_DEMOTE toggle to the LSX target. LASX keeps the
+// generic path until it gets its own override.
+#if HWY_TARGET == HWY_LSX
+#ifdef HWY_NATIVE_SHIFT_RIGHT_AND_DEMOTE
+#undef HWY_NATIVE_SHIFT_RIGHT_AND_DEMOTE
+#else
+#define HWY_NATIVE_SHIFT_RIGHT_AND_DEMOTE
+#endif
+
+#define HWY_LSX_SHIFT_RIGHT_AND_DEMOTE(NAME, DST_IF, FROM_T, INTRIN)         \
+  template <int kShiftAmt, class D, HWY_IF_V_SIZE_LE_D(D, 8), DST_IF(D)>     \
+  HWY_API VFromD<D> NAME(D /* tag */, VFromD<Rebind<FROM_T, D>> v) {         \
+    static_assert(0 <= kShiftAmt &&                                          \
+                      kShiftAmt <= static_cast<int>(sizeof(FROM_T) * 8 - 1), \
+                  "kShiftAmt is out of range");                              \
+    return VFromD<D>{INTRIN(v.raw, v.raw, kShiftAmt)};                       \
+  }
+
+// A signed source uses an arithmetic shift (vssrani), an unsigned source a
+// logical shift (vssrlni); the narrow type's u suffix selects unsigned vs
+// signed saturation, matching the DemoteTo overloads above.
+HWY_LSX_SHIFT_RIGHT_AND_DEMOTE(ShiftRightAndDemoteTo, HWY_IF_I8_D, int16_t,
+                               __lsx_vssrani_b_h)
+HWY_LSX_SHIFT_RIGHT_AND_DEMOTE(ShiftRightAndDemoteTo, HWY_IF_U8_D, int16_t,
+                               __lsx_vssrani_bu_h)
+HWY_LSX_SHIFT_RIGHT_AND_DEMOTE(ShiftRightAndDemoteTo, HWY_IF_I8_D, uint16_t,
+                               __lsx_vssrlni_b_h)
+HWY_LSX_SHIFT_RIGHT_AND_DEMOTE(ShiftRightAndDemoteTo, HWY_IF_U8_D, uint16_t,
+                               __lsx_vssrlni_bu_h)
+HWY_LSX_SHIFT_RIGHT_AND_DEMOTE(ShiftRightAndDemoteTo, HWY_IF_I16_D, int32_t,
+                               __lsx_vssrani_h_w)
+HWY_LSX_SHIFT_RIGHT_AND_DEMOTE(ShiftRightAndDemoteTo, HWY_IF_U16_D, int32_t,
+                               __lsx_vssrani_hu_w)
+HWY_LSX_SHIFT_RIGHT_AND_DEMOTE(ShiftRightAndDemoteTo, HWY_IF_I16_D, uint32_t,
+                               __lsx_vssrlni_h_w)
+HWY_LSX_SHIFT_RIGHT_AND_DEMOTE(ShiftRightAndDemoteTo, HWY_IF_U16_D, uint32_t,
+                               __lsx_vssrlni_hu_w)
+HWY_LSX_SHIFT_RIGHT_AND_DEMOTE(ShiftRightAndDemoteTo, HWY_IF_I32_D, int64_t,
+                               __lsx_vssrani_w_d)
+HWY_LSX_SHIFT_RIGHT_AND_DEMOTE(ShiftRightAndDemoteTo, HWY_IF_U32_D, int64_t,
+                               __lsx_vssrani_wu_d)
+HWY_LSX_SHIFT_RIGHT_AND_DEMOTE(ShiftRightAndDemoteTo, HWY_IF_I32_D, uint64_t,
+                               __lsx_vssrlni_w_d)
+HWY_LSX_SHIFT_RIGHT_AND_DEMOTE(ShiftRightAndDemoteTo, HWY_IF_U32_D, uint64_t,
+                               __lsx_vssrlni_wu_d)
+
+HWY_LSX_SHIFT_RIGHT_AND_DEMOTE(RoundingShiftRightAndDemoteTo, HWY_IF_I8_D,
+                               int16_t, __lsx_vssrarni_b_h)
+HWY_LSX_SHIFT_RIGHT_AND_DEMOTE(RoundingShiftRightAndDemoteTo, HWY_IF_U8_D,
+                               int16_t, __lsx_vssrarni_bu_h)
+HWY_LSX_SHIFT_RIGHT_AND_DEMOTE(RoundingShiftRightAndDemoteTo, HWY_IF_I8_D,
+                               uint16_t, __lsx_vssrlrni_b_h)
+HWY_LSX_SHIFT_RIGHT_AND_DEMOTE(RoundingShiftRightAndDemoteTo, HWY_IF_U8_D,
+                               uint16_t, __lsx_vssrlrni_bu_h)
+HWY_LSX_SHIFT_RIGHT_AND_DEMOTE(RoundingShiftRightAndDemoteTo, HWY_IF_I16_D,
+                               int32_t, __lsx_vssrarni_h_w)
+HWY_LSX_SHIFT_RIGHT_AND_DEMOTE(RoundingShiftRightAndDemoteTo, HWY_IF_U16_D,
+                               int32_t, __lsx_vssrarni_hu_w)
+HWY_LSX_SHIFT_RIGHT_AND_DEMOTE(RoundingShiftRightAndDemoteTo, HWY_IF_I16_D,
+                               uint32_t, __lsx_vssrlrni_h_w)
+HWY_LSX_SHIFT_RIGHT_AND_DEMOTE(RoundingShiftRightAndDemoteTo, HWY_IF_U16_D,
+                               uint32_t, __lsx_vssrlrni_hu_w)
+HWY_LSX_SHIFT_RIGHT_AND_DEMOTE(RoundingShiftRightAndDemoteTo, HWY_IF_I32_D,
+                               int64_t, __lsx_vssrarni_w_d)
+HWY_LSX_SHIFT_RIGHT_AND_DEMOTE(RoundingShiftRightAndDemoteTo, HWY_IF_U32_D,
+                               int64_t, __lsx_vssrarni_wu_d)
+HWY_LSX_SHIFT_RIGHT_AND_DEMOTE(RoundingShiftRightAndDemoteTo, HWY_IF_I32_D,
+                               uint64_t, __lsx_vssrlrni_w_d)
+HWY_LSX_SHIFT_RIGHT_AND_DEMOTE(RoundingShiftRightAndDemoteTo, HWY_IF_U32_D,
+                               uint64_t, __lsx_vssrlrni_wu_d)
+
+#undef HWY_LSX_SHIFT_RIGHT_AND_DEMOTE
+
+// Catch-all for multi-step narrowing (e.g. int32 -> int8). The single-step
+// fused overloads above cover all 12 two-step pairs including the cross-sign
+// ones, so only 4:1 and wider ratios reach here; that is why the guard is
+// sizeof(V)/4 rather than the < sizeof(V) used on NEON and RVV. The bodies are
+// identical to the generic_ops-inl.h templates of the same name; we duplicate
+// here because HWY_NATIVE_SHIFT_RIGHT_AND_DEMOTE suppresses those on LSX.
+template <int kShiftAmt, class DN, class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DN),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_LE_D(DN, sizeof(TFromV<V>) / 4)>
+HWY_API VFromD<DN> ShiftRightAndDemoteTo(DN dn, V v) {
+  using T = TFromV<V>;
+  static_assert(
+      0 <= kShiftAmt && kShiftAmt <= static_cast<int>(sizeof(T) * 8 - 1),
+      "kShiftAmt is out of range");
+  return DemoteTo(dn, ShiftRight<kShiftAmt>(v));
+}
+
+template <int kShiftAmt, class DN, class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DN),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_LE_D(DN, sizeof(TFromV<V>) / 4)>
+HWY_API VFromD<DN> RoundingShiftRightAndDemoteTo(DN dn, V v) {
+  using T = TFromV<V>;
+  static_assert(
+      0 <= kShiftAmt && kShiftAmt <= static_cast<int>(sizeof(T) * 8 - 1),
+      "kShiftAmt is out of range");
+  return DemoteTo(dn, RoundingShiftRight<kShiftAmt>(v));
+}
+
+#endif  // HWY_TARGET == HWY_LSX
+
 // ------------------------------ ReorderDemote2To
 
 // ReorderDemote2To for 8-byte UI64->UI32, <= 4-byte UI32->UI16,
