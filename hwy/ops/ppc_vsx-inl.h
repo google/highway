@@ -5383,7 +5383,7 @@ HWY_API MFromD<D> LoadMaskBits(D d, const uint8_t* HWY_RESTRICT bits) {
   uint16_t u16_mask_bits;
   CopyBytes<sizeof(uint16_t)>(bits, &u16_mask_bits);
 
-  return detail::LoadMaskBits128(d, ScalarByteSwapIfBigEndian(u16_mask_bits));
+  return detail::LoadMaskBits128(d, NativeFromLittleEndian(u16_mask_bits));
 }
 
 template <typename T>
@@ -5554,7 +5554,7 @@ HWY_API size_t StoreMaskBits(D d, MFromD<D> mask, uint8_t* bits) {
   // the lower 16 bits of mask_bits are stored instead of the upper 16 bits
   // of mask_bits on big-endian PPC targets.
   const uint16_t u16_mask_bits =
-    ScalarByteSwapIfBigEndian(static_cast<uint16_t>(mask_bits));
+    NativeFromLittleEndian(static_cast<uint16_t>(mask_bits));
 
   CopyBytes<sizeof(uint16_t)>(&u16_mask_bits, bits);
   return sizeof(uint16_t);

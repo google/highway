@@ -856,72 +856,72 @@ HWY_NOINLINE void TestAllScalarByteSwap() {
       ScalarByteSwap(static_cast<uint64_t>(0xFEFE65513A32024FULL ^ u64_zero)));
 }
 
-HWY_NOINLINE void TestAllScalarByteSwapIfBigEndian() {
-  static_assert(ScalarByteSwapIfBigEndian(static_cast<int8_t>(-53)) == -53,
-                "ScalarByteSwapIfBigEndian(static_cast<int8_t>(-53)) must be "
+HWY_NOINLINE void TestAllNativeFromLittleEndian() {
+  static_assert(NativeFromLittleEndian(static_cast<int8_t>(-53)) == -53,
+                "NativeFromLittleEndian(static_cast<int8_t>(-53)) must be "
                 "equal to -53");
-  static_assert(ScalarByteSwapIfBigEndian(static_cast<uint8_t>(34)) == 34u,
-                "ScalarByteSwapIfBigEndian(static_cast<uint8_t>(34)) must be "
+  static_assert(NativeFromLittleEndian(static_cast<uint8_t>(34)) == 34u,
+                "NativeFromLittleEndian(static_cast<uint8_t>(34)) must be "
                 "equal to 34");
-  static_assert(ScalarByteSwapIfBigEndian(static_cast<int16_t>(26623)) ==
+  static_assert(NativeFromLittleEndian(static_cast<int16_t>(26623)) ==
                     (HWY_IS_LITTLE_ENDIAN ? 26623 : -153),
-                "ScalarByteSwapIfBigEndian(static_cast<int16_t>(26623)) is not "
+                "NativeFromLittleEndian(static_cast<int16_t>(26623)) is not "
                 "equal to expected value");
-  static_assert(ScalarByteSwapIfBigEndian(static_cast<uint16_t>(11595)) ==
+  static_assert(NativeFromLittleEndian(static_cast<uint16_t>(11595)) ==
                     (HWY_IS_LITTLE_ENDIAN ? 11595u : 19245u),
-                "ScalarByteSwapIfBigEndian(static_cast<uint16_t>(11595)) is "
+                "NativeFromLittleEndian(static_cast<uint16_t>(11595)) is "
                 "not equal to expected value");
-  static_assert(ScalarByteSwapIfBigEndian(static_cast<int32_t>(735768149L)) ==
+  static_assert(NativeFromLittleEndian(static_cast<int32_t>(735768149L)) ==
                     (HWY_IS_LITTLE_ENDIAN ? 735768149L : 1441716779L),
-                "ScalarByteSwapIfBigEndian(static_cast<int32_t>(735768149L)) "
+                "NativeFromLittleEndian(static_cast<int32_t>(735768149L)) "
                 "is not equal to expected value");
   static_assert(
-      ScalarByteSwapIfBigEndian(static_cast<uint32_t>(2435432080UL)) ==
+      NativeFromLittleEndian(static_cast<uint32_t>(2435432080UL)) ==
           (HWY_IS_LITTLE_ENDIAN ? 2435432080UL : 2428381585UL),
-      "ScalarByteSwapIfBigEndian(static_cast<uint32_t>(2435432080UL)) is not "
+      "NativeFromLittleEndian(static_cast<uint32_t>(2435432080UL)) is not "
       "equal to expected value");
   static_assert(
-      ScalarByteSwapIfBigEndian(static_cast<int64_t>(-5291537098829678526L)) ==
+      NativeFromLittleEndian(static_cast<int64_t>(-5291537098829678526L)) ==
           (HWY_IS_LITTLE_ENDIAN ? -5291537098829678526LL
                                 : 4807720540899872950LL),
-      "ScalarByteSwapIfBigEndian(static_cast<int64_t>(-5291537098829678526L)) "
+      "NativeFromLittleEndian(static_cast<int64_t>(-5291537098829678526L)) "
       "is not equal to expected value");
   static_assert(
-      ScalarByteSwapIfBigEndian(static_cast<uint64_t>(799030716849950444ULL)) ==
+      NativeFromLittleEndian(static_cast<uint64_t>(799030716849950444ULL)) ==
           (HWY_IS_LITTLE_ENDIAN ? 799030716849950444ULL
                                 : 17045692594081371659ULL),
-      "ScalarByteSwapIfBigEndian(static_cast<uint64_t>(799030716849950444ULL)) "
+      "NativeFromLittleEndian(static_cast<uint64_t>(799030716849950444ULL)) "
       "is not equal to expected value");
 
   const int64_t i64_zero = static_cast<int64_t>(hwy::Unpredictable1() - 1);
   const uint64_t u64_zero = static_cast<uint64_t>(i64_zero);
 
   HWY_ASSERT_EQ(static_cast<int8_t>(86),
-                ScalarByteSwapIfBigEndian(static_cast<int8_t>(86 ^ i64_zero)));
+                NativeFromLittleEndian(static_cast<int8_t>(86 ^ i64_zero)));
   HWY_ASSERT_EQ(
       static_cast<int8_t>(26u),
-      ScalarByteSwapIfBigEndian(static_cast<uint8_t>(26u ^ u64_zero)));
+      NativeFromLittleEndian(static_cast<uint8_t>(26u ^ u64_zero)));
   HWY_ASSERT_EQ(
       static_cast<int16_t>(HWY_IS_LITTLE_ENDIAN ? 11149 : -29397),
-      ScalarByteSwapIfBigEndian(static_cast<int16_t>(11149 ^ i64_zero)));
+      NativeFromLittleEndian(static_cast<int16_t>(11149 ^ i64_zero)));
   HWY_ASSERT_EQ(
       static_cast<uint16_t>(HWY_IS_LITTLE_ENDIAN ? 11604u : 21549u),
-      ScalarByteSwapIfBigEndian(static_cast<uint16_t>(11604u ^ u64_zero)));
+      NativeFromLittleEndian(static_cast<uint16_t>(11604u ^ u64_zero)));
   HWY_ASSERT_EQ(
       static_cast<int32_t>(HWY_IS_LITTLE_ENDIAN ? -1741085891L : 1025718680L),
-      ScalarByteSwapIfBigEndian(static_cast<int32_t>(-1741085891L ^ i64_zero)));
+      NativeFromLittleEndian(static_cast<int32_t>(-1741085891L ^ i64_zero)));
   HWY_ASSERT_EQ(
       static_cast<uint32_t>(HWY_IS_LITTLE_ENDIAN ? 243314907UL : 3685777422UL),
-      ScalarByteSwapIfBigEndian(static_cast<uint32_t>(243314907UL ^ u64_zero)));
+      NativeFromLittleEndian(static_cast<uint32_t>(243314907UL ^ u64_zero)));
   HWY_ASSERT_EQ(
       static_cast<int64_t>(HWY_IS_LITTLE_ENDIAN ? 7535629653599444402LL
                                                 : -5558091110541192344LL),
-      ScalarByteSwapIfBigEndian(
+      NativeFromLittleEndian(
           static_cast<int64_t>(7535629653599444402LL ^ i64_zero)));
   HWY_ASSERT_EQ(
       static_cast<uint64_t>(HWY_IS_LITTLE_ENDIAN ? 2681831622076265638ULL
                                                  : 12030314986439391013ULL),
-      ScalarByteSwapIfBigEndian(
+      NativeFromLittleEndian(
           static_cast<uint64_t>(2681831622076265638ULL ^ u64_zero)));
 }
 
@@ -1294,7 +1294,7 @@ HWY_EXPORT_AND_TEST_P(BaseTest, TestAllScalarShr);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllMul128);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllEndian);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllScalarByteSwap);
-HWY_EXPORT_AND_TEST_P(BaseTest, TestAllScalarByteSwapIfBigEndian);
+HWY_EXPORT_AND_TEST_P(BaseTest, TestAllNativeFromLittleEndian);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllSpecialFloat);
 HWY_AFTER_TEST();
 }  // namespace

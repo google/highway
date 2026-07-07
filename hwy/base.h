@@ -401,48 +401,37 @@ HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
 #endif
 
 //------------------------------------------------------------------------------
-// IsKnownToBeConstantEvaluated
+// IsConsteval
 
-// If C++23 if consteval support is available or the
-// __builtin_is_constant_evaluated() builtin is available,
-// IsKnownToBeConstantEvaluated() returns true if the call is being evaluated
-// within a constant-evaluated context.
-
-// Otherwise, if C++23 if consteval support is not available and the
-// __builtin_is_constant_evaluated() builtin is not available, then
-// IsKnownToBeConstantEvaluated() returns false.
-
-// HWY_HAVE_IS_CONSTEVAL_BUILTIN is 1 if C++23 if consteval support or
+// HWY_HAVE_IS_CONSTEVAL is 1 if C++23 if consteval support or
 // __builtin_is_constant_evaluated() is available, and 0 otherwise.
 
-// If HWY_HAVE_IS_CONSTEVAL_BUILTIN is 1, hwy::IsKnownToBeConstantEvaluated()
-// is equivalent to C++20 std::is_constant_evaluated(), except that
-// hwy::IsKnownToBeConstantEvaluated() does not have any dependencies on the
-// <type_traits> header and hwy::IsKnownToBeConstantEvaluated() is also
-// available in C++11, C++14, and C++17 modes.
+// hwy::IsConsteval() returns true if HWY_HAVE_IS_CONSTEVAL is 1 and
+// hwy::IsConsteval() is called from a constant-evaluated context, and
+// hwy::IsConsteval() returns false otherwise.
 
 #if defined(__cpp_if_consteval) && __cpp_if_consteval >= 202106L
-#define HWY_HAVE_IS_CONSTEVAL_BUILTIN 1
+#define HWY_HAVE_IS_CONSTEVAL 1
 
-HWY_API constexpr bool IsKnownToBeConstantEvaluated() {
+HWY_API constexpr bool IsConsteval() {
   if consteval {
-    return false;
-  } else {
     return true;
+  } else {
+    return false;
   }
 }
 #elif HWY_HAS_BUILTIN(__builtin_is_constant_evaluated) || \
     HWY_COMPILER_MSVC >= 1926
-#define HWY_HAVE_IS_CONSTEVAL_BUILTIN 1
+#define HWY_HAVE_IS_CONSTEVAL 1
 
-HWY_API constexpr bool IsKnownToBeConstantEvaluated() {
+HWY_API constexpr bool IsConsteval() {
   return __builtin_is_constant_evaluated();
 }
 
 #else
-#define HWY_HAVE_IS_CONSTEVAL_BUILTIN 0
+#define HWY_HAVE_IS_CONSTEVAL 0
 
-HWY_API constexpr bool IsKnownToBeConstantEvaluated() { return false; }
+HWY_API constexpr bool IsConsteval() { return false; }
 #endif
 
 //------------------------------------------------------------------------------
@@ -1522,22 +1511,22 @@ HWY_API HWY_F16_CONSTEXPR float F32FromF16(float16_t f16) {
 
 #if HWY_IS_DEBUG_BUILD && \
     (HWY_HAS_BUILTIN(__builtin_bit_cast) || HWY_COMPILER_MSVC >= 1926)
-#if HWY_HAVE_IS_CONSTEVAL_BUILTIN
-// If HWY_HAVE_IS_CONSTEVAL_BUILTIN is 1, then the C++ compiler has support for
+#if HWY_HAVE_IS_CONSTEVAL
+// If HWY_HAVE_IS_CONSTEVAL is 1, then the C++ compiler has support for
 // either C++23 if consteval or __builtin_is_constant_evaluated.
 #define HWY_F16_FROM_F32_DASSERT(condition) \
   do {                                      \
-    if (!IsKnownToBeConstantEvaluated()) {  \
+    if (!IsConsteval()) {  \
       HWY_DASSERT(condition);               \
     }                                       \
   } while (0)
-#else  // !HWY_HAVE_IS_CONSTEVAL_BUILTIN
-// If HWY_HAVE_IS_CONSTEVAL_BUILTIN is 0, then the C++ compiler does not have
+#else  // !HWY_HAVE_IS_CONSTEVAL
+// If HWY_HAVE_IS_CONSTEVAL is 0, then the C++ compiler does not have
 // support for either C++23 if consteval or __builtin_is_constant_evaluated.
 #define HWY_F16_FROM_F32_DASSERT(condition) \
   do {                                      \
   } while (0)
-#endif  // HWY_HAVE_IS_CONSTEVAL_BUILTIN
+#endif  // HWY_HAVE_IS_CONSTEVAL
 #else
 // If HWY_IS_DEBUG_BUILD is 0 or the __builtin_bit_cast intrinsic is not
 // available, define HWY_F16_FROM_F32_DASSERT(condition) as
@@ -2889,7 +2878,7 @@ static HWY_INLINE constexpr uint64_t ScalarByteSwap(
 #elif HWY_COMPILER_MSVC >= 1926
 static HWY_INLINE constexpr uint16_t ScalarByteSwap(
     hwy::SizeTag<2> /*size_tag*/, uint16_t val) noexcept {
-  return IsKnownToBeConstantEvaluated()
+  return IsConsteval()
              ? static_cast<uint16_t>(
                    ((static_cast<unsigned>(val) & 0xFFu) << 8) |
                    (static_cast<unsigned>(val) >> 8))
@@ -2897,7 +2886,7 @@ static HWY_INLINE constexpr uint16_t ScalarByteSwap(
 }
 static HWY_INLINE constexpr uint32_t ScalarByteSwap(
     hwy::SizeTag<4> /*size_tag*/, uint32_t val) noexcept {
-  return IsKnownToBeConstantEvaluated()
+  return IsConsteval()
              ? static_cast<uint32_t>(
                    static_cast<uint32_t>(ScalarByteSwap(
                        hwy::SizeTag<2>(), static_cast<uint16_t>(val >> 16))) |
@@ -2909,7 +2898,7 @@ static HWY_INLINE constexpr uint32_t ScalarByteSwap(
 }
 static HWY_INLINE constexpr uint64_t ScalarByteSwap(
     hwy::SizeTag<8> /*size_tag*/, uint64_t val) noexcept {
-  return IsKnownToBeConstantEvaluated()
+  return IsConsteval()
              ? static_cast<uint64_t>(
                    static_cast<uint64_t>(ScalarByteSwap(
                        hwy::SizeTag<4>(), static_cast<uint32_t>(val >> 32))) |
@@ -2947,7 +2936,7 @@ HWY_API constexpr RemoveCvRef<T> ScalarByteSwap(T val) noexcept {
 }
 
 template <class T, HWY_IF_INTEGER(RemoveCvRef<T>)>
-HWY_API constexpr RemoveCvRef<T> ScalarByteSwapIfBigEndian(T val) noexcept {
+HWY_API constexpr RemoveCvRef<T> NativeFromLittleEndian(T val) noexcept {
 #if HWY_IS_LITTLE_ENDIAN
   return val;
 #else

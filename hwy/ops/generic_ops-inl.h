@@ -7001,7 +7001,7 @@ HWY_API Vec128<T, N> Expand(Vec128<T, N> v, Mask128<T, N> mask) {
   // indices, add 0 to even and 1 to odd byte lanes.
 
   constexpr uint16_t kByteIndexOffset =
-    ScalarByteSwapIfBigEndian(static_cast<uint16_t>(0x0100));
+    NativeFromLittleEndian(static_cast<uint16_t>(0x0100));
 
   const Vec128<uint16_t, N> byte_indices = Add(
       indices16,
@@ -7610,7 +7610,7 @@ HWY_INLINE Vec<D> TblLookupPer4LaneBlkShufIdx(D d, const uint32_t idx3,
                                               const uint32_t idx0) {
   const Repartition<uint32_t, decltype(d)> du32;
   constexpr uint32_t kLaneByteOffsets =
-    ScalarByteSwapIfBigEndian(uint32_t{0x03020100});
+    NativeFromLittleEndian(uint32_t{0x03020100});
 
   const auto v_byte_idx = Per4LaneBlkShufDupSet4xU32(
       du32, static_cast<uint32_t>(idx3 * 0x04040404u + kLaneByteOffsets),
@@ -8393,7 +8393,7 @@ HWY_API V BitShuffle(V v, VI idx) {
 #endif
 
   constexpr uint64_t kExtractedBitsMask =
-    ScalarByteSwapIfBigEndian(static_cast<uint64_t>(0x8040201008040201u));
+    NativeFromLittleEndian(static_cast<uint64_t>(0x8040201008040201u));
 
   const auto k7 = Set(du8, uint8_t{0x07});
 
