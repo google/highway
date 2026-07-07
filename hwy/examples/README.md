@@ -27,6 +27,12 @@ Similar to sum_array_advanced, but for dot products. Adds:
 -   Duff's device for vector remainders
 -   Horizontal sum (reduction/fold) using `ReduceSum`.
 
+### `dot_product_mixed_precision.cc
+
+Similar to array simple but uses type promtion to allow for
+a greater range in resulting integer sum values before an
+overflow occurs.
+
 ### `matrix_transpose_scatter_gather.cc`
 
 Matrix transposition via Gather and Scatter, showing:
