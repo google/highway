@@ -6999,9 +6999,13 @@ HWY_API Vec128<T, N> Expand(Vec128<T, N> v, Mask128<T, N> mask) {
       BitCast(du, InterleaveLower(du8x2, indices8, indices8));
   // TableLookupBytesOr0 operates on bytes. To convert u16 lane indices to byte
   // indices, add 0 to even and 1 to odd byte lanes.
+
+  constexpr uint16_t kByteIndexOffset =
+    NativeFromLittleEndian(static_cast<uint16_t>(0x0100));
+
   const Vec128<uint16_t, N> byte_indices = Add(
       indices16,
-      Set(du, static_cast<uint16_t>(HWY_IS_LITTLE_ENDIAN ? 0x0100 : 0x0001)));
+      Set(du, kByteIndexOffset));
   return BitCast(d, TableLookupBytesOr0(v, byte_indices));
 }
 
@@ -7605,11 +7609,8 @@ HWY_INLINE Vec<D> TblLookupPer4LaneBlkShufIdx(D d, const uint32_t idx3,
                                               const uint32_t idx1,
                                               const uint32_t idx0) {
   const Repartition<uint32_t, decltype(d)> du32;
-#if HWY_IS_LITTLE_ENDIAN
-  constexpr uint32_t kLaneByteOffsets{0x03020100};
-#else
-  constexpr uint32_t kLaneByteOffsets{0x00010203};
-#endif
+  constexpr uint32_t kLaneByteOffsets =
+    NativeFromLittleEndian(uint32_t{0x03020100});
 
   const auto v_byte_idx = Per4LaneBlkShufDupSet4xU32(
       du32, static_cast<uint32_t>(idx3 * 0x04040404u + kLaneByteOffsets),
@@ -8391,13 +8392,8 @@ HWY_API V BitShuffle(V v, VI idx) {
   const Repartition<uint8_t, decltype(d64)> d_idx_shr;
 #endif
 
-#if HWY_IS_LITTLE_ENDIAN
   constexpr uint64_t kExtractedBitsMask =
-      static_cast<uint64_t>(0x8040201008040201u);
-#else
-  constexpr uint64_t kExtractedBitsMask =
-      static_cast<uint64_t>(0x0102040810204080u);
-#endif
+    NativeFromLittleEndian(static_cast<uint64_t>(0x8040201008040201u));
 
   const auto k7 = Set(du8, uint8_t{0x07});
 
