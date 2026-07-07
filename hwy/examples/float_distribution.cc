@@ -42,7 +42,7 @@ Highway SIMD Tutorial: Float magnitude based compaction
 This example demonstrates how to filter and compact float32 values by
 converting them to approximate log2 8-bit integers (via IEEE-754 exponent
 extraction and narrowing) and storing only the values exceeding a threshold
-using SIMD CompressStore.
+using SIMD CompressBlendedStore.
 
 Key SIMD techniques shown:
 1. Float manipulation: Abs
@@ -50,8 +50,8 @@ Key SIMD techniques shown:
 3. Shift of multiple lanes via ShiftRight.
 4. Narrowing Conversions: Demoting four 32-bit vectors to two 16-bit vectors,
    then to one 8-bit vector using ReorderDemote2To.
-5. Stream Compression: Using CompressStore to pack and write only unmasked
-   elements to memory without scalar loops or branches.
+5. Stream Compression: Using CompressBlendedStore to pack and write only
+   unmasked elements to memory without scalar loops or branches.
 */
 
 HWY_BEFORE_NAMESPACE();
@@ -108,7 +108,13 @@ static HWY_INLINE size_t FloatDistributionSIMD(const float* HWY_RESTRICT in,
     const VU8 exp8 = hn::ReorderDemote2To(du8, exp16_01, exp16_23);
 
     const MU8 final_mask = hn::Gt(exp8, min_exp);
-    out_idx += hn::CompressStore(exp8, final_mask, du8, out + out_idx);
+    // CompressBlendedStore packs the values in 'exp8' according to 'final_mask'
+    // and stores them to 'out'.
+    // Blended version will not write outside number of bytes indicated by the
+    // mask.
+    // There is also CompressStore, which does the same job but faster but can
+    // write more than indicated by the mask.
+    out_idx += hn::CompressBlendedStore(exp8, final_mask, du8, out + out_idx);
   };
 
   for (; i + block_size <= count; i += block_size) {
@@ -180,7 +186,7 @@ bool Verify(const float* HWY_RESTRICT in, size_t count, float threshold) {
   expected.resize(expected_size);
 
   const uint8_t threshold_val = static_cast<uint8_t>(GetExponent(threshold));
-  std::vector<uint8_t> actual(count);
+  std::vector<uint8_t> actual(count + HWY_MAX_BYTES);
   size_t actual_size = HWY_DYNAMIC_DISPATCH(FloatDistributionSIMD)(
       in, count, threshold_val, actual.data());
   actual.resize(actual_size);
@@ -245,7 +251,7 @@ int RunTests() {
   const size_t bench_size = 100'000;
   const int reps = 1'000;
   AlignedVector<float> bench_in(bench_size);
-  AlignedVector<uint8_t> bench_out(bench_size);
+  AlignedVector<uint8_t> bench_out(bench_size + HWY_MAX_BYTES);
   for (size_t i = 0; i < bench_size; ++i) {
     bench_in[i] = dis(gen);
   }
