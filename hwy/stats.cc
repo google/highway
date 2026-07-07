@@ -24,7 +24,7 @@
 
 namespace hwy {
 
-void Stats::Assimilate(const Stats& other) {
+HWY_DLLEXPORT void Stats::Assimilate(const Stats& other) {
   const int64_t total_n = n_ + other.n_;
   if (total_n == 0) return;  // Nothing to do; prevents div by zero.
 
@@ -68,7 +68,7 @@ void Stats::Assimilate(const Stats& other) {
   n_ = total_n;
 }
 
-std::string Stats::ToString(int exclude) const {
+HWY_DLLEXPORT std::string Stats::ToString(int exclude) const {
   if (Count() == 0) return std::string("(none)");
 
   char buf[300];

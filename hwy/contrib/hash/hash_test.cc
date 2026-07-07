@@ -304,7 +304,7 @@ template <class Hash>
 static HWY_NOINLINE void TestBijection(const Hash& hash) {
   // Verified for WeakTwoMul, Triple32, Murmur3, and Speck32. TestBuckets also
   // verifies bijection, but faster, hence disable.
-  if (Unpredictable1()) GTEST_SKIP();
+  if (Unpredictable1()) HWY_GTEST_SKIP();
 
   // Each worker hashes all inputs, but only stores outputs for its task's
   // range of outputs to reduce the working set size to L3. One global bitset

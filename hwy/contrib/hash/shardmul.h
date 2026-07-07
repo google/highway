@@ -26,6 +26,7 @@
 #include "hwy/aligned_allocator.h"  // Span
 #include "hwy/base.h"               // HWY_CONTRIB_DLLEXPORT
 #include "hwy/contrib/thread_pool/thread_pool.h"
+#include "hwy/stats.h"
 
 namespace hwy {
 
@@ -37,12 +38,14 @@ struct HWY_ALIGN_MAX ShardMulData {
 
   uint32_t table[16] = {};            // u16x2 multipliers for MulHigh, aligned.
   std::array<uint32_t, 4> keys = {};  // for Feistel rounds
+  Stats s_bucket_reps;                // info: number of attempts per bucket
 };
 
 // `ShardMul` constructed from the returned `ShardMulData` reports `IsEmpty()`
-// if construction fails (likely too many keys, the test verifies up to 1M).
+// if construction fails (likely too many keys, the test verifies up to 1.2M).
 // Otherwise, it produces distinct u32 outputs for all `keys`, which must be
-// distinct. Uses `pool` to parallelize across buckets.
+// distinct. Uses `pool` to parallelize across buckets. Throughput is about
+// 62 MB/s on 64-core Zen 4 for 1M keys (mainly VQSort).
 HWY_CONTRIB_DLLEXPORT ShardMulData BuildShardMul(Span<const uint64_t> keys,
                                                  ThreadPool& pool);
 

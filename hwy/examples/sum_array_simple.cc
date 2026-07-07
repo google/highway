@@ -20,11 +20,6 @@
 #include <numeric>
 #include <vector>
 
-#undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE \
-  "hwy/examples/sum_array_simple.cc"
-#include "hwy/foreach_target.h"  // IWYU pragma: keep
-
 #include "hwy/highway.h"
 
 HWY_BEFORE_NAMESPACE();
@@ -57,12 +52,10 @@ float SumArraySIMD(const float* HWY_RESTRICT array, size_t count) {
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
-#if HWY_ONCE
 namespace hwy {
-HWY_EXPORT(SumArraySIMD);
 
 static float CallSumArraySIMD(const float* array, size_t count) {
-  return HWY_DYNAMIC_DISPATCH(SumArraySIMD)(array, count);
+  return HWY_STATIC_DISPATCH(SumArraySIMD)(array, count);
 }
 
 }  // namespace hwy
@@ -77,4 +70,3 @@ int main() {
 
   return 0;
 }
-#endif  // HWY_ONCE

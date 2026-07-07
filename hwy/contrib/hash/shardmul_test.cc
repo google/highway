@@ -22,10 +22,11 @@
 #define HWY_DISABLED_TARGETS (HWY_SSE2 | HWY_SSSE3 | HWY_SSE4)
 #endif  // HWY_DISABLED_TARGETS
 
+#include "hwy/contrib/hash/shardmul.h"
 #include "hwy/contrib/sort/vqsort.h"
 #include "hwy/contrib/thread_pool/thread_pool.h"
+#include "hwy/profiler.h"
 #include "hwy/timer.h"
-
 // clang-format off
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/contrib/hash/shardmul_test.cc"  // NOLINT
@@ -45,8 +46,7 @@ namespace {
 #if HWY_TARGET != HWY_SCALAR
 
 static ThreadPool MakePool() {
-  // At most one worker per bucket.
-  return ThreadPool(HWY_MIN(15u, ThreadPool::NumThreadsFromCores()));
+  return ThreadPool(ThreadPool::NumThreadsFromCores());
 }
 
 // Generates 'count' clustered u64 keys simulating packed 8-byte UTF-8 strings.
@@ -100,27 +100,38 @@ static AlignedVector<uint64_t> GenerateClusteredKeys(size_t count) {
 }
 
 HWY_NOINLINE void TestShardMulCollisionFree() {
+  const ScalableTag<uint64_t> du64;
+  const RepartitionToNarrow<decltype(du64)> du32;
+  const size_t NU64 = Lanes(du64);
+  const size_t NU32 = Lanes(du32);
+
   ThreadPool pool = MakePool();
-  const size_t num_keys = AdjustedReps(AdjustedReps(1'000'000));
+  const size_t num_keys =
+      RoundUpTo(AdjustedReps(AdjustedReps(1'000'000)), NU32);
   AlignedVector<uint64_t> keys = GenerateClusteredKeys(num_keys);
 
   const double t0 = platform::Now();
-  const ShardMul shard_mul = MakeShardMul(Span(keys), pool);
+  const ShardMulData data(BuildShardMul(Span(keys), pool));
+  const ShardMul shard_mul{data};
   HWY_ASSERT(!shard_mul.IsEmpty());
   const double elapsed = platform::Now() - t0;
   fprintf(stderr, "  Build: %.2f ms, %zuK keys, %.2f MB/s\n", elapsed * 1E3,
           keys.size() >> 10,
           static_cast<double>(keys.size() * sizeof(uint64_t)) / elapsed * 1E-6);
+  fprintf(stderr, "  attempts: %s\n", data.s_bucket_reps.ToString().c_str());
 
   // Verify all outputs are distinct.
   AlignedVector<uint32_t> outputs(keys.size());
-  for (size_t i = 0; i < keys.size(); ++i) {
-    outputs[i] = shard_mul(keys[i]);
+  for (size_t i = 0; i < keys.size(); i += NU32) {
+    const Vec<decltype(du64)> keys0 = Load(du64, &keys[i]);
+    const Vec<decltype(du64)> keys1 = Load(du64, &keys[i + NU64]);
+    Store(shard_mul.TwoVec(du32, keys0, keys1), du32, &outputs[i]);
   }
   VQSort(outputs.data(), outputs.size(), SortAscending());
-  const ScalableTag<uint32_t> du32;
-  const size_t num_unique = Unique(du32, outputs.data(), outputs.size());
-  HWY_ASSERT_M(num_unique == keys.size(), "Collision detected");
+  HWY_ASSERT_M(AllUnique(du32, outputs.data(), outputs.size()),
+               "Collision detected");
+
+  PROFILER_PRINT_RESULTS();
 }
 
 HWY_NOINLINE void TestShardMulTwoVec() {

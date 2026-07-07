@@ -491,6 +491,7 @@ cc_library(
         ":hwy",
         ":profiler",
         ":random",
+        ":stats",
         ":thread_pool",
         "//hwy/contrib/sort:vqsort",
     ],
@@ -551,6 +552,28 @@ cc_test(
 cc_test(
     name = "sum_array_advanced",
     srcs = ["hwy/examples/sum_array_advanced.cc"],
+    copts = COPTS,
+    deps = [
+        ":hwy",
+        ":nanobenchmark",
+        ":timer",
+    ],
+)
+
+cc_test(
+    name = "sum_hex",
+    srcs = ["hwy/examples/sum_hex.cc"],
+    copts = COPTS,
+    deps = [
+        ":hwy",
+        ":nanobenchmark",
+        ":timer",
+    ],
+)
+
+cc_test(
+    name = "float_distribution",
+    srcs = ["hwy/examples/float_distribution.cc"],
     copts = COPTS,
     deps = [
         ":hwy",
@@ -826,6 +849,7 @@ cc_test(
         ":profiler",
         ":random",
         ":robust_statistics",
+        ":shardmul",
         ":thread_pool",
         ":topology",
         # Placeholder for flat_hash_set, do not remove

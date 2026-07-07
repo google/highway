@@ -69,8 +69,8 @@
 // create/get/set/dup, ld/st, sel, rev, trn, uzp, zip.
 // Consulted below, hence define here rather than in arm_sve-inl.h.
 #undef HWY_SVE_HAVE_BF16_FEATURE
-#if (HWY_ARM_HAVE_SCALAR_BF16_TYPE && defined(__ARM_FEATURE_SVE_BF16))
-  || HWY_TARGET == HWY_SVE2_128
+#if (HWY_ARM_HAVE_SCALAR_BF16_TYPE && defined(__ARM_FEATURE_SVE_BF16)) || \
+    HWY_TARGET == HWY_SVE2_128
 #define HWY_SVE_HAVE_BF16_FEATURE 1
 #else
 #define HWY_SVE_HAVE_BF16_FEATURE 0

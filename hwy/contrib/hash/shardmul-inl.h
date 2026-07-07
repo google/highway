@@ -74,7 +74,10 @@ class HWY_ALIGN_MAX ShardMul {
     return false;
   }
 
-  // For use in the builder. Unlike operator() and TwoVec(), these are safe to
+  // ---------------------------------------------------------------------------
+  // Internal, for use by the builder.
+
+  // Unlike operator() and TwoVec(), these are safe to
   // call even with a partially-initialized instance where IsEmpty().
   HWY_INLINE void Feistel(const uint64_t x, uint32_t& LL, uint32_t& RR) const {
     LL = static_cast<uint32_t>(x & 0xFFFFFFFFu);
@@ -89,13 +92,16 @@ class HWY_ALIGN_MAX ShardMul {
             class VU32 = Vec<DU32>, class VU64 = Vec<DU64>, HWY_IF_U32_D(DU32)>
   HWY_INLINE void Feistel(DU32 du32, const VU64 key0, const VU64 key1, VU32& LL,
                           VU32& RR) const {
-    HWY_DASSERT(!IsEmpty());
-
     // Split u64 keys into two u32 halves.
     const VU32 lo = BitCast(du32, key0);
     const VU32 hi = BitCast(du32, key1);
+#if HWY_IS_BIG_ENDIAN
+    LL = ConcatOdd(du32, hi, lo);
+    RR = ConcatEven(du32, hi, lo);
+#else
     LL = ConcatEven(du32, hi, lo);
     RR = ConcatOdd(du32, hi, lo);
+#endif
 
     // 4-round Feistel to ensure the two halves are independent (Luby-Rackoff).
     // Even with a stronger round function, three rounds are insufficient
@@ -109,10 +115,33 @@ class HWY_ALIGN_MAX ShardMul {
   uint32_t BucketIndex(const uint32_t LL) const { return LL >> 28; }
   uint32_t LookupMul(const uint32_t bucket) const { return table_[bucket]; }
 
+  // The MulHigh + XorAndNot portion of TwoVec, hoisted so that the builder can
+  // call it directly with pre-stored LL/RR and broadcast multipliers.
+  // `muls` is a u32 vector where each element holds a packed u16x2 pair.
+  template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
+  static HWY_INLINE VU32 MulAndXor(DU32 du32, VU32 LL, VU32 RR, VU32 muls) {
+    const RepartitionToNarrow<DU32> du16;
+    // Multiply pairs of u16; the upper 16 bits are better-mixed, hence MulHigh.
+    // Note that the result is no greater than the multiplier, which the builder
+    // ensures is at least 0x8001.
+    const VU32 result =
+        BitCast(du32, MulHigh(BitCast(du16, RR), BitCast(du16, muls)));
+    // It is crucial to inject the bucket index into the output. Partitioning
+    // the output range prevents cross-bucket collisions, hence allows
+    // building buckets independently and in parallel. The bucket index resides
+    // in the upper bits because they are lower quality (MSB might not be set by
+    // MulHigh), and downstream users may also be more responsive to MSB. It is
+    // sufficient to clear MSBs so that the XOR by LL sets the bucket index.
+    const VU32 bucket_idx_mask = Set(du32, 0xF0000000u);
+    return XorAndNot(LL, bucket_idx_mask, result);
+  }
+
+  // ---------------------------------------------------------------------------
   // Public API:
 
   // Maps a single u64 key to a u32 value. Collision-free for the key set used
-  // during construction. See TwoVec for detailed comments.
+  // during construction. See TwoVec for detailed comments. Measured latency is
+  // 16 cycles on Zen 4.
   HWY_INLINE uint32_t operator()(uint64_t x) const {
     HWY_DASSERT(!IsEmpty());
 
@@ -137,12 +166,12 @@ class HWY_ALIGN_MAX ShardMul {
   }
 
   // SIMD: returns full u32 vector from two u64 vectors. Collision-free for the
-  // key set used during construction.
+  // key set used during construction. Measured throughput is 34 GB/s on one
+  // Zen 4 core.
   template <class DU32, class DU64 = RepartitionToWide<DU32>,
             class VU32 = Vec<DU32>, class VU64 = Vec<DU64>, HWY_IF_U32_D(DU32)>
   HWY_INLINE VU32 TwoVec(DU32 du32, VU64 key0, VU64 key1) const {
-    const RepartitionToNarrow<DU32> du16;
-    using VU16 = Vec<decltype(du16)>;
+    HWY_DASSERT(!IsEmpty());
 
     VU32 LL, RR;
     Feistel(du32, key0, key1, LL, RR);
@@ -154,21 +183,7 @@ class HWY_ALIGN_MAX ShardMul {
     const VU32 bucket = ShiftRight<28>(LL);  // 0..15
 
     // Per-bucket multiplier pair defines the universal hash family member.
-    const VU16 muls = BitCast(du16, LookupMuls(du32, bucket));
-
-    // Multiply pairs of u16; the upper 16 bits are better-mixed, hence MulHigh.
-    // Note that the result is no greater than the multiplier, which the builder
-    // ensures is at least 0x8001.
-    const VU32 result = BitCast(du32, MulHigh(BitCast(du16, RR), muls));
-
-    // It is crucial to inject the bucket index into the output. Partitioning
-    // the output range prevents cross-bucket collisions, hence allows
-    // building buckets independently and in parallel. The bucket index resides
-    // in the upper bits because they are lower quality (MSB might not be set by
-    // MulHigh), and downstream users may also be more responsive to MSB. It is
-    // sufficient to clear MSBs so that the XOR by LL sets the bucket index.
-    const VU32 bucket_idx_mask = Set(du32, 0xF0000000u);
-    return XorAndNot(LL, bucket_idx_mask, result);
+    return MulAndXor(du32, LL, RR, LookupMuls(du32, bucket));
   }
 
  private:

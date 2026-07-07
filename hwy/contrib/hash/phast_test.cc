@@ -182,7 +182,7 @@ TEST(PhastEmptyTest, EmptyKeysReturnEmpty) {
   ThreadPool pool(0);
   const uint32_t* no_keys = nullptr;
   const PhastData data = BuildPhast(Span<const uint32_t>(no_keys, 0), 0, pool);
-  EXPECT_EQ(size_t{0}, data.NumSlots());
+  HWY_ASSERT_EQ(size_t{0}, data.NumSlots());
 }
 }  // namespace hwy
 HWY_TEST_MAIN();

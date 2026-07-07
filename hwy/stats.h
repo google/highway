@@ -143,7 +143,7 @@ class Stats {
     m2_ += d2n1_div_n;
   }
 
-  void Assimilate(const Stats& other);
+  HWY_DLLEXPORT void Assimilate(const Stats& other);
 
   int64_t Count() const { return n_; }
 
@@ -208,7 +208,7 @@ class Stats {
     kNoSkewKurt = 8,
     kNoGeomean = 16
   };
-  std::string ToString(int exclude = 0) const;
+  HWY_DLLEXPORT std::string ToString(int exclude = 0) const;
 
   void Reset() {
     n_ = 0;
