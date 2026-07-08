@@ -170,6 +170,7 @@ hwy_contrib_sources = files(
     'hwy/contrib/hash/phast.cc',
     'hwy/contrib/hash/shardmul.cc',
     'hwy/contrib/sort/vqsort.cc',
+    'hwy/contrib/sort/vqsort_have.cc',
     'hwy/contrib/thread_pool/thread_pool.cc',
     'hwy/contrib/thread_pool/topology.cc',
     # plus all of the vqsort_*.cc....
