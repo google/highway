@@ -632,6 +632,17 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "game_of_life",
+    srcs = ["hwy/examples/game_of_life.cc"],
+    copts = COPTS,
+    deps = [
+        ":hwy",
+        ":random",
+        ":timer",
+    ],
+)
+
 cc_library(
     name = "skeleton",
     srcs = ["hwy/examples/skeleton.cc"],
