@@ -847,6 +847,15 @@ target_link_libraries(matrix_transpose_scatter_gather PRIVATE ${ATOMICS_LIBRARIE
 set_target_properties(matrix_transpose_scatter_gather
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
 
+# Float magnitude based compaction
+add_executable(float_distribution hwy/examples/float_distribution.cc)
+target_compile_options(float_distribution PRIVATE ${HWY_FLAGS})
+target_compile_features(float_distribution PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
+target_link_libraries(float_distribution PRIVATE hwy)
+target_link_libraries(float_distribution PRIVATE ${ATOMICS_LIBRARIES})
+set_target_properties(float_distribution
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
+
 endif()  # HWY_ENABLE_EXAMPLES
 
 # -------------------------------------------------------- Tests

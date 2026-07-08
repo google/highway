@@ -17,7 +17,6 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include <bit>
 #include <cmath>
 #include <cstring>
 #include <random>
@@ -34,6 +33,7 @@
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
 #include "hwy/nanobenchmark.h"
+#include "hwy/per_target.h"
 #include "hwy/timer.h"
 
 /*
@@ -68,6 +68,15 @@ static HWY_INLINE size_t FloatDistributionSIMD(const float* HWY_RESTRICT in,
                                                size_t count,
                                                uint8_t threshold_val,
                                                uint8_t* HWY_RESTRICT out) {
+#if HWY_TARGET == HWY_SCALAR
+  // FloatDistributionSIMD is not supported on the HWY_SCALAR target
+
+  (void)in;
+  (void)count;
+  (void)threshold_val;
+  (void)out;
+  return 0;
+#else
   using DF32 = hn::ScalableTag<float>;
   using DU32 = hn::ScalableTag<uint32_t>;
   using DU16 = hn::Repartition<uint16_t, DU32>;
@@ -84,6 +93,8 @@ static HWY_INLINE size_t FloatDistributionSIMD(const float* HWY_RESTRICT in,
   using VU8 = hn::Vec<DU8>;
   using MU8 = hn::Mask<DU8>;
 
+  (void)du16;
+
   HWY_LANES_CONSTEXPR size_t lanes = hn::Lanes(df32);
   size_t out_idx = 0;
 
@@ -99,10 +110,10 @@ static HWY_INLINE size_t FloatDistributionSIMD(const float* HWY_RESTRICT in,
 
   auto demote_and_store = [&](VU32 exp0, VU32 exp1, VU32 exp2,
                               VU32 exp3) HWY_ATTR {
-    // Demote compresses i32 -> i16 -> i8
-    // It performs also clamping of values.
-    // Reorder version dosen't assume any order of output elements.
-    // If you want to preserve order you should use OrderedDemote2To.
+  // Demote compresses i32 -> i16 -> i8
+  // It performs also clamping of values.
+  // Reorder version dosen't assume any order of output elements.
+  // If you want to preserve order you should use OrderedDemote2To.
     const VU16 exp16_01 = hn::ReorderDemote2To(du16, exp0, exp1);
     const VU16 exp16_23 = hn::ReorderDemote2To(du16, exp2, exp3);
     const VU8 exp8 = hn::ReorderDemote2To(du8, exp16_01, exp16_23);
@@ -139,9 +150,11 @@ static HWY_INLINE size_t FloatDistributionSIMD(const float* HWY_RESTRICT in,
         to_exponent(load_chunk(0 * lanes)), to_exponent(load_chunk(1 * lanes)),
         to_exponent(load_chunk(2 * lanes)), to_exponent(load_chunk(3 * lanes)));
     i += remainder;
+    (void)i;
   }
 
   return out_idx;
+#endif
 }
 
 }  // namespace HWY_NAMESPACE
@@ -158,7 +171,7 @@ HWY_EXPORT(FloatDistributionSIMD);
 // Helper to extract the exponent (approximate log2) of a float.
 HWY_INLINE uint32_t GetExponent(float v) {
   float abs_v = std::abs(v);
-  uint32_t int_v = std::bit_cast<uint32_t>(abs_v);
+  uint32_t int_v = hwy::BitCastScalar<uint32_t>(abs_v);
   return int_v >> 23;
 }
 
@@ -186,7 +199,7 @@ bool Verify(const float* HWY_RESTRICT in, size_t count, float threshold) {
   expected.resize(expected_size);
 
   const uint8_t threshold_val = static_cast<uint8_t>(GetExponent(threshold));
-  std::vector<uint8_t> actual(count + HWY_MAX_BYTES);
+  std::vector<uint8_t> actual(count + hwy::VectorBytes());
   size_t actual_size = HWY_DYNAMIC_DISPATCH(FloatDistributionSIMD)(
       in, count, threshold_val, actual.data());
   actual.resize(actual_size);
@@ -234,8 +247,11 @@ int RunTests() {
   std::mt19937 gen(42);
   std::uniform_real_distribution<float> dis(-1.5f, 1.5f);
   for (size_t size :
-       {1,  2,  3,   4,   7,   8,   15,  16,  17,  31,   32,   33,  63,
-        64, 65, 100, 127, 128, 129, 255, 256, 257, 1000, 1024, 1025}) {
+       {size_t{1},   size_t{2},   size_t{3},    size_t{4},    size_t{7},
+        size_t{8},   size_t{15},  size_t{16},   size_t{17},   size_t{31},
+        size_t{32},  size_t{33},  size_t{63},   size_t{64},   size_t{65},
+        size_t{100}, size_t{127}, size_t{128},  size_t{129},  size_t{255},
+        size_t{256}, size_t{257}, size_t{1000}, size_t{1024}, size_t{1025}}) {
     AlignedVector<float> in(size);
     for (size_t i = 0; i < size; ++i) {
       in[i] = dis(gen);
