@@ -2967,7 +2967,9 @@ Ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
 Beware that these macros describe the current target being compiled. Imagine a
 test (e.g. sort_test) with SIMD code that also uses dynamic dispatch. There we
 must test the macros of the target *we will call*, e.g. via `hwy::HaveFloat64()`
-instead of `HWY_HAVE_FLOAT64`, which describes the current target.
+instead of `HWY_HAVE_FLOAT64`, which describes the current target. Even better,
+use `VQSortHaveFloat64` to match the target(s) for which VQSort was compiled,
+which can differ from the targets enabled in tests.
 
 *   `HWY_IDE` is 0 except when parsed by IDEs; adding it to conditions such as
     `#if HWY_TARGET != HWY_SCALAR || HWY_IDE` avoids code appearing greyed out.
@@ -3054,8 +3056,10 @@ supported for the `HWY_SCALAR` target.
     available on the current target.
 
 *   `HWY_MAX_BYTES` is an upper bound on the size of a full vector, suitable for
-    use in `#if` expressions. Except for the `HWY_SCALAR` target, it is equal to
-    the vector size if `!HWY_HAVE_SCALABLE`.
+    use in `#if` expressions. It is equal to the vector size unless
+    `HWY_HAVE_SCALABLE` or `HWY_TARGET == HWY_SCALAR`. As with the other macros
+    here, beware that this is only an upper bound for the current target. For
+    use outside SIMD code, call`hwy::VectorBytes()` instead.
 
 *   `HWY_MIN_BYTES` is a lower bound on the size of a full vector, suitable for
     use in `#if` expressions. Except for the `HWY_SCALAR` target, it is equal to
