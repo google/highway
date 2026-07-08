@@ -561,6 +561,16 @@ cc_test(
 )
 
 cc_test(
+    name = "dot_product_mixed_precision",
+    srcs = ["hwy/examples/dot_product_mixed_precision.cc"],
+    copts = COPTS,
+    deps = [
+        ":hwy",
+        ":timer",
+    ],
+)
+
+cc_test(
     name = "sum_hex",
     srcs = ["hwy/examples/sum_hex.cc"],
     copts = COPTS,
