@@ -862,6 +862,14 @@ target_link_libraries(float_distribution PRIVATE ${ATOMICS_LIBRARIES})
 set_target_properties(float_distribution
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
 
+# Game of life example
+add_executable(game_of_life hwy/examples/game_of_life.cc)
+target_compile_options(game_of_life PRIVATE ${HWY_FLAGS})
+target_compile_features(game_of_life PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
+target_link_libraries(game_of_life PRIVATE hwy)
+target_link_libraries(game_of_life PRIVATE ${ATOMICS_LIBRARIES})
+set_target_properties(game_of_life
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
 endif()  # HWY_ENABLE_EXAMPLES
 
 # -------------------------------------------------------- Tests

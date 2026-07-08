@@ -43,6 +43,13 @@ Matrix transposition via Gather and Scatter, showing:
     `GatherIndexN`/`ScatterIndexN`
 -   Precomputing strided offsets in registers using `Iota` and `Mul`.
 
+### `game_of_life.cc`
+
+Example stencil computation showing:
+
+- Loading elements from non-contiguous memory
+- Boolean operations
+
 ## Infrastructure
 
 ### `benchmark.cc`
