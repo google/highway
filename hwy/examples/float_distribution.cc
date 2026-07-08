@@ -68,15 +68,19 @@ static HWY_INLINE size_t FloatDistributionSIMD(const float* HWY_RESTRICT in,
                                                size_t count,
                                                uint8_t threshold_val,
                                                uint8_t* HWY_RESTRICT out) {
+#if HWY_TARGET == HWY_SCALAR
+  // FloatDistributionSIMD is not supported on the HWY_SCALAR target
+
+  (void)in;
+  (void)count;
+  (void)threshold_val;
+  (void)out;
+  return 0;
+#else
   using DF32 = hn::ScalableTag<float>;
   using DU32 = hn::ScalableTag<uint32_t>;
-#if HWY_TARGET == HWY_SCALAR
-  using DU16 = hn::Rebind<uint16_t, DU32>;
-  using DU8 = hn::Rebind<uint8_t, DU32>;
-#else
   using DU16 = hn::Repartition<uint16_t, DU32>;
   using DU8 = hn::Repartition<uint8_t, DU32>;
-#endif
 
   const DF32 df32;
   const DU32 du32;
@@ -85,9 +89,7 @@ static HWY_INLINE size_t FloatDistributionSIMD(const float* HWY_RESTRICT in,
 
   using VF32 = hn::Vec<DF32>;
   using VU32 = hn::Vec<DU32>;
-#if HWY_TARGET != HWY_SCALAR
   using VU16 = hn::Vec<DU16>;
-#endif
   using VU8 = hn::Vec<DU8>;
   using MU8 = hn::Mask<DU8>;
 
@@ -112,22 +114,6 @@ static HWY_INLINE size_t FloatDistributionSIMD(const float* HWY_RESTRICT in,
   // It performs also clamping of values.
   // Reorder version dosen't assume any order of output elements.
   // If you want to preserve order you should use OrderedDemote2To.
-#if HWY_TARGET == HWY_SCALAR
-    const VU8 exp8_0 = hn::DemoteTo(du8, exp0);
-    const VU8 exp8_1 = hn::DemoteTo(du8, exp1);
-    const VU8 exp8_2 = hn::DemoteTo(du8, exp2);
-    const VU8 exp8_3 = hn::DemoteTo(du8, exp3);
-
-    const MU8 final_mask0 = hn::Gt(exp8_0, min_exp);
-    const MU8 final_mask1 = hn::Gt(exp8_1, min_exp);
-    const MU8 final_mask2 = hn::Gt(exp8_2, min_exp);
-    const MU8 final_mask3 = hn::Gt(exp8_3, min_exp);
-
-    out_idx += hn::CompressBlendedStore(exp8_0, final_mask0, du8, out + out_idx);
-    out_idx += hn::CompressBlendedStore(exp8_1, final_mask1, du8, out + out_idx);
-    out_idx += hn::CompressBlendedStore(exp8_2, final_mask2, du8, out + out_idx);
-    out_idx += hn::CompressBlendedStore(exp8_3, final_mask3, du8, out + out_idx);
-#else
     const VU16 exp16_01 = hn::ReorderDemote2To(du16, exp0, exp1);
     const VU16 exp16_23 = hn::ReorderDemote2To(du16, exp2, exp3);
     const VU8 exp8 = hn::ReorderDemote2To(du8, exp16_01, exp16_23);
@@ -140,7 +126,6 @@ static HWY_INLINE size_t FloatDistributionSIMD(const float* HWY_RESTRICT in,
     // There is also CompressStore, which does the same job but faster but can
     // write more than indicated by the mask.
     out_idx += hn::CompressBlendedStore(exp8, final_mask, du8, out + out_idx);
-#endif
   };
 
   for (; i + block_size <= count; i += block_size) {
@@ -169,6 +154,7 @@ static HWY_INLINE size_t FloatDistributionSIMD(const float* HWY_RESTRICT in,
   }
 
   return out_idx;
+#endif
 }
 
 }  // namespace HWY_NAMESPACE
