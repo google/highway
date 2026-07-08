@@ -24,7 +24,6 @@
 #define HWY_TARGET_INCLUDE "hwy/examples/dot_product_mixed_precision.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
-#include "hwy/nanobenchmark.h"
 #include "hwy/timer.h"
 
 /*
@@ -97,21 +96,26 @@ int Run() {
   std::iota(b.begin(), b.end(), 1);
   // Record start time
   const double t_scalar_0 = hwy::platform::Now();
-  uint32_t dpScalar = hwy::DotProductScalar(a.data(), b.data(), count);
+  uint32_t scalar_dot_product = hwy::DotProductScalar(a.data(), b.data(), count);
   // Record end time and print execution time and dot product
   const double t_scalar_1 = hwy::platform::Now();
   const double dt_scalar = 1000.0 * (t_scalar_1 - t_scalar_0);
   std::cout << "Scalar Execution time: " << dt_scalar << " ms" << std::endl;
-  std::cout << "Scalar Dot product: " << dpScalar << std::endl;
+  std::cout << "Scalar Dot product: " << scalar_dot_product << std::endl;
   // Record start time
   const double t_simd_0 = hwy::platform::Now();
-  uint32_t dpSIMD =
+  uint32_t simd_dot_product =
       HWY_DYNAMIC_DISPATCH(DotProductSIMD)(a.data(), b.data(), count);
   // Record stop timer and print time and dot product
   const double t_simd_1 = hwy::platform::Now();
   const double dt_simd = 1000.0 * (t_simd_1 - t_simd_0);
   std::cout << "SIMD Execution time: " << dt_simd << " ms" << std::endl;
-  std::cout << "SIMD Dot product: " << dpSIMD << std::endl;
+  std::cout << "SIMD Dot product: " << simd_dot_product << std::endl;
+  bool passed = scalar_dot_product == simd_dot_product;
+  if (!passed) {
+    std::cout << "Validation failed" << std::endl;
+    return 1;
+  }
   return 0;
 }
 }  // namespace hwy
