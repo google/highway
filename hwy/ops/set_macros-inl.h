@@ -48,7 +48,7 @@
 #undef HWY_NATIVE_DOT_BF16
 #undef HWY_NATIVE_MASK
 #undef HWY_NATIVE_INTERLEAVE_WHOLE
-#undef HWY_HAVE_NATIVE_STORE_N
+#undef HWY_NATIVE_STORE_N
 
 #undef HWY_NATIVE_PER_BLOCK_2X2_MATMUL_INT8
 #undef HWY_NATIVE_PER_BLOCK_2X2_MATMUL_BF16
@@ -298,7 +298,7 @@
 #define HWY_NATIVE_FMA 0
 #define HWY_NATIVE_DOT_BF16 0
 #define HWY_NATIVE_MASK 0  // a few actually are
-#define HWY_HAVE_NATIVE_STORE_N 0
+#define HWY_NATIVE_STORE_N 0
 
 #define HWY_TARGET_STR HWY_TARGET_STR_SSE2
 //-----------------------------------------------------------------------------
@@ -318,7 +318,7 @@
 #define HWY_NATIVE_FMA 0
 #define HWY_NATIVE_DOT_BF16 0
 #define HWY_NATIVE_MASK 0  // a few actually are
-#define HWY_HAVE_NATIVE_STORE_N 0
+#define HWY_NATIVE_STORE_N 0
 
 #define HWY_TARGET_STR HWY_TARGET_STR_SSSE3
 
@@ -339,7 +339,7 @@
 #define HWY_NATIVE_FMA 0
 #define HWY_NATIVE_DOT_BF16 0
 #define HWY_NATIVE_MASK 0  // a few actually are
-#define HWY_HAVE_NATIVE_STORE_N 0
+#define HWY_NATIVE_STORE_N 0
 
 #define HWY_TARGET_STR HWY_TARGET_STR_SSE4
 
@@ -357,7 +357,7 @@
 #define HWY_HAVE_FLOAT16 0
 #define HWY_HAVE_FLOAT64 1
 #define HWY_MEM_OPS_MIGHT_FAULT 1
-#define HWY_HAVE_NATIVE_STORE_N 0
+#define HWY_NATIVE_STORE_N 0
 
 #ifdef HWY_DISABLE_BMI2_FMA
 #define HWY_NATIVE_FMA 0
@@ -395,7 +395,7 @@
 #define HWY_NATIVE_DOT_BF16 0
 #endif
 #define HWY_NATIVE_MASK 1
-#define HWY_HAVE_NATIVE_STORE_N 1
+#define HWY_NATIVE_STORE_N 1
 
 #if HWY_TARGET == HWY_AVX3
 
@@ -446,9 +446,9 @@
 #if (HWY_ARCH_PPC_64 && HWY_TARGET <= HWY_PPC9 &&          \
      (defined(_ARCH_PWR9) || defined(__POWER9_VECTOR__) || \
       defined(_ARCH_PWR10) || defined(__POWER10_VECTOR__)))
-#define HWY_HAVE_NATIVE_STORE_N 1
+#define HWY_NATIVE_STORE_N 1
 #else
-#define HWY_HAVE_NATIVE_STORE_N 0
+#define HWY_NATIVE_STORE_N 0
 #endif
 
 #if HWY_TARGET == HWY_PPC8
@@ -486,7 +486,7 @@
 #define HWY_NATIVE_FMA 1
 #define HWY_NATIVE_DOT_BF16 0
 #define HWY_NATIVE_MASK 0
-#define HWY_HAVE_NATIVE_STORE_N 1
+#define HWY_NATIVE_STORE_N 1
 
 #if HWY_TARGET == HWY_Z14
 
@@ -549,7 +549,7 @@
 #endif
 
 #define HWY_MEM_OPS_MIGHT_FAULT 1
-#define HWY_HAVE_NATIVE_STORE_N 0
+#define HWY_NATIVE_STORE_N 0
 
 #if defined(__ARM_FEATURE_FMA) || defined(__ARM_VFPV4__) || HWY_ARCH_ARM_A64
 #define HWY_NATIVE_FMA 1
@@ -665,7 +665,7 @@
 #define HWY_HAVE_FLOAT16 1
 #define HWY_HAVE_FLOAT64 1
 #define HWY_MEM_OPS_MIGHT_FAULT 0
-#define HWY_HAVE_NATIVE_STORE_N 1
+#define HWY_NATIVE_STORE_N 1
 #define HWY_NATIVE_FMA 1
 #if HWY_SVE_HAVE_BF16_FEATURE
 #define HWY_NATIVE_DOT_BF16 1
@@ -757,7 +757,7 @@
 #define HWY_NATIVE_FMA 0
 #define HWY_NATIVE_DOT_BF16 0
 #define HWY_NATIVE_MASK 0
-#define HWY_HAVE_NATIVE_STORE_N 0
+#define HWY_NATIVE_STORE_N 0
 
 #define HWY_NAMESPACE N_WASM
 
@@ -779,7 +779,7 @@
 #define HWY_NATIVE_FMA 0
 #define HWY_NATIVE_DOT_BF16 0
 #define HWY_NATIVE_MASK 0
-#define HWY_HAVE_NATIVE_STORE_N 0
+#define HWY_NATIVE_STORE_N 0
 
 #define HWY_NAMESPACE N_WASM_EMU256
 
@@ -809,7 +809,7 @@
 #define HWY_NATIVE_FMA 1
 #define HWY_NATIVE_DOT_BF16 0
 #define HWY_NATIVE_MASK 1
-#define HWY_HAVE_NATIVE_STORE_N 1
+#define HWY_NATIVE_STORE_N 1
 
 #if HWY_RVV_HAVE_F16_VEC
 #define HWY_HAVE_FLOAT16 1
@@ -854,7 +854,7 @@
 #define HWY_NATIVE_FMA 1
 #define HWY_NATIVE_DOT_BF16 0
 #define HWY_NATIVE_MASK 0
-#define HWY_HAVE_NATIVE_STORE_N 0
+#define HWY_NATIVE_STORE_N 0
 
 #if HWY_TARGET == HWY_LSX
 #define HWY_NAMESPACE N_LSX
@@ -880,7 +880,7 @@
 #define HWY_NATIVE_FMA 0
 #define HWY_NATIVE_DOT_BF16 0
 #define HWY_NATIVE_MASK 0
-#define HWY_HAVE_NATIVE_STORE_N 1
+#define HWY_NATIVE_STORE_N 1
 
 #define HWY_NAMESPACE N_EMU128
 
@@ -904,7 +904,7 @@
 #define HWY_NATIVE_FMA 0
 #define HWY_NATIVE_DOT_BF16 0
 #define HWY_NATIVE_MASK 0
-#define HWY_HAVE_NATIVE_STORE_N 1
+#define HWY_NATIVE_STORE_N 1
 
 #define HWY_NAMESPACE N_SCALAR
 

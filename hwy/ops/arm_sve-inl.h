@@ -4608,9 +4608,8 @@ HWY_API VFromD<D> Compress(D d, VFromD<D> v, const svbool_t mask) {
   using TU = MakeUnsigned<T>;
 
   using TW =
-      If<(sizeof(T) == 1 &&
-          ((HWY_POW2_D(D) <= -2) ||
-           (HWY_MAX_LANES_D(D) <= (HWY_MIN_BYTES / 4)))),
+      If<(sizeof(T) == 1 && ((HWY_POW2_D(D) <= -2) ||
+                             (HWY_MAX_LANES_D(D) <= (HWY_MIN_BYTES / 4)))),
          uint32_t, MakeWide<TU>>;
 
   const ScalableTag<TW> dw;

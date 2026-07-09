@@ -2460,10 +2460,10 @@ HWY_API void StoreN(size_t count, VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT p) {
 
 }  // namespace detail
 
-#ifdef HWY_NATIVE_STORE_N
-#undef HWY_NATIVE_STORE_N
+#ifdef HWY_NATIVE_STORE_N_IMPL
+#undef HWY_NATIVE_STORE_N_IMPL
 #else
-#define HWY_NATIVE_STORE_N
+#define HWY_NATIVE_STORE_N_IMPL
 #endif
 
 template <class D>

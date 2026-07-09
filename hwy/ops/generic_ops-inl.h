@@ -2924,11 +2924,11 @@ HWY_API VFromD<D> LoadNOr(VFromD<D> no, D d, const TFromD<D>* HWY_RESTRICT p,
 #endif  // HWY_NATIVE_LOAD_N
 
 // ------------------------------ StoreN
-#if (defined(HWY_NATIVE_STORE_N) == defined(HWY_TARGET_TOGGLE))
-#ifdef HWY_NATIVE_STORE_N
-#undef HWY_NATIVE_STORE_N
+#if (defined(HWY_NATIVE_STORE_N_IMPL) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_STORE_N_IMPL
+#undef HWY_NATIVE_STORE_N_IMPL
 #else
-#define HWY_NATIVE_STORE_N
+#define HWY_NATIVE_STORE_N_IMPL
 #endif
 
 #if HWY_MEM_OPS_MIGHT_FAULT && !HWY_HAVE_SCALABLE
@@ -3075,7 +3075,7 @@ HWY_API void StoreN(VFromD<D> v, D d, T* HWY_RESTRICT p,
 }
 #endif  // HWY_MEM_OPS_MIGHT_FAULT && !HWY_HAVE_SCALABLE
 
-#endif  // (defined(HWY_NATIVE_STORE_N) == defined(HWY_TARGET_TOGGLE))
+#endif  // (defined(HWY_NATIVE_STORE_N_IMPL) == defined(HWY_TARGET_TOGGLE))
 
 // ------------------------------ TruncateStore
 #if (defined(HWY_NATIVE_STORE_TRUNCATED) == defined(HWY_TARGET_TOGGLE))
@@ -7347,7 +7347,7 @@ HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> m, D d,
   const size_t count = PopCount(mask_bits);
 
   const auto compressed = Compress(v, m);
-#if HWY_HAVE_NATIVE_STORE_N
+#if HWY_NATIVE_STORE_N
   StoreN(compressed, d, unaligned, count);
 #else
   BlendedStore(compressed, FirstN(d, count), d, unaligned);
