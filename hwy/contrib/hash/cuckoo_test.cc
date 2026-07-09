@@ -348,8 +348,8 @@ HWY_NOINLINE void TestAllMinCostFlowComparison() {
         const uint32_t num_buckets = config.NumBuckets();
 
         AesCtrEngine engine(/*deterministic=*/true);
-        Triple32 h1(engine, stats.global_seed * 2);
-        Triple32 h2(engine, stats.global_seed * 2 + 1);
+        WeakTwoMul h1(engine, stats.global_seed * 2);
+        WeakTwoMul h2(engine, stats.global_seed * 2 + 1);
 
         ::operations_research::SimpleMinCostFlow min_cost_flow;
 

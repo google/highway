@@ -99,6 +99,48 @@ static AlignedVector<uint64_t> GenerateClusteredKeys(size_t count) {
   return keys;
 }
 
+HWY_NOINLINE void TestShardMulExtraOutputs() {
+  const ScalableTag<uint64_t> du64;
+  const RepartitionToNarrow<decltype(du64)> du32;
+  const size_t NU32 = Lanes(du32);
+
+  ThreadPool pool = MakePool();
+  const size_t num_keys = RoundUpTo(AdjustedReps(AdjustedReps(300'000)), NU32);
+  AlignedVector<uint64_t> keys = GenerateClusteredKeys(num_keys);
+
+  // Generate some extra outputs.
+  const size_t kNumExtra = AdjustedReps(AdjustedReps(80'000));
+  AesCtrEngine engine(/*deterministic=*/true);
+  AlignedVector<uint32_t> extra_outputs =
+      FillRandom<uint32_t>(kNumExtra, engine, /*seed=*/0);
+  VQSort(extra_outputs.data(), extra_outputs.size(), SortAscending());
+  // Per birthday paradox, duplicates are likely, which would cause building
+  // ShardMul to fail.
+  extra_outputs.resize(
+      Unique(du32, extra_outputs.data(), extra_outputs.size()));
+
+  const ShardMulData data(BuildShardMul(Span(keys), Span(extra_outputs), pool));
+  const ShardMul shard_mul{data};
+  HWY_ASSERT(!shard_mul.IsEmpty());
+
+  // Verify all outputs of keys are distinct, and also do not collide with
+  // extra_outputs.
+  AlignedVector<uint32_t> combined_outputs(keys.size() + extra_outputs.size());
+  for (size_t i = 0; i < keys.size(); i += NU32) {
+    const Vec<decltype(du64)> keys0 = Load(du64, &keys[i]);
+    const Vec<decltype(du64)> keys1 = Load(du64, &keys[i + Lanes(du64)]);
+    Store(shard_mul.TwoVec(du32, keys0, keys1), du32, &combined_outputs[i]);
+  }
+  // Copy extra outputs to the end
+  CopyBytes(extra_outputs.data(), combined_outputs.data() + keys.size(),
+            extra_outputs.size() * sizeof(uint32_t));
+
+  VQSort(combined_outputs.data(), combined_outputs.size(), SortAscending());
+  HWY_ASSERT_M(
+      AllUnique(du32, combined_outputs.data(), combined_outputs.size()),
+      "Collision with extra outputs detected");
+}
+
 HWY_NOINLINE void TestShardMulCollisionFree() {
   const ScalableTag<uint64_t> du64;
   const RepartitionToNarrow<decltype(du64)> du32;
@@ -164,6 +206,7 @@ HWY_NOINLINE void TestShardMulTwoVec() {
 }
 
 #else   // HWY_TARGET == HWY_SCALAR
+void TestShardMulExtraOutputs() {}
 void TestShardMulCollisionFree() {}
 void TestShardMulTwoVec() {}
 #endif  // HWY_TARGET == HWY_SCALAR
@@ -178,6 +221,7 @@ namespace hwy {
 HWY_BEFORE_TEST(ShardMulTest);
 HWY_EXPORT_AND_TEST_BEST_P(ShardMulTest, TestShardMulTwoVec);
 HWY_EXPORT_AND_TEST_BEST_P(ShardMulTest, TestShardMulCollisionFree);
+HWY_EXPORT_AND_TEST_BEST_P(ShardMulTest, TestShardMulExtraOutputs);
 HWY_AFTER_TEST();
 }  // namespace hwy
 HWY_TEST_MAIN();

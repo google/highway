@@ -98,7 +98,7 @@ static AlignedVector<Cuckoo2x2Config> EnumerateConfigs(
 class PerWorkerBuilder {
  public:
   explicit PerWorkerBuilder(size_t num_keys)
-      : hashes1_(num_keys), hashes2_(num_keys), choice_(num_keys) {}
+      : hashes1_(num_keys), choice_(num_keys) {}
 
   uint32_t* MutableHashes() { return hashes1_.data(); }
 
@@ -107,7 +107,7 @@ class PerWorkerBuilder {
     PROFILER_FUNC;
     config_ = config;
     config_.hash_key = hash_key1;
-    hash1_ = Triple32(hash_key1);
+    hash1_ = WeakTwoMul(hash_key1);
 
     const size_t num_keys = hashes1_.size();
     HWY_ASSERT(num_keys == keys.size());
@@ -123,9 +123,8 @@ class PerWorkerBuilder {
     ZeroBytes(count_.data(), num_buckets * sizeof(count_[0]));
     ZeroBytes(entries_.data(), num_buckets * sizeof(entries_[0]));
 
-    // Vectorized hashing via Triple32 and WeakOneMul.
+    // Vectorized hashing via WeakTwoMul.
     HashArray(hash1_, keys.data(), hashes1_.data(), num_keys);
-    HashArray(WeakOneMul(), keys.data(), hashes2_.data(), num_keys);
 
     // Cuckoo insertion with displacement; fail if cycle detected.
     if (!CuckooAssign(num_keys)) {
@@ -152,8 +151,11 @@ class PerWorkerBuilder {
 
  private:
   size_t Bucket(size_t key_idx, uint8_t which) const {
-    const uint32_t h = (which == 0) ? hashes1_[key_idx] : hashes2_[key_idx];
-    return h & config_.bucket_mask;
+    const uint32_t h = hashes1_[key_idx];
+    const size_t b1 = h & config_.bucket_mask;
+    if (which == 0) return b1;
+    const uint32_t fp = h >> 18;
+    return b1 ^ (fp + 1);
   }
 
   // Cuckoo insertion with displacement. Returns true if all keys placed
@@ -231,14 +233,16 @@ class PerWorkerBuilder {
     ZeroBytes(count_.data(), num_buckets * sizeof(count_[0]));
 
     for (size_t i = 0; i < num_keys; ++i) {
-      const uint32_t h = (choice_[i] == 0) ? hashes1_[i] : hashes2_[i];
-      const size_t b = h & config_.bucket_mask;
+      const uint32_t h = hashes1_[i];
+      const size_t b1 = h & config_.bucket_mask;
+      const uint32_t fp_bits = h >> 18;
+      const size_t b = (choice_[i] == 0) ? b1 : (b1 ^ (fp_bits + 1));
       // 14-bit fingerprint (h >> 18) + 2-bit tag in bits 14-15:
-      //   00 = empty, 01 = hash1, 10 = hash2.
+      //   00 = empty, 01 = primary, 10 = secondary.
       // 18 bucket bits + 14 fingerprint bits = 32, so we cover all 32 hash
       // bits and thus rule out any false positives. The tag prevents one hash
       // from colliding with the other, and also matching and empty bucket.
-      const uint32_t fp = (h >> 18) | (choice_[i] == 0 ? 0x4000u : 0x8000u);
+      const uint32_t fp = fp_bits | (choice_[i] == 0 ? 0x4000u : 0x8000u);
       const uint8_t slot = count_[b]++;
       entries_[b] |= (fp << (slot * 16));
     }
@@ -253,14 +257,13 @@ class PerWorkerBuilder {
   }
 
   AlignedVector<uint32_t> hashes1_;      // hash1[num_keys]
-  AlignedVector<uint32_t> hashes2_;      // hash2[num_keys]
   AlignedVector<uint8_t> choice_;        // 0=bucket1, 1=bucket2
   AlignedVector<uint8_t> count_;         // [num_buckets]
   AlignedVector<uint32_t> entries_;      // [num_buckets]
   AlignedVector<uint32_t> bucket_keys_;  // [num_buckets * 2], key indices
 
   Cuckoo2x2Config config_;
-  Triple32 hash1_;
+  WeakTwoMul hash1_;
   bool succeeded_ = false;
 };
 
@@ -280,7 +283,7 @@ static Cuckoo2x2Data BuildCuckoo2x2Impl(Span<const uint32_t> keys,
 
   // Ensure keys are distinct.
   AesCtrEngine engine(/*deterministic=*/true);
-  HashArray(Triple32(engine, 0), keys.data(), per_worker[0].MutableHashes(),
+  HashArray(WeakTwoMul(engine, 0), keys.data(), per_worker[0].MutableHashes(),
             num_keys);
   VQSortStatic(per_worker[0].MutableHashes(), num_keys, SortAscending());
   const ScalableTag<uint32_t> du32;

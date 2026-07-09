@@ -94,6 +94,7 @@ class WeakTwoMul {
   using LaneType = uint32_t;
   static constexpr const char* Name() { return "WeakTwoMul"; }
 
+  WeakTwoMul() = default;
   explicit WeakTwoMul(uint32_t key) : key_(key) {}
   WeakTwoMul(AesCtrEngine& engine, uint64_t seed)
       : key_(static_cast<uint32_t>(RngStream(engine, seed)())) {}
@@ -121,7 +122,7 @@ class WeakTwoMul {
   }
 
  private:
-  uint32_t key_;
+  uint32_t key_ = 0;
 };
 
 // Good quality and reasonable speed. Used by Cuckoo2x2 and Feistel3Mul3.

@@ -43,11 +43,17 @@ struct HWY_ALIGN_MAX ShardMulData {
 
 // `ShardMul` constructed from the returned `ShardMulData` reports `IsEmpty()`
 // if construction fails (likely too many keys, the test verifies up to 1.2M).
-// Otherwise, it produces distinct u32 outputs for all `keys`, which must be
-// distinct. Uses `pool` to parallelize across buckets. Throughput is about
-// 62 MB/s on 64-core Zen 4 for 1M keys (mainly VQSort).
-HWY_CONTRIB_DLLEXPORT ShardMulData BuildShardMul(Span<const uint64_t> keys,
-                                                 ThreadPool& pool);
+// Otherwise, it produces distinct u32 outputs for all `keys` (which must be
+// distinct) without any collisions with `extra_outputs` (which must also be
+// distinct). Uses `pool` to parallelize across buckets. Throughput is about 62
+// MB/s on 64-core Zen 4 for 1M keys (mainly VQSort).
+HWY_CONTRIB_DLLEXPORT ShardMulData
+BuildShardMul(Span<const uint64_t> keys, Span<const uint32_t> extra_outputs,
+              ThreadPool& pool);
+
+inline ShardMulData BuildShardMul(Span<const uint64_t> keys, ThreadPool& pool) {
+  return BuildShardMul(keys, Span<const uint32_t>(), pool);
+}
 
 }  // namespace hwy
 

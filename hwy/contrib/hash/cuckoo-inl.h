@@ -125,8 +125,8 @@ class CuckooConfig {
 class CuckooTable {
  public:
   CuckooTable() = default;
-  CuckooTable(CuckooConfig config, Triple32 hash_primary,
-              Triple32 hash_secondary, AlignedVector<uint32_t>&& slots,
+  CuckooTable(CuckooConfig config, WeakTwoMul hash_primary,
+              WeakTwoMul hash_secondary, AlignedVector<uint32_t>&& slots,
               uint32_t num_primary)
       : config_(config),
         hash_primary_(hash_primary),
@@ -143,6 +143,11 @@ class CuckooTable {
   size_t AllocatedBytes() const {
     return HasU16Slots() ? slots_u16_.size() * sizeof(uint16_t)
                          : slots_.size() * sizeof(uint32_t);
+  }
+
+  const uint32_t* Slots32() const {
+    HWY_ASSERT(!HasU16Slots());
+    return slots_.data();
   }
 
   // Returns the number of keys placed in their primary bucket.
@@ -244,6 +249,19 @@ class CuckooTable {
     // Return not-found mask: true = key NOT in set.
     const VU32 result = Load(du32, found_arr);
     return Eq(result, Zero(du32));
+  }
+
+  // Computes the primary and secondary slot indices for a vector of keys.
+  // Useful for verifying larger keys, e.g. the inputs to `ShardMul`.
+  template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
+  HWY_INLINE void LookupSlots(DU32 du32, VU32 vkeys, VU32& b_pri,
+                              VU32& b_sec) const {
+    const uint32_t bucket_mask = config_.BucketMask();
+    const VU32 vmask = Set(du32, bucket_mask);
+    const VU32 h_pri = hash_primary_.OneVec(du32, vkeys);
+    b_pri = ShiftLeft<kLogBucketSize>(And(h_pri, vmask));
+    const VU32 h_sec = hash_secondary_.OneVec(du32, vkeys);
+    b_sec = ShiftLeft<kLogBucketSize>(And(h_sec, vmask));
   }
 
   // Returns true if the U16 fingerprint table has been built.
@@ -442,8 +460,8 @@ class CuckooTable {
   static constexpr uint32_t kLogBucketSize = CeilLog2(kBucketSize);
 
   CuckooConfig config_;
-  Triple32 hash_primary_;
-  Triple32 hash_secondary_;
+  WeakTwoMul hash_primary_;
+  WeakTwoMul hash_secondary_;
   AlignedVector<uint32_t> slots_;
   AlignedVector<uint16_t> slots_u16_;
   uint32_t num_primary_ = 0;
@@ -478,8 +496,8 @@ class CuckooBuilder {
 
   // Attempts to build with a given pair of hash functions.
   // Returns true on success (all keys matched).
-  bool Build(const uint32_t* keys, Triple32 hash_primary,
-             Triple32 hash_secondary, bool optimize_primary = false,
+  bool Build(const uint32_t* keys, WeakTwoMul hash_primary,
+             WeakTwoMul hash_secondary, bool optimize_primary = false,
              CuckooBuildStats* stats = nullptr) {
     if (num_keys_ >= 1000000) {
       fprintf(stderr,
@@ -1058,8 +1076,8 @@ class CuckooBuilder {
   uint32_t num_slots_;
   uint32_t num_buckets_;
 
-  Triple32 hash_primary_;
-  Triple32 hash_secondary_;
+  WeakTwoMul hash_primary_;
+  WeakTwoMul hash_secondary_;
 
   std::vector<uint32_t> primary_bucket_;    // [num_keys] → bucket index
   std::vector<uint32_t> secondary_bucket_;  // [num_keys] → bucket index
@@ -1131,8 +1149,8 @@ CuckooBuild(const uint32_t* keys, uint32_t num_keys, double epsilon = 0.25,
               num_keys);
     }
     // Use different seeds for primary and secondary hash functions.
-    Triple32 h1(engine, attempt * 2);
-    Triple32 h2(engine, attempt * 2 + 1);
+    WeakTwoMul h1(engine, attempt * 2);
+    WeakTwoMul h2(engine, attempt * 2 + 1);
 
     if (builder.Build(keys, h1, h2, optimize_primary, stats)) {
       if (stats) {

@@ -41,7 +41,7 @@ struct Cuckoo2x2Config {
   size_t NumBuckets() const { return bucket_mask + 1; }
 
   uint32_t bucket_mask = 0;  // num_buckets - 1, for AND.
-  uint32_t hash_key = 0;     // Seed for Triple32 hash1.
+  uint32_t hash_key = 0;     // Seed for WeakTwoMul hash1.
 };
 
 // Build result returned by BuildCuckoo2x2.
@@ -50,8 +50,9 @@ struct Cuckoo2x2Data {
   size_t AllocatedBytes() const { return entries.size() * sizeof(entries[0]); }
 
   Cuckoo2x2Config config;
-  // Each entry stores 0..2 u16 values: 14-bit fingerprint + 2-bit tag
-  // (00=empty, 01=hash1, 10=hash2). Empty entries are 0 (from ZeroBytes).
+  // Each entry stores 0..2 u16 values: 14-bit fingerprint (from hash1) +
+  // 2-bit tag (00=empty, 01=primary, 10=secondary). Empty entries are 0
+  // (from ZeroBytes).
   AlignedVector<uint32_t> entries;  // [num_buckets]
 
   // Telemetry indicating which config/retry succeeded.
@@ -60,9 +61,9 @@ struct Cuckoo2x2Data {
 };
 
 // Builds from a set of distinct keys. Uses thread pool for parallel attempts.
-// Two-choice hashing: each key has two candidate buckets via independent hash
-// functions. Builder assigns each key to the less-loaded bucket, requiring max
-// occupancy <= 2 per bucket.
+// Two-choice hashing: each key has two candidate buckets, both derived from a
+// single hash function. The builder assigns each key to the less-loaded bucket
+// and ensures max occupancy <= 2 per bucket.
 HWY_CONTRIB_DLLEXPORT Cuckoo2x2Data BuildCuckoo2x2(Span<const uint32_t> keys,
                                                    ThreadPool& pool);
 

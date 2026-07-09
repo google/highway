@@ -214,8 +214,17 @@ class HWY_ALIGN_MAX ShardMul {
   WeakTwoMul f3_;
 };
 
+// Call this overload when it's OK to use the full range of u32 outputs.
 inline ShardMul MakeShardMul(Span<const uint64_t> keys, ThreadPool& pool) {
-  return ShardMul(BuildShardMul(keys, pool));
+  return ShardMul(BuildShardMul(keys, Span<const uint32_t>(), pool));
+}
+
+// Call this overload when we want the generated outputs NOT to overlap with
+// `extra_outputs`.
+inline ShardMul MakeShardMul(Span<const uint64_t> keys,
+                             Span<const uint32_t> extra_outputs,
+                             ThreadPool& pool) {
+  return ShardMul(BuildShardMul(keys, extra_outputs, pool));
 }
 
 #endif  // HWY_TARGET != HWY_SCALAR

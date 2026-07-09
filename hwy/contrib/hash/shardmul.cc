@@ -74,15 +74,25 @@ constexpr size_t kMaxAttemptsPerBucket = 150'000;
 // Try kNumFeistelCandidates Feistel keys, return the seed (index) whose
 // bucketing has the smallest max:min ratio. Returns kNumFeistelCandidates on
 // failure (no seed has all buckets non-empty).
-size_t ChooseBestSeed(Span<const uint64_t> keys, AesCtrEngine& engine) {
+size_t ChooseBestSeed(Span<const uint64_t> keys,
+                      Span<const uint32_t> extra_outputs,
+                      AesCtrEngine& engine) {
   PROFILER_ZONE("build.ChooseBestSeed");
   size_t best_seed = kNumFeistelCandidates;  // invalid sentinel
   float best_ratio = 1e30f;
+
+  size_t extra_counts[kBuckets] = {};
+  for (uint32_t val : extra_outputs) {
+    extra_counts[val >> 28]++;
+  }
 
   for (size_t seed = 0; seed < kNumFeistelCandidates; ++seed) {
     ShardMul scatter_eval{ShardMulData(MakeFeistelKeys(engine, seed))};
 
     size_t bucket_sizes[kBuckets] = {};
+    for (size_t b = 0; b < kBuckets; ++b) {
+      bucket_sizes[b] = extra_counts[b];
+    }
     for (const uint64_t key : keys) {
       uint32_t LL, RR;
       scatter_eval.Feistel(key, LL, RR);
@@ -166,9 +176,11 @@ void ScatterFeistel(Span<const uint64_t> keys, AesCtrEngine& engine,
 // `attempt_at_success`.
 size_t FindMuls(AesCtrEngine& engine, size_t best_seed,
                 const AlignedVector<uint32_t> (&feistel_per_bucket)[kBuckets],
-                const size_t (&actual_bucket_sizes)[kBuckets], ThreadPool& pool,
-                uint32_t (&muls_out)[kBuckets],
-                uint32_t (&attempt_at_success)[kBuckets]) {
+                const size_t (&actual_bucket_sizes)[kBuckets],
+                const AlignedVector<uint32_t> (&extra_per_bucket)[kBuckets],
+                ThreadPool& pool, uint32_t (&muls_out)[kBuckets],
+                uint32_t (&attempt_at_success)[kBuckets],
+                uint32_t (&max_unique_out)[kBuckets]) {
   ScalableTag<uint32_t> du32;
   using VU32 = Vec<decltype(du32)>;
   HWY_LANES_CONSTEXPR size_t NU32 = Lanes(du32);
@@ -177,13 +189,14 @@ size_t FindMuls(AesCtrEngine& engine, size_t best_seed,
   // ordering because multiple tasks may race to read/write the same bucket;
   // it does not matter which mul "wins".
   const auto kRel = std::memory_order_relaxed;
+  enum { kMuls = 0, kAttempts = 1, kMaxUnique = 2 };
   constexpr size_t kU32PerLine = HWY_ALIGNMENT / sizeof(std::atomic<uint32_t>);
   alignas(HWY_ALIGNMENT) std::atomic<uint32_t>
-      muls_per_bucket[kBuckets * kU32PerLine];
-  std::atomic<uint32_t> attempts[kBuckets];
+      per_bucket[kBuckets * kU32PerLine];
   for (size_t b = 0; b < kBuckets; ++b) {
-    muls_per_bucket[b * kU32PerLine].store(0, kRel);
-    attempts[b].store(0, kRel);
+    per_bucket[b * kU32PerLine + kMuls].store(0, kRel);
+    per_bucket[b * kU32PerLine + kAttempts].store(0, kRel);
+    per_bucket[b * kU32PerLine + kMaxUnique].store(0, kRel);
   }
 
   // Task decomposition: 4 tasks per worker, RoundUpToPow2 total.
@@ -200,7 +213,9 @@ size_t FindMuls(AesCtrEngine& engine, size_t best_seed,
   // Per-worker scratch buffer for sorting output.
   size_t max_bucket_size = 0;
   for (size_t b = 0; b < kBuckets; ++b) {
-    max_bucket_size = HWY_MAX(max_bucket_size, actual_bucket_sizes[b]);
+    const size_t total_size =
+        actual_bucket_sizes[b] + extra_per_bucket[b].size();
+    max_bucket_size = HWY_MAX(max_bucket_size, total_size);
   }
   const size_t scratch_padded = RoundUpTo(max_bucket_size, NU32);
   const size_t num_workers = pool.NumWorkers();
@@ -217,7 +232,7 @@ size_t FindMuls(AesCtrEngine& engine, size_t best_seed,
     // Early termination: check if all buckets are done.
     size_t remaining = 0;
     for (size_t b = 0; b < kBuckets; ++b) {
-      remaining += (muls_per_bucket[b * kU32PerLine].load(kRel) == 0);
+      remaining += (per_bucket[b * kU32PerLine + kMuls].load(kRel) == 0);
     }
     if (remaining == 0) break;
 
@@ -229,7 +244,9 @@ size_t FindMuls(AesCtrEngine& engine, size_t best_seed,
           outer * attempts_per_run + local_batch * kAttemptsPerTask;
 
       // Early-out if bucket already solved.
-      if (muls_per_bucket[bucket_idx * kU32PerLine].load(kRel) != 0) return;
+      if (per_bucket[bucket_idx * kU32PerLine + kMuls].load(kRel) != 0) {
+        return;
+      }
 
       const size_t keys_in_bucket = actual_bucket_sizes[bucket_idx];
       const size_t padded = RoundUpTo(keys_in_bucket, NU32);
@@ -245,7 +262,9 @@ size_t FindMuls(AesCtrEngine& engine, size_t best_seed,
         if (attempt >= kMaxAttemptsPerBucket) return;
 
         // Re-check: another task for the same bucket may have succeeded.
-        if (muls_per_bucket[bucket_idx * kU32PerLine].load(kRel) != 0) return;
+        if (per_bucket[bucket_idx * kU32PerLine + kMuls].load(kRel) != 0) {
+          return;
+        }
 
         // Generate multiplier pair with attempt as seed (negligible cost).
         const uint64_t rng_seed = best_seed * kBuckets * kMaxAttemptsPerBucket +
@@ -274,19 +293,37 @@ size_t FindMuls(AesCtrEngine& engine, size_t best_seed,
           }
         }
 
+        const size_t num_extra = extra_per_bucket[bucket_idx].size();
+        if (num_extra > 0) {
+          CopyBytes(extra_per_bucket[bucket_idx].data(), out + keys_in_bucket,
+                    num_extra * sizeof(uint32_t));
+        }
+
+        const size_t total_in_bucket = keys_in_bucket + num_extra;
+
         // Check uniqueness: sort the output, then scan. Starting with a small
         // sample of 128 does not help. This is MUCH faster than unordered_set.
         // Most of the time is spent in VQSort; AllUnique is negligible.
         {
           PROFILER_ZONE3(profiler, worker, z_sort);
-          VQSortStatic(out, keys_in_bucket, SortAscending());
+          VQSortStatic(out, total_in_bucket, SortAscending());
         }
-        if (!AllUnique(du32, out, keys_in_bucket)) continue;
+        const size_t num_unique = Unique(du32, out, total_in_bucket);
+        uint32_t prev_max =
+            per_bucket[bucket_idx * kU32PerLine + kMaxUnique].load(kRel);
+        if (num_unique > prev_max) {
+          per_bucket[bucket_idx * kU32PerLine + kMaxUnique]
+              .compare_exchange_strong(prev_max,
+                                       static_cast<uint32_t>(num_unique), kRel);
+        }
 
-        muls_per_bucket[bucket_idx * kU32PerLine].store(GetLane(muls_broadcast),
-                                                        kRel);
-        attempts[bucket_idx].store(static_cast<uint32_t>(attempt + 1), kRel);
-        return;  // success, done with this task
+        if (num_unique == total_in_bucket) {
+          per_bucket[bucket_idx * kU32PerLine + kMuls].store(
+              GetLane(muls_broadcast), kRel);
+          per_bucket[bucket_idx * kU32PerLine + kAttempts].store(
+              static_cast<uint32_t>(attempt + 1), kRel);
+          return;  // success, done with this task
+        }
       }
     });
   }
@@ -294,18 +331,21 @@ size_t FindMuls(AesCtrEngine& engine, size_t best_seed,
   // Copy results out and count failures.
   size_t failed_buckets = 0;
   for (size_t b = 0; b < kBuckets; ++b) {
-    muls_out[b] = muls_per_bucket[b * kU32PerLine].load(kRel);
-    attempt_at_success[b] = attempts[b].load(kRel);
+    muls_out[b] = per_bucket[b * kU32PerLine + kMuls].load(kRel);
+    attempt_at_success[b] = per_bucket[b * kU32PerLine + kAttempts].load(kRel);
+    max_unique_out[b] = per_bucket[b * kU32PerLine + kMaxUnique].load(kRel);
     failed_buckets += (muls_out[b] == 0);
   }
   return failed_buckets;
 }
 
-ShardMulData BuildShardMulImpl(Span<const uint64_t> keys, ThreadPool& pool) {
+ShardMulData BuildShardMulImpl(Span<const uint64_t> keys,
+                               Span<const uint32_t> extra_outputs,
+                               ThreadPool& pool) {
   AesCtrEngine engine(/*deterministic=*/true);
 
   // Pick the Feistel key with the most balanced bucketing.
-  const size_t best_seed = ChooseBestSeed(keys, engine);
+  const size_t best_seed = ChooseBestSeed(keys, extra_outputs, engine);
   if (best_seed >= kNumFeistelCandidates) {
     HWY_WARN("No Feistel seed produces all non-empty buckets\n");
     // continue, best_seed is still usable.
@@ -317,15 +357,36 @@ ShardMulData BuildShardMulImpl(Span<const uint64_t> keys, ThreadPool& pool) {
   ScatterFeistel(keys, engine, best_seed, feistel_per_bucket,
                  actual_bucket_sizes);
 
+  // Partition extra outputs by bucket.
+  AlignedVector<uint32_t> extra_per_bucket[kBuckets];
+  for (AlignedVector<uint32_t>& per_bucket : extra_per_bucket) {
+    per_bucket.reserve(extra_outputs.size() / kBuckets / 2);
+  }
+  for (uint32_t val : extra_outputs) {
+    const size_t b = val >> 28;
+    extra_per_bucket[b].push_back(val);
+  }
+
   // Find collision-free multipliers.
   uint32_t muls[kBuckets];
   uint32_t attempt_at_success[kBuckets];
+  uint32_t max_unique[kBuckets];
   const size_t failed =
-      FindMuls(engine, best_seed, feistel_per_bucket, actual_bucket_sizes, pool,
-               muls, attempt_at_success);
+      FindMuls(engine, best_seed, feistel_per_bucket, actual_bucket_sizes,
+               extra_per_bucket, pool, muls, attempt_at_success, max_unique);
   if (failed > 0) {
     HWY_WARN("  %zu buckets failed after %zu attempts each\n", failed,
              kMaxAttemptsPerBucket);
+    for (size_t b = 0; b < kBuckets; ++b) {
+      if (muls[b] == 0) {
+        HWY_WARN(
+            "    Bucket %zu: best attempt got %u unique out of %zu total "
+            "(%zu keys, %zu extra)\n",
+            b, max_unique[b],
+            actual_bucket_sizes[b] + extra_per_bucket[b].size(),
+            actual_bucket_sizes[b], extra_per_bucket[b].size());
+      }
+    }
     return ShardMulData();
   }
 
@@ -338,7 +399,8 @@ ShardMulData BuildShardMulImpl(Span<const uint64_t> keys, ThreadPool& pool) {
 }
 
 #else   // HWY_TARGET == HWY_SCALAR
-static ShardMulData BuildShardMulImpl(Span<const uint64_t>, ThreadPool&) {
+static ShardMulData BuildShardMulImpl(Span<const uint64_t>,
+                                      Span<const uint32_t>, ThreadPool&) {
   return ShardMulData();
 }
 #endif  // HWY_TARGET != HWY_SCALAR
@@ -352,9 +414,10 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 HWY_EXPORT(BuildShardMulImpl);
 
-HWY_CONTRIB_DLLEXPORT ShardMulData BuildShardMul(Span<const uint64_t> keys,
-                                                 ThreadPool& pool) {
-  return HWY_DYNAMIC_DISPATCH(BuildShardMulImpl)(keys, pool);
+HWY_CONTRIB_DLLEXPORT ShardMulData
+BuildShardMul(Span<const uint64_t> keys, Span<const uint32_t> extra_outputs,
+              ThreadPool& pool) {
+  return HWY_DYNAMIC_DISPATCH(BuildShardMulImpl)(keys, extra_outputs, pool);
 }
 
 }  // namespace hwy
