@@ -21,8 +21,8 @@
 // use with shared-memory mappings).
 //
 // Futex equivalents: https://outerproduct.net/futex-dictionary.html; we
-// support Linux/Emscripten/FreeBSD/Apple/Windows and C++20 std::atomic::wait,
-// plus a NanoSleep fallback.
+// support Linux/Emscripten/FreeBSD/OpenBSD/Apple/Windows and C++20
+// std::atomic::wait, plus a NanoSleep fallback.
 
 #include <time.h>
 
@@ -80,6 +80,10 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/umtx.h>
+
+#elif HWY_OS_OPENBSD && !defined(HWY_DISABLE_FUTEX)
+#include <sys/time.h>
+#include <sys/futex.h>
 
 #elif HWY_OS_APPLE && !defined(HWY_DISABLE_FUTEX)
 // These are private APIs, so add an opt-out.
@@ -190,6 +194,25 @@ static inline uint32_t BlockUntilDifferent(
     }
   }
 
+#elif HWY_OS_OPENBSD && !defined(HWY_DISABLE_FUTEX)
+  // Safe to cast because std::atomic is a standard layout type.
+  volatile uint32_t* address =
+      const_cast<volatile uint32_t*>(
+          reinterpret_cast<const volatile uint32_t*>(&current));
+
+  const int op = FUTEX_WAIT;
+  for (;;) {
+    const uint32_t next = current.load(acq);
+    if (next != prev) return next;
+    // timeout=nullptr means wait indefinitely.
+    const int ret = futex(address, op, static_cast<int>(prev),
+                          nullptr, nullptr);
+    if (ret == -1) {
+      HWY_DASSERT(errno == EAGAIN || errno == EINTR ||
+                  errno == ECANCELED);
+    }
+  }
+
 #elif HWY_OS_WIN && !defined(HWY_DISABLE_FUTEX)
   // It is always safe to cast to void.
   volatile void* address =
@@ -257,6 +280,14 @@ static inline void WakeAll(std::atomic<uint32_t>& current) {
   const int ret = _umtx_op(address, UMTX_OP_WAKE_PRIVATE, INT_MAX, nullptr,
                            nullptr);
   HWY_DASSERT(ret >= 0);
+  (void)ret;
+
+#elif HWY_OS_OPENBSD && !defined(HWY_DISABLE_FUTEX)
+  // Safe to cast because std::atomic is a standard layout type.
+  volatile uint32_t* address = reinterpret_cast<volatile uint32_t*>(&current);
+  const int max_to_wake = INT_MAX;  // actually signed
+  const int ret = futex(address, FUTEX_WAKE, max_to_wake, nullptr, nullptr);
+  HWY_DASSERT(ret >= 0);  // number woken
   (void)ret;
 
 #elif HWY_OS_WIN && !defined(HWY_DISABLE_FUTEX)
