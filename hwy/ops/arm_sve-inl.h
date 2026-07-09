@@ -28,6 +28,7 @@
 #define HWY_SVE_IS_POW2 1
 #endif
 
+#undef HWY_SVE_HAVE_2
 #if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
 #define HWY_SVE_HAVE_2 1
 #else
@@ -36,6 +37,7 @@
 
 // HWY_SVE_HAVE_BF16_VEC is defined to 1 if the SVE svbfloat16_t vector type
 // is supported, even if HWY_SVE_HAVE_BF16_FEATURE (= intrinsics) is 0.
+#undef HWY_SVE_HAVE_BF16_VEC
 #if HWY_SVE_HAVE_BF16_FEATURE ||                                       \
     (HWY_COMPILER_CLANG >= 1200 && defined(__ARM_FEATURE_SVE_BF16)) || \
     HWY_COMPILER_GCC_ACTUAL >= 1000
@@ -47,6 +49,7 @@
 // HWY_SVE_HAVE_F32_TO_BF16C is defined to 1 if the SVE svcvt_bf16_f32_x
 // and svcvtnt_bf16_f32_x intrinsics are available, even if the __bf16 type
 // is disabled
+#undef HWY_SVE_HAVE_F32_TO_BF16C
 #if HWY_SVE_HAVE_BF16_VEC && defined(__ARM_FEATURE_SVE_BF16)
 #define HWY_SVE_HAVE_F32_TO_BF16C 1
 #else
@@ -6030,32 +6033,39 @@ HWY_INLINE VFromD<DU> LaneIndicesFromByteIndices(D, svuint8_t idx) {
 template <class V>
 HWY_INLINE V ExpandLoop(V v, svbool_t mask) {
   const DFromV<V> d;
+  const RebindToUnsigned<decltype(d)> du;
+
   using T = TFromV<V>;
+  using TU = MakeUnsigned<T>;
+
+  using VU = VFromD<decltype(du)>;
+
   uint8_t mask_bytes[256 / 8];
   StoreMaskBits(d, mask, mask_bytes);
 
-  // ShiftLeftLanes is expensive, so we're probably better off storing to memory
-  // and loading the final result.
-  alignas(16) T out[2 * MaxLanes(d)];
+  RemoveCvRef<V> result = Zero(d);
 
   svbool_t next = svpfalse_b();
   size_t input_consumed = 0;
-  const V iota = Iota(d, 0);
-  for (size_t i = 0; i < Lanes(d); i += 8) {
+  const VU iota = Iota(du, 0);
+  const size_t N = Lanes(d);
+
+  for (size_t i = 0; i < N; i += 8) {
     uint64_t mask_bits = mask_bytes[i / 8];
 
     // We want to skip past the v lanes already consumed. There is no
     // instruction for variable-shift-reg, but we can splice.
     const V vH = detail::Splice(v, v, next);
     input_consumed += PopCount(mask_bits);
-    next = detail::GeN(iota, ConvertScalarTo<T>(input_consumed));
+    next = detail::GeN(iota, static_cast<TU>(input_consumed));
 
     const auto idx = detail::LaneIndicesFromByteIndices(
         d, detail::IndicesForExpandFromBits(mask_bits));
     const V expand = TableLookupLanes(vH, idx);
-    StoreU(expand, d, out + i);
+    result = SlideUpLanesOr(result, d, expand, i);
   }
-  return LoadU(d, out);
+
+  return result;
 }
 
 }  // namespace detail

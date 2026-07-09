@@ -98,6 +98,7 @@ HWY_CONTRIB_TESTS = (
         "hwy/contrib/hash/",
         "phast_test",
         [
+            ":algo",
             ":hash",
             ":profiler",
             ":random",
@@ -126,6 +127,19 @@ HWY_CONTRIB_TESTS = (
             ":random",
             "//hwy/contrib/sort:vqsort",
             # Placeholder for ortools, do not remove
+        ],
+    ),
+    (
+        "hwy/contrib/hash/",
+        "shardmul_test",
+        [
+            ":shardmul",
+            ":algo",
+            ":profiler",
+            ":random",
+            ":thread_pool",
+            ":topology",
+            "//hwy/contrib/sort:vqsort",
         ],
     ),
     (

@@ -5383,22 +5383,7 @@ HWY_API MFromD<D> LoadMaskBits(D d, const uint8_t* HWY_RESTRICT bits) {
   uint16_t u16_mask_bits;
   CopyBytes<sizeof(uint16_t)>(bits, &u16_mask_bits);
 
-#if HWY_IS_LITTLE_ENDIAN
-  return detail::LoadMaskBits128(d, u16_mask_bits);
-#else
-  // On big-endian targets, u16_mask_bits need to be byte swapped as bits
-  // contains the mask bits in little-endian byte order
-
-  // GCC/Clang will optimize the load of u16_mask_bits and byte swap to a
-  // single lhbrx instruction on big-endian PPC targets when optimizations
-  // are enabled.
-#if HWY_HAS_BUILTIN(__builtin_bswap16)
-  return detail::LoadMaskBits128(d, __builtin_bswap16(u16_mask_bits));
-#else
-  return detail::LoadMaskBits128(
-      d, static_cast<uint16_t>((u16_mask_bits << 8) | (u16_mask_bits >> 8)));
-#endif
-#endif
+  return detail::LoadMaskBits128(d, NativeFromLittleEndian(u16_mask_bits));
 }
 
 template <typename T>
@@ -5568,24 +5553,8 @@ HWY_API size_t StoreMaskBits(D d, MFromD<D> mask, uint8_t* bits) {
   // Converting mask_bits to a uint16_t first will also ensure that
   // the lower 16 bits of mask_bits are stored instead of the upper 16 bits
   // of mask_bits on big-endian PPC targets.
-#if HWY_IS_LITTLE_ENDIAN
-  const uint16_t u16_mask_bits = static_cast<uint16_t>(mask_bits);
-#else
-  // On big-endian targets, the bytes of mask_bits need to be swapped
-  // as StoreMaskBits expects the mask bits to be stored in little-endian
-  // byte order.
-
-  // GCC will also optimize the byte swap and CopyBytes operations below
-  // to a single sthbrx instruction when optimizations are enabled on
-  // big-endian PPC targets
-#if HWY_HAS_BUILTIN(__builtin_bswap16)
   const uint16_t u16_mask_bits =
-      __builtin_bswap16(static_cast<uint16_t>(mask_bits));
-#else
-  const uint16_t u16_mask_bits = static_cast<uint16_t>(
-      (mask_bits << 8) | (static_cast<uint16_t>(mask_bits) >> 8));
-#endif
-#endif
+    NativeFromLittleEndian(static_cast<uint16_t>(mask_bits));
 
   CopyBytes<sizeof(uint16_t)>(&u16_mask_bits, bits);
   return sizeof(uint16_t);

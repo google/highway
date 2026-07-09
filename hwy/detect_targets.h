@@ -792,7 +792,8 @@
 // Clang 19+ supports target attributes for RVV intrinsics (resolved in
 // https://github.com/llvm/llvm-project/issues/56592 and
 // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=115325).
-#if HWY_ARCH_RISCV && HWY_COMPILER_CLANG >= 1900
+#if HWY_ARCH_RISCV && \
+    (HWY_COMPILER_CLANG >= 1900 || HWY_COMPILER_GCC_ACTUAL >= 1500)
 #define HWY_HAVE_RUNTIME_DISPATCH_RVV 1
 #else
 #define HWY_HAVE_RUNTIME_DISPATCH_RVV 0

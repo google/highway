@@ -36,6 +36,13 @@
 
 namespace hwy {
 
+// Returns whether the VQSort library's dynamic-dispatch target supports
+// float16/float64. Unlike hwy::HaveFloat16/64 (which query per_target.cc's
+// dispatch table, compiled with HWY_COMPILE_ALL_ATTAINABLE), these query the
+// same targets that the VQSort library was compiled for.
+HWY_CONTRIB_DLLEXPORT bool VQSortHaveFloat16();
+HWY_CONTRIB_DLLEXPORT bool VQSortHaveFloat64();
+
 // Vectorized Quicksort: sorts keys[0, n). Does not preserve the ordering of
 // equivalent keys (defined as: neither greater nor less than another).
 // Dispatches to the best available instruction set. Does not allocate memory.
@@ -65,7 +72,7 @@ HWY_CONTRIB_DLLEXPORT void VQSort(int64_t* HWY_RESTRICT keys, size_t n,
 HWY_CONTRIB_DLLEXPORT void VQSort(int64_t* HWY_RESTRICT keys, size_t n,
                                   SortDescending);
 
-// These two must only be called if hwy::HaveFloat16() is true.
+// These two must only be called if hwy::VQSortHaveFloat16() is true.
 HWY_CONTRIB_DLLEXPORT void VQSort(float16_t* HWY_RESTRICT keys, size_t n,
                                   SortAscending);
 HWY_CONTRIB_DLLEXPORT void VQSort(float16_t* HWY_RESTRICT keys, size_t n,
@@ -76,7 +83,7 @@ HWY_CONTRIB_DLLEXPORT void VQSort(float* HWY_RESTRICT keys, size_t n,
 HWY_CONTRIB_DLLEXPORT void VQSort(float* HWY_RESTRICT keys, size_t n,
                                   SortDescending);
 
-// These two must only be called if hwy::HaveFloat64() is true.
+// These two must only be called if hwy::VQSortHaveFloat64() is true.
 HWY_CONTRIB_DLLEXPORT void VQSort(double* HWY_RESTRICT keys, size_t n,
                                   SortAscending);
 HWY_CONTRIB_DLLEXPORT void VQSort(double* HWY_RESTRICT keys, size_t n,
@@ -128,7 +135,7 @@ HWY_CONTRIB_DLLEXPORT void VQPartialSort(int64_t* HWY_RESTRICT keys, size_t n,
 HWY_CONTRIB_DLLEXPORT void VQPartialSort(int64_t* HWY_RESTRICT keys, size_t n,
                                          size_t k, SortDescending);
 
-// These two must only be called if hwy::HaveFloat16() is true.
+// These two must only be called if hwy::VQSortHaveFloat16() is true.
 HWY_CONTRIB_DLLEXPORT void VQPartialSort(float16_t* HWY_RESTRICT keys, size_t n,
                                          size_t k, SortAscending);
 HWY_CONTRIB_DLLEXPORT void VQPartialSort(float16_t* HWY_RESTRICT keys, size_t n,
@@ -139,7 +146,7 @@ HWY_CONTRIB_DLLEXPORT void VQPartialSort(float* HWY_RESTRICT keys, size_t n,
 HWY_CONTRIB_DLLEXPORT void VQPartialSort(float* HWY_RESTRICT keys, size_t n,
                                          size_t k, SortDescending);
 
-// These two must only be called if hwy::HaveFloat64() is true.
+// These two must only be called if hwy::VQSortHaveFloat64() is true.
 HWY_CONTRIB_DLLEXPORT void VQPartialSort(double* HWY_RESTRICT keys, size_t n,
                                          size_t k, SortAscending);
 HWY_CONTRIB_DLLEXPORT void VQPartialSort(double* HWY_RESTRICT keys, size_t n,
@@ -190,7 +197,7 @@ HWY_CONTRIB_DLLEXPORT void VQSelect(int64_t* HWY_RESTRICT keys, size_t n,
 HWY_CONTRIB_DLLEXPORT void VQSelect(int64_t* HWY_RESTRICT keys, size_t n,
                                     size_t k, SortDescending);
 
-// These two must only be called if hwy::HaveFloat16() is true.
+// These two must only be called if hwy::VQSortHaveFloat16() is true.
 HWY_CONTRIB_DLLEXPORT void VQSelect(float16_t* HWY_RESTRICT keys, size_t n,
                                     size_t k, SortAscending);
 HWY_CONTRIB_DLLEXPORT void VQSelect(float16_t* HWY_RESTRICT keys, size_t n,
@@ -201,7 +208,7 @@ HWY_CONTRIB_DLLEXPORT void VQSelect(float* HWY_RESTRICT keys, size_t n,
 HWY_CONTRIB_DLLEXPORT void VQSelect(float* HWY_RESTRICT keys, size_t n,
                                     size_t k, SortDescending);
 
-// These two must only be called if hwy::HaveFloat64() is true.
+// These two must only be called if hwy::VQSortHaveFloat64() is true.
 HWY_CONTRIB_DLLEXPORT void VQSelect(double* HWY_RESTRICT keys, size_t n,
                                     size_t k, SortAscending);
 HWY_CONTRIB_DLLEXPORT void VQSelect(double* HWY_RESTRICT keys, size_t n,
@@ -250,14 +257,14 @@ class HWY_CONTRIB_DLLEXPORT Sorter {
   void operator()(int64_t* HWY_RESTRICT keys, size_t n, SortAscending) const;
   void operator()(int64_t* HWY_RESTRICT keys, size_t n, SortDescending) const;
 
-  // These two must only be called if hwy::HaveFloat16() is true.
+  // These two must only be called if hwy::VQSortHaveFloat16() is true.
   void operator()(float16_t* HWY_RESTRICT keys, size_t n, SortAscending) const;
   void operator()(float16_t* HWY_RESTRICT keys, size_t n, SortDescending) const;
 
   void operator()(float* HWY_RESTRICT keys, size_t n, SortAscending) const;
   void operator()(float* HWY_RESTRICT keys, size_t n, SortDescending) const;
 
-  // These two must only be called if hwy::HaveFloat64() is true.
+  // These two must only be called if hwy::VQSortHaveFloat64() is true.
   void operator()(double* HWY_RESTRICT keys, size_t n, SortAscending) const;
   void operator()(double* HWY_RESTRICT keys, size_t n, SortDescending) const;
 
@@ -272,7 +279,7 @@ class HWY_CONTRIB_DLLEXPORT Sorter {
 
   // Unused
   static void Fill24Bytes(const void*, size_t, void*);
-  static bool HaveFloat64();  // Can also use hwy::HaveFloat64 directly.
+  static bool HaveFloat64();  // Can also call VQSortHaveFloat64 directly.
 
  private:
   void Delete();

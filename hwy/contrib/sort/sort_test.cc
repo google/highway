@@ -88,9 +88,11 @@ void TestAllSortIota() {
     TestSortIota<uint64_t>(pool);
   }
   TestSortIota<float>(pool);
-  if (hwy::HaveFloat64()) {
+#if HWY_HAVE_FLOAT64
+  if (hwy::VQSortHaveFloat64()) {
     TestSortIota<double>(pool);
   }
+#endif  // HWY_HAVE_FLOAT64
 #endif
 }
 
@@ -188,14 +190,14 @@ void CallAllSortTraits(const std::vector<Algo>& algos, size_t num_lanes) {
   // generating denormal inputs.
 #if HWY_HAVE_FLOAT16  // #if protects algo-inl.h's GenerateRandom
   // Must also check whether the dynamic-dispatch target supports float16_t!
-  if (hwy::HaveFloat16()) {
+  if (hwy::VQSortHaveFloat16()) {
     TestAnySort<TraitsLane<OrderAscending<float16_t>>>(algos, num_lanes);
   }
 #endif
   TestAnySort<TraitsLane<OrderAscending<float>>>(algos, num_lanes);
 #if HWY_HAVE_FLOAT64  // #if protects algo-inl.h's GenerateRandom
   // Must also check whether the dynamic-dispatch target supports float64!
-  if (hwy::HaveFloat64()) {
+  if (hwy::VQSortHaveFloat64()) {
     TestAnySort<TraitsLane<OtherOrder<double>>>(algos, num_lanes);
   }
 #endif
@@ -281,14 +283,54 @@ void TestPartialSortKEqualsN() {
     TestPartialSortKEqualsNForType<uint64_t>();
   }
   TestPartialSortKEqualsNForType<float>();
-  if (hwy::HaveFloat64()) {
+#if HWY_HAVE_FLOAT64
+  if (hwy::VQSortHaveFloat64()) {
     TestPartialSortKEqualsNForType<double>();
   }
+#endif
+}
+
+template <typename T>
+void TestPartialSortKEqualsZeroForType() {
+  const size_t num = 10;
+  std::vector<T> keys(num);
+  std::iota(keys.begin(), keys.end(), T{0});
+  std::reverse(keys.begin(), keys.end());
+  std::vector<T> expected(keys);
+
+  // k == 0 places no elements; this must return (not hang or overrun) and
+  // preserve the multiset. Exercises the heapsort fallback on !VQSORT_ENABLED
+  // builds, where HeapSelect/HeapSort formerly underflowed (k - N1) for k == 0.
+  hwy::VQPartialSort(keys.data(), num, /*k=*/0, hwy::SortAscending());
+
+  std::sort(keys.begin(), keys.end());
+  std::sort(expected.begin(), expected.end());
+  for (size_t i = 0; i < num; ++i) {
+    if (keys[i] != expected[i]) {
+      HWY_ABORT("KEqualsZero mismatch at %zu\n", i);
+    }
+  }
+}
+
+void TestPartialSortKEqualsZero() {
+  TestPartialSortKEqualsZeroForType<uint32_t>();
+  TestPartialSortKEqualsZeroForType<int32_t>();
+  if (hwy::HaveInteger64()) {
+    TestPartialSortKEqualsZeroForType<int64_t>();
+    TestPartialSortKEqualsZeroForType<uint64_t>();
+  }
+  TestPartialSortKEqualsZeroForType<float>();
+#if HWY_HAVE_FLOAT64
+  if (hwy::VQSortHaveFloat64()) {
+    TestPartialSortKEqualsZeroForType<double>();
+  }
+#endif
 }
 
 // Shuffled finite values (within float16_t's exact range to avoid overflow to
 // inf), with a few NaN and a few real +inf at spread-out positions. The +inf
-// is the case a by-value sentinel scan confuses with NaN. Returns the NaN count.
+// is the case a by-value sentinel scan confuses with NaN. Returns the NaN
+// count.
 template <typename T>
 std::vector<T> MakeNaNInfInput(size_t num, uint64_t seed, size_t& num_nan) {
   std::vector<float> vals(num);
@@ -432,13 +474,13 @@ void TestSelectAndPartialSortWithNaNForType() {
 
 void TestSelectWithNaN() {
 #if HWY_HAVE_FLOAT16
-  if (hwy::HaveFloat16()) {
+  if (hwy::VQSortHaveFloat16()) {
     TestSelectAndPartialSortWithNaNForType<float16_t>();
   }
 #endif
   TestSelectAndPartialSortWithNaNForType<float>();
 #if HWY_HAVE_FLOAT64
-  if (hwy::HaveFloat64()) {
+  if (hwy::VQSortHaveFloat64()) {
     TestSelectAndPartialSortWithNaNForType<double>();
   }
 #endif
@@ -459,6 +501,7 @@ HWY_EXPORT_AND_TEST_P(SortTest, TestAllSort);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllSelect);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllPartialSort);
 HWY_EXPORT_AND_TEST_P(SortTest, TestPartialSortKEqualsN);
+HWY_EXPORT_AND_TEST_P(SortTest, TestPartialSortKEqualsZero);
 HWY_EXPORT_AND_TEST_P(SortTest, TestSelectWithNaN);
 HWY_AFTER_TEST();
 }  // namespace

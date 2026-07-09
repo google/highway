@@ -1,17 +1,13 @@
-/*
- * Original implementation written in 2019
- * by David Blackman and Sebastiano Vigna (vigna@acm.org)
- * Available at https://prng.di.unimi.it/ with creative commons license:
- * To the extent possible under law, the author has dedicated all copyright
- * and related and neighboring rights to this software to the public domain
- * worldwide. This software is distributed without any warranty.
- * See <http://creativecommons.org/publicdomain/zero/1.0/>.
- *
- * This implementation is a Vector port of the original implementation
- * written by Marco Barbone (m.barbone19@imperial.ac.uk).
- * I take no credit for the original implementation.
- * The code is provided as is and the original license applies.
- */
+// Copyright 2024 Google LLC
+// SPDX-License-Identifier: Apache-2.0 OR BSD-3-Clause
+//
+// See the LICENSE file in the project root for the full license text.
+
+// Vector port by Marco Barbone (m.barbone19@imperial.ac.uk) of the xoshiro256++
+// generator. The algorithm was originally designed in 2019 by David Blackman
+// and Sebastiano Vigna (vigna@acm.org), with the reference implementation
+// available at https://prng.di.unimi.it/. Credit for the algorithm itself
+// belongs to the original authors.
 
 #if defined(HIGHWAY_HWY_CONTRIB_RANDOM_RANDOM_H_) == \
     defined(HWY_TARGET_TOGGLE)  // NOLINT
@@ -210,9 +206,17 @@ class VectorXoshiro {
     auto s1 = Load(tag, state_[{1}].data());
     auto s2 = Load(tag, state_[{2}].data());
     auto s3 = Load(tag, state_[{3}].data());
-    for (std::uint64_t i = 0; i < n; i += Lanes(tag)) {
+    const size_t lanes = Lanes(tag);
+    // Full vectors use the cheap Store; StoreN (which can be expensive on some
+    // targets) is only used once, for the final partial vector.
+    size_t i = 0;
+    for (; i + lanes <= n; i += lanes) {
       const auto next = Update(s0, s1, s2, s3);
       Store(next, tag, result.data() + i);
+    }
+    if (i < n) {
+      const auto next = Update(s0, s1, s2, s3);
+      StoreN(next, tag, result.data() + i, n - i);
     }
     Store(s0, tag, state_[{0}].data());
     Store(s1, tag, state_[{1}].data());
@@ -229,9 +233,15 @@ class VectorXoshiro {
     auto s1 = Load(tag, state_[{1}].data());
     auto s2 = Load(tag, state_[{2}].data());
     auto s3 = Load(tag, state_[{3}].data());
-    for (std::uint64_t i = 0; i < N; i += Lanes(tag)) {
+    const size_t lanes = Lanes(tag);
+    size_t i = 0;
+    for (; i + lanes <= N; i += lanes) {
       const auto next = Update(s0, s1, s2, s3);
       Store(next, tag, result.data() + i);
+    }
+    if (i < N) {
+      const auto next = Update(s0, s1, s2, s3);
+      StoreN(next, tag, result.data() + i, N - i);
     }
     Store(s0, tag, state_[{0}].data());
     Store(s1, tag, state_[{1}].data());
@@ -267,12 +277,21 @@ class VectorXoshiro {
     auto s2 = Load(tag, state_[{2}].data());
     auto s3 = Load(tag, state_[{3}].data());
 
-    for (std::uint64_t i = 0; i < n; i += Lanes(real_tag)) {
+    const size_t lanes = Lanes(real_tag);
+    size_t i = 0;
+    for (; i + lanes <= n; i += lanes) {
       const auto next = Update(s0, s1, s2, s3);
       const auto bits = ShiftRight<11>(next);
       const auto real = ConvertTo(real_tag, bits);
       const auto uniform = Mul(real, MUL_VALUE);
       Store(uniform, real_tag, result.data() + i);
+    }
+    if (i < n) {
+      const auto next = Update(s0, s1, s2, s3);
+      const auto bits = ShiftRight<11>(next);
+      const auto real = ConvertTo(real_tag, bits);
+      const auto uniform = Mul(real, MUL_VALUE);
+      StoreN(uniform, real_tag, result.data() + i, n - i);
     }
 
     Store(s0, tag, state_[{0}].data());
@@ -294,12 +313,21 @@ class VectorXoshiro {
     auto s2 = Load(tag, state_[{2}].data());
     auto s3 = Load(tag, state_[{3}].data());
 
-    for (std::uint64_t i = 0; i < N; i += Lanes(real_tag)) {
+    const size_t lanes = Lanes(real_tag);
+    size_t i = 0;
+    for (; i + lanes <= N; i += lanes) {
       const auto next = Update(s0, s1, s2, s3);
       const auto bits = ShiftRight<11>(next);
       const auto real = ConvertTo(real_tag, bits);
       const auto uniform = Mul(real, MUL_VALUE);
       Store(uniform, real_tag, result.data() + i);
+    }
+    if (i < N) {
+      const auto next = Update(s0, s1, s2, s3);
+      const auto bits = ShiftRight<11>(next);
+      const auto real = ConvertTo(real_tag, bits);
+      const auto uniform = Mul(real, MUL_VALUE);
+      StoreN(uniform, real_tag, result.data() + i, N - i);
     }
 
     Store(s0, tag, state_[{0}].data());

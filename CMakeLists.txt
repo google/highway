@@ -231,6 +231,9 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/hash/phast.cc
     hwy/contrib/hash/phast.h
     hwy/contrib/hash/phast-inl.h
+    hwy/contrib/hash/shardmul.cc
+    hwy/contrib/hash/shardmul.h
+    hwy/contrib/hash/shardmul-inl.h
     hwy/contrib/hash/cuckoo2x2.cc
     hwy/contrib/hash/cuckoo2x2.h
     hwy/contrib/hash/cuckoo2x2-inl.h
@@ -238,6 +241,7 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/image/image.h
     hwy/contrib/math/fast_math-inl.h
     hwy/contrib/intdiv/intdiv-inl.h
+    hwy/contrib/math/fp_arith-inl.h
     hwy/contrib/math/math-inl.h
     hwy/contrib/matvec/matvec-inl.h
     hwy/contrib/random/random-inl.h
@@ -807,6 +811,15 @@ target_link_libraries(dot_product_unroll PRIVATE ${ATOMICS_LIBRARIES})
 set_target_properties(dot_product_unroll
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
 
+# Mixed precision dot product
+add_executable(dot_product_mixed_precision hwy/examples/dot_product_mixed_precision.cc)
+target_compile_options(dot_product_mixed_precision PRIVATE ${HWY_FLAGS})
+target_compile_features(dot_product_mixed_precision PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
+target_link_libraries(dot_product_mixed_precision PRIVATE hwy)
+target_link_libraries(dot_product_mixed_precision PRIVATE ${ATOMICS_LIBRARIES})
+set_target_properties(dot_product_mixed_precision
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
+
 # AES capture the flag example
 add_executable(ctf_aes hwy/examples/ctf_aes.cc)
 target_compile_options(ctf_aes PRIVATE ${HWY_FLAGS})
@@ -832,6 +845,15 @@ target_compile_features(matrix_transpose_scatter_gather PRIVATE ${HWY_CXX_STD_TG
 target_link_libraries(matrix_transpose_scatter_gather PRIVATE hwy)
 target_link_libraries(matrix_transpose_scatter_gather PRIVATE ${ATOMICS_LIBRARIES})
 set_target_properties(matrix_transpose_scatter_gather
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
+
+# Float magnitude based compaction
+add_executable(float_distribution hwy/examples/float_distribution.cc)
+target_compile_options(float_distribution PRIVATE ${HWY_FLAGS})
+target_compile_features(float_distribution PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
+target_link_libraries(float_distribution PRIVATE hwy)
+target_link_libraries(float_distribution PRIVATE ${ATOMICS_LIBRARIES})
+set_target_properties(float_distribution
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
 
 endif()  # HWY_ENABLE_EXAMPLES
@@ -970,6 +992,7 @@ list(APPEND HWY_TEST_FILES
   hwy/contrib/hash/cuckoo2x2_test.cc
   hwy/contrib/hash/hash_test.cc
   hwy/contrib/hash/phast_test.cc
+  hwy/contrib/hash/shardmul_test.cc
   hwy/contrib/image/image_test.cc
   hwy/contrib/intdiv/intdiv_test.cc
   hwy/contrib/math/fast_math_test.cc

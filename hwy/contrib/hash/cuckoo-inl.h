@@ -603,7 +603,8 @@ class CuckooBuilder {
       }
       auto t_phase3_start = platform::Now();
 
-      while (matching_size < num_keys_ && cur_path_cost <= num_keys_) {
+      while (matching_size < num_keys_ &&
+             cur_path_cost <= static_cast<int32_t>(num_keys_)) {
         std::vector<uint32_t> unmatched_L;
         unmatched_L.reserve(num_keys_ - matching_size);
         for (uint32_t i = 0; i < num_keys_; ++i) {

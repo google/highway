@@ -217,6 +217,8 @@ std::string TestParamTargetNameAndT(
 
 #define HWY_TEST_MAIN() static_assert(true, "For requiring trailing semicolon")
 
+#define HWY_GTEST_SKIP() GTEST_SKIP()
+
 #else  // HWY_TEST_STANDALONE
 
 namespace {
@@ -717,6 +719,9 @@ struct RegisterTest {
     return 0;                                                              \
   }                                                                        \
   static_assert(true, "For requiring trailing semicolon")
+
+// HWY_GTEST_SKIP() does not support operator << if HWY_TEST_STANDALONE is 1
+#define HWY_GTEST_SKIP() return
 
 #endif  // HWY_TEST_STANDALONE
 

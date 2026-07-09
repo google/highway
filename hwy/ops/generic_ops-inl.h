@@ -5629,8 +5629,8 @@ HWY_API V RoundingShr(V v, V amt) {
 
 // ------------------------------ ShiftRightAndDemoteTo (DemoteTo, ShiftRight)
 
-// NEON and RVV override this with a fused saturating shift-narrow.
-// TODO: also override on SVE2/LSX/LASX.
+// NEON, RVV, and LSX override this with a fused saturating shift-narrow.
+// TODO: also override on SVE2/LASX.
 #if (defined(HWY_NATIVE_SHIFT_RIGHT_AND_DEMOTE) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_SHIFT_RIGHT_AND_DEMOTE
 #undef HWY_NATIVE_SHIFT_RIGHT_AND_DEMOTE
@@ -5665,8 +5665,8 @@ HWY_API VFromD<DN> RoundingShiftRightAndDemoteTo(DN dn, V v) {
 // ---------------------------- ReorderShiftRightAndDemote2To (ReorderDemote2To)
 // ---------------------------- OrderedShiftRightAndDemote2To (OrderedDemote2To)
 
-// NEON overrides these with a fused saturating shift-narrow.
-// TODO: also override on SVE2/RVV/LSX/LASX.
+// NEON and RVV override these with a fused saturating shift-narrow.
+// TODO: also override on SVE2/LSX/LASX.
 #if (defined(HWY_NATIVE_SHIFT_RIGHT_AND_REORDER_DEMOTE2) == \
      defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_SHIFT_RIGHT_AND_REORDER_DEMOTE2
@@ -7996,9 +7996,13 @@ HWY_API Vec128<T, N> Expand(Vec128<T, N> v, Mask128<T, N> mask) {
       BitCast(du, InterleaveLower(du8x2, indices8, indices8));
   // TableLookupBytesOr0 operates on bytes. To convert u16 lane indices to byte
   // indices, add 0 to even and 1 to odd byte lanes.
+
+  constexpr uint16_t kByteIndexOffset =
+    NativeFromLittleEndian(static_cast<uint16_t>(0x0100));
+
   const Vec128<uint16_t, N> byte_indices = Add(
       indices16,
-      Set(du, static_cast<uint16_t>(HWY_IS_LITTLE_ENDIAN ? 0x0100 : 0x0001)));
+      Set(du, kByteIndexOffset));
   return BitCast(d, TableLookupBytesOr0(v, byte_indices));
 }
 
@@ -8200,6 +8204,82 @@ HWY_INLINE Vec<D> Lookup16(D d, const T* HWY_RESTRICT table, VI indices) {
     indices = MaskedAddOr(indices, ge_8, indices, adjust);
 
     return TwoTablesLookupLanes(d, t0, t1, IndicesFromVec(d, indices));
+  }
+}
+
+// ------------------------------ Lookup32
+
+template <class D, typename T = TFromD<D>, class VI>
+HWY_INLINE Vec<D> Lookup32(D d, const T* HWY_RESTRICT table, VI indices) {
+  // `di` describes the indices given - same bits per lane, but `d` determines
+  // the actual lane count of the result and also of the table vectors, which
+  // is relevant for adjusting the index values, see below.
+  const DFromV<VI> di;
+  static_assert(sizeof(T) == sizeof(TFromD<decltype(di)>),
+                "Index/vector must have same lane size");
+  HWY_IF_CONSTEXPR(HWY_IS_DEBUG_BUILD) {
+    // Asserting Lanes(di) >= 16 not needed since both d and di have the same
+    // number of Lanes()
+    HWY_DASSERT(Lanes(d) >= 16);
+    HWY_DASSERT(AllTrue(di, Lt(indices, Set(di, 32))));
+  }
+
+  HWY_IF_CONSTEXPR(!HWY_HAVE_SCALABLE) {
+    // Fixed-size vectors: we know they are >= 128 bit, so either one or two
+    // tables are sufficient.
+    HWY_IF_CONSTEXPR(MaxLanes(d) >= 32) {
+      const CappedTag<T, 32> d32;
+      // We want to perform one lookup per index, hence resize. This has better
+      // codegen than ResizeBitCast.
+      const Vec<D> t0 = ZeroExtendResizeBitCast(d, d32, Load(d32, table));
+      return TableLookupLanes(t0, IndicesFromVec(d, indices));
+    }
+    HWY_IF_CONSTEXPR(MaxLanes(d) < 32) {
+      // Exactly 16 lanes per vector, because we ensured >= 16 above.
+      const Vec<D> t0 = Load(d, table);
+      const Vec<D> t1 = Load(d, table + 16);
+      return TwoTablesLookupLanes(d, t0, t1, IndicesFromVec(d, indices));
+    }
+  }
+
+  HWY_IF_CONSTEXPR(HWY_HAVE_SCALABLE) {
+    // Scalable: first we must load two halves of the table into two vectors,
+    // regardless of vector size. We always use two-vector lookups to avoid
+    // runtime branching. Note that RVV can have U8x32 even with 128-bit
+    // vectors (LMUL=2), hence we must use the given LMUL, not FixedTag, but we
+    // still want to cap at 16 lanes to avoid overrunning the table.
+    const CappedTag<T, 16, d.Pow2()> d16;
+
+    // We want to use native lookup instructions (more efficient on SVE than two
+    // lookups plus a blend), hence cast. This has no runtime cost. No LoadU
+    // required because + 16 is still aligned relative to `d16`.
+    const Vec<D> t0 = ResizeBitCast(d, Load(d16, table));
+    const Vec<D> t1 = ResizeBitCast(d, Load(d16, table + 16));
+
+#if HWY_TARGET_IS_SVE
+    const Mask<decltype(di)> ge_16 = detail::GeN(indices, 16);
+#else
+    const Mask<decltype(di)> ge_16 = Ge(indices, Set(di, 16));
+#endif
+
+    // For 8-bit lanes, adding (Lanes(d) - 16) to indices >= 16 can overflow
+    // uint8 when Lanes(d) >= 241. Use two separate lookups and blend instead.
+    HWY_IF_CONSTEXPR(sizeof(T) == 1) {
+      using TI = TFromD<decltype(di)>;
+      // Subtract 16 so indices >= 16 become 0..15 for t1 lookup.
+      // Wrapped values for indices < 16 are unused (masked out).
+      const VI idx_for_t1 = Sub(indices, Set(di, static_cast<TI>(16)));
+      const Vec<D> r0 = TableLookupLanes(t0, IndicesFromVec(d, indices));
+      const Vec<D> r1 = TableLookupLanes(t1, IndicesFromVec(d, idx_for_t1));
+      return IfThenElse(RebindMask(d, ge_16), r1, r0);
+    }
+    HWY_IF_CONSTEXPR(sizeof(T) != 1) {
+      // For wider types, the adjustment fits without overflow.
+      using TI = TFromD<decltype(di)>;
+      const VI adjust = Set(di, static_cast<TI>(Lanes(d) - 16));
+      indices = MaskedAddOr(indices, ge_16, indices, adjust);
+      return TwoTablesLookupLanes(d, t0, t1, IndicesFromVec(d, indices));
+    }
   }
 }
 
@@ -8526,11 +8606,8 @@ HWY_INLINE Vec<D> TblLookupPer4LaneBlkShufIdx(D d, const uint32_t idx3,
                                               const uint32_t idx1,
                                               const uint32_t idx0) {
   const Repartition<uint32_t, decltype(d)> du32;
-#if HWY_IS_LITTLE_ENDIAN
-  constexpr uint32_t kLaneByteOffsets{0x03020100};
-#else
-  constexpr uint32_t kLaneByteOffsets{0x00010203};
-#endif
+  constexpr uint32_t kLaneByteOffsets =
+    NativeFromLittleEndian(uint32_t{0x03020100});
 
   const auto v_byte_idx = Per4LaneBlkShufDupSet4xU32(
       du32, static_cast<uint32_t>(idx3 * 0x04040404u + kLaneByteOffsets),
@@ -9312,13 +9389,8 @@ HWY_API V BitShuffle(V v, VI idx) {
   const Repartition<uint8_t, decltype(d64)> d_idx_shr;
 #endif
 
-#if HWY_IS_LITTLE_ENDIAN
   constexpr uint64_t kExtractedBitsMask =
-      static_cast<uint64_t>(0x8040201008040201u);
-#else
-  constexpr uint64_t kExtractedBitsMask =
-      static_cast<uint64_t>(0x0102040810204080u);
-#endif
+    NativeFromLittleEndian(static_cast<uint64_t>(0x8040201008040201u));
 
   const auto k7 = Set(du8, uint8_t{0x07});
 

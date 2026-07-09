@@ -246,6 +246,73 @@ void TestNextFixedNUniformDist() {
 #endif  // HWY_HAVE_FLOAT64
 }
 
+// Regression test: sizes that are NOT a multiple of Lanes must be generated
+// correctly and without writing past the end of the result. The final partial
+// vector is handled by a single StoreN; the bulk uses the cheaper Store.
+// https://github.com/google/highway/pull/3165
+void TestNextNRemainder() {
+  const uint64_t seed = GetSeed();
+  const ScalableTag<uint64_t> d;
+  const size_t lanes = Lanes(d);
+
+  // One reference stream per lane, matching VectorXoshiro's interleaving:
+  // result[block * lanes + lane] == stream[lane]'s block-th draw.
+  std::vector<internal::Xoshiro> prototype;
+  prototype.emplace_back(seed);
+  for (size_t i = 1UL; i < lanes; ++i) {
+    auto rng = prototype.back();
+    rng.Jump();
+    prototype.emplace_back(rng);
+  }
+
+  // Dynamic-size overloads, with several sizes that are not multiples of Lanes.
+  const size_t sizes[] = {size_t{1}, lanes + 1, 3 * lanes + 1};
+  for (const size_t n : sizes) {
+    {
+      VectorXoshiro generator{seed};
+      const auto result = generator(n);
+      HWY_ASSERT(result.size() == n);
+      auto reference = prototype;
+      for (size_t i = 0UL; i < n; ++i) {
+        HWY_ASSERT(result[i] == reference[i % lanes]());
+      }
+    }
+#if HWY_HAVE_FLOAT64
+    {
+      VectorXoshiro generator{seed};
+      const auto result = generator.Uniform(n);
+      HWY_ASSERT(result.size() == n);
+      auto reference = prototype;
+      for (size_t i = 0UL; i < n; ++i) {
+        HWY_ASSERT(result[i] == reference[i % lanes].Uniform());
+      }
+    }
+#endif  // HWY_HAVE_FLOAT64
+  }
+
+  // Fixed-size (std::array) overloads with an odd size (never a multiple of
+  // Lanes for Lanes > 1).
+  constexpr size_t kOdd = 1001;
+  {
+    VectorXoshiro generator{seed};
+    const auto result = generator.operator()<kOdd>();
+    auto reference = prototype;
+    for (size_t i = 0UL; i < kOdd; ++i) {
+      HWY_ASSERT(result[i] == reference[i % lanes]());
+    }
+  }
+#if HWY_HAVE_FLOAT64
+  {
+    VectorXoshiro generator{seed};
+    const auto result = generator.Uniform<kOdd>();
+    auto reference = prototype;
+    for (size_t i = 0UL; i < kOdd; ++i) {
+      HWY_ASSERT(result[i] == reference[i % lanes].Uniform());
+    }
+  }
+#endif  // HWY_HAVE_FLOAT64
+}
+
 void TestCachedXorshiro() {
   const uint64_t seed = GetSeed();
 
@@ -448,6 +515,7 @@ HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestCachedXorshiro);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestUniformDist);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestNextNUniformDist);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestNextFixedNUniformDist);
+HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestNextNRemainder);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestUniformCachedXorshiro);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestAesCtrDeterministic);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestAesCtrSeeded);

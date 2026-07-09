@@ -69,7 +69,9 @@ DEFINE_MATH_TEST(Log2,
 DEFINE_MATH_TEST(Cbrt,
   std::cbrt, CallCbrt, -FLT_MAX, +FLT_MAX, 6,
   std::cbrt, CallCbrt, -DBL_MAX, +DBL_MAX, 6)
-
+DEFINE_MATH_TEST(Tgamma,
+  std::tgamma, CallTgamma, +0.5f, +35.0f,  6,
+  std::tgamma, CallTgamma, +0.5,  +171.6,  8)
 // clang-format on
 
 struct TestPow {
@@ -205,6 +207,7 @@ HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog10);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog1p);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog2);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllCbrt);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllTgamma);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllPow);
 HWY_AFTER_TEST();
 }  // namespace

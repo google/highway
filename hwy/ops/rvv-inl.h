@@ -946,10 +946,7 @@ HWY_RVV_FOREACH_I163264(HWY_RVV_CAST_VIRT_IF, _, reinterpret, _VIRT)
 HWY_RVV_FOREACH_F(HWY_RVV_CAST_IF, _, reinterpret, _ALL)
 HWY_RVV_FOREACH_F(HWY_RVV_CAST_VIRT_IF, _, reinterpret, _VIRT)
 #if HWY_HAVE_FLOAT16     // HWY_RVV_FOREACH_F already covered float16_
-#elif HWY_RVV_HAVE_F16C  // zvfhmin provides reinterpret* intrinsics:
-HWY_RVV_FOREACH_F16_UNCONDITIONAL(HWY_RVV_CAST_IF, _, reinterpret, _ALL)
-HWY_RVV_FOREACH_F16_UNCONDITIONAL(HWY_RVV_CAST_VIRT_IF, _, reinterpret, _VIRT)
-#else
+#else  // !HWY_HAVE_FLOAT16: VFromD is vuint16, delegate to uint16 BitCast.
 template <class D, HWY_IF_F16_D(D)>
 HWY_INLINE VFromD<RebindToUnsigned<D>> BitCastFromByte(
     D /* d */, VFromD<Repartition<uint8_t, D>> v) {
@@ -2627,11 +2624,27 @@ HWY_RVV_FOREACH_I16(HWY_RVV_PROMOTE, PromoteTo, sext_vf2_, _EXT_VIRT)
 HWY_RVV_FOREACH_I32(HWY_RVV_PROMOTE, PromoteTo, sext_vf2_, _EXT_VIRT)
 HWY_RVV_FOREACH_F32(HWY_RVV_PROMOTE, PromoteTo, fwcvt_f_f_v_, _EXT_VIRT)
 
-#if HWY_HAVE_FLOAT16 || HWY_RVV_HAVE_F16C
-
+#if HWY_HAVE_FLOAT16
 HWY_RVV_FOREACH_F16_UNCONDITIONAL(HWY_RVV_PROMOTE, PromoteTo, fwcvt_f_f_v_,
                                   _EXT_VIRT)
+#elif HWY_RVV_HAVE_F16C
+// VFromD for float16 is vuint16 when !HWY_HAVE_FLOAT16. Reinterpret to
+// vfloat16 for the widening conversion intrinsic.
+#define HWY_RVV_PROMOTE_F16(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                            SHIFT, MLEN, NAME, OP)                             \
+  template <size_t N>                                                          \
+  HWY_API HWY_RVV_V(BASE, SEWD, LMULD) NAME(                                   \
+      HWY_RVV_D(BASE, SEWD, N, SHIFT + 1) d,                                   \
+      HWY_RVV_V(uint, SEW, LMUL) v) {                                          \
+    return __riscv_v##OP##CHAR##SEWD##LMULD(                                    \
+        __riscv_vreinterpret_v_u##SEW##LMUL##_##CHAR##SEW##LMUL(v), Lanes(d)); \
+  }
+HWY_RVV_FOREACH_F16_UNCONDITIONAL(HWY_RVV_PROMOTE_F16, PromoteTo,
+                                  fwcvt_f_f_v_, _EXT_VIRT)
+#undef HWY_RVV_PROMOTE_F16
+#endif  // HWY_HAVE_FLOAT16
 
+#if HWY_HAVE_FLOAT16 || HWY_RVV_HAVE_F16C
 // Per-target flag to prevent generic_ops-inl.h from defining f16 conversions.
 #ifdef HWY_NATIVE_F16C
 #undef HWY_NATIVE_F16C
@@ -3366,8 +3379,23 @@ HWY_API VFromD<DN> RoundingShiftRightAndDemoteTo(DN dn, V v) {
     return __riscv_v##OP##SEWH##LMULH(v, Lanes(d));                          \
   }
 
-#if HWY_HAVE_FLOAT16 || HWY_RVV_HAVE_F16C
+#if HWY_HAVE_FLOAT16
 HWY_RVV_FOREACH_F32(HWY_RVV_DEMOTE_F, DemoteTo, fncvt_f_f_w_f, _DEMOTE_VIRT)
+#elif HWY_RVV_HAVE_F16C
+// VFromD for float16 is vuint16 when !HWY_HAVE_FLOAT16. Reinterpret from
+// vfloat16 result of the narrowing conversion intrinsic.
+#define HWY_RVV_DEMOTE_F16(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,  \
+                           SHIFT, MLEN, NAME, OP)                              \
+  template <size_t N>                                                          \
+  HWY_API vuint##SEWH##LMULH##_t NAME(                                         \
+      HWY_RVV_D(BASE, SEWH, N, SHIFT - 1) d,                                   \
+      HWY_RVV_V(BASE, SEW, LMUL) v) {                                          \
+    return __riscv_vreinterpret_v_##CHAR##SEWH##LMULH##_u##SEWH##LMULH(         \
+        __riscv_v##OP##SEWH##LMULH(v, Lanes(d)));                              \
+  }
+HWY_RVV_FOREACH_F32(HWY_RVV_DEMOTE_F16, DemoteTo, fncvt_f_f_w_f,
+                     _DEMOTE_VIRT)
+#undef HWY_RVV_DEMOTE_F16
 #endif
 HWY_RVV_FOREACH_F64(HWY_RVV_DEMOTE_F, DemoteTo, fncvt_f_f_w_f, _DEMOTE_VIRT)
 
@@ -6783,6 +6811,119 @@ template <class DN, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<DN>), class V,
 HWY_API VFromD<DN> OrderedDemote2To(DN dn, V a, V b) {
   return ReorderDemote2To(dn, a, b);
 }
+
+// ------------------------------ ReorderShiftRightAndDemote2To (ReorderDemote2To)
+// ------------------------------ OrderedShiftRightAndDemote2To (OrderedDemote2To)
+
+// These reuse the fused [Rounding]ShiftRightAndDemoteTo above, exactly as
+// ReorderDemote2To reuses DemoteTo: at LMUL <= 2 we Combine the two inputs and
+// do one fused narrow; at the max LMUL we fused-narrow each half and Combine.
+// Multi-step narrowing falls back to the generic
+// ReorderDemote2To(dn, [Rounding]ShiftRight<k>(...)) path. The same
+// HWY_RVV_AVOID_VXRM reasoning as the single-vector op applies, so this block is
+// also omitted under that flag, leaving the generic path in place.
+#ifndef HWY_RVV_AVOID_VXRM
+
+#ifdef HWY_NATIVE_SHIFT_RIGHT_AND_REORDER_DEMOTE2
+#undef HWY_NATIVE_SHIFT_RIGHT_AND_REORDER_DEMOTE2
+#else
+#define HWY_NATIVE_SHIFT_RIGHT_AND_REORDER_DEMOTE2
+#endif
+
+// If LMUL is not the max, Combine first to avoid a second fused narrow.
+template <int kShiftAmt, class DN, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DN),
+          HWY_IF_POW2_LE_D(DN, 2), class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
+          class V2 = VFromD<Repartition<TFromV<V>, DN>>,
+          hwy::EnableIf<DFromV<V>().Pow2() == DFromV<V2>().Pow2()>* = nullptr>
+HWY_API VFromD<DN> ReorderShiftRightAndDemote2To(DN dn, V a, V b) {
+  const Rebind<TFromV<V>, DN> dt;
+  return ShiftRightAndDemoteTo<kShiftAmt>(dn, Combine(dt, b, a));
+}
+
+// Max LMUL: must narrow first, then Combine.
+template <int kShiftAmt, class DN, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DN),
+          HWY_IF_POW2_GT_D(DN, 2), class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
+          class V2 = VFromD<Repartition<TFromV<V>, DN>>,
+          hwy::EnableIf<DFromV<V>().Pow2() == DFromV<V2>().Pow2()>* = nullptr>
+HWY_API VFromD<DN> ReorderShiftRightAndDemote2To(DN dn, V a, V b) {
+  const Half<decltype(dn)> dnh;
+  return Combine(dn, ShiftRightAndDemoteTo<kShiftAmt>(dnh, b),
+                 ShiftRightAndDemoteTo<kShiftAmt>(dnh, a));
+}
+
+// If LMUL is not the max, Combine first to avoid a second fused narrow.
+template <int kShiftAmt, class DN, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DN),
+          HWY_IF_POW2_LE_D(DN, 2), class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
+          class V2 = VFromD<Repartition<TFromV<V>, DN>>,
+          hwy::EnableIf<DFromV<V>().Pow2() == DFromV<V2>().Pow2()>* = nullptr>
+HWY_API VFromD<DN> ReorderRoundingShiftRightAndDemote2To(DN dn, V a, V b) {
+  const Rebind<TFromV<V>, DN> dt;
+  return RoundingShiftRightAndDemoteTo<kShiftAmt>(dn, Combine(dt, b, a));
+}
+
+// Max LMUL: must narrow first, then Combine.
+template <int kShiftAmt, class DN, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DN),
+          HWY_IF_POW2_GT_D(DN, 2), class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
+          class V2 = VFromD<Repartition<TFromV<V>, DN>>,
+          hwy::EnableIf<DFromV<V>().Pow2() == DFromV<V2>().Pow2()>* = nullptr>
+HWY_API VFromD<DN> ReorderRoundingShiftRightAndDemote2To(DN dn, V a, V b) {
+  const Half<decltype(dn)> dnh;
+  return Combine(dn, RoundingShiftRightAndDemoteTo<kShiftAmt>(dnh, b),
+                 RoundingShiftRightAndDemoteTo<kShiftAmt>(dnh, a));
+}
+
+// Ordered forwards to Reorder because ReorderDemote2To is ordered on RVV.
+template <int kShiftAmt, class DN, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DN), class V,
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          hwy::EnableIf<(sizeof(TFromD<DN>) < sizeof(TFromV<V>))>* = nullptr>
+HWY_API VFromD<DN> OrderedShiftRightAndDemote2To(DN dn, V a, V b) {
+  return ReorderShiftRightAndDemote2To<kShiftAmt>(dn, a, b);
+}
+
+template <int kShiftAmt, class DN, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DN), class V,
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          hwy::EnableIf<(sizeof(TFromD<DN>) < sizeof(TFromV<V>))>* = nullptr>
+HWY_API VFromD<DN> OrderedRoundingShiftRightAndDemote2To(DN dn, V a, V b) {
+  return ReorderRoundingShiftRightAndDemote2To<kShiftAmt>(dn, a, b);
+}
+
+// Catch-all fallback for multi-step narrowing such as i32 to i8, which has no
+// single-step Combine path. The bodies are identical to the generic_ops-inl.h
+// templates of the same name; we duplicate here because
+// HWY_NATIVE_SHIFT_RIGHT_AND_REORDER_DEMOTE2 suppresses those on RVV.
+template <
+    int kShiftAmt, class DN, class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DN),
+    HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+    hwy::EnableIf<(sizeof(TFromD<DN>) < sizeof(TFromV<V>) &&
+                   sizeof(TFromV<V>) != sizeof(TFromD<DN>) * 2)>* = nullptr>
+HWY_API VFromD<DN> ReorderShiftRightAndDemote2To(DN dn, V a, V b) {
+  using T = TFromV<V>;
+  static_assert(
+      0 <= kShiftAmt && kShiftAmt <= static_cast<int>(sizeof(T) * 8 - 1),
+      "kShiftAmt is out of range");
+  return ReorderDemote2To(dn, ShiftRight<kShiftAmt>(a),
+                          ShiftRight<kShiftAmt>(b));
+}
+
+template <
+    int kShiftAmt, class DN, class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DN),
+    HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+    hwy::EnableIf<(sizeof(TFromD<DN>) < sizeof(TFromV<V>) &&
+                   sizeof(TFromV<V>) != sizeof(TFromD<DN>) * 2)>* = nullptr>
+HWY_API VFromD<DN> ReorderRoundingShiftRightAndDemote2To(DN dn, V a, V b) {
+  using T = TFromV<V>;
+  static_assert(
+      0 <= kShiftAmt && kShiftAmt <= static_cast<int>(sizeof(T) * 8 - 1),
+      "kShiftAmt is out of range");
+  return ReorderDemote2To(dn, RoundingShiftRight<kShiftAmt>(a),
+                          RoundingShiftRight<kShiftAmt>(b));
+}
+
+#endif  // !HWY_RVV_AVOID_VXRM
 
 // ------------------------------ WidenMulPairwiseAdd
 

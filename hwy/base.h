@@ -401,6 +401,40 @@ HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
 #endif
 
 //------------------------------------------------------------------------------
+// IsConsteval
+
+// HWY_HAVE_IS_CONSTEVAL is 1 if C++23 if consteval support or
+// __builtin_is_constant_evaluated() is available, and 0 otherwise.
+
+// hwy::IsConsteval() returns true if HWY_HAVE_IS_CONSTEVAL is 1 and
+// hwy::IsConsteval() is called from a constant-evaluated context, and
+// hwy::IsConsteval() returns false otherwise.
+
+#if defined(__cpp_if_consteval) && __cpp_if_consteval >= 202106L
+#define HWY_HAVE_IS_CONSTEVAL 1
+
+HWY_API constexpr bool IsConsteval() {
+  if consteval {
+    return true;
+  } else {
+    return false;
+  }
+}
+#elif HWY_HAS_BUILTIN(__builtin_is_constant_evaluated) || \
+    HWY_COMPILER_MSVC >= 1926
+#define HWY_HAVE_IS_CONSTEVAL 1
+
+HWY_API constexpr bool IsConsteval() {
+  return __builtin_is_constant_evaluated();
+}
+
+#else
+#define HWY_HAVE_IS_CONSTEVAL 0
+
+HWY_API constexpr bool IsConsteval() { return false; }
+#endif
+
+//------------------------------------------------------------------------------
 // CopyBytes / ZeroBytes
 
 #if HWY_COMPILER_MSVC
@@ -1477,38 +1511,22 @@ HWY_API HWY_F16_CONSTEXPR float F32FromF16(float16_t f16) {
 
 #if HWY_IS_DEBUG_BUILD && \
     (HWY_HAS_BUILTIN(__builtin_bit_cast) || HWY_COMPILER_MSVC >= 1926)
-#if defined(__cpp_if_consteval) && __cpp_if_consteval >= 202106L
-// If C++23 if !consteval support is available, only execute
-// HWY_DASSERT(condition) if F16FromF32 is not called from a constant-evaluated
-// context to avoid compilation errors.
+#if HWY_HAVE_IS_CONSTEVAL
+// If HWY_HAVE_IS_CONSTEVAL is 1, then the C++ compiler has support for
+// either C++23 if consteval or __builtin_is_constant_evaluated.
 #define HWY_F16_FROM_F32_DASSERT(condition) \
   do {                                      \
-    if !consteval {                         \
+    if (!IsConsteval()) {  \
       HWY_DASSERT(condition);               \
     }                                       \
   } while (0)
-#elif HWY_HAS_BUILTIN(__builtin_is_constant_evaluated) || \
-    HWY_COMPILER_MSVC >= 1926
-// If the __builtin_is_constant_evaluated() intrinsic is available,
-// only do HWY_DASSERT(condition) if __builtin_is_constant_evaluated() returns
-// false to avoid compilation errors if F16FromF32 is called from a
-// constant-evaluated context.
-#define HWY_F16_FROM_F32_DASSERT(condition)   \
-  do {                                        \
-    if (!__builtin_is_constant_evaluated()) { \
-      HWY_DASSERT(condition);                 \
-    }                                         \
-  } while (0)
-#else
-// If C++23 if !consteval support is not available,
-// the __builtin_is_constant_evaluated() intrinsic is not available,
-// HWY_IS_DEBUG_BUILD is 1, and the __builtin_bit_cast intrinsic is available,
-// do not do a HWY_DASSERT to avoid compilation errors if F16FromF32 is
-// called from a constant-evaluated context.
+#else  // !HWY_HAVE_IS_CONSTEVAL
+// If HWY_HAVE_IS_CONSTEVAL is 0, then the C++ compiler does not have
+// support for either C++23 if consteval or __builtin_is_constant_evaluated.
 #define HWY_F16_FROM_F32_DASSERT(condition) \
   do {                                      \
   } while (0)
-#endif  // defined(__cpp_if_consteval) && __cpp_if_consteval >= 202106L
+#endif  // HWY_HAVE_IS_CONSTEVAL
 #else
 // If HWY_IS_DEBUG_BUILD is 0 or the __builtin_bit_cast intrinsic is not
 // available, define HWY_F16_FROM_F32_DASSERT(condition) as
@@ -2835,6 +2853,95 @@ constexpr size_t RoundUpTo(size_t what, size_t align) {
 // Works for any `align`; if a power of two, compiler emits AND.
 constexpr size_t RoundDownTo(size_t what, size_t align) {
   return what - (what % align);
+}
+
+namespace detail {
+
+static HWY_INLINE constexpr uint8_t ScalarByteSwap(hwy::SizeTag<1> /*size_tag*/,
+                                                   uint8_t val) noexcept {
+  return val;
+}
+
+#if HWY_COMPILER_GCC || HWY_COMPILER_CLANG
+static HWY_INLINE constexpr uint16_t ScalarByteSwap(
+    hwy::SizeTag<2> /*size_tag*/, uint16_t val) noexcept {
+  return __builtin_bswap16(val);
+}
+static HWY_INLINE constexpr uint32_t ScalarByteSwap(
+    hwy::SizeTag<4> /*size_tag*/, uint32_t val) noexcept {
+  return __builtin_bswap32(val);
+}
+static HWY_INLINE constexpr uint64_t ScalarByteSwap(
+    hwy::SizeTag<8> /*size_tag*/, uint64_t val) noexcept {
+  return __builtin_bswap64(val);
+}
+#elif HWY_COMPILER_MSVC >= 1926
+static HWY_INLINE constexpr uint16_t ScalarByteSwap(
+    hwy::SizeTag<2> /*size_tag*/, uint16_t val) noexcept {
+  return IsConsteval()
+             ? static_cast<uint16_t>(
+                   ((static_cast<unsigned>(val) & 0xFFu) << 8) |
+                   (static_cast<unsigned>(val) >> 8))
+             : _byteswap_ushort(val);
+}
+static HWY_INLINE constexpr uint32_t ScalarByteSwap(
+    hwy::SizeTag<4> /*size_tag*/, uint32_t val) noexcept {
+  return IsConsteval()
+             ? static_cast<uint32_t>(
+                   static_cast<uint32_t>(ScalarByteSwap(
+                       hwy::SizeTag<2>(), static_cast<uint16_t>(val >> 16))) |
+                   (static_cast<uint32_t>(
+                        ScalarByteSwap(hwy::SizeTag<2>(),
+                                       static_cast<uint16_t>(val & 0xFFFFu)))
+                    << 16))
+             : static_cast<uint32_t>(_byteswap_ulong(val));
+}
+static HWY_INLINE constexpr uint64_t ScalarByteSwap(
+    hwy::SizeTag<8> /*size_tag*/, uint64_t val) noexcept {
+  return IsConsteval()
+             ? static_cast<uint64_t>(
+                   static_cast<uint64_t>(ScalarByteSwap(
+                       hwy::SizeTag<4>(), static_cast<uint32_t>(val >> 32))) |
+                   (static_cast<uint64_t>(ScalarByteSwap(
+                        hwy::SizeTag<4>(),
+                        static_cast<uint32_t>(val & 0xFFFFFFFFULL)))
+                    << 32))
+             : _byteswap_uint64(val);
+}
+#endif
+
+template <size_t kSize, class T>
+static HWY_INLINE constexpr T ScalarByteSwap(hwy::SizeTag<kSize> /*size_tag*/,
+                                             T val) noexcept {
+  using TN = MakeNarrow<MakeUnsigned<T>>;
+  static_assert(sizeof(TN) < sizeof(T), "sizeof(TN) < sizeof(T) must be true");
+  return static_cast<T>(
+      static_cast<T>(ScalarByteSwap(hwy::SizeTag<sizeof(TN)>(),
+                                    static_cast<TN>(val >> (sizeof(TN) * 8)))) |
+      (static_cast<T>(ScalarByteSwap(hwy::SizeTag<sizeof(TN)>(),
+                                     static_cast<TN>(val & LimitsMax<TN>())))
+       << (sizeof(TN) * 8)));
+}
+
+}
+
+// hwy::ScalarByteSwap is equivalent to C++23 std::byteswap, except that
+// hwy::ScalarByteSwap does not have any dependencies on the <bit> header and
+// hwy::ScalarByteSwap is available in C++11, C++14, C++17, and C++20 modes.
+template <class T, HWY_IF_INTEGER(RemoveCvRef<T>)>
+HWY_API constexpr RemoveCvRef<T> ScalarByteSwap(T val) noexcept {
+  using TU = MakeUnsigned<MakeLaneTypeIfInteger<RemoveCvRef<T>>>;
+  return static_cast<RemoveCvRef<T>>(detail::ScalarByteSwap(
+    hwy::SizeTag<sizeof(TU)>(), static_cast<TU>(val)));
+}
+
+template <class T, HWY_IF_INTEGER(RemoveCvRef<T>)>
+HWY_API constexpr RemoveCvRef<T> NativeFromLittleEndian(T val) noexcept {
+#if HWY_IS_LITTLE_ENDIAN
+  return val;
+#else
+  return ScalarByteSwap(val);
+#endif
 }
 
 namespace detail {
