@@ -826,6 +826,18 @@ target_link_libraries(dot_product_mixed_precision PRIVATE ${ATOMICS_LIBRARIES})
 set_target_properties(dot_product_mixed_precision
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
 
+# Stream triad example
+if (HWY_ENABLE_CONTRIB)
+add_executable(stream_triad hwy/examples/stream_triad.cc)
+target_compile_options(stream_triad PRIVATE ${HWY_FLAGS} ${HWY_THREAD_FLAGS})
+target_compile_features(stream_triad PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
+target_link_libraries(stream_triad PRIVATE hwy hwy_contrib)
+target_link_libraries(stream_triad PRIVATE ${ATOMICS_LIBRARIES})
+target_link_libraries(stream_triad PRIVATE ${HWY_THREAD_LIBS})
+set_target_properties(stream_triad
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
+endif() # HWY_ENABLE_CONTRIB
+
 # AES capture the flag example
 add_executable(ctf_aes hwy/examples/ctf_aes.cc)
 target_compile_options(ctf_aes PRIVATE ${HWY_FLAGS})
