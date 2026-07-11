@@ -43,6 +43,12 @@ Matrix transposition via Gather and Scatter, showing:
     `GatherIndexN`/`ScatterIndexN`
 -   Precomputing strided offsets in registers using `Iota` and `Mul`.
 
+### `stream_triad.cc`
+
+Addition of a vector to a scaled copy of another vector, showing:
+
+-  Multithreading.
+
 ## Infrastructure
 
 ### `benchmark.cc`
