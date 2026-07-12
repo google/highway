@@ -37,7 +37,7 @@ _mm512_getmant (f32/f64)
 
 High-precision! Consider copying from SLEEF. See #1650.
 
-fmod, ilogb, lgamma, logb, modf, nextafter, nexttoward, scalbn
+fmod, ilogb, logb, modf, nextafter, nexttoward, scalbn
 
 ### Remaining STL functions for hwy/contrib/algo
 
@@ -195,3 +195,4 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~pow~~
 *   ~~Lookup32~~
 *   ~~tgamma~~
+*   ~~lgamma~~
