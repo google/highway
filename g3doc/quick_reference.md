@@ -2114,8 +2114,9 @@ obtain the `D` that describes the return type.
     <code>Vec&lt;D&gt; **TruncateTo**(D, V v)</code>: returns `v[i]` truncated
     to the smaller type indicated by `T = TFromD<D>`, with the same result as if
     the more-significant input bits that do not fit in `T` had been zero.
-    Example: `ScalableTag<uint32_t> du32; Rebind<uint8_t> du8; TruncateTo(du8,
-    Set(du32, 0xF08F))` is the same as `Set(du8, 0x8F)`.
+    Example:
+    `ScalableTag<uint32_t> du32; Rebind<uint8_t, decltype(du32)> du8q;
+    TruncateTo(du8q, Set(du32, 0xF08F))` is the same as `Set(du8q, 0x8F)`.
 
 *   `V`,`D`: (`i16,i8`), (`i32,i8`), (`i64,i8`), (`i32,i16`), (`i64,i16`),
     (`i64,i32`), (`u16,i8`), (`u32,i8`), (`u64,i8`), (`u32,i16`), (`u64,i16`),
