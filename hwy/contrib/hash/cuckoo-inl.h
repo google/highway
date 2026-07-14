@@ -993,8 +993,8 @@ class CuckooBuilder {
   // Builds a layered graph from all free (unmatched) keys. Stops at the
   // first layer k where free slots are reached: processes all keys at layer
   // k but does not enqueue keys at layer k+1. This ensures the DFS finds a
-  // maximal set of vertex-disjoint shortest augmenting paths.
-  // Returns true if at least one augmenting path exists.
+  // maximal set of vertex-disjoint shortest augmenting paths (meaning they are
+  // globally shortest). Returns true if at least one augmenting path exists.
   bool BFS(const std::vector<uint32_t>& unmatched_keys) {
     std::vector<uint32_t> queue;
     queue.reserve(num_keys_);
