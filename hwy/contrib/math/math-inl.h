@@ -393,10 +393,10 @@ HWY_NOINLINE V CallTgamma(const D d, VecArg<V> x) {
  * @return natural log of the absolute value of the gamma function of 'x'
  */
 template <class D, class V>
-HWY_INLINE V Lgamma(D d, V x);
+HWY_INLINE V LogGamma(D d, V x);
 template <class D, class V>
-HWY_NOINLINE V CallLgamma(const D d, VecArg<V> x) {
-  return Lgamma(d, x);
+HWY_NOINLINE V CallLogGamma(const D d, VecArg<V> x) {
+  return LogGamma(d, x);
 }
 
 /**
@@ -1927,7 +1927,7 @@ HWY_INLINE V Gamma(D d, V a) {
 }
 
 template <class D, class V = VFromD<D>, class M = MFromD<D>>
-HWY_INLINE V LogGamma(D d, V a) {
+HWY_INLINE V Lgamma(D d, V a) {
   using T = TFromD<D>;
   static_assert(IsFloat<T>(), "Only makes sense for floating-point");
   LgammaImpl<T> impl;
@@ -3043,9 +3043,9 @@ HWY_INLINE V Tgamma(const D d, V x) {
 }
 
 template <class D, class V>
-HWY_INLINE V Lgamma(const D d, V x) {
+HWY_INLINE V LogGamma(const D d, V x) {
   const V kZero = Zero(d);
-  V result = impl::LogGamma(d, x);
+  V result = impl::Lgamma(d, x);
 
   const MFromD<D> is_pole = And(Eq(x, Round(x)), Le(x, kZero));
   result = IfThenElse(is_pole, Inf(d), result);
