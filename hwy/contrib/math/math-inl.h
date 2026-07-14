@@ -1947,7 +1947,13 @@ HWY_INLINE V LogGamma(D d, V a) {
   const V w = MaskedSubOr(a, neg, kOne, a);
 
   // [0.5, 1): logGamma = (w-1)*LowPoly(w - 0.75).
-  const V low = Mul(Sub(w, kOne), impl.LowPoly(d, Sub(w, kLowCenter)));
+  const V low_poly = impl.LowPoly(d, Sub(w, kLowCenter));
+  V low;
+  if constexpr (HWY_NATIVE_FMA) {
+    low = MulAdd(w, low_poly, Neg(low_poly));
+  } else {
+    low = Mul(Sub(w, kOne), low_poly);
+  }
 
   // Shift w into [1, 2) via logGamma(y) = logGamma(y-1) + log(y-1).
   V y = w;
@@ -1960,9 +1966,14 @@ HWY_INLINE V LogGamma(D d, V a) {
 
   // [1, 2): logGamma = (y-1)*(y-2)*MidPoly(y - 1.5) + acc.
   const V t = Sub(y, kMidCenter);
-  const V zero_factors = Mul(Sub(y, kOne), Sub(y, kTwo));
-  const V core = Mul(zero_factors, impl.MidPoly(d, t));
-  const V mid = Add(core, acc);
+  V zero_factors;
+  if constexpr (HWY_NATIVE_FMA) {
+    const V q = Sub(y, kTwo);
+    zero_factors = MulAdd(y, q, Neg(q));
+  } else {
+    zero_factors = Mul(Sub(y, kOne), Sub(y, kTwo));
+  }
+  const V mid = MulAdd(zero_factors, impl.MidPoly(d, t), acc);
 
   // w >= StirlingLimit: Stirling series in double-double.
   V stir_lo;
