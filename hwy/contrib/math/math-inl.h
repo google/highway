@@ -1950,7 +1950,7 @@ HWY_INLINE V Lgamma(D d, V a) {
   const V low_poly = impl.LowPoly(d, Sub(w, kLowCenter));
   V low;
   if constexpr (HWY_NATIVE_FMA) {
-    low = MulAdd(w, low_poly, Neg(low_poly));
+    low = MulSub(w, low_poly, low_poly);
   } else {
     low = Mul(Sub(w, kOne), low_poly);
   }
@@ -1968,8 +1968,8 @@ HWY_INLINE V Lgamma(D d, V a) {
   const V t = Sub(y, kMidCenter);
   V zero_factors;
   if constexpr (HWY_NATIVE_FMA) {
-    const V q = Sub(y, kTwo);
-    zero_factors = MulAdd(y, q, Neg(q));
+    const V q = Sub(kTwo, y);
+    zero_factors = NegMulAdd(y, q, q);
   } else {
     zero_factors = Mul(Sub(y, kOne), Sub(y, kTwo));
   }
