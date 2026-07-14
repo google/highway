@@ -73,7 +73,9 @@ static inline IndexRange MakeIndexRange(size_t begin, size_t end,
 class IndexRangePartition {
  public:
   explicit IndexRangePartition(size_t single_task)
-      : range_(0, single_task), task_size_(single_task), num_tasks_(1) {}
+      : range_(0, single_task),
+        task_size_(static_cast<uint32_t>(single_task)),
+        num_tasks_(1) {}
 
   IndexRangePartition(const IndexRange& range, const size_t task_size)
       : range_(range), task_size_(static_cast<uint32_t>(task_size)) {
