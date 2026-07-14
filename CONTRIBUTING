@@ -20,6 +20,11 @@ You generally only need to submit a CLA once, so if you've already submitted one
 (even if it was for a different project), you probably don't need to do it
 again.
 
+Note that the CLA doesn't prohibit the use of coding assistance tools,
+including tool-, AI-, or machine-generated code, as long as these submissions
+abide by the CLA's requirements. In particular, AI tools must not be listed as
+authors or co-authors.
+
 ## Code reviews
 
 All submissions, including submissions by project members, require review. We
