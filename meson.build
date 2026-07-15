@@ -335,10 +335,14 @@ have_asm_hwcap_h = cpp.has_header('asm/hwcap.h')
 if not have_sys_auxv_h
     hwy_cpp_args += '-DTOOLCHAIN_MISS_SYS_AUXV_H'
 endif
-if  not have_asm_hwcap_h
+if not have_asm_hwcap_h
     hwy_cpp_args += '-DTOOLCHAIN_MISS_ASM_HWCAP_H'
 endif
 
+have_elf_aux_info = cpp.has_function('elf_aux_info', prefix : '#include <sys/auxv.h>')
+if have_elf_aux_info
+    hwy_cpp_args += '-DHWY_HAVE_ELF_AUX_INFO'
+endif
 
 add_project_arguments(hwy_cpp_args, language: 'cpp')
 add_project_arguments(hwy_nowarn_args, language: 'cpp')

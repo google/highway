@@ -827,6 +827,16 @@
 #endif
 #endif  // HWY_HAVE_RUNTIME_DISPATCH_LINUX
 
+#ifndef HWY_HAVE_RUNTIME_DISPATCH_FREEBSD_OPENBSD  // allow override
+#if (HWY_ARCH_ARM || HWY_ARCH_PPC) && (HWY_OS_FREEBSD || HWY_OS_OPENBSD) && \
+    (HWY_COMPILER_GCC_ACTUAL || HWY_COMPILER_CLANG >= 1700) && \
+    HWY_HAVE_ELF_AUX_INFO
+#define HWY_HAVE_RUNTIME_DISPATCH_FREEBSD_OPENBSD 1
+#else
+#define HWY_HAVE_RUNTIME_DISPATCH_FREEBSD_OPENBSD 0
+#endif
+#endif  // HWY_HAVE_RUNTIME_DISPATCH_FREEBSD_OPENBSD
+
 // Allow opting out, and without a guarantee of success, opting-in.
 #ifndef HWY_HAVE_RUNTIME_DISPATCH
 // Clang, GCC and MSVC allow OS-independent runtime dispatch on x86.
@@ -835,7 +845,8 @@
 // is to build two binaries, one with the -msimd128 flag.
 #if HWY_ARCH_X86 || HWY_HAVE_RUNTIME_DISPATCH_RVV ||                          \
     HWY_HAVE_RUNTIME_DISPATCH_APPLE || HWY_HAVE_RUNTIME_DISPATCH_LOONGARCH || \
-    HWY_HAVE_RUNTIME_DISPATCH_LINUX
+    HWY_HAVE_RUNTIME_DISPATCH_LINUX ||                                        \
+    HWY_HAVE_RUNTIME_DISPATCH_FREEBSD_OPENBSD
 #define HWY_HAVE_RUNTIME_DISPATCH 1
 #else
 #define HWY_HAVE_RUNTIME_DISPATCH 0
