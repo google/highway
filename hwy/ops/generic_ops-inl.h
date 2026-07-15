@@ -8108,6 +8108,44 @@ HWY_API VFromD<D> SlideUpLanesOr(VFromD<D> lo, D d, VFromD<D> hi, size_t amt) {
 
 #endif  // HWY_NATIVE_SLIDE_UP_LANES_OR
 
+// ------------------------------ SlideDownLanesOr
+#if (defined(HWY_NATIVE_SLIDE_DOWN_LANES_OR) == defined(HWY_TARGET_TOGGLE))
+
+#ifdef HWY_NATIVE_SLIDE_DOWN_LANES_OR
+#undef HWY_NATIVE_SLIDE_DOWN_LANES_OR
+#else
+#define HWY_NATIVE_SLIDE_DOWN_LANES_OR
+#endif
+
+template <class D>
+HWY_API VFromD<D> SlideDownLanesOr(VFromD<D> hi, D d, VFromD<D> lo,
+                                   size_t amt) {
+  return IfThenElse(FirstN(d, Lanes(d) - amt), SlideDownLanes(d, lo, amt), hi);
+}
+
+#endif  // HWY_NATIVE_SLIDE_DOWN_LANES_OR
+
+// ------------------------------ Slide1UpOr and Slide1DownOr
+#if (defined(HWY_NATIVE_SLIDE1_UP_DOWN_OR) == defined(HWY_TARGET_TOGGLE))
+
+#ifdef HWY_NATIVE_SLIDE1_UP_DOWN_OR
+#undef HWY_NATIVE_SLIDE1_UP_DOWN_OR
+#else
+#define HWY_NATIVE_SLIDE1_UP_DOWN_OR
+#endif
+
+template <class D>
+HWY_API VFromD<D> Slide1UpOr(TFromD<D> no, D d, VFromD<D> v) {
+  return InsertLane(Slide1Up(d, v), 0, no);
+}
+
+template <class D>
+HWY_API VFromD<D> Slide1DownOr(TFromD<D> no, D d, VFromD<D> v) {
+  return InsertLane(Slide1Down(d, v), Lanes(d) - 1, no);
+}
+
+#endif  // HWY_NATIVE_SLIDE1_UP_DOWN_OR
+
 // ------------------------------ SlideUpBlocks
 
 template <int kBlocks, class D, HWY_IF_V_SIZE_LE_D(D, 16)>

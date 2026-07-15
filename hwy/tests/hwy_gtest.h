@@ -190,21 +190,20 @@ std::string TestParamTargetNameAndT(
   static_assert(true, "For requiring trailing semicolon")
 
 // Export and test a function on ONLY the best available target.
-#define HWY_EXPORT_AND_TEST_BEST_P(suite, func_name)                \
-  HWY_EXPORT(func_name);                                          \
-  TEST_P(suite, func_name) {                                      \
-    int64_t current_targets = hwy::SupportedTargets();            \
-    hwy::SetSupportedTargetsForTest(0);                           \
-    int64_t all_supported = hwy::SupportedTargets() & HWY_TARGETS;    \
-    hwy::SetSupportedTargetsForTest(current_targets);             \
-    int64_t best_target = all_supported & -all_supported;           \
-    if (GetParam() == best_target) {                          \
-      HWY_DYNAMIC_DISPATCH(func_name)();                            \
-    } else {                                                        \
-      GTEST_SKIP() << "Skipping " << hwy::TargetName(GetParam())     \
-                   << " as not the best target";                  \
-    }                                                               \
-  }                                                                 \
+#define HWY_EXPORT_AND_TEST_BEST_P(suite, func_name)               \
+  HWY_EXPORT(func_name);                                           \
+  TEST_P(suite, func_name) {                                       \
+    int64_t current_targets = hwy::SupportedTargets();             \
+    hwy::SetSupportedTargetsForTest(0);                            \
+    int64_t all_supported = hwy::SupportedTargets() & HWY_TARGETS; \
+    hwy::SetSupportedTargetsForTest(current_targets);              \
+    int64_t best_target = all_supported & -all_supported;          \
+    if (GetParam() == best_target) {                               \
+      HWY_DYNAMIC_DISPATCH(func_name)();                           \
+    } else {                                                       \
+      GTEST_SKIP();                                                \
+    }                                                              \
+  }                                                                \
   static_assert(true, "For requiring trailing semicolon")
 
 #define HWY_BEFORE_TEST(suite)                      \

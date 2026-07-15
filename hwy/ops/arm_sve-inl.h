@@ -4129,10 +4129,41 @@ HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
   return IfThenElseZero(FirstN(d, Lanes(d) - amt), TableLookupLanes(v, idx));
 }
 
+#ifdef HWY_NATIVE_SLIDE_DOWN_LANES_OR
+#undef HWY_NATIVE_SLIDE_DOWN_LANES_OR
+#else
+#define HWY_NATIVE_SLIDE_DOWN_LANES_OR
+#endif
+
+template <class D>
+HWY_API VFromD<D> SlideDownLanesOr(VFromD<D> hi, D d, VFromD<D> lo,
+                                   size_t amt) {
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  const auto idx = Iota(du, static_cast<TU>(amt));
+  return IfThenElse(FirstN(d, Lanes(d) - amt), TableLookupLanes(lo, idx), hi);
+}
+
 // ------------------------------ Slide1Down
 template <class D>
 HWY_API VFromD<D> Slide1Down(D d, VFromD<D> v) {
   return SlideDownLanes(d, v, 1);
+}
+
+#ifdef HWY_NATIVE_SLIDE1_UP_DOWN_OR
+#undef HWY_NATIVE_SLIDE1_UP_DOWN_OR
+#else
+#define HWY_NATIVE_SLIDE1_UP_DOWN_OR
+#endif
+
+template <class D>
+HWY_API VFromD<D> Slide1UpOr(TFromD<D> no, D d, VFromD<D> v) {
+  return detail::Splice(v, Set(d, no), FirstN(d, 1));
+}
+
+template <class D>
+HWY_API VFromD<D> Slide1DownOr(TFromD<D> no, D d, VFromD<D> v) {
+  return SlideDownLanesOr(Set(d, no), d, v, 1);
 }
 
 // ------------------------------ SwapAdjacentBlocks (TableLookupLanes)

@@ -2737,6 +2737,12 @@ $X-element aligned!
 
     The results of SlideDownLanes is implementation-defined if `N >= Lanes(d)`.
 
+*   <code>V **SlideDownLanesOr**(V hi, D d, V lo, size_t N)</code>: slides down
+    `lo` by `N` lanes and returns `hi[i]` in the upper `N` lanes.
+
+    `SlideDownLanesOr(hi, d, lo, N)` is equivalent to `IfThenElse(FirstN(d,
+    Lanes(d) - N), SlideDownLanes(d, lo, N), hi)`, but potentially faster.
+
 *   <code>V **Slide1Up**(D d, V v)</code>: slides up `v` by 1 lane
 
     If `Lanes(d) == 1` is true, returns `Zero(d)`.
@@ -2745,6 +2751,11 @@ $X-element aligned!
     `SlideUpLanes(d, v, 1)`, but `Slide1Up(d, v)` is more efficient than
     `SlideUpLanes(d, v, 1)` on some platforms.
 
+*   <code>V **Slide1UpOr**(T no, D d, V v)</code>: slides up `v` by 1 lane, and
+    fills the bottom lane with `no`.
+
+    Equivalent to `InsertLane(Slide1Up(d, v), 0, no)`, but potentially faster.
+
 *   <code>V **Slide1Down**(D d, V v)</code>: slides down `v` by 1 lane
 
     If `Lanes(d) == 1` is true, returns `Zero(d)`.
@@ -2752,6 +2763,12 @@ $X-element aligned!
     If `Lanes(d) > 1` is true, `Slide1Down(d, v)` is equivalent to
     `SlideDownLanes(d, v, 1)`, but `Slide1Down(d, v)` is more efficient than
     `SlideDownLanes(d, v, 1)` on some platforms.
+
+*   <code>V **Slide1DownOr**(T no, D d, V v)</code>: slides down `v` by 1 lane,
+    and fills the top lane with `no`.
+
+    Equivalent to `InsertLane(Slide1Down(d, v), Lanes(d) - 1, no)`, but
+    potentially faster.
 
 *   <code>V **SlideUpBlocks**&lt;int kBlocks&gt;(D d, V v)</code> slides up `v`
     by `kBlocks` blocks.
