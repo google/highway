@@ -58,6 +58,9 @@ struct Cuckoo2x2Data {
   // Telemetry indicating which config/retry succeeded.
   size_t config_idx = 0;
   size_t attempt_idx = 0;
+  // Number of keys placed in their primary (hash1) vs secondary (hash2) bucket.
+  uint32_t num_primary = 0;
+  uint32_t num_secondary = 0;
 };
 
 // Builds from a set of distinct keys. Uses thread pool for parallel attempts.

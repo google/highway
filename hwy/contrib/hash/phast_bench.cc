@@ -493,7 +493,7 @@ template <bool kUseU16 = false>
 HWY_NOINLINE void TestCuckooThroughput(size_t num_keys) {
   const AlignedVector<uint32_t> keys = GenerateKeys(num_keys);
   const size_t before = AllocatedBefore();
-  CuckooTable cuckoo =
+  auto cuckoo =
       CuckooBuild(keys.data(), keys.size(), /*epsilon=*/0.1,
                   /*max_attempts=*/100, /*optimize_primary=*/true);
   if constexpr (kUseU16) {

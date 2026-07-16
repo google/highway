@@ -146,6 +146,16 @@ class PerWorkerBuilder {
     data.entries = std::move(entries_);
     data.config_idx = config_idx;
     data.attempt_idx = attempt_idx;
+
+    // Count keys in primary (hash1) vs secondary (hash2) buckets.
+    const size_t num_keys = choice_.size();
+    uint32_t num_primary = 0;
+    for (size_t i = 0; i < num_keys; ++i) {
+      num_primary += (choice_[i] == 0) ? 1 : 0;
+    }
+    data.num_primary = num_primary;
+    data.num_secondary = static_cast<uint32_t>(num_keys) - num_primary;
+
     return data;
   }
 

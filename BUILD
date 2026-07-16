@@ -466,8 +466,8 @@ cc_library(
         ":hwy",
         ":profiler",
         ":random",
-        ":stats",
         ":thread_pool",
+        ":timer",
         "//hwy/contrib/sort:vqsort",
     ],
 )
@@ -864,6 +864,19 @@ cc_test(
         ":topology",
         # Placeholder for flat_hash_set, do not remove
         # Placeholder2 for flat_hash_set, do not remove
+    ],
+)
+
+cc_binary(
+    name = "cuckoo_load_factor_sweep",
+    srcs = ["hwy/contrib/hash/cuckoo_load_factor_sweep.cc"],
+    copts = COPTS,
+    deps = [
+        ":hash",
+        ":hwy",
+        ":random",
+        ":thread_pool",
+        ":topology",
     ],
 )
 
