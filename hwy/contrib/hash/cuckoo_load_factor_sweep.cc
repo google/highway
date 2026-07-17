@@ -67,7 +67,7 @@ static AlignedVector<uint32_t> GenerateKeys(size_t num_keys,
   for (uint32_t i = 0; i < num_keys; ++i) {
     keys[i] = perm(i);
     // Ensure no key equals the sentinel value.
-    if (keys[i] == CuckooConfig<>::kEmpty) perm(num_keys + i);
+    if (keys[i] == CuckooTable::kEmpty) perm(num_keys + i);
   }
   if (num_keys >= 1000000) {
     fprintf(stderr, "GenerateKeys(%zu) finished.\n", num_keys);
@@ -80,23 +80,23 @@ void TestBucketSize(size_t num_keys) {
   ThreadPool pool = MakePool();
   pool.SetWaitMode(PoolWaitMode::kSpin);
   auto keys = GenerateKeys(num_keys);
-  for (bool optimize_primary : {false}) {
-    CuckooBuildStats stats;
-    auto table = CuckooBuild<kBucketSize>(
-        keys.data(), static_cast<uint32_t>(num_keys), /*epsilon=*/1.0,
-        /*max_attempts=*/200, optimize_primary, &stats);
+  CuckooBuildStats stats;
+  CuckooTraits<WeakTwoMul, kBucketSize> traits;
+  auto table = CuckooBuild(traits, keys.data(), static_cast<uint32_t>(num_keys),
+                           /*epsilon=*/0.75,
+                           /*max_attempts=*/200,
+                           /*optimize_primary=*/false, &stats);
 
-    if (!stats.success) {
-      fprintf(stderr, "  bucket_size=%u, keys=%zu: FAILED after %u attempts\n",
+  if (!stats.success) {
+    HWY_ABORT("  bucket_size=%u, keys=%zu: FAILED after %u attempts\n",
               kBucketSize, num_keys, stats.attempts);
-      continue;
-    }
+  }
 
     const uint32_t num_secondary =
         static_cast<uint32_t>(num_keys) - stats.num_primary;
     fprintf(stderr,
             "  bucket_size=%u, keys=%zu: primary=%u (%.1f%%), "
-            "secondary=%u (%.1f%%), buckets=%u\n",
+            "secondary=%u (%.1f%%), buckets=%zu\n",
             kBucketSize, num_keys, stats.num_primary,
             100.0 * stats.num_primary / num_keys, num_secondary,
             100.0 * num_secondary / num_keys, table.GetConfig().NumBuckets());
@@ -106,7 +106,6 @@ void TestBucketSize(size_t num_keys) {
       HWY_ASSERT_M(table.QueryOne(keys[i]),
                    "BucketSizeSweep: QueryOne missed a key");
     }
-  }
 
   auto table2x2 = BuildCuckoo2x2(keys, pool);
   fprintf(stderr,

@@ -215,7 +215,7 @@ class PerWorkerBuilder {
   // config_.hash_key. Call Succeeded() to check success.
   void MaybeBuild(Span<const uint32_t> keys, const PhastConfig& config,
                   uint32_t hash_key) {
-    PROFILER_FUNC;
+    PROFILER_ZONE("phast.MaybeBuild");
     HWY_ASSERT(keys.size() == hash_for_key_idx_.size());
     HWY_ALIGN uint32_t seed_candidates[256];
 
@@ -279,7 +279,7 @@ class PerWorkerBuilder {
   // trying individually gives 1 - 0.9^N -> 1.
   bool TryCuckooSwap(const uint32_t rank,
                      uint32_t* HWY_RESTRICT seed_candidates) {
-    PROFILER_FUNC;
+    PROFILER_ZONE("phast.TryCuckooSwap");
     constexpr uint32_t kMaxSwaps = 20;
     constexpr uint32_t kScanWindow = 50000;
     const uint32_t scan_start = (rank > kScanWindow) ? rank - kScanWindow : 0;
@@ -472,7 +472,7 @@ class PerWorkerBuilder {
   }
 
   void PopulateBuckets(size_t num_keys) {
-    PROFILER_FUNC;
+    PROFILER_ZONE("phast.PopulateBuckets");
     // O(N) scan: increment counts for each bucket.
     const size_t num_buckets = num_hashes_for_bucket_.size();
     ZeroBytes(num_hashes_for_bucket_.data(),

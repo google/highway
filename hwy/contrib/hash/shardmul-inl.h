@@ -88,6 +88,22 @@ class HWY_ALIGN_MAX ShardMul {
     RR ^= f3_(LL);
   }
 
+  template <class DU32, class DU64 = Rebind<uint64_t, DU32>,
+            class VU32 = Vec<DU32>, class VU64 = Vec<DU64>, HWY_IF_U32_D(DU32)>
+  HWY_INLINE void Feistel(DU32 du32, const VU64 key, VU32& LL, VU32& RR) const {
+    // Split u64 key into two u32 half-vectors.
+    LL = TruncateTo(du32, key);
+    RR = TruncateTo(du32, ShiftRight<32>(key));
+
+    // 4-round Feistel to ensure the two halves are independent (Luby-Rackoff).
+    // Even with a stronger round function, three rounds are insufficient
+    // because LL and RR still share several terms.
+    LL = Xor(LL, f0_.OneVec(du32, RR));
+    RR = Xor(RR, f1_.OneVec(du32, LL));
+    LL = Xor(LL, f2_.OneVec(du32, RR));
+    RR = Xor(RR, f3_.OneVec(du32, LL));
+  }
+
   template <class DU32, class DU64 = RepartitionToWide<DU32>,
             class VU32 = Vec<DU32>, class VU64 = Vec<DU64>, HWY_IF_U32_D(DU32)>
   HWY_INLINE void Feistel(DU32 du32, const VU64 key0, const VU64 key1, VU32& LL,
@@ -175,15 +191,18 @@ class HWY_ALIGN_MAX ShardMul {
 
     VU32 LL, RR;
     Feistel(du32, key0, key1, LL, RR);
+    return ResultFromFeistel(du32, LL, RR);
+  }
 
-    // Both LL and RR are independent and well-mixed. Use LL as the bucket
-    // selector because it is ready earlier, so lookups can overlap with the
-    // computation of RR. Use the upper bits so we can pass them through via
-    // XOR - see comment below.
-    const VU32 bucket = ShiftRight<28>(LL);  // 0..15
+  // Variant with one u64 vector input and one u32 half-vector output.
+  template <class DU32, class DU64 = Rebind<uint64_t, DU32>,
+            class VU32 = Vec<DU32>, class VU64 = Vec<DU64>, HWY_IF_U32_D(DU32)>
+  HWY_INLINE VU32 OneVec(DU32 du32, VU64 key) const {
+    HWY_DASSERT(!IsEmpty());
 
-    // Per-bucket multiplier pair defines the universal hash family member.
-    return MulAndXor(du32, LL, RR, LookupMuls(du32, bucket));
+    VU32 LL, RR;
+    Feistel(du32, key, LL, RR);
+    return ResultFromFeistel(du32, LL, RR);
   }
 
  private:
@@ -203,6 +222,18 @@ class HWY_ALIGN_MAX ShardMul {
       const VU32 muls1 = Lookup8(du32, table_ + 8, tbl_idx);
       return IfThenElse(Lt(bucket, Set(du32, 8)), muls0, muls1);
     }
+  }
+
+  template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
+  HWY_INLINE VU32 ResultFromFeistel(DU32 du32, VU32 LL, VU32 RR) const {
+    // Both LL and RR are independent and well-mixed. Use LL as the bucket
+    // selector because it is ready earlier, so lookups can overlap with the
+    // computation of RR. Use the upper bits so we can pass them through via
+    // XOR - see comment below.
+    const VU32 bucket = ShiftRight<28>(LL);  // 0..15
+
+    // Per-bucket multiplier pair defines the universal hash family member.
+    return MulAndXor(du32, LL, RR, LookupMuls(du32, bucket));
   }
 
   uint32_t table_[16];  // First, for alignment.

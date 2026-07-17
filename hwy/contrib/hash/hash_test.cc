@@ -52,8 +52,8 @@ HWY_MAYBE_UNUSED ThreadPool MakePool(size_t max_threads = 31) {
 }
 
 template <typename T>
-static void AssertNear(const char* name, double expected, T actual,
-                       double rel = 0.01) {
+HWY_MAYBE_UNUSED void AssertNear(const char* name, double expected, T actual,
+                                 double rel = 0.01) {
   const double tol = std::abs(expected * rel);
   if (actual < expected - tol || actual > expected + tol) {
     HWY_ABORT("%s: %f outside [%f, %f]", name, actual, expected - tol,
@@ -62,8 +62,8 @@ static void AssertNear(const char* name, double expected, T actual,
 }
 
 template <typename T>
-static void WarnIfNotNear(const char* name, double expected, T actual,
-                          double rel = 0.01) {
+HWY_MAYBE_UNUSED void WarnIfNotNear(const char* name, double expected, T actual,
+                                    double rel = 0.01) {
   const double tol = std::abs(expected * rel);
   if (actual < expected - tol || actual > expected + tol) {
     HWY_WARN("%s: %f outside [%f, %f]", name, actual, expected - tol,
@@ -71,10 +71,78 @@ static void WarnIfNotNear(const char* name, double expected, T actual,
   }
 }
 
+template <class Hash>
+static HWY_NOINLINE void TestMasked() {
+  AesCtrEngine engine(/*deterministic=*/true);
+  RngStream rng(engine, 0);
+  Hash hash(engine, 0);
+
+  using T = typename Hash::LaneType;
+  const T mask_val = Hash::kMask;
+
+  // Scalar test
+  for (size_t trial = 0; trial < 1000; ++trial) {
+    const T input = static_cast<T>(rng()) & mask_val;
+    const T output = hash(input);
+    if (output > mask_val) {
+      HWY_ABORT(
+          "Scalar output exceeded mask: %s, trial %zu, input %zx, output "
+          "%zx, mask %zx",
+          Hash::Name(), trial, static_cast<size_t>(input),
+          static_cast<size_t>(output), static_cast<size_t>(mask_val));
+    }
+  }
+
+  // Vector test
+  const ScalableTag<T> d;
+  using V = Vec<decltype(d)>;
+  const size_t N = Lanes(d);
+  AlignedVector<T> in_buf(N);
+  AlignedVector<T> out_buf(N);
+
+  for (size_t trial = 0; trial < 100; ++trial) {
+    for (size_t i = 0; i < N; ++i) {
+      in_buf[i] = static_cast<T>(rng()) & mask_val;
+    }
+    V in = Load(d, in_buf.data());
+    V out = hash.OneVec(d, in);
+    Store(out, d, out_buf.data());
+
+    for (size_t i = 0; i < N; ++i) {
+      if (out_buf[i] > mask_val) {
+        HWY_ABORT(
+            "Vector output exceeded mask: %s, trial %zu, lane %zu, input %zx, "
+            "output %zx, mask %zx",
+            Hash::Name(), trial, i, static_cast<size_t>(in_buf[i]),
+            static_cast<size_t>(out_buf[i]), static_cast<size_t>(mask_val));
+      }
+    }
+  }
+}
+
+static HWY_NOINLINE void TestAllMasked() {
+  // Test a few sizes for 32-bit hashes
+  TestMasked<MaskedWeakTwoMul<1>>();
+  TestMasked<MaskedWeakTwoMul<7>>();
+  TestMasked<MaskedWeakTwoMul<13>>();
+  TestMasked<MaskedWeakTwoMul<31>>();
+
+  TestMasked<MaskedTriple32<1>>();
+  TestMasked<MaskedTriple32<7>>();
+  TestMasked<MaskedTriple32<13>>();
+  TestMasked<MaskedTriple32<31>>();
+
+  // Test a few sizes for 64-bit hashes
+  TestMasked<MaskedMoremur<1>>();
+  TestMasked<MaskedMoremur<7>>();
+  TestMasked<MaskedMoremur<31>>();
+  TestMasked<MaskedMoremur<63>>();
+}
+
 // Strict Avalanche Criterion: flipping any single input bit should cause
 // each output bit to flip with ~50% probability.
 template <class Hash>
-static HWY_NOINLINE void TestAvalanche(const Hash& hash) {
+static HWY_NOINLINE HWY_MAYBE_UNUSED void TestAvalanche(const Hash& hash) {
   AesCtrEngine engine(/*deterministic=*/true);
 
   // Each worker does the same number of trials with differing RNG stream.
@@ -167,7 +235,7 @@ static HWY_NOINLINE void TestAllAvalanche() {
 
 // Test that each output bit is approximately unbiased (50% zeros, 50% ones).
 template <class Hash>
-static HWY_NOINLINE void TestBias(const Hash& hash) {
+static HWY_NOINLINE HWY_MAYBE_UNUSED void TestBias(const Hash& hash) {
   AesCtrEngine engine(/*deterministic=*/true);
 
   // Each worker does the same number of trials with differing RNG stream.
@@ -215,7 +283,7 @@ static HWY_NOINLINE void TestAllBias() {
 // Enumerates all 2^32 inputs and computes histogram of hash values.
 // Parallelized and vectorized, < 1 sec in opt builds.
 template <class Hash>
-static HWY_NOINLINE void TestBuckets(const Hash& hash) {
+static HWY_NOINLINE HWY_MAYBE_UNUSED void TestBuckets(const Hash& hash) {
   if constexpr (HWY_IS_DEBUG_BUILD) return;  // too slow
 
   // Each worker hashes a range of inputs and updates its bucket counts.
@@ -290,18 +358,128 @@ static HWY_NOINLINE void TestBuckets(const Hash& hash) {
   }
 }
 
+// Verifies that a masked hash is a bijection on [0, 2^kBits). For kBits <= 24,
+// uses a bitset to exhaustively verify all outputs are distinct. For larger
+// kBits, uses the bucket histogram approach (same as TestBuckets) restricted to
+// valid inputs.
+template <size_t kBits, class Hash>
+static HWY_NOINLINE void TestMaskedBuckets(const Hash& hash) {
+  if constexpr (HWY_IS_DEBUG_BUILD) return;  // too slow
+
+  static_assert(kBits < 32, "Use TestBuckets for full 32-bit hashes");
+  using T = typename Hash::LaneType;
+  constexpr uint64_t kNumInputs = uint64_t{1} << kBits;
+  constexpr T kMask = static_cast<T>(kNumInputs - 1);
+
+  if constexpr (kBits <= 24) {
+    // Exact bijection test via bitset. Fast for small domains.
+    AlignedFreeUniquePtr<uint8_t[]> seen =
+        AllocateAligned<uint8_t>((kNumInputs + 7) / 8);
+    ZeroBytes(seen.get(), (kNumInputs + 7) / 8);
+
+    for (uint64_t i = 0; i < kNumInputs; ++i) {
+      const T h = hash(static_cast<T>(i));
+      HWY_ASSERT_M(h <= kMask, "Output exceeds mask");
+      const size_t byte_idx = static_cast<size_t>(h / 8);
+      const uint8_t bit_mask = uint8_t{1} << (h % 8);
+      if (seen[byte_idx] & bit_mask) {
+        HWY_ABORT("%s<%zu>: collision at input %zu, output %zu", Hash::Name(),
+                  kBits, static_cast<size_t>(i), static_cast<size_t>(h));
+      }
+      seen[byte_idx] |= bit_mask;
+    }
+    fprintf(stderr, "  %s<%zu>: bijection verified (%zu inputs)\n",
+            Hash::Name(), kBits, static_cast<size_t>(kNumInputs));
+  } else {
+    // Bucket histogram approach for larger domains (e.g., kBits=31).
+    // Use 2^16 buckets; each should get exactly kNumInputs / 2^16 entries.
+    constexpr size_t kNumBuckets = 0x10000;
+    constexpr uint32_t kExpectedPerBucket =
+        static_cast<uint32_t>(kNumInputs / kNumBuckets);
+    // Bucket shift: hash >> kBucketShift maps to bucket index.
+    constexpr size_t kBucketShift = kBits - 16;
+
+    ThreadPool pool = MakePool();
+    const size_t num_workers = pool.NumWorkers();
+    AlignedFreeUniquePtr<uint32_t[]> all_buckets =
+        AllocateAligned<uint32_t>(kNumBuckets * num_workers);
+    ZeroBytes(all_buckets.get(), kNumBuckets * num_workers * sizeof(uint32_t));
+
+    // Divide the input range into tasks.
+    constexpr uint64_t kTaskBits = HWY_MIN(kBits, size_t{8});
+    constexpr uint64_t kNumTasks = uint64_t{1} << kTaskBits;
+    constexpr uint64_t kPerTask = kNumInputs / kNumTasks;
+
+    pool.Run(0, kNumTasks, [&](uint64_t task, size_t worker) {
+      uint32_t* HWY_RESTRICT buckets = all_buckets.get() + worker * kNumBuckets;
+      const uint64_t in_begin = task * kPerTask;
+      const uint64_t in_end = in_begin + kPerTask;
+      for (uint64_t i = in_begin; i < in_end; ++i) {
+        const T h = hash(static_cast<T>(i));
+        buckets[h >> kBucketShift]++;
+      }
+    });
+
+    // Reduce to first set of buckets.
+    for (size_t worker = 1; worker < num_workers; ++worker) {
+      uint32_t* HWY_RESTRICT buckets = all_buckets.get() + worker * kNumBuckets;
+      for (size_t i = 0; i < kNumBuckets; ++i) {
+        all_buckets[i] += buckets[i];
+      }
+    }
+
+    // Verify: sum must equal kNumInputs, and for bijection, each bucket must
+    // have exactly kExpectedPerBucket entries.
+    uint64_t sum = 0;
+    bool is_bijection = true;
+    for (size_t i = 0; i < kNumBuckets; ++i) {
+      sum += all_buckets[i];
+      if (all_buckets[i] != kExpectedPerBucket) is_bijection = false;
+    }
+    HWY_ASSERT(sum == kNumInputs);
+    if (is_bijection) {
+      fprintf(stderr, "  %s<%zu>: bijection verified (%zu inputs)\n",
+              Hash::Name(), kBits, static_cast<size_t>(kNumInputs));
+    } else {
+      HWY_ABORT("%s<%zu>: NOT a bijection!", Hash::Name(), kBits);
+    }
+  }
+}
+
 static HWY_NOINLINE void TestAllBuckets() {
   AesCtrEngine engine(/*deterministic=*/true);
   ForeachHash(engine, 0, [](const auto& hash) {
     fprintf(stderr, "%s\n", hash.Name());
     TestBuckets(hash);
   });
+
+  // Also verify masked hashes are bijections on their domain.
+  {
+    MaskedWeakTwoMul<15> masked15(engine, 0);
+    fprintf(stderr, "MaskedWeakTwoMul<15>\n");
+    TestMaskedBuckets<15>(masked15);
+  }
+  {
+    MaskedWeakTwoMul<31> masked31(engine, 0);
+    fprintf(stderr, "MaskedWeakTwoMul<31>\n");
+    TestMaskedBuckets<31>(masked31);
+  }
+  {
+    MaskedMoremur<14> masked14(engine, 0);
+    fprintf(stderr, "MaskedMoremur<14>\n");
+    TestMaskedBuckets<14>(masked14);
+  }
+  {
+    MaskedMoremur<27> masked27(engine, 0);
+    fprintf(stderr, "MaskedMoremur<27>\n");
+    TestMaskedBuckets<27>(masked27);
+  }
 }
 
 // Verify bijection: hash all inputs, check each output was not yet seen using
 // a bit array. Takes 12 seconds on Milan.
 template <class Hash>
-static HWY_NOINLINE void TestBijection(const Hash& hash) {
+static HWY_NOINLINE HWY_MAYBE_UNUSED void TestBijection(const Hash& hash) {
   // Verified for WeakTwoMul, Triple32, Murmur3, and Speck32. TestBuckets also
   // verifies bijection, but faster, hence disable.
   if (Unpredictable1()) HWY_GTEST_SKIP();
@@ -365,7 +543,7 @@ static HWY_NOINLINE void TestAllBijection() {
 
 // Ensures each lane (per-vector) computes the same permutation.
 template <class Hash>
-static HWY_NOINLINE void TestLanesEqual(const Hash& hash) {
+static HWY_NOINLINE HWY_MAYBE_UNUSED void TestLanesEqual(const Hash& hash) {
   const ScalableTag<uint32_t> du32;
   using VU32 = Vec<decltype(du32)>;
   HWY_LANES_CONSTEXPR size_t N = Lanes(du32);
@@ -406,7 +584,7 @@ static HWY_NOINLINE void TestAllLanesEqual() {
 
 // Edge case tests for permutation variants.
 template <class Hash>
-static HWY_NOINLINE void TestEdgeCases(const Hash& hash) {
+static HWY_NOINLINE HWY_MAYBE_UNUSED void TestEdgeCases(const Hash& hash) {
   // Perm(0) != 0 (non-trivial).
   HWY_ASSERT(hash(0) != 0);
 
@@ -440,7 +618,7 @@ static HWY_NOINLINE void TestAllEdgeCases() {
 
 // Minimal edge-case tests for 64-bit hash permutations.
 template <class Hash>
-static HWY_NOINLINE void TestEdgeCases64(const Hash& hash) {
+static HWY_NOINLINE HWY_MAYBE_UNUSED void TestEdgeCases64(const Hash& hash) {
   // hash(0) != 0 (non-trivial).
   HWY_ASSERT(hash(uint64_t{0}) != 0);
 
@@ -469,7 +647,7 @@ static HWY_NOINLINE void TestEdgeCases64(const Hash& hash) {
   HWY_ASSERT(hash(uint64_t{42}) != hash2(uint64_t{42}));
 }
 
-static HWY_NOINLINE void TestAllEdgeCases64() {
+static HWY_NOINLINE HWY_MAYBE_UNUSED void TestAllEdgeCases64() {
   AesCtrEngine engine(/*deterministic=*/true);
   ForeachHash64(engine, 0, [](const auto& hash) {
     fprintf(stderr, "%s (64-bit)\n", hash.Name());
@@ -480,7 +658,7 @@ static HWY_NOINLINE void TestAllEdgeCases64() {
 // Probabilistic bijection test for 64-bit hashes. Since we cannot enumerate
 // all 2^64 inputs, we hash many random inputs and check for collisions.
 template <class Hash>
-static HWY_NOINLINE void TestBijection64(const Hash& hash) {
+static HWY_NOINLINE HWY_MAYBE_UNUSED void TestBijection64(const Hash& hash) {
   AesCtrEngine engine(/*deterministic=*/true);
 
   ThreadPool pool = MakePool();
@@ -547,6 +725,7 @@ static void TestAllLanesEqual() {}
 static void TestAllEdgeCases() {}
 static void TestAllEdgeCases64() {}
 static void TestAllBijection64() {}
+static void TestAllMasked() {}
 #endif  // HWY_TARGET != HWY_SCALAR && HWY_TARGET != HWY_EMU128
 
 }  // namespace
@@ -566,6 +745,7 @@ HWY_EXPORT_AND_TEST_BEST_P(HashTest, TestAllLanesEqual);
 HWY_EXPORT_AND_TEST_BEST_P(HashTest, TestAllEdgeCases);
 HWY_EXPORT_AND_TEST_BEST_P(HashTest, TestAllEdgeCases64);
 HWY_EXPORT_AND_TEST_BEST_P(HashTest, TestAllBijection64);
+HWY_EXPORT_AND_TEST_BEST_P(HashTest, TestAllMasked);
 HWY_AFTER_TEST();
 }  // namespace hwy
 HWY_TEST_MAIN();

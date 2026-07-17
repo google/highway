@@ -867,7 +867,7 @@ cc_test(
     ],
 )
 
-cc_binary(
+cc_test(
     name = "cuckoo_load_factor_sweep",
     srcs = ["hwy/contrib/hash/cuckoo_load_factor_sweep.cc"],
     copts = COPTS,

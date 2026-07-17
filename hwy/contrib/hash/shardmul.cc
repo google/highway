@@ -77,7 +77,6 @@ constexpr size_t kMaxAttemptsPerBucket = 150'000;
 size_t ChooseBestSeed(Span<const uint64_t> keys,
                       Span<const uint32_t> extra_outputs,
                       AesCtrEngine& engine) {
-  PROFILER_ZONE("build.ChooseBestSeed");
   size_t best_seed = kNumFeistelCandidates;  // invalid sentinel
   float best_ratio = 1e30f;
 
@@ -225,8 +224,8 @@ size_t FindMuls(AesCtrEngine& engine, size_t best_seed,
   }
 
   Profiler& profiler = Profiler::Get();
-  const profiler::ZoneHandle z_mult = profiler.AddZone("build.mult");
-  const profiler::ZoneHandle z_sort = profiler.AddZone("build.sort");
+  const profiler::ZoneHandle z_mult = profiler.AddZone("shardmul.mult");
+  const profiler::ZoneHandle z_sort = profiler.AddZone("shardmul.sort");
 
   for (size_t outer = 0; outer < num_outer; ++outer) {
     // Early termination: check if all buckets are done.
