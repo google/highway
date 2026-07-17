@@ -199,8 +199,9 @@ static inline uint32_t BlockUntilDifferent(
   volatile uint32_t* address =
       const_cast<volatile uint32_t*>(
           reinterpret_cast<const volatile uint32_t*>(&current));
-
-  const int op = FUTEX_WAIT;
+  // _PRIVATE requires this only be used in the same process, and avoids
+  // virtual->physical lookups.
+  const int op = FUTEX_WAIT_PRIVATE;
   for (;;) {
     const uint32_t next = current.load(acq);
     if (next != prev) return next;
@@ -286,7 +287,8 @@ static inline void WakeAll(std::atomic<uint32_t>& current) {
   // Safe to cast because std::atomic is a standard layout type.
   volatile uint32_t* address = reinterpret_cast<volatile uint32_t*>(&current);
   const int max_to_wake = INT_MAX;  // actually signed
-  const int ret = futex(address, FUTEX_WAKE, max_to_wake, nullptr, nullptr);
+  const int ret = futex(address, FUTEX_WAKE_PRIVATE, max_to_wake, nullptr,
+                        nullptr);
   HWY_DASSERT(ret >= 0);  // number woken
   (void)ret;
 
