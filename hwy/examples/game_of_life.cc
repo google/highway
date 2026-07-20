@@ -20,10 +20,12 @@
 #include <vector>
 
 #include "hwy/aligned_allocator.h"
+
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/examples/game_of_life.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
+#include "hwy/contrib/random/random-inl.h"
 #include "hwy/timer.h"
 
 /*
@@ -46,7 +48,32 @@ are evolved as follows[0]:
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+
 namespace hn = hwy::HWY_NAMESPACE;
+
+void InitializeState(uint64_t* HWY_RESTRICT a_1, uint64_t* HWY_RESTRICT a_2, size_t nx, size_t ny) {
+
+  using DU64 = hn::ScalableTag<uint64_t>;
+  const DU64 du64;
+  const size_t NU64 = hn::Lanes(du64);
+  using VU64 = hn::Vec<DU64>;
+  VectorXoshiro generator{uint64_t{5}};
+  size_t i = 0;
+  size_t upp_bound = 1 + (nx*ny/(8*sizeof(uint64_t)));
+  for(; i + NU64 <= upp_bound; i += NU64) {
+    VU64 temp = generator();
+    hn::StoreU(temp, du64, a_1 + i);
+    hn::StoreU(temp, du64, a_2 + i);
+  }
+  // Handle remainder
+  size_t remainder = upp_bound - i;
+  HWY_DASSERT(remainder < NU64);
+  if (remainder > 0) {
+    VU64 temp = generator();
+    hn::StoreN(temp, du64, a_1 + i, remainder);
+    hn::StoreN(temp, du64, a_2 + i, remainder);
+  }
+}
 
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -54,81 +81,124 @@ HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
 namespace hwy {
+HWY_EXPORT(InitializeState);
 
-static void Initialize(bool* HWY_RESTRICT a, size_t nx, size_t ny) {
-  for(size_t i = 0; i < nx*ny; ++i) {
-    a[i] = (std::rand()%2 == 1);
-  }
-}
-
-static void NewState(const bool* HWY_RESTRICT in, bool* HWY_RESTRICT out,
+void NewStateScalar(const uint64_t* HWY_RESTRICT in, uint64_t* HWY_RESTRICT out,
               size_t nx, size_t ny) {
-    for(size_t i = 0; i < nx; i++) {
-      for(size_t j = 0; j < ny; j++) {
-         // Get indices to represent periodic boundary conditions
-	 size_t ind = i + j*nx;
-         size_t top = (i%nx) + ((j-1)%ny)*nx;
-         size_t bottom = (i%nx) + ((j+1)%ny)*nx;
-         size_t left = ((i-1)%nx) + (j%ny)*nx;
-         size_t right = ((i+1)%nx) + (j%ny)*nx;
-         size_t neighbours = static_cast<size_t>(in[top])
-                            + static_cast<size_t>(in[bottom])
-                            + static_cast<size_t>(in[left])
-                            + static_cast<size_t>(in[right]);
-         switch (neighbours){
-           case 0:
-             out[ind] = false;
-             break;
-           case 1:
-             out[ind] = false;
-             break;
-           case 2:
-             out[ind] = (in[ind] ? true : false);
-             break;
-           case 3:
-             out[ind] = true;
-             break;
-           case 4:
-             out[ind] = false;
-             break;
-	 }
-      }
+
+  // Lambda for checking state
+  auto check_state = [](const uint64_t* in, const size_t ind) HWY_ATTR -> bool {
+    const size_t arr = static_cast<size_t>(ind / (8*sizeof(uint64_t)));
+    const size_t bit = static_cast<size_t>(ind % (8*sizeof(uint64_t)));
+    const uint8_t one = 1;
+    return (in[arr] & static_cast<uint64_t>(one<<bit));
+  };
+
+  // Lambda for updating state
+  auto update = [](uint64_t* out, const size_t ind, const bool new_state) HWY_ATTR -> void {
+    const size_t arr = static_cast<size_t>(ind / (8*sizeof(uint64_t)));
+    const size_t bit = static_cast<size_t>(ind % (8*sizeof(uint64_t)));
+    const uint64_t one = 1;
+    if(new_state) {
+      out[arr] |= static_cast<uint64_t>(one<<(bit));
+    }else{
+      out[arr] &= ~(static_cast<uint64_t>(one<<(bit)));
     }
     return;
+  };
+
+  for(size_t i = 0; i < nx; i++) {
+    for(size_t j = 0; j < ny; j++) {
+       // Count number of neighbours
+       size_t neighbours = 0;
+       size_t ind;
+       // top left
+       ind  = ((i-1)%nx) + ((j-1)%ny)*nx;
+       neighbours += static_cast<size_t>(check_state(in, ind));
+       // top
+       ind = (i%nx) + ((j-1)%ny)*nx;
+       neighbours += static_cast<size_t>(check_state(in, ind));
+       // top right
+       ind = ((i+1)%nx) + ((j-1)%ny)*nx;
+       neighbours += static_cast<size_t>(check_state(in, ind));
+       // right
+       ind = ((i+1)%nx) + (j%ny)*nx;
+       neighbours += static_cast<uint8_t>(check_state(in, ind));
+       // bottom right
+       ind = ((i+1)%nx) + ((j+1)%ny)*nx;
+       neighbours += static_cast<size_t>(check_state(in, ind));
+       // bottom
+       ind = (i%nx) + ((j+1)%ny)*nx;
+       neighbours += static_cast<size_t>(check_state(in, ind));
+       // bottom left
+       ind = ((i-1)%nx) + ((j+1)%ny)*nx;
+       neighbours += static_cast<size_t>(check_state(in, ind));
+       // left
+       ind = ((i-1)%nx) + (j%ny)*nx;
+       neighbours += static_cast<size_t>(check_state(in, ind));
+       // update center
+       ind = i + j*nx;
+       bool my_state = check_state(in, ind);
+       switch (neighbours){
+         case 0:
+           update(out, ind, false);
+           break;
+         case 1:
+           update(out, ind, false);
+           break;
+         case 2:
+           update(out, ind, my_state);
+           break;
+         case 3:
+           update(out, ind, true);
+           break;
+         case 4:
+           update(out, ind, false);
+           break;
+       }
+    }
+  }
+  return;
 }
 
-static void GameOfLifeScalar(bool* HWY_RESTRICT a, bool* HWY_RESTRICT b,
+void GameOfLifeScalar(uint64_t* HWY_RESTRICT a, uint64_t* HWY_RESTRICT b,
                       size_t nx, size_t ny, size_t iterations) {
-  size_t iter = 0;
-  for(; iter < iterations; iter+=2) {
-    hwy::NewState(a,b,nx,ny);
-    hwy::NewState(b,a,nx,ny);
+  for(size_t iter = 0; iter < iterations; iter += 2) {
+    NewStateScalar(a,b,nx,ny);
+    NewStateScalar(b,a,nx,ny);
   }
   // Remainder iteration
   if( iterations%2 == 1 ) {
-    hwy::NewState(a,b,nx,ny);
+    NewStateScalar(a,b,nx,ny);
   }
 
   return;
 }
 
-static int Run() {
-  const size_t nx = 60;
-  const size_t ny = 60;
+int Run() {
+  const size_t nx = 200;
+  const size_t ny = 200;
+  const size_t uint64_size = 1 + (nx * ny )/(8 * sizeof(uint64_t));
   const size_t iterations = 100;
-  bool* a = (bool*)malloc(nx*ny*sizeof(bool));
-  bool* b = (bool*)malloc(nx*ny*sizeof(bool));
+  AlignedFreeUniquePtr<uint64_t[]> a_scalar =
+      AllocateAligned<uint64_t>(uint64_size);
+  AlignedFreeUniquePtr<uint64_t[]> b_scalar =
+      AllocateAligned<uint64_t>(uint64_size);
+  AlignedFreeUniquePtr<uint64_t[]> a_simd =
+      AllocateAligned<uint64_t>(uint64_size);
+  AlignedFreeUniquePtr<uint64_t[]> b_simd =
+      AllocateAligned<uint64_t>(uint64_size);
 
-  hwy::Initialize(a, nx, ny);
+  HWY_DYNAMIC_DISPATCH(InitializeState)(a_scalar.get(), a_simd.get(), nx, ny);
+  
   // Record start time
   const double t_scalar_0 = hwy::platform::Now();
-  hwy::GameOfLifeScalar(a, b, nx, ny, iterations);
+  GameOfLifeScalar(a_scalar.get(), b_scalar.get(), nx, ny, iterations);
   // Record end time and print execution time
   const double t_scalar_1 = hwy::platform::Now();
   const double dt_scalar = 1000.0 * (t_scalar_1 - t_scalar_0);
   std::cout << "Scalar Execution time: " << dt_scalar << " ms" << std::endl;
-  free(a);
-  free(b);
+
   return 0;
 }
 }  // namespace hwy
