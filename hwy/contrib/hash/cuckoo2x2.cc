@@ -151,7 +151,7 @@ class PerWorkerBuilder {
     const size_t num_keys = choice_.size();
     uint32_t num_primary = 0;
     for (size_t i = 0; i < num_keys; ++i) {
-      num_primary += (choice_[i] == 0) ? 1 : 0;
+      num_primary += static_cast<uint32_t>((choice_[i] == 0) ? 1 : 0);
     }
     data.num_primary = num_primary;
     data.num_secondary = static_cast<uint32_t>(num_keys) - num_primary;
