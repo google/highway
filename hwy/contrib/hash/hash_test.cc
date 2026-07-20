@@ -381,7 +381,7 @@ static HWY_NOINLINE void TestMaskedBuckets(const Hash& hash) {
       const T h = hash(static_cast<T>(i));
       HWY_ASSERT_M(h <= kMask, "Output exceeds mask");
       const size_t byte_idx = static_cast<size_t>(h / 8);
-      const uint8_t bit_mask = uint8_t{1} << (h % 8);
+      const uint8_t bit_mask = static_cast<uint8_t>(uint8_t{1} << (h % 8));
       if (seen[byte_idx] & bit_mask) {
         HWY_ABORT("%s<%zu>: collision at input %zu, output %zu", Hash::Name(),
                   kBits, static_cast<size_t>(i), static_cast<size_t>(h));
