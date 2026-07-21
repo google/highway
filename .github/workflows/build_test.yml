@@ -126,7 +126,7 @@ jobs:
         with:
           egress-policy: audit  # cannot be block - runner does git checkout
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install deps
         run: sudo apt-get update && sudo apt-get install ${{ matrix.extra_deps }}
@@ -235,7 +235,7 @@ jobs:
         with:
           egress-policy: audit  # cannot be block - runner does git checkout
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install deps
         run: sudo apt-get update && sudo apt-get install ${{ matrix.extra_deps }}
@@ -309,7 +309,7 @@ jobs:
         with:
           egress-policy: audit  # cannot be block - runner does git checkout
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install deps
         run: sudo apt-get update && sudo apt-get install ${{ matrix.extra_deps }}
@@ -330,7 +330,7 @@ jobs:
         with:
           egress-policy: audit  # cannot be block - runner does git checkout
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: bazelbuild/setup-bazelisk@b39c379c82683a5f25d34f0d062761f62693e0b2 # v3.0.0
 
