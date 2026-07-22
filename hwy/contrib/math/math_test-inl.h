@@ -286,6 +286,126 @@ HWY_NOINLINE void TestMathRelative(const char* name, T (*fx1)(T),
   };                                                                      \
   DEFINE_MATH_TEST_FUNC(NAME)
 
+// ULP distance between two float16 values, in the float16 bit domain.
+// hwy::detail::ComputeUlpDelta cannot be used here because std::isnan does
+// not support float16_t.
+HWY_INLINE uint64_t F16UlpDelta(float16_t actual, float16_t expected) {
+  const uint16_t a_bits = BitCastScalar<uint16_t>(actual);
+  const uint16_t e_bits = BitCastScalar<uint16_t>(expected);
+  if (a_bits == e_bits) return 0;
+  const bool a_nan = ScalarIsNaN(F32FromF16(actual));
+  const bool e_nan = ScalarIsNaN(F32FromF16(expected));
+  if (a_nan && e_nan) return 0;
+  if (a_nan != e_nan) return ~uint64_t{0};
+  // Infinities must match exactly (equal bits, handled above), so that e.g. a
+  // saturating demote cannot pass off 65504 as within 1 ULP of +inf.
+  if ((a_bits & 0x7FFF) == 0x7C00 || (e_bits & 0x7FFF) == 0x7C00) {
+    return ~uint64_t{0};
+  }
+  // Map sign-magnitude to a monotonically increasing integer, so that
+  // adjacent float16 values differ by 1 and -0 maps to the same value as +0.
+  const int32_t a_ord = (a_bits & 0x8000)
+                            ? (0x8000 - static_cast<int32_t>(a_bits & 0x7FFF))
+                            : (0x8000 + static_cast<int32_t>(a_bits));
+  const int32_t e_ord = (e_bits & 0x8000)
+                            ? (0x8000 - static_cast<int32_t>(e_bits & 0x7FFF))
+                            : (0x8000 + static_cast<int32_t>(e_bits));
+  return static_cast<uint64_t>(a_ord >= e_ord ? a_ord - e_ord : e_ord - a_ord);
+}
+
+// Rounds the double-precision reference to float16 with a single rounding
+// step, via a round-to-odd float intermediate; a plain double->float->f16
+// conversion double-rounds, which is off by 1 float16 ULP when the double
+// falls within half a float ULP of a float16 rounding boundary. Handling
+// overflow up front also avoids the (formally undefined) conversion of
+// out-of-float-range doubles such as exp(104) to float.
+HWY_INLINE float16_t F16FromF64(double value) {
+  if (ScalarIsNaN(value)) return F16FromF32(static_cast<float>(value));
+  // Values of at least 65520 (the float16 overflow threshold) round to inf.
+  if (value >= 65520.0) return BitCastScalar<float16_t>(uint16_t{0x7C00});
+  if (value <= -65520.0) return BitCastScalar<float16_t>(uint16_t{0xFC00});
+  const float f = static_cast<float>(value);
+  if (static_cast<double>(f) == value) return F16FromF32(f);
+  uint32_t bits = BitCastScalar<uint32_t>(f);
+  // Round to odd: magnitude-truncate if rounding to float moved away from
+  // zero (also correct across exponent boundaries), then set the LSB.
+  if (ScalarAbs(static_cast<double>(f)) > ScalarAbs(value)) bits -= 1;
+  return F16FromF32(BitCastScalar<float>(bits | 1));
+}
+
+// Exhaustive ULP test for float16 math functions: for every float16 bit
+// pattern whose value is within [min, max] (given as float), compares the
+// vector function `fxN` against the double-precision scalar reference `fx1`
+// rounded to float16. All ops used here support float16_t lanes even when
+// HWY_HAVE_FLOAT16 is 0, so this runs on every target.
+template <class D>
+HWY_NOINLINE void TestF16Math(const char* name, double (*fx1)(double),
+                              Vec<D> (*fxN)(D, VecArg<Vec<D>>), D d, float min,
+                              float max, uint64_t max_error_ulp) {
+  if (HWY_MATH_TEST_EXCESS_PRECISION) {
+    static bool once = true;
+    if (once) {
+      once = false;
+      HWY_WARN("Skipping math_test due to GCC issue with excess precision.\n");
+    }
+    return;
+  }
+
+  using T = float16_t;
+  const size_t N = Lanes(d);
+  auto in_lanes = AllocateAligned<T>(N);
+  auto actual_lanes = AllocateAligned<T>(N);
+  HWY_ASSERT(in_lanes && actual_lanes);
+  uint64_t max_ulp = 0;
+  // float16 has few enough bit patterns to test them all, in batches of N
+  // consecutive patterns so that lanes hold distinct values; this also
+  // verifies lane placement, which a splatted input could not. N divides
+  // 65536, so base + i never exceeds 0xFFFF. Lanes whose value is NaN or
+  // outside [min, max] still go through fxN but are skipped when verifying.
+  for (uint32_t base = 0; base <= 0xFFFF; base += static_cast<uint32_t>(N)) {
+    for (size_t i = 0; i < N; ++i) {
+      const uint32_t bits = base + static_cast<uint32_t>(i);
+      in_lanes[i] = BitCastScalar<T>(static_cast<uint16_t>(bits));
+    }
+    Store(fxN(d, Load(d, in_lanes.get())), d, actual_lanes.get());
+    for (size_t i = 0; i < N; ++i) {
+      const float value_f32 = F32FromF16(in_lanes[i]);
+      if (ScalarIsNaN(value_f32) || value_f32 < min || value_f32 > max) {
+        continue;
+      }
+      const T expected = F16FromF64(fx1(static_cast<double>(value_f32)));
+      const uint64_t ulp = F16UlpDelta(actual_lanes[i], expected);
+      if (ulp > max_error_ulp) {
+        fprintf(stderr, "%s: %s(%f) expected %E actual %E ulp %g max ulp %u\n",
+                hwy::TypeName(T(), Lanes(d)).c_str(), name,
+                static_cast<double>(value_f32),
+                static_cast<double>(F32FromF16(expected)),
+                static_cast<double>(F32FromF16(actual_lanes[i])),
+                static_cast<double>(ulp), static_cast<uint32_t>(max_error_ulp));
+      }
+      max_ulp = HWY_MAX(max_ulp, ulp);
+    }
+  }
+  fprintf(stderr, "%s: %s max_ulp %g\n", hwy::TypeName(T(), Lanes(d)).c_str(),
+          name, static_cast<double>(max_ulp));
+  HWY_ASSERT(max_ulp <= max_error_ulp);
+}
+
+// Unlike DEFINE_MATH_TEST, registration does not go through ForFloat16Types,
+// which is empty when HWY_HAVE_FLOAT16 is 0: the promote/demote-based f16
+// math functions work on all targets.
+#undef DEFINE_F16_MATH_TEST
+#define DEFINE_F16_MATH_TEST(NAME, Fx1, FxN, F16_MIN, F16_MAX, F16_ERROR)     \
+  struct TestF16##NAME {                                                      \
+    template <class T, class D>                                               \
+    HWY_NOINLINE void operator()(T, D d) {                                    \
+      TestF16Math(HWY_STR(NAME), Fx1, FxN, d, F16_MIN, F16_MAX, F16_ERROR);   \
+    }                                                                         \
+  };                                                                          \
+  HWY_NOINLINE void TestAllF16##NAME() {                                      \
+    ForPartialVectors<TestF16##NAME>()(float16_t());                          \
+  }
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
