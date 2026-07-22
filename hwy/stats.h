@@ -27,7 +27,7 @@
 namespace hwy {
 
 // Thread-compatible.
-template <size_t N>
+template <size_t N, typename BinT = uint32_t>
 class Bins {
  public:
   Bins() { Reset(); }
@@ -38,7 +38,13 @@ class Bins {
     counts_[static_cast<int32_t>(bin)]++;
   }
 
-  uint32_t Bin(size_t bin_idx) const {
+  template <typename T>
+  void IncrementBy(T bin, uint32_t count) {
+    HWY_ASSERT(T{0} <= bin && bin < static_cast<T>(N));
+    counts_[static_cast<int32_t>(bin)] += count;
+  }
+
+  BinT Bin(size_t bin_idx) const {
     HWY_DASSERT(bin_idx < N);
     return counts_[bin_idx];
   }
@@ -112,7 +118,7 @@ class Bins {
   }
 
  private:
-  uint32_t counts_[N];
+  BinT counts_[N];
 };
 
 // Descriptive statistics of a variable (4 moments). Thread-compatible.

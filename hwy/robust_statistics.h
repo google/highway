@@ -28,7 +28,7 @@ namespace robust_statistics {
 
 // Sorts integral values in ascending order (e.g. for Mode). About 3x faster
 // than std::sort for input distributions with very few unique values.
-template <class T>
+template <class T, HWY_IF_INTEGER(T)>
 void CountingSort(T* values, size_t num_values) {
   // Unique values and their frequency (similar to flat_map).
   using Unique = std::pair<T, int>;
