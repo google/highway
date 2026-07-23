@@ -876,7 +876,6 @@ cc_test(
         ":hwy",
         ":random",
         ":thread_pool",
-        ":timer",
         ":topology",
     ],
 )
