@@ -6428,6 +6428,39 @@ HWY_API Vec128<T> TwoTablesLookupLanes(Vec128<T> a, Vec128<T> b,
 #endif
 }
 
+// ------------------------------ Lookup64
+
+#if HWY_ARCH_ARM_A64
+
+// Per-target flag to prevent generic_ops-inl.h from defining Lookup64.
+#ifdef HWY_NATIVE_LOOKUP64
+#undef HWY_NATIVE_LOOKUP64
+#else
+#define HWY_NATIVE_LOOKUP64
+#endif
+
+template <class D, class VI, HWY_IF_UI8_D(D), HWY_IF_V_SIZE_D(D, 16)>
+HWY_INLINE VFromD<D> Lookup64(D d, const TFromD<D>* HWY_RESTRICT table,
+                             VI indices) {
+  const DFromV<VI> di;
+  static_assert(sizeof(TFromD<D>) == sizeof(TFromD<decltype(di)>),
+                "Index/vector must have same lane size");
+  HWY_IF_CONSTEXPR(HWY_IS_DEBUG_BUILD) {
+    HWY_DASSERT(AllTrue(di, Lt(indices, Set(di, 64))));
+  }
+
+  const Full128<uint8_t> du8;
+  const auto t0 = Load(du8, reinterpret_cast<const uint8_t*>(table));
+  const auto t1 = Load(du8, reinterpret_cast<const uint8_t*>(table) + 16);
+  const auto t2 = Load(du8, reinterpret_cast<const uint8_t*>(table) + 32);
+  const auto t3 = Load(du8, reinterpret_cast<const uint8_t*>(table) + 48);
+  detail::Tuple4<uint8_t, 16> tables = {{{t0.raw, t1.raw, t2.raw, t3.raw}}};
+  const auto idx_u8 = BitCast(du8, indices);
+  return BitCast(d, Vec128<uint8_t>{vqtbl4q_u8(tables.raw, idx_u8.raw)});
+}
+
+#endif  // HWY_ARCH_ARM_A64
+
 // ------------------------------ Reverse2 (CombineShiftRightBytes)
 
 // Per-target flag to prevent generic_ops-inl.h defining 8-bit Reverse2/4/8.
