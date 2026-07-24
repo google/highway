@@ -1447,10 +1447,10 @@ HWY_API void BlendedStore(VFromD<D> v, MFromD<D> m, D d,
   }
 }
 
-#ifdef HWY_NATIVE_STORE_N
-#undef HWY_NATIVE_STORE_N
+#ifdef HWY_NATIVE_STORE_N_IMPL
+#undef HWY_NATIVE_STORE_N_IMPL
 #else
-#define HWY_NATIVE_STORE_N
+#define HWY_NATIVE_STORE_N_IMPL
 #endif
 
 template <class D>
@@ -2701,9 +2701,21 @@ HWY_API intptr_t FindLastTrue(D d, MFromD<D> mask) {
 
 // ------------------------------ Compress
 
+#ifdef HWY_NATIVE_COMPRESS8
+#undef HWY_NATIVE_COMPRESS8
+#else
+#define HWY_NATIVE_COMPRESS8
+#endif
+
+#ifdef HWY_NATIVE_COMPRESS16_32_64
+#undef HWY_NATIVE_COMPRESS16_32_64
+#else
+#define HWY_NATIVE_COMPRESS16_32_64
+#endif
+
 template <typename T>
 struct CompressIsPartition {
-  enum { value = (sizeof(T) != 1) };
+  enum { value = 1 };
 };
 
 template <typename T, size_t N>
@@ -2722,6 +2734,11 @@ HWY_API Vec128<T, N> Compress(Vec128<T, N> v, Mask128<T, N> mask) {
   }
   HWY_DASSERT(count == N);
   return ret;
+}
+
+template <class D>
+HWY_API VFromD<D> Compress(D /*d*/, VFromD<D> v, MFromD<D> m) {
+  return Compress(v, m);
 }
 
 // ------------------------------ Expand
@@ -2784,10 +2801,9 @@ HWY_API Vec128<T, N> CompressNot(Vec128<T, N> v, Mask128<T, N> mask) {
   return ret;
 }
 
-// ------------------------------ CompressBlocksNot
-HWY_API Vec128<uint64_t> CompressBlocksNot(Vec128<uint64_t> v,
-                                           Mask128<uint64_t> /* m */) {
-  return v;
+template <class D>
+HWY_API VFromD<D> CompressNot(D /*d*/, VFromD<D> v, MFromD<D> m) {
+  return CompressNot(v, m);
 }
 
 // ------------------------------ CompressBits
@@ -2797,10 +2813,15 @@ HWY_API Vec128<T, N> CompressBits(Vec128<T, N> v,
   return Compress(v, LoadMaskBits(Simd<T, N, 0>(), bits));
 }
 
+template <class D>
+HWY_API VFromD<D> CompressBits(D /*d*/, VFromD<D> v,
+                               const uint8_t* HWY_RESTRICT bits) {
+  return CompressBits(v, bits);
+}
+
 // ------------------------------ CompressStore
 
-// generic_ops-inl defines the 8-bit versions.
-template <class D, HWY_IF_NOT_T_SIZE_D(D, 1)>
+template <class D>
 HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> mask, D d,
                              TFromD<D>* HWY_RESTRICT unaligned) {
   size_t count = 0;
@@ -2813,14 +2834,14 @@ HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> mask, D d,
 }
 
 // ------------------------------ CompressBlendedStore
-template <class D, HWY_IF_NOT_T_SIZE_D(D, 1)>
+template <class D>
 HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> mask, D d,
                                     TFromD<D>* HWY_RESTRICT unaligned) {
   return CompressStore(v, mask, d, unaligned);
 }
 
 // ------------------------------ CompressBitsStore
-template <class D, HWY_IF_NOT_T_SIZE_D(D, 1)>
+template <class D>
 HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
                                  D d, TFromD<D>* HWY_RESTRICT unaligned) {
   const MFromD<D> mask = LoadMaskBits(d, bits);

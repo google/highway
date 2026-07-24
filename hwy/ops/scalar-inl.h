@@ -1144,10 +1144,10 @@ HWY_API void BlendedStore(const Vec1<T> v, Mask1<T> m, D d, T* HWY_RESTRICT p) {
   StoreU(v, d, p);
 }
 
-#ifdef HWY_NATIVE_STORE_N
-#undef HWY_NATIVE_STORE_N
+#ifdef HWY_NATIVE_STORE_N_IMPL
+#undef HWY_NATIVE_STORE_N_IMPL
 #else
-#define HWY_NATIVE_STORE_N
+#define HWY_NATIVE_STORE_N_IMPL
 #endif
 
 template <class D, typename T = TFromD<D>>
@@ -1970,6 +1970,18 @@ HWY_API size_t FindKnownLastTrue(D /* tag */, const Mask1<T> /* m */) {
 
 // ------------------------------ Compress, CompressBits
 
+#ifdef HWY_NATIVE_COMPRESS8
+#undef HWY_NATIVE_COMPRESS8
+#else
+#define HWY_NATIVE_COMPRESS8
+#endif
+
+#ifdef HWY_NATIVE_COMPRESS16_32_64
+#undef HWY_NATIVE_COMPRESS16_32_64
+#else
+#define HWY_NATIVE_COMPRESS16_32_64
+#endif
+
 template <typename T>
 struct CompressIsPartition {
   enum { value = 1 };
@@ -1981,9 +1993,19 @@ HWY_API Vec1<T> Compress(Vec1<T> v, const Mask1<T> /* mask */) {
   return v;
 }
 
+template <class D>
+HWY_API VFromD<D> Compress(D /*d*/, VFromD<D> v, MFromD<D> /*m*/) {
+  return v;
+}
+
 template <typename T>
 HWY_API Vec1<T> CompressNot(Vec1<T> v, const Mask1<T> /* mask */) {
   // A single lane is already partitioned by definition.
+  return v;
+}
+
+template <class D>
+HWY_API VFromD<D> CompressNot(D /*d*/, VFromD<D> v, MFromD<D> /*m*/) {
   return v;
 }
 
@@ -2007,6 +2029,12 @@ HWY_API size_t CompressBlendedStore(Vec1<T> v, const Mask1<T> mask, D d,
 // ------------------------------ CompressBits
 template <typename T>
 HWY_API Vec1<T> CompressBits(Vec1<T> v, const uint8_t* HWY_RESTRICT /*bits*/) {
+  return v;
+}
+
+template <class D>
+HWY_API VFromD<D> CompressBits(D /*d*/, VFromD<D> v,
+                               const uint8_t* HWY_RESTRICT /*bits*/) {
   return v;
 }
 
