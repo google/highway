@@ -48,15 +48,15 @@ struct PhastPlacement {
 // this separate from seed storage.
 struct PhastConfig {
   PhastConfig() = default;
-  PhastConfig(size_t num_keys, size_t num_slots, size_t num_buckets,
-              uint32_t hash_key, const PhastPlacement& placement_in)
-      : num_slots(num_slots),
-        hash_key(hash_key),
+  PhastConfig(size_t num_keys_in, size_t num_slots_in, size_t num_buckets,
+              uint32_t hash_key_in, const PhastPlacement& placement_in)
+      : num_slots(num_slots_in),
+        hash_key(hash_key_in),
         bucket_mask(static_cast<uint32_t>(num_buckets - 1)),
         placement(placement_in) {
-    HWY_DASSERT(num_slots >= num_keys);
+    HWY_DASSERT(num_slots >= num_keys_in);
     HWY_DASSERT(num_buckets <= 0xFFFFFFFFu);
-    (void)num_keys;
+    (void)num_keys_in;
   }
 
   size_t NumBuckets() const { return bucket_mask + 1; }
