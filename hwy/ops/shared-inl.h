@@ -601,7 +601,7 @@ HWY_API constexpr bool CanLookup32(D d) {
 template <class D, typename T = TFromD<D>>
 HWY_API constexpr bool CanLookup64(D d) {
   return (!HWY_HAVE_SCALABLE && MaxLanes(d) >= 32) ||
-         (HWY_TARGET_IS_NEON && detail::IsFull(d) && (sizeof(T) == 1));
+         (HWY_ARCH_ARM_A64 && HWY_TARGET_IS_NEON && (sizeof(T) == 1));
 }
 
 // ------------------------------ Choosing overloads (SFINAE)
