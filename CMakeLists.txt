@@ -239,6 +239,7 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/hash/cuckoo2x2-inl.h
     hwy/contrib/image/image.cc
     hwy/contrib/image/image.h
+    hwy/contrib/math/f16_math-inl.h
     hwy/contrib/math/fast_math-inl.h
     hwy/contrib/intdiv/intdiv-inl.h
     hwy/contrib/math/fp_arith-inl.h
@@ -1001,6 +1002,7 @@ list(APPEND HWY_TEST_FILES
   hwy/contrib/hash/shardmul_test.cc
   hwy/contrib/image/image_test.cc
   hwy/contrib/intdiv/intdiv_test.cc
+  hwy/contrib/math/f16_math_test.cc
   hwy/contrib/math/fast_math_test.cc
   hwy/contrib/math/math_hyper_test.cc
   hwy/contrib/math/math_tan_test.cc
