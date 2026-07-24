@@ -571,6 +571,17 @@ cc_test(
 )
 
 cc_test(
+    name = "stream_triad",
+    srcs = ["hwy/examples/stream_triad.cc"],
+    copts = COPTS,
+    deps = [
+        ":hwy",
+	":thread_pool",
+        ":timer",
+    ],
+)
+
+cc_test(
     name = "sum_hex",
     srcs = ["hwy/examples/sum_hex.cc"],
     copts = COPTS,
