@@ -2652,7 +2652,8 @@ are >= $X. They are implemented using `TableLookupLanes` or
 `TwoTablesLookupLanes`. Let `T` denote `TFromD<D>`. These ops are guaranteed to
 work if `D` is a full vector, `HWY_TARGET != HWY_SCALAR` and
 `HWY_MIN_BYTES / sizeof(T) >= $X/2`. `Lookup64` is also guaranteed for 128-bit
-AArch64 NEON vectors. Use the constexpr function `CanLookup$X(D())` to verify
+AArch64 NEON vectors if `T` is byte-sized. Use the constexpr function
+`CanLookup$X(D())` to verify
 this. Even if it returns false, the ops are still safe to call if
 `Lanes(D()) >= $X/2`, except that `Lookup64` also supports full AArch64 NEON
 vectors. Note that `tbl` must be $X-element aligned!
