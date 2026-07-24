@@ -212,7 +212,7 @@ HWY_NOINLINE V CallErf(const D d, VecArg<V> x) {
  *      Valid Range: float32[-FLT_MAX, +104], float64[-DBL_MAX, +706]
  * @return e^x
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Exp(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallExp(const D d, VecArg<V> x) {
@@ -227,7 +227,7 @@ HWY_NOINLINE V CallExp(const D d, VecArg<V> x) {
  *      Valid Range: float32[-FLT_MAX, +128], float64[-DBL_MAX, +1024]
  * @return 2^x
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Exp2(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallExp2(const D d, VecArg<V> x) {
@@ -242,7 +242,7 @@ HWY_NOINLINE V CallExp2(const D d, VecArg<V> x) {
  *      Valid Range: float32[-FLT_MAX, +104], float64[-DBL_MAX, +706]
  * @return e^x - 1
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Expm1(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallExpm1(const D d, VecArg<V> x) {
@@ -257,7 +257,7 @@ HWY_NOINLINE V CallExpm1(const D d, VecArg<V> x) {
  *      Valid Range: float32(0, +FLT_MAX], float64(0, +DBL_MAX]
  * @return natural logarithm of 'x'
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Log(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallLog(const D d, VecArg<V> x) {
@@ -272,7 +272,7 @@ HWY_NOINLINE V CallLog(const D d, VecArg<V> x) {
  *      Valid Range: float32(0, +FLT_MAX], float64(0, +DBL_MAX]
  * @return base 10 logarithm of 'x'
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Log10(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallLog10(const D d, VecArg<V> x) {
@@ -287,7 +287,7 @@ HWY_NOINLINE V CallLog10(const D d, VecArg<V> x) {
  *      Valid Range: float32[0, +FLT_MAX], float64[0, +DBL_MAX]
  * @return log(1 + x)
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Log1p(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallLog1p(const D d, VecArg<V> x) {
@@ -302,7 +302,7 @@ HWY_NOINLINE V CallLog1p(const D d, VecArg<V> x) {
  *      Valid Range: float32(0, +FLT_MAX], float64(0, +DBL_MAX]
  * @return base 2 logarithm of 'x'
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Log2(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallLog2(const D d, VecArg<V> x) {
@@ -2597,7 +2597,9 @@ HWY_INLINE V Erf(const D d, V x) {
   return Or(result, sign);
 }
 
-template <class D, class V>
+template <class D, class V,
+          hwy::EnableIf<
+              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
 HWY_INLINE V Exp(const D d, V x) {
   using T = TFromD<D>;
 
@@ -2620,7 +2622,9 @@ HWY_INLINE V Exp(const D d, V x) {
   return IfThenElseZero(Ge(x, kLowerBound), y);
 }
 
-template <class D, class V>
+template <class D, class V,
+          hwy::EnableIf<
+              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
 HWY_INLINE V Exp2(const D d, V x) {
   using T = TFromD<D>;
 
@@ -2639,7 +2643,9 @@ HWY_INLINE V Exp2(const D d, V x) {
   return IfThenElseZero(Ge(x, kLowerBound), y);
 }
 
-template <class D, class V>
+template <class D, class V,
+          hwy::EnableIf<
+              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
 HWY_INLINE V Expm1(const D d, V x) {
   using T = TFromD<D>;
 
@@ -2665,18 +2671,24 @@ HWY_INLINE V Expm1(const D d, V x) {
   return IfThenElse(Lt(x, kLowerBound), kNegOne, z);
 }
 
-template <class D, class V>
+template <class D, class V,
+          hwy::EnableIf<
+              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
 HWY_INLINE V Log(const D d, V x) {
   return impl::Log<D, V, /*kAllowSubnormals=*/true>(d, x);
 }
 
-template <class D, class V>
+template <class D, class V,
+          hwy::EnableIf<
+              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
 HWY_INLINE V Log10(const D d, V x) {
   using T = TFromD<D>;
   return Mul(Log(d, x), Set(d, static_cast<T>(0.4342944819032518276511)));
 }
 
-template <class D, class V>
+template <class D, class V,
+          hwy::EnableIf<
+              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
 HWY_INLINE V Log1p(const D d, V x) {
   using T = TFromD<D>;
   const V kOne = Set(d, static_cast<T>(+1.0));
@@ -2695,7 +2707,9 @@ HWY_INLINE V Log1p(const D d, V x) {
   return IfThenElse(not_pole, non_pole, x);
 }
 
-template <class D, class V>
+template <class D, class V,
+          hwy::EnableIf<
+              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
 HWY_INLINE V Log2(const D d, V x) {
   using T = TFromD<D>;
   return Mul(Log(d, x), Set(d, static_cast<T>(1.44269504088896340735992)));

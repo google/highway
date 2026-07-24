@@ -22,8 +22,6 @@
 #define HIGHWAY_HWY_CONTRIB_MATH_F16_MATH_INL_H_
 #endif
 
-#include <stddef.h>
-
 #include "hwy/contrib/math/math-inl.h"
 #include "hwy/highway.h"
 
@@ -135,10 +133,9 @@ struct Log2Kernel {
 
 }  // namespace f16_impl
 
-// These overloads take Simd<float16_t, N, kPow2> rather than a generic D with
-// HWY_IF_F16_D so that they are more specialized than the unconstrained
-// templates in math-inl.h; a SFINAE-constrained overload with the same
-// signature would be ambiguous.
+// The generic templates in math-inl.h are constrained with
+// HWY_IF_NOT_SPECIAL_FLOAT_D, so these HWY_IF_F16_D overloads partition the
+// overload set rather than being ambiguous.
 
 /**
  * Highway SIMD version of std::exp(x) for float16 lanes.
@@ -148,8 +145,8 @@ struct Log2Kernel {
  *      Valid Range: float16[-65504, +104]
  * @return e^x
  */
-template <size_t N, int kPow2, class V>
-HWY_INLINE V Exp(Simd<float16_t, N, kPow2> d, V x) {
+template <class D, class V, HWY_IF_F16_D(D)>
+HWY_INLINE V Exp(D d, V x) {
   return f16_impl::F16ViaF32(d, x, f16_impl::ExpKernel());
 }
 
@@ -161,8 +158,8 @@ HWY_INLINE V Exp(Simd<float16_t, N, kPow2> d, V x) {
  *      Valid Range: float16[-65504, +128]
  * @return 2^x
  */
-template <size_t N, int kPow2, class V>
-HWY_INLINE V Exp2(Simd<float16_t, N, kPow2> d, V x) {
+template <class D, class V, HWY_IF_F16_D(D)>
+HWY_INLINE V Exp2(D d, V x) {
   return f16_impl::F16ViaF32(d, x, f16_impl::Exp2Kernel());
 }
 
@@ -174,8 +171,8 @@ HWY_INLINE V Exp2(Simd<float16_t, N, kPow2> d, V x) {
  *      Valid Range: float16[-65504, +104]
  * @return e^x - 1
  */
-template <size_t N, int kPow2, class V>
-HWY_INLINE V Expm1(Simd<float16_t, N, kPow2> d, V x) {
+template <class D, class V, HWY_IF_F16_D(D)>
+HWY_INLINE V Expm1(D d, V x) {
   return f16_impl::F16ViaF32(d, x, f16_impl::Expm1Kernel());
 }
 
@@ -187,8 +184,8 @@ HWY_INLINE V Expm1(Simd<float16_t, N, kPow2> d, V x) {
  *      Valid Range: float16(0, +65504]
  * @return natural logarithm of 'x'
  */
-template <size_t N, int kPow2, class V>
-HWY_INLINE V Log(Simd<float16_t, N, kPow2> d, V x) {
+template <class D, class V, HWY_IF_F16_D(D)>
+HWY_INLINE V Log(D d, V x) {
   return f16_impl::F16ViaF32(d, x, f16_impl::LogKernel());
 }
 
@@ -200,8 +197,8 @@ HWY_INLINE V Log(Simd<float16_t, N, kPow2> d, V x) {
  *      Valid Range: float16(0, +65504]
  * @return base 10 logarithm of 'x'
  */
-template <size_t N, int kPow2, class V>
-HWY_INLINE V Log10(Simd<float16_t, N, kPow2> d, V x) {
+template <class D, class V, HWY_IF_F16_D(D)>
+HWY_INLINE V Log10(D d, V x) {
   return f16_impl::F16ViaF32(d, x, f16_impl::Log10Kernel());
 }
 
@@ -213,8 +210,8 @@ HWY_INLINE V Log10(Simd<float16_t, N, kPow2> d, V x) {
  *      Valid Range: float16[0, +65504]
  * @return log(1 + x)
  */
-template <size_t N, int kPow2, class V>
-HWY_INLINE V Log1p(Simd<float16_t, N, kPow2> d, V x) {
+template <class D, class V, HWY_IF_F16_D(D)>
+HWY_INLINE V Log1p(D d, V x) {
   return f16_impl::F16ViaF32(d, x, f16_impl::Log1pKernel());
 }
 
@@ -226,8 +223,8 @@ HWY_INLINE V Log1p(Simd<float16_t, N, kPow2> d, V x) {
  *      Valid Range: float16(0, +65504]
  * @return base 2 logarithm of 'x'
  */
-template <size_t N, int kPow2, class V>
-HWY_INLINE V Log2(Simd<float16_t, N, kPow2> d, V x) {
+template <class D, class V, HWY_IF_F16_D(D)>
+HWY_INLINE V Log2(D d, V x) {
   return f16_impl::F16ViaF32(d, x, f16_impl::Log2Kernel());
 }
 
