@@ -93,7 +93,7 @@ void TestKeys(size_t num_keys) {
   const double t0 = platform::Now();
   auto table =
       CuckooBuild(CuckooTraits<>{}, keys.data(), num_keys, /*epsilon=*/0.25,
-                  /*max_attempts=*/100, /*optimize_primary=*/false, &stats);
+                  /*max_attempts=*/100, CuckooBuildAlgo::kHopcroftKarp, &stats);
   const double elapsed = platform::Now() - t0;
 
   HWY_ASSERT_M(stats.success, "Build failed for 100 keys");
@@ -257,7 +257,7 @@ HWY_NOINLINE void TestAllEpsilonSweep() {
     CuckooBuildStats stats;
     auto table = CuckooBuild(CuckooTraits<>{}, keys.data(), num_keys, eps,
                              /*max_attempts=*/200,
-                             /*optimize_primary=*/false, &stats);
+                             CuckooBuildAlgo::kHopcroftKarp, &stats);
     (void)table;
 
     if (stats.success) {
@@ -281,33 +281,56 @@ HWY_NOINLINE void TestAllOptimizedBuild() {
   auto keys = GenerateKeys(num_keys);
 
   for (double eps : {0.05, 0.10, 0.25, 0.50}) {
-    CuckooBuildStats stats_basic, stats_opt;
+    CuckooBuildStats stats_basic, stats_opt, stats_lsa;
 
     const CuckooTraits<> traits;
-    auto table_basic = CuckooBuild(traits, keys.data(), num_keys, eps,
-                                   /*max_attempts=*/200,
-                                   /*optimize_primary=*/false, &stats_basic);
+    auto table_basic = CuckooBuild(
+        traits, keys.data(), num_keys, eps,
+        /*max_attempts=*/200, CuckooBuildAlgo::kHopcroftKarp, &stats_basic);
     auto table_opt = CuckooBuild(traits, keys.data(), num_keys, eps,
                                  /*max_attempts=*/200,
-                                 /*optimize_primary=*/true, &stats_opt);
+                                 CuckooBuildAlgo::kMinCost, &stats_opt);
+    auto table_lsa = CuckooBuild(traits, keys.data(), num_keys, eps,
+                                 /*max_attempts=*/200,
+                                 CuckooBuildAlgo::kLocalSearch, &stats_lsa);
 
-    if (stats_basic.success && stats_opt.success) {
+    if (stats_basic.success && stats_opt.success && stats_lsa.success) {
       // Optimized should have at least as many keys in primary.
       HWY_ASSERT(stats_opt.num_primary >= stats_basic.num_primary);
+
+      // Verify query correctness of basic table.
+      for (size_t i = 0; i < num_keys; ++i) {
+        HWY_ASSERT_M(table_basic.QueryOne(keys[i]),
+                     "Hopcroft-Karp table lost a key");
+      }
 
       // Verify query correctness of optimized table.
       for (size_t i = 0; i < num_keys; ++i) {
         HWY_ASSERT_M(table_opt.QueryOne(keys[i]), "Optimized table lost a key");
       }
 
+      for (size_t i = 0; i < num_keys; ++i) {
+        HWY_ASSERT_M(table_lsa.QueryOne(keys[i]), "LSA table lost a key");
+      }
+
       fprintf(stderr,
-              "  eps=%.2f: basic=%u/%zu (%.1f%%), optimized=%u/%zu (%.1f%%)\n",
+              "  eps=%.2f: basic=%u/%zu (%.1f%%), optimized=%u/%zu (%.1f%%), "
+              "lsa=%u/%zu (%.1f%%)\n",
               eps, stats_basic.num_primary, num_keys,
               100.0 * static_cast<double>(stats_basic.num_primary) /
                   static_cast<double>(num_keys),
               stats_opt.num_primary, num_keys,
               100.0 * static_cast<double>(stats_opt.num_primary) /
+                  static_cast<double>(num_keys),
+              stats_lsa.num_primary, num_keys,
+              100.0 * static_cast<double>(stats_lsa.num_primary) /
                   static_cast<double>(num_keys));
+    } else {
+      fprintf(stderr,
+              " Some tables failed to build for num_keys=%zu and eps=%.2f: "
+              "basic=%d, opt=%d, lsa=%d: FAILED\n",
+              num_keys, eps, stats_basic.success, stats_opt.success,
+              stats_lsa.success);
     }
   }
 }
@@ -322,10 +345,9 @@ void TestBucketSize() {
     auto keys = GenerateKeys(num_keys);
     CuckooBuildStats stats;
     CuckooTraits<WeakTwoMul, kBucketSize> traits;
-    auto table = CuckooBuild(traits, keys.data(),
-                             static_cast<uint32_t>(num_keys), /*epsilon=*/1,
-                             /*max_attempts=*/200,
-                             /*optimize_primary=*/false, &stats);
+    auto table = CuckooBuild(
+        traits, keys.data(), static_cast<uint32_t>(num_keys), /*epsilon=*/1,
+        /*max_attempts=*/200, CuckooBuildAlgo::kHopcroftKarp, &stats);
 
     if (!stats.success) {
       fprintf(stderr, "  bucket_size=%u, keys=%zu: FAILED after %u attempts\n",
@@ -333,20 +355,20 @@ void TestBucketSize() {
       continue;
     }
 
-      const uint32_t num_secondary =
-          static_cast<uint32_t>(num_keys) - stats.num_primary;
-      fprintf(stderr,
-              "  bucket_size=%u, keys=%zu: primary=%u (%.1f%%), "
-              "secondary=%u (%.1f%%), buckets=%zu\n",
-              kBucketSize, num_keys, stats.num_primary,
-              100.0 * stats.num_primary / num_keys, num_secondary,
-              100.0 * num_secondary / num_keys, table.GetConfig().NumBuckets());
+    const uint32_t num_secondary =
+        static_cast<uint32_t>(num_keys) - stats.num_primary;
+    fprintf(stderr,
+            "  bucket_size=%u, keys=%zu: primary=%u (%.1f%%), "
+            "secondary=%u (%.1f%%), buckets=%zu\n",
+            kBucketSize, num_keys, stats.num_primary,
+            100.0 * stats.num_primary / num_keys, num_secondary,
+            100.0 * num_secondary / num_keys, table.GetConfig().NumBuckets());
 
-      // Verify query correctness for every key.
-      for (size_t i = 0; i < num_keys; ++i) {
-        HWY_ASSERT_M(table.QueryOne(keys[i]),
-                     "BucketSizeSweep: QueryOne missed a key");
-      }
+    // Verify query correctness for every key.
+    for (size_t i = 0; i < num_keys; ++i) {
+      HWY_ASSERT_M(table.QueryOne(keys[i]),
+                   "BucketSizeSweep: QueryOne missed a key");
+    }
   }
 }
 
@@ -377,11 +399,12 @@ HWY_NOINLINE void TestAllMinCostFlowComparison() {
     auto keys = GenerateKeys(num_keys);
     for (double eps : epsilons) {
       CuckooBuildStats stats;
+      CuckooTraits<> traits;
       stats.collect_path_cost_stats = true;
       auto t_cuckoo_start = platform::Now();
-      auto table = CuckooBuild(CuckooTraits<>{}, keys.data(), num_keys, eps,
-                               /*max_attempts=*/200,
-                               /*optimize_primary=*/true, &stats);
+      auto table =
+          CuckooBuild(traits, keys.data(), num_keys, eps, /*max_attempts=*/200,
+                      CuckooBuildAlgo::kMinCost, &stats);
       (void)table;
       auto t_cuckoo_end = platform::Now();
       double cuckoo_ms = (t_cuckoo_end - t_cuckoo_start) * 1000;

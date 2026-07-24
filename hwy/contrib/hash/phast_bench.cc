@@ -493,9 +493,9 @@ template <bool kUseU16 = false>
 HWY_NOINLINE void TestCuckooThroughput(size_t num_keys) {
   const AlignedVector<uint32_t> keys = GenerateKeys(num_keys);
   const size_t before = AllocatedBefore();
-  auto cuckoo =
-      CuckooBuild(keys.data(), keys.size(), /*epsilon=*/0.1,
-                  /*max_attempts=*/100, /*optimize_primary=*/true);
+  CuckooTraits<> traits;
+  auto cuckoo = CuckooBuild(traits, keys.data(), keys.size(), /*epsilon=*/0.1,
+                            /*max_attempts=*/100, CuckooBuildAlgo::kMinCost);
   if constexpr (kUseU16) {
     cuckoo.BuildU16Slots();
   }

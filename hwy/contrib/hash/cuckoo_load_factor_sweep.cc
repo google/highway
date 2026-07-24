@@ -29,6 +29,7 @@
 #include "hwy/contrib/hash/cuckoo2x2.h"
 #include "hwy/contrib/thread_pool/thread_pool.h"
 #include "hwy/contrib/thread_pool/topology.h"
+#include "hwy/timer.h"
 
 // clang-format off
 #undef HWY_TARGET_INCLUDE
@@ -75,31 +76,51 @@ static AlignedVector<uint32_t> GenerateKeys(size_t num_keys,
   return keys;
 }
 
+static const char* AlgoName(CuckooBuildAlgo algo) {
+  switch (algo) {
+    case CuckooBuildAlgo::kHopcroftKarp:
+      return "HopcroftKarp";
+    case CuckooBuildAlgo::kMinCost:
+      return "MinCost";
+    case CuckooBuildAlgo::kLocalSearch:
+      return "LocalSearch";
+  }
+  return "Unknown";
+}
+
 template <uint32_t kBucketSize>
 void TestBucketSize(size_t num_keys) {
   ThreadPool pool = MakePool();
   pool.SetWaitMode(PoolWaitMode::kSpin);
   auto keys = GenerateKeys(num_keys);
-  CuckooBuildStats stats;
-  CuckooTraits<WeakTwoMul, kBucketSize> traits;
-  auto table = CuckooBuild(traits, keys.data(), static_cast<uint32_t>(num_keys),
-                           /*epsilon=*/0.75,
-                           /*max_attempts=*/200,
-                           /*optimize_primary=*/false, &stats);
+  for (CuckooBuildAlgo algo :
+       {CuckooBuildAlgo::kHopcroftKarp, CuckooBuildAlgo::kMinCost,
+        CuckooBuildAlgo::kLocalSearch}) {
+    CuckooBuildStats stats;
+    CuckooTraits<WeakTwoMul, kBucketSize> traits;
+    const double t0 = platform::Now();
+    auto table = CuckooBuild(traits, keys.data(),
+                             static_cast<uint32_t>(num_keys), /*epsilon=*/1.0,
+                             /*max_attempts=*/200, algo, &stats);
+    const double build_ms = (platform::Now() - t0) * 1000.0;
 
-  if (!stats.success) {
-    HWY_ABORT("  bucket_size=%u, keys=%zu: FAILED after %u attempts\n",
-              kBucketSize, num_keys, stats.attempts);
-  }
+    if (!stats.success) {
+      fprintf(stderr,
+              "  algo=%s, bucket_size=%u, keys=%zu: FAILED after %u attempts "
+              "(%.2f ms)\n",
+              AlgoName(algo), kBucketSize, num_keys, stats.attempts, build_ms);
+      continue;
+    }
 
     const uint32_t num_secondary =
         static_cast<uint32_t>(num_keys) - stats.num_primary;
     fprintf(stderr,
-            "  bucket_size=%u, keys=%zu: primary=%u (%.1f%%), "
-            "secondary=%u (%.1f%%), buckets=%zu\n",
-            kBucketSize, num_keys, stats.num_primary,
+            "  algo=%s, bucket_size=%u, keys=%zu: primary=%u (%.1f%%), "
+            "secondary=%u (%.1f%%), buckets=%zu, build_time=%.2f ms\n",
+            AlgoName(algo), kBucketSize, num_keys, stats.num_primary,
             100.0 * stats.num_primary / num_keys, num_secondary,
-            100.0 * num_secondary / num_keys, table.GetConfig().NumBuckets());
+            100.0 * num_secondary / num_keys, table.GetConfig().NumBuckets(),
+            build_ms);
 
     // Verify query correctness for every key.
     for (size_t i = 0; i < num_keys; ++i) {
@@ -107,15 +128,18 @@ void TestBucketSize(size_t num_keys) {
                    "BucketSizeSweep: QueryOne missed a key");
     }
 
-  auto table2x2 = BuildCuckoo2x2(keys, pool);
-  fprintf(stderr,
-          "  bucket_size=%u, keys=%zu: 2x2 primary=%u (%.1f%%), "
-          "secondary=%zu (%.1f%%), buckets=%zu\n",
-          kBucketSize, num_keys, table2x2.num_primary,
-          100.0 * table2x2.num_primary / num_keys,
-          num_keys - table2x2.num_primary,
-          100.0 * (num_keys - table2x2.num_primary) / num_keys,
-          table2x2.config.NumBuckets());
+    const double t_2x2_start = platform::Now();
+    auto table2x2 = BuildCuckoo2x2(keys, pool);
+    const double build_2x2_ms = (platform::Now() - t_2x2_start) * 1000.0;
+    fprintf(stderr,
+            "  algo=Cuckoo2x2, bucket_size=%u, keys=%zu: primary=%u (%.1f%%), "
+            "secondary=%zu (%.1f%%), buckets=%zu, build_time=%.2f ms\n",
+            kBucketSize, num_keys, table2x2.num_primary,
+            100.0 * table2x2.num_primary / num_keys,
+            num_keys - table2x2.num_primary,
+            100.0 * (num_keys - table2x2.num_primary) / num_keys,
+            table2x2.config.NumBuckets(), build_2x2_ms);
+  }
 }
 
 HWY_NOINLINE void TestAllBucketSizeSweep(size_t num_keys) {
