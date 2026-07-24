@@ -7286,6 +7286,52 @@ HWY_INLINE Vec<D> Lookup32(D d, const T* HWY_RESTRICT table, VI indices) {
   }
 }
 
+// ------------------------------ Lookup64
+
+#if (defined(HWY_NATIVE_LOOKUP64) == defined(HWY_TARGET_TOGGLE)) || HWY_IDE
+#ifdef HWY_NATIVE_LOOKUP64
+#undef HWY_NATIVE_LOOKUP64
+#else
+#define HWY_NATIVE_LOOKUP64
+#endif
+
+template <class D, typename T = TFromD<D>, class VI>
+HWY_INLINE Vec<D> Lookup64(D d, const T* HWY_RESTRICT table, VI indices) {
+  const DFromV<VI> di;
+  static_assert(sizeof(T) == 1, "Lookup64 requires 8-bit table lanes");
+  static_assert(sizeof(T) == sizeof(TFromD<decltype(di)>),
+                "Index/vector must have same lane size");
+  HWY_IF_CONSTEXPR(HWY_IS_DEBUG_BUILD) {
+    HWY_DASSERT(Lanes(d) >= 32);
+    HWY_DASSERT(AllTrue(di, Lt(indices, Set(di, 64))));
+  }
+
+  HWY_IF_CONSTEXPR(!HWY_HAVE_SCALABLE) {
+    HWY_IF_CONSTEXPR(MaxLanes(d) >= 64) {
+      const CappedTag<T, 64> d64;
+      const Vec<D> t0 = ZeroExtendResizeBitCast(d, d64, Load(d64, table));
+      return TableLookupLanes(t0, IndicesFromVec(d, indices));
+    }
+    HWY_IF_CONSTEXPR(MaxLanes(d) < 64) {
+      const Vec<D> t0 = Load(d, table);
+      const Vec<D> t1 = Load(d, table + 32);
+      return TwoTablesLookupLanes(d, t0, t1, IndicesFromVec(d, indices));
+    }
+  }
+
+  HWY_IF_CONSTEXPR(HWY_HAVE_SCALABLE) {
+    const Vec<D> t0 = LoadN(d, table, 32);
+    const Vec<D> t1 = LoadN(d, table + 32, 32);
+    const Mask<decltype(di)> ge_32 = Ge(indices, Set(di, 32));
+    const VI idx_for_t1 = Sub(indices, Set(di, 32));
+    const Vec<D> r0 = TableLookupLanes(t0, IndicesFromVec(d, indices));
+    const Vec<D> r1 = TableLookupLanes(t1, IndicesFromVec(d, idx_for_t1));
+    return IfThenElse(RebindMask(d, ge_32), r1, r0);
+  }
+}
+
+#endif  // HWY_NATIVE_LOOKUP64
+
 // ------------------------------ Reverse2, Reverse4, Reverse8 (8-bit)
 
 #if (defined(HWY_NATIVE_REVERSE2_8) == defined(HWY_TARGET_TOGGLE)) || HWY_IDE

@@ -366,6 +366,42 @@ HWY_NOINLINE void TestAllLookup32() {
 #endif
 }
 
+struct TestLookup64 {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    using V = Vec<D>;
+    const RebindToUnsigned<D> du;
+    using TU = TFromD<decltype(du)>;
+
+    const size_t N = Lanes(d);
+    if (!CanLookup64(d)) return;
+
+    const size_t padded_N = HWY_MAX(N, 64);
+    auto tbl = AllocateAligned<T>(padded_N);
+    auto idx = AllocateAligned<TU>(padded_N);
+    auto expected = AllocateAligned<T>(padded_N);
+    HWY_ASSERT(tbl && idx && expected);
+
+    for (size_t i = 0; i < padded_N; ++i) {
+      tbl[i] = ConvertScalarTo<T>(i + static_cast<size_t>(Unpredictable1()));
+    }
+
+    HWY_ALIGN TU idx_source[16] = {0,  63, 1,  62, 15, 16, 31, 32,
+                                   47, 48, 7,  56, 23, 40, 55, 8};
+    for (size_t j = 0; j < padded_N; ++j) {
+      idx[j] = static_cast<TU>(idx_source[j & 15]);
+      expected[j] = ConvertScalarTo<T>(idx[j] + 1);
+    }
+
+    const V actual = Lookup64(d, tbl.get(), Load(du, idx.get()));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), actual);
+  }
+};
+
+HWY_NOINLINE void TestAllLookup64() {
+  ForUI8(ForPartialVectors<TestLookup64>());
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -381,6 +417,7 @@ HWY_EXPORT_AND_TEST_P(HwyTableTest, TestAllTwoTablesLookupLanes);
 HWY_EXPORT_AND_TEST_P(HwyTableTest, TestAllLookup8);
 HWY_EXPORT_AND_TEST_P(HwyTableTest, TestAllLookup16);
 HWY_EXPORT_AND_TEST_P(HwyTableTest, TestAllLookup32);
+HWY_EXPORT_AND_TEST_P(HwyTableTest, TestAllLookup64);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy
