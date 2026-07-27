@@ -4678,7 +4678,766 @@ HWY_API VFromD<D> UpperHalf(D /* tag */, VFromD<Twice<D>> v) {
   return VFromD<D>{_mm512_extractf64x4_pd(v.raw, 1)};
 }
 
-// ------------------------------ ExtractLane (Store)
+// ------------------------------ TableLookupBytes (ZeroExtendVector)
+
+// Both full
+template <typename T, typename TI>
+HWY_API Vec512<TI> TableLookupBytes(Vec512<T> bytes, Vec512<TI> indices) {
+  const DFromV<decltype(indices)> d;
+  return BitCast(d, Vec512<uint8_t>{_mm512_shuffle_epi8(
+                        BitCast(Full512<uint8_t>(), bytes).raw,
+                        BitCast(Full512<uint8_t>(), indices).raw)});
+}
+
+// Partial index vector
+template <typename T, typename TI, size_t NI>
+HWY_API Vec128<TI, NI> TableLookupBytes(Vec512<T> bytes, Vec128<TI, NI> from) {
+  const Full512<TI> d512;
+  const Half<decltype(d512)> d256;
+  const Half<decltype(d256)> d128;
+  // First expand to full 128, then 256, then 512.
+  const Vec128<TI> from_full{from.raw};
+  const auto from_512 =
+      ZeroExtendVector(d512, ZeroExtendVector(d256, from_full));
+  const auto tbl_full = TableLookupBytes(bytes, from_512);
+  // Shrink to 256, then 128, then partial.
+  return Vec128<TI, NI>{LowerHalf(d128, LowerHalf(d256, tbl_full)).raw};
+}
+template <typename T, typename TI>
+HWY_API Vec256<TI> TableLookupBytes(Vec512<T> bytes, Vec256<TI> from) {
+  const DFromV<decltype(from)> dih;
+  const Twice<decltype(dih)> di;
+  const auto from_512 = ZeroExtendVector(di, from);
+  return LowerHalf(dih, TableLookupBytes(bytes, from_512));
+}
+
+// Partial table vector
+template <typename T, size_t N, typename TI>
+HWY_API Vec512<TI> TableLookupBytes(Vec128<T, N> bytes, Vec512<TI> from) {
+  const DFromV<decltype(from)> d512;
+  const Half<decltype(d512)> d256;
+  const Half<decltype(d256)> d128;
+  // First expand to full 128, then 256, then 512.
+  const Vec128<T> bytes_full{bytes.raw};
+  const auto bytes_512 =
+      ZeroExtendVector(d512, ZeroExtendVector(d256, bytes_full));
+  return TableLookupBytes(bytes_512, from);
+}
+template <typename T, typename TI>
+HWY_API Vec512<TI> TableLookupBytes(Vec256<T> bytes, Vec512<TI> from) {
+  const Full512<T> d;
+  return TableLookupBytes(ZeroExtendVector(d, bytes), from);
+}
+
+// Partial both are handled by x86_128/256.
+
+// ------------------------------ TableLookupLanes (TableLookupBytes)
+
+// Returned by SetTableIndices/IndicesFromVec for use by TableLookupLanes.
+template <typename T>
+struct Indices512 {
+  __m512i raw;
+};
+
+template <class D, typename T = TFromD<D>, typename TI>
+HWY_API Indices512<T> IndicesFromVec(D /* tag */, Vec512<TI> vec) {
+  static_assert(sizeof(T) == sizeof(TI), "Index size must match lane");
+#if HWY_IS_DEBUG_BUILD
+  const DFromV<decltype(vec)> di;
+  const RebindToUnsigned<decltype(di)> du;
+  using TU = MakeUnsigned<T>;
+  const auto vec_u = BitCast(du, vec);
+  HWY_DASSERT(
+      AllTrue(du, Lt(vec_u, Set(du, static_cast<TU>(128 / sizeof(T))))));
+#endif
+  return Indices512<T>{vec.raw};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 64), typename TI>
+HWY_API Indices512<TFromD<D>> SetTableIndices(D d, const TI* idx) {
+  const Rebind<TI, decltype(d)> di;
+  return IndicesFromVec(d, LoadU(di, idx));
+}
+
+template <typename T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec512<T> TableLookupLanes(Vec512<T> v, Indices512<T> idx) {
+#if HWY_TARGET <= HWY_AVX3_DL
+  return Vec512<T>{_mm512_permutexvar_epi8(idx.raw, v.raw)};
+#else
+  const DFromV<decltype(v)> d;
+  const Repartition<uint16_t, decltype(d)> du16;
+  const Vec512<T> idx_vec{idx.raw};
+
+  const auto bd_sel_mask =
+      MaskFromVec(BitCast(d, ShiftLeft<3>(BitCast(du16, idx_vec))));
+  const auto cd_sel_mask =
+      MaskFromVec(BitCast(d, ShiftLeft<2>(BitCast(du16, idx_vec))));
+
+  const Vec512<T> v_a{_mm512_shuffle_i32x4(v.raw, v.raw, 0x00)};
+  const Vec512<T> v_b{_mm512_shuffle_i32x4(v.raw, v.raw, 0x55)};
+  const Vec512<T> v_c{_mm512_shuffle_i32x4(v.raw, v.raw, 0xAA)};
+  const Vec512<T> v_d{_mm512_shuffle_i32x4(v.raw, v.raw, 0xFF)};
+
+  const auto shuf_a = TableLookupBytes(v_a, idx_vec);
+  const auto shuf_c = TableLookupBytes(v_c, idx_vec);
+  const Vec512<T> shuf_ab{_mm512_mask_shuffle_epi8(shuf_a.raw, bd_sel_mask.raw,
+                                                   v_b.raw, idx_vec.raw)};
+  const Vec512<T> shuf_cd{_mm512_mask_shuffle_epi8(shuf_c.raw, bd_sel_mask.raw,
+                                                   v_d.raw, idx_vec.raw)};
+  return IfThenElse(cd_sel_mask, shuf_cd, shuf_ab);
+#endif
+}
+
+template <typename T, HWY_IF_T_SIZE(T, 2), HWY_IF_NOT_SPECIAL_FLOAT(T)>
+HWY_API Vec512<T> TableLookupLanes(Vec512<T> v, Indices512<T> idx) {
+  return Vec512<T>{_mm512_permutexvar_epi16(idx.raw, v.raw)};
+}
+#if HWY_HAVE_FLOAT16
+HWY_API Vec512<float16_t> TableLookupLanes(Vec512<float16_t> v,
+                                           Indices512<float16_t> idx) {
+  return Vec512<float16_t>{_mm512_permutexvar_ph(idx.raw, v.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
+template <typename T, HWY_IF_T_SIZE(T, 4)>
+HWY_API Vec512<T> TableLookupLanes(Vec512<T> v, Indices512<T> idx) {
+  return Vec512<T>{_mm512_permutexvar_epi32(idx.raw, v.raw)};
+}
+
+template <typename T, HWY_IF_T_SIZE(T, 8)>
+HWY_API Vec512<T> TableLookupLanes(Vec512<T> v, Indices512<T> idx) {
+  return Vec512<T>{_mm512_permutexvar_epi64(idx.raw, v.raw)};
+}
+
+HWY_API Vec512<float> TableLookupLanes(Vec512<float> v, Indices512<float> idx) {
+  return Vec512<float>{_mm512_permutexvar_ps(idx.raw, v.raw)};
+}
+
+HWY_API Vec512<double> TableLookupLanes(Vec512<double> v,
+                                        Indices512<double> idx) {
+  return Vec512<double>{_mm512_permutexvar_pd(idx.raw, v.raw)};
+}
+
+// ------------------------------ TwoTablesLookupLanes (TableLookupLanes)
+
+template <typename T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec512<T> TwoTablesLookupLanes(Vec512<T> a, Vec512<T> b,
+                                       Indices512<T> idx) {
+#if HWY_TARGET <= HWY_AVX3_DL
+  return Vec512<T>{_mm512_permutex2var_epi8(a.raw, idx.raw, b.raw)};
+#else
+  const DFromV<decltype(a)> d;
+  const auto b_sel_mask =
+      MaskFromVec(BitCast(d, ShiftLeft<1>(Vec512<uint16_t>{idx.raw})));
+  return IfThenElse(b_sel_mask, TableLookupLanes(b, idx),
+                    TableLookupLanes(a, idx));
+#endif
+}
+
+template <typename T, HWY_IF_T_SIZE(T, 2)>
+HWY_API Vec512<T> TwoTablesLookupLanes(Vec512<T> a, Vec512<T> b,
+                                       Indices512<T> idx) {
+  return Vec512<T>{_mm512_permutex2var_epi16(a.raw, idx.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_UI32(T)>
+HWY_API Vec512<T> TwoTablesLookupLanes(Vec512<T> a, Vec512<T> b,
+                                       Indices512<T> idx) {
+  return Vec512<T>{_mm512_permutex2var_epi32(a.raw, idx.raw, b.raw)};
+}
+
+#if HWY_HAVE_FLOAT16
+HWY_API Vec512<float16_t> TwoTablesLookupLanes(Vec512<float16_t> a,
+                                               Vec512<float16_t> b,
+                                               Indices512<float16_t> idx) {
+  return Vec512<float16_t>{_mm512_permutex2var_ph(a.raw, idx.raw, b.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
+HWY_API Vec512<float> TwoTablesLookupLanes(Vec512<float> a, Vec512<float> b,
+                                           Indices512<float> idx) {
+  return Vec512<float>{_mm512_permutex2var_ps(a.raw, idx.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_UI64(T)>
+HWY_API Vec512<T> TwoTablesLookupLanes(Vec512<T> a, Vec512<T> b,
+                                       Indices512<T> idx) {
+  return Vec512<T>{_mm512_permutex2var_epi64(a.raw, idx.raw, b.raw)};
+}
+
+HWY_API Vec512<double> TwoTablesLookupLanes(Vec512<double> a, Vec512<double> b,
+                                            Indices512<double> idx) {
+  return Vec512<double>{_mm512_permutex2var_pd(a.raw, idx.raw, b.raw)};
+}
+
+// ------------------------------ Concat* halves
+
+// hiH,hiL loH,loL |-> hiL,loL (= lower halves)
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_FLOAT3264_D(D)>
+HWY_API VFromD<D> ConcatLowerLower(D d, VFromD<D> hi, VFromD<D> lo) {
+  const RebindToUnsigned<decltype(d)> du;  // for float16_t
+  return BitCast(d,
+                 VFromD<decltype(du)>{_mm512_shuffle_i32x4(
+                     BitCast(du, lo).raw, BitCast(du, hi).raw, _MM_PERM_BABA)});
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> ConcatLowerLower(D /* tag */, VFromD<D> hi, VFromD<D> lo) {
+  return VFromD<D>{_mm512_shuffle_f32x4(lo.raw, hi.raw, _MM_PERM_BABA)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F64_D(D)>
+HWY_API Vec512<double> ConcatLowerLower(D /* tag */, Vec512<double> hi,
+                                        Vec512<double> lo) {
+  return Vec512<double>{_mm512_shuffle_f64x2(lo.raw, hi.raw, _MM_PERM_BABA)};
+}
+
+// hiH,hiL loH,loL |-> hiH,loH (= upper halves)
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_FLOAT3264_D(D)>
+HWY_API VFromD<D> ConcatUpperUpper(D d, VFromD<D> hi, VFromD<D> lo) {
+  const RebindToUnsigned<decltype(d)> du;  // for float16_t
+  return BitCast(d,
+                 VFromD<decltype(du)>{_mm512_shuffle_i32x4(
+                     BitCast(du, lo).raw, BitCast(du, hi).raw, _MM_PERM_DCDC)});
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> ConcatUpperUpper(D /* tag */, VFromD<D> hi, VFromD<D> lo) {
+  return VFromD<D>{_mm512_shuffle_f32x4(lo.raw, hi.raw, _MM_PERM_DCDC)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F64_D(D)>
+HWY_API Vec512<double> ConcatUpperUpper(D /* tag */, Vec512<double> hi,
+                                        Vec512<double> lo) {
+  return Vec512<double>{_mm512_shuffle_f64x2(lo.raw, hi.raw, _MM_PERM_DCDC)};
+}
+
+// hiH,hiL loH,loL |-> hiL,loH (= inner halves / swap blocks)
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_FLOAT3264_D(D)>
+HWY_API VFromD<D> ConcatLowerUpper(D d, VFromD<D> hi, VFromD<D> lo) {
+  const RebindToUnsigned<decltype(d)> du;  // for float16_t
+  return BitCast(d,
+                 VFromD<decltype(du)>{_mm512_shuffle_i32x4(
+                     BitCast(du, lo).raw, BitCast(du, hi).raw, _MM_PERM_BADC)});
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> ConcatLowerUpper(D /* tag */, VFromD<D> hi, VFromD<D> lo) {
+  return VFromD<D>{_mm512_shuffle_f32x4(lo.raw, hi.raw, _MM_PERM_BADC)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F64_D(D)>
+HWY_API Vec512<double> ConcatLowerUpper(D /* tag */, Vec512<double> hi,
+                                        Vec512<double> lo) {
+  return Vec512<double>{_mm512_shuffle_f64x2(lo.raw, hi.raw, _MM_PERM_BADC)};
+}
+
+// hiH,hiL loH,loL |-> hiH,loL (= outer halves)
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_FLOAT3264_D(D)>
+HWY_API VFromD<D> ConcatUpperLower(D d, VFromD<D> hi, VFromD<D> lo) {
+  // There are no imm8 blend in AVX512. Use blend16 because 32-bit masks
+  // are efficiently loaded from 32-bit regs.
+  const __mmask32 mask = /*_cvtu32_mask32 */ (0x0000FFFF);
+  const RebindToUnsigned<decltype(d)> du;  // for float16_t
+  return BitCast(d, VFromD<decltype(du)>{_mm512_mask_blend_epi16(
+                        mask, BitCast(du, hi).raw, BitCast(du, lo).raw)});
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> ConcatUpperLower(D /* tag */, VFromD<D> hi, VFromD<D> lo) {
+  const __mmask16 mask = /*_cvtu32_mask16 */ (0x00FF);
+  return VFromD<D>{_mm512_mask_blend_ps(mask, hi.raw, lo.raw)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F64_D(D)>
+HWY_API Vec512<double> ConcatUpperLower(D /* tag */, Vec512<double> hi,
+                                        Vec512<double> lo) {
+  const __mmask8 mask = /*_cvtu32_mask8 */ (0x0F);
+  return Vec512<double>{_mm512_mask_blend_pd(mask, hi.raw, lo.raw)};
+}
+
+// ------------------------------ CombineShiftRightBytes
+
+template <int kBytes, class D, HWY_IF_V_SIZE_D(D, 64)>
+HWY_API VFromD<D> CombineShiftRightBytes(D d, VFromD<D> hi, VFromD<D> lo) {
+  const Repartition<uint8_t, decltype(d)> d8;
+  return BitCast(d, Vec512<uint8_t>{_mm512_alignr_epi8(
+                        BitCast(d8, hi).raw, BitCast(d8, lo).raw, kBytes)});
+}
+
+// -------------------- SlideUpLanes (CombineShiftRightBytes, ConcatLowerLower)
+
+namespace detail {
+
+template <int kI32Lanes, class V, HWY_IF_V_SIZE_V(V, 64)>
+HWY_INLINE V CombineShiftRightI32Lanes(V hi, V lo) {
+  const DFromV<decltype(hi)> d;
+  const Repartition<uint32_t, decltype(d)> du32;
+  return BitCast(d,
+                 Vec512<uint32_t>{_mm512_alignr_epi32(
+                     BitCast(du32, hi).raw, BitCast(du32, lo).raw, kI32Lanes)});
+}
+
+template <int kI64Lanes, class V, HWY_IF_V_SIZE_V(V, 64)>
+HWY_INLINE V CombineShiftRightI64Lanes(V hi, V lo) {
+  const DFromV<decltype(hi)> d;
+  const Repartition<uint64_t, decltype(d)> du64;
+  return BitCast(d,
+                 Vec512<uint64_t>{_mm512_alignr_epi64(
+                     BitCast(du64, hi).raw, BitCast(du64, lo).raw, kI64Lanes)});
+}
+
+template <int kI32Lanes, class V, HWY_IF_V_SIZE_V(V, 64)>
+HWY_INLINE V SlideUpI32Lanes(V v) {
+  static_assert(0 <= kI32Lanes && kI32Lanes <= 15,
+                "kI32Lanes must be between 0 and 15");
+  const DFromV<decltype(v)> d;
+  return CombineShiftRightI32Lanes<16 - kI32Lanes>(v, Zero(d));
+}
+
+template <int kI64Lanes, class V, HWY_IF_V_SIZE_V(V, 64)>
+HWY_INLINE V SlideUpI64Lanes(V v) {
+  static_assert(0 <= kI64Lanes && kI64Lanes <= 7,
+                "kI64Lanes must be between 0 and 7");
+  const DFromV<decltype(v)> d;
+  return CombineShiftRightI64Lanes<8 - kI64Lanes>(v, Zero(d));
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 1)>
+HWY_INLINE VFromD<D> TableLookupSlideUpLanes(D d, VFromD<D> v, size_t amt) {
+  const Repartition<uint8_t, decltype(d)> du8;
+
+#if HWY_TARGET <= HWY_AVX3_DL
+  const auto byte_idx = Iota(du8, static_cast<uint8_t>(size_t{0} - amt));
+  return TwoTablesLookupLanes(v, Zero(d), Indices512<TFromD<D>>{byte_idx.raw});
+#else
+  const Repartition<uint16_t, decltype(d)> du16;
+  const Repartition<uint64_t, decltype(d)> du64;
+  const auto byte_idx = Iota(du8, static_cast<uint8_t>(size_t{0} - (amt & 15)));
+  const auto blk_u64_idx =
+      Iota(du64, static_cast<uint64_t>(uint64_t{0} - ((amt >> 4) << 1)));
+
+  const VFromD<D> even_blocks{
+      _mm512_shuffle_i32x4(v.raw, v.raw, _MM_SHUFFLE(2, 2, 0, 0))};
+  const VFromD<D> odd_blocks{
+      _mm512_shuffle_i32x4(v.raw, v.raw, _MM_SHUFFLE(3, 1, 1, 3))};
+  const auto odd_sel_mask =
+      MaskFromVec(BitCast(d, ShiftLeft<3>(BitCast(du16, byte_idx))));
+  const auto even_blk_lookup_result =
+      BitCast(d, TableLookupBytes(even_blocks, byte_idx));
+  const VFromD<D> blockwise_slide_up_result{
+      _mm512_mask_shuffle_epi8(even_blk_lookup_result.raw, odd_sel_mask.raw,
+                               odd_blocks.raw, byte_idx.raw)};
+  return BitCast(d, TwoTablesLookupLanes(
+                        BitCast(du64, blockwise_slide_up_result), Zero(du64),
+                        Indices512<uint64_t>{blk_u64_idx.raw}));
+#endif
+}
+
+}  // namespace detail
+
+template <int kBlocks, class D, HWY_IF_V_SIZE_D(D, 64)>
+HWY_API VFromD<D> SlideUpBlocks(D d, VFromD<D> v) {
+  static_assert(0 <= kBlocks && kBlocks <= 3,
+                "kBlocks must be between 0 and 3");
+  switch (kBlocks) {
+    case 0:
+      return v;
+    case 1:
+      return detail::SlideUpI64Lanes<2>(v);
+    case 2:
+      return ConcatLowerLower(d, v, Zero(d));
+    case 3:
+      return detail::SlideUpI64Lanes<6>(v);
+  }
+
+  return v;
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 4)>
+HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(amt)) {
+    switch (amt) {
+      case 0:
+        return v;
+      case 1:
+        return detail::SlideUpI32Lanes<1>(v);
+      case 2:
+        return detail::SlideUpI64Lanes<1>(v);
+      case 3:
+        return detail::SlideUpI32Lanes<3>(v);
+      case 4:
+        return detail::SlideUpI64Lanes<2>(v);
+      case 5:
+        return detail::SlideUpI32Lanes<5>(v);
+      case 6:
+        return detail::SlideUpI64Lanes<3>(v);
+      case 7:
+        return detail::SlideUpI32Lanes<7>(v);
+      case 8:
+        return ConcatLowerLower(d, v, Zero(d));
+      case 9:
+        return detail::SlideUpI32Lanes<9>(v);
+      case 10:
+        return detail::SlideUpI64Lanes<5>(v);
+      case 11:
+        return detail::SlideUpI32Lanes<11>(v);
+      case 12:
+        return detail::SlideUpI64Lanes<6>(v);
+      case 13:
+        return detail::SlideUpI32Lanes<13>(v);
+      case 14:
+        return detail::SlideUpI64Lanes<7>(v);
+      case 15:
+        return detail::SlideUpI32Lanes<15>(v);
+    }
+  }
+#endif
+
+  return detail::TableLookupSlideUpLanes(d, v, amt);
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 8)>
+HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(amt)) {
+    switch (amt) {
+      case 0:
+        return v;
+      case 1:
+        return detail::SlideUpI64Lanes<1>(v);
+      case 2:
+        return detail::SlideUpI64Lanes<2>(v);
+      case 3:
+        return detail::SlideUpI64Lanes<3>(v);
+      case 4:
+        return ConcatLowerLower(d, v, Zero(d));
+      case 5:
+        return detail::SlideUpI64Lanes<5>(v);
+      case 6:
+        return detail::SlideUpI64Lanes<6>(v);
+      case 7:
+        return detail::SlideUpI64Lanes<7>(v);
+    }
+  }
+#endif
+
+  return detail::TableLookupSlideUpLanes(d, v, amt);
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 1)>
+HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(amt)) {
+    if ((amt & 3) == 0) {
+      const Repartition<uint32_t, decltype(d)> du32;
+      return BitCast(d, SlideUpLanes(du32, BitCast(du32, v), amt >> 2));
+    } else if ((amt & 1) == 0) {
+      const Repartition<uint16_t, decltype(d)> du16;
+      return BitCast(
+          d, detail::TableLookupSlideUpLanes(du16, BitCast(du16, v), amt >> 1));
+    }
+#if HWY_TARGET > HWY_AVX3_DL
+    else if (amt <= 63) {  // NOLINT(readability/braces)
+      const Repartition<uint64_t, decltype(d)> du64;
+      const size_t blk_u64_slideup_amt = (amt >> 4) << 1;
+      const auto vu64 = BitCast(du64, v);
+      const auto v_hi =
+          BitCast(d, SlideUpLanes(du64, vu64, blk_u64_slideup_amt));
+      const auto v_lo =
+          (blk_u64_slideup_amt <= 4)
+              ? BitCast(d, SlideUpLanes(du64, vu64, blk_u64_slideup_amt + 2))
+              : Zero(d);
+      switch (amt & 15) {
+        case 1:
+          return CombineShiftRightBytes<15>(d, v_hi, v_lo);
+        case 3:
+          return CombineShiftRightBytes<13>(d, v_hi, v_lo);
+        case 5:
+          return CombineShiftRightBytes<11>(d, v_hi, v_lo);
+        case 7:
+          return CombineShiftRightBytes<9>(d, v_hi, v_lo);
+        case 9:
+          return CombineShiftRightBytes<7>(d, v_hi, v_lo);
+        case 11:
+          return CombineShiftRightBytes<5>(d, v_hi, v_lo);
+        case 13:
+          return CombineShiftRightBytes<3>(d, v_hi, v_lo);
+        case 15:
+          return CombineShiftRightBytes<1>(d, v_hi, v_lo);
+      }
+    }
+#endif  // HWY_TARGET > HWY_AVX3_DL
+  }
+#endif
+
+  return detail::TableLookupSlideUpLanes(d, v, amt);
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 2)>
+HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(amt) && (amt & 1) == 0) {
+    const Repartition<uint32_t, decltype(d)> du32;
+    return BitCast(d, SlideUpLanes(du32, BitCast(du32, v), amt >> 1));
+  }
+#endif
+
+  return detail::TableLookupSlideUpLanes(d, v, amt);
+}
+
+// ------------------------------ Slide1Up (CombineShiftRightBytes)
+
+template <typename D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 1)>
+HWY_API VFromD<D> Slide1Up(D d, VFromD<D> v) {
+#if HWY_TARGET <= HWY_AVX3_DL
+  return detail::TableLookupSlideUpLanes(d, v, 1);
+#else
+  const auto v_lo = detail::SlideUpI64Lanes<2>(v);
+  return CombineShiftRightBytes<15>(d, v, v_lo);
+#endif
+}
+
+template <typename D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 2)>
+HWY_API VFromD<D> Slide1Up(D d, VFromD<D> v) {
+  return detail::TableLookupSlideUpLanes(d, v, 1);
+}
+
+template <typename D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 4)>
+HWY_API VFromD<D> Slide1Up(D /*d*/, VFromD<D> v) {
+  return detail::SlideUpI32Lanes<1>(v);
+}
+
+template <typename D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 8)>
+HWY_API VFromD<D> Slide1Up(D /*d*/, VFromD<D> v) {
+  return detail::SlideUpI64Lanes<1>(v);
+}
+
+// ------------------------------ SlideDownLanes (TwoTablesLookupLanes)
+
+namespace detail {
+
+template <int kI32Lanes, class V, HWY_IF_V_SIZE_V(V, 64)>
+HWY_INLINE V SlideDownI32Lanes(V v) {
+  static_assert(0 <= kI32Lanes && kI32Lanes <= 15,
+                "kI32Lanes must be between 0 and 15");
+  const DFromV<decltype(v)> d;
+  return CombineShiftRightI32Lanes<kI32Lanes>(Zero(d), v);
+}
+
+template <int kI64Lanes, class V, HWY_IF_V_SIZE_V(V, 64)>
+HWY_INLINE V SlideDownI64Lanes(V v) {
+  static_assert(0 <= kI64Lanes && kI64Lanes <= 7,
+                "kI64Lanes must be between 0 and 7");
+  const DFromV<decltype(v)> d;
+  return CombineShiftRightI64Lanes<kI64Lanes>(Zero(d), v);
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 1)>
+HWY_INLINE VFromD<D> TableLookupSlideDownLanes(D d, VFromD<D> v, size_t amt) {
+  const Repartition<uint8_t, decltype(d)> du8;
+
+#if HWY_TARGET <= HWY_AVX3_DL
+  auto byte_idx = Iota(du8, static_cast<uint8_t>(amt));
+  return TwoTablesLookupLanes(v, Zero(d), Indices512<TFromD<D>>{byte_idx.raw});
+#else
+  const Repartition<uint16_t, decltype(d)> du16;
+  const Repartition<uint64_t, decltype(d)> du64;
+  const auto byte_idx = Iota(du8, static_cast<uint8_t>(amt & 15));
+  const auto blk_u64_idx = Iota(du64, static_cast<uint64_t>(((amt >> 4) << 1)));
+
+  const VFromD<D> even_blocks{
+      _mm512_shuffle_i32x4(v.raw, v.raw, _MM_SHUFFLE(0, 2, 2, 0))};
+  const VFromD<D> odd_blocks{
+      _mm512_shuffle_i32x4(v.raw, v.raw, _MM_SHUFFLE(3, 3, 1, 1))};
+  const auto odd_sel_mask =
+      MaskFromVec(BitCast(d, ShiftLeft<3>(BitCast(du16, byte_idx))));
+  const VFromD<D> even_blk_lookup_result{
+      _mm512_maskz_shuffle_epi8(static_cast<__mmask64>(0x0000FFFFFFFFFFFFULL),
+                                even_blocks.raw, byte_idx.raw)};
+  const VFromD<D> blockwise_slide_up_result{
+      _mm512_mask_shuffle_epi8(even_blk_lookup_result.raw, odd_sel_mask.raw,
+                               odd_blocks.raw, byte_idx.raw)};
+  return BitCast(d, TwoTablesLookupLanes(
+                        BitCast(du64, blockwise_slide_up_result), Zero(du64),
+                        Indices512<uint64_t>{blk_u64_idx.raw}));
+#endif
+}
+
+}  // namespace detail
+
+template <int kBlocks, class D, HWY_IF_V_SIZE_D(D, 64)>
+HWY_API VFromD<D> SlideDownBlocks(D d, VFromD<D> v) {
+  static_assert(0 <= kBlocks && kBlocks <= 3,
+                "kBlocks must be between 0 and 3");
+  const Half<decltype(d)> dh;
+  switch (kBlocks) {
+    case 0:
+      return v;
+    case 1:
+      return detail::SlideDownI64Lanes<2>(v);
+    case 2:
+      return ZeroExtendVector(d, UpperHalf(dh, v));
+    case 3:
+      return detail::SlideDownI64Lanes<6>(v);
+  }
+
+  return v;
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 4)>
+HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(amt)) {
+    const Half<decltype(d)> dh;
+    switch (amt) {
+      case 1:
+        return detail::SlideDownI32Lanes<1>(v);
+      case 2:
+        return detail::SlideDownI64Lanes<1>(v);
+      case 3:
+        return detail::SlideDownI32Lanes<3>(v);
+      case 4:
+        return detail::SlideDownI64Lanes<2>(v);
+      case 5:
+        return detail::SlideDownI32Lanes<5>(v);
+      case 6:
+        return detail::SlideDownI64Lanes<3>(v);
+      case 7:
+        return detail::SlideDownI32Lanes<7>(v);
+      case 8:
+        return ZeroExtendVector(d, UpperHalf(dh, v));
+      case 9:
+        return detail::SlideDownI32Lanes<9>(v);
+      case 10:
+        return detail::SlideDownI64Lanes<5>(v);
+      case 11:
+        return detail::SlideDownI32Lanes<11>(v);
+      case 12:
+        return detail::SlideDownI64Lanes<6>(v);
+      case 13:
+        return detail::SlideDownI32Lanes<13>(v);
+      case 14:
+        return detail::SlideDownI64Lanes<7>(v);
+      case 15:
+        return detail::SlideDownI32Lanes<15>(v);
+    }
+  }
+#endif
+
+  return detail::TableLookupSlideDownLanes(d, v, amt);
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 8)>
+HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(amt)) {
+    const Half<decltype(d)> dh;
+    switch (amt) {
+      case 0:
+        return v;
+      case 1:
+        return detail::SlideDownI64Lanes<1>(v);
+      case 2:
+        return detail::SlideDownI64Lanes<2>(v);
+      case 3:
+        return detail::SlideDownI64Lanes<3>(v);
+      case 4:
+        return ZeroExtendVector(d, UpperHalf(dh, v));
+      case 5:
+        return detail::SlideDownI64Lanes<5>(v);
+      case 6:
+        return detail::SlideDownI64Lanes<6>(v);
+      case 7:
+        return detail::SlideDownI64Lanes<7>(v);
+    }
+  }
+#endif
+
+  return detail::TableLookupSlideDownLanes(d, v, amt);
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 1)>
+HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(amt)) {
+    if ((amt & 3) == 0) {
+      const Repartition<uint32_t, decltype(d)> du32;
+      return BitCast(d, SlideDownLanes(du32, BitCast(du32, v), amt >> 2));
+    } else if ((amt & 1) == 0) {
+      const Repartition<uint16_t, decltype(d)> du16;
+      return BitCast(d, detail::TableLookupSlideDownLanes(
+                            du16, BitCast(du16, v), amt >> 1));
+    }
+#if HWY_TARGET > HWY_AVX3_DL
+    else if (amt <= 63) {  // NOLINT(readability/braces)
+      const Repartition<uint64_t, decltype(d)> du64;
+      const size_t blk_u64_slidedown_amt = (amt >> 4) << 1;
+      const auto vu64 = BitCast(du64, v);
+      const auto v_lo =
+          BitCast(d, SlideDownLanes(du64, vu64, blk_u64_slidedown_amt));
+      const auto v_hi =
+          (blk_u64_slidedown_amt <= 4)
+              ? BitCast(d,
+                        SlideDownLanes(du64, vu64, blk_u64_slidedown_amt + 2))
+              : Zero(d);
+      switch (amt & 15) {
+        case 1:
+          return CombineShiftRightBytes<1>(d, v_hi, v_lo);
+        case 3:
+          return CombineShiftRightBytes<3>(d, v_hi, v_lo);
+        case 5:
+          return CombineShiftRightBytes<5>(d, v_hi, v_lo);
+        case 7:
+          return CombineShiftRightBytes<7>(d, v_hi, v_lo);
+        case 9:
+          return CombineShiftRightBytes<9>(d, v_hi, v_lo);
+        case 11:
+          return CombineShiftRightBytes<11>(d, v_hi, v_lo);
+        case 13:
+          return CombineShiftRightBytes<13>(d, v_hi, v_lo);
+        case 15:
+          return CombineShiftRightBytes<15>(d, v_hi, v_lo);
+      }
+    }
+#endif
+  }
+#endif
+
+  return detail::TableLookupSlideDownLanes(d, v, amt);
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 2)>
+HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(amt) && (amt & 1) == 0) {
+    const Repartition<uint32_t, decltype(d)> du32;
+    return BitCast(d, SlideDownLanes(du32, BitCast(du32, v), amt >> 1));
+  }
+#endif
+
+  return detail::TableLookupSlideDownLanes(d, v, amt);
+}
+
+// ------------------------------ Slide1Down (CombineShiftRightBytes)
+
+template <typename D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 1)>
+HWY_API VFromD<D> Slide1Down(D d, VFromD<D> v) {
+#if HWY_TARGET <= HWY_AVX3_DL
+  return detail::TableLookupSlideDownLanes(d, v, 1);
+#else
+  const auto v_hi = detail::SlideDownI64Lanes<2>(v);
+  return CombineShiftRightBytes<1>(d, v_hi, v);
+#endif
+}
+
+template <typename D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 2)>
+HWY_API VFromD<D> Slide1Down(D d, VFromD<D> v) {
+  return detail::TableLookupSlideDownLanes(d, v, 1);
+}
+
+template <typename D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 4)>
+HWY_API VFromD<D> Slide1Down(D /*d*/, VFromD<D> v) {
+  return detail::SlideDownI32Lanes<1>(v);
+}
+
+template <typename D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 8)>
+HWY_API VFromD<D> Slide1Down(D /*d*/, VFromD<D> v) {
+  return detail::SlideDownI64Lanes<1>(v);
+}
+
+// ------------------------------ ExtractLane (SlideDownLanes)
 template <typename T>
 HWY_API T ExtractLane(const Vec512<T> v, size_t i) {
   const DFromV<decltype(v)> d;
@@ -4691,9 +5450,7 @@ HWY_API T ExtractLane(const Vec512<T> v, size_t i) {
   }
 #endif
 
-  alignas(64) T lanes[MaxLanes(d)];
-  Store(v, d, lanes);
-  return lanes[i];
+  return GetLane(SlideDownLanes(d, v, i));
 }
 
 // ------------------------------ ExtractBlock
@@ -4918,15 +5675,6 @@ template <int kBytes, class D, HWY_IF_V_SIZE_D(D, 64)>
 HWY_API VFromD<D> ShiftRightBytes(D /* tag */, const VFromD<D> v) {
   static_assert(0 <= kBytes && kBytes <= 16, "Invalid kBytes");
   return VFromD<D>{_mm512_bsrli_epi128(v.raw, kBytes)};
-}
-
-// ------------------------------ CombineShiftRightBytes
-
-template <int kBytes, class D, HWY_IF_V_SIZE_D(D, 64)>
-HWY_API VFromD<D> CombineShiftRightBytes(D d, VFromD<D> hi, VFromD<D> lo) {
-  const Repartition<uint8_t, decltype(d)> d8;
-  return BitCast(d, Vec512<uint8_t>{_mm512_alignr_epi8(
-                        BitCast(d8, hi).raw, BitCast(d8, lo).raw, kBytes)});
 }
 
 // ------------------------------ Broadcast/splat any lane
@@ -5161,141 +5909,6 @@ HWY_API Vec512<float> Shuffle0123(const Vec512<float> v) {
   return Vec512<float>{_mm512_shuffle_ps(v.raw, v.raw, _MM_PERM_ABCD)};
 }
 
-// ------------------------------ TableLookupLanes
-
-// Returned by SetTableIndices/IndicesFromVec for use by TableLookupLanes.
-template <typename T>
-struct Indices512 {
-  __m512i raw;
-};
-
-template <class D, typename T = TFromD<D>, typename TI>
-HWY_API Indices512<T> IndicesFromVec(D /* tag */, Vec512<TI> vec) {
-  static_assert(sizeof(T) == sizeof(TI), "Index size must match lane");
-#if HWY_IS_DEBUG_BUILD
-  const DFromV<decltype(vec)> di;
-  const RebindToUnsigned<decltype(di)> du;
-  using TU = MakeUnsigned<T>;
-  const auto vec_u = BitCast(du, vec);
-  HWY_DASSERT(
-      AllTrue(du, Lt(vec_u, Set(du, static_cast<TU>(128 / sizeof(T))))));
-#endif
-  return Indices512<T>{vec.raw};
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 64), typename TI>
-HWY_API Indices512<TFromD<D>> SetTableIndices(D d, const TI* idx) {
-  const Rebind<TI, decltype(d)> di;
-  return IndicesFromVec(d, LoadU(di, idx));
-}
-
-template <typename T, HWY_IF_T_SIZE(T, 1)>
-HWY_API Vec512<T> TableLookupLanes(Vec512<T> v, Indices512<T> idx) {
-#if HWY_TARGET <= HWY_AVX3_DL
-  return Vec512<T>{_mm512_permutexvar_epi8(idx.raw, v.raw)};
-#else
-  const DFromV<decltype(v)> d;
-  const Repartition<uint16_t, decltype(d)> du16;
-  const Vec512<T> idx_vec{idx.raw};
-
-  const auto bd_sel_mask =
-      MaskFromVec(BitCast(d, ShiftLeft<3>(BitCast(du16, idx_vec))));
-  const auto cd_sel_mask =
-      MaskFromVec(BitCast(d, ShiftLeft<2>(BitCast(du16, idx_vec))));
-
-  const Vec512<T> v_a{_mm512_shuffle_i32x4(v.raw, v.raw, 0x00)};
-  const Vec512<T> v_b{_mm512_shuffle_i32x4(v.raw, v.raw, 0x55)};
-  const Vec512<T> v_c{_mm512_shuffle_i32x4(v.raw, v.raw, 0xAA)};
-  const Vec512<T> v_d{_mm512_shuffle_i32x4(v.raw, v.raw, 0xFF)};
-
-  const auto shuf_a = TableLookupBytes(v_a, idx_vec);
-  const auto shuf_c = TableLookupBytes(v_c, idx_vec);
-  const Vec512<T> shuf_ab{_mm512_mask_shuffle_epi8(shuf_a.raw, bd_sel_mask.raw,
-                                                   v_b.raw, idx_vec.raw)};
-  const Vec512<T> shuf_cd{_mm512_mask_shuffle_epi8(shuf_c.raw, bd_sel_mask.raw,
-                                                   v_d.raw, idx_vec.raw)};
-  return IfThenElse(cd_sel_mask, shuf_cd, shuf_ab);
-#endif
-}
-
-template <typename T, HWY_IF_T_SIZE(T, 2), HWY_IF_NOT_SPECIAL_FLOAT(T)>
-HWY_API Vec512<T> TableLookupLanes(Vec512<T> v, Indices512<T> idx) {
-  return Vec512<T>{_mm512_permutexvar_epi16(idx.raw, v.raw)};
-}
-#if HWY_HAVE_FLOAT16
-HWY_API Vec512<float16_t> TableLookupLanes(Vec512<float16_t> v,
-                                           Indices512<float16_t> idx) {
-  return Vec512<float16_t>{_mm512_permutexvar_ph(idx.raw, v.raw)};
-}
-#endif  // HWY_HAVE_FLOAT16
-template <typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_API Vec512<T> TableLookupLanes(Vec512<T> v, Indices512<T> idx) {
-  return Vec512<T>{_mm512_permutexvar_epi32(idx.raw, v.raw)};
-}
-
-template <typename T, HWY_IF_T_SIZE(T, 8)>
-HWY_API Vec512<T> TableLookupLanes(Vec512<T> v, Indices512<T> idx) {
-  return Vec512<T>{_mm512_permutexvar_epi64(idx.raw, v.raw)};
-}
-
-HWY_API Vec512<float> TableLookupLanes(Vec512<float> v, Indices512<float> idx) {
-  return Vec512<float>{_mm512_permutexvar_ps(idx.raw, v.raw)};
-}
-
-HWY_API Vec512<double> TableLookupLanes(Vec512<double> v,
-                                        Indices512<double> idx) {
-  return Vec512<double>{_mm512_permutexvar_pd(idx.raw, v.raw)};
-}
-
-template <typename T, HWY_IF_T_SIZE(T, 1)>
-HWY_API Vec512<T> TwoTablesLookupLanes(Vec512<T> a, Vec512<T> b,
-                                       Indices512<T> idx) {
-#if HWY_TARGET <= HWY_AVX3_DL
-  return Vec512<T>{_mm512_permutex2var_epi8(a.raw, idx.raw, b.raw)};
-#else
-  const DFromV<decltype(a)> d;
-  const auto b_sel_mask =
-      MaskFromVec(BitCast(d, ShiftLeft<1>(Vec512<uint16_t>{idx.raw})));
-  return IfThenElse(b_sel_mask, TableLookupLanes(b, idx),
-                    TableLookupLanes(a, idx));
-#endif
-}
-
-template <typename T, HWY_IF_T_SIZE(T, 2)>
-HWY_API Vec512<T> TwoTablesLookupLanes(Vec512<T> a, Vec512<T> b,
-                                       Indices512<T> idx) {
-  return Vec512<T>{_mm512_permutex2var_epi16(a.raw, idx.raw, b.raw)};
-}
-
-template <typename T, HWY_IF_UI32(T)>
-HWY_API Vec512<T> TwoTablesLookupLanes(Vec512<T> a, Vec512<T> b,
-                                       Indices512<T> idx) {
-  return Vec512<T>{_mm512_permutex2var_epi32(a.raw, idx.raw, b.raw)};
-}
-
-#if HWY_HAVE_FLOAT16
-HWY_API Vec512<float16_t> TwoTablesLookupLanes(Vec512<float16_t> a,
-                                               Vec512<float16_t> b,
-                                               Indices512<float16_t> idx) {
-  return Vec512<float16_t>{_mm512_permutex2var_ph(a.raw, idx.raw, b.raw)};
-}
-#endif  // HWY_HAVE_FLOAT16
-HWY_API Vec512<float> TwoTablesLookupLanes(Vec512<float> a, Vec512<float> b,
-                                           Indices512<float> idx) {
-  return Vec512<float>{_mm512_permutex2var_ps(a.raw, idx.raw, b.raw)};
-}
-
-template <typename T, HWY_IF_UI64(T)>
-HWY_API Vec512<T> TwoTablesLookupLanes(Vec512<T> a, Vec512<T> b,
-                                       Indices512<T> idx) {
-  return Vec512<T>{_mm512_permutex2var_epi64(a.raw, idx.raw, b.raw)};
-}
-
-HWY_API Vec512<double> TwoTablesLookupLanes(Vec512<double> a, Vec512<double> b,
-                                            Indices512<double> idx) {
-  return Vec512<double>{_mm512_permutex2var_pd(a.raw, idx.raw, b.raw)};
-}
-
 // ------------------------------ Reverse
 
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 1)>
@@ -5471,84 +6084,6 @@ HWY_API VFromD<D> InterleaveUpper(D /* tag */, VFromD<D> a, VFromD<D> b) {
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F64_D(D)>
 HWY_API VFromD<D> InterleaveUpper(D /* tag */, VFromD<D> a, VFromD<D> b) {
   return VFromD<D>{_mm512_unpackhi_pd(a.raw, b.raw)};
-}
-
-// ------------------------------ Concat* halves
-
-// hiH,hiL loH,loL |-> hiL,loL (= lower halves)
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_FLOAT3264_D(D)>
-HWY_API VFromD<D> ConcatLowerLower(D d, VFromD<D> hi, VFromD<D> lo) {
-  const RebindToUnsigned<decltype(d)> du;  // for float16_t
-  return BitCast(d,
-                 VFromD<decltype(du)>{_mm512_shuffle_i32x4(
-                     BitCast(du, lo).raw, BitCast(du, hi).raw, _MM_PERM_BABA)});
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F32_D(D)>
-HWY_API VFromD<D> ConcatLowerLower(D /* tag */, VFromD<D> hi, VFromD<D> lo) {
-  return VFromD<D>{_mm512_shuffle_f32x4(lo.raw, hi.raw, _MM_PERM_BABA)};
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F64_D(D)>
-HWY_API Vec512<double> ConcatLowerLower(D /* tag */, Vec512<double> hi,
-                                        Vec512<double> lo) {
-  return Vec512<double>{_mm512_shuffle_f64x2(lo.raw, hi.raw, _MM_PERM_BABA)};
-}
-
-// hiH,hiL loH,loL |-> hiH,loH (= upper halves)
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_FLOAT3264_D(D)>
-HWY_API VFromD<D> ConcatUpperUpper(D d, VFromD<D> hi, VFromD<D> lo) {
-  const RebindToUnsigned<decltype(d)> du;  // for float16_t
-  return BitCast(d,
-                 VFromD<decltype(du)>{_mm512_shuffle_i32x4(
-                     BitCast(du, lo).raw, BitCast(du, hi).raw, _MM_PERM_DCDC)});
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F32_D(D)>
-HWY_API VFromD<D> ConcatUpperUpper(D /* tag */, VFromD<D> hi, VFromD<D> lo) {
-  return VFromD<D>{_mm512_shuffle_f32x4(lo.raw, hi.raw, _MM_PERM_DCDC)};
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F64_D(D)>
-HWY_API Vec512<double> ConcatUpperUpper(D /* tag */, Vec512<double> hi,
-                                        Vec512<double> lo) {
-  return Vec512<double>{_mm512_shuffle_f64x2(lo.raw, hi.raw, _MM_PERM_DCDC)};
-}
-
-// hiH,hiL loH,loL |-> hiL,loH (= inner halves / swap blocks)
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_FLOAT3264_D(D)>
-HWY_API VFromD<D> ConcatLowerUpper(D d, VFromD<D> hi, VFromD<D> lo) {
-  const RebindToUnsigned<decltype(d)> du;  // for float16_t
-  return BitCast(d,
-                 VFromD<decltype(du)>{_mm512_shuffle_i32x4(
-                     BitCast(du, lo).raw, BitCast(du, hi).raw, _MM_PERM_BADC)});
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F32_D(D)>
-HWY_API VFromD<D> ConcatLowerUpper(D /* tag */, VFromD<D> hi, VFromD<D> lo) {
-  return VFromD<D>{_mm512_shuffle_f32x4(lo.raw, hi.raw, _MM_PERM_BADC)};
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F64_D(D)>
-HWY_API Vec512<double> ConcatLowerUpper(D /* tag */, Vec512<double> hi,
-                                        Vec512<double> lo) {
-  return Vec512<double>{_mm512_shuffle_f64x2(lo.raw, hi.raw, _MM_PERM_BADC)};
-}
-
-// hiH,hiL loH,loL |-> hiH,loL (= outer halves)
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_FLOAT3264_D(D)>
-HWY_API VFromD<D> ConcatUpperLower(D d, VFromD<D> hi, VFromD<D> lo) {
-  // There are no imm8 blend in AVX512. Use blend16 because 32-bit masks
-  // are efficiently loaded from 32-bit regs.
-  const __mmask32 mask = /*_cvtu32_mask32 */ (0x0000FFFF);
-  const RebindToUnsigned<decltype(d)> du;  // for float16_t
-  return BitCast(d, VFromD<decltype(du)>{_mm512_mask_blend_epi16(
-                        mask, BitCast(du, hi).raw, BitCast(du, lo).raw)});
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F32_D(D)>
-HWY_API VFromD<D> ConcatUpperLower(D /* tag */, VFromD<D> hi, VFromD<D> lo) {
-  const __mmask16 mask = /*_cvtu32_mask16 */ (0x00FF);
-  return VFromD<D>{_mm512_mask_blend_ps(mask, hi.raw, lo.raw)};
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F64_D(D)>
-HWY_API Vec512<double> ConcatUpperLower(D /* tag */, Vec512<double> hi,
-                                        Vec512<double> lo) {
-  const __mmask8 mask = /*_cvtu32_mask8 */ (0x0F);
-  return Vec512<double>{_mm512_mask_blend_pd(mask, hi.raw, lo.raw)};
 }
 
 // ------------------------------ ConcatOdd
@@ -6021,59 +6556,6 @@ HWY_API VFromD<D> ReverseBlocks(D /* tag */, VFromD<D> v) {
   return VFromD<D>{_mm512_shuffle_f64x2(v.raw, v.raw, _MM_PERM_ABCD)};
 }
 
-// ------------------------------ TableLookupBytes (ZeroExtendVector)
-
-// Both full
-template <typename T, typename TI>
-HWY_API Vec512<TI> TableLookupBytes(Vec512<T> bytes, Vec512<TI> indices) {
-  const DFromV<decltype(indices)> d;
-  return BitCast(d, Vec512<uint8_t>{_mm512_shuffle_epi8(
-                        BitCast(Full512<uint8_t>(), bytes).raw,
-                        BitCast(Full512<uint8_t>(), indices).raw)});
-}
-
-// Partial index vector
-template <typename T, typename TI, size_t NI>
-HWY_API Vec128<TI, NI> TableLookupBytes(Vec512<T> bytes, Vec128<TI, NI> from) {
-  const Full512<TI> d512;
-  const Half<decltype(d512)> d256;
-  const Half<decltype(d256)> d128;
-  // First expand to full 128, then 256, then 512.
-  const Vec128<TI> from_full{from.raw};
-  const auto from_512 =
-      ZeroExtendVector(d512, ZeroExtendVector(d256, from_full));
-  const auto tbl_full = TableLookupBytes(bytes, from_512);
-  // Shrink to 256, then 128, then partial.
-  return Vec128<TI, NI>{LowerHalf(d128, LowerHalf(d256, tbl_full)).raw};
-}
-template <typename T, typename TI>
-HWY_API Vec256<TI> TableLookupBytes(Vec512<T> bytes, Vec256<TI> from) {
-  const DFromV<decltype(from)> dih;
-  const Twice<decltype(dih)> di;
-  const auto from_512 = ZeroExtendVector(di, from);
-  return LowerHalf(dih, TableLookupBytes(bytes, from_512));
-}
-
-// Partial table vector
-template <typename T, size_t N, typename TI>
-HWY_API Vec512<TI> TableLookupBytes(Vec128<T, N> bytes, Vec512<TI> from) {
-  const DFromV<decltype(from)> d512;
-  const Half<decltype(d512)> d256;
-  const Half<decltype(d256)> d128;
-  // First expand to full 128, then 256, then 512.
-  const Vec128<T> bytes_full{bytes.raw};
-  const auto bytes_512 =
-      ZeroExtendVector(d512, ZeroExtendVector(d256, bytes_full));
-  return TableLookupBytes(bytes_512, from);
-}
-template <typename T, typename TI>
-HWY_API Vec512<TI> TableLookupBytes(Vec256<T> bytes, Vec512<TI> from) {
-  const Full512<T> d;
-  return TableLookupBytes(ZeroExtendVector(d, bytes), from);
-}
-
-// Partial both are handled by x86_128/256.
-
 // ------------------------------ I8/U8 Broadcast (TableLookupBytes)
 
 template <int kLane, class T, HWY_IF_T_SIZE(T, 1)>
@@ -6132,488 +6614,6 @@ HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
 }
 
 }  // namespace detail
-
-// ------------------------------ SlideUpLanes
-
-namespace detail {
-
-template <int kI32Lanes, class V, HWY_IF_V_SIZE_V(V, 64)>
-HWY_INLINE V CombineShiftRightI32Lanes(V hi, V lo) {
-  const DFromV<decltype(hi)> d;
-  const Repartition<uint32_t, decltype(d)> du32;
-  return BitCast(d,
-                 Vec512<uint32_t>{_mm512_alignr_epi32(
-                     BitCast(du32, hi).raw, BitCast(du32, lo).raw, kI32Lanes)});
-}
-
-template <int kI64Lanes, class V, HWY_IF_V_SIZE_V(V, 64)>
-HWY_INLINE V CombineShiftRightI64Lanes(V hi, V lo) {
-  const DFromV<decltype(hi)> d;
-  const Repartition<uint64_t, decltype(d)> du64;
-  return BitCast(d,
-                 Vec512<uint64_t>{_mm512_alignr_epi64(
-                     BitCast(du64, hi).raw, BitCast(du64, lo).raw, kI64Lanes)});
-}
-
-template <int kI32Lanes, class V, HWY_IF_V_SIZE_V(V, 64)>
-HWY_INLINE V SlideUpI32Lanes(V v) {
-  static_assert(0 <= kI32Lanes && kI32Lanes <= 15,
-                "kI32Lanes must be between 0 and 15");
-  const DFromV<decltype(v)> d;
-  return CombineShiftRightI32Lanes<16 - kI32Lanes>(v, Zero(d));
-}
-
-template <int kI64Lanes, class V, HWY_IF_V_SIZE_V(V, 64)>
-HWY_INLINE V SlideUpI64Lanes(V v) {
-  static_assert(0 <= kI64Lanes && kI64Lanes <= 7,
-                "kI64Lanes must be between 0 and 7");
-  const DFromV<decltype(v)> d;
-  return CombineShiftRightI64Lanes<8 - kI64Lanes>(v, Zero(d));
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 1)>
-HWY_INLINE VFromD<D> TableLookupSlideUpLanes(D d, VFromD<D> v, size_t amt) {
-  const Repartition<uint8_t, decltype(d)> du8;
-
-#if HWY_TARGET <= HWY_AVX3_DL
-  const auto byte_idx = Iota(du8, static_cast<uint8_t>(size_t{0} - amt));
-  return TwoTablesLookupLanes(v, Zero(d), Indices512<TFromD<D>>{byte_idx.raw});
-#else
-  const Repartition<uint16_t, decltype(d)> du16;
-  const Repartition<uint64_t, decltype(d)> du64;
-  const auto byte_idx = Iota(du8, static_cast<uint8_t>(size_t{0} - (amt & 15)));
-  const auto blk_u64_idx =
-      Iota(du64, static_cast<uint64_t>(uint64_t{0} - ((amt >> 4) << 1)));
-
-  const VFromD<D> even_blocks{
-      _mm512_shuffle_i32x4(v.raw, v.raw, _MM_SHUFFLE(2, 2, 0, 0))};
-  const VFromD<D> odd_blocks{
-      _mm512_shuffle_i32x4(v.raw, v.raw, _MM_SHUFFLE(3, 1, 1, 3))};
-  const auto odd_sel_mask =
-      MaskFromVec(BitCast(d, ShiftLeft<3>(BitCast(du16, byte_idx))));
-  const auto even_blk_lookup_result =
-      BitCast(d, TableLookupBytes(even_blocks, byte_idx));
-  const VFromD<D> blockwise_slide_up_result{
-      _mm512_mask_shuffle_epi8(even_blk_lookup_result.raw, odd_sel_mask.raw,
-                               odd_blocks.raw, byte_idx.raw)};
-  return BitCast(d, TwoTablesLookupLanes(
-                        BitCast(du64, blockwise_slide_up_result), Zero(du64),
-                        Indices512<uint64_t>{blk_u64_idx.raw}));
-#endif
-}
-
-}  // namespace detail
-
-template <int kBlocks, class D, HWY_IF_V_SIZE_D(D, 64)>
-HWY_API VFromD<D> SlideUpBlocks(D d, VFromD<D> v) {
-  static_assert(0 <= kBlocks && kBlocks <= 3,
-                "kBlocks must be between 0 and 3");
-  switch (kBlocks) {
-    case 0:
-      return v;
-    case 1:
-      return detail::SlideUpI64Lanes<2>(v);
-    case 2:
-      return ConcatLowerLower(d, v, Zero(d));
-    case 3:
-      return detail::SlideUpI64Lanes<6>(v);
-  }
-
-  return v;
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 4)>
-HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
-#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
-  if (__builtin_constant_p(amt)) {
-    switch (amt) {
-      case 0:
-        return v;
-      case 1:
-        return detail::SlideUpI32Lanes<1>(v);
-      case 2:
-        return detail::SlideUpI64Lanes<1>(v);
-      case 3:
-        return detail::SlideUpI32Lanes<3>(v);
-      case 4:
-        return detail::SlideUpI64Lanes<2>(v);
-      case 5:
-        return detail::SlideUpI32Lanes<5>(v);
-      case 6:
-        return detail::SlideUpI64Lanes<3>(v);
-      case 7:
-        return detail::SlideUpI32Lanes<7>(v);
-      case 8:
-        return ConcatLowerLower(d, v, Zero(d));
-      case 9:
-        return detail::SlideUpI32Lanes<9>(v);
-      case 10:
-        return detail::SlideUpI64Lanes<5>(v);
-      case 11:
-        return detail::SlideUpI32Lanes<11>(v);
-      case 12:
-        return detail::SlideUpI64Lanes<6>(v);
-      case 13:
-        return detail::SlideUpI32Lanes<13>(v);
-      case 14:
-        return detail::SlideUpI64Lanes<7>(v);
-      case 15:
-        return detail::SlideUpI32Lanes<15>(v);
-    }
-  }
-#endif
-
-  return detail::TableLookupSlideUpLanes(d, v, amt);
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 8)>
-HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
-#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
-  if (__builtin_constant_p(amt)) {
-    switch (amt) {
-      case 0:
-        return v;
-      case 1:
-        return detail::SlideUpI64Lanes<1>(v);
-      case 2:
-        return detail::SlideUpI64Lanes<2>(v);
-      case 3:
-        return detail::SlideUpI64Lanes<3>(v);
-      case 4:
-        return ConcatLowerLower(d, v, Zero(d));
-      case 5:
-        return detail::SlideUpI64Lanes<5>(v);
-      case 6:
-        return detail::SlideUpI64Lanes<6>(v);
-      case 7:
-        return detail::SlideUpI64Lanes<7>(v);
-    }
-  }
-#endif
-
-  return detail::TableLookupSlideUpLanes(d, v, amt);
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 1)>
-HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
-#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
-  if (__builtin_constant_p(amt)) {
-    if ((amt & 3) == 0) {
-      const Repartition<uint32_t, decltype(d)> du32;
-      return BitCast(d, SlideUpLanes(du32, BitCast(du32, v), amt >> 2));
-    } else if ((amt & 1) == 0) {
-      const Repartition<uint16_t, decltype(d)> du16;
-      return BitCast(
-          d, detail::TableLookupSlideUpLanes(du16, BitCast(du16, v), amt >> 1));
-    }
-#if HWY_TARGET > HWY_AVX3_DL
-    else if (amt <= 63) {  // NOLINT(readability/braces)
-      const Repartition<uint64_t, decltype(d)> du64;
-      const size_t blk_u64_slideup_amt = (amt >> 4) << 1;
-      const auto vu64 = BitCast(du64, v);
-      const auto v_hi =
-          BitCast(d, SlideUpLanes(du64, vu64, blk_u64_slideup_amt));
-      const auto v_lo =
-          (blk_u64_slideup_amt <= 4)
-              ? BitCast(d, SlideUpLanes(du64, vu64, blk_u64_slideup_amt + 2))
-              : Zero(d);
-      switch (amt & 15) {
-        case 1:
-          return CombineShiftRightBytes<15>(d, v_hi, v_lo);
-        case 3:
-          return CombineShiftRightBytes<13>(d, v_hi, v_lo);
-        case 5:
-          return CombineShiftRightBytes<11>(d, v_hi, v_lo);
-        case 7:
-          return CombineShiftRightBytes<9>(d, v_hi, v_lo);
-        case 9:
-          return CombineShiftRightBytes<7>(d, v_hi, v_lo);
-        case 11:
-          return CombineShiftRightBytes<5>(d, v_hi, v_lo);
-        case 13:
-          return CombineShiftRightBytes<3>(d, v_hi, v_lo);
-        case 15:
-          return CombineShiftRightBytes<1>(d, v_hi, v_lo);
-      }
-    }
-#endif  // HWY_TARGET > HWY_AVX3_DL
-  }
-#endif
-
-  return detail::TableLookupSlideUpLanes(d, v, amt);
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 2)>
-HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
-#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
-  if (__builtin_constant_p(amt) && (amt & 1) == 0) {
-    const Repartition<uint32_t, decltype(d)> du32;
-    return BitCast(d, SlideUpLanes(du32, BitCast(du32, v), amt >> 1));
-  }
-#endif
-
-  return detail::TableLookupSlideUpLanes(d, v, amt);
-}
-
-// ------------------------------ Slide1Up
-
-template <typename D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 1)>
-HWY_API VFromD<D> Slide1Up(D d, VFromD<D> v) {
-#if HWY_TARGET <= HWY_AVX3_DL
-  return detail::TableLookupSlideUpLanes(d, v, 1);
-#else
-  const auto v_lo = detail::SlideUpI64Lanes<2>(v);
-  return CombineShiftRightBytes<15>(d, v, v_lo);
-#endif
-}
-
-template <typename D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 2)>
-HWY_API VFromD<D> Slide1Up(D d, VFromD<D> v) {
-  return detail::TableLookupSlideUpLanes(d, v, 1);
-}
-
-template <typename D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 4)>
-HWY_API VFromD<D> Slide1Up(D /*d*/, VFromD<D> v) {
-  return detail::SlideUpI32Lanes<1>(v);
-}
-
-template <typename D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 8)>
-HWY_API VFromD<D> Slide1Up(D /*d*/, VFromD<D> v) {
-  return detail::SlideUpI64Lanes<1>(v);
-}
-
-// ------------------------------ SlideDownLanes
-
-namespace detail {
-
-template <int kI32Lanes, class V, HWY_IF_V_SIZE_V(V, 64)>
-HWY_INLINE V SlideDownI32Lanes(V v) {
-  static_assert(0 <= kI32Lanes && kI32Lanes <= 15,
-                "kI32Lanes must be between 0 and 15");
-  const DFromV<decltype(v)> d;
-  return CombineShiftRightI32Lanes<kI32Lanes>(Zero(d), v);
-}
-
-template <int kI64Lanes, class V, HWY_IF_V_SIZE_V(V, 64)>
-HWY_INLINE V SlideDownI64Lanes(V v) {
-  static_assert(0 <= kI64Lanes && kI64Lanes <= 7,
-                "kI64Lanes must be between 0 and 7");
-  const DFromV<decltype(v)> d;
-  return CombineShiftRightI64Lanes<kI64Lanes>(Zero(d), v);
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 1)>
-HWY_INLINE VFromD<D> TableLookupSlideDownLanes(D d, VFromD<D> v, size_t amt) {
-  const Repartition<uint8_t, decltype(d)> du8;
-
-#if HWY_TARGET <= HWY_AVX3_DL
-  auto byte_idx = Iota(du8, static_cast<uint8_t>(amt));
-  return TwoTablesLookupLanes(v, Zero(d), Indices512<TFromD<D>>{byte_idx.raw});
-#else
-  const Repartition<uint16_t, decltype(d)> du16;
-  const Repartition<uint64_t, decltype(d)> du64;
-  const auto byte_idx = Iota(du8, static_cast<uint8_t>(amt & 15));
-  const auto blk_u64_idx = Iota(du64, static_cast<uint64_t>(((amt >> 4) << 1)));
-
-  const VFromD<D> even_blocks{
-      _mm512_shuffle_i32x4(v.raw, v.raw, _MM_SHUFFLE(0, 2, 2, 0))};
-  const VFromD<D> odd_blocks{
-      _mm512_shuffle_i32x4(v.raw, v.raw, _MM_SHUFFLE(3, 3, 1, 1))};
-  const auto odd_sel_mask =
-      MaskFromVec(BitCast(d, ShiftLeft<3>(BitCast(du16, byte_idx))));
-  const VFromD<D> even_blk_lookup_result{
-      _mm512_maskz_shuffle_epi8(static_cast<__mmask64>(0x0000FFFFFFFFFFFFULL),
-                                even_blocks.raw, byte_idx.raw)};
-  const VFromD<D> blockwise_slide_up_result{
-      _mm512_mask_shuffle_epi8(even_blk_lookup_result.raw, odd_sel_mask.raw,
-                               odd_blocks.raw, byte_idx.raw)};
-  return BitCast(d, TwoTablesLookupLanes(
-                        BitCast(du64, blockwise_slide_up_result), Zero(du64),
-                        Indices512<uint64_t>{blk_u64_idx.raw}));
-#endif
-}
-
-}  // namespace detail
-
-template <int kBlocks, class D, HWY_IF_V_SIZE_D(D, 64)>
-HWY_API VFromD<D> SlideDownBlocks(D d, VFromD<D> v) {
-  static_assert(0 <= kBlocks && kBlocks <= 3,
-                "kBlocks must be between 0 and 3");
-  const Half<decltype(d)> dh;
-  switch (kBlocks) {
-    case 0:
-      return v;
-    case 1:
-      return detail::SlideDownI64Lanes<2>(v);
-    case 2:
-      return ZeroExtendVector(d, UpperHalf(dh, v));
-    case 3:
-      return detail::SlideDownI64Lanes<6>(v);
-  }
-
-  return v;
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 4)>
-HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
-#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
-  if (__builtin_constant_p(amt)) {
-    const Half<decltype(d)> dh;
-    switch (amt) {
-      case 1:
-        return detail::SlideDownI32Lanes<1>(v);
-      case 2:
-        return detail::SlideDownI64Lanes<1>(v);
-      case 3:
-        return detail::SlideDownI32Lanes<3>(v);
-      case 4:
-        return detail::SlideDownI64Lanes<2>(v);
-      case 5:
-        return detail::SlideDownI32Lanes<5>(v);
-      case 6:
-        return detail::SlideDownI64Lanes<3>(v);
-      case 7:
-        return detail::SlideDownI32Lanes<7>(v);
-      case 8:
-        return ZeroExtendVector(d, UpperHalf(dh, v));
-      case 9:
-        return detail::SlideDownI32Lanes<9>(v);
-      case 10:
-        return detail::SlideDownI64Lanes<5>(v);
-      case 11:
-        return detail::SlideDownI32Lanes<11>(v);
-      case 12:
-        return detail::SlideDownI64Lanes<6>(v);
-      case 13:
-        return detail::SlideDownI32Lanes<13>(v);
-      case 14:
-        return detail::SlideDownI64Lanes<7>(v);
-      case 15:
-        return detail::SlideDownI32Lanes<15>(v);
-    }
-  }
-#endif
-
-  return detail::TableLookupSlideDownLanes(d, v, amt);
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 8)>
-HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
-#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
-  if (__builtin_constant_p(amt)) {
-    const Half<decltype(d)> dh;
-    switch (amt) {
-      case 0:
-        return v;
-      case 1:
-        return detail::SlideDownI64Lanes<1>(v);
-      case 2:
-        return detail::SlideDownI64Lanes<2>(v);
-      case 3:
-        return detail::SlideDownI64Lanes<3>(v);
-      case 4:
-        return ZeroExtendVector(d, UpperHalf(dh, v));
-      case 5:
-        return detail::SlideDownI64Lanes<5>(v);
-      case 6:
-        return detail::SlideDownI64Lanes<6>(v);
-      case 7:
-        return detail::SlideDownI64Lanes<7>(v);
-    }
-  }
-#endif
-
-  return detail::TableLookupSlideDownLanes(d, v, amt);
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 1)>
-HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
-#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
-  if (__builtin_constant_p(amt)) {
-    if ((amt & 3) == 0) {
-      const Repartition<uint32_t, decltype(d)> du32;
-      return BitCast(d, SlideDownLanes(du32, BitCast(du32, v), amt >> 2));
-    } else if ((amt & 1) == 0) {
-      const Repartition<uint16_t, decltype(d)> du16;
-      return BitCast(d, detail::TableLookupSlideDownLanes(
-                            du16, BitCast(du16, v), amt >> 1));
-    }
-#if HWY_TARGET > HWY_AVX3_DL
-    else if (amt <= 63) {  // NOLINT(readability/braces)
-      const Repartition<uint64_t, decltype(d)> du64;
-      const size_t blk_u64_slidedown_amt = (amt >> 4) << 1;
-      const auto vu64 = BitCast(du64, v);
-      const auto v_lo =
-          BitCast(d, SlideDownLanes(du64, vu64, blk_u64_slidedown_amt));
-      const auto v_hi =
-          (blk_u64_slidedown_amt <= 4)
-              ? BitCast(d,
-                        SlideDownLanes(du64, vu64, blk_u64_slidedown_amt + 2))
-              : Zero(d);
-      switch (amt & 15) {
-        case 1:
-          return CombineShiftRightBytes<1>(d, v_hi, v_lo);
-        case 3:
-          return CombineShiftRightBytes<3>(d, v_hi, v_lo);
-        case 5:
-          return CombineShiftRightBytes<5>(d, v_hi, v_lo);
-        case 7:
-          return CombineShiftRightBytes<7>(d, v_hi, v_lo);
-        case 9:
-          return CombineShiftRightBytes<9>(d, v_hi, v_lo);
-        case 11:
-          return CombineShiftRightBytes<11>(d, v_hi, v_lo);
-        case 13:
-          return CombineShiftRightBytes<13>(d, v_hi, v_lo);
-        case 15:
-          return CombineShiftRightBytes<15>(d, v_hi, v_lo);
-      }
-    }
-#endif
-  }
-#endif
-
-  return detail::TableLookupSlideDownLanes(d, v, amt);
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 2)>
-HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
-#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
-  if (__builtin_constant_p(amt) && (amt & 1) == 0) {
-    const Repartition<uint32_t, decltype(d)> du32;
-    return BitCast(d, SlideDownLanes(du32, BitCast(du32, v), amt >> 1));
-  }
-#endif
-
-  return detail::TableLookupSlideDownLanes(d, v, amt);
-}
-
-// ------------------------------ Slide1Down
-
-template <typename D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 1)>
-HWY_API VFromD<D> Slide1Down(D d, VFromD<D> v) {
-#if HWY_TARGET <= HWY_AVX3_DL
-  return detail::TableLookupSlideDownLanes(d, v, 1);
-#else
-  const auto v_hi = detail::SlideDownI64Lanes<2>(v);
-  return CombineShiftRightBytes<1>(d, v_hi, v);
-#endif
-}
-
-template <typename D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 2)>
-HWY_API VFromD<D> Slide1Down(D d, VFromD<D> v) {
-  return detail::TableLookupSlideDownLanes(d, v, 1);
-}
-
-template <typename D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 4)>
-HWY_API VFromD<D> Slide1Down(D /*d*/, VFromD<D> v) {
-  return detail::SlideDownI32Lanes<1>(v);
-}
-
-template <typename D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 8)>
-HWY_API VFromD<D> Slide1Down(D /*d*/, VFromD<D> v) {
-  return detail::SlideDownI64Lanes<1>(v);
-}
 
 // ================================================== CONVERT
 
