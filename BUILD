@@ -327,6 +327,18 @@ cc_library(
 )
 
 cc_library(
+    name = "base64",
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/base64/base64-inl.h",
+    ],
+    deps = [
+        ":hwy",
+    ],
+)
+
+cc_library(
     name = "bit_pack",
     compatible_with = [],
     copts = COPTS,
