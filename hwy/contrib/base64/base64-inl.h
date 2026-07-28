@@ -84,8 +84,8 @@ HWY_INLINE void EncodeBase64Block(const uint8_t* HWY_RESTRICT input,
 
   const auto mask63 = Set(d, uint8_t{63});
   const auto s0 = ShiftRight<2>(b0);
-  const auto s1 = And(Or(ShiftLeft<4>(b0), ShiftRight<4>(b1)), mask63);
-  const auto s2 = And(Or(ShiftLeft<2>(b1), ShiftRight<6>(b2)), mask63);
+  const auto s1 = AndXor(mask63, ShiftLeft<4>(b0), ShiftRight<4>(b1));
+  const auto s2 = AndXor(mask63, ShiftLeft<2>(b1), ShiftRight<6>(b2));
   const auto s3 = And(b2, mask63);
 
   HWY_ALIGN static const uint8_t kAlphabet[64] = {
@@ -144,8 +144,9 @@ HWY_INLINE Vec128<uint8_t> DecodeBase64Block(const char* HWY_RESTRICT input,
   const auto sextets1 = DecodeBase64Vector(d, encoded1);
   const auto sextets2 = DecodeBase64Vector(d, encoded2);
   const auto sextets3 = DecodeBase64Vector(d, encoded3);
-  const auto invalid = Or(Or(Or(encoded0, sextets0), Or(encoded1, sextets1)),
-                          Or(Or(encoded2, sextets2), Or(encoded3, sextets3)));
+  const auto invalid =
+      Or3(Or3(encoded0, sextets0, encoded1), Or3(sextets1, encoded2, sextets2),
+          Or(encoded3, sextets3));
 
   const auto out0 =
       Vec128<uint8_t>{vsliq_n_u8(vshrq_n_u8(sextets1.raw, 4), sextets0.raw, 2)};
@@ -218,14 +219,14 @@ HWY_INLINE bool Base64Decode(const char* HWY_RESTRICT input,
         detail::DecodeBase64Block(input + in + 128, output + out + 96);
     const auto invalid3 =
         detail::DecodeBase64Block(input + in + 192, output + out + 144);
-    const auto invalid = Or(Or(invalid0, invalid1), Or(invalid2, invalid3));
-    if (HWY_UNLIKELY(ReduceMax(d, invalid) >= 0x80)) {
+    const auto invalid = Or3(invalid0, invalid1, Or(invalid2, invalid3));
+    if (HWY_UNLIKELY(!AllFalse(d, Ge(invalid, Set(d, uint8_t{0x80}))))) {
       return false;
     }
   }
   for (; in < simd_end; in += 64, out += 48) {
     const auto invalid = detail::DecodeBase64Block(input + in, output + out);
-    if (HWY_UNLIKELY(ReduceMax(d, invalid) >= 0x80)) {
+    if (HWY_UNLIKELY(!AllFalse(d, Ge(invalid, Set(d, uint8_t{0x80}))))) {
       return false;
     }
   }
