@@ -361,30 +361,76 @@ class MaskedMoremur {
 
 using Moremur = MaskedMoremur<64>;  // no masking
 
+// Single 64-bit multiply + xor-fold using Evensen's Moremur multiplier.
+// Faster than MaskedMoremur (1 vector multiply instead of 2), but still a
+// bijection. Fails hash_eval, especially Avalanche and DiffDist, but strong
+// enough mixing of lower bits for Cuckoo hashing.
+template <size_t kBits>
+class MaskedWeakXMX {
+  static_assert(kBits <= 64);
+
+ public:
+  using LaneType = uint64_t;
+
+  static constexpr const char* Name() {
+    return kBits == 64 ? "WeakXMX" : "MaskedWeakXMX";
+  }
+
+  static constexpr uint64_t kMask =
+      kBits == 64 ? ~uint64_t{0} : (uint64_t{1} << kBits) - 1;
+
+  MaskedWeakXMX() = default;
+  explicit MaskedWeakXMX(uint64_t key)
+      : key_(detail::MaybeMask1<kBits>(key, kMask)) {}
+  MaskedWeakXMX(AesCtrEngine& engine, uint64_t seed)
+      : key_(detail::MaybeMask1<kBits>(RngStream(engine, seed)(), kMask)) {}
+
+  uint64_t operator()(uint64_t x) const {
+    detail::MaybeCompare1<kBits>(x, kMask);
+    x ^= key_;
+
+    x ^= x >> 27;
+    x *= 0x3C79AC492BA7B653ULL;
+    x = detail::MaybeMask1<kBits>(x, kMask);
+
+    x ^= x >> 33;
+    x ^= x >> 27;
+    detail::MaybeCompare1<kBits>(x, kMask);
+    return x;
+  }
+
+  template <class DU64, class VU64 = Vec<DU64>, HWY_IF_U64_D(DU64)>
+  HWY_INLINE HWY_MUST_USE_RESULT VU64 OneVec(DU64 du64, const VU64 in) const {
+    const VU64 mask = Set(du64, kMask);
+    detail::MaybeCompare<kBits>(in, mask);
+    VU64 hash = Xor(in, Set(du64, key_));
+
+    hash = Xor(hash, ShiftRight<27>(hash));
+    hash = Mul(hash, Set(du64, uint64_t{0x3C79AC492BA7B653u}));
+    hash = detail::MaybeMask<kBits>(hash, mask);
+
+    hash = Xor(hash, ShiftRight<33>(hash));
+    hash = Xor(hash, ShiftRight<27>(hash));
+    detail::MaybeCompare<kBits>(hash, mask);
+    return hash;
+  }
+
+  template <class DU64, class VU64 = Vec<DU64>, HWY_IF_U64_D(DU64)>
+  HWY_INLINE void TwoVec(DU64 du64, VU64& inout0, VU64& inout1) const {
+    inout0 = OneVec(du64, inout0);
+    inout1 = OneVec(du64, inout1);
+  }
+
+  uint64_t Key() const { return key_; }
+
+ private:
+  uint64_t key_ = 0;
+};
+
+using WeakXMX = MaskedWeakXMX<64>;  // no masking
+
 // ----------------------------------------------------------------------------
 #if 0  // obsolete - use one of the above instead
-
-// Fastest: just one multiply. Lower bits are not well-mixed.
-class WeakOneMul {
- public:
-  using LaneType = uint32_t;
-  static constexpr const char* Name() { return "WeakOneMul"; }
-
-  WeakOneMul() = default;
-
-  uint32_t operator()(uint32_t x) const { return x * 0x9E3779B9u; }
-
-  template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
-  HWY_INLINE HWY_MUST_USE_RESULT VU32 OneVec(DU32 du32, const VU32 in) const {
-    return Mul(in, Set(du32, 0x9E3779B9u));
-  }
-
-  template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
-  HWY_INLINE void TwoVec(DU32 du32, VU32& inout0, VU32& inout1) const {
-    inout0 = OneVec(du32, inout0);
-    inout1 = OneVec(du32, inout1);
-  }
-};
 
 // Round-reduced ARX cipher. Considerably slower than Triple32 on AVX2 due to
 // the rotates.
@@ -923,13 +969,14 @@ void ForeachHash(AesCtrEngine& engine, uint64_t seed, const Func& func) {
   // func(Speck32(engine, seed));
   // func(WeakLaiMassey3Mul2(engine, seed));
   // func(Murmur3(engine, seed));
-  // func(WeakOneMul(engine, seed));
   // func(WeakNMHash(engine, seed));
 }
 
 template <class Func>
 void ForeachHash64(AesCtrEngine& engine, uint64_t seed, const Func& func) {
   func(Moremur(engine, seed));
+  // func(WeakXMX(engine, seed));
+
   // func(Nasam(engine, seed));
   // func(Feistel4Mul2(engine, seed));
   // func(Feistel3Mul3(engine, seed));

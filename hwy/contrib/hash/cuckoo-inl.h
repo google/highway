@@ -81,19 +81,22 @@ HWY_INLINE const V& GetRaw(const V& v, ...) {
 // HashT must provide: LaneType typedef, operator()(LaneType), OneVec, TwoVec.
 // KeyT is derived from HashT::LaneType.
 
-template <typename HashT_ = WeakTwoMul, size_t kBucketSize_ = 16,
+template <typename HashT_ = WeakTwoMul, size_t kBucketSize_ = 0,
           size_t kMinBuckets_ = 1>
 struct CuckooTraits {
   using HashT = HashT_;
   using KeyT = typename HashT::LaneType;
-  static constexpr size_t kBucketSize = kBucketSize_;
+
+  static constexpr size_t kBucketSize =
+      kBucketSize_ ? kBucketSize_ : 64 / sizeof(KeyT);
   static constexpr size_t kLogBucketSize = CeilLog2(kBucketSize);
+
   static constexpr size_t kMinBuckets = kMinBuckets_;
 
-  static_assert((kBucketSize_ & (kBucketSize_ - 1)) == 0 && kBucketSize_ > 0,
-                "kBucketSize_ must be a power of two");
-  static_assert((kMinBuckets_ & (kMinBuckets_ - 1)) == 0 && kMinBuckets_ > 0,
-                "kMinBuckets_ must be a power of two");
+  static_assert((kBucketSize & (kBucketSize - 1)) == 0 && kBucketSize > 0,
+                "kBucketSize must be a power of two");
+  static_assert((kMinBuckets & (kMinBuckets - 1)) == 0 && kMinBuckets > 0,
+                "kMinBuckets must be a power of two");
 };
 
 // --------------------------------------------------------------------------

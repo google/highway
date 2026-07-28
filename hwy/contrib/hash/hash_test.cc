@@ -137,6 +137,11 @@ static HWY_NOINLINE void TestAllMasked() {
   TestMasked<MaskedMoremur<7>>();
   TestMasked<MaskedMoremur<31>>();
   TestMasked<MaskedMoremur<63>>();
+
+  TestMasked<MaskedWeakXMX<1>>();
+  TestMasked<MaskedWeakXMX<7>>();
+  TestMasked<MaskedWeakXMX<31>>();
+  TestMasked<MaskedWeakXMX<63>>();
 }
 
 // Strict Avalanche Criterion: flipping any single input bit should cause
@@ -472,6 +477,16 @@ static HWY_NOINLINE void TestAllBuckets() {
   {
     MaskedMoremur<27> masked27(engine, 0);
     fprintf(stderr, "MaskedMoremur<27>\n");
+    TestMaskedBuckets<27>(masked27);
+  }
+  {
+    MaskedWeakXMX<14> masked14(engine, 0);
+    fprintf(stderr, "MaskedWeakXMX<14>\n");
+    TestMaskedBuckets<14>(masked14);
+  }
+  {
+    MaskedWeakXMX<27> masked27(engine, 0);
+    fprintf(stderr, "MaskedWeakXMX<27>\n");
     TestMaskedBuckets<27>(masked27);
   }
 }
