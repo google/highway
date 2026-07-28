@@ -71,15 +71,15 @@ HWY_INLINE void EncodeBase64Tail(const uint8_t* HWY_RESTRICT input,
   output[3] = kAlphabet[b2 & 63];
 }
 
-#if HWY_ARCH_ARM_A64 && HWY_TARGET_IS_NEON
+#if (HWY_ARCH_ARM_A64 && HWY_TARGET_IS_NEON) || HWY_TARGET <= HWY_AVX3_DL
 
-// Encodes 48 input bytes to 64 output characters.
-HWY_INLINE void EncodeBase64Block(const uint8_t* HWY_RESTRICT input,
+// Encodes 3 * Lanes(d) input bytes to 4 * Lanes(d) output characters.
+template <class D>
+HWY_INLINE void EncodeBase64Block(D d, const uint8_t* HWY_RESTRICT input,
                                   char* HWY_RESTRICT output) {
-  const Full128<uint8_t> d;
-  Vec<decltype(d)> b0;
-  Vec<decltype(d)> b1;
-  Vec<decltype(d)> b2;
+  VFromD<D> b0;
+  VFromD<D> b1;
+  VFromD<D> b2;
   LoadInterleaved3(d, input, b0, b1, b2);
 
   const auto mask63 = Set(d, uint8_t{63});
@@ -99,7 +99,7 @@ HWY_INLINE void EncodeBase64Block(const uint8_t* HWY_RESTRICT input,
                     reinterpret_cast<uint8_t*>(output));
 }
 
-#endif  // HWY_ARCH_ARM_A64 && HWY_TARGET_IS_NEON
+#endif  // NEON64 || HWY_TARGET <= HWY_AVX3_DL
 
 template <class D>
 HWY_INLINE VFromD<D> DecodeBase64Vector(D d, VFromD<D> encoded) {
@@ -187,9 +187,13 @@ HWY_INLINE size_t Base64Encode(const uint8_t* HWY_RESTRICT input,
                                char* HWY_RESTRICT output) {
   size_t in = 0;
   size_t out = 0;
-#if HWY_ARCH_ARM_A64 && HWY_TARGET_IS_NEON
-  for (; in + 48 <= input_size; in += 48, out += 64) {
-    detail::EncodeBase64Block(input + in, output + out);
+#if (HWY_ARCH_ARM_A64 && HWY_TARGET_IS_NEON) || HWY_TARGET <= HWY_AVX3_DL
+  const ScalableTag<uint8_t> d;
+  const size_t input_block = 3 * Lanes(d);
+  const size_t output_block = 4 * Lanes(d);
+  for (; input_size - in >= input_block;
+       in += input_block, out += output_block) {
+    detail::EncodeBase64Block(d, input + in, output + out);
   }
 #endif
   for (; in + 3 <= input_size; in += 3, out += 4) {
