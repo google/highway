@@ -118,7 +118,11 @@ HWY_INLINE VFromD<D> DecodeBase64Vector(D d, VFromD<D> encoded) {
       32,   33,   34,   35,   36,   37,   38,   39,   40,   41,   42,   43,  44,
       45,   46,   47,   48,   49,   50,   51,   0x80, 0x80, 0x80, 0x80, 0x80};
 
-#if HWY_ARCH_ARM_A64 && HWY_TARGET_IS_NEON
+#if HWY_TARGET <= HWY_AVX3_DL
+  const auto index = And(encoded, Set(d, uint8_t{0x7F}));
+  return TwoTablesLookupLanes(Load(d, kLow), Load(d, kHigh),
+                              IndicesFromVec(d, index));
+#elif HWY_ARCH_ARM_A64 && HWY_TARGET_IS_NEON
   // TBL returns zero for indices >= 64, then TBX keeps the low-table result for
   // indices outside [64, 127].
   const uint8x16x4_t low_table = {
@@ -138,11 +142,37 @@ HWY_INLINE VFromD<D> DecodeBase64Vector(D d, VFromD<D> encoded) {
 #endif
 }
 
-// Decodes 4 * Lanes(d) input characters to 3 * Lanes(d) output bytes and
-// returns bytes whose high bit is set if any input character was invalid.
+// Decodes Lanes(d) contiguous input characters to 3/4 * Lanes(d) output bytes
+// on AVX3_DL. Other targets decode 4 * Lanes(d) interleaved input characters
+// to 3 * Lanes(d) output bytes. Returns bytes whose high bit is set if any
+// input character was invalid.
 template <class D>
 HWY_INLINE VFromD<D> DecodeBase64Block(D d, const char* HWY_RESTRICT input,
                                        uint8_t* HWY_RESTRICT output) {
+#if HWY_TARGET <= HWY_AVX3_DL
+  const auto encoded = LoadU(d, reinterpret_cast<const uint8_t*>(input));
+  const auto sextets = DecodeBase64Vector(d, encoded);
+  const auto invalid = Or(encoded, sextets);
+
+  const Repartition<int16_t, D> di16;
+  const Repartition<int32_t, D> di32;
+  const Rebind<int8_t, D> di8;
+  const auto mul_ab = BitCast(di8, Set(di32, static_cast<int32_t>(0x01400140)));
+  const auto merged16 = SatWidenMulPairwiseAdd(di16, sextets, mul_ab);
+  const auto mul_pairs =
+      BitCast(di16, Set(di32, static_cast<int32_t>(0x00011000)));
+  const auto merged32 = WidenMulPairwiseAdd(di32, merged16, mul_pairs);
+
+  HWY_ALIGN static const uint8_t kPack[64] = {
+      2,  1,  0,  6,  5,  4,  10, 9,  8,  14, 13, 12, 18, 17, 16, 22,
+      21, 20, 26, 25, 24, 30, 29, 28, 34, 33, 32, 38, 37, 36, 42, 41,
+      40, 46, 45, 44, 50, 49, 48, 54, 53, 52, 58, 57, 56, 62, 61, 60,
+      0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0};
+  const auto packed =
+      TableLookupLanes(BitCast(d, merged32), SetTableIndices(d, kPack));
+  StoreN(packed, d, output, 3 * Lanes(d) / 4);
+  return invalid;
+#else
   VFromD<D> encoded0;
   VFromD<D> encoded1;
   VFromD<D> encoded2;
@@ -171,6 +201,7 @@ HWY_INLINE VFromD<D> DecodeBase64Block(D d, const char* HWY_RESTRICT input,
 #endif
   StoreInterleaved3(out0, out1, out2, d, output);
   return invalid;
+#endif
 }
 
 }  // namespace detail
@@ -221,8 +252,13 @@ HWY_INLINE bool Base64Decode(const char* HWY_RESTRICT input,
   const ScalableTag<uint8_t> d;
   if (CanLookup64(d)) {
     const size_t lanes = Lanes(d);
+#if HWY_TARGET <= HWY_AVX3_DL
+    const size_t input_block = lanes;
+    const size_t output_block = 3 * lanes / 4;
+#else
     const size_t input_block = 4 * lanes;
     const size_t output_block = 3 * lanes;
+#endif
     size_t simd_end = input_size - input_size % input_block;
     // Only the final two characters can contain legal padding. Leave the final
     // SIMD block to the scalar tail when the input ends on a block boundary.
