@@ -99,10 +99,11 @@ HWY_INLINE void EncodeBase64Block(const uint8_t* HWY_RESTRICT input,
                     reinterpret_cast<uint8_t*>(output));
 }
 
-HWY_INLINE Vec128<uint8_t> DecodeBase64Vector(Full128<uint8_t> d,
-                                              Vec128<uint8_t> encoded) {
-  // TBL returns zero for indices >= 64, then TBX keeps the low-table result for
-  // indices outside [64, 127]. Invalid table entries set bit 7.
+#endif  // HWY_ARCH_ARM_A64 && HWY_TARGET_IS_NEON
+
+template <class D>
+HWY_INLINE VFromD<D> DecodeBase64Vector(D d, VFromD<D> encoded) {
+  // Invalid table entries set bit 7.
   HWY_ALIGN static const uint8_t kLow[64] = {
       0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
       0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
@@ -117,6 +118,9 @@ HWY_INLINE Vec128<uint8_t> DecodeBase64Vector(Full128<uint8_t> d,
       32,   33,   34,   35,   36,   37,   38,   39,   40,   41,   42,   43,  44,
       45,   46,   47,   48,   49,   50,   51,   0x80, 0x80, 0x80, 0x80, 0x80};
 
+#if HWY_ARCH_ARM_A64 && HWY_TARGET_IS_NEON
+  // TBL returns zero for indices >= 64, then TBX keeps the low-table result for
+  // indices outside [64, 127].
   const uint8x16x4_t low_table = {
       {Load(d, kLow + 0).raw, Load(d, kLow + 16).raw, Load(d, kLow + 32).raw,
        Load(d, kLow + 48).raw}};
@@ -126,17 +130,23 @@ HWY_INLINE Vec128<uint8_t> DecodeBase64Vector(Full128<uint8_t> d,
   const auto low = Vec128<uint8_t>{vqtbl4q_u8(low_table, encoded.raw)};
   const auto high_index = Sub(encoded, Set(d, uint8_t{64}));
   return Vec128<uint8_t>{vqtbx4q_u8(low.raw, high_table, high_index.raw)};
+#else
+  const auto index = And(encoded, Set(d, uint8_t{63}));
+  const auto low = Lookup64(d, kLow, index);
+  const auto high = Lookup64(d, kHigh, index);
+  return IfThenElse(Ne(And(encoded, Set(d, uint8_t{64})), Zero(d)), high, low);
+#endif
 }
 
-// Decodes 64 input characters to 48 output bytes and returns bytes whose high
-// bit is set if any input character was invalid.
-HWY_INLINE Vec128<uint8_t> DecodeBase64Block(const char* HWY_RESTRICT input,
-                                             uint8_t* HWY_RESTRICT output) {
-  const Full128<uint8_t> d;
-  Vec128<uint8_t> encoded0;
-  Vec128<uint8_t> encoded1;
-  Vec128<uint8_t> encoded2;
-  Vec128<uint8_t> encoded3;
+// Decodes 4 * Lanes(d) input characters to 3 * Lanes(d) output bytes and
+// returns bytes whose high bit is set if any input character was invalid.
+template <class D>
+HWY_INLINE VFromD<D> DecodeBase64Block(D d, const char* HWY_RESTRICT input,
+                                       uint8_t* HWY_RESTRICT output) {
+  VFromD<D> encoded0;
+  VFromD<D> encoded1;
+  VFromD<D> encoded2;
+  VFromD<D> encoded3;
   LoadInterleaved4(d, reinterpret_cast<const uint8_t*>(input), encoded0,
                    encoded1, encoded2, encoded3);
 
@@ -148,16 +158,20 @@ HWY_INLINE Vec128<uint8_t> DecodeBase64Block(const char* HWY_RESTRICT input,
       Or3(Or3(encoded0, sextets0, encoded1), Or3(sextets1, encoded2, sextets2),
           Or(encoded3, sextets3));
 
+#if HWY_ARCH_ARM_A64 && HWY_TARGET_IS_NEON
   const auto out0 =
       Vec128<uint8_t>{vsliq_n_u8(vshrq_n_u8(sextets1.raw, 4), sextets0.raw, 2)};
   const auto out1 =
       Vec128<uint8_t>{vsliq_n_u8(vshrq_n_u8(sextets2.raw, 2), sextets1.raw, 4)};
   const auto out2 = Vec128<uint8_t>{vsliq_n_u8(sextets3.raw, sextets2.raw, 6)};
+#else
+  const auto out0 = Or(ShiftLeft<2>(sextets0), ShiftRight<4>(sextets1));
+  const auto out1 = Or(ShiftLeft<4>(sextets1), ShiftRight<2>(sextets2));
+  const auto out2 = Or(ShiftLeft<6>(sextets2), sextets3);
+#endif
   StoreInterleaved3(out0, out1, out2, d, output);
   return invalid;
 }
-
-#endif  // HWY_ARCH_ARM_A64 && HWY_TARGET_IS_NEON
 
 }  // namespace detail
 
@@ -200,37 +214,44 @@ HWY_INLINE bool Base64Decode(const char* HWY_RESTRICT input,
 
   size_t in = 0;
   size_t out = 0;
-#if HWY_ARCH_ARM_A64 && HWY_TARGET_IS_NEON
-  size_t simd_end = input_size & ~size_t{63};
-  // Only the final two characters can contain legal padding. Leave the final
-  // SIMD block to the scalar tail when the input ends on a block boundary.
-  if (simd_end == input_size && input_size >= 64 &&
-      (input[input_size - 2] == '=' || input[input_size - 1] == '=')) {
-    simd_end -= 64;
-  }
+  const ScalableTag<uint8_t> d;
+  if (CanLookup64(d)) {
+    const size_t lanes = Lanes(d);
+    const size_t input_block = 4 * lanes;
+    const size_t output_block = 3 * lanes;
+    size_t simd_end = input_size - input_size % input_block;
+    // Only the final two characters can contain legal padding. Leave the final
+    // SIMD block to the scalar tail when the input ends on a block boundary.
+    if (simd_end == input_size && input_size >= input_block &&
+        (input[input_size - 2] == '=' || input[input_size - 1] == '=')) {
+      simd_end -= input_block;
+    }
 
-  const Full128<uint8_t> d;
-  for (; simd_end - in >= 256; in += 256, out += 192) {
-    const auto invalid0 =
-        detail::DecodeBase64Block(input + in + 0, output + out + 0);
-    const auto invalid1 =
-        detail::DecodeBase64Block(input + in + 64, output + out + 48);
-    const auto invalid2 =
-        detail::DecodeBase64Block(input + in + 128, output + out + 96);
-    const auto invalid3 =
-        detail::DecodeBase64Block(input + in + 192, output + out + 144);
-    const auto invalid = Or3(invalid0, invalid1, Or(invalid2, invalid3));
-    if (HWY_UNLIKELY(!AllFalse(d, Ge(invalid, Set(d, uint8_t{0x80}))))) {
-      return false;
+    const size_t batch_input = 4 * input_block;
+    const size_t batch_output = 4 * output_block;
+    for (; simd_end - in >= batch_input;
+         in += batch_input, out += batch_output) {
+      const auto invalid0 =
+          detail::DecodeBase64Block(d, input + in, output + out);
+      const auto invalid1 = detail::DecodeBase64Block(
+          d, input + in + input_block, output + out + output_block);
+      const auto invalid2 = detail::DecodeBase64Block(
+          d, input + in + 2 * input_block, output + out + 2 * output_block);
+      const auto invalid3 = detail::DecodeBase64Block(
+          d, input + in + 3 * input_block, output + out + 3 * output_block);
+      const auto invalid = Or3(invalid0, invalid1, Or(invalid2, invalid3));
+      if (HWY_UNLIKELY(!AllFalse(d, Ge(invalid, Set(d, uint8_t{0x80}))))) {
+        return false;
+      }
+    }
+    for (; in < simd_end; in += input_block, out += output_block) {
+      const auto invalid =
+          detail::DecodeBase64Block(d, input + in, output + out);
+      if (HWY_UNLIKELY(!AllFalse(d, Ge(invalid, Set(d, uint8_t{0x80}))))) {
+        return false;
+      }
     }
   }
-  for (; in < simd_end; in += 64, out += 48) {
-    const auto invalid = detail::DecodeBase64Block(input + in, output + out);
-    if (HWY_UNLIKELY(!AllFalse(d, Ge(invalid, Set(d, uint8_t{0x80}))))) {
-      return false;
-    }
-  }
-#endif
 
   for (; in < input_size; in += 4) {
     const bool is_last = in + 4 == input_size;
