@@ -73,10 +73,31 @@ HWY_INLINE void EncodeBase64Tail(const uint8_t* HWY_RESTRICT input,
 
 #if (HWY_ARCH_ARM_A64 && HWY_TARGET_IS_NEON) || HWY_TARGET <= HWY_AVX3_DL
 
-// Encodes 3 * Lanes(d) input bytes to 4 * Lanes(d) output characters.
+// Encodes 48 input bytes to 64 output characters on AVX3_DL. On NEON64,
+// encodes 3 * Lanes(d) input bytes to 4 * Lanes(d) output characters.
 template <class D>
 HWY_INLINE void EncodeBase64Block(D d, const uint8_t* HWY_RESTRICT input,
                                   char* HWY_RESTRICT output) {
+#if HWY_TARGET <= HWY_AVX3_DL
+  const auto bytes = LoadN(d, input, 48);
+  const __m512i shuffle = _mm512_setr_epi32(
+      0x01020001, 0x04050304, 0x07080607, 0x0a0b090a, 0x0d0e0c0d, 0x10110f10,
+      0x13141213, 0x16171516, 0x191a1819, 0x1c1d1b1c, 0x1f201e1f, 0x22232122,
+      0x25262425, 0x28292728, 0x2b2c2a2b, 0x2e2f2d2e);
+  const __m512i grouped = _mm512_permutexvar_epi8(shuffle, bytes.raw);
+  const __m512i shifts =
+      _mm512_set1_epi64(static_cast<int64_t>(0x3036242a1016040aULL));
+  const auto indices = VFromD<D>{_mm512_multishift_epi64_epi8(shifts, grouped)};
+
+  HWY_ALIGN static const uint8_t kAlphabet[64] = {
+      'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+      'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+      'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+      'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+      '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/'};
+  StoreU(TableLookupLanes(Load(d, kAlphabet), IndicesFromVec(d, indices)), d,
+         reinterpret_cast<uint8_t*>(output));
+#else
   VFromD<D> b0;
   VFromD<D> b1;
   VFromD<D> b2;
@@ -97,6 +118,7 @@ HWY_INLINE void EncodeBase64Block(D d, const uint8_t* HWY_RESTRICT input,
   StoreInterleaved4(Lookup64(d, kAlphabet, s0), Lookup64(d, kAlphabet, s1),
                     Lookup64(d, kAlphabet, s2), Lookup64(d, kAlphabet, s3), d,
                     reinterpret_cast<uint8_t*>(output));
+#endif
 }
 
 #endif  // NEON64 || HWY_TARGET <= HWY_AVX3_DL
@@ -220,8 +242,13 @@ HWY_INLINE size_t Base64Encode(const uint8_t* HWY_RESTRICT input,
   size_t out = 0;
 #if (HWY_ARCH_ARM_A64 && HWY_TARGET_IS_NEON) || HWY_TARGET <= HWY_AVX3_DL
   const ScalableTag<uint8_t> d;
+#if HWY_TARGET <= HWY_AVX3_DL
+  const size_t input_block = 48;
+  const size_t output_block = 64;
+#else
   const size_t input_block = 3 * Lanes(d);
   const size_t output_block = 4 * Lanes(d);
+#endif
   for (; input_size - in >= input_block;
        in += input_block, out += output_block) {
     detail::EncodeBase64Block(d, input + in, output + out);
