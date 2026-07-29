@@ -19,7 +19,6 @@
 #include <iostream>
 #include <vector>
 
-
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/examples/game_of_life.cc"
 
@@ -70,14 +69,11 @@ const DU8 du8;
 using VU8 = hn::Vec<DU8>;
 using MU8 = hn::Mask<DU8>;
 
-
 void InitializeState(uint64_t* HWY_RESTRICT a_bit_1,
                      uint64_t* HWY_RESTRICT a_bit_2,
                      uint8_t* HWY_RESTRICT a_byte_1,
-                     uint8_t* HWY_RESTRICT a_byte_2,
-                     const size_t nx,
+                     uint8_t* HWY_RESTRICT a_byte_2, const size_t nx,
                      const size_t ny) {
-
   size_t NU64 = hn::Lanes(du64);
   size_t NU8 = hn::Lanes(du8);
   hwy::AlignedVector<uint8_t> temp(NU8);
@@ -128,8 +124,7 @@ void InitializeState(uint64_t* HWY_RESTRICT a_bit_1,
 }
 
 bool ValidateBit(const uint8_t* HWY_RESTRICT ref_byte,
-                 const uint64_t* HWY_RESTRICT out,
-                 const size_t nx,
+                 const uint64_t* HWY_RESTRICT out, const size_t nx,
                  const size_t ny) {
   size_t NU8 = hn::Lanes(du8);
   hwy::AlignedVector<uint8_t> temp(NU8);
@@ -167,8 +162,7 @@ bool ValidateBit(const uint8_t* HWY_RESTRICT ref_byte,
 }
 
 bool ValidateByte(const uint8_t* HWY_RESTRICT ref_byte,
-                  const uint8_t* HWY_RESTRICT out,
-                  const size_t nx,
+                  const uint8_t* HWY_RESTRICT out, const size_t nx,
                   const size_t ny) {
   size_t NU8 = hn::Lanes(du8);
   size_t i = 0;
@@ -188,74 +182,73 @@ bool ValidateByte(const uint8_t* HWY_RESTRICT ref_byte,
   return no_mismatches;
 }
 
-void NewStateSimdByte(const uint8_t* HWY_RESTRICT in,
-		      uint8_t* HWY_RESTRICT out,
-		      const size_t nx,
-                      const size_t ny) {
-  
+VU8 NeighborCountSimdByte(const VU8 top_values, const VU8 my_values,
+                          const VU8 bottom_values,
+                          const uint8_t* HWY_RESTRICT in, const size_t NU8,
+                          const size_t nx, const size_t ny, const size_t i,
+                          const size_t j) {
+  size_t ind;
+  VU8 neighbor_count = hn::Zero(du8);
+  // left points
+  ind = j * nx + ((nx - 1 + i) % nx);
+  neighbor_count = hn::Slide1UpOr(in[ind], du8, my_values);
+  // bottom left points
+  ind = ((1 + j) % ny) * nx + ((nx - 1 + i) % nx);
+  neighbor_count =
+      hn::Add(neighbor_count, hn::Slide1UpOr(in[ind], du8, bottom_values));
+  // bottom points
+  neighbor_count = hn::Add(neighbor_count, bottom_values);
+  // bottom right points
+  ind = ((1 + j) % ny) * nx + ((NU8 + nx + i) % nx);
+  neighbor_count =
+      hn::Add(neighbor_count, hn::Slide1DownOr(in[ind], du8, bottom_values));
+  // right points
+  ind = j * nx + ((NU8 + nx + i) % nx);
+  neighbor_count =
+      hn::Add(neighbor_count, hn::Slide1DownOr(in[ind], du8, my_values));
+  // top right points
+  ind = ((ny - 1 + j) % ny) * nx + ((NU8 + nx + i) % nx);
+  neighbor_count =
+      hn::Add(neighbor_count, hn::Slide1DownOr(in[ind], du8, top_values));
+  // top points
+  neighbor_count = hn::Add(neighbor_count, top_values);
+  // top left points
+  ind = ((ny - 1 + j) % ny) * nx + (nx - 1 + i) % nx;
+  neighbor_count =
+      hn::Add(neighbor_count, hn::Slide1UpOr(in[ind], du8, top_values));
+  return neighbor_count;
+}
+
+void NewStateSimdByte(const uint8_t* HWY_RESTRICT in, uint8_t* HWY_RESTRICT out,
+                      const size_t nx, const size_t ny) {
   const size_t NU8 = hn::Lanes(du8);
   VU8 neighbor_count;
-  VU8 top_values;
-  VU8 my_values;
-  VU8 bottom_values;
+  VU8 previous_row;
+  VU8 current_row;
+  VU8 next_row;
   VU8 new_state;
   MU8 three_alive;
   MU8 two_and_me_alive;
   MU8 alive;
-  size_t ind;
 
-  for(size_t j = 0; j < ny; j++) {
-    for(size_t i = 0; i + NU8 <= nx; i+=NU8) {
-      top_values = hn::LoadU(du8, in + ((ny - 1 + j)%ny)*nx + i);
-      my_values = hn::LoadU(du8, in + j*nx + i);
-      bottom_values = hn::LoadU(du8, in + ((1 + j)%ny)*nx + i);
-      neighbor_count = hn::Zero(du8);
-      // left points
-      ind = j*nx + ((nx - 1 + i)%nx);
-      neighbor_count = hn::Slide1UpOr(in[ind], du8, my_values);
-      // bottom left points
-      ind = ((1 + j)%ny)*nx + ((nx - 1 + i)%nx);
-      neighbor_count =
-        hn::Add(neighbor_count,
-                hn::Slide1UpOr(in[ind], du8, bottom_values));
-      // bottom points
-      neighbor_count =
-        hn::Add(neighbor_count,
-                bottom_values);
-      // bottom right points
-      ind = ((1 + j)%ny)*nx + ((NU8 + nx + i)%nx);
-      neighbor_count =
-        hn::Add(neighbor_count,
-                hn::Slide1DownOr(in[ind], du8, bottom_values));
-      // right points
-      ind = j*nx + ((NU8 + nx + i)%nx);
-      neighbor_count =
-        hn::Add(neighbor_count,
-                hn::Slide1DownOr(in[ind], du8, my_values));
-      // top right points
-      ind = ((ny - 1 + j)%ny)*nx + ((NU8 + nx + i)%nx);
-      neighbor_count =
-        hn::Add(neighbor_count,
-                hn::Slide1DownOr(in[ind], du8, top_values));
-      // top points
-      neighbor_count =
-        hn::Add(neighbor_count,
-                top_values);
-      // top left points
-      ind = ((ny - 1 + j)%ny)*nx + (nx - 1 + i)%nx;
-      neighbor_count =
-        hn::Add(neighbor_count,
-                hn::Slide1UpOr(in[ind], du8, top_values));
-      three_alive = hn::Eq(neighbor_count, hn::Set(du8, static_cast<uint8_t>(3)));
-      two_and_me_alive = hn::And(hn::Eq(neighbor_count, hn::Set(du8, static_cast<uint8_t>(2))),
-                                 hn::Eq(my_values, hn::Set(du8, static_cast<uint8_t>(1))));
+  for (size_t i = 0; i + NU8 <= nx; i += NU8) {
+    for (size_t j = 0; j < ny; j++) {
+      previous_row = hn::LoadU(du8, in + ((ny - 1 + j) % ny) * nx + i);
+      current_row = hn::LoadU(du8, in + j * nx + i);
+      next_row = hn::LoadU(du8, in + ((1 + j) % ny) * nx + i);
+      neighbor_count = NeighborCountSimdByte(previous_row, current_row,
+                                             next_row, in, NU8, nx, ny, i, j);
+      two_and_me_alive =
+          hn::And(hn::Eq(neighbor_count, hn::Set(du8, static_cast<uint8_t>(2))),
+                  hn::Eq(current_row, hn::Set(du8, static_cast<uint8_t>(1))));
+      three_alive =
+          hn::Eq(neighbor_count, hn::Set(du8, static_cast<uint8_t>(3)));
       alive = hn::Or(three_alive, two_and_me_alive);
       new_state = hn::MaskedSet(du8, alive, static_cast<uint8_t>(1));
-      hn::StoreU(new_state, du8, out + j*nx + i);
+      hn::StoreU(new_state, du8, out + j * nx + i);
     }
   }
-
- return;
+  return;
 }
 
 }  // namespace HWY_NAMESPACE
@@ -270,8 +263,7 @@ HWY_EXPORT(NewStateSimdByte);
 HWY_EXPORT(ValidateByte);
 
 void NewStateScalarBit(const uint64_t* HWY_RESTRICT in,
-                       uint64_t* HWY_RESTRICT out,
-                       const size_t nx,
+                       uint64_t* HWY_RESTRICT out, const size_t nx,
                        const size_t ny) {
   // Lambda for checking state
   auto check_state = [](const uint64_t* in, const size_t ind) HWY_ATTR -> bool {
@@ -328,7 +320,7 @@ void NewStateScalarBit(const uint64_t* HWY_RESTRICT in,
       // bottom left
       ind = ((i + nx - 1) % nx) + ((j + 1) % ny) * nx;
       neighbours += check_state(in, ind) ? static_cast<size_t>(1)
-                                         : static_cast<size_t>(0); 
+                                         : static_cast<size_t>(0);
       // left
       ind = ((i + nx - 1) % nx) + (j % ny) * nx;
       neighbours += check_state(in, ind) ? static_cast<size_t>(1)
@@ -353,8 +345,7 @@ void NewStateScalarBit(const uint64_t* HWY_RESTRICT in,
 }
 
 void NewStateScalarByte(const uint8_t* HWY_RESTRICT in,
-                        uint8_t* HWY_RESTRICT out,
-                        const size_t nx,
+                        uint8_t* HWY_RESTRICT out, const size_t nx,
                         const size_t ny) {
   for (size_t j = 0; j < ny; j++) {
     for (size_t i = 0; i < nx; i++) {
@@ -378,10 +369,10 @@ void NewStateScalarByte(const uint8_t* HWY_RESTRICT in,
       neighbours += in[ind];
       // bottom
       ind = (i % nx) + ((j + 1) % ny) * nx;
-      neighbours += in[ind];  
+      neighbours += in[ind];
       // bottom left
       ind = ((i - 1 + nx) % nx) + ((j + 1) % ny) * nx;
-      neighbours += in[ind]; 
+      neighbours += in[ind];
       // left
       ind = ((i - 1 + nx) % nx) + (j % ny) * nx;
       neighbours += in[ind];
@@ -445,19 +436,18 @@ void GameOfLifeSimdByte(uint8_t* HWY_RESTRICT a, uint8_t* HWY_RESTRICT b,
   }
   // Remainder iteration
   if (iterations - iter > 0) {
-     HWY_DYNAMIC_DISPATCH(NewStateSimdByte)(a, b, nx, ny);
+    HWY_DYNAMIC_DISPATCH(NewStateSimdByte)(a, b, nx, ny);
   }
 
   return;
 }
-
 
 int Run() {
   const size_t nx = 512;  // For ease of processing, make divisible by 64
   const size_t ny = 512;  // For ease of processing, make divisible by 64
   // Allocate a little larger than needed
   const size_t uint64_size = 10 + (nx * ny) / (8 * sizeof(uint64_t));
-  const size_t iterations = 15;
+  const size_t iterations = 150;
   bool validated = true;
   AlignedFreeUniquePtr<uint64_t[]> a_scalar_bit =
       AllocateAligned<uint64_t>(uint64_size);
@@ -472,12 +462,9 @@ int Run() {
   hwy::AlignedVector<uint8_t> a_simd_byte(10 + nx * ny);
   hwy::AlignedVector<uint8_t> b_simd_byte(10 + nx * ny);
 
-  HWY_DYNAMIC_DISPATCH(InitializeState)(a_scalar_bit.get(),
-                                        a_simd_bit.get(),
+  HWY_DYNAMIC_DISPATCH(InitializeState)(a_scalar_bit.get(), a_simd_bit.get(),
                                         a_scalar_byte.data(),
-                                        a_simd_byte.data(),
-                                        nx,
-					ny);
+                                        a_simd_byte.data(), nx, ny);
 
   // Record start time
   const double t_scalar_byte_0 = hwy::platform::Now();
@@ -510,7 +497,7 @@ int Run() {
   // Record start time
   const double t_simd_byte_0 = hwy::platform::Now();
   GameOfLifeSimdByte(a_simd_byte.data(), b_simd_byte.data(), nx, ny,
-                      iterations);
+                     iterations);
   // Record end time and print execution time
   const double t_simd_byte_1 = hwy::platform::Now();
   const double dt_simd_byte = 1000.0 * (t_simd_byte_1 - t_simd_byte_0);
