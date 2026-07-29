@@ -73,10 +73,10 @@ HWY_INLINE void EncodeBase64Tail(const uint8_t* HWY_RESTRICT input,
 
 #if (HWY_ARCH_ARM_A64 && HWY_TARGET_IS_NEON) || HWY_TARGET <= HWY_AVX3_DL
 
-// Encodes 3 * Lanes(d) input bytes to 4 * Lanes(d) output characters.
 template <class D>
-HWY_INLINE void EncodeBase64Block(D d, const uint8_t* HWY_RESTRICT input,
-                                  char* HWY_RESTRICT output) {
+HWY_INLINE void EncodeBase64BlockInterleaved(D d,
+                                             const uint8_t* HWY_RESTRICT input,
+                                             char* HWY_RESTRICT output) {
   VFromD<D> b0;
   VFromD<D> b1;
   VFromD<D> b2;
@@ -97,6 +97,68 @@ HWY_INLINE void EncodeBase64Block(D d, const uint8_t* HWY_RESTRICT input,
   StoreInterleaved4(Lookup64(d, kAlphabet, s0), Lookup64(d, kAlphabet, s1),
                     Lookup64(d, kAlphabet, s2), Lookup64(d, kAlphabet, s3), d,
                     reinterpret_cast<uint8_t*>(output));
+}
+
+// Encodes 3 * Lanes(d) input bytes to 4 * Lanes(d) output characters.
+template <class D>
+HWY_INLINE void EncodeBase64Block(D d, const uint8_t* HWY_RESTRICT input,
+                                  char* HWY_RESTRICT output) {
+#if HWY_TARGET <= HWY_AVX3_DL
+  const auto input0 = LoadU(d, input + 0 * Lanes(d));
+  const auto input1 = LoadU(d, input + 1 * Lanes(d));
+  const auto input2 = LoadU(d, input + 2 * Lanes(d));
+
+  HWY_ALIGN static const uint8_t kShuffle[64] = {
+      1,  0,  2,  1,  4,  3,  5,  4,  7,  6,  8,  7,  10, 9,  11, 10,
+      13, 12, 14, 13, 16, 15, 17, 16, 19, 18, 20, 19, 22, 21, 23, 22,
+      25, 24, 26, 25, 28, 27, 29, 28, 31, 30, 32, 31, 34, 33, 35, 34,
+      37, 36, 38, 37, 40, 39, 41, 40, 43, 42, 44, 43, 46, 45, 47, 46};
+  const auto idx0 = Load(d, kShuffle);
+  const auto idx1 = Add(idx0, Set(d, uint8_t{48}));
+  const auto idx2 = Add(idx0, Set(d, uint8_t{32}));
+  const auto idx3 = Add(idx0, Set(d, uint8_t{16}));
+  const auto grouped0 = TableLookupLanes(input0, IndicesFromVec(d, idx0));
+  const auto grouped1 =
+      TwoTablesLookupLanes(input0, input1, IndicesFromVec(d, idx1));
+  const auto grouped2 =
+      TwoTablesLookupLanes(input1, input2, IndicesFromVec(d, idx2));
+  const auto grouped3 = TableLookupLanes(input2, IndicesFromVec(d, idx3));
+
+  const Repartition<uint64_t, D> du64;
+  const auto shifts =
+      BitCast(d, Set(du64, static_cast<uint64_t>(0x3036242a1016040aULL)));
+  const auto indices0 =
+      BitCast(d, MultiRotateRight(BitCast(du64, grouped0), shifts));
+  const auto indices1 =
+      BitCast(d, MultiRotateRight(BitCast(du64, grouped1), shifts));
+  const auto indices2 =
+      BitCast(d, MultiRotateRight(BitCast(du64, grouped2), shifts));
+  const auto indices3 =
+      BitCast(d, MultiRotateRight(BitCast(du64, grouped3), shifts));
+  const auto mask63 = Set(d, uint8_t{63});
+
+  HWY_ALIGN static const uint8_t kAlphabet[64] = {
+      'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+      'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+      'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+      'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+      '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/'};
+  const auto alphabet = Load(d, kAlphabet);
+  const auto encoded0 =
+      TableLookupLanes(alphabet, IndicesFromVec(d, And(indices0, mask63)));
+  const auto encoded1 =
+      TableLookupLanes(alphabet, IndicesFromVec(d, And(indices1, mask63)));
+  const auto encoded2 =
+      TableLookupLanes(alphabet, IndicesFromVec(d, And(indices2, mask63)));
+  const auto encoded3 =
+      TableLookupLanes(alphabet, IndicesFromVec(d, And(indices3, mask63)));
+  StoreU(encoded0, d, reinterpret_cast<uint8_t*>(output) + 0 * Lanes(d));
+  StoreU(encoded1, d, reinterpret_cast<uint8_t*>(output) + 1 * Lanes(d));
+  StoreU(encoded2, d, reinterpret_cast<uint8_t*>(output) + 2 * Lanes(d));
+  StoreU(encoded3, d, reinterpret_cast<uint8_t*>(output) + 3 * Lanes(d));
+#else
+  EncodeBase64BlockInterleaved(d, input, output);
+#endif
 }
 
 #endif  // NEON64 || HWY_TARGET <= HWY_AVX3_DL
@@ -222,10 +284,27 @@ HWY_INLINE size_t Base64Encode(const uint8_t* HWY_RESTRICT input,
   const ScalableTag<uint8_t> d;
   const size_t input_block = 3 * Lanes(d);
   const size_t output_block = 4 * Lanes(d);
+#if HWY_TARGET <= HWY_AVX3_DL
+  // MultiRotateRight minimizes compute cost for cache-resident input, whereas
+  // the interleaved path has higher streaming throughput for larger input.
+  constexpr size_t kMultiRotateMaxInputSize = 512 * 1024;
+  if (input_size > kMultiRotateMaxInputSize) {
+    for (; input_size - in >= input_block;
+         in += input_block, out += output_block) {
+      detail::EncodeBase64BlockInterleaved(d, input + in, output + out);
+    }
+  } else {
+    for (; input_size - in >= input_block;
+         in += input_block, out += output_block) {
+      detail::EncodeBase64Block(d, input + in, output + out);
+    }
+  }
+#else
   for (; input_size - in >= input_block;
        in += input_block, out += output_block) {
     detail::EncodeBase64Block(d, input + in, output + out);
   }
+#endif
 #endif
   for (; in + 3 <= input_size; in += 3, out += 4) {
     detail::EncodeBase64Tail(input + in, 3, output + out);
