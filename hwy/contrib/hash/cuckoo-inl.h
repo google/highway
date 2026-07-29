@@ -223,11 +223,15 @@ class CuckooTableT {
 
   // Query a single bucket (kBucketSize slots) for `key`.
   HWY_INLINE bool QueryBucket(KeyT key, uint32_t b) const {
-    const KeyT* base = slots_.data() + b;
-    for (uint32_t i = 0; i < kBucketSize; ++i) {
-      if (base[i] == key) return true;
+    const CappedTag<uint32_t, kBucketSize> d;
+    HWY_LANES_CONSTEXPR size_t N = Lanes(d);
+    const auto vkey = Set(d, key);
+    const uint32_t* base = slots_.data() + b;
+    auto ne = SetMask(d, true);
+    for (size_t i = 0; i < kBucketSize; i += N) {
+      ne = MaskedNe(ne, vkey, Load(d, base + i));
     }
-    return false;
+    return !AllTrue(d, ne);
   }
 
   // Scalar version: computes slot indices for a single key and returns hash
