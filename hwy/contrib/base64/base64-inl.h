@@ -200,7 +200,7 @@ HWY_INLINE VFromD<D> DecodeBase64Vector(D d, VFromD<D> encoded) {
   const auto index = And(encoded, Set(d, uint8_t{63}));
   const auto low = Lookup64(d, kLow, index);
   const auto high = Lookup64(d, kHigh, index);
-  return IfThenElse(Ne(And(encoded, Set(d, uint8_t{64})), Zero(d)), high, low);
+  return IfThenElse(TestBit(encoded, Set(d, uint8_t{64})), high, low);
 #endif
 }
 
@@ -306,8 +306,10 @@ HWY_INLINE size_t Base64Encode(const uint8_t* HWY_RESTRICT input,
   }
 #endif
 #endif
-  for (; in + 3 <= input_size; in += 3, out += 4) {
-    detail::EncodeBase64Tail(input + in, 3, output + out);
+  if (input_size >= 3) {
+    for (; in <= input_size - 3; in += 3, out += 4) {
+      detail::EncodeBase64Tail(input + in, 3, output + out);
+    }
   }
   if (in != input_size) {
     detail::EncodeBase64Tail(input + in, input_size - in, output + out);
@@ -348,26 +350,33 @@ HWY_INLINE bool Base64Decode(const char* HWY_RESTRICT input,
 
     const size_t batch_input = 4 * input_block;
     const size_t batch_output = 4 * output_block;
-    for (; simd_end - in >= batch_input;
-         in += batch_input, out += batch_output) {
-      const auto invalid0 =
-          detail::DecodeBase64Block(d, input + in, output + out);
-      const auto invalid1 = detail::DecodeBase64Block(
-          d, input + in + input_block, output + out + output_block);
-      const auto invalid2 = detail::DecodeBase64Block(
-          d, input + in + 2 * input_block, output + out + 2 * output_block);
-      const auto invalid3 = detail::DecodeBase64Block(
-          d, input + in + 3 * input_block, output + out + 3 * output_block);
-      const auto invalid = Or3(invalid0, invalid1, Or(invalid2, invalid3));
-      if (HWY_UNLIKELY(!AllFalse(d, Ge(invalid, Set(d, uint8_t{0x80}))))) {
-        return false;
+    if (simd_end >= batch_input) {
+      for (; in <= simd_end - batch_input;
+           in += batch_input, out += batch_output) {
+        const auto invalid0 =
+            detail::DecodeBase64Block(d, input + in, output + out);
+        const auto invalid1 = detail::DecodeBase64Block(
+            d, input + in + input_block, output + out + output_block);
+        const auto invalid2 = detail::DecodeBase64Block(
+            d, input + in + 2 * input_block, output + out + 2 * output_block);
+        const auto invalid3 = detail::DecodeBase64Block(
+            d, input + in + 3 * input_block, output + out + 3 * output_block);
+        const auto invalid = Or3(invalid0, invalid1, Or(invalid2, invalid3));
+        if (HWY_UNLIKELY(
+                !AllFalse(d, Ge(invalid, Set(d, uint8_t{0x80}))))) {
+          return false;
+        }
       }
     }
-    for (; in < simd_end; in += input_block, out += output_block) {
-      const auto invalid =
-          detail::DecodeBase64Block(d, input + in, output + out);
-      if (HWY_UNLIKELY(!AllFalse(d, Ge(invalid, Set(d, uint8_t{0x80}))))) {
-        return false;
+    if (simd_end >= input_block) {
+      for (; in <= simd_end - input_block;
+           in += input_block, out += output_block) {
+        const auto invalid =
+            detail::DecodeBase64Block(d, input + in, output + out);
+        if (HWY_UNLIKELY(
+                !AllFalse(d, Ge(invalid, Set(d, uint8_t{0x80}))))) {
+          return false;
+        }
       }
     }
   }

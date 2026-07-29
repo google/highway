@@ -41,14 +41,16 @@ std::string ScalarEncode(const uint8_t* input, const size_t input_size) {
   std::string encoded(Base64EncodedSize(input_size), '\0');
   size_t in = 0;
   size_t out = 0;
-  for (; in + 3 <= input_size; in += 3, out += 4) {
-    const uint8_t b0 = input[in + 0];
-    const uint8_t b1 = input[in + 1];
-    const uint8_t b2 = input[in + 2];
-    encoded[out + 0] = kAlphabet[b0 >> 2];
-    encoded[out + 1] = kAlphabet[((b0 & 3) << 4) | (b1 >> 4)];
-    encoded[out + 2] = kAlphabet[((b1 & 15) << 2) | (b2 >> 6)];
-    encoded[out + 3] = kAlphabet[b2 & 63];
+  if (input_size >= 3) {
+    for (; in <= input_size - 3; in += 3, out += 4) {
+      const uint8_t b0 = input[in + 0];
+      const uint8_t b1 = input[in + 1];
+      const uint8_t b2 = input[in + 2];
+      encoded[out + 0] = kAlphabet[b0 >> 2];
+      encoded[out + 1] = kAlphabet[((b0 & 3) << 4) | (b1 >> 4)];
+      encoded[out + 2] = kAlphabet[((b1 & 15) << 2) | (b2 >> 6)];
+      encoded[out + 3] = kAlphabet[b2 & 63];
+    }
   }
   if (in != input_size) {
     const uint8_t b0 = input[in];
@@ -65,6 +67,12 @@ std::string ScalarEncode(const uint8_t* input, const size_t input_size) {
     }
   }
   return encoded;
+}
+
+HWY_NOINLINE bool Base64DecodeNoInline(const char* input,
+                                       const size_t input_size, uint8_t* output,
+                                       size_t* output_size) {
+  return Base64Decode(input, input_size, output, output_size);
 }
 
 HWY_NOINLINE void TestBase64KnownVectors() {
@@ -130,21 +138,22 @@ HWY_NOINLINE void TestBase64Invalid() {
   uint8_t decoded[64];
   for (const char* input : kInvalid) {
     size_t decoded_size = 99;
-    HWY_ASSERT(!Base64Decode(input, strlen(input), decoded, &decoded_size));
+    HWY_ASSERT(
+        !Base64DecodeNoInline(input, strlen(input), decoded, &decoded_size));
     HWY_ASSERT_EQ(0, decoded_size);
   }
 
   std::string invalid_block(64, 'A');
   invalid_block[37] = '?';
   size_t decoded_size = 99;
-  HWY_ASSERT(!Base64Decode(invalid_block.data(), invalid_block.size(), decoded,
-                           &decoded_size));
+  HWY_ASSERT(!Base64DecodeNoInline(invalid_block.data(), invalid_block.size(),
+                                   decoded, &decoded_size));
   HWY_ASSERT_EQ(0, decoded_size);
 
   invalid_block[37] = static_cast<char>(0xC1);
   decoded_size = 99;
-  HWY_ASSERT(!Base64Decode(invalid_block.data(), invalid_block.size(), decoded,
-                           &decoded_size));
+  HWY_ASSERT(!Base64DecodeNoInline(invalid_block.data(), invalid_block.size(),
+                                   decoded, &decoded_size));
   HWY_ASSERT_EQ(0, decoded_size);
 
   std::string invalid_batch(256, 'A');
@@ -152,8 +161,9 @@ HWY_NOINLINE void TestBase64Invalid() {
   for (size_t block = 0; block < 4; ++block) {
     invalid_batch[block * 64 + 37] = '?';
     decoded_size = 99;
-    HWY_ASSERT(!Base64Decode(invalid_batch.data(), invalid_batch.size(),
-                             batch_decoded.data(), &decoded_size));
+    HWY_ASSERT(!Base64DecodeNoInline(
+        invalid_batch.data(), invalid_batch.size(), batch_decoded.data(),
+        &decoded_size));
     HWY_ASSERT_EQ(0, decoded_size);
     invalid_batch[block * 64 + 37] = 'A';
   }
