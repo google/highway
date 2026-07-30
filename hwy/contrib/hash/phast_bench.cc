@@ -182,8 +182,8 @@ HWY_NOINLINE void TestBW() {
   }
   const double elapsed =
       robust_statistics::Median(elapsed_times.data(), elapsed_times.size());
-  printf("MemBW: %7.2f ms = %4.1f GB/s\n", elapsed * 1E3,
-         num_bytes / elapsed * 1E-9);
+  fprintf(stderr, "MemBW: %7.2f ms = %4.1f GB/s\n", elapsed * 1E3,
+          num_bytes / elapsed * 1E-9);
 }
 
 // NOTE: unlike the others, this does not verify the keys because it is intended
@@ -231,11 +231,11 @@ HWY_NOINLINE void TestShardMulThroughput(size_t num_keys) {
     return per_worker[Unpredictable1()];
   });
   const size_t bytes = num_keys * sizeof(uint64_t) * pool.NumWorkers();
-  printf(
-      "Batch ShardMul u64 reduce throughput: %4zuKi keys = %4.1f GB/s; "
-      "measurement MAD=%5.2f%%, allocated %5zu KiB\n",
-      num_keys / 1024, static_cast<double>(bytes) / result.ns,
-      result.mad_percent, allocated_bytes / 1024);
+  fprintf(stderr,
+          "Batch ShardMul u64 reduce throughput: %4zuKi keys = %4.1f GB/s; "
+          "measurement MAD=%5.2f%%, allocated %5zu KiB\n",
+          num_keys / 1024, static_cast<double>(bytes) / result.ns,
+          result.mad_percent, allocated_bytes / 1024);
 }
 
 // Benchmarks PHAST + u32 key verification. Stores the full key at each PHAST
@@ -259,6 +259,10 @@ HWY_NOINLINE void TestPhastThroughput(size_t num_keys) {
   const size_t before = AllocatedBefore();
   constexpr size_t kPayloadBytes = sizeof(uint32_t);
   const Phast phast = MakePhast(Span(keys), kPayloadBytes, pool);
+  if (phast.Data().IsEmpty()) {
+    HWY_WARN("PHAST build failed, skipping throughput test.\n");
+    return;
+  }
   const Triple32 hash(phast.Data().config.hash_key);
 
   // Store the full key at each PHAST position for verification. The complex
@@ -322,11 +326,11 @@ HWY_NOINLINE void TestPhastThroughput(size_t num_keys) {
     HWY_ASSERT(per_worker[i * HWY_ALIGNMENT]);
   }
   const size_t bytes = num_keys * sizeof(uint32_t) * pool.NumWorkers();
-  printf(
-      "Batch PHAST u32 verify throughput: %4zuKi keys = %4.1f GB/s; "
-      "measurement MAD=%5.2f%%, allocated %5zu KiB\n",
-      num_keys / 1024, static_cast<double>(bytes) / result.ns,
-      result.mad_percent, allocated_bytes / 1024);
+  fprintf(stderr,
+          "Batch PHAST u32 verify throughput: %4zuKi keys = %4.1f GB/s; "
+          "measurement MAD=%5.2f%%, allocated %5zu KiB\n",
+          num_keys / 1024, static_cast<double>(bytes) / result.ns,
+          result.mad_percent, allocated_bytes / 1024);
 }
 
 // Benchmarks Cuckoo2x2 used as a set membership test, checking returned masks.
@@ -341,6 +345,10 @@ HWY_NOINLINE void TestCuckoo2x2Throughput(size_t num_keys) {
 
   const size_t before = AllocatedBefore();
   const Cuckoo2x2 set = MakeCuckoo2x2(Span(keys), pool);
+  if (set.Data().entries.empty()) {
+    HWY_WARN("Cuckoo2x2 build failed, skipping throughput test.\n");
+    return;
+  }
   const size_t allocated_bytes =
       AllocatedBytes(before, set.Data().AllocatedBytes());
 
@@ -355,6 +363,8 @@ HWY_NOINLINE void TestCuckoo2x2Throughput(size_t num_keys) {
   const size_t keys_per_chunk = RoundDownTo(num_keys / pool.NumWorkers(), N);
 
   AlignedVector<uint8_t> per_worker(pool.NumWorkers() * HWY_ALIGNMENT);
+  fprintf(stderr, "set info: %zu buckets, %zu entries\n",
+          set.Data().NumBuckets(), set.Data().entries.size());
   MeasureResult result = Measure([&](FuncInput func_input) {
     pool.Run(0, pool.NumWorkers(), [&](uint64_t task_idx, size_t worker) {
       MU32 any_missing = SetMask(du32, false);
@@ -372,11 +382,11 @@ HWY_NOINLINE void TestCuckoo2x2Throughput(size_t num_keys) {
     HWY_ASSERT(per_worker[i * HWY_ALIGNMENT]);
   }
   const size_t bytes = num_keys * sizeof(uint32_t) * pool.NumWorkers();
-  printf(
-      "Batch Cuckoo2x2 verify throughput: %4zuKi keys = %4.1f GB/s; "
-      "measurement MAD=%5.2f%%, allocated %5zu KiB\n",
-      num_keys / 1024, static_cast<double>(bytes) / result.ns,
-      result.mad_percent, allocated_bytes / 1024);
+  fprintf(stderr,
+          "Batch Cuckoo2x2 verify throughput: %4zuKi keys = %4.1f GB/s; "
+          "measurement MAD=%5.2f%%, allocated %5zu KiB\n",
+          num_keys / 1024, static_cast<double>(bytes) / result.ns,
+          result.mad_percent, allocated_bytes / 1024);
 }
 
 // Compare with absl::flat_hash_set - just set membership.
@@ -426,11 +436,11 @@ HWY_NOINLINE void TestAbslThroughput(size_t num_keys) {
     HWY_ASSERT(per_worker[i * HWY_ALIGNMENT]);
   }
   const size_t bytes = num_keys * sizeof(uint32_t) * pool.NumWorkers();
-  printf(
-      "Batch absl::set verify throughput: %4zuKi keys = %4.1f GB/s; "
-      "measurement MAD=%5.2f%%, allocated %5zu KiB\n",
-      num_keys / 1024, static_cast<double>(bytes) / result.ns,
-      result.mad_percent, allocated_bytes / 1024);
+  fprintf(stderr,
+          "Batch absl::set verify throughput: %4zuKi keys = %4.1f GB/s; "
+          "measurement MAD=%5.2f%%, allocated %5zu KiB\n",
+          num_keys / 1024, static_cast<double>(bytes) / result.ns,
+          result.mad_percent, allocated_bytes / 1024);
 #else
   (void)num_keys;
   HWY_WARN("absl::flat_hash_set not available, skipping test.");
@@ -444,10 +454,10 @@ HWY_NOINLINE void TestShardMulLatency(size_t num_keys) {
 
   MeasureResult result = Measure(
       [&shard_mul](FuncInput func_input) { return shard_mul(func_input); });
-  printf(
-      "Single ShardMul  latency: %5zu keys, %6.2f ns; measurement "
-      "MAD=%5.2f%%\n",
-      num_keys, result.ns, result.mad_percent);
+  fprintf(stderr,
+          "Single ShardMul  latency: %5zu keys, %6.2f ns; measurement "
+          "MAD=%5.2f%%\n",
+          num_keys, result.ns, result.mad_percent);
 }
 
 HWY_NOINLINE void TestPhastLatency(size_t num_keys) {
@@ -458,10 +468,10 @@ HWY_NOINLINE void TestPhastLatency(size_t num_keys) {
   MeasureResult result = Measure([&phast](FuncInput func_input) {
     return phast(static_cast<uint32_t>(func_input));
   });
-  printf(
-      "Single PHAST     latency: %5zu keys, %6.2f ns; measurement "
-      "MAD=%5.2f%%\n",
-      num_keys, result.ns, result.mad_percent);
+  fprintf(stderr,
+          "Single PHAST     latency: %5zu keys, %6.2f ns; measurement "
+          "MAD=%5.2f%%\n",
+          num_keys, result.ns, result.mad_percent);
 }
 
 HWY_NOINLINE void TestCuckoo2x2Latency(size_t num_keys) {
@@ -472,10 +482,10 @@ HWY_NOINLINE void TestCuckoo2x2Latency(size_t num_keys) {
   MeasureResult result = Measure([&set](FuncInput func_input) {
     return set.Contains(static_cast<uint32_t>(func_input));
   });
-  printf(
-      "Single Cuckoo2x2 latency: %5zu keys, %6.2f ns; measurement "
-      "MAD=%5.2f%%\n",
-      num_keys, result.ns, result.mad_percent);
+  fprintf(stderr,
+          "Single Cuckoo2x2 latency: %5zu keys, %6.2f ns; measurement "
+          "MAD=%5.2f%%\n",
+          num_keys, result.ns, result.mad_percent);
 }
 
 HWY_NOINLINE void TestAbslLatency(size_t num_keys) {
@@ -486,10 +496,10 @@ HWY_NOINLINE void TestAbslLatency(size_t num_keys) {
   MeasureResult result = Measure([&set](FuncInput func_input) {
     return set.contains(static_cast<uint32_t>(func_input));
   });
-  printf(
-      "Single Absl      latency: %5zu keys, %6.2f ns; measurement "
-      "MAD=%5.2f%%\n",
-      num_keys, result.ns, result.mad_percent);
+  fprintf(stderr,
+          "Single Absl      latency: %5zu keys, %6.2f ns; measurement "
+          "MAD=%5.2f%%\n",
+          num_keys, result.ns, result.mad_percent);
 #else
   (void)num_keys;
   HWY_WARN("absl::flat_hash_set not available, skipping test.");
@@ -560,11 +570,11 @@ HWY_NOINLINE void TestCuckooThroughput(size_t num_keys) {
   }
   const size_t bytes = num_keys * sizeof(uint32_t) * pool.NumWorkers();
   const char* suffix = kUseU16 ? "u16" : "u32";
-  printf(
-      "Cuckoo 2x16 %s throughput: %4zuKi keys = %4.1f GB/s; "
-      "measurement MAD=%4.2f%%, allocated %5zu KiB\n",
-      suffix, num_keys / 1024, static_cast<double>(bytes) / result.ns,
-      result.mad_percent, allocated_bytes / 1024);
+  fprintf(stderr,
+          "Cuckoo 2x16 %s throughput: %4zuKi keys = %4.1f GB/s; "
+          "measurement MAD=%4.2f%%, allocated %5zu KiB\n",
+          suffix, num_keys / 1024, static_cast<double>(bytes) / result.ns,
+          result.mad_percent, allocated_bytes / 1024);
 }
 
 // Driver functions: sweep across sizes or run once.

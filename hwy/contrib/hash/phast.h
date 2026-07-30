@@ -113,6 +113,7 @@ struct PhastData {
   size_t AllocatedBytes(size_t payload_bytes) const {
     return config.AllocatedBytes(payload_bytes);
   }
+  bool IsEmpty() const { return config.num_slots == 0; }
 
   PhastConfig config;
   PhastSeeds seeds;
