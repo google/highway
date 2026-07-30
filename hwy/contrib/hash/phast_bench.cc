@@ -65,8 +65,15 @@ HWY_INLINE_VAR constexpr size_t kNumKeys =
     AdjustedReps(AdjustedReps(1024)) * 1024;
 
 // Set to true to benchmark across a range of key counts.
-HWY_INLINE_VAR constexpr bool kSweepThroughput = false;
-HWY_INLINE_VAR constexpr bool kSweepLatency = false;
+HWY_INLINE_VAR constexpr bool kSweepThroughput = true;
+HWY_INLINE_VAR constexpr bool kSweepLatency = true;
+
+HWY_INLINE_VAR constexpr bool kEnableShardMul = false;
+HWY_INLINE_VAR constexpr bool kEnableAbsl = false;
+HWY_INLINE_VAR constexpr bool kEnablePhast = false;
+HWY_INLINE_VAR constexpr bool kEnableC2x2 = false;
+HWY_INLINE_VAR constexpr bool kEnableCuckoo = true;
+HWY_INLINE_VAR constexpr bool kEnableCuckoo16 = true;
 
 static ThreadPool MakePool() {
   return ThreadPool(ThreadPool::NumThreadsFromCores());
@@ -493,7 +500,9 @@ template <bool kUseU16 = false>
 HWY_NOINLINE void TestCuckooThroughput(size_t num_keys) {
   const AlignedVector<uint32_t> keys = GenerateKeys(num_keys);
   const size_t before = AllocatedBefore();
-  CuckooTraits<> traits;
+  constexpr int kVerbosity = 0;
+  constexpr size_t kMinBuckets = kUseU16 ? size_t{1} << 18 : 1;
+  CuckooTraits<WeakTwoMul, 0, kMinBuckets, kVerbosity> traits;
   auto cuckoo = CuckooBuild(traits, keys.data(), keys.size(), /*epsilon=*/0.1,
                             /*max_attempts=*/100, CuckooBuildAlgo::kMinCost);
   if constexpr (kUseU16) {
@@ -509,9 +518,11 @@ HWY_NOINLINE void TestCuckooThroughput(size_t num_keys) {
   const double pct_pri = 100.0 * cuckoo.NumPrimary() / keys.size();
   const double pct_sec =
       100.0 * (keys.size() - cuckoo.NumPrimary()) / keys.size();
-  fprintf(stderr,
-          "Cuckoo hashing fill stats: %.2f%% primary, %.2f%% secondary\n",
-          pct_pri, pct_sec);
+  if constexpr (false) {
+    fprintf(stderr,
+            "Cuckoo hashing fill stats: %.2f%% primary, %.2f%% secondary\n",
+            pct_pri, pct_sec);
+  }
 
   ThreadPool pool = MakePool();
   pool.SetWaitMode(PoolWaitMode::kSpin);
@@ -530,8 +541,9 @@ HWY_NOINLINE void TestCuckooThroughput(size_t num_keys) {
       for (size_t i = 0; i < num_keys; i += N) {
         const size_t wrapped_i = (worker * keys_per_chunk + i) % num_keys;
         if constexpr (kUseU16) {
+          constexpr bool kPrecomputeSecondary = true;
           const auto not_found =
-              cuckoo.QueryBatchU16</*kPrecomputeSecondary=*/true>(
+              cuckoo.template QueryBatchU16<kPrecomputeSecondary>(
                   du32, &keys[wrapped_i]);
           all_found &= AllFalse(du32, not_found);
         } else {
@@ -560,24 +572,48 @@ HWY_NOINLINE void TestLatencySweep() {
   if (kSweepLatency) {
     // Powers of ten: 100-10K.
     for (size_t n = 100; n <= 10'000; n *= 10) {
-      TestShardMulLatency(n);
-      TestPhastLatency(n);
-      TestCuckoo2x2Latency(n);
-      TestAbslLatency(n);
+      if constexpr (kEnableShardMul) {
+        TestShardMulLatency(n);
+      }
+      if constexpr (kEnablePhast) {
+        TestPhastLatency(n);
+      }
+      if constexpr (kEnableC2x2) {
+        TestCuckoo2x2Latency(n);
+      }
+      if constexpr (kEnableAbsl) {
+        TestAbslLatency(n);
+      }
     }
     // Powers of two
     for (size_t n = 512; n <= 4096; n *= 2) {
-      TestShardMulLatency(n);
-      TestPhastLatency(n);
-      TestCuckoo2x2Latency(n);
-      TestAbslLatency(n);
+      if constexpr (kEnableShardMul) {
+        TestShardMulLatency(n);
+      }
+      if constexpr (kEnablePhast) {
+        TestPhastLatency(n);
+      }
+      if constexpr (kEnableC2x2) {
+        TestCuckoo2x2Latency(n);
+      }
+      if constexpr (kEnableAbsl) {
+        TestAbslLatency(n);
+      }
     }
   } else {
     const size_t n = 1000;
-    TestShardMulLatency(n);
-    TestPhastLatency(n);
-    TestCuckoo2x2Latency(n);
-    TestAbslLatency(n);
+    if constexpr (kEnableShardMul) {
+      TestShardMulLatency(n);
+    }
+    if constexpr (kEnablePhast) {
+      TestPhastLatency(n);
+    }
+    if constexpr (kEnableC2x2) {
+      TestCuckoo2x2Latency(n);
+    }
+    if constexpr (kEnableAbsl) {
+      TestAbslLatency(n);
+    }
   }
 }
 
@@ -585,27 +621,65 @@ HWY_NOINLINE void TestThroughputSweep() {
   if (kSweepThroughput) {
     // Powers of ten: 10K-10M.
     for (size_t n = 10'000; n <= 10'000'000; n *= 10) {
-      TestShardMulThroughput(n);
-      TestPhastThroughput(n);
-      TestCuckoo2x2Throughput(n);
-      TestAbslThroughput(n);
-      TestCuckooThroughput(n);
-      TestCuckooThroughput</*kUseU16=*/false>(n);
+      if constexpr (kEnableShardMul) {
+        TestShardMulThroughput(n);
+      }
+      if constexpr (kEnablePhast) {
+        TestPhastThroughput(n);
+      }
+      if constexpr (kEnableC2x2) {
+        TestCuckoo2x2Throughput(n);
+      }
+      if constexpr (kEnableAbsl) {
+        TestAbslThroughput(n);
+      }
+      if constexpr (kEnableCuckoo) {
+        TestCuckooThroughput(n);
+      }
+      if constexpr (kEnableCuckoo16) {
+        TestCuckooThroughput</*kUseU16=*/true>(n);
+      }
     }
     // Powers of two: 32K-4M.
     for (size_t n = (32 << 10); n <= (size_t{4} << 20); n *= 2) {
-      TestShardMulThroughput(n);
-      TestPhastThroughput(n);
-      TestCuckoo2x2Throughput(n);
-      TestAbslThroughput(n);
-      TestCuckooThroughput(n);
-      TestCuckooThroughput</*kUseU16=*/true>(n);
+      if constexpr (kEnableShardMul) {
+        TestShardMulThroughput(n);
+      }
+      if constexpr (kEnablePhast) {
+        TestPhastThroughput(n);
+      }
+      if constexpr (kEnableC2x2) {
+        TestCuckoo2x2Throughput(n);
+      }
+      if constexpr (kEnableAbsl) {
+        TestAbslThroughput(n);
+      }
+      if constexpr (kEnableCuckoo) {
+        TestCuckooThroughput(n);
+      }
+      if constexpr (kEnableCuckoo16) {
+        TestCuckooThroughput</*kUseU16=*/true>(n);
+      }
     }
   } else {
-    TestShardMulThroughput(kNumKeys);
-    TestPhastThroughput(kNumKeys);
-    TestCuckoo2x2Throughput(kNumKeys);
-    TestAbslThroughput(kNumKeys);
+    if constexpr (kEnableShardMul) {
+      TestShardMulThroughput(kNumKeys);
+    }
+    if constexpr (kEnablePhast) {
+      TestPhastThroughput(kNumKeys);
+    }
+    if constexpr (kEnableC2x2) {
+      TestCuckoo2x2Throughput(kNumKeys);
+    }
+    if constexpr (kEnableAbsl) {
+      TestAbslThroughput(kNumKeys);
+    }
+    if constexpr (kEnableCuckoo) {
+      TestCuckooThroughput(kNumKeys);
+    }
+    if constexpr (kEnableCuckoo16) {
+      TestCuckooThroughput</*kUseU16=*/true>(kNumKeys);
+    }
   }
 }
 

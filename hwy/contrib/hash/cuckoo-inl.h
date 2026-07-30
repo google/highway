@@ -82,7 +82,7 @@ HWY_INLINE const V& GetRaw(const V& v, ...) {
 // KeyT is derived from HashT::LaneType.
 
 template <typename HashT_ = WeakTwoMul, size_t kBucketSize_ = 0,
-          size_t kMinBuckets_ = 1>
+          size_t kMinBuckets_ = 1, int kVerbosity_ = 0>
 struct CuckooTraits {
   using HashT = HashT_;
   using KeyT = typename HashT::LaneType;
@@ -92,6 +92,8 @@ struct CuckooTraits {
   static constexpr size_t kLogBucketSize = CeilLog2(kBucketSize);
 
   static constexpr size_t kMinBuckets = kMinBuckets_;
+
+  static constexpr int kVerbosity = kVerbosity_;
 
   static_assert((kBucketSize & (kBucketSize - 1)) == 0 && kBucketSize > 0,
                 "kBucketSize must be a power of two");
@@ -223,10 +225,10 @@ class CuckooTableT {
 
   // Query a single bucket (kBucketSize slots) for `key`.
   HWY_INLINE bool QueryBucket(KeyT key, uint32_t b) const {
-    const CappedTag<uint32_t, kBucketSize> d;
+    const CappedTag<KeyT, kBucketSize> d;
     HWY_LANES_CONSTEXPR size_t N = Lanes(d);
     const auto vkey = Set(d, key);
-    const uint32_t* base = slots_.data() + b;
+    const KeyT* base = slots_.data() + b;
     auto ne = SetMask(d, true);
     for (size_t i = 0; i < kBucketSize; i += N) {
       ne = MaskedNe(ne, vkey, Load(d, base + i));
@@ -245,6 +247,21 @@ class CuckooTableT {
     s_sec = static_cast<size_t>((h_sec & bucket_mask) * kBucketSize);
   }
 
+  template <class D, class V = Vec<D>>
+  HWY_INLINE V PrimaryHash(D d, V vkeys) const {
+    return hash_primary_.OneVec(d, vkeys);
+  }
+
+  template <class D, class V = Vec<D>>
+  HWY_INLINE V SecondaryHash(D d, V vkeys) const {
+    return hash_secondary_.OneVec(d, vkeys);
+  }
+
+  template <class D, class V = Vec<D>>
+  HWY_INLINE V BucketFromHash(D d, V h_pri) const {
+    return ShiftLeft<kLogBucketSize>(And(h_pri, Set(d, config_.BucketMask())));
+  }
+
   // Computes the primary and secondary slot indices for a vector of keys.
   // This is useful for when the slots contain custom payloads, which must be
   // compared by callers, because CuckooTable does not know their encoding.
@@ -253,11 +270,10 @@ class CuckooTableT {
   template <class D, class V = Vec<D>>
   HWY_INLINE void LookupSlotsAndHash(D d, V vkeys, V& b_pri, V& b_sec,
                                      V& h_pri) const {
-    const TFromD<D> bucket_mask = config_.BucketMask();
-    const V vmask = Set(d, bucket_mask);
-    h_pri = hash_primary_.OneVec(d, vkeys);
+    const V vmask = Set(d, config_.BucketMask());
+    h_pri = PrimaryHash(d, vkeys);
     b_pri = ShiftLeft<kLogBucketSize>(And(h_pri, vmask));
-    const V h_sec = hash_secondary_.OneVec(d, vkeys);
+    const V h_sec = SecondaryHash(d, vkeys);
     b_sec = ShiftLeft<kLogBucketSize>(And(h_sec, vmask));
   }
 
@@ -577,6 +593,7 @@ class CuckooBuilderT {
   using HashT = typename Traits::HashT;
   static constexpr uint32_t kUnmatched = ~uint32_t{0};
   static constexpr size_t kBucketSize = Traits::kBucketSize;
+  static constexpr int kVerbosity = Traits::kVerbosity;
 
  public:
   explicit CuckooBuilderT(CuckooConfigT<Traits> config)
@@ -591,7 +608,7 @@ class CuckooBuilderT {
 
              CuckooBuildAlgo algo = CuckooBuildAlgo::kHopcroftKarp,
              CuckooBuildStats* stats = nullptr) {
-    if (num_keys_ >= kMinKeysThresholdLog) {
+    if (kVerbosity >= 2 && num_keys_ >= kMinKeysThresholdLog) {
       fprintf(stderr, "  CuckooBuilder::Build starting (algo=%d)...\n",
               static_cast<int>(algo));
     }
@@ -648,7 +665,7 @@ class CuckooBuilderT {
 
     if (matching_size == num_keys_) {
       if (stats) stats->num_unmatched_after_greedy = 0;
-      if (num_keys_ >= kMinKeysThresholdLog) {
+      if (kVerbosity >= 2 && num_keys_ >= kMinKeysThresholdLog) {
         auto t_greedy_end = platform::Now();
         double greedy_ms = (t_greedy_end - t_build_start) * 1000;
         fprintf(stderr,
@@ -672,7 +689,7 @@ class CuckooBuilderT {
           static_cast<uint32_t>(unmatched_keys.size());
     }
 
-    if (num_keys_ >= kMinKeysThresholdLog) {
+    if (kVerbosity >= 2 && num_keys_ >= kMinKeysThresholdLog) {
       auto t_greedy_end = platform::Now();
       double greedy_ms = (t_greedy_end - t_build_start) * 1000;
       fprintf(stderr,
@@ -725,7 +742,7 @@ class CuckooBuilderT {
         }
         if (unmatched_L.empty()) break;
 
-        if (num_keys_ >= kMinKeysThresholdLog) {
+        if (kVerbosity >= 3 && num_keys_ >= kMinKeysThresholdLog) {
           fprintf(stderr, "\n  cur_path_cost=%d, unmatched=%zu\n",
                   cur_path_cost, unmatched_L.size());
         }
@@ -767,7 +784,7 @@ class CuckooBuilderT {
           }
           auto t_dfs_end = platform::Now();
 
-          if (num_keys_ >= kMinKeysThresholdLog) {
+          if (kVerbosity >= 3 && num_keys_ >= kMinKeysThresholdLog) {
             double dfs_ms = (t_dfs_end - t_dfs_start) * 1000;
             fprintf(
                 stderr,
@@ -926,8 +943,10 @@ class CuckooBuilderT {
     if (num_keys_ < kMinKeysThresholdLog) return;
     auto t_phase3_end = platform::Now();
     double phase_ms = (t_phase3_end - t_phase3_start) * 1000;
-    fprintf(stderr, "  Phase 3 completed in %.2f ms: matched=%u\n", phase_ms,
-            phase3_matches);
+    if (kVerbosity >= 2) {
+      fprintf(stderr, "  Phase 3 completed in %.2f ms: matched=%u\n", phase_ms,
+              phase3_matches);
+    }
   }
 
   void BuildCuckooGraphRepresentation() {
@@ -1085,7 +1104,7 @@ class CuckooBuilderT {
       }
     }
 
-    if (num_keys_ >= kMinKeysThresholdLog) {
+    if (kVerbosity >= 3 && num_keys_ >= kMinKeysThresholdLog) {
       auto t1 = platform::Now();
       double bfs_ms = (t1 - t0) * 1000;
       fprintf(stderr,
@@ -1294,6 +1313,7 @@ static HWY_MAYBE_UNUSED CuckooTableT<Traits> CuckooBuildT(
     uint32_t max_attempts,
     CuckooBuildAlgo algo = CuckooBuildAlgo::kHopcroftKarp,
     CuckooBuildStats* stats = nullptr) {
+  constexpr int kVerbosity = Traits::kVerbosity;
   using HashT = typename Traits::HashT;
   constexpr double kEpsilons[] = {0.01, 0.05, 0.10, 0.25, 0.50, 0.75};
   bool found_epsilon = false;
@@ -1304,7 +1324,7 @@ static HWY_MAYBE_UNUSED CuckooTableT<Traits> CuckooBuildT(
     }
   }
   if (!found_epsilon) {
-    fprintf(stderr, "Unsupported epsilon: %f\n", epsilon);
+    HWY_WARN("Unsupported epsilon: %f\n", epsilon);
     return CuckooTableT<Traits>();
   }
 
@@ -1314,7 +1334,7 @@ static HWY_MAYBE_UNUSED CuckooTableT<Traits> CuckooBuildT(
   AesCtrEngine engine(/*deterministic=*/true);
 
   for (uint32_t attempt = 0; attempt < max_attempts; ++attempt) {
-    if (num_keys >= 1000000) {
+    if (kVerbosity >= 2 && num_keys >= 1000000) {
       fprintf(stderr, "CuckooBuild attempt %u for %zu keys...\n", attempt,
               num_keys);
     }
