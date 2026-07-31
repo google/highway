@@ -225,6 +225,7 @@ if (HWY_ENABLE_CONTRIB)
 # additional special cases.
 file(GLOB HWY_CONTRIB_SOURCES "hwy/contrib/sort/vqsort_*.cc")
 list(APPEND HWY_CONTRIB_SOURCES
+    hwy/contrib/base64/base64-inl.h
     hwy/contrib/bit_pack/bit_pack-inl.h
     hwy/contrib/dot/dot-inl.h
     hwy/contrib/hash/hash-inl.h
@@ -987,6 +988,7 @@ list(APPEND HWY_TEST_LIBS hwy_contrib)
 
 list(APPEND HWY_TEST_FILES
   hwy/auto_tune_test.cc
+  hwy/contrib/base64/base64_test.cc
   hwy/contrib/algo/copy_test.cc
   hwy/contrib/algo/count_value_test.cc
   hwy/contrib/algo/find_test.cc

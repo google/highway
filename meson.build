@@ -128,6 +128,7 @@ hwy_sources = files(
 )
 
 hwy_contrib_headers = files(
+    'hwy/contrib/base64/base64-inl.h',
     'hwy/contrib/bit_pack/bit_pack-inl.h',
     'hwy/contrib/dot/dot-inl.h',
     'hwy/contrib/hash/hash-inl.h',
@@ -690,6 +691,7 @@ if tests_enabled
     if contrib_enabled
         hwy_contrib_test_files = files(
             'hwy/auto_tune_test.cc',
+            'hwy/contrib/base64/base64_test.cc',
             'hwy/contrib/algo/copy_test.cc',
             'hwy/contrib/algo/count_value_test.cc',
             'hwy/contrib/algo/find_test.cc',
