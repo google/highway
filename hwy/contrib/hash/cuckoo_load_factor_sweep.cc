@@ -47,7 +47,9 @@ namespace HWY_NAMESPACE {
 namespace {
 
 #if (HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128) && !HWY_IDE
-HWY_NOINLINE void TestAllBucketSizeSweep(size_t /*num_keys*/) {}
+HWY_NOINLINE void TestAllBucketSizeSweep(size_t /*num_keys*/,
+                                         double /*epsilon*/, bool /*pow2*/,
+                                         uint32_t /*max_attempts*/) {}
 #else
 
 static ThreadPool MakePool() {
@@ -88,69 +90,89 @@ static const char* AlgoName(CuckooBuildAlgo algo) {
   return "Unknown";
 }
 
-template <uint32_t kBucketSize>
-void TestBucketSize(size_t num_keys) {
-  ThreadPool pool = MakePool();
-  pool.SetWaitMode(PoolWaitMode::kSpin);
-  auto keys = GenerateKeys(num_keys);
+template <uint32_t kBucketSize, bool kPow2>
+void TestBucketSizeAndPow2(size_t num_keys, double epsilon,
+                           uint32_t max_attempts,
+                           const AlignedVector<uint32_t>& keys) {
   for (CuckooBuildAlgo algo :
        {CuckooBuildAlgo::kHopcroftKarp, CuckooBuildAlgo::kMinCost,
         CuckooBuildAlgo::kLocalSearch}) {
     CuckooBuildStats stats;
-    CuckooTraits<WeakTwoMul, kBucketSize> traits;
+    CuckooTraits<WeakTwoMul, kBucketSize, /*kMinBuckets_=*/1, kPow2> traits;
     const double t0 = platform::Now();
-    auto table = CuckooBuild(traits, keys.data(),
-                             static_cast<uint32_t>(num_keys), /*epsilon=*/1.0,
-                             /*max_attempts=*/200, algo, &stats);
+    auto table =
+        CuckooBuild(traits, keys.data(), static_cast<uint32_t>(num_keys),
+                    epsilon, max_attempts, algo, &stats);
     const double build_ms = (platform::Now() - t0) * 1000.0;
 
     if (!stats.success) {
       fprintf(stderr,
-              "  algo=%s, bucket_size=%u, keys=%zu: FAILED after %u attempts "
-              "(%.2f ms)\n",
-              AlgoName(algo), kBucketSize, num_keys, stats.attempts, build_ms);
+              "  algo=%-12s pow2=%d bucket_size=%2u keys=%zu eps=%.2f: FAILED "
+              "after %u attempts (%.2f ms)\n",
+              AlgoName(algo), static_cast<int>(kPow2), kBucketSize, num_keys,
+              epsilon, stats.attempts, build_ms);
       continue;
     }
 
     const uint32_t num_secondary =
         static_cast<uint32_t>(num_keys) - stats.num_primary;
-    fprintf(stderr,
-            "  algo=%s, bucket_size=%u, keys=%zu: primary=%u (%.1f%%), "
-            "secondary=%u (%.1f%%), buckets=%zu, build_time=%.2f ms\n",
-            AlgoName(algo), kBucketSize, num_keys, stats.num_primary,
-            100.0 * stats.num_primary / num_keys, num_secondary,
-            100.0 * num_secondary / num_keys, table.GetConfig().NumBuckets(),
-            build_ms);
+    fprintf(
+        stderr,
+        "  algo=%-12s pow2=%d bucket_size=%2u keys=%zu eps=%.2f: primary=%u "
+        "(%.1f%%), secondary=%u (%.1f%%), buckets=%zu, build_time=%.2f ms\n",
+        AlgoName(algo), static_cast<int>(kPow2), kBucketSize, num_keys, epsilon,
+        stats.num_primary, 100.0 * stats.num_primary / num_keys, num_secondary,
+        100.0 * num_secondary / num_keys, table.GetConfig().NumBuckets(),
+        build_ms);
 
     // Verify query correctness for every key.
     for (size_t i = 0; i < num_keys; ++i) {
       HWY_ASSERT_M(table.QueryOne(keys[i]),
                    "BucketSizeSweep: QueryOne missed a key");
     }
-
-    const double t_2x2_start = platform::Now();
-    auto table2x2 = BuildCuckoo2x2(keys, pool);
-    const double build_2x2_ms = (platform::Now() - t_2x2_start) * 1000.0;
-    fprintf(stderr,
-            "  algo=Cuckoo2x2, bucket_size=%u, keys=%zu: primary=%u (%.1f%%), "
-            "secondary=%zu (%.1f%%), buckets=%zu, build_time=%.2f ms\n",
-            kBucketSize, num_keys, table2x2.num_primary,
-            100.0 * table2x2.num_primary / num_keys,
-            num_keys - table2x2.num_primary,
-            100.0 * (num_keys - table2x2.num_primary) / num_keys,
-            table2x2.config.NumBuckets(), build_2x2_ms);
   }
 }
 
-HWY_NOINLINE void TestAllBucketSizeSweep(size_t num_keys) {
-  fprintf(stderr, "=== TestBucketSizeSweep (num_keys=%zu, epsilon=1.0) ===\n",
-          num_keys);
-  TestBucketSize<1>(num_keys);
-  TestBucketSize<2>(num_keys);
-  TestBucketSize<4>(num_keys);
-  TestBucketSize<8>(num_keys);
-  TestBucketSize<16>(num_keys);
-  TestBucketSize<32>(num_keys);
+template <uint32_t kBucketSize>
+void TestBucketSize(size_t num_keys, double epsilon, bool pow2,
+                    uint32_t max_attempts, const AlignedVector<uint32_t>& keys,
+                    ThreadPool& pool) {
+  if (pow2) {
+    TestBucketSizeAndPow2<kBucketSize, true>(num_keys, epsilon, max_attempts,
+                                             keys);
+  } else {
+    TestBucketSizeAndPow2<kBucketSize, false>(num_keys, epsilon, max_attempts,
+                                              keys);
+  }
+
+  const double t_2x2_start = platform::Now();
+  auto table2x2 = BuildCuckoo2x2(keys, pool);
+  const double build_2x2_ms = (platform::Now() - t_2x2_start) * 1000.0;
+  fprintf(stderr,
+          "  algo=%-12s pow2=1 bucket_size=%2u keys=%zu eps=%.2f: primary=%u "
+          "(%.1f%%), secondary=%zu (%.1f%%), buckets=%zu, build_time=%.2f ms\n",
+          "Cuckoo2x2", kBucketSize, num_keys, epsilon, table2x2.num_primary,
+          100.0 * table2x2.num_primary / num_keys,
+          num_keys - table2x2.num_primary,
+          100.0 * (num_keys - table2x2.num_primary) / num_keys,
+          table2x2.config.NumBuckets(), build_2x2_ms);
+}
+
+HWY_NOINLINE void TestAllBucketSizeSweep(size_t num_keys, double epsilon,
+                                         bool pow2, uint32_t max_attempts) {
+  fprintf(stderr,
+          "=== TestBucketSizeSweep (num_keys=%zu, epsilon=%.2f, pow2=%d, "
+          "max_attempts=%u) ===\n",
+          num_keys, epsilon, pow2, max_attempts);
+  ThreadPool pool = MakePool();
+  pool.SetWaitMode(PoolWaitMode::kSpin);
+  auto keys = GenerateKeys(num_keys);
+  TestBucketSize<1>(num_keys, epsilon, pow2, max_attempts, keys, pool);
+  TestBucketSize<2>(num_keys, epsilon, pow2, max_attempts, keys, pool);
+  TestBucketSize<4>(num_keys, epsilon, pow2, max_attempts, keys, pool);
+  TestBucketSize<8>(num_keys, epsilon, pow2, max_attempts, keys, pool);
+  TestBucketSize<16>(num_keys, epsilon, pow2, max_attempts, keys, pool);
+  TestBucketSize<32>(num_keys, epsilon, pow2, max_attempts, keys, pool);
 }
 
 #endif  // HWY_TARGET != HWY_SCALAR && HWY_TARGET != HWY_EMU128
@@ -165,23 +187,44 @@ namespace hwy {
 namespace {
 HWY_EXPORT(TestAllBucketSizeSweep);
 
-void Run(size_t num_keys) {
-  HWY_DYNAMIC_DISPATCH(TestAllBucketSizeSweep)(num_keys);
+void Run(size_t num_keys, double epsilon, bool pow2, uint32_t max_attempts) {
+  HWY_DYNAMIC_DISPATCH(TestAllBucketSizeSweep)
+  (num_keys, epsilon, pow2, max_attempts);
 }
 }  // namespace
 }  // namespace hwy
 
 int main(int argc, char** argv) {
   size_t num_keys = 224000;
+  double epsilon = 1.0;
+  bool pow2 = true;
+  uint32_t max_attempts = 200;
   for (int i = 1; i < argc; ++i) {
     if (strncmp(argv[i], "--num_keys=", 11) == 0) {
       num_keys = static_cast<size_t>(strtoull(argv[i] + 11, nullptr, 10));
+    } else if (strncmp(argv[i], "--epsilon=", 10) == 0) {
+      epsilon = strtod(argv[i] + 10, nullptr);
+    } else if (strncmp(argv[i], "--max_attempts=", 15) == 0) {
+      max_attempts = static_cast<uint32_t>(strtoull(argv[i] + 15, nullptr, 10));
+    } else if (strncmp(argv[i], "--pow2=", 7) == 0) {
+      pow2 =
+          (strcmp(argv[i] + 7, "1") == 0 || strcmp(argv[i] + 7, "true") == 0);
+    } else if (strcmp(argv[i], "--pow2") == 0) {
+      pow2 = true;
+    } else if (strcmp(argv[i], "--nopow2") == 0) {
+      pow2 = false;
     } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
-      fprintf(stderr, "Usage: %s [--num_keys=224000]\n", argv[0]);
+      fprintf(stderr,
+              "Usage: %s [--num_keys=224000] [--epsilon=1.0] [--pow2=1|0] "
+              "[--max_attempts=200]\n",
+              argv[0]);
       return 0;
     } else {
-      fprintf(stderr, "Unknown flag: %s\nUsage: %s [--num_keys=N]\n", argv[i],
-              argv[0]);
+      fprintf(stderr,
+              "Unknown flag: %s\nUsage: %s [--num_keys=N] [--epsilon=E] "
+              "[--pow2=1|0] "
+              "[--max_attempts=A]\n",
+              argv[i], argv[0]);
       return 1;
     }
   }
@@ -189,7 +232,7 @@ int main(int argc, char** argv) {
     fprintf(stderr, "Error: --num_keys must be > 0\n");
     return 1;
   }
-  hwy::Run(num_keys);
+  hwy::Run(num_keys, epsilon, pow2, max_attempts);
   return 0;
 }
 #endif  // HWY_ONCE

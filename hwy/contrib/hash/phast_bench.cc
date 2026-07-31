@@ -506,13 +506,14 @@ HWY_NOINLINE void TestAbslLatency(size_t num_keys) {
 #endif  // HWY_HAVE_ABSL
 }
 
-template <bool kUseU16 = false>
+template <bool kUseU16 = false, bool kPow2 = true>
 HWY_NOINLINE void TestCuckooThroughput(size_t num_keys) {
   const AlignedVector<uint32_t> keys = GenerateKeys(num_keys);
   const size_t before = AllocatedBefore();
   constexpr int kVerbosity = 0;
   constexpr size_t kMinBuckets = kUseU16 ? size_t{1} << 18 : 1;
-  CuckooTraits<WeakTwoMul, 0, kMinBuckets, kVerbosity> traits;
+  CuckooTraits<WeakTwoMul, /*kBucketSize=*/0, kMinBuckets, kPow2, kVerbosity>
+      traits;
   auto cuckoo = CuckooBuild(traits, keys.data(), keys.size(), /*epsilon=*/0.1,
                             /*max_attempts=*/100, CuckooBuildAlgo::kMinCost);
   if constexpr (kUseU16) {
@@ -570,11 +571,13 @@ HWY_NOINLINE void TestCuckooThroughput(size_t num_keys) {
   }
   const size_t bytes = num_keys * sizeof(uint32_t) * pool.NumWorkers();
   const char* suffix = kUseU16 ? "u16" : "u32";
+  const char* pow2_suffix = kPow2 ? "pow2" : "non-pow2";
   fprintf(stderr,
-          "Cuckoo 2x16 %s throughput: %4zuKi keys = %4.1f GB/s; "
+          "Cuckoo 2x16 %s (%s) throughput: %4zuKi keys = %4.1f GB/s; "
           "measurement MAD=%4.2f%%, allocated %5zu KiB\n",
-          suffix, num_keys / 1024, static_cast<double>(bytes) / result.ns,
-          result.mad_percent, allocated_bytes / 1024);
+          suffix, pow2_suffix, num_keys / 1024,
+          static_cast<double>(bytes) / result.ns, result.mad_percent,
+          allocated_bytes / 1024);
 }
 
 // Driver functions: sweep across sizes or run once.
@@ -665,10 +668,12 @@ HWY_NOINLINE void TestThroughputSweep() {
         TestAbslThroughput(n);
       }
       if constexpr (kEnableCuckoo) {
-        TestCuckooThroughput(n);
+        TestCuckooThroughput</*kUseU16=*/false, /*kPow2=*/true>(n);
+        TestCuckooThroughput</*kUseU16=*/false, /*kPow2=*/false>(n);
       }
       if constexpr (kEnableCuckoo16) {
-        TestCuckooThroughput</*kUseU16=*/true>(n);
+        TestCuckooThroughput</*kUseU16=*/true, /*kPow2=*/true>(n);
+        TestCuckooThroughput</*kUseU16=*/true, /*kPow2=*/false>(n);
       }
     }
   } else {

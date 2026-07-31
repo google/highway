@@ -82,7 +82,7 @@ HWY_INLINE const V& GetRaw(const V& v, ...) {
 // KeyT is derived from HashT::LaneType.
 
 template <typename HashT_ = WeakTwoMul, size_t kBucketSize_ = 0,
-          size_t kMinBuckets_ = 1, int kVerbosity_ = 0>
+          size_t kMinBuckets_ = 1, bool kPow2_ = true, int kVerbosity_ = 0>
 struct CuckooTraits {
   using HashT = HashT_;
   using KeyT = typename HashT::LaneType;
@@ -90,15 +90,16 @@ struct CuckooTraits {
   static constexpr size_t kBucketSize =
       kBucketSize_ ? kBucketSize_ : 64 / sizeof(KeyT);
   static constexpr size_t kLogBucketSize = CeilLog2(kBucketSize);
-
+  static constexpr bool kPow2 = kPow2_;
   static constexpr size_t kMinBuckets = kMinBuckets_;
 
   static constexpr int kVerbosity = kVerbosity_;
 
   static_assert((kBucketSize & (kBucketSize - 1)) == 0 && kBucketSize > 0,
                 "kBucketSize must be a power of two");
-  static_assert((kMinBuckets & (kMinBuckets - 1)) == 0 && kMinBuckets > 0,
-                "kMinBuckets must be a power of two");
+  static_assert(!kPow2_ || ((kMinBuckets_ & (kMinBuckets_ - 1)) == 0 &&
+                            kMinBuckets_ > 0),
+                "kMinBuckets_ must be a power of two when kPow2_ is true");
 };
 
 // --------------------------------------------------------------------------
@@ -121,10 +122,37 @@ class CuckooConfigT {
         static_cast<size_t>(static_cast<double>(num_keys) * (1.0 + epsilon)) +
         1;
     const size_t min_buckets = DivCeil(raw_slots, kSlotsPerBucket);
-    num_buckets_ = RoundUpToPow2(HWY_MAX(kMinBuckets, min_buckets));
+    if constexpr (Traits::kPow2) {
+      num_buckets_ = RoundUpToPow2(HWY_MAX(kMinBuckets, min_buckets));
+      bucket_mask_ = num_buckets_ - 1;
+    } else {
+      num_buckets_ = HWY_MAX(min_buckets, kMinBuckets);
+      // Ensure odd number of buckets for non-power-of-2. This is necessary to
+      // gurantee that hash * num_buckets_ mod 2^64 is bijection even when hash
+      // is u64 (2^46 and num_buckets_ must be coprime).
+      num_buckets_ |= 1;
+      bucket_mask_ = 0;
+    }
     num_slots_ = num_buckets_ * kSlotsPerBucket;
-    bucket_mask_ = num_buckets_ - 1;
     bucket_bits_ = hwy::CeilLog2(num_buckets_);
+  }
+
+  HWY_INLINE uint32_t BucketFromHash(uint32_t hash) const {
+    if constexpr (Traits::kPow2) {
+      return hash & bucket_mask_;
+    } else {
+      return static_cast<uint32_t>(
+          (static_cast<uint64_t>(hash) * num_buckets_) >> 32);
+    }
+  }
+
+  template <class DU32, class VU32 = Vec<DU32>>
+  HWY_INLINE VU32 BucketFromHash(DU32 du32, VU32 hash) const {
+    if constexpr (Traits::kPow2) {
+      return And(hash, Set(du32, bucket_mask_));
+    } else {
+      return MulHigh(hash, Set(du32, static_cast<uint32_t>(NumBuckets())));
+    }
   }
 
   size_t NumKeys() const { return num_keys_; }
@@ -156,6 +184,8 @@ class CuckooTableT {
   using HashT = typename Traits::HashT;
   using KeyType = KeyT;
   using HashType = HashT;
+
+  static constexpr bool kPow2 = Traits::kPow2;
 
   // Internal constants.
   // Sentinel value for empty uint16_t fingerprint slots (tag=00).
@@ -204,16 +234,16 @@ class CuckooTableT {
   const HashT& HashPrimary() const { return hash_primary_; }
   const HashT& HashSecondary() const { return hash_secondary_; }
 
-  // Scalar bucket offset: uses lower bits of hash to determine bucket index.
+  // Scalar bucket offset: uses hash to determine bucket index.
   HWY_INLINE size_t PrimaryBucketOffset(KeyT key) const {
     const KeyT hash = hash_primary_(key);
-    const KeyT bucket_idx = hash & config_.BucketMask();
+    const uint32_t bucket_idx = config_.BucketFromHash(hash);
     return static_cast<size_t>(bucket_idx) * kBucketSize;
   }
 
   HWY_INLINE size_t SecondaryBucketOffset(KeyT key) const {
     const KeyT hash = hash_secondary_(key);
-    const KeyT bucket_idx = hash & config_.BucketMask();
+    const uint32_t bucket_idx = config_.BucketFromHash(hash);
     return static_cast<size_t>(bucket_idx) * kBucketSize;
   }
 
@@ -242,9 +272,8 @@ class CuckooTableT {
                                 size_t& s_pri, size_t& s_sec) const {
     h_pri = hash_primary_(key);
     h_sec = hash_secondary_(key);
-    const KeyT bucket_mask = config_.BucketMask();
-    s_pri = static_cast<size_t>((h_pri & bucket_mask) * kBucketSize);
-    s_sec = static_cast<size_t>((h_sec & bucket_mask) * kBucketSize);
+    s_pri = static_cast<size_t>(config_.BucketFromHash(h_pri) * kBucketSize);
+    s_sec = static_cast<size_t>(config_.BucketFromHash(h_sec) * kBucketSize);
   }
 
   template <class D, class V = Vec<D>>
@@ -259,7 +288,14 @@ class CuckooTableT {
 
   template <class D, class V = Vec<D>>
   HWY_INLINE V BucketFromHash(D d, V h_pri) const {
-    return ShiftLeft<kLogBucketSize>(And(h_pri, Set(d, config_.BucketMask())));
+    Vec<D> v;
+    if constexpr (kPow2) {
+      v = And(h_pri, Set(d, config_.BucketMask()));
+    } else {
+      const V vparam = Set(d, static_cast<TFromD<D>>(config_.NumBuckets()));
+      v = MulHigh(h_pri, vparam);
+    }
+    return ShiftLeft<kLogBucketSize>(v);
   }
 
   // Computes the primary and secondary slot indices for a vector of keys.
@@ -270,11 +306,18 @@ class CuckooTableT {
   template <class D, class V = Vec<D>>
   HWY_INLINE void LookupSlotsAndHash(D d, V vkeys, V& b_pri, V& b_sec,
                                      V& h_pri) const {
-    const V vmask = Set(d, config_.BucketMask());
     h_pri = PrimaryHash(d, vkeys);
-    b_pri = ShiftLeft<kLogBucketSize>(And(h_pri, vmask));
     const V h_sec = SecondaryHash(d, vkeys);
-    b_sec = ShiftLeft<kLogBucketSize>(And(h_sec, vmask));
+    if constexpr (kPow2) {
+      const TFromD<D> bucket_mask = config_.BucketMask();
+      const V vmask = Set(d, bucket_mask);
+      b_pri = ShiftLeft<kLogBucketSize>(And(h_pri, vmask));
+      b_sec = ShiftLeft<kLogBucketSize>(And(h_sec, vmask));
+    } else {
+      const V vparam = Set(d, static_cast<TFromD<D>>(config_.NumBuckets()));
+      b_pri = ShiftLeft<kLogBucketSize>(MulHigh(h_pri, vparam));
+      b_sec = ShiftLeft<kLogBucketSize>(MulHigh(h_sec, vparam));
+    }
   }
 
   // SIMD set membership for N u32 keys, checking both primary and secondary
@@ -291,8 +334,7 @@ class CuckooTableT {
                              const uint32_t* HWY_RESTRICT keys) const {
     using VU32 = Vec<DU32>;
     HWY_LANES_CONSTEXPR size_t N = Lanes(du32);
-    const uint32_t bucket_mask = config_.BucketMask();
-    const VU32 vmask = Set(du32, bucket_mask);
+
     const uint32_t* base_slots = slots_.data();
 
     const VU32 vkeys = Load(du32, keys);
@@ -301,20 +343,22 @@ class CuckooTableT {
 
     // Compute primary bucket offsets for all N lanes.
     VU32 h_pri = hash_primary_.OneVec(du32, vkeys);
-    const VU32 b_pri = ShiftLeft<kLogBucketSize>(And(h_pri, vmask));
-    Store(b_pri, du32, pri_offsets);
+    const VU32 bkt_pri = config_.BucketFromHash(du32, h_pri);
+    const VU32 first_slot_pri = ShiftLeft<kLogBucketSize>(bkt_pri);
+    Store(first_slot_pri, du32, pri_offsets);
 
     // Optionally precompute secondary bucket offsets for all N lanes.
     HWY_ALIGN uint32_t sec_offsets[MaxLanes(du32)];
     if constexpr (kPrecomputeSecondary) {
       VU32 h_sec = hash_secondary_.OneVec(du32, vkeys);
-      const VU32 b_sec = ShiftLeft<kLogBucketSize>(And(h_sec, vmask));
-      Store(b_sec, du32, sec_offsets);
+      const VU32 bkt_sec = config_.BucketFromHash(du32, h_sec);
+      const VU32 first_slot_sec = ShiftLeft<kLogBucketSize>(bkt_sec);
+      Store(first_slot_sec, du32, sec_offsets);
     }
 
     if constexpr (kPrefetchMode == PrefetchMode::kGather) {
       const RebindToSigned<decltype(du32)> di32;
-      VU32 g0 = GatherIndex(du32, base_slots, BitCast(di32, b_pri));
+      VU32 g0 = GatherIndex(du32, base_slots, BitCast(di32, first_slot_pri));
 #if defined(HWY_X86_GCC_INLINE_ASM_VEC_CONSTRAINT)
       asm volatile(
           ""
@@ -364,7 +408,7 @@ class CuckooTableT {
   // fingerprints plus 2-bit tags, following the `Cuckoo2x2` approach.
   //
   // Each uint16_t slot stores:
-  //   bits 0-13: 14-bit fingerprint (bits 18-31 of the hash)
+  //   bits 0-13: 14-bit fingerprint (bits 18-31 of the hash / product)
   //   bits 14-15: 2-bit tag (01=primary, 10=secondary, 00=empty)
   //
   // Empty entries (tag=00) can never match, since valid entries always have
@@ -381,11 +425,18 @@ class CuckooTableT {
   // With 18 bits for bucket selection, bits 18-31 are free for fingerprinting.
   static constexpr uint32_t kMinBucketsU16 = 1u << 18;  // 262144
 
-  // Computes a 14-bit fingerprint (bits 18-31 of hash) plus the given 2-bit
-  // tag. The result is a uint16_t with bits 0-13 = fingerprint and
+  // Computes a 14-bit fingerprint (bits 18-31 of hash / product) plus the
+  // given 2-bit tag. The result is a uint16_t with bits 0-13 = fingerprint and
   // bits 14-15 = tag.
-  static HWY_INLINE uint16_t FingerprintU16(uint32_t hash, uint16_t tag) {
-    return static_cast<uint16_t>((hash >> 18) | tag);
+  HWY_INLINE uint16_t FingerprintU16(uint32_t hash, uint16_t tag) const {
+    if constexpr (kPow2) {
+      return static_cast<uint16_t>((hash >> 18) | tag);
+    } else {
+      const uint64_t product =
+          static_cast<uint64_t>(hash) * config_.NumBuckets();
+      const uint16_t fp14 = static_cast<uint16_t>((product >> 18) & 0x3FFF);
+      return static_cast<uint16_t>(fp14 | tag);
+    }
   }
 
   // TODO: maybe this is no longer necessary, because callers can define their
@@ -400,18 +451,17 @@ class CuckooTableT {
     HWY_ASSERT_M(config_.NumBuckets() >= kMinBucketsU16,
                  "U16 fingerprints require >= 2^18 buckets");
     const uint32_t num_slots = config_.NumSlots();
-    const uint32_t bucket_mask = config_.BucketMask();
     slots_u16_.resize(num_slots, kEmptyU16);
     for (uint32_t s = 0; s < num_slots; ++s) {
       if (slots_[s] == kEmpty) continue;
       const uint32_t key = slots_[s];
       const uint32_t bucket = s / kBucketSize;
       const uint32_t h1 = hash_primary_(key);
-      if ((h1 & bucket_mask) == bucket) {
+      if (config_.BucketFromHash(h1) == bucket) {
         slots_u16_[s] = FingerprintU16(h1, kTagPrimary);
       } else {
         const uint32_t h2 = hash_secondary_(key);
-        HWY_DASSERT((h2 & bucket_mask) == bucket);
+        HWY_DASSERT(config_.BucketFromHash(h2) == bucket);
         slots_u16_[s] = FingerprintU16(h2, kTagSecondary);
       }
     }
@@ -420,29 +470,28 @@ class CuckooTableT {
   }
 
   // Query a single bucket (16 slots) of uint16_t fingerprints.
-  HWY_INLINE bool QueryBucketU16(uint16_t fp, uint32_t b) const {
+  HWY_INLINE bool QueryBucketU16(uint16_t fp, uint32_t slot) const {
     const CappedTag<uint16_t, kBucketSize> d;
     HWY_LANES_CONSTEXPR size_t N = Lanes(d);
     const auto vfp = Set(d, fp);
-    const uint16_t* base = slots_u16_.data() + b;
-    auto any_eq = MaskFalse(d);
+    const uint16_t* base = slots_u16_.data() + slot;
+    auto ne = SetMask(d, true);
     for (size_t i = 0; i < kBucketSize; i += N) {
-      any_eq = Or(any_eq, Eq(vfp, Load(d, base + i)));
+      ne = MaskedNe(ne, vfp, Load(d, base + i));
     }
-    return !AllFalse(d, any_eq);
+    return !AllTrue(d, ne);
   }
 
   // Query a single key using U16 fingerprints. Returns true if found
   // (may return false positives).
   HWY_INLINE bool QueryOneU16(uint32_t key) const {
-    const uint32_t bucket_mask = config_.BucketMask();
     const uint32_t h1 = hash_primary_(key);
     const uint16_t fp1 = FingerprintU16(h1, kTagPrimary);
-    const uint32_t b1 = (h1 & bucket_mask) * kBucketSize;
+    const uint32_t b1 = config_.BucketFromHash(h1) * kBucketSize;
     if (QueryBucketU16(fp1, b1)) return true;
     const uint32_t h2 = hash_secondary_(key);
     const uint16_t fp2 = FingerprintU16(h2, kTagSecondary);
-    const uint32_t b2 = (h2 & bucket_mask) * kBucketSize;
+    const uint32_t b2 = config_.BucketFromHash(h2) * kBucketSize;
     return QueryBucketU16(fp2, b2);
   }
 
@@ -453,6 +502,28 @@ class CuckooTableT {
   // If kPrecomputeSecondary is true, both primary and secondary hashes are
   // computed upfront. If false (default), secondary hashes are computed
   // on-the-fly only for lanes that missed in the primary.
+
+  // Details on U16 and non-power-of-2 option:
+  // Computes bucket and 16-bit tag from hash and NumBuckets:
+  //   Note that product is bijection from [0, 2^32) to [0, 2^64) due to
+  //   requirement that NumBuckets must be odd.
+  //   product = (uint64_t)h * (uint64_t)NumBuckets
+  //   bucket  = (uint32_t)(product >> 32) // Upper 32 bits
+  //   tag = 2-bit tag padded to 16b bits (2 bits are MSB)
+  //   fp  = (uint16_t)(((product >> 18) & 0xFFFF) | tag) // Bits [18:31] + tag
+  //
+  // For NumBuckets >= 2^18, this mapping is exact. Thus, no two distinct hashes
+  // can match on both bucket and fp (fingerprint):
+  // If two keys k1 and k2 match
+  // on both bucket and fp, then their 64-bit products agree on bits [18:63], so
+  // |h1 * bucket_size - h2 * bucket_size| < 2^18 and since
+  // NumBuckets >= 2^18, that forces |h1 - h2| < 1, so h1 = h2. The power-of-2
+  // case is just the special case where the multiply is a shift.
+  //
+  // Uses MulEven/MulOdd to compute both outputs from a single pair of
+  // widening multiplies (2 pmuludq on x86), rather than MulHigh + Mul
+  // which costs 3 multiplies on x86 (MulHigh is emulated via MulEven +
+  // MulOdd + InterleaveOdd, then Mul adds another pmulld).
   template <bool kPrecomputeSecondary = false, class DU32,
             class MU32 = Mask<DU32>, typename K = KeyT, HWY_IF_T_SIZE(K, 4)>
   HWY_INLINE MU32 QueryBatchU16(DU32 du32,
@@ -461,8 +532,9 @@ class CuckooTableT {
     const RepartitionToNarrow<DU32> du16;
     using VU16 = Vec<decltype(du16)>;
     HWY_LANES_CONSTEXPR size_t N = Lanes(du32);
-    const uint32_t bucket_mask = config_.BucketMask();
-    const VU32 vmask = Set(du32, bucket_mask);
+    const VU32 vparam =
+        Set(du32, kPow2 ? config_.BucketMask()
+                        : static_cast<uint32_t>(config_.NumBuckets()));
 
     const VU32 vkeys = Load(du32, keys);
 
@@ -471,28 +543,62 @@ class CuckooTableT {
 
     // Extract primary bucket offsets (bucket_idx * 16).
     HWY_ALIGN uint32_t pri_offsets[MaxLanes(du32)];
-    const VU32 b_pri = ShiftLeft<kLogBucketSize>(And(h_pri, vmask));
-    Store(b_pri, du32, pri_offsets);
-
-    // Extract primary fingerprints via SIMD: BitCast to u16 places the top
-    // 16 bits of each u32 hash at odd indices. ShiftRight<2> moves bits 18-31
-    // into positions 0-13, Or sets the tag. We only read odd indices
-    // (lane*2+1) which hold the correct fingerprints; even indices are garbage.
-    const VU16 fp_pri =
-        Or(ShiftRight<2>(BitCast(du16, h_pri)), Set(du16, kTagPrimary));
     HWY_ALIGN uint16_t pri_fps[MaxLanes(du16)];
-    Store(fp_pri, du16, pri_fps);
+
+    if constexpr (kPow2) {
+      const VU32 bkt_pri = And(h_pri, vparam);
+      const VU32 first_slot_pri = ShiftLeft<kLogBucketSize>(bkt_pri);
+      Store(first_slot_pri, du32, pri_offsets);
+
+      const VU16 fp_pri =
+          Or(ShiftRight<2>(BitCast(du16, h_pri)), Set(du16, kTagPrimary));
+      Store(fp_pri, du16, pri_fps);
+    } else {
+      // Widening multiply: compute both bucket and fingerprint from
+      // a single pair of MulEven/MulOdd, avoiding redundant multiplies.
+      const auto prod_even_pri = BitCast(du32, MulEven(h_pri, vparam));
+      const auto prod_odd_pri = BitCast(du32, MulOdd(h_pri, vparam));
+
+      // Bucket: upper 32 bits of each product.
+      const VU32 bkt_pri = InterleaveOdd(du32, prod_even_pri, prod_odd_pri);
+      const VU32 first_slot_pri = ShiftLeft<kLogBucketSize>(bkt_pri);
+      Store(first_slot_pri, du32, pri_offsets);
+
+      // Fingerprint: lower 32 bits → BitCast to u16 → odd u16 lanes have
+      // bits [16:31]. ShiftRight<2> yields the 14-bit fingerprint.
+      const VU32 lo_pri = InterleaveEven(du32, prod_even_pri, prod_odd_pri);
+      const VU16 fp_pri =
+          Or(ShiftRight<2>(BitCast(du16, lo_pri)), Set(du16, kTagPrimary));
+      Store(fp_pri, du16, pri_fps);
+    }
 
     // Optionally precompute secondary hashes with tag 10.
     HWY_ALIGN uint32_t sec_offsets[MaxLanes(du32)];
     HWY_ALIGN uint16_t sec_fps[MaxLanes(du16)];
     if constexpr (kPrecomputeSecondary) {
       const VU32 h_sec = hash_secondary_.OneVec(du32, vkeys);
-      const VU32 b_sec = ShiftLeft<kLogBucketSize>(And(h_sec, vmask));
-      Store(b_sec, du32, sec_offsets);
-      const VU16 fp_sec =
-          Or(ShiftRight<2>(BitCast(du16, h_sec)), Set(du16, kTagSecondary));
-      Store(fp_sec, du16, sec_fps);
+      if constexpr (kPow2) {
+        const VU32 bkt_sec = And(h_sec, vparam);
+        const VU32 first_slot_sec = ShiftLeft<kLogBucketSize>(bkt_sec);
+        Store(first_slot_sec, du32, sec_offsets);
+
+        const VU16 fp_sec =
+            Or(ShiftRight<2>(BitCast(du16, h_sec)), Set(du16, kTagSecondary));
+        Store(fp_sec, du16, sec_fps);
+      } else {
+        // Same widening-multiply optimization as above.
+        const auto prod_even_sec = BitCast(du32, MulEven(h_sec, vparam));
+        const auto prod_odd_sec = BitCast(du32, MulOdd(h_sec, vparam));
+
+        const VU32 bkt_sec = InterleaveOdd(du32, prod_even_sec, prod_odd_sec);
+        const VU32 first_slot_sec = ShiftLeft<kLogBucketSize>(bkt_sec);
+        Store(first_slot_sec, du32, sec_offsets);
+
+        const VU32 lo_sec = InterleaveEven(du32, prod_even_sec, prod_odd_sec);
+        const VU16 fp_sec =
+            Or(ShiftRight<2>(BitCast(du16, lo_sec)), Set(du16, kTagSecondary));
+        Store(fp_sec, du16, sec_fps);
+      }
     }
 
     if constexpr (kPrefetchMode == PrefetchMode::kPrefetch) {
@@ -524,8 +630,8 @@ class CuckooTableT {
         const uint32_t key = keys[lane];
         const uint32_t h2 = hash_secondary_(key);
         const uint16_t fp2 = FingerprintU16(h2, kTagSecondary);
-        const uint32_t b2 = (h2 & bucket_mask) * kBucketSize;
-        found_arr[lane] = QueryBucketU16(fp2, b2) ? 1u : 0u;
+        const uint32_t slot2 = config_.BucketFromHash(h2) * kBucketSize;
+        found_arr[lane] = QueryBucketU16(fp2, slot2) ? 1u : 0u;
       }
     }
 
@@ -605,7 +711,6 @@ class CuckooBuilderT {
   // Attempts to build with a given pair of hash functions.
   // Returns true on success (all keys matched).
   bool Build(const KeyT* keys, HashT hash_primary, HashT hash_secondary,
-
              CuckooBuildAlgo algo = CuckooBuildAlgo::kHopcroftKarp,
              CuckooBuildStats* stats = nullptr) {
     if (kVerbosity >= 2 && num_keys_ >= kMinKeysThresholdLog) {
@@ -619,12 +724,9 @@ class CuckooBuilderT {
     // Compute bucket assignments for each key.
     primary_bucket_.resize(num_keys_);
     secondary_bucket_.resize(num_keys_);
-    const uint32_t bucket_mask = config_.BucketMask();
     for (uint32_t i = 0; i < num_keys_; ++i) {
-      primary_bucket_[i] =
-          static_cast<uint32_t>(hash_primary_(keys[i])) & bucket_mask;
-      secondary_bucket_[i] =
-          static_cast<uint32_t>(hash_secondary_(keys[i])) & bucket_mask;
+      primary_bucket_[i] = config_.BucketFromHash(hash_primary_(keys[i]));
+      secondary_bucket_[i] = config_.BucketFromHash(hash_secondary_(keys[i]));
     }
 
     // Initialize matching arrays.
