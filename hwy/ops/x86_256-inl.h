@@ -2129,6 +2129,14 @@ HWY_API Vec256<uint64_t> SumsOf8(Vec256<uint8_t> v) {
   return Vec256<uint64_t>{_mm256_sad_epu8(v.raw, _mm256_setzero_si256())};
 }
 
+template <class D, HWY_IF_U8_D(D), HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> SumOfLanes(D d, VFromD<D> v) {
+  const Repartition<uint64_t, decltype(d)> d64;
+  VFromD<decltype(d64)> sums = SumsOf8(v);
+  sums = SumOfLanes(d64, sums);
+  return Broadcast<0>(BitCast(d, sums));
+}
+
 HWY_API Vec256<uint64_t> SumsOf8AbsDiff(Vec256<uint8_t> a, Vec256<uint8_t> b) {
   return Vec256<uint64_t>{_mm256_sad_epu8(a.raw, b.raw)};
 }
