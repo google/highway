@@ -47,12 +47,122 @@ namespace {
 
 // Phast is not supported on HWY_SCALAR and too slow on HWY_EMU128.
 #if (HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128) && !HWY_IDE
+HWY_NOINLINE void TestSliceInvariant() {}
+HWY_NOINLINE void TestDisjointSlicesNeverCollide() {}
+HWY_NOINLINE void TestSliceBoundIsTight() {}
 HWY_NOINLINE void TestQueryConsistency() {}
 HWY_NOINLINE void TestMultipleSizes() {}
 #else
 
 static ThreadPool MakePool() {
   return ThreadPool(ThreadPool::NumThreadsFromCores());
+}
+
+// --------------------------------------------------------------------------
+// Placement structure. The builder's collision and overlap checks rely on
+// PosFromHashAndSeed decomposing into a seed-independent slice base plus an
+// offset smaller than slice_length. These tests pin that decomposition so a
+// change to Placement/Hash16 that broke it would fail here rather than silently
+// invalidate the builder's pruning.
+
+// Every seed places a key inside its own slice.
+HWY_NOINLINE void TestSliceInvariant() {
+  fprintf(stderr, "=== TestSliceInvariant ===\n");
+  const size_t kNumSlots[] = {203, 1021, 12289, 206001};
+  const uint32_t kSliceLengths[] = {64, 128, 512, 2048};
+  size_t checked = 0;
+  for (size_t num_slots : kNumSlots) {
+    for (uint32_t slice_length : kSliceLengths) {
+      if (num_slots < slice_length) continue;
+      const PhastPlacement pp(num_slots, slice_length);
+      uint32_t hash = 0x9E3779B9u;
+      for (size_t t = 0; t < 500; ++t) {
+        hash = hash * 1664525u + 1013904223u;
+        const uint32_t base = LemireMod(hash, pp.num_slice_offsets);
+        for (uint32_t seed = 0; seed < 256; ++seed) {
+          const uint32_t pos = Phast::PosFromHashAndSeed(pp, hash, seed);
+          HWY_ASSERT_M(pos >= base, "position below its slice");
+          HWY_ASSERT_M(pos - base < slice_length, "position beyond its slice");
+          HWY_ASSERT_M(pos < num_slots, "position outside the table");
+          ++checked;
+        }
+      }
+    }
+  }
+  fprintf(stderr, "  OK: %zu (hash, seed) pairs inside their slice\n", checked);
+}
+
+// Keys whose slices are disjoint cannot share a slot at any seed. This is what
+// lets the builder skip those pairs instead of retesting them per seed.
+HWY_NOINLINE void TestDisjointSlicesNeverCollide() {
+  fprintf(stderr, "=== TestDisjointSlicesNeverCollide ===\n");
+  const PhastPlacement pp(/*num_slots=*/1020001, /*slice_length=*/2048);
+  const uint32_t slice_length = pp.slice_mask + 1;
+  uint32_t hash = 12345u;
+  size_t disjoint = 0;
+  for (size_t t = 0; t < 20000; ++t) {
+    hash = hash * 1664525u + 1013904223u;
+    const uint32_t hi = hash;
+    hash = hash * 1664525u + 1013904223u;
+    const uint32_t hj = hash;
+    const uint32_t bi = LemireMod(hi, pp.num_slice_offsets);
+    const uint32_t bj = LemireMod(hj, pp.num_slice_offsets);
+    const uint32_t d = bi > bj ? bi - bj : bj - bi;
+    if (d < slice_length) continue;  // slices overlap; collision permitted
+    ++disjoint;
+    for (uint32_t seed = 0; seed < 256; ++seed) {
+      HWY_ASSERT_M(Phast::PosFromHashAndSeed(pp, hi, seed) !=
+                       Phast::PosFromHashAndSeed(pp, hj, seed),
+                   "disjoint slices produced a collision");
+    }
+  }
+  HWY_ASSERT_M(disjoint > 1000, "too few disjoint pairs to be meaningful");
+  fprintf(stderr, "  OK: %zu random disjoint pairs, no collision\n", disjoint);
+
+  // Random pairs land far apart and so exercise the claim weakly. The case that
+  // discriminates is the tightest one: slices exactly slice_length apart, where
+  // a single extra reachable offset would produce a collision. Construct those
+  // pairs rather than sampling for them.
+  const PhastPlacement tight(/*num_slots=*/203, /*slice_length=*/64);
+  const uint32_t width = tight.slice_mask + 1;
+  size_t constructed = 0;
+  for (uint64_t h = 0; h <= 0xFFFFFFFFull; h += 655357) {
+    const uint32_t hi2 = static_cast<uint32_t>(h);
+    const uint64_t target =
+        static_cast<uint64_t>(LemireMod(hi2, tight.num_slice_offsets)) + width;
+    if (target >= tight.num_slice_offsets) continue;
+    const uint64_t lo = ((target << 32) + tight.num_slice_offsets - 1) /
+                        tight.num_slice_offsets;
+    if (lo > 0xFFFFFFFFull) continue;
+    const uint32_t hj2 = static_cast<uint32_t>(lo);
+    if (LemireMod(hj2, tight.num_slice_offsets) != target) continue;
+    ++constructed;
+    for (uint32_t seed = 0; seed < 256; ++seed) {
+      HWY_ASSERT_M(Phast::PosFromHashAndSeed(tight, hi2, seed) !=
+                       Phast::PosFromHashAndSeed(tight, hj2, seed),
+                   "slices exactly slice_length apart must not collide");
+    }
+  }
+  HWY_ASSERT_M(constructed > 500, "too few tight pairs constructed");
+  fprintf(stderr, "  OK: %zu pairs exactly slice_length apart, no collision\n",
+          constructed);
+}
+
+// The bound above is `< slice_length`, not `< slice_length - 1`: slices exactly
+// slice_length - 1 apart share one slot and that slot is reachable. Regression
+// case for a config the builder enumerates (num_keys 200, headroom 1%).
+HWY_NOINLINE void TestSliceBoundIsTight() {
+  fprintf(stderr, "=== TestSliceBoundIsTight ===\n");
+  const PhastPlacement pp(/*num_slots=*/203, /*slice_length=*/64);
+  const uint32_t hi = 0x000c0000u, hj = 0x73570000u, seed = 0;
+  const uint32_t bi = LemireMod(hi, pp.num_slice_offsets);
+  const uint32_t bj = LemireMod(hj, pp.num_slice_offsets);
+  HWY_ASSERT_M(bj - bi == pp.slice_mask, "witness slices not slice_length-1 apart");
+  const uint32_t pi = Phast::PosFromHashAndSeed(pp, hi, seed);
+  const uint32_t pj = Phast::PosFromHashAndSeed(pp, hj, seed);
+  HWY_ASSERT_M(pi == pj, "witness pair must collide; the bound cannot be tightened");
+  fprintf(stderr, "  OK: slices %u apart (slice_length-1) collide at slot %u\n",
+          bj - bi, pi);
 }
 
 HWY_NOINLINE void TestQueryConsistency() {
@@ -172,6 +282,9 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 namespace hwy {
 HWY_BEFORE_TEST(PhastTest);
+HWY_EXPORT_AND_TEST_BEST_P(PhastTest, TestSliceInvariant);
+HWY_EXPORT_AND_TEST_BEST_P(PhastTest, TestDisjointSlicesNeverCollide);
+HWY_EXPORT_AND_TEST_BEST_P(PhastTest, TestSliceBoundIsTight);
 HWY_EXPORT_AND_TEST_BEST_P(PhastTest, TestQueryConsistency);
 HWY_EXPORT_AND_TEST_BEST_P(PhastTest, TestMultipleSizes);
 HWY_AFTER_TEST();
