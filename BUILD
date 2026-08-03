@@ -621,6 +621,16 @@ cc_test(
 )
 
 cc_test(
+    name = "game_of_life_bits",
+    srcs = ["hwy/examples/game_of_life_bits.cc"],
+    copts = COPTS,
+    deps = [
+        ":hwy",
+        ":timer",
+    ],
+)
+
+cc_test(
     name = "dot_product_unroll",
     srcs = ["hwy/examples/dot_product_unroll.cc"],
     copts = COPTS,
