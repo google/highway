@@ -964,7 +964,7 @@ static HWY_MAYBE_UNUSED void HashArray(const Hash& hash,
 template <class Func>
 void ForeachHash(AesCtrEngine& engine, uint64_t seed, const Func& func) {
   func(Triple32(engine, seed));
-  // func(WeakTwoMul(engine, seed));
+  func(WeakTwoMul(engine, seed));
 
   // func(Speck32(engine, seed));
   // func(WeakLaiMassey3Mul2(engine, seed));
@@ -975,7 +975,7 @@ void ForeachHash(AesCtrEngine& engine, uint64_t seed, const Func& func) {
 template <class Func>
 void ForeachHash64(AesCtrEngine& engine, uint64_t seed, const Func& func) {
   func(Moremur(engine, seed));
-  // func(WeakXMX(engine, seed));
+  func(WeakXMX(engine, seed));
 
   // func(Nasam(engine, seed));
   // func(Feistel4Mul2(engine, seed));

@@ -3,6 +3,11 @@
 # path, name, deps
 HWY_CONTRIB_TESTS = (
     (
+        "hwy/contrib/base64/",
+        "base64_test",
+        [":base64"],
+    ),
+    (
         "hwy/contrib/algo/",
         "copy_test",
         [":algo"],

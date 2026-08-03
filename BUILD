@@ -327,6 +327,18 @@ cc_library(
 )
 
 cc_library(
+    name = "base64",
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/base64/base64-inl.h",
+    ],
+    deps = [
+        ":hwy",
+    ],
+)
+
+cc_library(
     name = "bit_pack",
     compatible_with = [],
     copts = COPTS,
@@ -639,6 +651,17 @@ cc_test(
         ":hwy",
         ":hwy_test_util",
         ":nanobenchmark",
+        ":timer",
+    ],
+)
+
+cc_test(
+    name = "game_of_life",
+    srcs = ["hwy/examples/game_of_life.cc"],
+    copts = COPTS,
+    deps = [
+        ":hwy",
+        ":random",
         ":timer",
     ],
 )

@@ -65,8 +65,15 @@ HWY_INLINE_VAR constexpr size_t kNumKeys =
     AdjustedReps(AdjustedReps(1024)) * 1024;
 
 // Set to true to benchmark across a range of key counts.
-HWY_INLINE_VAR constexpr bool kSweepThroughput = false;
-HWY_INLINE_VAR constexpr bool kSweepLatency = false;
+HWY_INLINE_VAR constexpr bool kSweepThroughput = true;
+HWY_INLINE_VAR constexpr bool kSweepLatency = true;
+
+HWY_INLINE_VAR constexpr bool kEnableShardMul = false;
+HWY_INLINE_VAR constexpr bool kEnableAbsl = false;
+HWY_INLINE_VAR constexpr bool kEnablePhast = false;
+HWY_INLINE_VAR constexpr bool kEnableC2x2 = false;
+HWY_INLINE_VAR constexpr bool kEnableCuckoo = true;
+HWY_INLINE_VAR constexpr bool kEnableCuckoo16 = true;
 
 static ThreadPool MakePool() {
   return ThreadPool(ThreadPool::NumThreadsFromCores());
@@ -175,8 +182,8 @@ HWY_NOINLINE void TestBW() {
   }
   const double elapsed =
       robust_statistics::Median(elapsed_times.data(), elapsed_times.size());
-  printf("MemBW: %7.2f ms = %4.1f GB/s\n", elapsed * 1E3,
-         num_bytes / elapsed * 1E-9);
+  fprintf(stderr, "MemBW: %7.2f ms = %4.1f GB/s\n", elapsed * 1E3,
+          num_bytes / elapsed * 1E-9);
 }
 
 // NOTE: unlike the others, this does not verify the keys because it is intended
@@ -224,11 +231,11 @@ HWY_NOINLINE void TestShardMulThroughput(size_t num_keys) {
     return per_worker[Unpredictable1()];
   });
   const size_t bytes = num_keys * sizeof(uint64_t) * pool.NumWorkers();
-  printf(
-      "Batch ShardMul u64 reduce throughput: %4zuKi keys = %4.1f GB/s; "
-      "measurement MAD=%5.2f%%, allocated %5zu KiB\n",
-      num_keys / 1024, static_cast<double>(bytes) / result.ns,
-      result.mad_percent, allocated_bytes / 1024);
+  fprintf(stderr,
+          "Batch ShardMul u64 reduce throughput: %4zuKi keys = %4.1f GB/s; "
+          "measurement MAD=%5.2f%%, allocated %5zu KiB\n",
+          num_keys / 1024, static_cast<double>(bytes) / result.ns,
+          result.mad_percent, allocated_bytes / 1024);
 }
 
 // Benchmarks PHAST + u32 key verification. Stores the full key at each PHAST
@@ -252,6 +259,10 @@ HWY_NOINLINE void TestPhastThroughput(size_t num_keys) {
   const size_t before = AllocatedBefore();
   constexpr size_t kPayloadBytes = sizeof(uint32_t);
   const Phast phast = MakePhast(Span(keys), kPayloadBytes, pool);
+  if (phast.Data().IsEmpty()) {
+    HWY_WARN("PHAST build failed, skipping throughput test.\n");
+    return;
+  }
   const Triple32 hash(phast.Data().config.hash_key);
 
   // Store the full key at each PHAST position for verification. The complex
@@ -315,11 +326,11 @@ HWY_NOINLINE void TestPhastThroughput(size_t num_keys) {
     HWY_ASSERT(per_worker[i * HWY_ALIGNMENT]);
   }
   const size_t bytes = num_keys * sizeof(uint32_t) * pool.NumWorkers();
-  printf(
-      "Batch PHAST u32 verify throughput: %4zuKi keys = %4.1f GB/s; "
-      "measurement MAD=%5.2f%%, allocated %5zu KiB\n",
-      num_keys / 1024, static_cast<double>(bytes) / result.ns,
-      result.mad_percent, allocated_bytes / 1024);
+  fprintf(stderr,
+          "Batch PHAST u32 verify throughput: %4zuKi keys = %4.1f GB/s; "
+          "measurement MAD=%5.2f%%, allocated %5zu KiB\n",
+          num_keys / 1024, static_cast<double>(bytes) / result.ns,
+          result.mad_percent, allocated_bytes / 1024);
 }
 
 // Benchmarks Cuckoo2x2 used as a set membership test, checking returned masks.
@@ -334,6 +345,10 @@ HWY_NOINLINE void TestCuckoo2x2Throughput(size_t num_keys) {
 
   const size_t before = AllocatedBefore();
   const Cuckoo2x2 set = MakeCuckoo2x2(Span(keys), pool);
+  if (set.Data().entries.empty()) {
+    HWY_WARN("Cuckoo2x2 build failed, skipping throughput test.\n");
+    return;
+  }
   const size_t allocated_bytes =
       AllocatedBytes(before, set.Data().AllocatedBytes());
 
@@ -348,6 +363,8 @@ HWY_NOINLINE void TestCuckoo2x2Throughput(size_t num_keys) {
   const size_t keys_per_chunk = RoundDownTo(num_keys / pool.NumWorkers(), N);
 
   AlignedVector<uint8_t> per_worker(pool.NumWorkers() * HWY_ALIGNMENT);
+  fprintf(stderr, "set info: %zu buckets, %zu entries\n",
+          set.Data().NumBuckets(), set.Data().entries.size());
   MeasureResult result = Measure([&](FuncInput func_input) {
     pool.Run(0, pool.NumWorkers(), [&](uint64_t task_idx, size_t worker) {
       MU32 any_missing = SetMask(du32, false);
@@ -365,11 +382,11 @@ HWY_NOINLINE void TestCuckoo2x2Throughput(size_t num_keys) {
     HWY_ASSERT(per_worker[i * HWY_ALIGNMENT]);
   }
   const size_t bytes = num_keys * sizeof(uint32_t) * pool.NumWorkers();
-  printf(
-      "Batch Cuckoo2x2 verify throughput: %4zuKi keys = %4.1f GB/s; "
-      "measurement MAD=%5.2f%%, allocated %5zu KiB\n",
-      num_keys / 1024, static_cast<double>(bytes) / result.ns,
-      result.mad_percent, allocated_bytes / 1024);
+  fprintf(stderr,
+          "Batch Cuckoo2x2 verify throughput: %4zuKi keys = %4.1f GB/s; "
+          "measurement MAD=%5.2f%%, allocated %5zu KiB\n",
+          num_keys / 1024, static_cast<double>(bytes) / result.ns,
+          result.mad_percent, allocated_bytes / 1024);
 }
 
 // Compare with absl::flat_hash_set - just set membership.
@@ -419,11 +436,11 @@ HWY_NOINLINE void TestAbslThroughput(size_t num_keys) {
     HWY_ASSERT(per_worker[i * HWY_ALIGNMENT]);
   }
   const size_t bytes = num_keys * sizeof(uint32_t) * pool.NumWorkers();
-  printf(
-      "Batch absl::set verify throughput: %4zuKi keys = %4.1f GB/s; "
-      "measurement MAD=%5.2f%%, allocated %5zu KiB\n",
-      num_keys / 1024, static_cast<double>(bytes) / result.ns,
-      result.mad_percent, allocated_bytes / 1024);
+  fprintf(stderr,
+          "Batch absl::set verify throughput: %4zuKi keys = %4.1f GB/s; "
+          "measurement MAD=%5.2f%%, allocated %5zu KiB\n",
+          num_keys / 1024, static_cast<double>(bytes) / result.ns,
+          result.mad_percent, allocated_bytes / 1024);
 #else
   (void)num_keys;
   HWY_WARN("absl::flat_hash_set not available, skipping test.");
@@ -437,10 +454,10 @@ HWY_NOINLINE void TestShardMulLatency(size_t num_keys) {
 
   MeasureResult result = Measure(
       [&shard_mul](FuncInput func_input) { return shard_mul(func_input); });
-  printf(
-      "Single ShardMul  latency: %5zu keys, %6.2f ns; measurement "
-      "MAD=%5.2f%%\n",
-      num_keys, result.ns, result.mad_percent);
+  fprintf(stderr,
+          "Single ShardMul  latency: %5zu keys, %6.2f ns; measurement "
+          "MAD=%5.2f%%\n",
+          num_keys, result.ns, result.mad_percent);
 }
 
 HWY_NOINLINE void TestPhastLatency(size_t num_keys) {
@@ -451,10 +468,10 @@ HWY_NOINLINE void TestPhastLatency(size_t num_keys) {
   MeasureResult result = Measure([&phast](FuncInput func_input) {
     return phast(static_cast<uint32_t>(func_input));
   });
-  printf(
-      "Single PHAST     latency: %5zu keys, %6.2f ns; measurement "
-      "MAD=%5.2f%%\n",
-      num_keys, result.ns, result.mad_percent);
+  fprintf(stderr,
+          "Single PHAST     latency: %5zu keys, %6.2f ns; measurement "
+          "MAD=%5.2f%%\n",
+          num_keys, result.ns, result.mad_percent);
 }
 
 HWY_NOINLINE void TestCuckoo2x2Latency(size_t num_keys) {
@@ -465,10 +482,10 @@ HWY_NOINLINE void TestCuckoo2x2Latency(size_t num_keys) {
   MeasureResult result = Measure([&set](FuncInput func_input) {
     return set.Contains(static_cast<uint32_t>(func_input));
   });
-  printf(
-      "Single Cuckoo2x2 latency: %5zu keys, %6.2f ns; measurement "
-      "MAD=%5.2f%%\n",
-      num_keys, result.ns, result.mad_percent);
+  fprintf(stderr,
+          "Single Cuckoo2x2 latency: %5zu keys, %6.2f ns; measurement "
+          "MAD=%5.2f%%\n",
+          num_keys, result.ns, result.mad_percent);
 }
 
 HWY_NOINLINE void TestAbslLatency(size_t num_keys) {
@@ -479,21 +496,24 @@ HWY_NOINLINE void TestAbslLatency(size_t num_keys) {
   MeasureResult result = Measure([&set](FuncInput func_input) {
     return set.contains(static_cast<uint32_t>(func_input));
   });
-  printf(
-      "Single Absl      latency: %5zu keys, %6.2f ns; measurement "
-      "MAD=%5.2f%%\n",
-      num_keys, result.ns, result.mad_percent);
+  fprintf(stderr,
+          "Single Absl      latency: %5zu keys, %6.2f ns; measurement "
+          "MAD=%5.2f%%\n",
+          num_keys, result.ns, result.mad_percent);
 #else
   (void)num_keys;
   HWY_WARN("absl::flat_hash_set not available, skipping test.");
 #endif  // HWY_HAVE_ABSL
 }
 
-template <bool kUseU16 = false>
+template <bool kUseU16 = false, bool kPow2 = true>
 HWY_NOINLINE void TestCuckooThroughput(size_t num_keys) {
   const AlignedVector<uint32_t> keys = GenerateKeys(num_keys);
   const size_t before = AllocatedBefore();
-  CuckooTraits<> traits;
+  constexpr int kVerbosity = 0;
+  constexpr size_t kMinBuckets = kUseU16 ? size_t{1} << 18 : 1;
+  CuckooTraits<WeakTwoMul, /*kBucketSize=*/0, kMinBuckets, kPow2, kVerbosity>
+      traits;
   auto cuckoo = CuckooBuild(traits, keys.data(), keys.size(), /*epsilon=*/0.1,
                             /*max_attempts=*/100, CuckooBuildAlgo::kMinCost);
   if constexpr (kUseU16) {
@@ -509,9 +529,11 @@ HWY_NOINLINE void TestCuckooThroughput(size_t num_keys) {
   const double pct_pri = 100.0 * cuckoo.NumPrimary() / keys.size();
   const double pct_sec =
       100.0 * (keys.size() - cuckoo.NumPrimary()) / keys.size();
-  fprintf(stderr,
-          "Cuckoo hashing fill stats: %.2f%% primary, %.2f%% secondary\n",
-          pct_pri, pct_sec);
+  if constexpr (false) {
+    fprintf(stderr,
+            "Cuckoo hashing fill stats: %.2f%% primary, %.2f%% secondary\n",
+            pct_pri, pct_sec);
+  }
 
   ThreadPool pool = MakePool();
   pool.SetWaitMode(PoolWaitMode::kSpin);
@@ -530,8 +552,9 @@ HWY_NOINLINE void TestCuckooThroughput(size_t num_keys) {
       for (size_t i = 0; i < num_keys; i += N) {
         const size_t wrapped_i = (worker * keys_per_chunk + i) % num_keys;
         if constexpr (kUseU16) {
+          constexpr bool kPrecomputeSecondary = true;
           const auto not_found =
-              cuckoo.QueryBatchU16</*kPrecomputeSecondary=*/true>(
+              cuckoo.template QueryBatchU16<kPrecomputeSecondary>(
                   du32, &keys[wrapped_i]);
           all_found &= AllFalse(du32, not_found);
         } else {
@@ -548,11 +571,13 @@ HWY_NOINLINE void TestCuckooThroughput(size_t num_keys) {
   }
   const size_t bytes = num_keys * sizeof(uint32_t) * pool.NumWorkers();
   const char* suffix = kUseU16 ? "u16" : "u32";
-  printf(
-      "Cuckoo 2x16 %s throughput: %4zuKi keys = %4.1f GB/s; "
-      "measurement MAD=%4.2f%%, allocated %5zu KiB\n",
-      suffix, num_keys / 1024, static_cast<double>(bytes) / result.ns,
-      result.mad_percent, allocated_bytes / 1024);
+  const char* pow2_suffix = kPow2 ? "pow2" : "non-pow2";
+  fprintf(stderr,
+          "Cuckoo 2x16 %s (%s) throughput: %4zuKi keys = %4.1f GB/s; "
+          "measurement MAD=%4.2f%%, allocated %5zu KiB\n",
+          suffix, pow2_suffix, num_keys / 1024,
+          static_cast<double>(bytes) / result.ns, result.mad_percent,
+          allocated_bytes / 1024);
 }
 
 // Driver functions: sweep across sizes or run once.
@@ -560,24 +585,48 @@ HWY_NOINLINE void TestLatencySweep() {
   if (kSweepLatency) {
     // Powers of ten: 100-10K.
     for (size_t n = 100; n <= 10'000; n *= 10) {
-      TestShardMulLatency(n);
-      TestPhastLatency(n);
-      TestCuckoo2x2Latency(n);
-      TestAbslLatency(n);
+      if constexpr (kEnableShardMul) {
+        TestShardMulLatency(n);
+      }
+      if constexpr (kEnablePhast) {
+        TestPhastLatency(n);
+      }
+      if constexpr (kEnableC2x2) {
+        TestCuckoo2x2Latency(n);
+      }
+      if constexpr (kEnableAbsl) {
+        TestAbslLatency(n);
+      }
     }
     // Powers of two
     for (size_t n = 512; n <= 4096; n *= 2) {
-      TestShardMulLatency(n);
-      TestPhastLatency(n);
-      TestCuckoo2x2Latency(n);
-      TestAbslLatency(n);
+      if constexpr (kEnableShardMul) {
+        TestShardMulLatency(n);
+      }
+      if constexpr (kEnablePhast) {
+        TestPhastLatency(n);
+      }
+      if constexpr (kEnableC2x2) {
+        TestCuckoo2x2Latency(n);
+      }
+      if constexpr (kEnableAbsl) {
+        TestAbslLatency(n);
+      }
     }
   } else {
     const size_t n = 1000;
-    TestShardMulLatency(n);
-    TestPhastLatency(n);
-    TestCuckoo2x2Latency(n);
-    TestAbslLatency(n);
+    if constexpr (kEnableShardMul) {
+      TestShardMulLatency(n);
+    }
+    if constexpr (kEnablePhast) {
+      TestPhastLatency(n);
+    }
+    if constexpr (kEnableC2x2) {
+      TestCuckoo2x2Latency(n);
+    }
+    if constexpr (kEnableAbsl) {
+      TestAbslLatency(n);
+    }
   }
 }
 
@@ -585,27 +634,67 @@ HWY_NOINLINE void TestThroughputSweep() {
   if (kSweepThroughput) {
     // Powers of ten: 10K-10M.
     for (size_t n = 10'000; n <= 10'000'000; n *= 10) {
-      TestShardMulThroughput(n);
-      TestPhastThroughput(n);
-      TestCuckoo2x2Throughput(n);
-      TestAbslThroughput(n);
-      TestCuckooThroughput(n);
-      TestCuckooThroughput</*kUseU16=*/false>(n);
+      if constexpr (kEnableShardMul) {
+        TestShardMulThroughput(n);
+      }
+      if constexpr (kEnablePhast) {
+        TestPhastThroughput(n);
+      }
+      if constexpr (kEnableC2x2) {
+        TestCuckoo2x2Throughput(n);
+      }
+      if constexpr (kEnableAbsl) {
+        TestAbslThroughput(n);
+      }
+      if constexpr (kEnableCuckoo) {
+        TestCuckooThroughput(n);
+      }
+      if constexpr (kEnableCuckoo16) {
+        TestCuckooThroughput</*kUseU16=*/true>(n);
+      }
     }
     // Powers of two: 32K-4M.
     for (size_t n = (32 << 10); n <= (size_t{4} << 20); n *= 2) {
-      TestShardMulThroughput(n);
-      TestPhastThroughput(n);
-      TestCuckoo2x2Throughput(n);
-      TestAbslThroughput(n);
-      TestCuckooThroughput(n);
-      TestCuckooThroughput</*kUseU16=*/true>(n);
+      if constexpr (kEnableShardMul) {
+        TestShardMulThroughput(n);
+      }
+      if constexpr (kEnablePhast) {
+        TestPhastThroughput(n);
+      }
+      if constexpr (kEnableC2x2) {
+        TestCuckoo2x2Throughput(n);
+      }
+      if constexpr (kEnableAbsl) {
+        TestAbslThroughput(n);
+      }
+      if constexpr (kEnableCuckoo) {
+        TestCuckooThroughput</*kUseU16=*/false, /*kPow2=*/true>(n);
+        TestCuckooThroughput</*kUseU16=*/false, /*kPow2=*/false>(n);
+      }
+      if constexpr (kEnableCuckoo16) {
+        TestCuckooThroughput</*kUseU16=*/true, /*kPow2=*/true>(n);
+        TestCuckooThroughput</*kUseU16=*/true, /*kPow2=*/false>(n);
+      }
     }
   } else {
-    TestShardMulThroughput(kNumKeys);
-    TestPhastThroughput(kNumKeys);
-    TestCuckoo2x2Throughput(kNumKeys);
-    TestAbslThroughput(kNumKeys);
+    if constexpr (kEnableShardMul) {
+      TestShardMulThroughput(kNumKeys);
+    }
+    if constexpr (kEnablePhast) {
+      TestPhastThroughput(kNumKeys);
+    }
+    if constexpr (kEnableC2x2) {
+      TestCuckoo2x2Throughput(kNumKeys);
+    }
+    if constexpr (kEnableAbsl) {
+      TestAbslThroughput(kNumKeys);
+    }
+    if constexpr (kEnableCuckoo) {
+      TestCuckooThroughput(kNumKeys);
+    }
+    if constexpr (kEnableCuckoo16) {
+      TestCuckooThroughput</*kUseU16=*/true>(kNumKeys);
+    }
   }
 }
 

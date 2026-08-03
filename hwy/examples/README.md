@@ -48,6 +48,12 @@ Matrix transposition via Gather and Scatter, showing:
 Addition of a vector to a scaled copy of another vector, showing:
 
 -  Multithreading.
+### `game_of_life.cc`
+
+Example stencil computation showing:
+
+- Vector shifts `Slide1UpOr`/`Slide1DownOr`
+- Boolean masks
 
 ## Infrastructure
 
