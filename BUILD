@@ -624,6 +624,15 @@ cc_test(
 )
 
 cc_test(
+    name = "baker_mix",
+    srcs = ["hwy/examples/baker_mix.cc"],
+    copts = COPTS,
+    deps = [
+        ":hwy",
+    ],
+)
+
+cc_test(
     name = "ctf_aes",
     srcs = ["hwy/examples/ctf_aes.cc"],
     copts = COPTS,
