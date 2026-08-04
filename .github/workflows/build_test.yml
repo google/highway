@@ -12,9 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-permissions: read-all
+permissions:
+  contents: read
 name: Build / test
-on: [push, pull_request]
+on:
+  pull_request:
+  schedule:
+    - cron: '0 3 * * 6'   # Saturdays 03:00 UTC
+  workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -33,42 +38,12 @@ jobs:
             extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 17
 
-          - name: Clang-13
-            extra_deps: clang-13
-            c_compiler: clang-13
-            cxx_compiler: clang++-13
-            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
-            cxx_standard: 17
-
-          - name: Clang-14
-            extra_deps: clang-14
-            c_compiler: clang-14
-            cxx_compiler: clang++-14
-            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
-            cxx_standard: 17
-
-          - name: Clang-15
-            extra_deps: clang-15
-            c_compiler: clang-15
-            cxx_compiler: clang++-15
-            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
-            cxx_standard: 17
-
           - name: Clang-15 (C++20)
             extra_deps: clang-15
             c_compiler: clang-15
             cxx_compiler: clang++-15
             extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 20
-
-          - name: Clang-15 (x86_32)
-            extra_deps: clang-15 g++-i686-linux-gnu
-            c_compiler: clang-15
-            cxx_compiler: clang++-15
-            # Disable AVX3 targets on x86_32
-            cxx_flags: -m32 -DHWY_DISABLED_TARGETS=0x1FF -DHWY_BROKEN_TARGETS=0x1FF
-            extra_cmake_flags: -DCMAKE_C_COMPILER_TARGET=i686-linux-gnu -DCMAKE_CXX_COMPILER_TARGET=i686-linux-gnu -DHWY_CMAKE_SSE2=ON -DHWY_ENABLE_CONTRIB=OFF
-            cxx_standard: 17
 
           - name: GCC-10
             extra_deps: g++-10
@@ -78,22 +53,6 @@ jobs:
             extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 17
 
-          - name: GCC-11
-            extra_deps: g++-11
-            c_compiler: gcc-11
-            cxx_compiler: g++-11
-            cxx_flags: -ftrapv
-            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
-            cxx_standard: 17
-
-          - name: GCC-11 (C++20)
-            extra_deps: g++-11
-            c_compiler: gcc-11
-            cxx_compiler: g++-11
-            cxx_flags: -ftrapv
-            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
-            cxx_standard: 20
-
           - name: GCC-12 (C++11)
             extra_deps: g++-12
             c_compiler: gcc-12
@@ -102,14 +61,6 @@ jobs:
             # contrib/ requires C++17
             extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
             cxx_standard: 11
-
-          - name: GCC-12 (C++20)
-            extra_deps: g++-12
-            c_compiler: gcc-12
-            cxx_compiler: g++-12
-            cxx_flags: -ftrapv
-            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
-            cxx_standard: 20
 
           - name: GCC-12 (x86_32)
             extra_deps: g++-12-i686-linux-gnu
@@ -139,9 +90,90 @@ jobs:
           cmake --build out
           ctest --test-dir out
 
+  cmake_rest:
+    name: Build and test ${{ matrix.name }}
+    runs-on: ubuntu-22.04
+    if: github.event_name != 'pull_request'
+    strategy:
+      matrix:
+        include:
+          - name: Clang-13
+            extra_deps: clang-13
+            c_compiler: clang-13
+            cxx_compiler: clang++-13
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
+            cxx_standard: 17
+
+          - name: Clang-14
+            extra_deps: clang-14
+            c_compiler: clang-14
+            cxx_compiler: clang++-14
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
+            cxx_standard: 17
+
+          - name: Clang-15
+            extra_deps: clang-15
+            c_compiler: clang-15
+            cxx_compiler: clang++-15
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
+            cxx_standard: 17
+
+          - name: Clang-15 (x86_32)
+            extra_deps: clang-15 g++-i686-linux-gnu
+            c_compiler: clang-15
+            cxx_compiler: clang++-15
+            # Disable AVX3 targets on x86_32
+            cxx_flags: -m32 -DHWY_DISABLED_TARGETS=0x1FF -DHWY_BROKEN_TARGETS=0x1FF
+            extra_cmake_flags: -DCMAKE_C_COMPILER_TARGET=i686-linux-gnu -DCMAKE_CXX_COMPILER_TARGET=i686-linux-gnu -DHWY_CMAKE_SSE2=ON -DHWY_ENABLE_CONTRIB=OFF
+            cxx_standard: 17
+
+          - name: GCC-11
+            extra_deps: g++-11
+            c_compiler: gcc-11
+            cxx_compiler: g++-11
+            cxx_flags: -ftrapv
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
+            cxx_standard: 17
+
+          - name: GCC-11 (C++20)
+            extra_deps: g++-11
+            c_compiler: gcc-11
+            cxx_compiler: g++-11
+            cxx_flags: -ftrapv
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
+            cxx_standard: 20
+
+          - name: GCC-12 (C++20)
+            extra_deps: g++-12
+            c_compiler: gcc-12
+            cxx_compiler: g++-12
+            cxx_flags: -ftrapv
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
+            cxx_standard: 20
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit  # cannot be block - runner does git checkout
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install deps
+        run: sudo apt-get update && sudo apt-get install ${{ matrix.extra_deps }}
+
+      - name: Build and test
+        run: |
+          export CMAKE_BUILD_PARALLEL_LEVEL=2
+          export CTEST_PARALLEL_LEVEL=2
+          CXXFLAGS="${{ matrix.cxx_flags }}" CC=${{ matrix.c_compiler }} CXX=${{ matrix.cxx_compiler }} cmake -DHWY_WARNINGS_ARE_ERRORS=ON -DCMAKE_CXX_STANDARD=${{ matrix.cxx_standard }} ${{ matrix.extra_cmake_flags }} -B out .
+          cmake --build out
+          ctest --test-dir out
+
   cmake_ubuntu_2404:
     name: Build and test ${{ matrix.name }}
     runs-on: ubuntu-24.04
+    if: github.event_name != 'pull_request'
     strategy:
       matrix:
         include:
@@ -254,13 +286,6 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: Clang-20
-            extra_deps: clang-20
-            c_compiler: clang-20
-            cxx_compiler: clang++-20
-            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
-            cxx_standard: 17
-
           - name: Clang-21 (VQSort disabled)
             extra_deps: clang-21
             c_compiler: clang-21
@@ -281,14 +306,6 @@ jobs:
             cxx_compiler: clang++-22
             cxx_standard: 23
 
-          - name: GCC-15
-            extra_deps: g++-15
-            c_compiler: gcc-15
-            cxx_compiler: g++-15
-            cxx_flags: -ftrapv
-            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
-            cxx_standard: 17
-
           - name: GCC-16
             extra_deps: g++-16
             c_compiler: gcc-16
@@ -302,6 +319,47 @@ jobs:
             cxx_compiler: g++-16
             cxx_flags: -ftrapv
             cxx_standard: 23
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit  # cannot be block - runner does git checkout
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install deps
+        run: sudo apt-get update && sudo apt-get install ${{ matrix.extra_deps }}
+
+      - name: Build and test
+        run: |
+          export CMAKE_BUILD_PARALLEL_LEVEL=2
+          export CTEST_PARALLEL_LEVEL=2
+          CXXFLAGS="${{ matrix.cxx_flags }}" CC=${{ matrix.c_compiler }} CXX=${{ matrix.cxx_compiler }} cmake -DHWY_WARNINGS_ARE_ERRORS=ON -DCMAKE_CXX_STANDARD=${{ matrix.cxx_standard }} ${{ matrix.extra_cmake_flags }} -B out .
+          cmake --build out
+          ctest --test-dir out
+
+  cmake_ubuntu_2604_rest:
+    name: Build and test ${{ matrix.name }}
+    runs-on: ubuntu-26.04
+    if: github.event_name != 'pull_request'
+    strategy:
+      matrix:
+        include:
+          - name: Clang-20
+            extra_deps: clang-20
+            c_compiler: clang-20
+            cxx_compiler: clang++-20
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
+            cxx_standard: 17
+
+          - name: GCC-15
+            extra_deps: g++-15
+            c_compiler: gcc-15
+            cxx_compiler: g++-15
+            cxx_flags: -ftrapv
+            extra_cmake_flags: -DHWY_ENABLE_CONTRIB=OFF
+            cxx_standard: 17
 
     steps:
       - name: Harden Runner
