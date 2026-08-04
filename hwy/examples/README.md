@@ -33,6 +33,14 @@ Similar to array simple but uses type promotion to allow for
 a greater range in resulting integer sum values before an
 overflow occurs.
 
+### `mandelbrot.cc`
+
+Demonstrates:
+-   interleaved stores
+-   masks
+-   loop unrolling
+-   fused multiply add
+
 ### `matrix_transpose_scatter_gather.cc`
 
 Matrix transposition via Gather and Scatter, showing:
