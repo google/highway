@@ -15507,13 +15507,14 @@ HWY_API Mask128<T, N> SetAtOrBeforeFirst(Mask128<T, N> mask) {
 
 // Nothing fully native, generic_ops-inl defines SumOfLanes and ReduceSum.
 
-// We provide specializations of u8x8 and u8x16, so exclude those.
+// We provide specializations of u8x8 and u8x16 below, and u8x32 in
+// x86_256-inl.h, so exclude those.
 #undef HWY_IF_SUM_OF_LANES_D
-#define HWY_IF_SUM_OF_LANES_D(D)                                        \
-  HWY_IF_LANES_GT_D(D, 1),                                              \
-      hwy::EnableIf<!hwy::IsSame<TFromD<D>, uint8_t>() ||               \
-                    (HWY_V_SIZE_D(D) != 8 && HWY_V_SIZE_D(D) != 16)>* = \
-          nullptr
+#define HWY_IF_SUM_OF_LANES_D(D)                                      \
+  HWY_IF_LANES_GT_D(D, 1),                                            \
+      hwy::EnableIf<!hwy::IsSame<TFromD<D>, uint8_t>() ||             \
+                    (HWY_V_SIZE_D(D) != 8 && HWY_V_SIZE_D(D) != 16 && \
+                     HWY_V_SIZE_D(D) != 32)>* = nullptr
 
 template <class D, HWY_IF_U8_D(D), HWY_IF_LANES_D(D, 8)>
 HWY_API VFromD<D> SumOfLanes(D d, VFromD<D> v) {
