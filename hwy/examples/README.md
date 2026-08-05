@@ -41,6 +41,16 @@ Demonstrates:
 -   loop unrolling
 -   fused multiply add
 
+### `baker_mix.cc`
+
+Permutting entries in an integer array showing:
+
+-   Generating an ordered list of integers in an array using `Iota`
+-   Selecting top and bottom halves of a vector using 
+-   Printing vector type and contents to stderr using `Print`
+-   Vector shifts `SlideUpLanes` and `SlideDownLanesOr`
+-   Interleaving two vectors `StoreInterleaved2`
+
 ### `matrix_transpose_scatter_gather.cc`
 
 Matrix transposition via Gather and Scatter, showing:

@@ -854,6 +854,15 @@ target_link_libraries(masks_and_logic PRIVATE ${ATOMICS_LIBRARIES})
 set_target_properties(masks_and_logic
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
 
+# Baker mix permutation example
+add_executable(baker_mix hwy/examples/baker_mix.cc)
+target_compile_options(baker_mix PRIVATE ${HWY_FLAGS})
+target_compile_features(baker_mix PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
+target_link_libraries(baker_mix PRIVATE hwy)
+target_link_libraries(baker_mix PRIVATE ${ATOMICS_LIBRARIES})
+set_target_properties(baker_mix
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
+
 # Matrix transpose using scatter/gather example
 add_executable(matrix_transpose_scatter_gather hwy/examples/matrix_transpose_scatter_gather.cc)
 target_compile_options(matrix_transpose_scatter_gather PRIVATE ${HWY_FLAGS})
