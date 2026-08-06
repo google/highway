@@ -94,6 +94,126 @@ T MaxValue(D d, const T* HWY_RESTRICT in, size_t count) {
   return ReduceMax(d, acc0);
 }
 
+// Returns the index of the first occurrence of the minimum value in
+// `in[0, count)`, or `count` if `count == 0`. Ties resolve to the lowest index,
+// matching `std::min_element`.
+template <class D, typename T = TFromD<D>>
+size_t IndexOfMin(D d, const T* HWY_RESTRICT in, size_t count) {
+  if (HWY_UNLIKELY(count == 0)) return count;
+
+  const RebindToUnsigned<D> du;
+  using TU = TFromD<decltype(du)>;
+  const size_t N = Lanes(d);
+
+  // Lanes record which block held their best value, so a segment can span at
+  // most this many blocks before that counter would wrap. Capped so neither the
+  // count nor the multiply below can overflow; for 32-bit and wider lanes this
+  // is a single segment in practice.
+  const uint64_t block_limit = static_cast<uint64_t>(LimitsMax<TU>());
+  const size_t max_blocks = static_cast<size_t>(
+      block_limit < (uint64_t{1} << 20) ? block_limit : (uint64_t{1} << 20));
+
+  const T identity = hwy::PositiveInfOrHighestValue<T>();
+  const Vec<D> identity_vec = Set(d, identity);
+
+  T best = identity;
+  size_t best_idx = 0;
+
+  for (size_t seg = 0; seg < count; seg += max_blocks * N) {
+    const size_t seg_len = HWY_MIN(count - seg, max_blocks * N);
+
+    Vec<D> acc = identity_vec;
+    VFromD<decltype(du)> blocks = Zero(du);
+
+    TU block = 0;
+    for (size_t i = 0; i < seg_len; i += N, ++block) {
+      const size_t n = HWY_MIN(seg_len - i, N);
+      const Vec<D> v = LoadNOr(identity_vec, d, in + seg + i, n);
+      // Strictly less, so an equal value later never displaces an earlier one.
+      const Mask<D> lt = Lt(v, acc);
+      acc = IfThenElse(lt, v, acc);
+      blocks = IfThenElse(RebindMask(du, lt), Set(du, block), blocks);
+    }
+
+    // Resolve lanes: smallest value, then earliest block, then lowest lane.
+    const T seg_min = ReduceMin(d, acc);
+    const Mask<D> is_min = Eq(acc, Set(d, seg_min));
+    const VFromD<decltype(du)> cand =
+        IfThenElse(RebindMask(du, is_min), blocks, Set(du, LimitsMax<TU>()));
+    const TU min_block = ReduceMin(du, cand);
+    const Mask<D> winners =
+        And(is_min, RebindMask(d, Eq(blocks, Set(du, min_block))));
+    const size_t idx =
+        seg + static_cast<size_t>(min_block) * N + FindKnownFirstTrue(d, winners);
+
+    if (seg_min < best) {
+      best = seg_min;
+      best_idx = idx;
+    }
+  }
+
+  return best_idx;
+}
+
+// Returns the index of the first occurrence of the maximum value in
+// `in[0, count)`, or `count` if `count == 0`. Ties resolve to the lowest index,
+// matching `std::max_element`.
+template <class D, typename T = TFromD<D>>
+size_t IndexOfMax(D d, const T* HWY_RESTRICT in, size_t count) {
+  if (HWY_UNLIKELY(count == 0)) return count;
+
+  const RebindToUnsigned<D> du;
+  using TU = TFromD<decltype(du)>;
+  const size_t N = Lanes(d);
+
+  // Lanes record which block held their best value, so a segment can span at
+  // most this many blocks before that counter would wrap. Capped so neither the
+  // count nor the multiply below can overflow; for 32-bit and wider lanes this
+  // is a single segment in practice.
+  const uint64_t block_limit = static_cast<uint64_t>(LimitsMax<TU>());
+  const size_t max_blocks = static_cast<size_t>(
+      block_limit < (uint64_t{1} << 20) ? block_limit : (uint64_t{1} << 20));
+
+  const T identity = hwy::NegativeInfOrLowestValue<T>();
+  const Vec<D> identity_vec = Set(d, identity);
+
+  T best = identity;
+  size_t best_idx = 0;
+
+  for (size_t seg = 0; seg < count; seg += max_blocks * N) {
+    const size_t seg_len = HWY_MIN(count - seg, max_blocks * N);
+
+    Vec<D> acc = identity_vec;
+    VFromD<decltype(du)> blocks = Zero(du);
+
+    TU block = 0;
+    for (size_t i = 0; i < seg_len; i += N, ++block) {
+      const size_t n = HWY_MIN(seg_len - i, N);
+      const Vec<D> v = LoadNOr(identity_vec, d, in + seg + i, n);
+      const Mask<D> gt = Gt(v, acc);
+      acc = IfThenElse(gt, v, acc);
+      blocks = IfThenElse(RebindMask(du, gt), Set(du, block), blocks);
+    }
+
+    const T seg_max = ReduceMax(d, acc);
+    const Mask<D> is_max = Eq(acc, Set(d, seg_max));
+    const VFromD<decltype(du)> cand =
+        IfThenElse(RebindMask(du, is_max), blocks, Set(du, LimitsMax<TU>()));
+    const TU min_block = ReduceMin(du, cand);
+    const Mask<D> winners =
+        And(is_max, RebindMask(d, Eq(blocks, Set(du, min_block))));
+    const size_t idx =
+        seg + static_cast<size_t>(min_block) * N + FindKnownFirstTrue(d, winners);
+
+    if (seg_max > best) {
+      best = seg_max;
+      best_idx = idx;
+    }
+  }
+
+  return best_idx;
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
