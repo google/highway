@@ -27,7 +27,9 @@
 // loongarch_lsx-inl.h is used (instead of moving lasxintrin.h after
 // HWY_BEFORE_NAMESPACE).
 HWY_PUSH_ATTRIBUTES("lsx,lasx")
+#ifndef __loongarch_asx
 #define __loongarch_asx
+#endif
 #include <lasxintrin.h>
 #undef __loongarch_asx
 // Prevent "unused push_attribute" warning from Clang.
