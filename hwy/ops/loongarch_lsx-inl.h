@@ -27,7 +27,9 @@
 // we'll get an "always_inline function requires lasx but would be inlined
 // into a function that is compiled without suport for lasx" error.
 HWY_PUSH_ATTRIBUTES("lsx")
+#ifndef __loongarch_sx
 #define __loongarch_sx
+#endif
 #include <lsxintrin.h>
 #undef __loongarch_sx
 // Prevent "unused push_attribute" warning from Clang.

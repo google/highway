@@ -357,12 +357,14 @@
 #ifndef HWY_BROKEN_LOONGARCH  // allow override
 // Using __loongarch_sx and __loongarch_asx macros to
 // check whether LSX/LASX targets are available.
-// GCC does not work yet, see https://gcc.gnu.org/PR121875.
+// GCC < 15.3 does not work, see https://gcc.gnu.org/PR121875.
 #if !defined(__loongarch_sx) && \
-    !(HWY_COMPILER_CLANG && HWY_COMPILER_CLANG >= 1800)
+    !(HWY_COMPILER_CLANG && HWY_COMPILER_CLANG >= 1800) && \
+    !(HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL >= 1503)
 #define HWY_BROKEN_LOONGARCH (HWY_LSX | HWY_LASX)
 #elif !defined(__loongarch_asx) && \
-      !(HWY_COMPILER_CLANG && HWY_COMPILER_CLANG >= 1800)
+      !(HWY_COMPILER_CLANG && HWY_COMPILER_CLANG >= 1800) && \
+      !(HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL >= 1503)
 #define HWY_BROKEN_LOONGARCH (HWY_LASX)
 #else
 #define HWY_BROKEN_LOONGARCH 0
@@ -811,7 +813,8 @@
 
 #ifndef HWY_HAVE_RUNTIME_DISPATCH_LOONGARCH  // allow override
 #if HWY_ARCH_LOONGARCH && HWY_HAVE_AUXV && !defined(__loongarch_asx) && \
-    HWY_COMPILER_CLANG && HWY_COMPILER_CLANG >= 1800
+    (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG >= 1800) || \
+    (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL >= 1503)
 #define HWY_HAVE_RUNTIME_DISPATCH_LOONGARCH 1
 #else
 #define HWY_HAVE_RUNTIME_DISPATCH_LOONGARCH 0
