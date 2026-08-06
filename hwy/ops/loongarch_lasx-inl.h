@@ -1829,11 +1829,11 @@ HWY_API Vec256<double> MulAdd(Vec256<double> mul, Vec256<double> x,
 
 HWY_API Vec256<float> NegMulAdd(Vec256<float> mul, Vec256<float> x,
                                 Vec256<float> add) {
-  return add - mul * x;
+  return Vec256<float>{__lasx_xvfnmsub_s(mul.raw, x.raw, add.raw)};
 }
 HWY_API Vec256<double> NegMulAdd(Vec256<double> mul, Vec256<double> x,
                                  Vec256<double> add) {
-  return add - mul * x;
+  return Vec256<double>{__lasx_xvfnmsub_d(mul.raw, x.raw, add.raw)};
 }
 
 HWY_API Vec256<float> MulSub(Vec256<float> mul, Vec256<float> x,
