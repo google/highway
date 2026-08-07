@@ -14283,6 +14283,23 @@ HWY_API Vec128<uint64_t, N> CLMulUpper(Vec128<uint64_t, N> a,
 
 // ================================================== MISC
 
+namespace detail {
+// Returns number of 0 bits below the least significant 1 bit, or
+// implementation-defined if x is 0. Note that BSF (__builtin_ctz) is undefined
+// for 0 inputs, whereas TZCNT returns 32 for 0. The latter is part of BMI1,
+// which is always available on AVX2+, unless HWY_DISABLE_BMI2_FMA is defined.
+// The intrinsic is defined in immintrin.h, which is not included from base.h,
+// hence we defined this helper here rather than in base.h.
+HWY_INLINE size_t TrailingZeros32(uint32_t x) {
+#if defined(HWY_DISABLE_BMI2_FMA) || HWY_TARGET > HWY_AVX2
+  // Prevent UB for x == 0 by ORing; result is implementation-defined.
+  return Num0BitsBelowLS1Bit_Nonzero32(x | 0x80000000u);
+#else
+  return _tzcnt_u32(x);
+#endif
+}
+}  // namespace detail
+
 // ------------------------------ LoadMaskBits (TestBit)
 
 #if HWY_TARGET > HWY_AVX3
@@ -14450,14 +14467,14 @@ template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API size_t FindKnownFirstTrue(D d, MFromD<D> mask) {
   constexpr size_t kN = MaxLanes(d);
   const uint32_t mask_bits = uint32_t{mask.raw} & ((1u << kN) - 1);
-  return Num0BitsBelowLS1Bit_Nonzero32(mask_bits);
+  return detail::TrailingZeros32(mask_bits);
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API intptr_t FindFirstTrue(D d, MFromD<D> mask) {
   constexpr size_t kN = MaxLanes(d);
   const uint32_t mask_bits = uint32_t{mask.raw} & ((1u << kN) - 1);
-  return mask_bits ? intptr_t(Num0BitsBelowLS1Bit_Nonzero32(mask_bits)) : -1;
+  return mask_bits ? intptr_t(detail::TrailingZeros32(mask_bits)) : -1;
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
@@ -14634,14 +14651,13 @@ HWY_API size_t CountTrue(D d, MFromD<D> mask) {
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API size_t FindKnownFirstTrue(D d, MFromD<D> mask) {
-  return Num0BitsBelowLS1Bit_Nonzero32(
-      static_cast<uint32_t>(BitsFromMask(d, mask)));
+  return detail::TrailingZeros32(static_cast<uint32_t>(BitsFromMask(d, mask)));
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API intptr_t FindFirstTrue(D d, MFromD<D> mask) {
   const uint32_t mask_bits = static_cast<uint32_t>(BitsFromMask(d, mask));
-  return mask_bits ? intptr_t(Num0BitsBelowLS1Bit_Nonzero32(mask_bits)) : -1;
+  return mask_bits ? intptr_t(detail::TrailingZeros32(mask_bits)) : -1;
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>

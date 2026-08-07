@@ -8765,7 +8765,7 @@ HWY_API size_t CountTrue(D /* tag */, MFromD<D> mask) {
 
 template <class D, HWY_IF_V_SIZE_D(D, 32)>
 HWY_API size_t FindKnownFirstTrue(D /* tag */, MFromD<D> mask) {
-  return Num0BitsBelowLS1Bit_Nonzero32(mask.raw);
+  return detail::TrailingZeros32(mask.raw);
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32)>
@@ -9095,13 +9095,13 @@ HWY_API size_t CountTrue(D d, MFromD<D> mask) {
 template <class D, HWY_IF_V_SIZE_D(D, 32)>
 HWY_API size_t FindKnownFirstTrue(D d, MFromD<D> mask) {
   const uint32_t mask_bits = static_cast<uint32_t>(BitsFromMask(d, mask));
-  return Num0BitsBelowLS1Bit_Nonzero32(mask_bits);
+  return detail::TrailingZeros32(mask_bits);
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32)>
 HWY_API intptr_t FindFirstTrue(D d, MFromD<D> mask) {
   const uint32_t mask_bits = static_cast<uint32_t>(BitsFromMask(d, mask));
-  return mask_bits ? intptr_t(Num0BitsBelowLS1Bit_Nonzero32(mask_bits)) : -1;
+  return mask_bits ? intptr_t(detail::TrailingZeros32(mask_bits)) : -1;
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32)>

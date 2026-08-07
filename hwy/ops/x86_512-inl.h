@@ -8030,12 +8030,12 @@ HWY_API size_t CountTrue(D /* tag */, const MFromD<D> mask) {
 
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_T_SIZE_D(D, 1)>
 HWY_API size_t FindKnownFirstTrue(D /* tag */, MFromD<D> mask) {
-  return Num0BitsBelowLS1Bit_Nonzero32(mask.raw);
+  return _tzcnt_u32(mask.raw);
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 1)>
 HWY_API size_t FindKnownFirstTrue(D /* tag */, MFromD<D> mask) {
-  return Num0BitsBelowLS1Bit_Nonzero64(mask.raw);
+  return _tzcnt_u64(mask.raw);
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 64)>
