@@ -205,7 +205,7 @@ uint8_t CalculateNextScalar(float* x, float* y, const size_t ij) {
   y[ij] = -2.0f * (numer1 * numer3 + sxy * numer2) / denom;
   // To minimize recomputation, use previous iterates values
   // for determining whether escaped or not
-  return static_cast<uint8_t>(std::floor(10.0f * sxxpyy));
+  return static_cast<uint8_t>(std::min(std::floor(10.0f * sxxpyy), 255.0f));
 }
 
 void MandelbrotScalarCompute(uint8_t* HWY_RESTRICT r, uint8_t* HWY_RESTRICT g,
@@ -542,9 +542,9 @@ static void PrintTimeMeasurement(const double t0, const double t1,
 
 static void Run() {
   const size_t x_points =
-      500;  // Grid points in x direction, needs to be even, >=6
+      512;  // Grid points in x direction, needs to be even, >=6
   const size_t y_points =
-      500;  // Grid points in y direction, needs to be even, >=6
+      512;  // Grid points in y direction, needs to be even, >=6
   const size_t iter_max_r =
       25;  // Iterations to perform for red, needs to be positive
   const size_t iter_max_g =
