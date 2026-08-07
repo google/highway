@@ -9468,22 +9468,24 @@ constexpr uint64_t OnlyActive(D d, uint64_t bits) {
 
 template <class D, HWY_IF_T_SIZE_D(D, 1), HWY_IF_V_SIZE_D(D, 16)>
 HWY_API uint64_t BitsFromMask(D d, MFromD<D> mask) {
-  alignas(16) static constexpr uint8_t kSliceLanes[16] = {
-      1, 2, 4, 8, 0x10, 0x20, 0x40, 0x80, 1, 2, 4, 8, 0x10, 0x20, 0x40, 0x80,
-  };
   const RebindToUnsigned<D> du;
-  const Vec128<uint8_t> values =
-      BitCast(du, VecFromMask(d, mask)) & Load(du, kSliceLanes);
-
+  const Vec128<uint8_t> values = BitCast(du, VecFromMask(d, mask));
 #if HWY_ARCH_ARM_A64
-  // Can't vaddv - we need two separate bytes (16 bits).
-  const uint8x8_t x2 = vget_low_u8(vpaddq_u8(values.raw, values.raw));
-  const uint8x8_t x4 = vpadd_u8(x2, x2);
-  const uint8x8_t x8 = vpadd_u8(x4, x4);
-  return vget_lane_u64(vreinterpret_u64_u8(x8), 0) & 0xFFFF;
+  alignas(16) static constexpr uint8_t kTblIdx[16] = {
+      0, 8, 1, 9, 2, 10, 3, 11, 4, 12, 5, 13, 6, 14, 7, 15};
+  alignas(16) static constexpr uint8_t kTblMask[16] = {
+      1, 1, 2, 2, 4, 4, 8, 8, 0x10, 0x10, 0x20, 0x20, 0x40, 0x40, 0x80, 0x80};
+  // Interleave bytes from the lower half and the upper half, mask them with
+  // a single bit per 8-bit lane, then add horizonally using 16-bit lanes.
+  const uint8x16_t shuffled = vqtbl1q_u8(values.raw, Load(du, kTblIdx).raw);
+  const uint8x16_t masked = vandq_u8(shuffled, Load(du, kTblMask).raw);
+  return vaddvq_u16(vreinterpretq_u16_u8(masked));
 #else
+  alignas(16) static constexpr uint8_t kSliceLanes[16] = {
+      1, 2, 4, 8, 0x10, 0x20, 0x40, 0x80, 1, 2, 4, 8, 0x10, 0x20, 0x40, 0x80};
   // Don't have vpaddq, so keep doubling lane size.
-  const uint16x8_t x2 = vpaddlq_u8(values.raw);
+  const Vec128<uint8_t> masked = values & Load(du, kSliceLanes);
+  const uint16x8_t x2 = vpaddlq_u8(masked.raw);
   const uint32x4_t x4 = vpaddlq_u16(x2);
   const uint64x2_t x8 = vpaddlq_u32(x4);
   return (vgetq_lane_u64(x8, 1) << 8) | vgetq_lane_u64(x8, 0);
