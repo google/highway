@@ -16,7 +16,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include <cmath>  // std::exp
+#include <cmath>  // std::exp, std::sin
 
 // For faster tests. Not using AES, hence NEON_WITHOUT_AES is sufficient.
 // SVE is mostly superseded by SVE2.
@@ -61,6 +61,38 @@ DEFINE_F16_MATH_TEST(Log2,
   std::log2,  CallLog2,  +5.960464478E-8f, +65504.0f, 1)
 // clang-format on
 
+// SinCos has two outputs, so test each separately, as math_trig_test.cc does.
+template <class D>
+static Vec<D> F16SinCosSin(const D d, VecArg<Vec<D>> x) {
+  Vec<D> s, c;
+  CallSinCos(d, x, s, c);
+  return s;
+}
+
+template <class D>
+static Vec<D> F16SinCosCos(const D d, VecArg<Vec<D>> x) {
+  Vec<D> s, c;
+  CallSinCos(d, x, s, c);
+  return c;
+}
+
+// Unlike the bounds above, these come from math_trig_test.cc rather than from
+// the float16 finite range: the trig kernels are only accurate on
+// [-39000, +39000], which is narrower than float16 can represent. Beyond it
+// the Cody-Waite range reduction loses exactness on targets without FMA.
+// clang-format off
+DEFINE_F16_MATH_TEST(Sin,
+  std::sin,   CallSin,      -39000.0f,        +39000.0f, 1)
+DEFINE_F16_MATH_TEST(Cos,
+  std::cos,   CallCos,      -39000.0f,        +39000.0f, 1)
+DEFINE_F16_MATH_TEST(Tan,
+  std::tan,   CallTan,      -39000.0f,        +39000.0f, 1)
+DEFINE_F16_MATH_TEST(SinCosSin,
+  std::sin,   F16SinCosSin, -39000.0f,        +39000.0f, 1)
+DEFINE_F16_MATH_TEST(SinCosCos,
+  std::cos,   F16SinCosCos, -39000.0f,        +39000.0f, 1)
+// clang-format on
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -78,6 +110,11 @@ HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Log);
 HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Log10);
 HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Log1p);
 HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Log2);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Sin);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Cos);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Tan);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16SinCosSin);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16SinCosCos);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy
