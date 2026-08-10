@@ -490,6 +490,170 @@ void TestMapRandomizedComparisonAgainstAbsl(size_t num_keys,
   }
 }
 
+template <typename KeyT>
+void TestBatchQueries(size_t num_keys, size_t num_queries) {
+  // 1. Empty tree test
+  {
+    auto empty_tree = BTreeSet<KeyT>::Build(nullptr, 0);
+    std::vector<KeyT> q = {10, 20, 30, 40, 50};
+    auto found = std::make_unique<bool[]>(q.size());
+    std::fill_n(found.get(), q.size(), true);
+    std::vector<const KeyT*> ptrs(q.size(), reinterpret_cast<const KeyT*>(0x1));
+    std::vector<typename BTreeSet<KeyT>::const_iterator> iters(q.size());
+
+    empty_tree.ContainsBatch(q.data(), q.size(), found.get());
+    empty_tree.FindBatch(q.data(), q.size(), ptrs.data());
+    empty_tree.LowerBoundBatch(q.data(), q.size(), ptrs.data());
+    empty_tree.LowerBoundBatch(q.data(), q.size(), iters.data());
+
+    for (size_t i = 0; i < q.size(); ++i) {
+      HWY_ASSERT(!found[i]);
+      HWY_ASSERT(ptrs[i] == nullptr);
+      HWY_ASSERT(iters[i] == empty_tree.end());
+    }
+  }
+
+  // 2. Multi-level tree randomized batch verification
+  absl::BitGen bitgen;
+  std::set<KeyT> ref_set;
+  while (ref_set.size() < num_keys) {
+    ref_set.insert(
+        static_cast<KeyT>(absl::Uniform<uint64_t>(bitgen, 1, 10000000)));
+  }
+
+  std::vector<KeyT> sorted_keys(ref_set.begin(), ref_set.end());
+  auto tree = BTreeSet<KeyT>::Build(sorted_keys.data(), sorted_keys.size());
+
+  std::vector<KeyT> queries;
+  queries.reserve(num_queries);
+  for (size_t i = 0; i < num_queries; ++i) {
+    queries.push_back(
+        static_cast<KeyT>(absl::Uniform<uint64_t>(bitgen, 0, 10000050)));
+  }
+
+  auto batch_found = std::make_unique<bool[]>(num_queries);
+  std::vector<const KeyT*> batch_find_ptrs(num_queries);
+  std::vector<const KeyT*> batch_lb_ptrs(num_queries);
+  std::vector<typename BTreeSet<KeyT>::const_iterator> batch_lb_iters(
+      num_queries);
+
+  tree.ContainsBatch(queries.data(), queries.size(), batch_found.get());
+  tree.FindBatch(queries.data(), queries.size(), batch_find_ptrs.data());
+  tree.LowerBoundBatch(queries.data(), queries.size(), batch_lb_ptrs.data());
+  tree.LowerBoundBatch(queries.data(), queries.size(), batch_lb_iters.data());
+
+  for (size_t i = 0; i < num_queries; ++i) {
+    KeyT qk = queries[i];
+    bool expected_found = tree.Contains(qk);
+    HWY_ASSERT_EQ(batch_found[i], expected_found);
+
+    auto serial_find = tree.find(qk);
+    if (serial_find == tree.end()) {
+      HWY_ASSERT(batch_find_ptrs[i] == nullptr);
+    } else {
+      HWY_ASSERT(batch_find_ptrs[i] != nullptr);
+      HWY_ASSERT_EQ(*batch_find_ptrs[i], qk);
+    }
+
+    auto serial_lb = tree.lower_bound(qk);
+    if (serial_lb == tree.end()) {
+      HWY_ASSERT(batch_lb_ptrs[i] == nullptr);
+      HWY_ASSERT(batch_lb_iters[i] == tree.end());
+    } else {
+      HWY_ASSERT(batch_lb_ptrs[i] != nullptr);
+      HWY_ASSERT_EQ(*batch_lb_ptrs[i], *serial_lb);
+      HWY_ASSERT(batch_lb_iters[i] != tree.end());
+      HWY_ASSERT_EQ(*batch_lb_iters[i], *serial_lb);
+    }
+  }
+}
+
+template <typename KeyT, typename ValueT>
+void TestMapBatchQueries(size_t num_keys, size_t num_queries) {
+  // 1. Empty map test
+  {
+    auto empty_map = BTreeMap<KeyT, ValueT>::Build(nullptr, nullptr, 0);
+    std::vector<KeyT> q = {10, 20, 30, 40, 50};
+    auto found = std::make_unique<bool[]>(q.size());
+    std::fill_n(found.get(), q.size(), true);
+    std::vector<const ValueT*> vals(q.size(),
+                                    reinterpret_cast<const ValueT*>(0x1));
+    std::vector<typename BTreeMap<KeyT, ValueT>::const_iterator> iters(
+        q.size());
+
+    empty_map.ContainsBatch(q.data(), q.size(), found.get());
+    empty_map.FindValueBatch(q.data(), q.size(), vals.data());
+    empty_map.LowerBoundBatch(q.data(), q.size(), iters.data());
+
+    for (size_t i = 0; i < q.size(); ++i) {
+      HWY_ASSERT(!found[i]);
+      HWY_ASSERT(vals[i] == nullptr);
+      HWY_ASSERT(iters[i] == empty_map.end());
+    }
+  }
+
+  // 2. Multi-level map randomized batch verification
+  absl::BitGen bitgen;
+  absl::btree_map<KeyT, ValueT> ref_map;
+  while (ref_map.size() < num_keys) {
+    KeyT k = static_cast<KeyT>(absl::Uniform<uint64_t>(bitgen, 1, 10000000));
+    ValueT v =
+        static_cast<ValueT>(absl::Uniform<uint64_t>(bitgen, 1, 10000000));
+    ref_map[k] = v;
+  }
+
+  std::vector<KeyT> sorted_keys;
+  std::vector<ValueT> sorted_vals;
+  sorted_keys.reserve(ref_map.size());
+  sorted_vals.reserve(ref_map.size());
+  for (const auto& [k, v] : ref_map) {
+    sorted_keys.push_back(k);
+    sorted_vals.push_back(v);
+  }
+
+  auto map = BTreeMap<KeyT, ValueT>::Build(
+      sorted_keys.data(), sorted_vals.data(), sorted_keys.size());
+
+  std::vector<KeyT> queries;
+  queries.reserve(num_queries);
+  for (size_t i = 0; i < num_queries; ++i) {
+    queries.push_back(
+        static_cast<KeyT>(absl::Uniform<uint64_t>(bitgen, 0, 10000050)));
+  }
+
+  auto batch_found = std::make_unique<bool[]>(num_queries);
+  std::vector<const ValueT*> batch_vals(num_queries);
+  std::vector<typename BTreeMap<KeyT, ValueT>::const_iterator> batch_lb_iters(
+      num_queries);
+
+  map.ContainsBatch(queries.data(), queries.size(), batch_found.get());
+  map.FindValueBatch(queries.data(), queries.size(), batch_vals.data());
+  map.LowerBoundBatch(queries.data(), queries.size(), batch_lb_iters.data());
+
+  for (size_t i = 0; i < num_queries; ++i) {
+    KeyT qk = queries[i];
+    bool expected_found = map.Contains(qk);
+    HWY_ASSERT_EQ(batch_found[i], expected_found);
+
+    const ValueT* serial_val = map.FindValue(qk);
+    if (serial_val == nullptr) {
+      HWY_ASSERT(batch_vals[i] == nullptr);
+    } else {
+      HWY_ASSERT(batch_vals[i] != nullptr);
+      HWY_ASSERT_EQ(*batch_vals[i], *serial_val);
+    }
+
+    auto serial_lb = map.lower_bound(qk);
+    if (serial_lb == map.end()) {
+      HWY_ASSERT(batch_lb_iters[i] == map.end());
+    } else {
+      HWY_ASSERT(batch_lb_iters[i] != map.end());
+      HWY_ASSERT_EQ(batch_lb_iters[i]->first, serial_lb->first);
+      HWY_ASSERT_EQ(batch_lb_iters[i]->second, serial_lb->second);
+    }
+  }
+}
+
 void TestAll() {
   fprintf(stderr, "Running Set 32-bit tests...\n");
   TestEmptyTree<uint32_t>();
@@ -499,11 +663,13 @@ void TestAll() {
   TestMultiLevelTree<uint32_t>(100000);
   TestMoveSemantics<uint32_t>();
   TestRandomizedComparisonAgainstStdSet<uint32_t>(10000, 2000);
+  TestBatchQueries<uint32_t>(10000, 2500);
 
   fprintf(stderr, "Running Set signed 32-bit tests...\n");
   TestSignedKeys<int32_t>();
   TestMoveSemantics<int32_t>();
   TestRandomizedComparisonAgainstStdSet<int32_t>(10000, 2000);
+  TestBatchQueries<int32_t>(10000, 2500);
 
   fprintf(stderr, "Running Set 64-bit tests...\n");
   TestEmptyTree<uint64_t>();
@@ -512,11 +678,13 @@ void TestAll() {
   TestMultiLevelTree<uint64_t>(10000);
   TestMoveSemantics<uint64_t>();
   TestRandomizedComparisonAgainstStdSet<uint64_t>(10000, 2000);
+  TestBatchQueries<uint64_t>(10000, 2500);
 
   fprintf(stderr, "Running Set signed 64-bit tests...\n");
   TestSignedKeys<int64_t>();
   TestMoveSemantics<int64_t>();
   TestRandomizedComparisonAgainstStdSet<int64_t>(10000, 2000);
+  TestBatchQueries<int64_t>(10000, 2500);
 
   fprintf(stderr, "Running Map uint32_t -> uint64_t tests...\n");
   TestMapEmpty<uint32_t, uint64_t>();
@@ -525,6 +693,7 @@ void TestAll() {
   TestMapMultiLevel<uint32_t, uint64_t>(10000);
   TestMapMoveSemantics<uint32_t, uint64_t>();
   TestMapRandomizedComparisonAgainstAbsl<uint32_t, uint64_t>(10000, 2000);
+  TestMapBatchQueries<uint32_t, uint64_t>(10000, 2500);
 
   fprintf(stderr, "Running Map uint64_t -> double tests...\n");
   TestMapEmpty<uint64_t, double>();
@@ -533,6 +702,7 @@ void TestAll() {
   TestMapMultiLevel<uint64_t, double>(10000);
   TestMapMoveSemantics<uint64_t, double>();
   TestMapRandomizedComparisonAgainstAbsl<uint64_t, double>(10000, 2000);
+  TestMapBatchQueries<uint64_t, double>(10000, 2500);
   fprintf(stderr, "All tests passed!\n");
 }
 

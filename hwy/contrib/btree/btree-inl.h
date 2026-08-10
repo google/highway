@@ -450,6 +450,122 @@ class BTreeSet {
     return it != end() ? &(*it) : nullptr;
   }
 
+  // ---------------------------------------------------------------------------
+  // Vectorized Pipelined Batch Query APIs
+  // ---------------------------------------------------------------------------
+
+  // Batch point lookup: fills out_found[i] with true if queries[i] is present.
+  void ContainsBatch(const KeyT* HWY_RESTRICT queries, size_t num_queries,
+                     bool* HWY_RESTRICT out_found) const {
+    if (num_elements_ == 0) {
+      std::fill_n(out_found, num_queries, false);
+      return;
+    }
+    static constexpr size_t kBatch = 8;
+    size_t i = 0;
+    const LeafNode<KeyT>* leaves[kBatch];
+
+    for (; i + kBatch <= num_queries; i += kBatch) {
+      NavigateBatchToLeaves(queries + i, leaves);
+      for (size_t k = 0; k < kBatch; ++k) {
+        const size_t slot = FindLeafSlot(leaves[k], queries[i + k]);
+        out_found[i + k] = (slot < leaves[k]->num_keys &&
+                            leaves[k]->keys[slot] == queries[i + k]);
+      }
+    }
+
+    for (; i < num_queries; ++i) {
+      out_found[i] = Contains(queries[i]);
+    }
+  }
+
+  // Batch find: fills out_ptrs[i] with pointer to key in tree or nullptr.
+  void FindBatch(const KeyT* HWY_RESTRICT queries, size_t num_queries,
+                 const KeyT** HWY_RESTRICT out_ptrs) const {
+    if (num_elements_ == 0) {
+      std::fill_n(out_ptrs, num_queries, nullptr);
+      return;
+    }
+    static constexpr size_t kBatch = 8;
+    size_t i = 0;
+    const LeafNode<KeyT>* leaves[kBatch];
+
+    for (; i + kBatch <= num_queries; i += kBatch) {
+      NavigateBatchToLeaves(queries + i, leaves);
+      for (size_t k = 0; k < kBatch; ++k) {
+        const size_t slot = FindLeafSlot(leaves[k], queries[i + k]);
+        const bool found = (slot < leaves[k]->num_keys &&
+                            leaves[k]->keys[slot] == queries[i + k]);
+        out_ptrs[i + k] = found ? &leaves[k]->keys[slot] : nullptr;
+      }
+    }
+
+    for (; i < num_queries; ++i) {
+      auto it = find(queries[i]);
+      out_ptrs[i] = (it != end()) ? &(*it) : nullptr;
+    }
+  }
+
+  // Batch lower_bound pointers: fills out_ptrs[i] with pointer to first key >=
+  // queries[i] (or nullptr).
+  void LowerBoundBatch(const KeyT* HWY_RESTRICT queries, size_t num_queries,
+                       const KeyT** HWY_RESTRICT out_ptrs) const {
+    if (num_elements_ == 0) {
+      std::fill_n(out_ptrs, num_queries, nullptr);
+      return;
+    }
+    static constexpr size_t kBatch = 8;
+    size_t i = 0;
+    const LeafNode<KeyT>* leaves[kBatch];
+
+    for (; i + kBatch <= num_queries; i += kBatch) {
+      NavigateBatchToLeaves(queries + i, leaves);
+      for (size_t k = 0; k < kBatch; ++k) {
+        const size_t slot = FindLeafSlot(leaves[k], queries[i + k]);
+        if (slot < leaves[k]->num_keys) {
+          out_ptrs[i + k] = &leaves[k]->keys[slot];
+        } else if (leaves[k]->next != nullptr &&
+                   leaves[k]->next->num_keys > 0) {
+          out_ptrs[i + k] = &leaves[k]->next->keys[0];
+        } else {
+          out_ptrs[i + k] = nullptr;
+        }
+      }
+    }
+
+    for (; i < num_queries; ++i) {
+      out_ptrs[i] = LowerBound(queries[i]);
+    }
+  }
+
+  // Batch lower_bound iterators: fills out_iters[i] with const_iterator for
+  // each query.
+  void LowerBoundBatch(const KeyT* HWY_RESTRICT queries, size_t num_queries,
+                       const_iterator* HWY_RESTRICT out_iters) const {
+    if (num_elements_ == 0) {
+      std::fill_n(out_iters, num_queries, end());
+      return;
+    }
+    static constexpr size_t kBatch = 8;
+    size_t i = 0;
+    const LeafNode<KeyT>* leaves[kBatch];
+
+    for (; i + kBatch <= num_queries; i += kBatch) {
+      NavigateBatchToLeaves(queries + i, leaves);
+      for (size_t k = 0; k < kBatch; ++k) {
+        const size_t slot = FindLeafSlot(leaves[k], queries[i + k]);
+        const bool inside = (slot < leaves[k]->num_keys);
+        const LeafNode<KeyT>* res_leaf = inside ? leaves[k] : leaves[k]->next;
+        const size_t res_slot = inside ? slot : 0;
+        out_iters[i + k] = const_iterator(res_leaf, res_slot, last_leaf_);
+      }
+    }
+
+    for (; i < num_queries; ++i) {
+      out_iters[i] = lower_bound(queries[i]);
+    }
+  }
+
   size_t size() const { return num_elements_; }
   bool empty() const { return num_elements_ == 0; }
   uint16_t height() const { return tree_height_; }
@@ -473,6 +589,43 @@ class BTreeSet {
     const auto* parent_of_leaf = static_cast<const InternalNode<KeyT>*>(curr);
     return static_cast<const LeafNode<KeyT>*>(
         parent_of_leaf->children[FindChild(parent_of_leaf, target)]);
+  }
+
+  HWY_INLINE void NavigateBatchToLeaves(const KeyT* HWY_RESTRICT queries,
+                                        const LeafNode<KeyT>** HWY_RESTRICT
+                                            out_leaves) const {
+    static constexpr size_t kBatch = 8;
+    if (tree_height_ == 0) {
+      const auto* leaf = static_cast<const LeafNode<KeyT>*>(root_);
+      for (size_t k = 0; k < kBatch; ++k) {
+        out_leaves[k] = leaf;
+      }
+      return;
+    }
+
+    const void* curr[kBatch];
+    for (size_t k = 0; k < kBatch; ++k) {
+      curr[k] = root_;
+    }
+
+    for (uint16_t h = tree_height_; h > 1; --h) {
+      for (size_t k = 0; k < kBatch; ++k) {
+        const auto* internal = static_cast<const InternalNode<KeyT>*>(curr[k]);
+        size_t child_idx = FindChild(internal, queries[k]);
+        const void* next_node = internal->children[child_idx];
+        curr[k] = next_node;
+        hwy::Prefetch(next_node);
+      }
+    }
+
+    for (size_t k = 0; k < kBatch; ++k) {
+      const auto* parent = static_cast<const InternalNode<KeyT>*>(curr[k]);
+      size_t child_idx = FindChild(parent, queries[k]);
+      const auto* leaf =
+          static_cast<const LeafNode<KeyT>*>(parent->children[child_idx]);
+      out_leaves[k] = leaf;
+      hwy::Prefetch(leaf);
+    }
   }
 
   void* root_ = nullptr;
@@ -858,6 +1011,88 @@ class BTreeMap {
     return lower_bound(static_cast<KeyT>(target + 1));
   }
 
+  // ---------------------------------------------------------------------------
+  // Vectorized Pipelined Batch Query APIs
+  // ---------------------------------------------------------------------------
+
+  // Batch point lookup: fills out_found[i] with true if queries[i] is present.
+  void ContainsBatch(const KeyT* HWY_RESTRICT queries, size_t num_queries,
+                     bool* HWY_RESTRICT out_found) const {
+    if (num_elements_ == 0) {
+      std::fill_n(out_found, num_queries, false);
+      return;
+    }
+    static constexpr size_t kBatch = 8;
+    size_t i = 0;
+    const MapLeafNode<KeyT, ValueT>* leaves[kBatch];
+
+    for (; i + kBatch <= num_queries; i += kBatch) {
+      NavigateBatchToLeaves(queries + i, leaves);
+      for (size_t k = 0; k < kBatch; ++k) {
+        const size_t slot = FindLeafSlot(leaves[k], queries[i + k]);
+        out_found[i + k] = (slot < leaves[k]->num_keys &&
+                            leaves[k]->keys[slot] == queries[i + k]);
+      }
+    }
+
+    for (; i < num_queries; ++i) {
+      out_found[i] = Contains(queries[i]);
+    }
+  }
+
+  // Batch value lookup: fills out_vals[i] with pointer to ValueT (or nullptr).
+  void FindValueBatch(const KeyT* HWY_RESTRICT queries, size_t num_queries,
+                      const ValueT** HWY_RESTRICT out_vals) const {
+    if (num_elements_ == 0) {
+      std::fill_n(out_vals, num_queries, nullptr);
+      return;
+    }
+    static constexpr size_t kBatch = 8;
+    size_t i = 0;
+    const MapLeafNode<KeyT, ValueT>* leaves[kBatch];
+
+    for (; i + kBatch <= num_queries; i += kBatch) {
+      NavigateBatchToLeaves(queries + i, leaves);
+      for (size_t k = 0; k < kBatch; ++k) {
+        const size_t slot = FindLeafSlot(leaves[k], queries[i + k]);
+        const bool found = (slot < leaves[k]->num_keys &&
+                            leaves[k]->keys[slot] == queries[i + k]);
+        out_vals[i + k] = found ? &leaves[k]->values[slot] : nullptr;
+      }
+    }
+
+    for (; i < num_queries; ++i) {
+      out_vals[i] = FindValue(queries[i]);
+    }
+  }
+
+  // Batch lower_bound iterators: fills out_iters[i] with const_iterator.
+  void LowerBoundBatch(const KeyT* HWY_RESTRICT queries, size_t num_queries,
+                       const_iterator* HWY_RESTRICT out_iters) const {
+    if (num_elements_ == 0) {
+      std::fill_n(out_iters, num_queries, end());
+      return;
+    }
+    static constexpr size_t kBatch = 8;
+    size_t i = 0;
+    const MapLeafNode<KeyT, ValueT>* leaves[kBatch];
+
+    for (; i + kBatch <= num_queries; i += kBatch) {
+      NavigateBatchToLeaves(queries + i, leaves);
+      for (size_t k = 0; k < kBatch; ++k) {
+        const size_t slot = FindLeafSlot(leaves[k], queries[i + k]);
+        const bool inside = (slot < leaves[k]->num_keys);
+        const auto* res_leaf = inside ? leaves[k] : leaves[k]->next;
+        const size_t res_slot = inside ? slot : 0;
+        out_iters[i + k] = const_iterator(res_leaf, res_slot, last_leaf_);
+      }
+    }
+
+    for (; i < num_queries; ++i) {
+      out_iters[i] = lower_bound(queries[i]);
+    }
+  }
+
   size_t size() const { return num_elements_; }
   bool empty() const { return num_elements_ == 0; }
   uint16_t height() const { return tree_height_; }
@@ -881,6 +1116,43 @@ class BTreeMap {
     const auto* parent_of_leaf = static_cast<const InternalNode<KeyT>*>(curr);
     return static_cast<const MapLeafNode<KeyT, ValueT>*>(
         parent_of_leaf->children[FindChild(parent_of_leaf, target)]);
+  }
+
+  HWY_INLINE void NavigateBatchToLeaves(
+      const KeyT* HWY_RESTRICT queries,
+      const MapLeafNode<KeyT, ValueT>** HWY_RESTRICT out_leaves) const {
+    static constexpr size_t kBatch = 8;
+    if (tree_height_ == 0) {
+      const auto* leaf = static_cast<const MapLeafNode<KeyT, ValueT>*>(root_);
+      for (size_t k = 0; k < kBatch; ++k) {
+        out_leaves[k] = leaf;
+      }
+      return;
+    }
+
+    const void* curr[kBatch];
+    for (size_t k = 0; k < kBatch; ++k) {
+      curr[k] = root_;
+    }
+
+    for (uint16_t h = tree_height_; h > 1; --h) {
+      for (size_t k = 0; k < kBatch; ++k) {
+        const auto* internal = static_cast<const InternalNode<KeyT>*>(curr[k]);
+        size_t child_idx = FindChild(internal, queries[k]);
+        const void* next_node = internal->children[child_idx];
+        curr[k] = next_node;
+        hwy::Prefetch(next_node);
+      }
+    }
+
+    for (size_t k = 0; k < kBatch; ++k) {
+      const auto* parent = static_cast<const InternalNode<KeyT>*>(curr[k]);
+      size_t child_idx = FindChild(parent, queries[k]);
+      const auto* leaf = static_cast<const MapLeafNode<KeyT, ValueT>*>(
+          parent->children[child_idx]);
+      out_leaves[k] = leaf;
+      hwy::Prefetch(leaf);
+    }
   }
 
   void* root_ = nullptr;

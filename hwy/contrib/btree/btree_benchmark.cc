@@ -205,8 +205,55 @@ void RunBenchmarkSuite(size_t num_keys) {
   printf("  hwy::BTreeSet   : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
          hwy_lb_ns, 1000.0 / hwy_lb_ns, absl_lb_ns / hwy_lb_ns);
 
+  // 5. Batch Point Lookups (ContainsBatch - 8-way pipelined prefetch)
+  auto batch_found = std::make_unique<bool[]>(kNumQueries);
+  const double b0 = hwy::platform::Now();
+  hwy_tree.ContainsBatch(queries.data(), kNumQueries, batch_found.get());
+  const double b1 = hwy::platform::Now();
+
+  uint64_t batch_hits = 0;
+  for (size_t i = 0; i < kNumQueries; ++i) {
+    batch_hits += batch_found[i];
+  }
+  hwy::PreventElision(batch_hits);
+
+  const double hwy_batch_lookup_ns = (b1 - b0) * 1e9 / kNumQueries;
+  printf("\nBatch Point Lookup (1M queries, 8-way pipelined prefetch):\n");
+  printf("  hwy::BTreeSet (Serial) : %6.2f ns/op (%6.2f Mops/s)\n",
+         hwy_lookup_ns, 1000.0 / hwy_lookup_ns);
+  printf(
+      "  hwy::BTreeSet (Batch)  : %6.2f ns/op (%6.2f Mops/s) -> %.2fx vs "
+      "Serial (%.2fx vs absl)\n",
+      hwy_batch_lookup_ns, 1000.0 / hwy_batch_lookup_ns,
+      hwy_lookup_ns / hwy_batch_lookup_ns,
+      absl_lookup_ns / hwy_batch_lookup_ns);
+
+  // 6. Batch LowerBound Queries (LowerBoundBatch - 8-way pipelined prefetch)
+  std::vector<const KeyT*> batch_lb_ptrs(kNumQueries);
+  const double blb0 = hwy::platform::Now();
+  hwy_tree.LowerBoundBatch(queries.data(), kNumQueries, batch_lb_ptrs.data());
+  const double blb1 = hwy::platform::Now();
+
+  uint64_t batch_lb_sum = 0;
+  for (size_t i = 0; i < kNumQueries; ++i) {
+    if (batch_lb_ptrs[i] != nullptr) batch_lb_sum += *batch_lb_ptrs[i];
+  }
+  hwy::PreventElision(batch_lb_sum);
+
+  const double hwy_batch_lb_ns = (blb1 - blb0) * 1e9 / kNumQueries;
+  printf("\nBatch LowerBound Query (1M queries, 8-way pipelined prefetch):\n");
+  printf("  hwy::BTreeSet (Serial) : %6.2f ns/op (%6.2f Mops/s)\n", hwy_lb_ns,
+         1000.0 / hwy_lb_ns);
+  printf(
+      "  hwy::BTreeSet (Batch)  : %6.2f ns/op (%6.2f Mops/s) -> %.2fx vs "
+      "Serial (%.2fx vs absl)\n",
+      hwy_batch_lb_ns, 1000.0 / hwy_batch_lb_ns, hwy_lb_ns / hwy_batch_lb_ns,
+      absl_lb_ns / hwy_batch_lb_ns);
+
   HWY_ASSERT(hwy_hits == absl_hits);
+  HWY_ASSERT(batch_hits == absl_hits);
   HWY_ASSERT(hwy_lb_sum == absl_lb_sum);
+  HWY_ASSERT(batch_lb_sum == absl_lb_sum);
 }
 
 template <typename KeyT, typename ValueT>
@@ -359,8 +406,60 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   printf("  hwy::BTreeMap   : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
          hwy_lb_ns, 1000.0 / hwy_lb_ns, absl_lb_ns / hwy_lb_ns);
 
+  // 5. Batch Value Lookups (FindValueBatch - 8-way pipelined prefetch)
+  std::vector<const ValueT*> batch_vals(kNumQueries);
+  const double mb0 = hwy::platform::Now();
+  hwy_map.FindValueBatch(queries.data(), kNumQueries, batch_vals.data());
+  const double mb1 = hwy::platform::Now();
+
+  uint64_t batch_hits = 0;
+  for (size_t i = 0; i < kNumQueries; ++i) {
+    if (batch_vals[i] != nullptr) {
+      batch_hits += static_cast<uint64_t>(*batch_vals[i]);
+    }
+  }
+  hwy::PreventElision(batch_hits);
+
+  const double hwy_batch_lookup_ns = (mb1 - mb0) * 1e9 / kNumQueries;
+  printf("\nBatch Value Lookup (1M queries, 8-way pipelined prefetch):\n");
+  printf("  hwy::BTreeMap (Serial) : %6.2f ns/op (%6.2f Mops/s)\n",
+         hwy_lookup_ns, 1000.0 / hwy_lookup_ns);
+  printf(
+      "  hwy::BTreeMap (Batch)  : %6.2f ns/op (%6.2f Mops/s) -> %.2fx vs "
+      "Serial (%.2fx vs absl)\n",
+      hwy_batch_lookup_ns, 1000.0 / hwy_batch_lookup_ns,
+      hwy_lookup_ns / hwy_batch_lookup_ns,
+      absl_lookup_ns / hwy_batch_lookup_ns);
+
+  // 6. Batch LowerBound Queries (LowerBoundBatch - 8-way pipelined prefetch)
+  std::vector<typename BTreeMap<KeyT, ValueT>::const_iterator> batch_iters(
+      kNumQueries);
+  const double mblb0 = hwy::platform::Now();
+  hwy_map.LowerBoundBatch(queries.data(), kNumQueries, batch_iters.data());
+  const double mblb1 = hwy::platform::Now();
+
+  uint64_t batch_lb_sum = 0;
+  for (size_t i = 0; i < kNumQueries; ++i) {
+    if (batch_iters[i] != hwy_map.end()) {
+      batch_lb_sum += static_cast<uint64_t>(batch_iters[i]->second);
+    }
+  }
+  hwy::PreventElision(batch_lb_sum);
+
+  const double hwy_batch_lb_ns = (mblb1 - mblb0) * 1e9 / kNumQueries;
+  printf("\nBatch LowerBound Query (1M queries, 8-way pipelined prefetch):\n");
+  printf("  hwy::BTreeMap (Serial) : %6.2f ns/op (%6.2f Mops/s)\n", hwy_lb_ns,
+         1000.0 / hwy_lb_ns);
+  printf(
+      "  hwy::BTreeMap (Batch)  : %6.2f ns/op (%6.2f Mops/s) -> %.2fx vs "
+      "Serial (%.2fx vs absl)\n",
+      hwy_batch_lb_ns, 1000.0 / hwy_batch_lb_ns, hwy_lb_ns / hwy_batch_lb_ns,
+      absl_lb_ns / hwy_batch_lb_ns);
+
   HWY_ASSERT(hwy_hits == absl_hits);
+  HWY_ASSERT(batch_hits == absl_hits);
   HWY_ASSERT(hwy_lb_sum == absl_lb_sum);
+  HWY_ASSERT(batch_lb_sum == absl_lb_sum);
 }
 
 HWY_NOINLINE void BenchmarkAll() {
