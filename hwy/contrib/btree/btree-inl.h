@@ -110,30 +110,33 @@ struct InternalNode {
 };
 
 // -----------------------------------------------------------------------------
-// NodePool Allocator (Chunked 64-byte aligned pages with intrusive free-list)
+// NodePool Allocator (16 KB TCMalloc size-class aligned chunks with free-list)
 // -----------------------------------------------------------------------------
 
-template <typename NodeT, size_t kNodesPerPage = 256>
+template <typename NodeT, size_t kTargetChunkBytes = 16384>
 class NodePool {
  public:
+  static constexpr size_t kNodesPerChunk =
+      HWY_MAX(size_t{1}, kTargetChunkBytes / sizeof(NodeT));
+
   NodePool() = default;
   ~NodePool() = default;
 
   NodePool(NodePool&& other) noexcept
-      : pages_(std::move(other.pages_)),
+      : chunks_(std::move(other.chunks_)),
         free_list_(other.free_list_),
-        next_in_page_(other.next_in_page_) {
+        next_in_chunk_(other.next_in_chunk_) {
     other.free_list_ = nullptr;
-    other.next_in_page_ = 0;
+    other.next_in_chunk_ = 0;
   }
 
   NodePool& operator=(NodePool&& other) noexcept {
     if (this != &other) {
-      pages_ = std::move(other.pages_);
+      chunks_ = std::move(other.chunks_);
       free_list_ = other.free_list_;
-      next_in_page_ = other.next_in_page_;
+      next_in_chunk_ = other.next_in_chunk_;
       other.free_list_ = nullptr;
-      other.next_in_page_ = 0;
+      other.next_in_chunk_ = 0;
     }
     return *this;
   }
@@ -149,11 +152,11 @@ class NodePool {
       free_list_ = next_free;
       return new (node) NodeT();
     }
-    if (pages_.empty() || next_in_page_ == kNodesPerPage) {
-      pages_.push_back(std::make_unique<Page>());
-      next_in_page_ = 0;
+    if (chunks_.empty() || next_in_chunk_ == kNodesPerChunk) {
+      chunks_.push_back(std::make_unique<Chunk>());
+      next_in_chunk_ = 0;
     }
-    return new (&pages_.back()->nodes[next_in_page_++]) NodeT();
+    return new (&chunks_.back()->nodes[next_in_chunk_++]) NodeT();
   }
 
   void Deallocate(NodeT* node) {
@@ -164,20 +167,20 @@ class NodePool {
   }
 
   void Clear() {
-    pages_.clear();
+    chunks_.clear();
     free_list_ = nullptr;
-    next_in_page_ = 0;
+    next_in_chunk_ = 0;
   }
 
-  size_t AllocatedBytes() const { return pages_.size() * sizeof(Page); }
+  size_t AllocatedBytes() const { return chunks_.size() * sizeof(Chunk); }
 
  private:
-  struct alignas(64) Page {
-    NodeT nodes[kNodesPerPage];
+  struct alignas(64) Chunk {
+    NodeT nodes[kNodesPerChunk];
   };
-  std::vector<std::unique_ptr<Page>> pages_;
+  std::vector<std::unique_ptr<Chunk>> chunks_;
   NodeT* free_list_ = nullptr;
-  size_t next_in_page_ = 0;
+  size_t next_in_chunk_ = 0;
 };
 
 // -----------------------------------------------------------------------------
