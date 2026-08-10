@@ -940,6 +940,133 @@ void TestMapSTLInterfaceAndReverseIterators() {
   HWY_ASSERT(dynamic_rev_keys == expected_keys);
 }
 
+template <typename KeyT>
+void TestSetCopySemantics() {
+  // 1. Copy empty tree
+  BTreeSet<KeyT> empty_tree;
+  BTreeSet<KeyT> empty_copy(empty_tree);
+  HWY_ASSERT(empty_copy.empty());
+  HWY_ASSERT_EQ(empty_copy.size(), size_t{0});
+
+  BTreeSet<KeyT> empty_assigned;
+  empty_assigned = empty_tree;
+  HWY_ASSERT(empty_assigned.empty());
+
+  // 2. Copy populated tree
+  std::vector<KeyT> keys;
+  const size_t N = 1000;
+  keys.reserve(N);
+  for (size_t i = 0; i < N; ++i) {
+    keys.push_back(static_cast<KeyT>((i + 1) * 10));
+  }
+  auto original = BTreeSet<KeyT>::Build(keys.data(), keys.size());
+
+  // Copy constructor
+  BTreeSet<KeyT> copy(original);
+  HWY_ASSERT_EQ(copy.size(), original.size());
+  HWY_ASSERT_EQ(copy.height(), original.height());
+  for (KeyT k : keys) {
+    HWY_ASSERT(copy.contains(k));
+  }
+
+  // Pointer independence: mutate copy, ensure original is unmodified
+  copy.insert(5);
+  copy.erase(keys[0]);
+  HWY_ASSERT_EQ(copy.size(), keys.size());
+  HWY_ASSERT(copy.contains(5));
+  HWY_ASSERT(!copy.contains(keys[0]));
+
+  HWY_ASSERT_EQ(original.size(), keys.size());
+  HWY_ASSERT(!original.contains(5));
+  HWY_ASSERT(original.contains(keys[0]));
+
+  // Copy assignment: self-assignment
+  original = original;
+  HWY_ASSERT_EQ(original.size(), keys.size());
+  HWY_ASSERT(original.contains(keys[0]));
+
+  // Copy assignment: overwrite smaller tree with larger tree
+  BTreeSet<KeyT> small_tree;
+  small_tree.insert(100);
+  small_tree = original;
+  HWY_ASSERT_EQ(small_tree.size(), original.size());
+  for (KeyT k : keys) {
+    HWY_ASSERT(small_tree.contains(k));
+  }
+
+  // Copy assignment: overwrite larger tree with smaller tree
+  std::vector<KeyT> tiny_keys = {1, 2, 3};
+  auto tiny_tree = BTreeSet<KeyT>::Build(tiny_keys.data(), tiny_keys.size());
+  small_tree = tiny_tree;
+  HWY_ASSERT_EQ(small_tree.size(), size_t{3});
+  for (KeyT k : tiny_keys) {
+    HWY_ASSERT(small_tree.contains(k));
+  }
+}
+
+template <typename KeyT, typename ValueT>
+void TestMapCopySemantics() {
+  // 1. Copy empty map
+  BTreeMap<KeyT, ValueT> empty_map;
+  BTreeMap<KeyT, ValueT> empty_copy(empty_map);
+  HWY_ASSERT(empty_copy.empty());
+  HWY_ASSERT_EQ(empty_copy.size(), size_t{0});
+
+  BTreeMap<KeyT, ValueT> empty_assigned;
+  empty_assigned = empty_map;
+  HWY_ASSERT(empty_assigned.empty());
+
+  // 2. Copy populated map
+  std::vector<KeyT> keys;
+  std::vector<ValueT> vals;
+  const size_t N = 1000;
+  keys.reserve(N);
+  vals.reserve(N);
+  for (size_t i = 0; i < N; ++i) {
+    keys.push_back(static_cast<KeyT>((i + 1) * 10));
+    vals.push_back(static_cast<ValueT>((i + 1) * 100));
+  }
+  auto original =
+      BTreeMap<KeyT, ValueT>::Build(keys.data(), vals.data(), keys.size());
+
+  // Copy constructor
+  BTreeMap<KeyT, ValueT> copy(original);
+  HWY_ASSERT_EQ(copy.size(), original.size());
+  HWY_ASSERT_EQ(copy.height(), original.height());
+  for (size_t i = 0; i < keys.size(); ++i) {
+    const ValueT* v = copy.FindValue(keys[i]);
+    HWY_ASSERT(v != nullptr);
+    HWY_ASSERT_EQ(*v, vals[i]);
+  }
+
+  // Pointer independence: mutate copy, ensure original is unmodified
+  copy.insert(5, static_cast<ValueT>(50));
+  copy.erase(keys[0]);
+  HWY_ASSERT_EQ(copy.size(), keys.size());
+  HWY_ASSERT(copy.contains(5));
+  HWY_ASSERT(!copy.contains(keys[0]));
+
+  HWY_ASSERT_EQ(original.size(), keys.size());
+  HWY_ASSERT(!original.contains(5));
+  HWY_ASSERT(original.contains(keys[0]));
+
+  // Copy assignment: self-assignment
+  original = original;
+  HWY_ASSERT_EQ(original.size(), keys.size());
+  HWY_ASSERT(original.contains(keys[0]));
+
+  // Copy assignment: overwrite smaller map with larger map
+  BTreeMap<KeyT, ValueT> small_map;
+  small_map.insert(100, static_cast<ValueT>(1000));
+  small_map = original;
+  HWY_ASSERT_EQ(small_map.size(), original.size());
+  for (size_t i = 0; i < keys.size(); ++i) {
+    const ValueT* v = small_map.FindValue(keys[i]);
+    HWY_ASSERT(v != nullptr);
+    HWY_ASSERT_EQ(*v, vals[i]);
+  }
+}
+
 void TestAll() {
   fprintf(stderr, "Running Set 32-bit tests...\n");
   TestEmptyTree<uint32_t>();
@@ -948,6 +1075,7 @@ void TestAll() {
   TestMultiLevelTree<uint32_t>(10000);
   TestMultiLevelTree<uint32_t>(100000);
   TestMoveSemantics<uint32_t>();
+  TestSetCopySemantics<uint32_t>();
   TestRandomizedComparisonAgainstStdSet<uint32_t>(10000, 2000);
   TestBatchQueries<uint32_t>(10000, 2500);
   TestSetDynamicInsertAndErase<uint32_t>(5000);
@@ -957,6 +1085,7 @@ void TestAll() {
   fprintf(stderr, "Running Set signed 32-bit tests...\n");
   TestSignedKeys<int32_t>();
   TestMoveSemantics<int32_t>();
+  TestSetCopySemantics<int32_t>();
   TestRandomizedComparisonAgainstStdSet<int32_t>(10000, 2000);
   TestBatchQueries<int32_t>(10000, 2500);
   TestSetSTLInterfaceAndReverseIterators<int32_t>();
@@ -967,6 +1096,7 @@ void TestAll() {
   TestMultiLevelTree<uint64_t>(100);
   TestMultiLevelTree<uint64_t>(10000);
   TestMoveSemantics<uint64_t>();
+  TestSetCopySemantics<uint64_t>();
   TestRandomizedComparisonAgainstStdSet<uint64_t>(10000, 2000);
   TestBatchQueries<uint64_t>(10000, 2500);
   TestSetDynamicInsertAndErase<uint64_t>(5000);
@@ -976,6 +1106,7 @@ void TestAll() {
   fprintf(stderr, "Running Set signed 64-bit tests...\n");
   TestSignedKeys<int64_t>();
   TestMoveSemantics<int64_t>();
+  TestSetCopySemantics<int64_t>();
   TestRandomizedComparisonAgainstStdSet<int64_t>(10000, 2000);
   TestBatchQueries<int64_t>(10000, 2500);
   TestSetSTLInterfaceAndReverseIterators<int64_t>();
@@ -986,6 +1117,7 @@ void TestAll() {
   TestMapMultiLevel<uint32_t, uint64_t>(100);
   TestMapMultiLevel<uint32_t, uint64_t>(10000);
   TestMapMoveSemantics<uint32_t, uint64_t>();
+  TestMapCopySemantics<uint32_t, uint64_t>();
   TestMapRandomizedComparisonAgainstAbsl<uint32_t, uint64_t>(10000, 2000);
   TestMapBatchQueries<uint32_t, uint64_t>(10000, 2500);
   TestMapDynamicInsertAndErase<uint32_t, uint64_t>(5000);
@@ -997,6 +1129,7 @@ void TestAll() {
   TestMapMultiLevel<uint64_t, double>(100);
   TestMapMultiLevel<uint64_t, double>(10000);
   TestMapMoveSemantics<uint64_t, double>();
+  TestMapCopySemantics<uint64_t, double>();
   TestMapRandomizedComparisonAgainstAbsl<uint64_t, double>(10000, 2000);
   TestMapBatchQueries<uint64_t, double>(10000, 2500);
   TestMapDynamicInsertAndErase<uint64_t, double>(5000);

@@ -334,6 +334,32 @@ class BTreeSet {
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
   BTreeSet() = default;
+
+  BTreeSet(const BTreeSet& other) {
+    if (other.num_elements_ == 0) {
+      first_leaf_ = leaf_pool_.Allocate();
+      last_leaf_ = first_leaf_;
+      root_ = first_leaf_;
+      tree_height_ = 0;
+      num_elements_ = 0;
+      return;
+    }
+    std::vector<KeyT> keys;
+    keys.reserve(other.num_elements_);
+    for (auto it = other.begin(); it != other.end(); ++it) {
+      keys.push_back(*it);
+    }
+    *this = Build(keys.data(), keys.size());
+  }
+
+  BTreeSet& operator=(const BTreeSet& other) {
+    if (this != &other) {
+      BTreeSet tmp(other);
+      *this = std::move(tmp);
+    }
+    return *this;
+  }
+
   BTreeSet(BTreeSet&& other) noexcept
       : root_(other.root_),
         first_leaf_(other.first_leaf_),
@@ -1148,6 +1174,35 @@ class BTreeMap {
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
   BTreeMap() = default;
+
+  BTreeMap(const BTreeMap& other) {
+    if (other.num_elements_ == 0) {
+      first_leaf_ = leaf_pool_.Allocate();
+      last_leaf_ = first_leaf_;
+      root_ = first_leaf_;
+      tree_height_ = 0;
+      num_elements_ = 0;
+      return;
+    }
+    std::vector<KeyT> keys;
+    std::vector<ValueT> vals;
+    keys.reserve(other.num_elements_);
+    vals.reserve(other.num_elements_);
+    for (auto it = other.begin(); it != other.end(); ++it) {
+      keys.push_back(it->first);
+      vals.push_back(it->second);
+    }
+    *this = Build(keys.data(), vals.data(), keys.size());
+  }
+
+  BTreeMap& operator=(const BTreeMap& other) {
+    if (this != &other) {
+      BTreeMap tmp(other);
+      *this = std::move(tmp);
+    }
+    return *this;
+  }
+
   BTreeMap(BTreeMap&& other) noexcept
       : root_(other.root_),
         first_leaf_(other.first_leaf_),
