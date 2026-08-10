@@ -238,6 +238,11 @@ class BTreeSet {
   using key_type = KeyT;
   using value_type = KeyT;
   using size_type = size_t;
+  using difference_type = std::ptrdiff_t;
+  using reference = const KeyT&;
+  using const_reference = const KeyT&;
+  using pointer = const KeyT*;
+  using const_pointer = const KeyT*;
 
   // Bidirectional Range Iterator
   class const_iterator {
@@ -325,6 +330,8 @@ class BTreeSet {
   };
 
   using iterator = const_iterator;
+  using reverse_iterator = std::reverse_iterator<const_iterator>;
+  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
   BTreeSet() = default;
   BTreeSet(BTreeSet&& other) noexcept
@@ -483,6 +490,15 @@ class BTreeSet {
   const_iterator cbegin() const { return begin(); }
   const_iterator cend() const { return end(); }
 
+  reverse_iterator rbegin() const { return reverse_iterator(end()); }
+  reverse_iterator rend() const { return reverse_iterator(begin()); }
+  const_reverse_iterator crbegin() const {
+    return const_reverse_iterator(end());
+  }
+  const_reverse_iterator crend() const {
+    return const_reverse_iterator(begin());
+  }
+
   // Point lookup: returns true if key exists in O(log16 N) time.
   bool Contains(KeyT target) const {
     if (num_elements_ == 0) return false;
@@ -492,6 +508,9 @@ class BTreeSet {
     // the same as FindLeadSlot, so lets just reuse
     return slot < leaf->num_keys && leaf->keys[slot] == target;
   }
+
+  bool contains(KeyT target) const { return Contains(target); }
+  size_type count(KeyT target) const { return Contains(target) ? 1 : 0; }
 
   const_iterator find(KeyT target) const {
     if (num_elements_ == 0) return end();
@@ -522,6 +541,10 @@ class BTreeSet {
       return end();
     }
     return lower_bound(static_cast<KeyT>(target + 1));
+  }
+
+  std::pair<const_iterator, const_iterator> equal_range(KeyT target) const {
+    return {lower_bound(target), upper_bound(target)};
   }
 
   // Pointer-based legacy convenience APIs
@@ -1017,6 +1040,7 @@ class BTreeMap {
   using mapped_type = ValueT;
   using value_type = std::pair<const KeyT, ValueT>;
   using size_type = size_t;
+  using difference_type = std::ptrdiff_t;
 
   // Bidirectional Range Iterator
   class const_iterator {
@@ -1034,6 +1058,9 @@ class BTreeMap {
       KeyValueRef ref;
       const KeyValueRef* operator->() const { return &ref; }
     };
+
+    using pointer = ArrowProxy;
+    using reference = KeyValueRef;
 
     const_iterator() = default;
     const_iterator(const MapLeafNode<KeyT, ValueT>* leaf, size_t slot,
@@ -1117,6 +1144,8 @@ class BTreeMap {
   };
 
   using iterator = const_iterator;
+  using reverse_iterator = std::reverse_iterator<const_iterator>;
+  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
   BTreeMap() = default;
   BTreeMap(BTreeMap&& other) noexcept
@@ -1290,6 +1319,15 @@ class BTreeMap {
   const_iterator cbegin() const { return begin(); }
   const_iterator cend() const { return end(); }
 
+  reverse_iterator rbegin() const { return reverse_iterator(end()); }
+  reverse_iterator rend() const { return reverse_iterator(begin()); }
+  const_reverse_iterator crbegin() const {
+    return const_reverse_iterator(end());
+  }
+  const_reverse_iterator crend() const {
+    return const_reverse_iterator(begin());
+  }
+
   // Point lookup: returns true if key exists in O(log16 N) time.
   bool Contains(KeyT target) const {
     if (num_elements_ == 0) return false;
@@ -1297,6 +1335,9 @@ class BTreeMap {
     const size_t slot = FindLeafSlot(leaf, target);
     return slot < leaf->num_keys && leaf->keys[slot] == target;
   }
+
+  bool contains(KeyT target) const { return Contains(target); }
+  size_type count(KeyT target) const { return Contains(target) ? 1 : 0; }
 
   const_iterator find(KeyT target) const {
     if (num_elements_ == 0) return end();
@@ -1343,6 +1384,10 @@ class BTreeMap {
       return end();
     }
     return lower_bound(static_cast<KeyT>(target + 1));
+  }
+
+  std::pair<const_iterator, const_iterator> equal_range(KeyT target) const {
+    return {lower_bound(target), upper_bound(target)};
   }
 
   // ---------------------------------------------------------------------------

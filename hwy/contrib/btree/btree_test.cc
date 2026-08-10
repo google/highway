@@ -762,6 +762,184 @@ void TestSlackFillRatio() {
   HWY_ASSERT(tree.Contains(35));
 }
 
+template <typename KeyT>
+void TestSetSTLInterfaceAndReverseIterators() {
+  using SetType = BTreeSet<KeyT>;
+  static_assert(std::is_same_v<typename SetType::key_type, KeyT>);
+  static_assert(std::is_same_v<typename SetType::value_type, KeyT>);
+  static_assert(std::is_same_v<typename SetType::size_type, size_t>);
+  static_assert(
+      std::is_same_v<typename SetType::difference_type, std::ptrdiff_t>);
+  static_assert(std::is_same_v<typename SetType::reference, const KeyT&>);
+  static_assert(std::is_same_v<typename SetType::const_reference, const KeyT&>);
+  static_assert(std::is_same_v<typename SetType::pointer, const KeyT*>);
+  static_assert(std::is_same_v<typename SetType::const_pointer, const KeyT*>);
+
+  // 1. Empty tree
+  SetType empty_tree;
+  HWY_ASSERT(empty_tree.rbegin() == empty_tree.rend());
+  HWY_ASSERT(empty_tree.crbegin() == empty_tree.crend());
+  HWY_ASSERT(!empty_tree.contains(10));
+  HWY_ASSERT_EQ(empty_tree.count(10), size_t{0});
+  auto empty_range = empty_tree.equal_range(10);
+  HWY_ASSERT(empty_range.first == empty_tree.end());
+  HWY_ASSERT(empty_range.second == empty_tree.end());
+
+  // 2. Populated tree with 1,000 keys
+  std::vector<KeyT> keys;
+  const size_t N = 1000;
+  keys.reserve(N);
+  for (size_t i = 0; i < N; ++i) {
+    keys.push_back(static_cast<KeyT>((i + 1) * 10));
+  }
+
+  auto tree = SetType::Build(keys.data(), keys.size());
+
+  // contains and count
+  for (KeyT k : keys) {
+    HWY_ASSERT(tree.contains(k));
+    HWY_ASSERT_EQ(tree.count(k), size_t{1});
+    HWY_ASSERT(!tree.contains(static_cast<KeyT>(k + 1)));
+    HWY_ASSERT_EQ(tree.count(static_cast<KeyT>(k + 1)), size_t{0});
+  }
+
+  // equal_range
+  for (size_t i = 0; i < keys.size(); ++i) {
+    KeyT k = keys[i];
+    auto range = tree.equal_range(k);
+    HWY_ASSERT(range.first != tree.end());
+    HWY_ASSERT_EQ(*range.first, k);
+    if (i + 1 < keys.size()) {
+      HWY_ASSERT(range.second != tree.end());
+      HWY_ASSERT_EQ(*range.second, keys[i + 1]);
+    } else {
+      HWY_ASSERT(range.second == tree.end());
+    }
+
+    // Between keys: equal_range(k + 5)
+    auto mid_range = tree.equal_range(static_cast<KeyT>(k + 5));
+    if (i + 1 < keys.size()) {
+      HWY_ASSERT(mid_range.first == mid_range.second);
+      HWY_ASSERT_EQ(*mid_range.first, keys[i + 1]);
+    }
+  }
+
+  // Reverse iteration
+  std::vector<KeyT> rev_traversed(tree.rbegin(), tree.rend());
+  std::vector<KeyT> expected_rev = keys;
+  std::reverse(expected_rev.begin(), expected_rev.end());
+  HWY_ASSERT(rev_traversed == expected_rev);
+
+  std::vector<KeyT> crev_traversed(tree.crbegin(), tree.crend());
+  HWY_ASSERT(crev_traversed == expected_rev);
+
+  // Reverse iteration after dynamic mutations
+  tree.insert(5);
+  tree.insert(15);
+  tree.erase(keys[0]);      // Erase 10
+  expected_rev.pop_back();  // Removed 10
+  expected_rev.push_back(15);
+  expected_rev.push_back(5);
+
+  std::vector<KeyT> dynamic_rev(tree.rbegin(), tree.rend());
+  HWY_ASSERT(dynamic_rev == expected_rev);
+}
+
+template <typename KeyT, typename ValueT>
+void TestMapSTLInterfaceAndReverseIterators() {
+  using MapType = BTreeMap<KeyT, ValueT>;
+  static_assert(std::is_same_v<typename MapType::key_type, KeyT>);
+  static_assert(std::is_same_v<typename MapType::mapped_type, ValueT>);
+  static_assert(std::is_same_v<typename MapType::value_type,
+                               std::pair<const KeyT, ValueT> >);
+  static_assert(std::is_same_v<typename MapType::size_type, size_t>);
+  static_assert(
+      std::is_same_v<typename MapType::difference_type, std::ptrdiff_t>);
+
+  // 1. Empty map
+  MapType empty_map;
+  HWY_ASSERT(empty_map.rbegin() == empty_map.rend());
+  HWY_ASSERT(empty_map.crbegin() == empty_map.crend());
+  HWY_ASSERT(!empty_map.contains(10));
+  HWY_ASSERT_EQ(empty_map.count(10), size_t{0});
+  auto empty_range = empty_map.equal_range(10);
+  HWY_ASSERT(empty_range.first == empty_map.end());
+  HWY_ASSERT(empty_range.second == empty_map.end());
+
+  // 2. Populated map with 1,000 pairs
+  std::vector<KeyT> keys;
+  std::vector<ValueT> vals;
+  const size_t N = 1000;
+  keys.reserve(N);
+  vals.reserve(N);
+  for (size_t i = 0; i < N; ++i) {
+    keys.push_back(static_cast<KeyT>((i + 1) * 10));
+    vals.push_back(static_cast<ValueT>((i + 1) * 100));
+  }
+
+  auto map = MapType::Build(keys.data(), vals.data(), keys.size());
+
+  // contains and count
+  for (size_t i = 0; i < keys.size(); ++i) {
+    KeyT k = keys[i];
+    HWY_ASSERT(map.contains(k));
+    HWY_ASSERT_EQ(map.count(k), size_t{1});
+    HWY_ASSERT(!map.contains(static_cast<KeyT>(k + 1)));
+    HWY_ASSERT_EQ(map.count(static_cast<KeyT>(k + 1)), size_t{0});
+  }
+
+  // equal_range
+  for (size_t i = 0; i < keys.size(); ++i) {
+    KeyT k = keys[i];
+    auto range = map.equal_range(k);
+    HWY_ASSERT(range.first != map.end());
+    HWY_ASSERT_EQ(range.first->first, k);
+    HWY_ASSERT_EQ(range.first->second, vals[i]);
+    if (i + 1 < keys.size()) {
+      HWY_ASSERT(range.second != map.end());
+      HWY_ASSERT_EQ(range.second->first, keys[i + 1]);
+    } else {
+      HWY_ASSERT(range.second == map.end());
+    }
+  }
+
+  // Reverse iteration
+  std::vector<KeyT> rev_keys;
+  std::vector<ValueT> rev_vals;
+  for (auto it = map.rbegin(); it != map.rend(); ++it) {
+    rev_keys.push_back(it->first);
+    rev_vals.push_back(it->second);
+  }
+
+  std::vector<KeyT> expected_keys = keys;
+  std::vector<ValueT> expected_vals = vals;
+  std::reverse(expected_keys.begin(), expected_keys.end());
+  std::reverse(expected_vals.begin(), expected_vals.end());
+  HWY_ASSERT(rev_keys == expected_keys);
+  HWY_ASSERT(rev_vals == expected_vals);
+
+  // Const reverse iteration with crbegin/crend
+  std::vector<KeyT> crev_keys;
+  for (auto it = map.crbegin(); it != map.crend(); ++it) {
+    crev_keys.push_back((*it).first);
+  }
+  HWY_ASSERT(crev_keys == expected_keys);
+
+  // Reverse iteration after dynamic mutations
+  map.insert(5, static_cast<ValueT>(50));
+  map.insert(15, static_cast<ValueT>(150));
+  map.erase(keys[0]);        // Erase 10
+  expected_keys.pop_back();  // Removed 10
+  expected_keys.push_back(15);
+  expected_keys.push_back(5);
+
+  std::vector<KeyT> dynamic_rev_keys;
+  for (auto it = map.rbegin(); it != map.rend(); ++it) {
+    dynamic_rev_keys.push_back(it->first);
+  }
+  HWY_ASSERT(dynamic_rev_keys == expected_keys);
+}
+
 void TestAll() {
   fprintf(stderr, "Running Set 32-bit tests...\n");
   TestEmptyTree<uint32_t>();
@@ -774,12 +952,14 @@ void TestAll() {
   TestBatchQueries<uint32_t>(10000, 2500);
   TestSetDynamicInsertAndErase<uint32_t>(5000);
   TestSlackFillRatio<uint32_t>();
+  TestSetSTLInterfaceAndReverseIterators<uint32_t>();
 
   fprintf(stderr, "Running Set signed 32-bit tests...\n");
   TestSignedKeys<int32_t>();
   TestMoveSemantics<int32_t>();
   TestRandomizedComparisonAgainstStdSet<int32_t>(10000, 2000);
   TestBatchQueries<int32_t>(10000, 2500);
+  TestSetSTLInterfaceAndReverseIterators<int32_t>();
 
   fprintf(stderr, "Running Set 64-bit tests...\n");
   TestEmptyTree<uint64_t>();
@@ -791,12 +971,14 @@ void TestAll() {
   TestBatchQueries<uint64_t>(10000, 2500);
   TestSetDynamicInsertAndErase<uint64_t>(5000);
   TestSlackFillRatio<uint64_t>();
+  TestSetSTLInterfaceAndReverseIterators<uint64_t>();
 
   fprintf(stderr, "Running Set signed 64-bit tests...\n");
   TestSignedKeys<int64_t>();
   TestMoveSemantics<int64_t>();
   TestRandomizedComparisonAgainstStdSet<int64_t>(10000, 2000);
   TestBatchQueries<int64_t>(10000, 2500);
+  TestSetSTLInterfaceAndReverseIterators<int64_t>();
 
   fprintf(stderr, "Running Map uint32_t -> uint64_t tests...\n");
   TestMapEmpty<uint32_t, uint64_t>();
@@ -807,6 +989,7 @@ void TestAll() {
   TestMapRandomizedComparisonAgainstAbsl<uint32_t, uint64_t>(10000, 2000);
   TestMapBatchQueries<uint32_t, uint64_t>(10000, 2500);
   TestMapDynamicInsertAndErase<uint32_t, uint64_t>(5000);
+  TestMapSTLInterfaceAndReverseIterators<uint32_t, uint64_t>();
 
   fprintf(stderr, "Running Map uint64_t -> double tests...\n");
   TestMapEmpty<uint64_t, double>();
@@ -817,6 +1000,7 @@ void TestAll() {
   TestMapRandomizedComparisonAgainstAbsl<uint64_t, double>(10000, 2000);
   TestMapBatchQueries<uint64_t, double>(10000, 2500);
   TestMapDynamicInsertAndErase<uint64_t, double>(5000);
+  TestMapSTLInterfaceAndReverseIterators<uint64_t, double>();
   fprintf(stderr, "All tests passed!\n");
 }
 
