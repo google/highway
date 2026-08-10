@@ -286,16 +286,40 @@ class CuckooTableT {
     return hash_secondary_.OneVec(d, vkeys);
   }
 
+  HWY_INLINE KeyT PrimaryHash1(KeyT key) const { return hash_primary_(key); }
+
+  HWY_INLINE KeyT SecondaryHash1(KeyT key) const {
+    return hash_secondary_(key);
+  }
+
   template <class D, class V = Vec<D>>
-  HWY_INLINE V BucketFromHash(D d, V h_pri) const {
-    Vec<D> v;
+  HWY_INLINE V BucketIdxFromHash(D d, V hash) const {
     if constexpr (kPow2) {
-      v = And(h_pri, Set(d, config_.BucketMask()));
+      return And(hash, Set(d, config_.BucketMask()));
     } else {
-      const V vparam = Set(d, static_cast<TFromD<D>>(config_.NumBuckets()));
-      v = MulHigh(h_pri, vparam);
+      return MulHigh(hash,
+                     Set(d, static_cast<TFromD<D>>(config_.NumBuckets())));
     }
-    return ShiftLeft<kLogBucketSize>(v);
+  }
+
+  // Returns the slot index, i.e. bucket_idx * kBucketSize.
+  template <class D, class V = Vec<D>>
+  HWY_INLINE V BucketFromHash(D d, V hash) const {
+    return ShiftLeft<kLogBucketSize>(BucketIdxFromHash(d, hash));
+  }
+
+  // Returns the bucket index alone (unlike BucketFromHash).
+  HWY_INLINE size_t BucketIdxFromHash1(KeyT hash) const {
+    if constexpr (kPow2) {
+      return hash & config_.BucketMask();
+    } else {
+      if constexpr (sizeof(KeyT) == 4) {
+        return MulHigh32(hash, config_.NumBuckets());
+      } else {
+        static_assert(HWY_HAVE_MULHIGH64);
+        return MulHigh64(hash, config_.NumBuckets());
+      }
+    }
   }
 
   // Computes the primary and secondary slot indices for a vector of keys.

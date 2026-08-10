@@ -2829,10 +2829,13 @@ HWY_CXX14_CONSTEXPR inline bfloat16_t bfloat16_t::operator--(int) noexcept {
 //------------------------------------------------------------------------------
 // Helper functions
 
+HWY_API uint32_t MulHigh32(uint32_t a, uint32_t b) {
+  return static_cast<uint32_t>((uint64_t{a} * uint64_t{b}) >> 32);
+}
+
 // Returns [0, range). Slight bias but negligible for small ranges.
 HWY_API uint32_t LemireMod(uint32_t in, uint32_t range) {
-  const uint32_t mod =
-      static_cast<uint32_t>((uint64_t{in} * uint64_t{range}) >> 32);
+  const uint32_t mod = MulHigh32(in, range);
   HWY_DASSERT(mod < range);
   return mod;
 }
@@ -2923,7 +2926,7 @@ static HWY_INLINE constexpr T ScalarByteSwap(hwy::SizeTag<kSize> /*size_tag*/,
        << (sizeof(TN) * 8)));
 }
 
-}
+}  // namespace detail
 
 // hwy::ScalarByteSwap is equivalent to C++23 std::byteswap, except that
 // hwy::ScalarByteSwap does not have any dependencies on the <bit> header and
@@ -3240,24 +3243,68 @@ class Divisor {
   uint32_t shift2_ = 0;
 };
 
-#ifndef HWY_HAVE_DIV128  // allow override
+#ifndef HWY_HAVE_MULHIGH64  // allow override
+#if (HWY_COMPILER_MSVC >= 1920 && HWY_ARCH_X86_64) || defined(__SIZEOF_INT128__)
+#define HWY_HAVE_MULHIGH64 1
+#else
+#define HWY_HAVE_MULHIGH64 0
+#endif
+#endif  // HWY_HAVE_MULHIGH64
+
+#ifndef HWY_HAVE_DIVHIGH64  // allow override
 // Exclude clang-cl because it calls __divti3 from clang_rt.builtins-x86_64,
 // which is not linked in.
 #if (HWY_COMPILER_MSVC >= 1920 && HWY_ARCH_X86_64) || \
     (defined(__SIZEOF_INT128__) && !HWY_COMPILER_CLANGCL)
-#define HWY_HAVE_DIV128 1
+#define HWY_HAVE_DIVHIGH64 1
 #else
-#define HWY_HAVE_DIV128 0
+#define HWY_HAVE_DIVHIGH64 0
 #endif
-#endif  // HWY_HAVE_DIV128
+#endif  // HWY_HAVE_DIVHIGH64
 
-// Divisor64 can precompute the multiplicative inverse.
-#if HWY_HAVE_DIV128
+#if HWY_HAVE_MULHIGH64
+
+#if HWY_COMPILER_MSVC >= 1920 && HWY_ARCH_X86_64
+#pragma intrinsic(__umulh)
+#endif
+
+// Returns u128(a * b) >> 64.
+HWY_API uint64_t MulHigh64(uint64_t a, uint64_t b) {
+#if HWY_COMPILER_MSVC >= 1920 && HWY_ARCH_X86_64
+  return __umulh(a, b);
+#else
+  using u128 = unsigned __int128;
+  const u128 a128 = static_cast<u128>(a);
+  const u128 b128 = static_cast<u128>(b);
+  return static_cast<uint64_t>((a128 * b128) >> 64);
+#endif
+}
+
+#endif  // HWY_HAVE_MULHIGH64
+
+#if HWY_HAVE_DIVHIGH64
 
 #if HWY_COMPILER_MSVC >= 1920 && HWY_ARCH_X86_64
 #pragma intrinsic(_udiv128)
-#pragma intrinsic(__umulh)
 #endif
+
+// Returns u128(hi, 0) / div.
+HWY_API uint64_t DivHigh64(uint64_t hi, uint64_t div) {
+  HWY_DASSERT(div != 0);
+#if HWY_COMPILER_MSVC >= 1920 && HWY_ARCH_X86_64
+  unsigned __int64 remainder;  // unused
+  return _udiv128(hi, uint64_t{0}, div, &remainder);
+#else
+  using u128 = unsigned __int128;
+  const u128 hi128 = static_cast<u128>(hi) << 64;
+  return static_cast<uint64_t>(hi128 / static_cast<u128>(div));
+#endif
+}
+
+#endif  // HWY_HAVE_DIVHIGH64
+
+// Divisor64 can precompute the multiplicative inverse.
+#if HWY_HAVE_DIVHIGH64 && HWY_HAVE_MULHIGH64
 
 // As above, but for 64-bit divisors: more expensive to compute and initialize.
 class Divisor64 {
@@ -3269,7 +3316,7 @@ class Divisor64 {
     const uint64_t len =
         static_cast<uint64_t>(63 - Num0BitsAboveMS1Bit_Nonzero64(divisor - 1));
     const uint64_t u_hi = (2ULL << len) - divisor;
-    const uint64_t q = Div128(u_hi, divisor);
+    const uint64_t q = DivHigh64(u_hi, divisor);
 
     mul_ = q + 1;
     shift1_ = 1;
@@ -3280,47 +3327,22 @@ class Divisor64 {
 
   // Returns n / divisor_.
   uint64_t Divide(uint64_t n) const {
-    const uint64_t t = MulHigh(mul_, n);
+    const uint64_t t = MulHigh64(mul_, n);
     return (t + ((n - t) >> shift1_)) >> shift2_;
   }
 
   // Returns n % divisor_.
   uint64_t Remainder(uint64_t n) const { return n - (Divide(n) * divisor_); }
 
-  //  private:
-  //   uint64_t divisor_;
-
-  static uint64_t Div128(uint64_t hi, uint64_t div) {
-    HWY_DASSERT(div != 0);
-#if HWY_COMPILER_MSVC >= 1920 && HWY_ARCH_X86_64
-    unsigned __int64 remainder;  // unused
-    return _udiv128(hi, uint64_t{0}, div, &remainder);
-#else
-    using u128 = unsigned __int128;
-    const u128 hi128 = static_cast<u128>(hi) << 64;
-    return static_cast<uint64_t>(hi128 / static_cast<u128>(div));
-#endif
-  }
-
  private:
   uint64_t divisor_;
-  static uint64_t MulHigh(uint64_t a, uint64_t b) {
-#if HWY_COMPILER_MSVC >= 1920 && HWY_ARCH_X86_64
-    return __umulh(a, b);
-#else
-    using u128 = unsigned __int128;
-    const u128 a128 = static_cast<u128>(a);
-    const u128 b128 = static_cast<u128>(b);
-    return static_cast<uint64_t>((a128 * b128) >> 64);
-#endif
-  }
 
   uint64_t mul_ = 1;
   uint64_t shift1_ = 0;
   uint64_t shift2_ = 0;
 };
 #else
-// No Div128 available, use built-in 64-bit division on each call.
+// No DivHigh64 available, use built-in 64-bit division on each call.
 class Divisor64 {
  public:
   explicit Divisor64(uint64_t divisor) : divisor_(divisor) {
@@ -3335,7 +3357,7 @@ class Divisor64 {
  private:
   uint64_t divisor_;
 };
-#endif  // HWY_HAVE_DIV128
+#endif  // HWY_HAVE_DIVHIGH64 && HWY_HAVE_MULHIGH64
 
 namespace detail {
 
