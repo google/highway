@@ -250,6 +250,84 @@ void RunBenchmarkSuite(size_t num_keys) {
       hwy_batch_lb_ns, 1000.0 / hwy_batch_lb_ns, hwy_lb_ns / hwy_batch_lb_ns,
       absl_lb_ns / hwy_batch_lb_ns);
 
+  // 7. Dynamic Random Insertions
+  const size_t kNumMutations = std::min(num_keys, static_cast<size_t>(100000));
+  std::vector<KeyT> mutation_keys;
+  mutation_keys.reserve(kNumMutations);
+  for (size_t i = 0; i < kNumMutations; ++i) {
+    mutation_keys.push_back(static_cast<KeyT>(
+        absl::Uniform<uint64_t>(bitgen, 0, (num_keys + 1) * 20)));
+  }
+
+  std::set<KeyT> std_dyn_set;
+  const double mi_std_0 = hwy::platform::Now();
+  for (size_t i = 0; i < kNumMutations; ++i) {
+    std_dyn_set.insert(mutation_keys[i]);
+  }
+  const double mi_std_1 = hwy::platform::Now();
+
+  absl::btree_set<KeyT> absl_dyn_set;
+  const double mi_absl_0 = hwy::platform::Now();
+  for (size_t i = 0; i < kNumMutations; ++i) {
+    absl_dyn_set.insert(mutation_keys[i]);
+  }
+  const double mi_absl_1 = hwy::platform::Now();
+
+  BTreeSet<KeyT> hwy_dyn_set;
+  const double mi_hwy_0 = hwy::platform::Now();
+  for (size_t i = 0; i < kNumMutations; ++i) {
+    hwy_dyn_set.insert(mutation_keys[i]);
+  }
+  const double mi_hwy_1 = hwy::platform::Now();
+
+  const double std_ins_ns = (mi_std_1 - mi_std_0) * 1e9 / kNumMutations;
+  const double absl_ins_ns = (mi_absl_1 - mi_absl_0) * 1e9 / kNumMutations;
+  const double hwy_ins_ns = (mi_hwy_1 - mi_hwy_0) * 1e9 / kNumMutations;
+
+  printf("\nDynamic Insertion Latency (%zu random keys):\n", kNumMutations);
+  printf("  std::set        : %6.2f ns/op (%6.2f Mops/s)\n", std_ins_ns,
+         1000.0 / std_ins_ns);
+  printf("  absl::btree_set : %6.2f ns/op (%6.2f Mops/s)\n", absl_ins_ns,
+         1000.0 / absl_ins_ns);
+  printf(
+      "  hwy::BTreeSet   : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup vs "
+      "absl\n",
+      hwy_ins_ns, 1000.0 / hwy_ins_ns, absl_ins_ns / hwy_ins_ns);
+
+  // 8. Dynamic Random Deletions
+  const size_t kNumErases = kNumMutations / 2;
+  const double me_std_0 = hwy::platform::Now();
+  for (size_t i = 0; i < kNumErases; ++i) {
+    std_dyn_set.erase(mutation_keys[i]);
+  }
+  const double me_std_1 = hwy::platform::Now();
+
+  const double me_absl_0 = hwy::platform::Now();
+  for (size_t i = 0; i < kNumErases; ++i) {
+    absl_dyn_set.erase(mutation_keys[i]);
+  }
+  const double me_absl_1 = hwy::platform::Now();
+
+  const double me_hwy_0 = hwy::platform::Now();
+  for (size_t i = 0; i < kNumErases; ++i) {
+    hwy_dyn_set.erase(mutation_keys[i]);
+  }
+  const double me_hwy_1 = hwy::platform::Now();
+
+  const double std_erase_ns = (me_std_1 - me_std_0) * 1e9 / kNumErases;
+  const double absl_erase_ns = (me_absl_1 - me_absl_0) * 1e9 / kNumErases;
+  const double hwy_erase_ns = (me_hwy_1 - me_hwy_0) * 1e9 / kNumErases;
+
+  printf("\nDynamic Deletion Latency (%zu random keys):\n", kNumErases);
+  printf("  std::set        : %6.2f ns/op (%6.2f Mops/s)\n", std_erase_ns,
+         1000.0 / std_erase_ns);
+  printf("  absl::btree_set : %6.2f ns/op (%6.2f Mops/s)\n", absl_erase_ns,
+         1000.0 / absl_erase_ns);
+  printf(
+      "  hwy::BTreeSet   : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup vs "
+      "absl\n",
+      hwy_erase_ns, 1000.0 / hwy_erase_ns, absl_erase_ns / hwy_erase_ns);
+
   HWY_ASSERT(hwy_hits == absl_hits);
   HWY_ASSERT(batch_hits == absl_hits);
   HWY_ASSERT(hwy_lb_sum == absl_lb_sum);
@@ -456,10 +534,94 @@ void RunMapBenchmarkSuite(size_t num_keys) {
       hwy_batch_lb_ns, 1000.0 / hwy_batch_lb_ns, hwy_lb_ns / hwy_batch_lb_ns,
       absl_lb_ns / hwy_batch_lb_ns);
 
+  // 7. Dynamic Random Insertions (Map)
+  const size_t kNumMutations = std::min(num_keys, static_cast<size_t>(100000));
+  std::vector<KeyT> mut_keys;
+  std::vector<ValueT> mut_vals;
+  mut_keys.reserve(kNumMutations);
+  mut_vals.reserve(kNumMutations);
+  for (size_t i = 0; i < kNumMutations; ++i) {
+    KeyT k = static_cast<KeyT>(
+        absl::Uniform<uint64_t>(bitgen, 0, (num_keys + 1) * 20));
+    ValueT v = static_cast<ValueT>(k * 3 + 7);
+    mut_keys.push_back(k);
+    mut_vals.push_back(v);
+  }
+
+  std::map<KeyT, ValueT> std_dyn_map;
+  const double mi_std_0 = hwy::platform::Now();
+  for (size_t i = 0; i < kNumMutations; ++i) {
+    std_dyn_map[mut_keys[i]] = mut_vals[i];
+  }
+  const double mi_std_1 = hwy::platform::Now();
+
+  absl::btree_map<KeyT, ValueT> absl_dyn_map;
+  const double mi_absl_0 = hwy::platform::Now();
+  for (size_t i = 0; i < kNumMutations; ++i) {
+    absl_dyn_map[mut_keys[i]] = mut_vals[i];
+  }
+  const double mi_absl_1 = hwy::platform::Now();
+
+  BTreeMap<KeyT, ValueT> hwy_dyn_map;
+  const double mi_hwy_0 = hwy::platform::Now();
+  for (size_t i = 0; i < kNumMutations; ++i) {
+    hwy_dyn_map.insert(mut_keys[i], mut_vals[i]);
+  }
+  const double mi_hwy_1 = hwy::platform::Now();
+
+  const double std_ins_ns = (mi_std_1 - mi_std_0) * 1e9 / kNumMutations;
+  const double absl_ins_ns = (mi_absl_1 - mi_absl_0) * 1e9 / kNumMutations;
+  const double hwy_ins_ns = (mi_hwy_1 - mi_hwy_0) * 1e9 / kNumMutations;
+
+  printf("\nDynamic Insertion Latency (%zu random pairs):\n", kNumMutations);
+  printf("  std::map        : %6.2f ns/op (%6.2f Mops/s)\n", std_ins_ns,
+         1000.0 / std_ins_ns);
+  printf("  absl::btree_map : %6.2f ns/op (%6.2f Mops/s)\n", absl_ins_ns,
+         1000.0 / absl_ins_ns);
+  printf(
+      "  hwy::BTreeMap   : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup vs "
+      "absl\n",
+      hwy_ins_ns, 1000.0 / hwy_ins_ns, absl_ins_ns / hwy_ins_ns);
+
+  // 8. Dynamic Random Deletions (Map)
+  const size_t kNumErases = kNumMutations / 2;
+  const double me_std_0 = hwy::platform::Now();
+  for (size_t i = 0; i < kNumErases; ++i) {
+    std_dyn_map.erase(mut_keys[i]);
+  }
+  const double me_std_1 = hwy::platform::Now();
+
+  const double me_absl_0 = hwy::platform::Now();
+  for (size_t i = 0; i < kNumErases; ++i) {
+    absl_dyn_map.erase(mut_keys[i]);
+  }
+  const double me_absl_1 = hwy::platform::Now();
+
+  const double me_hwy_0 = hwy::platform::Now();
+  for (size_t i = 0; i < kNumErases; ++i) {
+    hwy_dyn_map.erase(mut_keys[i]);
+  }
+  const double me_hwy_1 = hwy::platform::Now();
+
+  const double std_erase_ns = (me_std_1 - me_std_0) * 1e9 / kNumErases;
+  const double absl_erase_ns = (me_absl_1 - me_absl_0) * 1e9 / kNumErases;
+  const double hwy_erase_ns = (me_hwy_1 - me_hwy_0) * 1e9 / kNumErases;
+
+  printf("\nDynamic Deletion Latency (%zu random pairs):\n", kNumErases);
+  printf("  std::map        : %6.2f ns/op (%6.2f Mops/s)\n", std_erase_ns,
+         1000.0 / std_erase_ns);
+  printf("  absl::btree_map : %6.2f ns/op (%6.2f Mops/s)\n", absl_erase_ns,
+         1000.0 / absl_erase_ns);
+  printf(
+      "  hwy::BTreeMap   : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup vs "
+      "absl\n",
+      hwy_erase_ns, 1000.0 / hwy_erase_ns, absl_erase_ns / hwy_erase_ns);
+
   HWY_ASSERT(hwy_hits == absl_hits);
   HWY_ASSERT(batch_hits == absl_hits);
   HWY_ASSERT(hwy_lb_sum == absl_lb_sum);
   HWY_ASSERT(batch_lb_sum == absl_lb_sum);
+  HWY_ASSERT(hwy_dyn_map.size() == absl_dyn_map.size());
 }
 
 HWY_NOINLINE void BenchmarkAll() {

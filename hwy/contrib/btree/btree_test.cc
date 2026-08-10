@@ -208,8 +208,7 @@ void TestRandomizedComparisonAgainstStdSet(size_t num_keys,
   HWY_ASSERT(std::equal(tree.begin(), tree.end(), reference_set.begin(),
                         reference_set.end()));
 
-  // 2. Random Query Checks (Find, Contains, LowerBound, UpperBound, Range
-  // Scans)
+  // 2. Random Query Checks (Find, Contains, LowerBound, Range Scans)
   for (size_t q = 0; q < num_queries; ++q) {
     KeyT query_key =
         static_cast<KeyT>(absl::Uniform<KeyT>(bitgen, 0, 10000050));
@@ -654,6 +653,115 @@ void TestMapBatchQueries(size_t num_keys, size_t num_queries) {
   }
 }
 
+template <typename KeyT>
+void TestSetDynamicInsertAndErase(size_t num_insertions) {
+  absl::BitGen rng;
+  std::set<KeyT> reference_set;
+  BTreeSet<KeyT> dynamic_tree;
+
+  // 1. Dynamic sequential and random insertions
+  for (size_t i = 0; i < num_insertions; ++i) {
+    KeyT key = static_cast<KeyT>(absl::Uniform<uint32_t>(rng, 0, 1000000));
+    auto [ref_it, ref_inserted] = reference_set.insert(key);
+    auto [tree_it, tree_inserted] = dynamic_tree.insert(key);
+
+    HWY_ASSERT_EQ(tree_inserted, ref_inserted);
+    HWY_ASSERT_EQ(*tree_it, key);
+    HWY_ASSERT_EQ(dynamic_tree.size(), reference_set.size());
+  }
+
+  // 2. Validate all elements match reference set
+  std::vector<KeyT> tree_elements(dynamic_tree.begin(), dynamic_tree.end());
+  std::vector<KeyT> ref_elements(reference_set.begin(), reference_set.end());
+  HWY_ASSERT_EQ(tree_elements.size(), ref_elements.size());
+  for (size_t i = 0; i < ref_elements.size(); ++i) {
+    HWY_ASSERT_EQ(tree_elements[i], ref_elements[i]);
+    HWY_ASSERT(dynamic_tree.Contains(ref_elements[i]));
+  }
+
+  // 3. Dynamic deletions
+  std::vector<KeyT> keys_to_erase = ref_elements;
+  std::shuffle(keys_to_erase.begin(), keys_to_erase.end(), rng);
+  const size_t erase_count = keys_to_erase.size() / 2;
+
+  for (size_t i = 0; i < erase_count; ++i) {
+    KeyT key = keys_to_erase[i];
+    size_t ref_erased = reference_set.erase(key);
+    size_t tree_erased = dynamic_tree.erase(key);
+    HWY_ASSERT_EQ(tree_erased, ref_erased);
+    HWY_ASSERT(!dynamic_tree.Contains(key));
+    HWY_ASSERT_EQ(dynamic_tree.size(), reference_set.size());
+  }
+
+  // 4. Verify remaining elements
+  std::vector<KeyT> remaining_tree(dynamic_tree.begin(), dynamic_tree.end());
+  std::vector<KeyT> remaining_ref(reference_set.begin(), reference_set.end());
+  HWY_ASSERT_EQ(remaining_tree.size(), remaining_ref.size());
+  for (size_t i = 0; i < remaining_ref.size(); ++i) {
+    HWY_ASSERT_EQ(remaining_tree[i], remaining_ref[i]);
+  }
+}
+
+template <typename KeyT, typename ValueT>
+void TestMapDynamicInsertAndErase(size_t num_insertions) {
+  absl::BitGen rng;
+  absl::btree_map<KeyT, ValueT> reference_map;
+  BTreeMap<KeyT, ValueT> dynamic_map;
+
+  for (size_t i = 0; i < num_insertions; ++i) {
+    KeyT key = static_cast<KeyT>(absl::Uniform<uint32_t>(rng, 0, 1000000));
+    ValueT val = static_cast<ValueT>(key * 3 + 7);
+
+    auto [ref_it, ref_inserted] = reference_map.insert({key, val});
+    auto [tree_it, tree_inserted] = dynamic_map.insert(key, val);
+
+    HWY_ASSERT_EQ(tree_inserted, ref_inserted);
+    HWY_ASSERT_EQ(tree_it->first, key);
+    HWY_ASSERT_EQ(tree_it->second, ref_it->second);
+    HWY_ASSERT_EQ(dynamic_map.size(), reference_map.size());
+  }
+
+  // Verify operator[]
+  for (const auto& [k, v] : reference_map) {
+    HWY_ASSERT(dynamic_map.Contains(k));
+    const ValueT* val_ptr = dynamic_map.FindValue(k);
+    HWY_ASSERT(val_ptr != nullptr);
+    HWY_ASSERT_EQ(*val_ptr, v);
+  }
+
+  // Test erase
+  std::vector<KeyT> keys_to_erase;
+  for (const auto& [k, v] : reference_map) keys_to_erase.push_back(k);
+  std::shuffle(keys_to_erase.begin(), keys_to_erase.end(), rng);
+  const size_t erase_count = keys_to_erase.size() / 2;
+
+  for (size_t i = 0; i < erase_count; ++i) {
+    KeyT key = keys_to_erase[i];
+    size_t ref_erased = reference_map.erase(key);
+    size_t tree_erased = dynamic_map.erase(key);
+    HWY_ASSERT_EQ(tree_erased, ref_erased);
+    HWY_ASSERT(!dynamic_map.Contains(key));
+    HWY_ASSERT_EQ(dynamic_map.size(), reference_map.size());
+  }
+}
+
+template <typename KeyT>
+void TestSlackFillRatio() {
+  std::vector<KeyT> keys = {10, 20, 30, 40, 50, 60, 70, 80, 90, 100};
+  auto tree = BTreeSet<KeyT>::Build(keys.data(), keys.size(),
+                                    /*fill_ratio=*/0.75f);
+  HWY_ASSERT_EQ(tree.size(), keys.size());
+
+  // Insert intermediate keys without split
+  tree.insert(15);
+  tree.insert(25);
+  tree.insert(35);
+  HWY_ASSERT_EQ(tree.size(), 13);
+  HWY_ASSERT(tree.Contains(15));
+  HWY_ASSERT(tree.Contains(25));
+  HWY_ASSERT(tree.Contains(35));
+}
+
 void TestAll() {
   fprintf(stderr, "Running Set 32-bit tests...\n");
   TestEmptyTree<uint32_t>();
@@ -664,6 +772,8 @@ void TestAll() {
   TestMoveSemantics<uint32_t>();
   TestRandomizedComparisonAgainstStdSet<uint32_t>(10000, 2000);
   TestBatchQueries<uint32_t>(10000, 2500);
+  TestSetDynamicInsertAndErase<uint32_t>(5000);
+  TestSlackFillRatio<uint32_t>();
 
   fprintf(stderr, "Running Set signed 32-bit tests...\n");
   TestSignedKeys<int32_t>();
@@ -679,6 +789,8 @@ void TestAll() {
   TestMoveSemantics<uint64_t>();
   TestRandomizedComparisonAgainstStdSet<uint64_t>(10000, 2000);
   TestBatchQueries<uint64_t>(10000, 2500);
+  TestSetDynamicInsertAndErase<uint64_t>(5000);
+  TestSlackFillRatio<uint64_t>();
 
   fprintf(stderr, "Running Set signed 64-bit tests...\n");
   TestSignedKeys<int64_t>();
@@ -694,6 +806,7 @@ void TestAll() {
   TestMapMoveSemantics<uint32_t, uint64_t>();
   TestMapRandomizedComparisonAgainstAbsl<uint32_t, uint64_t>(10000, 2000);
   TestMapBatchQueries<uint32_t, uint64_t>(10000, 2500);
+  TestMapDynamicInsertAndErase<uint32_t, uint64_t>(5000);
 
   fprintf(stderr, "Running Map uint64_t -> double tests...\n");
   TestMapEmpty<uint64_t, double>();
@@ -703,6 +816,7 @@ void TestAll() {
   TestMapMoveSemantics<uint64_t, double>();
   TestMapRandomizedComparisonAgainstAbsl<uint64_t, double>(10000, 2000);
   TestMapBatchQueries<uint64_t, double>(10000, 2500);
+  TestMapDynamicInsertAndErase<uint64_t, double>(5000);
   fprintf(stderr, "All tests passed!\n");
 }
 
@@ -717,7 +831,7 @@ HWY_AFTER_NAMESPACE();
 
 namespace hwy {
 HWY_BEFORE_TEST(BTreeTest);
-HWY_EXPORT_AND_TEST_BEST_P(BTreeTest, TestAll);
+HWY_EXPORT_AND_TEST_P(BTreeTest, TestAll);
 HWY_AFTER_TEST();
 }  // namespace hwy
 HWY_TEST_MAIN();
