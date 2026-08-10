@@ -66,6 +66,26 @@ T ScalarMax(const T* in, size_t count) {
   return result;
 }
 
+template <typename T>
+size_t ScalarIndexOfMin(const T* in, size_t count) {
+  if (count == 0) return count;
+  size_t best = 0;
+  for (size_t i = 1; i < count; ++i) {
+    if (in[i] < in[best]) best = i;
+  }
+  return best;
+}
+
+template <typename T>
+size_t ScalarIndexOfMax(const T* in, size_t count) {
+  if (count == 0) return count;
+  size_t best = 0;
+  for (size_t i = 1; i < count; ++i) {
+    if (in[i] > in[best]) best = i;
+  }
+  return best;
+}
+
 template <class Test>
 struct ForeachCountAndMisalign {
   template <typename T, class D>
@@ -138,6 +158,106 @@ struct TestMaxValue {
   }
 };
 
+struct TestIndexOfMin {
+  template <class D>
+  void operator()(D d, size_t count, size_t misalign, RandomState& rng) {
+    using T = TFromD<D>;
+    AlignedFreeUniquePtr<T[]> storage =
+        AllocateAligned<T>(HWY_MAX(1, misalign + count));
+    HWY_ASSERT(storage);
+    T* in = storage.get() + misalign;
+    for (size_t i = 0; i < count; ++i) {
+      in[i] = Random<T>(rng);
+    }
+
+    const size_t expected = ScalarIndexOfMin(in, count);
+    const size_t actual = IndexOfMin(d, in, count);
+
+    if (expected != actual) {
+      fprintf(stderr,
+              "%s count %d misalign %d: IndexOfMin expected %d got %d\n",
+              hwy::TypeName(T(), Lanes(d)).c_str(), static_cast<int>(count),
+              static_cast<int>(misalign), static_cast<int>(expected),
+              static_cast<int>(actual));
+      HWY_ASSERT(false);
+    }
+  }
+};
+
+struct TestIndexOfMax {
+  template <class D>
+  void operator()(D d, size_t count, size_t misalign, RandomState& rng) {
+    using T = TFromD<D>;
+    AlignedFreeUniquePtr<T[]> storage =
+        AllocateAligned<T>(HWY_MAX(1, misalign + count));
+    HWY_ASSERT(storage);
+    T* in = storage.get() + misalign;
+    for (size_t i = 0; i < count; ++i) {
+      in[i] = Random<T>(rng);
+    }
+
+    const size_t expected = ScalarIndexOfMax(in, count);
+    const size_t actual = IndexOfMax(d, in, count);
+
+    if (expected != actual) {
+      fprintf(stderr,
+              "%s count %d misalign %d: IndexOfMax expected %d got %d\n",
+              hwy::TypeName(T(), Lanes(d)).c_str(), static_cast<int>(count),
+              static_cast<int>(misalign), static_cast<int>(expected),
+              static_cast<int>(actual));
+      HWY_ASSERT(false);
+    }
+  }
+};
+
+// The random test above never reaches the block counter's limit, so this walks
+// a single extreme value through a span long enough to need several segments.
+struct TestIndexOfExtremeInLongSpan {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) const {
+    const size_t N = Lanes(d);
+    // 8-bit lanes can only count 255 blocks, so this spans more than one
+    // segment for them. Wider lanes run it as a single segment.
+    const size_t count = 300 * N;
+    AlignedFreeUniquePtr<T[]> storage = AllocateAligned<T>(count);
+    HWY_ASSERT(storage);
+    T* in = storage.get();
+
+    // A flat span means every position ties; the lowest index must win.
+    for (size_t i = 0; i < count; ++i) {
+      in[i] = ConvertScalarTo<T>(1);
+    }
+    HWY_ASSERT_EQ(size_t{0}, IndexOfMin(d, in, count));
+    HWY_ASSERT_EQ(size_t{0}, IndexOfMax(d, in, count));
+
+    // A unique extreme either side of the 8-bit segment boundary, and at both
+    // ends, so a mishandled segment base shows up as a wrong index.
+    const size_t positions[] = {N - 1, 254 * N, 255 * N, 256 * N, count - 1};
+    for (size_t pos : positions) {
+      if (pos >= count) continue;
+      in[pos] = ConvertScalarTo<T>(0);
+      HWY_ASSERT_EQ(pos, IndexOfMin(d, in, count));
+      in[pos] = ConvertScalarTo<T>(1);
+
+      in[pos] = ConvertScalarTo<T>(2);
+      HWY_ASSERT_EQ(pos, IndexOfMax(d, in, count));
+      in[pos] = ConvertScalarTo<T>(1);
+    }
+  }
+};
+
+void TestAllIndexOfMin() {
+  ForAllTypes(ForPartialVectors<ForeachCountAndMisalign<TestIndexOfMin>>());
+}
+
+void TestAllIndexOfMax() {
+  ForAllTypes(ForPartialVectors<ForeachCountAndMisalign<TestIndexOfMax>>());
+}
+
+void TestAllIndexOfExtremeInLongSpan() {
+  ForAllTypes(ForPartialVectors<TestIndexOfExtremeInLongSpan>());
+}
+
 void TestAllMinValue() {
   ForAllTypes(ForPartialVectors<ForeachCountAndMisalign<TestMinValue>>());
 }
@@ -158,6 +278,9 @@ namespace {
 HWY_BEFORE_TEST(MinMaxTest);
 HWY_EXPORT_AND_TEST_P(MinMaxTest, TestAllMinValue);
 HWY_EXPORT_AND_TEST_P(MinMaxTest, TestAllMaxValue);
+HWY_EXPORT_AND_TEST_P(MinMaxTest, TestAllIndexOfMin);
+HWY_EXPORT_AND_TEST_P(MinMaxTest, TestAllIndexOfMax);
+HWY_EXPORT_AND_TEST_P(MinMaxTest, TestAllIndexOfExtremeInLongSpan);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy
