@@ -15,9 +15,9 @@
 
 // Highway SIMD B-Tree
 //
-// Co-designs in-memory search trees for SIMD vector registers and 64-byte L1
-// cache lines. Uses branchless SIMD comparison (hn::Lt / hn::Le) + CountTrue
-// to navigate tree nodes in ~2 clock cycles without binary search loops.
+// Co-designs in-memory search trees for SIMD and CPU architecture.
+// Uses branchless SIMD comparison (hn::Lt / hn::Le) + CountTrue
+// to navigate tree nodes without scalar/binary search loops.
 
 #include <stddef.h>
 #include <stdint.h>
@@ -52,9 +52,11 @@ namespace hn = hwy::HWY_NAMESPACE;
 
 template <typename KeyT>
 struct BTreeTraits {
-  // 64 bytes per cache line / sizeof(KeyT)
-  static constexpr size_t kKeysPerNode = 64 / sizeof(KeyT);
-  static constexpr size_t kMaxChildren = kKeysPerNode + 1;
+  // 256 bytes of keys for leaf nodes (64 keys for u32, 32 keys for u64)
+  static constexpr size_t kLeafKeys = 256 / sizeof(KeyT);
+  // 64 bytes of keys for internal nodes (16 keys for u32, 8 keys for u64)
+  static constexpr size_t kInternalKeys = 64 / sizeof(KeyT);
+  static constexpr size_t kMaxChildren = kInternalKeys + 1;
 };
 
 // -----------------------------------------------------------------------------
@@ -66,9 +68,8 @@ HWY_INLINE void FillSentinel(KeyT* HWY_RESTRICT keys, size_t count) {
   std::fill_n(keys, count, std::numeric_limits<KeyT>::max());
 }
 
-template <typename KeyT>
+template <typename KeyT, size_t kTotalKeys>
 HWY_INLINE void InitKeysWithSentinel(KeyT* HWY_RESTRICT keys) {
-  constexpr size_t kTotalKeys = BTreeTraits<KeyT>::kKeysPerNode;
   const hn::CappedTag<KeyT, kTotalKeys> d;
   const size_t N = hn::Lanes(d);
   const KeyT sentinel = std::numeric_limits<KeyT>::max();
@@ -80,12 +81,12 @@ HWY_INLINE void InitKeysWithSentinel(KeyT* HWY_RESTRICT keys) {
 }
 
 // -----------------------------------------------------------------------------
-// Node Definitions (Structure-of-Arrays aligned to 64-byte cache lines)
+// Node Definitions (Structure-of-Arrays with cache-aligned key layouts)
 // -----------------------------------------------------------------------------
 
 template <typename KeyT>
 struct LeafNode {
-  static constexpr size_t kCapacity = BTreeTraits<KeyT>::kKeysPerNode;
+  static constexpr size_t kCapacity = BTreeTraits<KeyT>::kLeafKeys;
 
   KeyT keys[kCapacity];
   LeafNode* next = nullptr;
@@ -93,12 +94,12 @@ struct LeafNode {
   uint16_t num_keys = 0;
   uint16_t level = 0;  // Level 0 for leaves
 
-  LeafNode() { InitKeysWithSentinel(keys); }
+  LeafNode() { InitKeysWithSentinel<KeyT, kCapacity>(keys); }
 };
 
 template <typename KeyT>
 struct InternalNode {
-  static constexpr size_t kCapacity = BTreeTraits<KeyT>::kKeysPerNode;
+  static constexpr size_t kCapacity = BTreeTraits<KeyT>::kInternalKeys;
   static constexpr size_t kMaxChildren = BTreeTraits<KeyT>::kMaxChildren;
 
   KeyT keys[kCapacity];
@@ -106,7 +107,7 @@ struct InternalNode {
   uint16_t num_keys = 0;
   uint16_t level = 1;  // level >= 1 for internal nodes
 
-  InternalNode() { InitKeysWithSentinel(keys); }
+  InternalNode() { InitKeysWithSentinel<KeyT, kCapacity>(keys); }
 };
 
 // -----------------------------------------------------------------------------
@@ -194,7 +195,7 @@ class NodePool {
 template <typename KeyT>
 HWY_INLINE size_t FindChild(const InternalNode<KeyT>* HWY_RESTRICT node,
                             KeyT target) {
-  constexpr size_t kTotalKeys = BTreeTraits<KeyT>::kKeysPerNode;
+  constexpr size_t kTotalKeys = BTreeTraits<KeyT>::kInternalKeys;
   const hn::CappedTag<KeyT, kTotalKeys> d;
   const size_t N = hn::Lanes(d);
   const auto v_target = hn::Set(d, target);
@@ -213,16 +214,23 @@ HWY_INLINE size_t FindChild(const InternalNode<KeyT>* HWY_RESTRICT node,
 template <typename KeyT>
 HWY_INLINE size_t FindLeafSlot(const LeafNode<KeyT>* HWY_RESTRICT leaf,
                                KeyT target) {
-  constexpr size_t kTotalKeys = BTreeTraits<KeyT>::kKeysPerNode;
+  constexpr size_t kTotalKeys = BTreeTraits<KeyT>::kLeafKeys;
   const hn::CappedTag<KeyT, kTotalKeys> d;
   const size_t N = hn::Lanes(d);
   const auto v_target = hn::Set(d, target);
 
   size_t count = 0;
-  for (size_t i = 0; i < kTotalKeys; i += N) {
-    const auto v_keys = hn::LoadU(d, leaf->keys + i);
-    const auto mask = hn::Lt(v_keys, v_target);
-    count += hn::CountTrue(d, mask);
+  for (size_t i = 0; i < kTotalKeys; i += 4 * N) {
+    const auto v_keys0 = hn::LoadU(d, leaf->keys + i);
+    const auto v_keys1 = hn::LoadU(d, leaf->keys + i + N);
+    const auto v_keys2 = hn::LoadU(d, leaf->keys + i + 2 * N);
+    const auto v_keys3 = hn::LoadU(d, leaf->keys + i + 3 * N);
+    const auto mask0 = hn::Lt(v_keys0, v_target);
+    const auto mask1 = hn::Lt(v_keys1, v_target);
+    const auto mask2 = hn::Lt(v_keys2, v_target);
+    const auto mask3 = hn::Lt(v_keys3, v_target);
+    count += hn::CountTrue(d, mask0) + hn::CountTrue(d, mask1) +
+             hn::CountTrue(d, mask2) + hn::CountTrue(d, mask3);
   }
   return count;
 }
@@ -408,9 +416,9 @@ class BTreeSet {
     }
 
     // Step 1: Build leaf level in pool
-    const size_t keys_per_leaf = std::clamp<size_t>(
-        static_cast<size_t>(Traits::kKeysPerNode * fill_ratio), 2,
-        Traits::kKeysPerNode);
+    const size_t keys_per_leaf =
+        std::clamp<size_t>(static_cast<size_t>(Traits::kLeafKeys * fill_ratio),
+                           2, Traits::kLeafKeys);
     const size_t num_leaves = (num_keys + keys_per_leaf - 1) / keys_per_leaf;
 
     std::vector<void*> current_level_ptrs;
@@ -904,7 +912,7 @@ class BTreeSet {
       auto* parent = path[lvl];
       size_t c_idx = child_indices[lvl];
 
-      if (parent->num_keys < Traits::kKeysPerNode) {
+      if (parent->num_keys < Traits::kInternalKeys) {
         for (size_t i = parent->num_keys; i > c_idx; --i) {
           parent->keys[i] = parent->keys[i - 1];
           parent->children[i + 1] = parent->children[i];
@@ -919,7 +927,7 @@ class BTreeSet {
       InternalNode<KeyT>* new_internal = internal_pool_.Allocate();
       new_internal->level = parent->level;
 
-      constexpr size_t kTotalK = Traits::kKeysPerNode + 1;
+      constexpr size_t kTotalK = Traits::kInternalKeys + 1;
       KeyT temp_keys[kTotalK];
       void* temp_children[kTotalK + 1];
 
@@ -942,7 +950,7 @@ class BTreeSet {
       std::copy_n(temp_keys, kMid, parent->keys);
       std::copy_n(temp_children, kMid + 1, parent->children);
       parent->num_keys = static_cast<uint16_t>(kMid);
-      FillSentinel(parent->keys + kMid, Traits::kKeysPerNode - kMid);
+      FillSentinel(parent->keys + kMid, Traits::kInternalKeys - kMid);
 
       const size_t right_k = kTotalK - kMid - 1;
       std::copy_n(temp_keys + kMid + 1, right_k, new_internal->keys);
@@ -1023,12 +1031,12 @@ class BTreeSet {
 };
 
 // -----------------------------------------------------------------------------
-// Map Node Definitions (Structure-of-Arrays aligned to 64-byte cache lines)
+// Map Node Definitions (Structure-of-Arrays with cache-aligned key layouts)
 // -----------------------------------------------------------------------------
 
 template <typename KeyT, typename ValueT>
 struct MapLeafNode {
-  static constexpr size_t kCapacity = BTreeTraits<KeyT>::kKeysPerNode;
+  static constexpr size_t kCapacity = BTreeTraits<KeyT>::kLeafKeys;
 
   KeyT keys[kCapacity];
   ValueT values[kCapacity];
@@ -1037,7 +1045,7 @@ struct MapLeafNode {
   uint16_t num_keys = 0;
   uint16_t level = 0;  // Level 0 for leaves
 
-  MapLeafNode() { InitKeysWithSentinel(keys); }
+  MapLeafNode() { InitKeysWithSentinel<KeyT, kCapacity>(keys); }
 };
 
 // Searches map leaf node. Returns index of first key >= target by counting the
@@ -1045,16 +1053,23 @@ struct MapLeafNode {
 template <typename KeyT, typename ValueT>
 HWY_INLINE size_t
 FindLeafSlot(const MapLeafNode<KeyT, ValueT>* HWY_RESTRICT leaf, KeyT target) {
-  constexpr size_t kTotalKeys = BTreeTraits<KeyT>::kKeysPerNode;
+  constexpr size_t kTotalKeys = BTreeTraits<KeyT>::kLeafKeys;
   const hn::CappedTag<KeyT, kTotalKeys> d;
   const size_t N = hn::Lanes(d);
   const auto v_target = hn::Set(d, target);
 
   size_t count = 0;
-  for (size_t i = 0; i < kTotalKeys; i += N) {
-    const auto v_keys = hn::LoadU(d, leaf->keys + i);
-    const auto mask = hn::Lt(v_keys, v_target);
-    count += hn::CountTrue(d, mask);
+  for (size_t i = 0; i < kTotalKeys; i += 4 * N) {
+    const auto v_keys0 = hn::LoadU(d, leaf->keys + i);
+    const auto v_keys1 = hn::LoadU(d, leaf->keys + i + N);
+    const auto v_keys2 = hn::LoadU(d, leaf->keys + i + 2 * N);
+    const auto v_keys3 = hn::LoadU(d, leaf->keys + i + 3 * N);
+    const auto mask0 = hn::Lt(v_keys0, v_target);
+    const auto mask1 = hn::Lt(v_keys1, v_target);
+    const auto mask2 = hn::Lt(v_keys2, v_target);
+    const auto mask3 = hn::Lt(v_keys3, v_target);
+    count += hn::CountTrue(d, mask0) + hn::CountTrue(d, mask1) +
+             hn::CountTrue(d, mask2) + hn::CountTrue(d, mask3);
   }
   return count;
 }
@@ -1257,9 +1272,9 @@ class BTreeMap {
     }
 
     // Step 1: Build leaf level in pool
-    const size_t keys_per_leaf = std::clamp<size_t>(
-        static_cast<size_t>(Traits::kKeysPerNode * fill_ratio), 2,
-        Traits::kKeysPerNode);
+    const size_t keys_per_leaf =
+        std::clamp<size_t>(static_cast<size_t>(Traits::kLeafKeys * fill_ratio),
+                           2, Traits::kLeafKeys);
     const size_t num_leaves = (num_keys + keys_per_leaf - 1) / keys_per_leaf;
 
     std::vector<void*> current_level_ptrs;
@@ -1752,7 +1767,7 @@ class BTreeMap {
       auto* parent = path[lvl];
       size_t c_idx = child_indices[lvl];
 
-      if (parent->num_keys < Traits::kKeysPerNode) {
+      if (parent->num_keys < Traits::kInternalKeys) {
         for (size_t i = parent->num_keys; i > c_idx; --i) {
           parent->keys[i] = parent->keys[i - 1];
           parent->children[i + 1] = parent->children[i];
@@ -1767,7 +1782,7 @@ class BTreeMap {
       InternalNode<KeyT>* new_internal = internal_pool_.Allocate();
       new_internal->level = parent->level;
 
-      constexpr size_t kTotalK = Traits::kKeysPerNode + 1;
+      constexpr size_t kTotalK = Traits::kInternalKeys + 1;
       KeyT temp_keys[kTotalK];
       void* temp_children[kTotalK + 1];
 
@@ -1790,7 +1805,7 @@ class BTreeMap {
       std::copy_n(temp_keys, kMid, parent->keys);
       std::copy_n(temp_children, kMid + 1, parent->children);
       parent->num_keys = static_cast<uint16_t>(kMid);
-      FillSentinel(parent->keys + kMid, Traits::kKeysPerNode - kMid);
+      FillSentinel(parent->keys + kMid, Traits::kInternalKeys - kMid);
 
       const size_t right_k = kTotalK - kMid - 1;
       std::copy_n(temp_keys + kMid + 1, right_k, new_internal->keys);
