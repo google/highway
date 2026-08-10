@@ -1067,6 +1067,72 @@ void TestMapCopySemantics() {
   }
 }
 
+template <typename KeyT, typename ValueT>
+void TestMapModifiersAndAccessors() {
+  BTreeMap<KeyT, ValueT> map;
+
+  // 1. try_emplace on empty map
+  auto res1 = map.try_emplace(10, static_cast<ValueT>(100));
+  HWY_ASSERT(res1.second);
+  HWY_ASSERT_EQ(res1.first->first, 10);
+  HWY_ASSERT_EQ(res1.first->second, static_cast<ValueT>(100));
+  HWY_ASSERT_EQ(map.size(), size_t{1});
+  HWY_ASSERT_EQ(map.at(10), static_cast<ValueT>(100));
+
+  // try_emplace on existing key does not overwrite
+  auto res2 = map.try_emplace(10, static_cast<ValueT>(999));
+  HWY_ASSERT(!res2.second);
+  HWY_ASSERT_EQ(res2.first->first, 10);
+  HWY_ASSERT_EQ(res2.first->second, static_cast<ValueT>(100));
+  HWY_ASSERT_EQ(map.size(), size_t{1});
+  HWY_ASSERT_EQ(map.at(10), static_cast<ValueT>(100));
+
+  // 2. insert_or_assign on new key inserts
+  auto res3 = map.insert_or_assign(20, static_cast<ValueT>(200));
+  HWY_ASSERT(res3.second);
+  HWY_ASSERT_EQ(res3.first->first, 20);
+  HWY_ASSERT_EQ(res3.first->second, static_cast<ValueT>(200));
+  HWY_ASSERT_EQ(map.size(), size_t{2});
+
+  // insert_or_assign on existing key overwrites in place
+  auto res4 = map.insert_or_assign(20, static_cast<ValueT>(250));
+  HWY_ASSERT(!res4.second);
+  HWY_ASSERT_EQ(res4.first->first, 20);
+  HWY_ASSERT_EQ(res4.first->second, static_cast<ValueT>(250));
+  HWY_ASSERT_EQ(map.size(), size_t{2});
+  HWY_ASSERT_EQ(map.at(20), static_cast<ValueT>(250));
+
+  // 3. at() mutable reference
+  map.at(20) = static_cast<ValueT>(300);
+  HWY_ASSERT_EQ(map.at(20), static_cast<ValueT>(300));
+  const auto& const_map = map;
+  HWY_ASSERT_EQ(const_map.at(20), static_cast<ValueT>(300));
+
+  // 4. operator[] read/write
+  map[30] = static_cast<ValueT>(400);
+  HWY_ASSERT_EQ(map.size(), size_t{3});
+  HWY_ASSERT_EQ(map.at(30), static_cast<ValueT>(400));
+  map[30] = static_cast<ValueT>(500);
+  HWY_ASSERT_EQ(map.size(), size_t{3});
+  HWY_ASSERT_EQ(map.at(30), static_cast<ValueT>(500));
+
+  // 5. emplace on Set & Map
+  BTreeSet<KeyT> set;
+  auto set_res1 = set.emplace(10);
+  HWY_ASSERT(set_res1.second);
+  HWY_ASSERT_EQ(*set_res1.first, 10);
+  auto set_res2 = set.emplace(10);
+  HWY_ASSERT(!set_res2.second);
+  HWY_ASSERT_EQ(set.size(), size_t{1});
+
+  auto map_emp1 = map.emplace(40, static_cast<ValueT>(600));
+  HWY_ASSERT(map_emp1.second);
+  HWY_ASSERT_EQ(map_emp1.first->second, static_cast<ValueT>(600));
+  auto map_emp2 = map.emplace(40, static_cast<ValueT>(999));
+  HWY_ASSERT(!map_emp2.second);
+  HWY_ASSERT_EQ(map_emp2.first->second, static_cast<ValueT>(600));
+}
+
 void TestAll() {
   fprintf(stderr, "Running Set 32-bit tests...\n");
   TestEmptyTree<uint32_t>();
@@ -1122,6 +1188,7 @@ void TestAll() {
   TestMapBatchQueries<uint32_t, uint64_t>(10000, 2500);
   TestMapDynamicInsertAndErase<uint32_t, uint64_t>(5000);
   TestMapSTLInterfaceAndReverseIterators<uint32_t, uint64_t>();
+  TestMapModifiersAndAccessors<uint32_t, uint64_t>();
 
   fprintf(stderr, "Running Map uint64_t -> double tests...\n");
   TestMapEmpty<uint64_t, double>();
@@ -1134,6 +1201,7 @@ void TestAll() {
   TestMapBatchQueries<uint64_t, double>(10000, 2500);
   TestMapDynamicInsertAndErase<uint64_t, double>(5000);
   TestMapSTLInterfaceAndReverseIterators<uint64_t, double>();
+  TestMapModifiersAndAccessors<uint64_t, double>();
   fprintf(stderr, "All tests passed!\n");
 }
 

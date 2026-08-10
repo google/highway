@@ -964,6 +964,11 @@ class BTreeSet {
     return {find(key), true};
   }
 
+  template <typename... Args>
+  std::pair<const_iterator, bool> emplace(Args&&... args) {
+    return insert(KeyT(std::forward<Args>(args)...));
+  }
+
   // Dynamic Deletion
   size_t erase(KeyT key) {
     if (root_ == nullptr || num_elements_ == 0) return 0;
@@ -1809,6 +1814,42 @@ class BTreeMap {
 
   std::pair<const_iterator, bool> insert(const std::pair<KeyT, ValueT>& p) {
     return insert(p.first, p.second);
+  }
+
+  template <typename... Args>
+  std::pair<const_iterator, bool> emplace(KeyT key, Args&&... args) {
+    return try_emplace(key, std::forward<Args>(args)...);
+  }
+
+  template <typename... Args>
+  std::pair<const_iterator, bool> try_emplace(KeyT key, Args&&... args) {
+    auto it = find(key);
+    if (it != end()) {
+      return {it, false};
+    }
+    return insert(key, ValueT(std::forward<Args>(args)...));
+  }
+
+  template <typename M>
+  std::pair<const_iterator, bool> insert_or_assign(KeyT key, M&& obj) {
+    auto res = insert(key, std::forward<M>(obj));
+    if (!res.second) {
+      auto* leaf = const_cast<MapLeafNode<KeyT, ValueT>*>(res.first.leaf());
+      leaf->values[res.first.slot()] = std::forward<M>(obj);
+    }
+    return res;
+  }
+
+  const ValueT& at(KeyT key) const {
+    const ValueT* val = FindValue(key);
+    HWY_ASSERT(val != nullptr);
+    return *val;
+  }
+
+  ValueT& at(KeyT key) {
+    ValueT* val = FindValue(key);
+    HWY_ASSERT(val != nullptr);
+    return *val;
   }
 
   ValueT& operator[](KeyT key) {
