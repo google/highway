@@ -84,15 +84,17 @@ HWY_INLINE void InitKeysWithSentinel(KeyT* HWY_RESTRICT keys) {
 // Node Definitions (Structure-of-Arrays with cache-aligned key layouts)
 // -----------------------------------------------------------------------------
 
+static constexpr uint32_t kNullNode = 0xFFFFFFFF;
+
 template <typename KeyT>
 struct LeafNode {
   static constexpr size_t kCapacity = BTreeTraits<KeyT>::kLeafKeys;
 
   KeyT keys[kCapacity];
-  LeafNode* next = nullptr;
-  LeafNode* prev = nullptr;
-  uint16_t num_keys = 0;
-  uint16_t level = 0;  // Level 0 for leaves
+  uint32_t next_id = kNullNode;
+  uint32_t prev_id = kNullNode;
+  uint8_t num_keys = 0;
+  uint8_t padding[3] = {};
 
   LeafNode() { InitKeysWithSentinel<KeyT, kCapacity>(keys); }
 };
@@ -104,8 +106,9 @@ struct InternalNode {
 
   KeyT keys[kCapacity];
   void* children[kMaxChildren] = {};  // Zero-initialized to nullptr
-  uint16_t num_keys = 0;
-  uint16_t level = 1;  // level >= 1 for internal nodes
+  uint32_t next_id = kNullNode;       // For free-list chaining in NodePool
+  uint8_t num_keys = 0;
+  uint8_t padding[3] = {};
 
   InternalNode() { InitKeysWithSentinel<KeyT, kCapacity>(keys); }
 };
@@ -127,7 +130,7 @@ class NodePool {
       : chunks_(std::move(other.chunks_)),
         free_list_(other.free_list_),
         next_in_chunk_(other.next_in_chunk_) {
-    other.free_list_ = nullptr;
+    other.free_list_ = kNullNode;
     other.next_in_chunk_ = 0;
   }
 
@@ -136,7 +139,7 @@ class NodePool {
       chunks_ = std::move(other.chunks_);
       free_list_ = other.free_list_;
       next_in_chunk_ = other.next_in_chunk_;
-      other.free_list_ = nullptr;
+      other.free_list_ = kNullNode;
       other.next_in_chunk_ = 0;
     }
     return *this;
@@ -145,31 +148,53 @@ class NodePool {
   NodePool(const NodePool&) = delete;
   NodePool& operator=(const NodePool&) = delete;
 
-  NodeT* Allocate() {
-    if (free_list_ != nullptr) {
-      NodeT* node = free_list_;
-      NodeT* next_free = nullptr;
-      memcpy(&next_free, free_list_, sizeof(NodeT*));
-      free_list_ = next_free;
+  NodeT* GetNode(uint32_t id) const {
+    if (id == kNullNode) return nullptr;
+    const size_t chunk_idx = id / kNodesPerChunk;
+    const size_t slot_idx = id % kNodesPerChunk;
+    return const_cast<NodeT*>(&chunks_[chunk_idx]->nodes[slot_idx]);
+  }
+
+  uint32_t GetId(const NodeT* node) const {
+    if (node == nullptr) return kNullNode;
+    for (size_t c = 0; c < chunks_.size(); ++c) {
+      const NodeT* start = &chunks_[c]->nodes[0];
+      const NodeT* end = start + kNodesPerChunk;
+      if (node >= start && node < end) {
+        return static_cast<uint32_t>(c * kNodesPerChunk + (node - start));
+      }
+    }
+    return kNullNode;
+  }
+
+  NodeT* Allocate(uint32_t* out_id = nullptr) {
+    if (free_list_ != kNullNode) {
+      const uint32_t id = free_list_;
+      NodeT* node = GetNode(id);
+      free_list_ = node->next_id;
+      if (out_id != nullptr) *out_id = id;
       return new (node) NodeT();
     }
     if (chunks_.empty() || next_in_chunk_ == kNodesPerChunk) {
       chunks_.push_back(std::make_unique<Chunk>());
       next_in_chunk_ = 0;
     }
+    const uint32_t id = static_cast<uint32_t>(
+        (chunks_.size() - 1) * kNodesPerChunk + next_in_chunk_);
+    if (out_id != nullptr) *out_id = id;
     return new (&chunks_.back()->nodes[next_in_chunk_++]) NodeT();
   }
 
-  void Deallocate(NodeT* node) {
-    if (node == nullptr) return;
+  void Deallocate(NodeT* node, uint32_t id) {
+    if (node == nullptr || id == kNullNode) return;
     node->~NodeT();
-    memcpy(node, &free_list_, sizeof(NodeT*));
-    free_list_ = node;
+    node->next_id = free_list_;
+    free_list_ = id;
   }
 
   void Clear() {
     chunks_.clear();
-    free_list_ = nullptr;
+    free_list_ = kNullNode;
     next_in_chunk_ = 0;
   }
 
@@ -180,7 +205,7 @@ class NodePool {
     NodeT nodes[kNodesPerChunk];
   };
   std::vector<std::unique_ptr<Chunk>> chunks_;
-  NodeT* free_list_ = nullptr;
+  uint32_t free_list_ = kNullNode;
   size_t next_in_chunk_ = 0;
 };
 
@@ -262,9 +287,10 @@ class BTreeSet {
     using reference = const KeyT&;
 
     const_iterator() = default;
-    const_iterator(const LeafNode<KeyT>* leaf, size_t slot,
+    const_iterator(const NodePool<LeafNode<KeyT>>* pool,
+                   const LeafNode<KeyT>* leaf, size_t slot,
                    const LeafNode<KeyT>* last_leaf = nullptr)
-        : leaf_(leaf), slot_(slot), last_leaf_(last_leaf) {}
+        : pool_(pool), leaf_(leaf), slot_(slot), last_leaf_(last_leaf) {}
 
     reference operator*() const { return leaf_->keys[slot_]; }
     pointer operator->() const { return &leaf_->keys[slot_]; }
@@ -274,7 +300,7 @@ class BTreeSet {
       ++slot_;
       while (leaf_ != nullptr && slot_ >= leaf_->num_keys) {
         last_leaf_ = leaf_;
-        leaf_ = leaf_->next;
+        leaf_ = (pool_ != nullptr) ? pool_->GetNode(leaf_->next_id) : nullptr;
         slot_ = 0;
       }
       return *this;
@@ -287,10 +313,11 @@ class BTreeSet {
     }
 
     const_iterator& operator--() {
+      if (pool_ == nullptr) return *this;
       if (leaf_ == nullptr) {
         const auto* curr = last_leaf_;
         while (curr != nullptr && curr->num_keys == 0) {
-          curr = curr->prev;
+          curr = pool_->GetNode(curr->prev_id);
         }
         if (curr != nullptr && curr->num_keys > 0) {
           leaf_ = curr;
@@ -299,9 +326,9 @@ class BTreeSet {
         return *this;
       }
       if (slot_ == 0) {
-        const auto* curr = leaf_->prev;
+        const auto* curr = pool_->GetNode(leaf_->prev_id);
         while (curr != nullptr && curr->num_keys == 0) {
-          curr = curr->prev;
+          curr = pool_->GetNode(curr->prev_id);
         }
         if (curr != nullptr) {
           leaf_ = curr;
@@ -332,6 +359,7 @@ class BTreeSet {
     size_t slot() const { return slot_; }
 
    private:
+    const NodePool<LeafNode<KeyT>>* pool_ = nullptr;
     const LeafNode<KeyT>* leaf_ = nullptr;
     size_t slot_ = 0;
     const LeafNode<KeyT>* last_leaf_ = nullptr;
@@ -429,16 +457,18 @@ class BTreeSet {
     }
 
     LeafNode<KeyT>* prev_leaf = nullptr;
+    uint32_t prev_leaf_id = kNullNode;
     for (size_t i = 0; i < num_leaves; ++i) {
-      LeafNode<KeyT>* leaf = tree.leaf_pool_.Allocate();
+      uint32_t leaf_id = 0;
+      LeafNode<KeyT>* leaf = tree.leaf_pool_.Allocate(&leaf_id);
       const size_t start_idx = i * keys_per_leaf;
       const size_t count = std::min(keys_per_leaf, num_keys - start_idx);
       std::copy_n(sorted_keys + start_idx, count, leaf->keys);
-      leaf->num_keys = static_cast<uint16_t>(count);
+      leaf->num_keys = static_cast<uint8_t>(count);
 
       if (prev_leaf != nullptr) {
-        prev_leaf->next = leaf;
-        leaf->prev = prev_leaf;
+        prev_leaf->next_id = leaf_id;
+        leaf->prev_id = prev_leaf_id;
         // Separator key for parent navigation
         delimiters.push_back(leaf->keys[0]);
       } else {
@@ -447,6 +477,7 @@ class BTreeSet {
 
       current_level_ptrs.push_back(leaf);
       prev_leaf = leaf;
+      prev_leaf_id = leaf_id;
     }
     tree.last_leaf_ = prev_leaf;
 
@@ -475,7 +506,6 @@ class BTreeSet {
 
       for (size_t i = 0; i < num_internals; ++i) {
         InternalNode<KeyT>* internal = tree.internal_pool_.Allocate();
-        internal->level = current_level;
 
         const size_t child_start = i * max_children;
         const size_t child_count =
@@ -487,7 +517,7 @@ class BTreeSet {
 
         // Fill keys from delimiters
         const size_t key_count = child_count - 1;
-        internal->num_keys = static_cast<uint16_t>(key_count);
+        internal->num_keys = static_cast<uint8_t>(key_count);
         for (size_t k = 0; k < key_count; ++k) {
           internal->keys[k] = delimiters[child_start + k];
         }
@@ -515,12 +545,14 @@ class BTreeSet {
     if (num_elements_ == 0 || first_leaf_ == nullptr) return end();
     const auto* curr = first_leaf_;
     while (curr != nullptr && curr->num_keys == 0) {
-      curr = curr->next;
+      curr = leaf_pool_.GetNode(curr->next_id);
     }
     if (curr == nullptr) return end();
-    return const_iterator(curr, 0, last_leaf_);
+    return const_iterator(&leaf_pool_, curr, 0, last_leaf_);
   }
-  const_iterator end() const { return const_iterator(nullptr, 0, last_leaf_); }
+  const_iterator end() const {
+    return const_iterator(&leaf_pool_, nullptr, 0, last_leaf_);
+  }
   const_iterator cbegin() const { return begin(); }
   const_iterator cend() const { return end(); }
 
@@ -538,8 +570,6 @@ class BTreeSet {
     if (num_elements_ == 0) return false;
     const LeafNode<KeyT>* leaf = NavigateToLeaf(target);
     const size_t slot = FindLeafSlot(leaf, target);
-    // could have made a helper function using hn::Eq() but latency should be
-    // the same as FindLeadSlot, so lets just reuse
     return slot < leaf->num_keys && leaf->keys[slot] == target;
   }
 
@@ -551,7 +581,7 @@ class BTreeSet {
     const LeafNode<KeyT>* leaf = NavigateToLeaf(target);
     const size_t slot = FindLeafSlot(leaf, target);
     if (slot < leaf->num_keys && leaf->keys[slot] == target) {
-      return const_iterator(leaf, slot, last_leaf_);
+      return const_iterator(&leaf_pool_, leaf, slot, last_leaf_);
     }
     return end();
   }
@@ -563,10 +593,11 @@ class BTreeSet {
     const size_t slot = FindLeafSlot(leaf, target);
 
     const bool inside = (slot < leaf->num_keys);
-    const LeafNode<KeyT>* res_leaf = inside ? leaf : leaf->next;
+    const LeafNode<KeyT>* res_leaf =
+        inside ? leaf : leaf_pool_.GetNode(leaf->next_id);
     const size_t res_slot = inside ? slot : 0;
 
-    return const_iterator(res_leaf, res_slot, last_leaf_);
+    return const_iterator(&leaf_pool_, res_leaf, res_slot, last_leaf_);
   }
 
   // Returns iterator to first key > target.
@@ -666,11 +697,13 @@ class BTreeSet {
         const size_t slot = FindLeafSlot(leaves[k], queries[i + k]);
         if (slot < leaves[k]->num_keys) {
           out_ptrs[i + k] = &leaves[k]->keys[slot];
-        } else if (leaves[k]->next != nullptr &&
-                   leaves[k]->next->num_keys > 0) {
-          out_ptrs[i + k] = &leaves[k]->next->keys[0];
         } else {
-          out_ptrs[i + k] = nullptr;
+          const auto* next_leaf = leaf_pool_.GetNode(leaves[k]->next_id);
+          if (next_leaf != nullptr && next_leaf->num_keys > 0) {
+            out_ptrs[i + k] = &next_leaf->keys[0];
+          } else {
+            out_ptrs[i + k] = nullptr;
+          }
         }
       }
     }
@@ -697,9 +730,11 @@ class BTreeSet {
       for (size_t k = 0; k < kBatch; ++k) {
         const size_t slot = FindLeafSlot(leaves[k], queries[i + k]);
         const bool inside = (slot < leaves[k]->num_keys);
-        const LeafNode<KeyT>* res_leaf = inside ? leaves[k] : leaves[k]->next;
+        const LeafNode<KeyT>* res_leaf =
+            inside ? leaves[k] : leaf_pool_.GetNode(leaves[k]->next_id);
         const size_t res_slot = inside ? slot : 0;
-        out_iters[i + k] = const_iterator(res_leaf, res_slot, last_leaf_);
+        out_iters[i + k] =
+            const_iterator(&leaf_pool_, res_leaf, res_slot, last_leaf_);
       }
     }
 
@@ -773,20 +808,21 @@ class BTreeSet {
   // Dynamic Insertion
   std::pair<const_iterator, bool> insert(KeyT key) {
     if (root_ == nullptr) {
-      first_leaf_ = last_leaf_ = leaf_pool_.Allocate();
+      uint32_t leaf_id = 0;
+      first_leaf_ = last_leaf_ = leaf_pool_.Allocate(&leaf_id);
       first_leaf_->keys[0] = key;
       first_leaf_->num_keys = 1;
       root_ = first_leaf_;
       tree_height_ = 0;
       num_elements_ = 1;
-      return {const_iterator(first_leaf_, 0, last_leaf_), true};
+      return {const_iterator(&leaf_pool_, first_leaf_, 0, last_leaf_), true};
     }
 
     if (tree_height_ == 0) {
       auto* leaf = static_cast<LeafNode<KeyT>*>(root_);
       size_t slot = FindLeafSlot(leaf, key);
       if (slot < leaf->num_keys && leaf->keys[slot] == key) {
-        return {const_iterator(leaf, slot, last_leaf_), false};
+        return {const_iterator(&leaf_pool_, leaf, slot, last_leaf_), false};
       }
       if (leaf->num_keys < LeafNode<KeyT>::kCapacity) {
         for (size_t i = leaf->num_keys; i > slot; --i) {
@@ -795,22 +831,26 @@ class BTreeSet {
         leaf->keys[slot] = key;
         leaf->num_keys++;
         num_elements_++;
-        return {const_iterator(leaf, slot, last_leaf_), true};
+        return {const_iterator(&leaf_pool_, leaf, slot, last_leaf_), true};
       }
 
       // Root leaf split
-      LeafNode<KeyT>* new_leaf = leaf_pool_.Allocate();
+      uint32_t new_leaf_id = 0;
+      LeafNode<KeyT>* new_leaf = leaf_pool_.Allocate(&new_leaf_id);
+      const uint32_t leaf_id = leaf_pool_.GetId(leaf);
       constexpr size_t kSplit = LeafNode<KeyT>::kCapacity / 2;
       const size_t right_count = leaf->num_keys - kSplit;
       std::copy_n(leaf->keys + kSplit, right_count, new_leaf->keys);
-      new_leaf->num_keys = static_cast<uint16_t>(right_count);
-      leaf->num_keys = static_cast<uint16_t>(kSplit);
+      new_leaf->num_keys = static_cast<uint8_t>(right_count);
+      leaf->num_keys = static_cast<uint8_t>(kSplit);
       FillSentinel(leaf->keys + kSplit, LeafNode<KeyT>::kCapacity - kSplit);
 
-      new_leaf->next = leaf->next;
-      new_leaf->prev = leaf;
-      if (leaf->next != nullptr) leaf->next->prev = new_leaf;
-      leaf->next = new_leaf;
+      new_leaf->next_id = leaf->next_id;
+      new_leaf->prev_id = leaf_id;
+      if (leaf->next_id != kNullNode) {
+        leaf_pool_.GetNode(leaf->next_id)->prev_id = new_leaf_id;
+      }
+      leaf->next_id = new_leaf_id;
       last_leaf_ = new_leaf;
 
       if (key >= new_leaf->keys[0]) {
@@ -830,7 +870,6 @@ class BTreeSet {
       }
 
       InternalNode<KeyT>* new_root = internal_pool_.Allocate();
-      new_root->level = 1;
       new_root->keys[0] = new_leaf->keys[0];
       new_root->children[0] = leaf;
       new_root->children[1] = new_leaf;
@@ -856,7 +895,7 @@ class BTreeSet {
     auto* leaf = static_cast<LeafNode<KeyT>*>(curr);
     size_t slot = FindLeafSlot(leaf, key);
     if (slot < leaf->num_keys && leaf->keys[slot] == key) {
-      return {const_iterator(leaf, slot, last_leaf_), false};
+      return {const_iterator(&leaf_pool_, leaf, slot, last_leaf_), false};
     }
 
     if (leaf->num_keys < LeafNode<KeyT>::kCapacity) {
@@ -866,26 +905,28 @@ class BTreeSet {
       leaf->keys[slot] = key;
       leaf->num_keys++;
       num_elements_++;
-      return {const_iterator(leaf, slot, last_leaf_), true};
+      return {const_iterator(&leaf_pool_, leaf, slot, last_leaf_), true};
     }
 
     // Leaf is full -> Split leaf
-    LeafNode<KeyT>* new_leaf = leaf_pool_.Allocate();
+    uint32_t new_leaf_id = 0;
+    LeafNode<KeyT>* new_leaf = leaf_pool_.Allocate(&new_leaf_id);
+    const uint32_t leaf_id = leaf_pool_.GetId(leaf);
     constexpr size_t kSplit = LeafNode<KeyT>::kCapacity / 2;
     const size_t right_count = leaf->num_keys - kSplit;
     std::copy_n(leaf->keys + kSplit, right_count, new_leaf->keys);
-    new_leaf->num_keys = static_cast<uint16_t>(right_count);
-    leaf->num_keys = static_cast<uint16_t>(kSplit);
+    new_leaf->num_keys = static_cast<uint8_t>(right_count);
+    leaf->num_keys = static_cast<uint8_t>(kSplit);
     FillSentinel(leaf->keys + kSplit, LeafNode<KeyT>::kCapacity - kSplit);
 
-    new_leaf->next = leaf->next;
-    new_leaf->prev = leaf;
-    if (leaf->next != nullptr) {
-      leaf->next->prev = new_leaf;
+    new_leaf->next_id = leaf->next_id;
+    new_leaf->prev_id = leaf_id;
+    if (leaf->next_id != kNullNode) {
+      leaf_pool_.GetNode(leaf->next_id)->prev_id = new_leaf_id;
     } else {
       last_leaf_ = new_leaf;
     }
-    leaf->next = new_leaf;
+    leaf->next_id = new_leaf_id;
 
     if (key >= new_leaf->keys[0]) {
       size_t s = FindLeafSlot(new_leaf, key);
@@ -925,7 +966,6 @@ class BTreeSet {
 
       // Internal node split
       InternalNode<KeyT>* new_internal = internal_pool_.Allocate();
-      new_internal->level = parent->level;
 
       constexpr size_t kTotalK = Traits::kInternalKeys + 1;
       KeyT temp_keys[kTotalK];
@@ -949,19 +989,18 @@ class BTreeSet {
 
       std::copy_n(temp_keys, kMid, parent->keys);
       std::copy_n(temp_children, kMid + 1, parent->children);
-      parent->num_keys = static_cast<uint16_t>(kMid);
+      parent->num_keys = static_cast<uint8_t>(kMid);
       FillSentinel(parent->keys + kMid, Traits::kInternalKeys - kMid);
 
       const size_t right_k = kTotalK - kMid - 1;
       std::copy_n(temp_keys + kMid + 1, right_k, new_internal->keys);
       std::copy_n(temp_children + kMid + 1, right_k + 1,
                   new_internal->children);
-      new_internal->num_keys = static_cast<uint16_t>(right_k);
+      new_internal->num_keys = static_cast<uint8_t>(right_k);
     }
 
     // Root split
     InternalNode<KeyT>* new_root = internal_pool_.Allocate();
-    new_root->level = tree_height_ + 1;
     new_root->keys[0] = promo_key;
     new_root->children[0] = root_;
     new_root->children[1] = promo_child;
@@ -1010,11 +1049,17 @@ class BTreeSet {
     leaf->num_keys--;
     num_elements_--;
     if (leaf->num_keys == 0) {
-      if (leaf->prev != nullptr) leaf->prev->next = leaf->next;
-      if (leaf->next != nullptr) leaf->next->prev = leaf->prev;
-      if (leaf == first_leaf_) first_leaf_ = leaf->next;
-      if (leaf == last_leaf_) last_leaf_ = leaf->prev;
-      leaf_pool_.Deallocate(leaf);
+      if (leaf->prev_id != kNullNode) {
+        leaf_pool_.GetNode(leaf->prev_id)->next_id = leaf->next_id;
+      } else {
+        first_leaf_ = leaf_pool_.GetNode(leaf->next_id);
+      }
+      if (leaf->next_id != kNullNode) {
+        leaf_pool_.GetNode(leaf->next_id)->prev_id = leaf->prev_id;
+      } else {
+        last_leaf_ = leaf_pool_.GetNode(leaf->prev_id);
+      }
+      leaf_pool_.Deallocate(leaf, leaf_pool_.GetId(leaf));
     }
     return 1;
   }
@@ -1040,10 +1085,10 @@ struct MapLeafNode {
 
   KeyT keys[kCapacity];
   ValueT values[kCapacity];
-  MapLeafNode* next = nullptr;
-  MapLeafNode* prev = nullptr;
-  uint16_t num_keys = 0;
-  uint16_t level = 0;  // Level 0 for leaves
+  uint32_t next_id = kNullNode;
+  uint32_t prev_id = kNullNode;
+  uint8_t num_keys = 0;
+  uint8_t padding[3] = {};
 
   MapLeafNode() { InitKeysWithSentinel<KeyT, kCapacity>(keys); }
 };
@@ -1109,9 +1154,10 @@ class BTreeMap {
     using reference = KeyValueRef;
 
     const_iterator() = default;
-    const_iterator(const MapLeafNode<KeyT, ValueT>* leaf, size_t slot,
+    const_iterator(const NodePool<MapLeafNode<KeyT, ValueT>>* pool,
+                   const MapLeafNode<KeyT, ValueT>* leaf, size_t slot,
                    const MapLeafNode<KeyT, ValueT>* last_leaf = nullptr)
-        : leaf_(leaf), slot_(slot), last_leaf_(last_leaf) {}
+        : pool_(pool), leaf_(leaf), slot_(slot), last_leaf_(last_leaf) {}
 
     KeyValueRef operator*() const {
       return {leaf_->keys[slot_], leaf_->values[slot_]};
@@ -1126,7 +1172,7 @@ class BTreeMap {
       ++slot_;
       while (leaf_ != nullptr && slot_ >= leaf_->num_keys) {
         last_leaf_ = leaf_;
-        leaf_ = leaf_->next;
+        leaf_ = (pool_ != nullptr) ? pool_->GetNode(leaf_->next_id) : nullptr;
         slot_ = 0;
       }
       return *this;
@@ -1139,10 +1185,11 @@ class BTreeMap {
     }
 
     const_iterator& operator--() {
+      if (pool_ == nullptr) return *this;
       if (leaf_ == nullptr) {
         const auto* curr = last_leaf_;
         while (curr != nullptr && curr->num_keys == 0) {
-          curr = curr->prev;
+          curr = pool_->GetNode(curr->prev_id);
         }
         if (curr != nullptr && curr->num_keys > 0) {
           leaf_ = curr;
@@ -1151,9 +1198,9 @@ class BTreeMap {
         return *this;
       }
       if (slot_ == 0) {
-        const auto* curr = leaf_->prev;
+        const auto* curr = pool_->GetNode(leaf_->prev_id);
         while (curr != nullptr && curr->num_keys == 0) {
-          curr = curr->prev;
+          curr = pool_->GetNode(curr->prev_id);
         }
         if (curr != nullptr) {
           leaf_ = curr;
@@ -1184,6 +1231,7 @@ class BTreeMap {
     size_t slot() const { return slot_; }
 
    private:
+    const NodePool<MapLeafNode<KeyT, ValueT>>* pool_ = nullptr;
     const MapLeafNode<KeyT, ValueT>* leaf_ = nullptr;
     size_t slot_ = 0;
     const MapLeafNode<KeyT, ValueT>* last_leaf_ = nullptr;
@@ -1285,19 +1333,21 @@ class BTreeMap {
     }
 
     MapLeafNode<KeyT, ValueT>* prev_leaf = nullptr;
+    uint32_t prev_leaf_id = kNullNode;
     for (size_t i = 0; i < num_leaves; ++i) {
-      MapLeafNode<KeyT, ValueT>* leaf = map.leaf_pool_.Allocate();
+      uint32_t leaf_id = 0;
+      MapLeafNode<KeyT, ValueT>* leaf = map.leaf_pool_.Allocate(&leaf_id);
       const size_t start_idx = i * keys_per_leaf;
       const size_t count = std::min(keys_per_leaf, num_keys - start_idx);
       std::copy_n(sorted_keys + start_idx, count, leaf->keys);
       if (values != nullptr) {
         std::copy_n(values + start_idx, count, leaf->values);
       }
-      leaf->num_keys = static_cast<uint16_t>(count);
+      leaf->num_keys = static_cast<uint8_t>(count);
 
       if (prev_leaf != nullptr) {
-        prev_leaf->next = leaf;
-        leaf->prev = prev_leaf;
+        prev_leaf->next_id = leaf_id;
+        leaf->prev_id = prev_leaf_id;
         delimiters.push_back(leaf->keys[0]);
       } else {
         map.first_leaf_ = leaf;
@@ -1305,6 +1355,7 @@ class BTreeMap {
 
       current_level_ptrs.push_back(leaf);
       prev_leaf = leaf;
+      prev_leaf_id = leaf_id;
     }
     map.last_leaf_ = prev_leaf;
 
@@ -1333,7 +1384,6 @@ class BTreeMap {
 
       for (size_t i = 0; i < num_internals; ++i) {
         InternalNode<KeyT>* internal = map.internal_pool_.Allocate();
-        internal->level = current_level;
 
         const size_t child_start = i * max_children;
         const size_t child_count =
@@ -1344,7 +1394,7 @@ class BTreeMap {
         }
 
         const size_t key_count = child_count - 1;
-        internal->num_keys = static_cast<uint16_t>(key_count);
+        internal->num_keys = static_cast<uint8_t>(key_count);
         for (size_t k = 0; k < key_count; ++k) {
           internal->keys[k] = delimiters[child_start + k];
         }
@@ -1385,12 +1435,14 @@ class BTreeMap {
     if (num_elements_ == 0 || first_leaf_ == nullptr) return end();
     const auto* curr = first_leaf_;
     while (curr != nullptr && curr->num_keys == 0) {
-      curr = curr->next;
+      curr = leaf_pool_.GetNode(curr->next_id);
     }
     if (curr == nullptr) return end();
-    return const_iterator(curr, 0, last_leaf_);
+    return const_iterator(&leaf_pool_, curr, 0, last_leaf_);
   }
-  const_iterator end() const { return const_iterator(nullptr, 0, last_leaf_); }
+  const_iterator end() const {
+    return const_iterator(&leaf_pool_, nullptr, 0, last_leaf_);
+  }
   const_iterator cbegin() const { return begin(); }
   const_iterator cend() const { return end(); }
 
@@ -1419,7 +1471,7 @@ class BTreeMap {
     const auto* leaf = NavigateToLeaf(target);
     const size_t slot = FindLeafSlot(leaf, target);
     if (slot < leaf->num_keys && leaf->keys[slot] == target) {
-      return const_iterator(leaf, slot, last_leaf_);
+      return const_iterator(&leaf_pool_, leaf, slot, last_leaf_);
     }
     return end();
   }
@@ -1447,10 +1499,10 @@ class BTreeMap {
     const size_t slot = FindLeafSlot(leaf, target);
 
     const bool inside = (slot < leaf->num_keys);
-    const auto* res_leaf = inside ? leaf : leaf->next;
+    const auto* res_leaf = inside ? leaf : leaf_pool_.GetNode(leaf->next_id);
     const size_t res_slot = inside ? slot : 0;
 
-    return const_iterator(res_leaf, res_slot, last_leaf_);
+    return const_iterator(&leaf_pool_, res_leaf, res_slot, last_leaf_);
   }
 
   // Returns iterator to first key > target.
@@ -1536,9 +1588,11 @@ class BTreeMap {
       for (size_t k = 0; k < kBatch; ++k) {
         const size_t slot = FindLeafSlot(leaves[k], queries[i + k]);
         const bool inside = (slot < leaves[k]->num_keys);
-        const auto* res_leaf = inside ? leaves[k] : leaves[k]->next;
+        const auto* res_leaf =
+            inside ? leaves[k] : leaf_pool_.GetNode(leaves[k]->next_id);
         const size_t res_slot = inside ? slot : 0;
-        out_iters[i + k] = const_iterator(res_leaf, res_slot, last_leaf_);
+        out_iters[i + k] =
+            const_iterator(&leaf_pool_, res_leaf, res_slot, last_leaf_);
       }
     }
 
@@ -1612,21 +1666,22 @@ class BTreeMap {
   // Dynamic Insertion
   std::pair<const_iterator, bool> insert(KeyT key, ValueT value) {
     if (root_ == nullptr) {
-      first_leaf_ = last_leaf_ = leaf_pool_.Allocate();
+      uint32_t leaf_id = 0;
+      first_leaf_ = last_leaf_ = leaf_pool_.Allocate(&leaf_id);
       first_leaf_->keys[0] = key;
       first_leaf_->values[0] = value;
       first_leaf_->num_keys = 1;
       root_ = first_leaf_;
       tree_height_ = 0;
       num_elements_ = 1;
-      return {const_iterator(first_leaf_, 0, last_leaf_), true};
+      return {const_iterator(&leaf_pool_, first_leaf_, 0, last_leaf_), true};
     }
 
     if (tree_height_ == 0) {
       auto* leaf = static_cast<MapLeafNode<KeyT, ValueT>*>(root_);
       size_t slot = FindLeafSlot(leaf, key);
       if (slot < leaf->num_keys && leaf->keys[slot] == key) {
-        return {const_iterator(leaf, slot, last_leaf_), false};
+        return {const_iterator(&leaf_pool_, leaf, slot, last_leaf_), false};
       }
       if (leaf->num_keys < MapLeafNode<KeyT, ValueT>::kCapacity) {
         for (size_t i = leaf->num_keys; i > slot; --i) {
@@ -1637,24 +1692,28 @@ class BTreeMap {
         leaf->values[slot] = value;
         leaf->num_keys++;
         num_elements_++;
-        return {const_iterator(leaf, slot, last_leaf_), true};
+        return {const_iterator(&leaf_pool_, leaf, slot, last_leaf_), true};
       }
 
       // Root leaf split
-      MapLeafNode<KeyT, ValueT>* new_leaf = leaf_pool_.Allocate();
+      uint32_t new_leaf_id = 0;
+      MapLeafNode<KeyT, ValueT>* new_leaf = leaf_pool_.Allocate(&new_leaf_id);
+      const uint32_t leaf_id = leaf_pool_.GetId(leaf);
       constexpr size_t kSplit = MapLeafNode<KeyT, ValueT>::kCapacity / 2;
       const size_t right_count = leaf->num_keys - kSplit;
       std::copy_n(leaf->keys + kSplit, right_count, new_leaf->keys);
       std::copy_n(leaf->values + kSplit, right_count, new_leaf->values);
-      new_leaf->num_keys = static_cast<uint16_t>(right_count);
-      leaf->num_keys = static_cast<uint16_t>(kSplit);
+      new_leaf->num_keys = static_cast<uint8_t>(right_count);
+      leaf->num_keys = static_cast<uint8_t>(kSplit);
       FillSentinel(leaf->keys + kSplit,
                    MapLeafNode<KeyT, ValueT>::kCapacity - kSplit);
 
-      new_leaf->next = leaf->next;
-      new_leaf->prev = leaf;
-      if (leaf->next != nullptr) leaf->next->prev = new_leaf;
-      leaf->next = new_leaf;
+      new_leaf->next_id = leaf->next_id;
+      new_leaf->prev_id = leaf_id;
+      if (leaf->next_id != kNullNode) {
+        leaf_pool_.GetNode(leaf->next_id)->prev_id = new_leaf_id;
+      }
+      leaf->next_id = new_leaf_id;
       last_leaf_ = new_leaf;
 
       if (key >= new_leaf->keys[0]) {
@@ -1678,7 +1737,6 @@ class BTreeMap {
       }
 
       InternalNode<KeyT>* new_root = internal_pool_.Allocate();
-      new_root->level = 1;
       new_root->keys[0] = new_leaf->keys[0];
       new_root->children[0] = leaf;
       new_root->children[1] = new_leaf;
@@ -1704,7 +1762,7 @@ class BTreeMap {
     auto* leaf = static_cast<MapLeafNode<KeyT, ValueT>*>(curr);
     size_t slot = FindLeafSlot(leaf, key);
     if (slot < leaf->num_keys && leaf->keys[slot] == key) {
-      return {const_iterator(leaf, slot, last_leaf_), false};
+      return {const_iterator(&leaf_pool_, leaf, slot, last_leaf_), false};
     }
 
     if (leaf->num_keys < MapLeafNode<KeyT, ValueT>::kCapacity) {
@@ -1716,28 +1774,30 @@ class BTreeMap {
       leaf->values[slot] = value;
       leaf->num_keys++;
       num_elements_++;
-      return {const_iterator(leaf, slot, last_leaf_), true};
+      return {const_iterator(&leaf_pool_, leaf, slot, last_leaf_), true};
     }
 
     // Leaf split
-    MapLeafNode<KeyT, ValueT>* new_leaf = leaf_pool_.Allocate();
+    uint32_t new_leaf_id = 0;
+    MapLeafNode<KeyT, ValueT>* new_leaf = leaf_pool_.Allocate(&new_leaf_id);
+    const uint32_t leaf_id = leaf_pool_.GetId(leaf);
     constexpr size_t kSplit = MapLeafNode<KeyT, ValueT>::kCapacity / 2;
     const size_t right_count = leaf->num_keys - kSplit;
     std::copy_n(leaf->keys + kSplit, right_count, new_leaf->keys);
     std::copy_n(leaf->values + kSplit, right_count, new_leaf->values);
-    new_leaf->num_keys = static_cast<uint16_t>(right_count);
-    leaf->num_keys = static_cast<uint16_t>(kSplit);
+    new_leaf->num_keys = static_cast<uint8_t>(right_count);
+    leaf->num_keys = static_cast<uint8_t>(kSplit);
     FillSentinel(leaf->keys + kSplit,
                  MapLeafNode<KeyT, ValueT>::kCapacity - kSplit);
 
-    new_leaf->next = leaf->next;
-    new_leaf->prev = leaf;
-    if (leaf->next != nullptr) {
-      leaf->next->prev = new_leaf;
+    new_leaf->next_id = leaf->next_id;
+    new_leaf->prev_id = leaf_id;
+    if (leaf->next_id != kNullNode) {
+      leaf_pool_.GetNode(leaf->next_id)->prev_id = new_leaf_id;
     } else {
       last_leaf_ = new_leaf;
     }
-    leaf->next = new_leaf;
+    leaf->next_id = new_leaf_id;
 
     if (key >= new_leaf->keys[0]) {
       size_t s = FindLeafSlot(new_leaf, key);
@@ -1780,7 +1840,6 @@ class BTreeMap {
 
       // Split internal node
       InternalNode<KeyT>* new_internal = internal_pool_.Allocate();
-      new_internal->level = parent->level;
 
       constexpr size_t kTotalK = Traits::kInternalKeys + 1;
       KeyT temp_keys[kTotalK];
@@ -1804,19 +1863,18 @@ class BTreeMap {
 
       std::copy_n(temp_keys, kMid, parent->keys);
       std::copy_n(temp_children, kMid + 1, parent->children);
-      parent->num_keys = static_cast<uint16_t>(kMid);
+      parent->num_keys = static_cast<uint8_t>(kMid);
       FillSentinel(parent->keys + kMid, Traits::kInternalKeys - kMid);
 
       const size_t right_k = kTotalK - kMid - 1;
       std::copy_n(temp_keys + kMid + 1, right_k, new_internal->keys);
       std::copy_n(temp_children + kMid + 1, right_k + 1,
                   new_internal->children);
-      new_internal->num_keys = static_cast<uint16_t>(right_k);
+      new_internal->num_keys = static_cast<uint8_t>(right_k);
     }
 
     // Root split
     InternalNode<KeyT>* new_root = internal_pool_.Allocate();
-    new_root->level = tree_height_ + 1;
     new_root->keys[0] = promo_key;
     new_root->children[0] = root_;
     new_root->children[1] = promo_child;
@@ -1907,11 +1965,17 @@ class BTreeMap {
     leaf->num_keys--;
     num_elements_--;
     if (leaf->num_keys == 0) {
-      if (leaf->prev != nullptr) leaf->prev->next = leaf->next;
-      if (leaf->next != nullptr) leaf->next->prev = leaf->prev;
-      if (leaf == first_leaf_) first_leaf_ = leaf->next;
-      if (leaf == last_leaf_) last_leaf_ = leaf->prev;
-      leaf_pool_.Deallocate(leaf);
+      if (leaf->prev_id != kNullNode) {
+        leaf_pool_.GetNode(leaf->prev_id)->next_id = leaf->next_id;
+      } else {
+        first_leaf_ = leaf_pool_.GetNode(leaf->next_id);
+      }
+      if (leaf->next_id != kNullNode) {
+        leaf_pool_.GetNode(leaf->next_id)->prev_id = leaf->prev_id;
+      } else {
+        last_leaf_ = leaf_pool_.GetNode(leaf->prev_id);
+      }
+      leaf_pool_.Deallocate(leaf, leaf_pool_.GetId(leaf));
     }
     return 1;
   }
