@@ -360,7 +360,7 @@ The highway port in vcpkg is kept up to date by Microsoft team members and commu
 You can use the `benchmark` inside examples/ as a starting point.
 
 A [quick-reference page](g3doc/quick_reference.md) briefly lists all operations
-and their parameters, and the [instruction_matrix](g3doc/instruction_matrix.pdf)
+and their parameters, and the [instruction_matrix](g3doc/instruction_matrix.md)
 indicates the number of instructions per operation.
 
 The [FAQ](g3doc/faq.md) answers questions about portability, API design and
@@ -583,7 +583,7 @@ Highway offers several strategies for loop vectorization:
 ## Additional resources
 
 *   [Highway introduction (slides)](g3doc/highway_intro.pdf)
-*   [Overview of instructions per operation on different architectures](g3doc/instruction_matrix.pdf)
+*   [Overview of instructions per operation on different architectures](g3doc/instruction_matrix.md)
 *   [Design philosophy and comparison](g3doc/design_philosophy.md)
 *   [Implementation details](g3doc/impl_details.md)
 
