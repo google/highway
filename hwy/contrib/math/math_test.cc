@@ -191,6 +191,25 @@ HWY_NOINLINE void TestAllPow() {
   ForFloat3264Types(ForPartialVectors<TestPow>());
 }
 
+// expm1(+/-0) must preserve the sign of zero (C11 F.10.3.3). The ULP comparator
+// used by the other math tests treats +0 == -0, so check the bit pattern.
+struct TestExpm1SignedZero {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T, D d) {
+    using TU = MakeUnsigned<T>;
+    const T pos0 = ConvertScalarTo<T>(0.0);
+    const T neg0 = ConvertScalarTo<T>(-0.0);
+    const T got_pos = GetLane(CallExpm1(d, Set(d, pos0)));
+    const T got_neg = GetLane(CallExpm1(d, Set(d, neg0)));
+    HWY_ASSERT_EQ(BitCastScalar<TU>(pos0), BitCastScalar<TU>(got_pos));
+    HWY_ASSERT_EQ(BitCastScalar<TU>(neg0), BitCastScalar<TU>(got_neg));
+  }
+};
+
+HWY_NOINLINE void TestAllExpm1SignedZero() {
+  ForFloat3264Types(ForPartialVectors<TestExpm1SignedZero>());
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -213,6 +232,7 @@ HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllCbrt);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllTgamma);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLogGamma);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllPow);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExpm1SignedZero);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy

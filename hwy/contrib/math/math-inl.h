@@ -2660,7 +2660,10 @@ HWY_INLINE V Expm1(const D d, V x) {
 
   // Reduce, approximate, and then reconstruct.
   const V y = impl.ExpPoly(d, impl.ExpReduce(d, x, q));
-  const V z = IfThenElse(Lt(Abs(x), kLn2Over2), y,
+  // Reapply the sign of x on the polynomial path so a negative-zero input is
+  // preserved: expm1(-0) = -0 (C11 F.10.3.3), which the polynomial drops when
+  // it forms 0.5 * (+0) + (-0) = +0.
+  const V z = IfThenElse(Lt(Abs(x), kLn2Over2), CopySign(y, x),
                          Sub(impl.LoadExpShortRange(d, Add(y, kOne), q), kOne));
   return IfThenElse(Lt(x, kLowerBound), kNegOne, z);
 }
