@@ -76,8 +76,6 @@ static inline void SetThreadName(const char* format, int thread) {
   HWY_ASSERT(0 == pthread_setname_np(buf));
 #elif HWY_OS_OPENBSD
   pthread_set_name_np(pthread_self(), buf);
-#elif defined(__EMSCRIPTEN__)
-  emscripten_set_thread_name(pthread_self(), buf);
 #else
   (void)format;
   (void)thread;
