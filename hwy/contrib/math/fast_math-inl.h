@@ -625,7 +625,9 @@ HWY_INLINE V FastAtan2(const D d, V y, V x) {
   const M ay_gt_ax = Gt(ay, ax);
   V angle = MaskedSubOr(poly, ay_gt_ax, kPiOverTwo, poly);
 
-  const M x_neg = Lt(x, k0);
+  // Test the sign bit (not Lt) so a negative-zero x reflects into the
+  // negative-x half-plane, giving atan2(+/-0, -0) = +/-pi.
+  const M x_neg = IsNegative(x);
   angle = MaskedSubOr(angle, x_neg, kPi, angle);
 
   const M is_nan = IsEitherNaN(y, x);
