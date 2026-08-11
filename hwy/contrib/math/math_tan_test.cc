@@ -89,6 +89,8 @@ void Atan2TestCases(T /*unused*/, D d, size_t& padded,
                            // y = ±0, x < 0 or -0
                            {p0, n1, pi},
                            {n0, n2, -pi},
+                           {p0, n0, pi},
+                           {n0, n0, -pi},
                            // y = ±0, x > 0 or +0
                            {p0, p2, p0},
                            {n0, p2, n0},
