@@ -49,6 +49,7 @@ docs_on_pages = [
     'quick_reference.md',
     'design_philosophy.md',
     'impl_details.md',
+    'instruction_matrix.md',
     'faq.md',
     'release_testing_process.md'
 ]
