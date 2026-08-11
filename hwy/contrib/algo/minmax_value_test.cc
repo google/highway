@@ -243,6 +243,20 @@ struct TestIndexOfExtremeInLongSpan {
       HWY_ASSERT_EQ(pos, IndexOfMax(d, in, count));
       in[pos] = ConvertScalarTo<T>(1);
     }
+
+    // A span made entirely of the identity value never compares strictly
+    // better than the accumulator, so no lane's block counter is ever written
+    // and no segment ever beats the running best. Index 0 is the only correct
+    // answer, since every position ties.
+    for (size_t i = 0; i < count; ++i) {
+      in[i] = hwy::PositiveInfOrHighestValue<T>();
+    }
+    HWY_ASSERT_EQ(size_t{0}, IndexOfMin(d, in, count));
+
+    for (size_t i = 0; i < count; ++i) {
+      in[i] = hwy::NegativeInfOrLowestValue<T>();
+    }
+    HWY_ASSERT_EQ(size_t{0}, IndexOfMax(d, in, count));
   }
 };
 
