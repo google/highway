@@ -1661,7 +1661,7 @@ false is zero, true has all bits set:
 
 #### Compress
 
-*   <code>V **Compress**(V v, M m)</code>: returns `r` such that `r[n]` is
+*   <code>V **Compress**([D, ] V v, M m)</code>: returns `r` such that `r[n]` is
     `v[i]`, with `i` the n-th lane index (starting from 0) where `m[i]` is true.
     Compacts lanes whose mask is true into the lower lanes. For targets and lane
     type `T` where `CompressIsPartition<T>::value` is true, the upper lanes are
@@ -1670,8 +1670,14 @@ false is zero, true has all bits set:
     implementation-defined. Potentially slow with 8 and 16-bit lanes. Use this
     form when the input is already a mask, e.g. returned by a comparison.
 
-*   <code>V **CompressNot**(V v, M m)</code>: equivalent to `Compress(v,
+    The optional `D` parameter allows more efficient `Compress` of partial
+    I8/U8/I16/U16/F16/BF16 vectors on SVE targets.
+
+*   <code>V **CompressNot**([D, ] V v, M m)</code>: equivalent to `Compress(v,
     Not(m))` but possibly faster if `CompressIsPartition<T>::value` is true.
+
+    The optional `D` parameter allows more efficient `Compress` of partial
+    I8/U8/I16/U16/F16/BF16 vectors on SVE targets.
 
 *   `V`: `u64` \
     <code>V **CompressBlocksNot**(V v, M m)</code>: equivalent to
@@ -1691,7 +1697,7 @@ false is zero, true has all bits set:
     lanes, but there is no guarantee of atomicity because this may be
     implemented as `Compress, LoadU, IfThenElse(FirstN), StoreU`.
 
-*   <code>V **CompressBits**(V v, const uint8_t* HWY_RESTRICT bits)</code>:
+*   <code>V **CompressBits**([D, ] V v, const uint8_t* HWY_RESTRICT bits)</code>:
     Equivalent to, but often faster than `Compress(v, LoadMaskBits(d, bits))`.
     `bits` is as specified for `LoadMaskBits`. If called multiple times, the
     `bits` pointer passed to this function must also be marked `HWY_RESTRICT` to
@@ -1699,6 +1705,10 @@ false is zero, true has all bits set:
     incrementing `bits` will not work as intended for packed bit arrays. As with
     `Compress`, `CompressIsPartition` indicates the mask=false lanes are moved
     to the upper lanes. Potentially slow with 8 and 16-bit lanes.
+
+    The optional `D` parameter allows `CompressBits(d, v, bits)` to be more
+    efficient than `CompressBits(v, bits)` for partial vectors on RVV and SVE
+    targets.
 
 *   <code>size_t **CompressBitsStore**(V v, const uint8_t* HWY_RESTRICT bits, D
     d, T* p)</code>: combination of `CompressStore` and `CompressBits`, see

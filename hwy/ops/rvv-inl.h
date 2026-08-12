@@ -2474,10 +2474,10 @@ HWY_API void StoreN(size_t count, VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT p) {
 
 }  // namespace detail
 
-#ifdef HWY_NATIVE_STORE_N
-#undef HWY_NATIVE_STORE_N
+#ifdef HWY_NATIVE_STORE_N_IMPL
+#undef HWY_NATIVE_STORE_N_IMPL
 #else
-#define HWY_NATIVE_STORE_N
+#define HWY_NATIVE_STORE_N_IMPL
 #endif
 
 template <class D>
@@ -4530,6 +4530,12 @@ HWY_API V ReverseBlocks(D d, V v) {
 #define HWY_NATIVE_COMPRESS8
 #endif
 
+#ifdef HWY_NATIVE_COMPRESS16_32_64
+#undef HWY_NATIVE_COMPRESS16_32_64
+#else
+#define HWY_NATIVE_COMPRESS16_32_64
+#endif
+
 template <typename T>
 struct CompressIsPartition {
   enum { value = 0 };
@@ -4545,6 +4551,11 @@ struct CompressIsPartition {
 
 HWY_RVV_FOREACH(HWY_RVV_COMPRESS, Compress, compress, _ALL)
 #undef HWY_RVV_COMPRESS
+
+template <class D>
+HWY_API VFromD<D> Compress(D /*d*/, VFromD<D> v, MFromD<D> mask) {
+  return Compress(v, mask);
+}
 
 // ------------------------------ Expand
 
@@ -4606,10 +4617,9 @@ HWY_API V CompressNot(V v, const M mask) {
   return Compress(v, Not(mask));
 }
 
-// ------------------------------ CompressBlocksNot
-template <class V, class M>
-HWY_API V CompressBlocksNot(V v, const M mask) {
-  return CompressNot(v, mask);
+template <class D>
+HWY_API VFromD<D> CompressNot(D /*d*/, VFromD<D> v, MFromD<D> m) {
+  return CompressNot(v, m);
 }
 
 // ------------------------------ CompressStore
@@ -6083,6 +6093,12 @@ HWY_RVV_FOREACH_B(HWY_RVV_STORE_MASK_BITS, StoreMaskBits, sm)
 template <class V>
 HWY_INLINE V CompressBits(V v, const uint8_t* HWY_RESTRICT bits) {
   return Compress(v, LoadMaskBits(DFromV<V>(), bits));
+}
+
+template <class D>
+HWY_INLINE VFromD<D> CompressBits(D d, VFromD<D> v,
+                                  const uint8_t* HWY_RESTRICT bits) {
+  return Compress(v, LoadMaskBits(d, bits));
 }
 
 template <class D>
