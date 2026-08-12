@@ -66,6 +66,9 @@ interations)
 
 rounded up to the nearest integer.
 
+To simplify the code, array sizes need to be a multiple of 512 so that simd
+vectors do not need remainder handling.
+
 References:
 0) https://en.wikipedia.org/wiki/Mandelbrot_set
 1) https://en.wikipedia.org/wiki/Netpbm
@@ -122,14 +125,14 @@ void MandelbrotSimdSetup(uint8_t* HWY_RESTRICT r, uint8_t* HWY_RESTRICT g,
                          const size_t y_points) {
   size_t x_max = x_points / 2;
   size_t y_max = y_points / 2;
-  size_t ij = 0;
   float y_points_f = static_cast<float>(y_points);
   float x_max_f = static_cast<float>(x_max);
   float y_max_f = static_cast<float>(y_max);
-  size_t remainder;
   const size_t NF = Lanes(df);
   const size_t NU8 = Lanes(du8);
-  for (; ij < x_points * y_points; ij += NF) {
+  HWY_ASSERT(size_t{0} == x_points % NF);
+  HWY_ASSERT(size_t{0} == y_points % NF);
+  for (size_t ij = 0; ij < x_points * y_points; ij += NF) {
     VU32 vij = hn::Iota(du32, ij);
     VU32 itemp_u32 =
         hn::Mod(vij, hn::Set(du32, static_cast<uint32_t>(y_points)));
@@ -142,35 +145,13 @@ void MandelbrotSimdSetup(uint8_t* HWY_RESTRICT r, uint8_t* HWY_RESTRICT g,
     hn::Store(hn::Mul(hn::Set(df, (3.0f / x_max_f)), i), df, x + ij);
     hn::Store(hn::Mul(hn::Set(df, (3.0f / y_max_f)), j), df, y + ij);
   }
-  // Use StoreN for remainder, does not access values beyond remainder
-  remainder = x_points * y_points - ij;
-  if (remainder > 0) {
-    VU32 vij = hn::Iota(du32, ij);
-    VU32 itemp_u32 =
-        hn::Mod(vij, hn::Set(du32, static_cast<uint32_t>(y_points)));
-    VF itemp = hn::ConvertTo(df, itemp_u32);
-    VF i = hn::Sub(itemp, hn::Set(df, x_max_f));
-    VF j = hn::Sub(hn::Div(hn::Sub(hn::ConvertTo(df, vij), itemp),
-                           hn::Set(df, y_points_f)),
-                   hn::Set(df, y_max_f));
-    // Domain size [-3,3]x[-3,3]
-    hn::StoreN(hn::Mul(hn::Set(df, (3.0f / x_max_f)), i), df, x + ij,
-               remainder);
-    hn::StoreN(hn::Mul(hn::Set(df, (3.0f / y_max_f)), j), df, y + ij,
-               remainder);
-  }
-  ij = 0;
-  for (; ij < x_points * y_points; ij += NU8) {
+
+  HWY_ASSERT(size_t{0} == x_points % NU8);
+  HWY_ASSERT(size_t{0} == y_points % NU8);
+  for (size_t ij = 0; ij < x_points * y_points; ij += NU8) {
     hn::Store(hn::Zero(du8), du8, r + ij);
     hn::Store(hn::Zero(du8), du8, g + ij);
     hn::Store(hn::Zero(du8), du8, b + ij);
-  }
-  // Use StoreN for remainder, does not access values beyond remainder
-  remainder = x_points * y_points - ij;
-  if (remainder > 0) {
-    hn::StoreN(hn::Zero(du8), du8, r + ij, remainder);
-    hn::StoreN(hn::Zero(du8), du8, g + ij, remainder);
-    hn::StoreN(hn::Zero(du8), du8, b + ij, remainder);
   }
 }
 
@@ -476,15 +457,6 @@ void CreatePPMSimd(const uint8_t* HWY_RESTRICT r, const uint8_t* HWY_RESTRICT g,
     StoreInterleaved3(hn::Load(du8, r + n), hn::Load(du8, g + n),
                       hn::Load(du8, b + n), du8, ppm + 3 * n);
   }
-  // Use SafeCopyN for remainder, does not store values beyond remainder
-  const size_t remainder = x_points * y_points - n;
-  if (remainder > 0) {
-    AlignedVector<uint8_t> ppm_temp(NU8);
-    StoreInterleaved3(hn::LoadN(du8, r + n, remainder),
-                      hn::LoadN(du8, g + n, remainder),
-                      hn::LoadN(du8, b + n, remainder), du8, ppm_temp.data());
-    SafeCopyN(remainder, du8, ppm_temp.data(), ppm + 3 * n);
-  }
 }
 
 }  // namespace HWY_NAMESPACE
@@ -542,9 +514,9 @@ static void PrintTimeMeasurement(const double t0, const double t1,
 
 static void Run() {
   const size_t x_points =
-      512;  // Grid points in x direction, needs to be even, >=6
+      512;  // Grid points in x direction, needs to be multiple of 512
   const size_t y_points =
-      512;  // Grid points in y direction, needs to be even, >=6
+      512;  // Grid points in y direction, needs to be multiple of 512
   const size_t iter_max_r =
       25;  // Iterations to perform for red, needs to be positive
   const size_t iter_max_g =
