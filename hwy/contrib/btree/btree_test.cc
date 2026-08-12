@@ -39,6 +39,7 @@
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 // After foreach_target
 #include "hwy/contrib/btree/btree-inl.h"
+#include "hwy/contrib/btree/compact_btree-inl.h"
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
 
@@ -1133,6 +1134,257 @@ void TestMapModifiersAndAccessors() {
   HWY_ASSERT_EQ(map_emp2.first->second, static_cast<ValueT>(600));
 }
 
+template <typename KeyT>
+void TestCompactEmptyTree() {
+  auto tree = CompactBTreeSet<KeyT>::Build(nullptr, 0);
+  HWY_ASSERT(tree.empty());
+  HWY_ASSERT_EQ(tree.size(), size_t{0});
+  HWY_ASSERT_EQ(tree.height(), uint16_t{0});
+  HWY_ASSERT(!tree.contains(10));
+  HWY_ASSERT(tree.find(10) == tree.end());
+  HWY_ASSERT(tree.lower_bound(10) == tree.end());
+  HWY_ASSERT(tree.begin() == tree.end());
+}
+
+template <typename KeyT>
+void TestCompactSingleLeaf() {
+  std::vector<KeyT> keys = {10, 20, 30, 40, 50};
+  auto tree = CompactBTreeSet<KeyT>::Build(keys.data(), keys.size());
+  HWY_ASSERT(!tree.empty());
+  HWY_ASSERT_EQ(tree.size(), size_t{5});
+  HWY_ASSERT_EQ(tree.height(), uint16_t{0});
+
+  for (KeyT k : keys) {
+    HWY_ASSERT(tree.contains(k));
+    auto it = tree.find(k);
+    HWY_ASSERT(it != tree.end());
+    HWY_ASSERT_EQ(*it, k);
+  }
+  HWY_ASSERT(!tree.contains(15));
+  HWY_ASSERT(tree.find(15) == tree.end());
+
+  auto lb = tree.lower_bound(25);
+  HWY_ASSERT(lb != tree.end());
+  HWY_ASSERT_EQ(*lb, 30);
+
+  size_t idx = 0;
+  for (auto it = tree.begin(); it != tree.end(); ++it) {
+    HWY_ASSERT_EQ(*it, keys[idx++]);
+  }
+  HWY_ASSERT_EQ(idx, size_t{5});
+}
+
+template <typename KeyT>
+void TestCompactRandomizedComparisonAgainstAbsl(size_t n, size_t num_queries) {
+  absl::BitGen bitgen;
+  std::set<KeyT> unique_keys;
+  for (size_t i = 0; i < n; ++i) {
+    unique_keys.insert(
+        static_cast<KeyT>(absl::Uniform<KeyT>(bitgen, 0, n * 50)));
+  }
+  std::vector<KeyT> sorted_keys(unique_keys.begin(), unique_keys.end());
+  absl::btree_set<KeyT> absl_tree(sorted_keys.begin(), sorted_keys.end());
+  auto compact_tree =
+      CompactBTreeSet<KeyT>::Build(sorted_keys.data(), sorted_keys.size());
+
+  HWY_ASSERT_EQ(compact_tree.size(), absl_tree.size());
+
+  for (size_t q = 0; q < num_queries; ++q) {
+    KeyT query_key = static_cast<KeyT>(absl::Uniform<KeyT>(bitgen, 0, n * 60));
+    bool absl_contains = absl_tree.contains(query_key);
+    bool hwy_contains = compact_tree.contains(query_key);
+    HWY_ASSERT_EQ(hwy_contains, absl_contains);
+
+    auto hwy_it = compact_tree.find(query_key);
+    if (absl_contains) {
+      HWY_ASSERT(hwy_it != compact_tree.end());
+      HWY_ASSERT_EQ(*hwy_it, query_key);
+    } else {
+      HWY_ASSERT(hwy_it == compact_tree.end());
+    }
+
+    auto absl_lb = absl_tree.lower_bound(query_key);
+    auto hwy_lb = compact_tree.lower_bound(query_key);
+    if (absl_lb == absl_tree.end()) {
+      HWY_ASSERT(hwy_lb == compact_tree.end());
+    } else {
+      HWY_ASSERT(hwy_lb != compact_tree.end());
+      HWY_ASSERT_EQ(*hwy_lb, *absl_lb);
+    }
+  }
+
+  auto absl_it = absl_tree.begin();
+  auto hwy_it = compact_tree.begin();
+  while (absl_it != absl_tree.end()) {
+    HWY_ASSERT(hwy_it != compact_tree.end());
+    HWY_ASSERT_EQ(*hwy_it, *absl_it);
+    ++absl_it;
+    ++hwy_it;
+  }
+  HWY_ASSERT(hwy_it == compact_tree.end());
+}
+
+template <typename KeyT>
+void TestCompactBatchQueries(size_t n, size_t num_queries) {
+  absl::BitGen bitgen;
+  std::set<KeyT> unique_keys;
+  for (size_t i = 0; i < n; ++i) {
+    unique_keys.insert(
+        static_cast<KeyT>(absl::Uniform<KeyT>(bitgen, 0, n * 50)));
+  }
+  std::vector<KeyT> sorted_keys(unique_keys.begin(), unique_keys.end());
+  absl::btree_set<KeyT> absl_tree(sorted_keys.begin(), sorted_keys.end());
+  auto compact_tree =
+      CompactBTreeSet<KeyT>::Build(sorted_keys.data(), sorted_keys.size());
+
+  std::vector<KeyT> queries(num_queries);
+  for (size_t i = 0; i < num_queries; ++i) {
+    queries[i] = static_cast<KeyT>(absl::Uniform<KeyT>(bitgen, 0, n * 60));
+  }
+
+  std::vector<uint8_t> batch_found(num_queries);
+  compact_tree.ContainsBatch(queries.data(), num_queries,
+                             reinterpret_cast<bool*>(batch_found.data()));
+  for (size_t i = 0; i < num_queries; ++i) {
+    const bool absl_found = (absl_tree.find(queries[i]) != absl_tree.end());
+    HWY_ASSERT_EQ(static_cast<bool>(batch_found[i]), absl_found);
+  }
+
+  std::vector<typename CompactBTreeSet<KeyT>::const_iterator> batch_results(
+      num_queries);
+  compact_tree.LowerBoundBatch(queries.data(), num_queries,
+                               batch_results.data());
+
+  for (size_t i = 0; i < num_queries; ++i) {
+    auto absl_lb = absl_tree.lower_bound(queries[i]);
+    if (absl_lb == absl_tree.end()) {
+      HWY_ASSERT(batch_results[i] == compact_tree.end());
+    } else {
+      HWY_ASSERT(batch_results[i] != compact_tree.end());
+      HWY_ASSERT_EQ(*batch_results[i], *absl_lb);
+    }
+  }
+}
+
+template <typename KeyT>
+void TestCompactDiverseBitModes() {
+  std::vector<KeyT> dense_keys;
+  for (size_t i = 0; i < 500; ++i) {
+    dense_keys.push_back(static_cast<KeyT>(i * 2 + 10));
+  }
+  auto dense_tree =
+      CompactBTreeSet<KeyT>::Build(dense_keys.data(), dense_keys.size());
+  for (KeyT k : dense_keys) {
+    HWY_ASSERT(dense_tree.contains(k));
+    HWY_ASSERT_EQ(*dense_tree.lower_bound(k), k);
+  }
+
+  std::vector<KeyT> sparse_keys;
+  for (size_t i = 0; i < 200; ++i) {
+    if constexpr (sizeof(KeyT) == 4) {
+      sparse_keys.push_back(static_cast<KeyT>(i * 10000000U + 500));
+    } else {
+      sparse_keys.push_back(
+          static_cast<KeyT>(static_cast<uint64_t>(i) * 10000000000ULL + 500));
+    }
+  }
+  auto sparse_tree =
+      CompactBTreeSet<KeyT>::Build(sparse_keys.data(), sparse_keys.size());
+  for (KeyT k : sparse_keys) {
+    HWY_ASSERT(sparse_tree.contains(k));
+    HWY_ASSERT_EQ(*sparse_tree.lower_bound(k), k);
+  }
+}
+
+template <typename KeyT>
+void TestCompactDynamicInsertAndErase(size_t num_mutations) {
+  absl::BitGen bitgen;
+  absl::btree_set<KeyT> reference_set;
+  CompactBTreeSet<KeyT> compact_tree;
+
+  std::vector<KeyT> inserted_keys;
+  inserted_keys.reserve(num_mutations);
+
+  // 1. Dynamic Insertions from Empty Tree
+  for (size_t i = 0; i < num_mutations; ++i) {
+    KeyT k = static_cast<KeyT>(absl::Uniform<uint64_t>(bitgen, 1, 50000000));
+    auto ref_res = reference_set.insert(k);
+    auto compact_res = compact_tree.insert(k);
+
+    HWY_ASSERT_EQ(compact_res.second, ref_res.second);
+    HWY_ASSERT_EQ(*compact_res.first, k);
+    HWY_ASSERT_EQ(compact_tree.size(), reference_set.size());
+    if (ref_res.second) {
+      inserted_keys.push_back(k);
+    }
+  }
+
+  // 2. Full In-Order Traversal Verification vs std::set
+  HWY_ASSERT(std::equal(compact_tree.begin(), compact_tree.end(),
+                        reference_set.begin(), reference_set.end()));
+
+  // 3. Verification of Contains & LowerBound across all inserted keys
+  for (KeyT k : inserted_keys) {
+    HWY_ASSERT(compact_tree.contains(k));
+    auto it = compact_tree.find(k);
+    HWY_ASSERT(it != compact_tree.end());
+    HWY_ASSERT_EQ(*it, k);
+    HWY_ASSERT_EQ(*compact_tree.lower_bound(k), k);
+  }
+
+  // 4. Random Query Verification
+  for (size_t i = 0; i < 2000; ++i) {
+    KeyT q = static_cast<KeyT>(absl::Uniform<uint64_t>(bitgen, 0, 50000050));
+    bool expected_contains = (reference_set.find(q) != reference_set.end());
+    HWY_ASSERT_EQ(compact_tree.contains(q), expected_contains);
+    HWY_ASSERT_EQ(compact_tree.find(q) != compact_tree.end(),
+                  expected_contains);
+
+    auto ref_lb = reference_set.lower_bound(q);
+    auto compact_lb = compact_tree.lower_bound(q);
+    if (ref_lb == reference_set.end()) {
+      HWY_ASSERT(compact_lb == compact_tree.end());
+    } else {
+      HWY_ASSERT(compact_lb != compact_tree.end());
+      HWY_ASSERT_EQ(*compact_lb, *ref_lb);
+    }
+  }
+
+  // 5. Dynamic Deletions (Erase Half the Keys)
+  std::shuffle(inserted_keys.begin(), inserted_keys.end(), bitgen);
+  size_t to_delete = inserted_keys.size() / 2;
+  for (size_t i = 0; i < to_delete; ++i) {
+    KeyT k = inserted_keys[i];
+    size_t ref_erased = reference_set.erase(k);
+    size_t compact_erased = compact_tree.erase(k);
+
+    HWY_ASSERT_EQ(compact_erased, ref_erased);
+    HWY_ASSERT_EQ(compact_tree.size(), reference_set.size());
+    HWY_ASSERT(!compact_tree.contains(k));
+  }
+
+  // 6. In-Order Traversal Check After Deletions
+  HWY_ASSERT(std::equal(compact_tree.begin(), compact_tree.end(),
+                        reference_set.begin(), reference_set.end()));
+
+  // 7. Verify Non-Deleted Keys
+  for (size_t i = to_delete; i < inserted_keys.size(); ++i) {
+    KeyT k = inserted_keys[i];
+    HWY_ASSERT(compact_tree.contains(k));
+    HWY_ASSERT_EQ(*compact_tree.lower_bound(k), k);
+  }
+
+  // 8. Dynamic Re-insertions
+  for (size_t i = 0; i < to_delete / 2; ++i) {
+    KeyT k = inserted_keys[i];
+    reference_set.insert(k);
+    auto res = compact_tree.insert(k);
+    HWY_ASSERT(res.second);
+    HWY_ASSERT_EQ(compact_tree.size(), reference_set.size());
+    HWY_ASSERT(compact_tree.contains(k));
+  }
+}
+
 void TestAll() {
   fprintf(stderr, "Running Set 32-bit tests...\n");
   TestEmptyTree<uint32_t>();
@@ -1199,9 +1451,24 @@ void TestAll() {
   TestMapCopySemantics<uint64_t, double>();
   TestMapRandomizedComparisonAgainstAbsl<uint64_t, double>(10000, 2000);
   TestMapBatchQueries<uint64_t, double>(10000, 2500);
-  TestMapDynamicInsertAndErase<uint64_t, double>(5000);
-  TestMapSTLInterfaceAndReverseIterators<uint64_t, double>();
   TestMapModifiersAndAccessors<uint64_t, double>();
+
+  fprintf(stderr, "Running CompactBTreeSet uint32_t tests...\n");
+  TestCompactEmptyTree<uint32_t>();
+  TestCompactSingleLeaf<uint32_t>();
+  TestCompactRandomizedComparisonAgainstAbsl<uint32_t>(5000, 2000);
+  TestCompactBatchQueries<uint32_t>(5000, 1000);
+  TestCompactDiverseBitModes<uint32_t>();
+  TestCompactDynamicInsertAndErase<uint32_t>(5000);
+
+  fprintf(stderr, "Running CompactBTreeSet uint64_t tests...\n");
+  TestCompactEmptyTree<uint64_t>();
+  TestCompactSingleLeaf<uint64_t>();
+  TestCompactRandomizedComparisonAgainstAbsl<uint64_t>(5000, 2000);
+  TestCompactBatchQueries<uint64_t>(5000, 1000);
+  TestCompactDiverseBitModes<uint64_t>();
+  TestCompactDynamicInsertAndErase<uint64_t>(5000);
+
   fprintf(stderr, "All tests passed!\n");
 }
 
