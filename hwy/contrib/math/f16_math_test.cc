@@ -44,19 +44,25 @@ namespace {
 // The float16 min/max bounds mirror the float32 bounds in math_test.cc where
 // the kernel is validated (e.g. +104 for Exp), clamped to the float16 finite
 // range [-65504, +65504]. The smallest positive float16 subnormal is 2^-24.
+//
+// Exp, Exp2, Expm1 and Log1p allow 2 ULP because they are the functions whose
+// results reach the float16 subnormals, where the spacing is a fixed 2^-24 and
+// the smallest results hold only about four significant bits, so a float32
+// result that differs slightly between targets can land two float16 values
+// away. The logarithms never return a subnormal and stay at 1 ULP.
 // clang-format off
 DEFINE_F16_MATH_TEST(Exp,
-  std::exp,   CallExp,   -65504.0f,        +104.0f,   1)
+  std::exp,   CallExp,   -65504.0f,        +104.0f,   2)
 DEFINE_F16_MATH_TEST(Exp2,
-  std::exp2,  CallExp2,  -65504.0f,        +128.0f,   1)
+  std::exp2,  CallExp2,  -65504.0f,        +128.0f,   2)
 DEFINE_F16_MATH_TEST(Expm1,
-  std::expm1, CallExpm1, -65504.0f,        +104.0f,   1)
+  std::expm1, CallExpm1, -65504.0f,        +104.0f,   2)
 DEFINE_F16_MATH_TEST(Log,
   std::log,   CallLog,   +5.960464478E-8f, +65504.0f, 1)
 DEFINE_F16_MATH_TEST(Log10,
   std::log10, CallLog10, +5.960464478E-8f, +65504.0f, 1)
 DEFINE_F16_MATH_TEST(Log1p,
-  std::log1p, CallLog1p, +0.0f,            +65504.0f, 1)
+  std::log1p, CallLog1p, +0.0f,            +65504.0f, 2)
 DEFINE_F16_MATH_TEST(Log2,
   std::log2,  CallLog2,  +5.960464478E-8f, +65504.0f, 1)
 // clang-format on

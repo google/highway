@@ -141,7 +141,7 @@ struct Log2Kernel {
  * Highway SIMD version of std::exp(x) for float16 lanes.
  *
  * Valid Lane Types: float16
- *        Max Error: ULP = 1
+ *        Max Error: ULP = 2
  *      Valid Range: float16[-65504, +104]
  * @return e^x
  */
@@ -154,7 +154,7 @@ HWY_INLINE V Exp(D d, V x) {
  * Highway SIMD version of std::exp2(x) for float16 lanes.
  *
  * Valid Lane Types: float16
- *        Max Error: ULP = 1
+ *        Max Error: ULP = 2
  *      Valid Range: float16[-65504, +128]
  * @return 2^x
  */
@@ -167,7 +167,7 @@ HWY_INLINE V Exp2(D d, V x) {
  * Highway SIMD version of std::expm1(x) for float16 lanes.
  *
  * Valid Lane Types: float16
- *        Max Error: ULP = 1
+ *        Max Error: ULP = 2
  *      Valid Range: float16[-65504, +104]
  * @return e^x - 1
  */
@@ -206,7 +206,7 @@ HWY_INLINE V Log10(D d, V x) {
  * Highway SIMD version of std::log1p(x) for float16 lanes.
  *
  * Valid Lane Types: float16
- *        Max Error: ULP = 1
+ *        Max Error: ULP = 2
  *      Valid Range: float16[0, +65504]
  * @return log(1 + x)
  */
