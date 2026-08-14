@@ -30,7 +30,7 @@ namespace {
     /* Function argument is just to ensure/demonstrate they are possible. */ \
     HWY_MAYBE_UNUSED int64_t FakeFunction(int) { return HWY_##TGT; }         \
     template <typename T>                                                    \
-    int64_t FakeFunctionT(T) {                                               \
+    HWY_MAYBE_UNUSED int64_t FakeFunctionT(T) {                              \
       return HWY_##TGT;                                                      \
     }                                                                        \
   }

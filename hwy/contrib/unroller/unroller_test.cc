@@ -44,7 +44,7 @@ T DoubleDot(const T* pa, const T* pb, size_t num) {
 }
 
 template <typename T>
-T DoubleSum(const T* pa, size_t num) {
+HWY_MAYBE_UNUSED T DoubleSum(const T* pa, size_t num) {
   double sum = 0.0;
   for (size_t i = 0; i < num; ++i) {
     sum += ConvertScalarTo<double>(pa[i]);
@@ -111,11 +111,11 @@ struct ConvertUnit : UnrollerUnit<ConvertUnit<FROM_T, TO_T>, FROM_T, TO_T> {
 
 // Returns a value that does not compare equal to `value`.
 template <class D, HWY_IF_FLOAT_D(D)>
-HWY_INLINE Vec<D> OtherValue(D d, TFromD<D> /*value*/) {
+HWY_INLINE HWY_MAYBE_UNUSED Vec<D> OtherValue(D d, TFromD<D> /*value*/) {
   return NaN(d);
 }
 template <class D, HWY_IF_NOT_FLOAT_D(D)>
-HWY_INLINE Vec<D> OtherValue(D d, TFromD<D> value) {
+HWY_INLINE HWY_MAYBE_UNUSED Vec<D> OtherValue(D d, TFromD<D> value) {
   return hn::Set(d, hwy::AddWithWraparound(value, 1));
 }
 

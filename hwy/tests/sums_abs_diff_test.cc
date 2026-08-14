@@ -161,8 +161,8 @@ struct TestSumsOfAdjQuadAbsDiff {
 
   template <class D, class D2 = DFromV<Vec<D>>,
             HWY_IF_LANES_LE_D(D, HWY_MAX_LANES_D(D2) - 1)>
-  static HWY_INLINE void FullOrFixedVecQuadSumTests(D /*d*/,
-                                                    RandomState& /*rng*/) {}
+  static HWY_INLINE HWY_MAYBE_UNUSED void FullOrFixedVecQuadSumTests(
+      D /*d*/, RandomState& /*rng*/) {}
 
   template <class D, class D2 = DFromV<Vec<D>>,
             HWY_IF_LANES_GT_D(D, HWY_MAX_LANES_D(D2) - 1)>
@@ -305,8 +305,8 @@ struct TestSumsOfShuffledQuadAbsDiff {
 
   template <class D, class D2 = DFromV<Vec<D>>,
             HWY_IF_LANES_LE_D(D, HWY_MAX_LANES_D(D2) - 1)>
-  static HWY_INLINE void FullOrFixedVecShufQuadSumTests(D /*d*/,
-                                                        RandomState& /*rng*/) {}
+  static HWY_INLINE HWY_MAYBE_UNUSED void FullOrFixedVecShufQuadSumTests(
+      D /*d*/, RandomState& /*rng*/) {}
 
   template <class D, class D2 = DFromV<Vec<D>>,
             HWY_IF_LANES_GT_D(D, HWY_MAX_LANES_D(D2) - 1)>

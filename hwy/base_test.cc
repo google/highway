@@ -933,7 +933,8 @@ struct TestSpecialFloat {
   }
 
   template <class T>
-  static constexpr HWY_INLINE T EnsureNotNativeSpecialFloat(T&& val) {
+  static constexpr HWY_INLINE HWY_MAYBE_UNUSED T
+  EnsureNotNativeSpecialFloat(T&& val) {
 #if HWY_HAVE_SCALAR_F16_TYPE
     static_assert(!hwy::IsSame<RemoveCvRef<T>, float16_t::Native>(),
                   "The operator must not return a float16_t::Native");
@@ -946,11 +947,9 @@ struct TestSpecialFloat {
   }
 
   template <class T>
-  static HWY_INLINE void AssertSpecialFloatOpResultInRange(float min_expected,
-                                                           float max_expected,
-                                                           T actual,
-                                                           const char* filename,
-                                                           const int line) {
+  static HWY_INLINE HWY_MAYBE_UNUSED void AssertSpecialFloatOpResultInRange(
+      float min_expected, float max_expected, T actual, const char* filename,
+      const int line) {
     if (!(actual >= min_expected && actual <= max_expected)) {
       hwy::Abort(
           filename, line,
@@ -962,7 +961,8 @@ struct TestSpecialFloat {
 
   template <class T,
             hwy::EnableIf<EnableSpecialFloatArithOpTest<T>()>* = nullptr>
-  static HWY_NOINLINE void TestSpecialFloatArithOperators(T /*unused*/) {
+  static HWY_NOINLINE HWY_MAYBE_UNUSED void TestSpecialFloatArithOperators(
+      T /*unused*/) {
 #if HWY_HAVE_SCALAR_F16_OPERATORS || HWY_HAVE_SCALAR_BF16_OPERATORS
     AssertSpecialFloatOpResultInRange(
         -0.008422852f, -0.008361816f,
@@ -1184,7 +1184,8 @@ struct TestSpecialFloat {
   }
   template <class T,
             hwy::EnableIf<!EnableSpecialFloatScalarOpsTest<T>()>* = nullptr>
-  static HWY_INLINE void TestSpecialFloatScalarOps(T /*unused*/) {}
+  static HWY_INLINE HWY_MAYBE_UNUSED void TestSpecialFloatScalarOps(
+      T /*unused*/) {}
 
   template <class T>
   HWY_NOINLINE void operator()(T /*unused*/) const {

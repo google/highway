@@ -143,7 +143,7 @@ HWY_NOINLINE void TestAllStrictUnsigned() {
 
 struct TestWeakUnsigned {
   template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+  HWY_NOINLINE HWY_MAYBE_UNUSED void operator()(T /*unused*/, D d) {
     const T max = LimitsMax<T>();
     const Vec<D> v0 = Zero(d);
     const Vec<D> v1 = Set(d, 1u);
