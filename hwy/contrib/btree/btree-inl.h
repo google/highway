@@ -1072,7 +1072,7 @@ class BTreeSet {
   size_t num_elements_ = 0;
 
   NodePool<LeafNode<KeyT>> leaf_pool_;
-  NodePool<InternalNode<KeyT>> internal_pool_;
+  NodePool<InternalNode<KeyT>, /*kTargetChunkBytes=*/4096> internal_pool_;
 };
 
 // -----------------------------------------------------------------------------
@@ -1988,7 +1988,7 @@ class BTreeMap {
   size_t num_elements_ = 0;
 
   NodePool<MapLeafNode<KeyT, ValueT>> leaf_pool_;
-  NodePool<InternalNode<KeyT>> internal_pool_;
+  NodePool<InternalNode<KeyT>, /*kTargetChunkBytes=*/4096> internal_pool_;
 };
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
