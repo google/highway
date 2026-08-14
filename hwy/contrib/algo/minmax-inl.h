@@ -113,6 +113,13 @@ size_t IndexOfMin(D d, const T* HWY_RESTRICT in, size_t count) {
   const size_t max_blocks = static_cast<size_t>(
       block_limit < (uint64_t{1} << 20) ? block_limit : (uint64_t{1} << 20));
 
+  // Blocks are counted down rather than up, so the earliest block is the
+  // largest counter. That lets the resolution below zero out non-candidate
+  // lanes, because zero is the identity for ReduceMax and is never a valid
+  // counter: block b in [0, max_blocks) is stored as max_blocks - b, which is
+  // at least 1. A lane the loop never touched keeps max_blocks, i.e. block 0.
+  const TU inv_base = static_cast<TU>(max_blocks);
+
   const T identity = hwy::PositiveInfOrHighestValue<T>();
   const Vec<D> identity_vec = Set(d, identity);
 
@@ -122,29 +129,60 @@ size_t IndexOfMin(D d, const T* HWY_RESTRICT in, size_t count) {
   for (size_t seg = 0; seg < count; seg += max_blocks * N) {
     const size_t seg_len = HWY_MIN(count - seg, max_blocks * N);
 
-    Vec<D> acc = identity_vec;
-    VFromD<decltype(du)> blocks = Zero(du);
+    Vec<D> acc0 = identity_vec;
+    Vec<D> acc1 = identity_vec;
+    VFromD<decltype(du)> blocks0 = Set(du, inv_base);
+    VFromD<decltype(du)> blocks1 = Set(du, inv_base);
 
-    TU block = 0;
-    for (size_t i = 0; i < seg_len; i += N, ++block) {
+    size_t i = 0;
+    TU inv_block = inv_base;
+
+    // Two accumulators, because each select otherwise waits on the previous
+    // iteration's acc and the loop becomes a latency chain.
+    if (seg_len >= 2 * N) {
+      for (; i + 2 * N <= seg_len;
+           i += 2 * N, inv_block = static_cast<TU>(inv_block - 2)) {
+        const Vec<D> v0 = LoadU(d, in + seg + i);
+        const Vec<D> v1 = LoadU(d, in + seg + i + N);
+        // Strictly less, so an equal value later never displaces an earlier
+        // one.
+        const Mask<D> lt0 = Lt(v0, acc0);
+        const Mask<D> lt1 = Lt(v1, acc1);
+        acc0 = IfThenElse(lt0, v0, acc0);
+        acc1 = IfThenElse(lt1, v1, acc1);
+        blocks0 = IfThenElse(RebindMask(du, lt0), Set(du, inv_block), blocks0);
+        blocks1 = IfThenElse(RebindMask(du, lt1),
+                             Set(du, static_cast<TU>(inv_block - 1)), blocks1);
+      }
+
+      // Fold the odd blocks into the even ones: the smaller value wins, and on
+      // a tie the earlier block does, which is the larger counter. Merging
+      // before the tail is what keeps the tail's blocks correctly later.
+      const Mask<D> take1 =
+          Or(Lt(acc1, acc0),
+             And(Eq(acc0, acc1), RebindMask(d, Gt(blocks1, blocks0))));
+      acc0 = IfThenElse(take1, acc1, acc0);
+      blocks0 = IfThenElse(RebindMask(du, take1), blocks1, blocks0);
+    }
+
+    for (; i < seg_len; i += N, --inv_block) {
       const size_t n = HWY_MIN(seg_len - i, N);
       const Vec<D> v = LoadNOr(identity_vec, d, in + seg + i, n);
-      // Strictly less, so an equal value later never displaces an earlier one.
-      const Mask<D> lt = Lt(v, acc);
-      acc = IfThenElse(lt, v, acc);
-      blocks = IfThenElse(RebindMask(du, lt), Set(du, block), blocks);
+      const Mask<D> lt = Lt(v, acc0);
+      acc0 = IfThenElse(lt, v, acc0);
+      blocks0 = IfThenElse(RebindMask(du, lt), Set(du, inv_block), blocks0);
     }
 
     // Resolve lanes: smallest value, then earliest block, then lowest lane.
-    const T seg_min = ReduceMin(d, acc);
-    const Mask<D> is_min = Eq(acc, Set(d, seg_min));
-    const VFromD<decltype(du)> cand =
-        IfThenElse(RebindMask(du, is_min), blocks, Set(du, LimitsMax<TU>()));
-    const TU min_block = ReduceMin(du, cand);
-    const Mask<D> winners =
-        And(is_min, RebindMask(d, Eq(blocks, Set(du, min_block))));
-    const size_t idx =
-        seg + static_cast<size_t>(min_block) * N + FindKnownFirstTrue(d, winners);
+    const T seg_min = ReduceMin(d, acc0);
+    const Mask<D> is_min = Eq(acc0, Set(d, seg_min));
+    const TU best_inv =
+        ReduceMax(du, IfThenElseZero(RebindMask(du, is_min), blocks0));
+    const Mask<D> winners = RebindMask(
+        d, MaskedEq(RebindMask(du, is_min), blocks0, Set(du, best_inv)));
+    const size_t min_block =
+        static_cast<size_t>(max_blocks) - static_cast<size_t>(best_inv);
+    const size_t idx = seg + min_block * N + FindKnownFirstTrue(d, winners);
 
     if (seg_min < best) {
       best = seg_min;
@@ -174,6 +212,9 @@ size_t IndexOfMax(D d, const T* HWY_RESTRICT in, size_t count) {
   const size_t max_blocks = static_cast<size_t>(
       block_limit < (uint64_t{1} << 20) ? block_limit : (uint64_t{1} << 20));
 
+  // Counted down so the earliest block is the largest counter; see IndexOfMin.
+  const TU inv_base = static_cast<TU>(max_blocks);
+
   const T identity = hwy::NegativeInfOrLowestValue<T>();
   const Vec<D> identity_vec = Set(d, identity);
 
@@ -183,27 +224,52 @@ size_t IndexOfMax(D d, const T* HWY_RESTRICT in, size_t count) {
   for (size_t seg = 0; seg < count; seg += max_blocks * N) {
     const size_t seg_len = HWY_MIN(count - seg, max_blocks * N);
 
-    Vec<D> acc = identity_vec;
-    VFromD<decltype(du)> blocks = Zero(du);
+    Vec<D> acc0 = identity_vec;
+    Vec<D> acc1 = identity_vec;
+    VFromD<decltype(du)> blocks0 = Set(du, inv_base);
+    VFromD<decltype(du)> blocks1 = Set(du, inv_base);
 
-    TU block = 0;
-    for (size_t i = 0; i < seg_len; i += N, ++block) {
-      const size_t n = HWY_MIN(seg_len - i, N);
-      const Vec<D> v = LoadNOr(identity_vec, d, in + seg + i, n);
-      const Mask<D> gt = Gt(v, acc);
-      acc = IfThenElse(gt, v, acc);
-      blocks = IfThenElse(RebindMask(du, gt), Set(du, block), blocks);
+    size_t i = 0;
+    TU inv_block = inv_base;
+
+    if (seg_len >= 2 * N) {
+      for (; i + 2 * N <= seg_len;
+           i += 2 * N, inv_block = static_cast<TU>(inv_block - 2)) {
+        const Vec<D> v0 = LoadU(d, in + seg + i);
+        const Vec<D> v1 = LoadU(d, in + seg + i + N);
+        const Mask<D> gt0 = Gt(v0, acc0);
+        const Mask<D> gt1 = Gt(v1, acc1);
+        acc0 = IfThenElse(gt0, v0, acc0);
+        acc1 = IfThenElse(gt1, v1, acc1);
+        blocks0 = IfThenElse(RebindMask(du, gt0), Set(du, inv_block), blocks0);
+        blocks1 = IfThenElse(RebindMask(du, gt1),
+                             Set(du, static_cast<TU>(inv_block - 1)), blocks1);
+      }
+
+      const Mask<D> take1 =
+          Or(Gt(acc1, acc0),
+             And(Eq(acc0, acc1), RebindMask(d, Gt(blocks1, blocks0))));
+      acc0 = IfThenElse(take1, acc1, acc0);
+      blocks0 = IfThenElse(RebindMask(du, take1), blocks1, blocks0);
     }
 
-    const T seg_max = ReduceMax(d, acc);
-    const Mask<D> is_max = Eq(acc, Set(d, seg_max));
-    const VFromD<decltype(du)> cand =
-        IfThenElse(RebindMask(du, is_max), blocks, Set(du, LimitsMax<TU>()));
-    const TU min_block = ReduceMin(du, cand);
-    const Mask<D> winners =
-        And(is_max, RebindMask(d, Eq(blocks, Set(du, min_block))));
-    const size_t idx =
-        seg + static_cast<size_t>(min_block) * N + FindKnownFirstTrue(d, winners);
+    for (; i < seg_len; i += N, --inv_block) {
+      const size_t n = HWY_MIN(seg_len - i, N);
+      const Vec<D> v = LoadNOr(identity_vec, d, in + seg + i, n);
+      const Mask<D> gt = Gt(v, acc0);
+      acc0 = IfThenElse(gt, v, acc0);
+      blocks0 = IfThenElse(RebindMask(du, gt), Set(du, inv_block), blocks0);
+    }
+
+    const T seg_max = ReduceMax(d, acc0);
+    const Mask<D> is_max = Eq(acc0, Set(d, seg_max));
+    const TU best_inv =
+        ReduceMax(du, IfThenElseZero(RebindMask(du, is_max), blocks0));
+    const Mask<D> winners = RebindMask(
+        d, MaskedEq(RebindMask(du, is_max), blocks0, Set(du, best_inv)));
+    const size_t min_block =
+        static_cast<size_t>(max_blocks) - static_cast<size_t>(best_inv);
+    const size_t idx = seg + min_block * N + FindKnownFirstTrue(d, winners);
 
     if (seg_max > best) {
       best = seg_max;
