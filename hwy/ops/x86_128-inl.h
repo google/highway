@@ -14298,6 +14298,16 @@ HWY_INLINE size_t TrailingZeros32(uint32_t x) {
   return _tzcnt_u32(x);
 #endif
 }
+
+HWY_INLINE size_t TrailingZeros64(uint64_t x) {
+#if defined(HWY_DISABLE_BMI2_FMA) || HWY_TARGET > HWY_AVX2
+  // Prevent UB for x == 0 by ORing; result is implementation-defined.
+  return Num0BitsBelowLS1Bit_Nonzero64(x | uint64_t{0x8000000000000000});
+#else
+  return _tzcnt_u64(x);
+#endif
+}
+
 }  // namespace detail
 
 // ------------------------------ LoadMaskBits (TestBit)
