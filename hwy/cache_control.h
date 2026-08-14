@@ -21,7 +21,10 @@
 
 // Requires SSE2; fails to compile on 32-bit Clang 7 (see
 // https://github.com/gperftools/gperftools/issues/946).
-#if !defined(__SSE2__) || (HWY_COMPILER_CLANG && HWY_ARCH_X86_32)
+#if HWY_ARCH_X86 &&                                                      \
+    (!(defined(__SSE2__) || HWY_ARCH_X86_64 ||                           \
+       (HWY_COMPILER_MSVC && defined(_M_IX86_FP) && _M_IX86_FP >= 2)) || \
+     (HWY_COMPILER_CLANG && HWY_ARCH_X86_32))
 #undef HWY_DISABLE_CACHE_CONTROL
 #define HWY_DISABLE_CACHE_CONTROL
 #endif
@@ -31,7 +34,7 @@
 #if HWY_ARCH_X86 && !HWY_COMPILER_MSVC
 #include <emmintrin.h>  // SSE2
 #include <xmmintrin.h>  // _mm_prefetch
-#elif HWY_ARCH_ARM_A64
+#elif HWY_ARCH_ARM_A64 && HWY_COMPILER_CLANG
 #include <arm_acle.h>
 #endif
 #endif  // HWY_DISABLE_CACHE_CONTROL
