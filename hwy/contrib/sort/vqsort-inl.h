@@ -584,7 +584,7 @@ HWY_NOINLINE void BaseCase(D d, TraitsKV, T* HWY_RESTRICT keys,
   using Traits = typename TraitsKV::SharedTraitsForSortingNetwork;
   Traits st;
   constexpr size_t kLPK = st.LanesPerKey();
-  HWY_DASSERT(num_lanes <= Constants::BaseCaseNumLanes<kLPK>(Lanes(d)));
+  HWY_DASSERT(num_lanes <= Constants::BaseCaseNumLanes(Lanes(d)));
   const size_t num_keys = num_lanes / kLPK;
 
   // Can be zero when called through HandleSpecialCases, but also 1 (in which
@@ -603,8 +603,9 @@ HWY_NOINLINE void BaseCase(D d, TraitsKV, T* HWY_RESTRICT keys,
       /* <= 2 */ &Sort2To2<Traits, T>,
       /* <= 4 */ &Sort3To4<Traits, T>,
       /* <= 8 */ &Sort8Rows<1, Traits, T>,  // 1 key per row
-      /* <= 16 */ kMaxKeysPerVector >= 2 ? &Sort8Rows<2, Traits, T> : nullptr,
-      /* <= 32 */ kMaxKeysPerVector >= 4 ? &Sort8Rows<4, Traits, T> : nullptr,
+      /* <= 16 */ kMaxKeysPerVector >= 2 ? &Sort8Rows<2, Traits, T> : &Sort16Rows<1, Traits, T>,
+      /* <= 32 */ kMaxKeysPerVector >= 4 ? &Sort8Rows<4, Traits, T> :
+                  kMaxKeysPerVector >= 2 ? &Sort16Rows<2, Traits, T> : nullptr,
       /* <= 64 */ kMaxKeysPerVector >= 4 ? &Sort16Rows<4, Traits, T> : nullptr,
       /* <= 128 */ kMaxKeysPerVector >= 8 ? &Sort16Rows<8, Traits, T> : nullptr,
 #if !HWY_COMPILER_MSVC && !HWY_IS_DEBUG_BUILD
@@ -1316,7 +1317,7 @@ HWY_INLINE void SortSamples(D d, Traits st, T* HWY_RESTRICT buf) {
   const size_t N = Lanes(d);
   constexpr size_t kSampleLanes = Constants::SampleLanes<T>();
   // Network must be large enough to sort two chunks.
-  HWY_DASSERT(Constants::BaseCaseNumLanes<st.LanesPerKey()>(N) >= kSampleLanes);
+  HWY_DASSERT(Constants::BaseCaseNumLanes(N) >= kSampleLanes);
 
   BaseCase(d, st, buf, kSampleLanes, buf + kSampleLanes);
 
@@ -1775,8 +1776,7 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
   HWY_DASSERT(num != 0);
 
   const size_t N = Lanes(d);
-  constexpr size_t kLPK = st.LanesPerKey();
-  if (HWY_UNLIKELY(num <= Constants::BaseCaseNumLanes<kLPK>(N))) {
+  if (HWY_UNLIKELY(num <= Constants::BaseCaseNumLanes(N))) {
     BaseCase(d, st, keys, num, buf);
     return;
   }
@@ -1889,8 +1889,7 @@ template <class D, class Traits, typename T>
 HWY_INLINE bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys,
                                    size_t num, T* HWY_RESTRICT buf) {
   const size_t N = Lanes(d);
-  constexpr size_t kLPK = st.LanesPerKey();
-  const size_t base_case_num = Constants::BaseCaseNumLanes<kLPK>(N);
+  const size_t base_case_num = Constants::BaseCaseNumLanes(N);
 
   // Recurse will also check this, but doing so here first avoids setting up
   // the random generator state.
@@ -2144,8 +2143,7 @@ void Select(D d, Traits st, T* HWY_RESTRICT keys, const size_t num,
 // `num` is in units of `T`, not keys!
 template <class D, class Traits, typename T>
 HWY_API void Sort(D d, Traits st, T* HWY_RESTRICT keys, const size_t num) {
-  constexpr size_t kLPK = st.LanesPerKey();
-  HWY_ALIGN T buf[SortConstants::BufBytes<T, kLPK>(HWY_MAX_BYTES) / sizeof(T)];
+  HWY_ALIGN T buf[SortConstants::BufBytes<T>(HWY_MAX_BYTES) / sizeof(T)];
   Sort(d, st, keys, num, buf);
 }
 
@@ -2155,8 +2153,7 @@ HWY_API void Sort(D d, Traits st, T* HWY_RESTRICT keys, const size_t num) {
 template <class D, class Traits, typename T>
 HWY_API void PartialSort(D d, Traits st, T* HWY_RESTRICT keys, const size_t num,
                          const size_t k) {
-  constexpr size_t kLPK = st.LanesPerKey();
-  HWY_ALIGN T buf[SortConstants::BufBytes<T, kLPK>(HWY_MAX_BYTES) / sizeof(T)];
+  HWY_ALIGN T buf[SortConstants::BufBytes<T>(HWY_MAX_BYTES) / sizeof(T)];
   PartialSort(d, st, keys, num, k, buf);
 }
 
@@ -2167,8 +2164,7 @@ HWY_API void PartialSort(D d, Traits st, T* HWY_RESTRICT keys, const size_t num,
 template <class D, class Traits, typename T>
 HWY_API void Select(D d, Traits st, T* HWY_RESTRICT keys, const size_t num,
                     const size_t k) {
-  constexpr size_t kLPK = st.LanesPerKey();
-  HWY_ALIGN T buf[SortConstants::BufBytes<T, kLPK>(HWY_MAX_BYTES) / sizeof(T)];
+  HWY_ALIGN T buf[SortConstants::BufBytes<T>(HWY_MAX_BYTES) / sizeof(T)];
   Select(d, st, keys, num, k, buf);
 }
 

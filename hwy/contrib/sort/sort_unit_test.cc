@@ -160,7 +160,7 @@ static HWY_NOINLINE void TestBaseCaseAscDesc() {
   const SortTag<LaneType> d;
   const size_t N = Lanes(d);
   constexpr size_t N1 = st.LanesPerKey();
-  const size_t base_case_num = SortConstants::BaseCaseNumLanes<N1>(N);
+  const size_t base_case_num = SortConstants::BaseCaseNumLanes(N);
 
   constexpr int kDebug = 0;
   auto aligned_lanes = hwy::AllocateAligned<LaneType>(N + base_case_num + N);
@@ -240,7 +240,7 @@ static HWY_NOINLINE void TestBaseCase01() {
   const SortTag<LaneType> d;
   const size_t N = Lanes(d);
   constexpr size_t N1 = st.LanesPerKey();
-  const size_t base_case_num = SortConstants::BaseCaseNumLanes<N1>(N);
+  const size_t base_case_num = SortConstants::BaseCaseNumLanes(N);
 
   constexpr int kDebug = 0;
   auto lanes = hwy::AllocateAligned<LaneType>(base_case_num + N);
@@ -361,14 +361,14 @@ static HWY_NOINLINE void TestPartition() {
   const size_t N = Lanes(d);
   constexpr int kDebug = 0;
   constexpr size_t N1 = st.LanesPerKey();
-  const size_t base_case_num = SortConstants::BaseCaseNumLanes<N1>(N);
+  const size_t base_case_num = SortConstants::BaseCaseNumLanes(N);
   HWY_ASSERT(2 * N <= base_case_num);  // See HandleSpecialCases
 
   // left + len + align
   const size_t total = 32 + (base_case_num + 4 * HWY_MAX(N, 4)) + 2 * N;
   auto aligned_lanes = hwy::AllocateAligned<LaneType>(total);
   HWY_ASSERT(aligned_lanes);
-  HWY_ALIGN LaneType buf[SortConstants::BufBytes<LaneType, N1>(HWY_MAX_BYTES) /
+  HWY_ALIGN LaneType buf[SortConstants::BufBytes<LaneType>(HWY_MAX_BYTES) /
                          sizeof(LaneType)];
 
   for (bool in_asc : {false, true}) {

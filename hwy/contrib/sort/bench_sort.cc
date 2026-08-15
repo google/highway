@@ -17,6 +17,7 @@
 #include <stdio.h>
 
 #include <vector>
+#include <array>
 
 // clang-format off
 #undef HWY_TARGET_INCLUDE
@@ -151,7 +152,7 @@ HWY_NOINLINE void BenchPartition() {
 
   constexpr size_t kLPK = st.LanesPerKey();
   HWY_ALIGN LaneType
-      buf[SortConstants::BufBytes<LaneType, kLPK>(HWY_MAX_BYTES) /
+      buf[SortConstants::BufBytes<LaneType>(HWY_MAX_BYTES) /
           sizeof(LaneType)];
   uint64_t* HWY_RESTRICT state = GetGeneratorState();
 
@@ -217,7 +218,7 @@ HWY_NOINLINE void BenchBase(std::vector<SortResult>& results) {
 
   const size_t N = Lanes(d);
   constexpr size_t kLPK = st.LanesPerKey();
-  const size_t num_lanes = SortConstants::BaseCaseNumLanes<kLPK>(N);
+  const size_t num_lanes = SortConstants::BaseCaseNumLanes(N);
   const size_t num_keys = num_lanes / kLPK;
   auto keys = hwy::AllocateAligned<LaneType>(num_lanes);
   auto buf = hwy::AllocateAligned<LaneType>(num_lanes + N);
@@ -314,9 +315,14 @@ HWY_NOINLINE void BenchSort(size_t num_keys) {
   using LaneType = typename Traits::LaneType;
   using KeyType = typename Traits::KeyType;
   const size_t num_lanes = num_keys * st.LanesPerKey();
-  auto aligned = hwy::AllocateAligned<LaneType>(num_lanes);
 
+  constexpr size_t inner_reps_max = 30;
   const size_t reps = num_keys > 1000 * 1000 ? 10 : 30;
+  const size_t inner_reps = num_keys <= 128 ? inner_reps_max : 1;
+
+  std::array<decltype(hwy::AllocateAligned<LaneType>(num_lanes)), inner_reps_max> aligned;
+  for (size_t i = 0; i < inner_reps; ++i) aligned[i] = hwy::AllocateAligned<LaneType>(num_lanes);
+
 
   for (Algo algo : AlgoForBench()) {
     // Other algorithms don't depend on the vector instructions, so only run
@@ -330,17 +336,22 @@ HWY_NOINLINE void BenchSort(size_t num_keys) {
     for (Dist dist : AllDist()) {
       std::vector<double> seconds;
       for (size_t rep = 0; rep < reps; ++rep) {
-        InputStats<LaneType> input_stats =
-            GenerateInput(dist, aligned.get(), num_lanes);
-
+        std::array<InputStats<LaneType>, inner_reps_max> input_stats;
+        for (size_t i = 0; i < inner_reps; ++i) {
+          input_stats[i] = GenerateInput(dist, aligned[i].get(), num_lanes);
+        }
         const Timestamp t0;
-        Run(algo, HWY_RCAST_ALIGNED(KeyType*, aligned.get()), num_keys, shared,
-            /*thread=*/0, /*k_keys=*/0, Order());
-        seconds.push_back(SecondsSince(t0));
+        for (size_t inner_rep = 0; inner_rep < inner_reps; ++inner_rep) {
+          Run(algo, HWY_RCAST_ALIGNED(KeyType*, aligned[inner_rep].get()), num_keys, shared,
+              /*thread=*/0, /*k_keys=*/0, Order());
+        }
+        seconds.push_back(SecondsSince(t0) / static_cast<double>(inner_reps));
         // printf("%f\n", seconds.back());
 
-        SortOrderVerifier<Traits>()(algo, input_stats, aligned.get(), num_keys,
-                                    num_keys);
+        for (size_t i = 0; i < inner_reps; ++i) {
+          SortOrderVerifier<Traits>()(algo, input_stats[i], aligned[i].get(), num_keys,
+                                      num_keys);
+        }
       }
       SortResult(algo, dist, num_keys, 1, SummarizeMeasurements(seconds),
                  sizeof(KeyType), st.KeyString())
