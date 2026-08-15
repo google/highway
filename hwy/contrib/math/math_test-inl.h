@@ -376,9 +376,14 @@ HWY_NOINLINE void TestF16Math(const char* name, double (*fx1)(double),
       const T expected = F16FromF64(fx1(static_cast<double>(value_f32)));
       const uint64_t ulp = F16UlpDelta(actual_lanes[i], expected);
       if (ulp > max_error_ulp) {
-        fprintf(stderr, "%s: %s(%f) expected %E actual %E ulp %g max ulp %u\n",
-                hwy::TypeName(T(), Lanes(d)).c_str(), name,
-                static_cast<double>(value_f32),
+        // Several tags can have the same Lanes() but differ in MaxLanes and
+        // pow2, so print those too, otherwise the failures are hard to place.
+        fprintf(stderr,
+                "%s (MaxLanes %d, pow2 %d): %s(%f) lane %d expected %E "
+                "actual %E ulp %g max ulp %u\n",
+                hwy::TypeName(T(), Lanes(d)).c_str(),
+                static_cast<int>(HWY_MAX_LANES_D(D)), int{HWY_POW2_D(D)}, name,
+                static_cast<double>(value_f32), static_cast<int>(i),
                 static_cast<double>(F32FromF16(expected)),
                 static_cast<double>(F32FromF16(actual_lanes[i])),
                 static_cast<double>(ulp), static_cast<uint32_t>(max_error_ulp));

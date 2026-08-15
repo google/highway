@@ -47,37 +47,51 @@ template <class D, class Kernel, class V = VFromD<D>>
 HWY_INLINE V F16ViaF32PerHalf(D d, V v, Kernel kernel) {
   const Half<D> dh;
   const RepartitionToWide<D> df32;
+  HWY_DASSERT(Lanes(df32) == Lanes(d) / 2);
   const VFromD<decltype(df32)> lo = kernel(df32, PromoteLowerTo(df32, v));
   const VFromD<decltype(df32)> hi = kernel(df32, PromoteUpperTo(df32, v));
   return Combine(d, DemoteTo(dh, hi), DemoteTo(dh, lo));
 }
 
+// Whether `Rebind<float, D>` is guaranteed to have exactly `Lanes(d)` lanes,
+// i.e. one promotion covers every lane of `v`.
+//
+// Rebind raises kPow2 by one because float lanes are twice as large. On
+// fixed-size targets Lanes() == MaxLanes(), so comparing sizes is enough. On
+// scalable targets it is not: MaxLanes() is only an upper bound, so a
+// CappedTag whose cap does not bind is a full vector at run time. Rebind then
+// runs into the cap, and SVE additionally clamps kPow2 to 0, leaving the
+// float32 tag with half as many lanes as `d`. For example, on SVE2 with
+// 512-bit vectors, CappedTag<float16_t, 32> has Lanes() == 32, but
+// Rebind<float, decltype(d)> has Lanes() == 16: the kernel would see only
+// lanes 0..15, and DemoteTo, which duplicates its result into both halves of
+// the register, would store those same results again for lanes 16..31.
+//
+// Fractional tags absorb the widening in kPow2 and are safe, as is any tag
+// whose cap binds even for the smallest possible vector. Everything else uses
+// the per-half path, whose RepartitionToWide keeps kPow2 and therefore always
+// has exactly Lanes(d) / 2 lanes.
+template <class D>
+constexpr bool F16OnePromotionCoversAllLanes() {
+  return (HWY_POW2_D(D) + 1 <= HWY_MAX_POW2) &&
+         (HWY_HAVE_SCALABLE
+              ? (HWY_POW2_D(D) < 0 || HWY_V_SIZE_D(D) * 2 <= HWY_MIN_BYTES)
+              : (HWY_V_SIZE_D(D) <= HWY_MAX_BYTES / 2));
+}
+
 // Evaluates `kernel` on all lanes of `v` with a single promotion and one
-// kernel evaluation. This overload handles vectors that fit in half of the
-// widest vector - including all partial vectors, N=1, and the entire
-// HWY_SCALAR target. The kPow2 bound ensures Rebind<float, D> (one more
-// kPow2 because float lanes are twice as large) is a valid tag.
+// kernel evaluation.
 template <class D, class Kernel, class V = VFromD<D>, HWY_IF_F16_D(D),
-          HWY_IF_V_SIZE_LE_D(D, HWY_MAX_BYTES / 2),
-          HWY_IF_POW2_LE_D(D, HWY_MAX_POW2 - 1)>
+          hwy::EnableIf<F16OnePromotionCoversAllLanes<D>()>* = nullptr>
 HWY_INLINE V F16ViaF32(D d, V v, Kernel kernel) {
   const Rebind<float, D> df32;
+  HWY_DASSERT(Lanes(df32) == Lanes(d));
   return DemoteTo(d, kernel(df32, PromoteTo(df32, v)));
 }
 
-// Wider vectors take the per-half path.
+// Everything else needs two promotions, one per half.
 template <class D, class Kernel, class V = VFromD<D>, HWY_IF_F16_D(D),
-          HWY_IF_V_SIZE_GT_D(D, HWY_MAX_BYTES / 2)>
-HWY_INLINE V F16ViaF32(D d, V v, Kernel kernel) {
-  return F16ViaF32PerHalf(d, v, kernel);
-}
-
-// Small vectors already at the maximum kPow2 (possible on RVV, e.g.
-// CappedTag<float16_t, 8, 3>): Rebind<float, D> would exceed HWY_MAX_POW2,
-// so use the per-half path, whose RepartitionToWide keeps kPow2 unchanged.
-template <class D, class Kernel, class V = VFromD<D>, HWY_IF_F16_D(D),
-          HWY_IF_V_SIZE_LE_D(D, HWY_MAX_BYTES / 2),
-          HWY_IF_POW2_GT_D(D, HWY_MAX_POW2 - 1)>
+          hwy::EnableIf<!F16OnePromotionCoversAllLanes<D>()>* = nullptr>
 HWY_INLINE V F16ViaF32(D d, V v, Kernel kernel) {
   return F16ViaF32PerHalf(d, v, kernel);
 }
@@ -141,7 +155,7 @@ struct Log2Kernel {
  * Highway SIMD version of std::exp(x) for float16 lanes.
  *
  * Valid Lane Types: float16
- *        Max Error: ULP = 2
+ *        Max Error: ULP = 1
  *      Valid Range: float16[-65504, +104]
  * @return e^x
  */
@@ -154,7 +168,7 @@ HWY_INLINE V Exp(D d, V x) {
  * Highway SIMD version of std::exp2(x) for float16 lanes.
  *
  * Valid Lane Types: float16
- *        Max Error: ULP = 2
+ *        Max Error: ULP = 1
  *      Valid Range: float16[-65504, +128]
  * @return 2^x
  */
@@ -167,7 +181,7 @@ HWY_INLINE V Exp2(D d, V x) {
  * Highway SIMD version of std::expm1(x) for float16 lanes.
  *
  * Valid Lane Types: float16
- *        Max Error: ULP = 2
+ *        Max Error: ULP = 1
  *      Valid Range: float16[-65504, +104]
  * @return e^x - 1
  */
@@ -206,7 +220,7 @@ HWY_INLINE V Log10(D d, V x) {
  * Highway SIMD version of std::log1p(x) for float16 lanes.
  *
  * Valid Lane Types: float16
- *        Max Error: ULP = 2
+ *        Max Error: ULP = 1
  *      Valid Range: float16[0, +65504]
  * @return log(1 + x)
  */
