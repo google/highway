@@ -77,19 +77,20 @@ struct TestSumsOfAdjQuadAbsDiff {
 #if HWY_TARGET != HWY_SCALAR
   template <size_t kAOffset, size_t kBOffset, class D,
             HWY_IF_LANES_LE_D(D, kAOffset * 4 + 3)>
-  static HWY_INLINE void DoTestSumsOfAdjQuadAbsDiff(D /*d*/,
-                                                    RandomState& /*rng*/) {}
+  static HWY_INLINE HWY_MAYBE_UNUSED void DoTestSumsOfAdjQuadAbsDiff(
+      D /*d*/, RandomState& /*rng*/) {}
 
   template <size_t kAOffset, size_t kBOffset, class D,
             HWY_IF_LANES_GT_D(D, kAOffset * 4 + 3),
             HWY_IF_LANES_LE_D(D, kBOffset * 4 + 3)>
-  static HWY_INLINE void DoTestSumsOfAdjQuadAbsDiff(D /*d*/,
-                                                    RandomState& /*rng*/) {}
+  static HWY_INLINE HWY_MAYBE_UNUSED void DoTestSumsOfAdjQuadAbsDiff(
+      D /*d*/, RandomState& /*rng*/) {}
 
   template <size_t kAOffset, size_t kBOffset, class D,
             HWY_IF_LANES_GT_D(D, kAOffset * 4 + 3),
             HWY_IF_LANES_GT_D(D, kBOffset * 4 + 3)>
-  static HWY_NOINLINE void DoTestSumsOfAdjQuadAbsDiff(D d, RandomState& rng) {
+  static HWY_NOINLINE HWY_MAYBE_UNUSED void DoTestSumsOfAdjQuadAbsDiff(
+      D d, RandomState& rng) {
     static_assert(kAOffset <= 1, "kAOffset <= 1 must be true");
     static_assert(kBOffset <= 3, "kBOffset <= 3 must be true");
 
@@ -166,7 +167,8 @@ struct TestSumsOfAdjQuadAbsDiff {
 
   template <class D, class D2 = DFromV<Vec<D>>,
             HWY_IF_LANES_GT_D(D, HWY_MAX_LANES_D(D2) - 1)>
-  static HWY_INLINE void FullOrFixedVecQuadSumTests(D d, RandomState& rng) {
+  static HWY_INLINE HWY_MAYBE_UNUSED void FullOrFixedVecQuadSumTests(
+      D d, RandomState& rng) {
     DoTestSumsOfAdjQuadAbsDiff<0, 1>(d, rng);
     DoTestSumsOfAdjQuadAbsDiff<0, 2>(d, rng);
     DoTestSumsOfAdjQuadAbsDiff<0, 3>(d, rng);
@@ -178,7 +180,7 @@ struct TestSumsOfAdjQuadAbsDiff {
 #endif  // HWY_TARGET != HWY_SCALAR
 
   template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+  HWY_NOINLINE HWY_MAYBE_UNUSED void operator()(T /*unused*/, D d) {
 #if HWY_TARGET != HWY_SCALAR
     RandomState rng;
     DoTestSumsOfAdjQuadAbsDiff<0, 0>(d, rng);
@@ -197,8 +199,8 @@ HWY_NOINLINE void TestAllSumsOfAdjQuadAbsDiff() {
 struct TestSumsOfShuffledQuadAbsDiff {
 #if HWY_TARGET != HWY_SCALAR
   template <size_t kIdx3, size_t kIdx2, size_t kIdx1, size_t kIdx0, class D>
-  static HWY_NOINLINE void DoTestSumsOfShuffledQuadAbsDiff(D d,
-                                                           RandomState& rng) {
+  static HWY_NOINLINE HWY_MAYBE_UNUSED void DoTestSumsOfShuffledQuadAbsDiff(
+      D d, RandomState& rng) {
     static_assert(kIdx0 <= 3, "kIdx0 <= 3 must be true");
     static_assert(kIdx1 <= 3, "kIdx1 <= 3 must be true");
     static_assert(kIdx2 <= 3, "kIdx2 <= 3 must be true");
@@ -280,22 +282,24 @@ struct TestSumsOfShuffledQuadAbsDiff {
   }
 
   template <class D, HWY_IF_LANES_LE_D(D, 4)>
-  static HWY_INLINE void AtLeast8LanesShufQuadSumTests(D /*d*/,
-                                                       RandomState& /*rng*/) {}
+  static HWY_INLINE HWY_MAYBE_UNUSED void AtLeast8LanesShufQuadSumTests(
+      D /*d*/, RandomState& /*rng*/) {}
 
   template <class D, HWY_IF_LANES_GT_D(D, 4)>
-  static HWY_INLINE void AtLeast8LanesShufQuadSumTests(D d, RandomState& rng) {
+  static HWY_INLINE HWY_MAYBE_UNUSED void AtLeast8LanesShufQuadSumTests(
+      D d, RandomState& rng) {
     if (Lanes(d) >= 8) {
       DoTestSumsOfShuffledQuadAbsDiff<0, 0, 0, 1>(d, rng);
     }
   }
 
   template <class D, HWY_IF_LANES_LE_D(D, 8)>
-  static HWY_INLINE void AtLeast16LanesShufQuadSumTests(D /*d*/,
-                                                        RandomState& /*rng*/) {}
+  static HWY_INLINE HWY_MAYBE_UNUSED void AtLeast16LanesShufQuadSumTests(
+      D /*d*/, RandomState& /*rng*/) {}
 
   template <class D, HWY_IF_LANES_GT_D(D, 8)>
-  static HWY_INLINE void AtLeast16LanesShufQuadSumTests(D d, RandomState& rng) {
+  static HWY_INLINE HWY_MAYBE_UNUSED void AtLeast16LanesShufQuadSumTests(
+      D d, RandomState& rng) {
     if (Lanes(d) >= 16) {
       DoTestSumsOfShuffledQuadAbsDiff<3, 2, 1, 0>(d, rng);
       DoTestSumsOfShuffledQuadAbsDiff<0, 3, 1, 2>(d, rng);
@@ -310,14 +314,15 @@ struct TestSumsOfShuffledQuadAbsDiff {
 
   template <class D, class D2 = DFromV<Vec<D>>,
             HWY_IF_LANES_GT_D(D, HWY_MAX_LANES_D(D2) - 1)>
-  static HWY_INLINE void FullOrFixedVecShufQuadSumTests(D d, RandomState& rng) {
+  static HWY_INLINE HWY_MAYBE_UNUSED void FullOrFixedVecShufQuadSumTests(
+      D d, RandomState& rng) {
     AtLeast8LanesShufQuadSumTests(d, rng);
     AtLeast16LanesShufQuadSumTests(d, rng);
   }
 #endif  // HWY_TARGET != HWY_SCALAR
 
   template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+  HWY_NOINLINE HWY_MAYBE_UNUSED void operator()(T /*unused*/, D d) {
 #if HWY_TARGET != HWY_SCALAR
     RandomState rng;
     DoTestSumsOfShuffledQuadAbsDiff<0, 0, 0, 0>(d, rng);

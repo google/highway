@@ -34,7 +34,7 @@ namespace HWY_NAMESPACE {
 namespace {
 
 template <typename T>
-T DoubleDot(const T* pa, const T* pb, size_t num) {
+HWY_MAYBE_UNUSED T DoubleDot(const T* pa, const T* pb, size_t num) {
   double sum = 0.0;
   for (size_t i = 0; i < num; ++i) {
     // For reasons unknown, fp16 += does not compile on clang (Arm).
@@ -53,7 +53,7 @@ HWY_MAYBE_UNUSED T DoubleSum(const T* pa, size_t num) {
 }
 
 template <typename T>
-T DoubleMin(const T* pa, size_t num) {
+HWY_MAYBE_UNUSED T DoubleMin(const T* pa, size_t num) {
   double min = HighestValue<T>();
   for (size_t i = 0; i < num; ++i) {
     min = HWY_MIN(min, ConvertScalarTo<double>(pa[i]));
@@ -324,7 +324,7 @@ struct DotUnit : UnrollerUnit2D<DotUnit<T>, T, T, T> {
 };
 
 template <class D>
-std::vector<size_t> Counts(D d) {
+HWY_MAYBE_UNUSED std::vector<size_t> Counts(D d) {
   const size_t N = Lanes(d);
   return std::vector<size_t>{1,
                              3,
@@ -344,7 +344,7 @@ std::vector<size_t> Counts(D d) {
 
 struct TestDot {
   template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+  HWY_NOINLINE HWY_MAYBE_UNUSED void operator()(T /*unused*/, D d) {
     // TODO(janwas): avoid internal compiler error
 #if HWY_TARGET == HWY_SVE || HWY_TARGET == HWY_SVE2 || HWY_COMPILER_MSVC
     (void)d;
@@ -409,7 +409,7 @@ void TestAllDot() { ForFloatTypes(ForPartialVectors<TestDot>()); }
 
 struct TestConvert {
   template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+  HWY_NOINLINE HWY_MAYBE_UNUSED void operator()(T /*unused*/, D d) {
     // TODO(janwas): avoid internal compiler error
 #if HWY_TARGET == HWY_SVE || HWY_TARGET == HWY_SVE2 || HWY_COMPILER_MSVC
     (void)d;
@@ -448,7 +448,7 @@ void TestAllConvert() { ForFloat3264Types(ForPartialVectors<TestConvert>()); }
 
 struct TestFind {
   template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+  HWY_NOINLINE HWY_MAYBE_UNUSED void operator()(T /*unused*/, D d) {
     for (size_t num : Counts(d)) {
       AlignedFreeUniquePtr<T[]> pa = AllocateAligned<T>(num);
       HWY_ASSERT(pa);
