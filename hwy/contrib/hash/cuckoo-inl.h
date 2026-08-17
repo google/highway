@@ -1421,6 +1421,16 @@ using CuckooBuilder = CuckooBuilderT<>;
 // --------------------------------------------------------------------------
 // Top-level build function
 
+// Arguments for CuckooBuild, excluding traits, keys and stats.
+struct CuckooBuildArgs {
+  double epsilon = 0.25;
+  uint32_t max_attempts = 100;
+  CuckooBuildAlgo algo = CuckooBuildAlgo::kHopcroftKarp;
+  // If true, tries all seeds up to max_attempts until one achieves 100%
+  // primary placements, otherwise fails (returns empty table).
+  bool require_no_secondary = false;
+};
+
 // Shared implementation for CuckooBuild and CuckooBuild64.
 // Tries multiple hash function seeds. Returns an empty table on failure.
 // If algo is CuckooBuildAlgo::kMinCost, runs a min-cost optimization phase
@@ -1433,33 +1443,58 @@ using CuckooBuilder = CuckooBuilderT<>;
 // Note about epsilon: epsilon is the load factor, i.e. the ratio of the number
 // of keys to the number of slots. The table has num_keys / epsilon slots.
 // We allow limited list of epsilons.
-template <typename Traits>
-static HWY_MAYBE_UNUSED CuckooTableT<Traits> CuckooBuildT(
-    const typename Traits::KeyT* keys, size_t num_keys, double epsilon,
-    uint32_t max_attempts,
-    CuckooBuildAlgo algo = CuckooBuildAlgo::kHopcroftKarp,
+template <typename Traits, typename KeyT = typename Traits::KeyT>
+static HWY_MAYBE_UNUSED CuckooTableT<Traits> CuckooBuild(
+    Traits, Span<const KeyT> keys,
+    const CuckooBuildArgs& args = CuckooBuildArgs(),
     CuckooBuildStats* stats = nullptr) {
   constexpr int kVerbosity = Traits::kVerbosity;
   using HashT = typename Traits::HashT;
-  constexpr double kEpsilons[] = {0.01, 0.05, 0.10, 0.25, 0.50, 0.75};
-  bool found_epsilon = false;
-  for (double e : kEpsilons) {
-    if (epsilon == e) {
-      found_epsilon = true;
-      break;
-    }
-  }
-  if (!found_epsilon) {
-    HWY_WARN("Unsupported epsilon: %f\n", epsilon);
-    return CuckooTableT<Traits>();
-  }
-
-  CuckooConfigT<Traits> config(num_keys, epsilon);
-  CuckooBuilderT<Traits> builder(config);
+  const size_t num_keys = keys.size();
+  // TODO: automatically select epsilon if 0.0
+  CuckooConfigT<Traits> config(num_keys, args.epsilon);
 
   AesCtrEngine engine(/*deterministic=*/true);
 
-  for (uint32_t attempt = 0; attempt < max_attempts; ++attempt) {
+  if (args.require_no_secondary) {
+    // Search all seeds, pick the first with all-primary placement.
+    uint32_t best_num_primary = LimitsMax<uint32_t>();
+    for (uint32_t attempt = 0; attempt < args.max_attempts; ++attempt) {
+      CuckooBuilderT<Traits> builder(config);
+      HashT h1(engine, attempt * 2 + 0);
+      HashT h2(engine, attempt * 2 + 1);
+      CuckooBuildStats trial;
+      if (!builder.Build(keys.data(), h1, h2, args.algo, &trial)) {
+        continue;
+      }
+      auto table = builder.Take(keys.data());
+      const uint32_t np = table.NumPrimary();
+      best_num_primary = HWY_MIN(best_num_primary, np);
+      if (np == num_keys) {  // All primary
+        if (stats) {
+          stats->success = true;
+          stats->global_seed = attempt;
+          stats->attempts = attempt + 1;
+          stats->num_primary = np;
+        }
+        return table;
+      }
+    }
+
+    HWY_WARN(
+        "CuckooTable all-primary placement failed after %u attempts, best "
+        "was %u/%zu",
+        args.max_attempts, best_num_primary, num_keys);
+    if (stats) {
+      stats->success = false;
+      stats->attempts = args.max_attempts;
+    }
+    return CuckooTableT<Traits>();
+  }
+
+  // Default approach: stop at first successful seed.
+  CuckooBuilderT<Traits> builder(config);
+  for (uint32_t attempt = 0; attempt < args.max_attempts; ++attempt) {
     if (kVerbosity >= 2 && num_keys >= 1000000) {
       fprintf(stderr, "CuckooBuild attempt %u for %zu keys...\n", attempt,
               num_keys);
@@ -1468,13 +1503,13 @@ static HWY_MAYBE_UNUSED CuckooTableT<Traits> CuckooBuildT(
     HashT h1(engine, attempt * 2);
     HashT h2(engine, attempt * 2 + 1);
 
-    if (builder.Build(keys, h1, h2, algo, stats)) {
+    if (builder.Build(keys.data(), h1, h2, args.algo, stats)) {
       if (stats) {
         stats->success = true;
         stats->global_seed = attempt;
         stats->attempts = attempt + 1;
       }
-      auto table = builder.Take(keys);
+      auto table = builder.Take(keys.data());
       if (stats) {
         stats->num_primary = table.NumPrimary();
       }
@@ -1485,22 +1520,9 @@ static HWY_MAYBE_UNUSED CuckooTableT<Traits> CuckooBuildT(
   // All attempts failed.
   if (stats) {
     stats->success = false;
-    stats->attempts = max_attempts;
+    stats->attempts = args.max_attempts;
   }
   return CuckooTableT<Traits>();
-}
-
-// Builds a CuckooTable with any Traits/key type. `optimize_primary` is for use
-// by cuckoo_test.cc.
-// TODO: Span interface, remove max_attempts/epsilon? Merge with CuckooBuildT?
-template <class Traits, typename KeyT = typename Traits::KeyT>
-static HWY_MAYBE_UNUSED CuckooTableT<Traits> CuckooBuild(
-    Traits, const KeyT* keys, size_t num_keys, double epsilon = 0.25,
-    uint32_t max_attempts = 100,
-    CuckooBuildAlgo algo = CuckooBuildAlgo::kHopcroftKarp,
-    CuckooBuildStats* stats = nullptr) {
-  return CuckooBuildT<Traits>(keys, num_keys, epsilon, max_attempts, algo,
-                              stats);
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

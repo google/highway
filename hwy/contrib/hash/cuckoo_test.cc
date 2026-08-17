@@ -88,13 +88,16 @@ static AlignedVector<uint32_t> GenerateKeys(size_t num_keys,
 
 namespace {
 void TestKeys(size_t num_keys) {
-  auto keys = GenerateKeys(num_keys);
+  const auto& keys = GenerateKeys(num_keys);
+
+  CuckooBuildArgs args;
+  args.epsilon = 0.25;
+  args.max_attempts = 100;
+  args.algo = CuckooBuildAlgo::kHopcroftKarp;
 
   CuckooBuildStats stats;
   const double t0 = platform::Now();
-  auto table =
-      CuckooBuild(CuckooTraits<>{}, keys.data(), num_keys, /*epsilon=*/0.25,
-                  /*max_attempts=*/100, CuckooBuildAlgo::kHopcroftKarp, &stats);
+  auto table = CuckooBuild(CuckooTraits<>{}, Span(keys), args, &stats);
   const double elapsed = platform::Now() - t0;
 
   HWY_ASSERT_M(stats.success, "Build failed for 100 keys");
@@ -125,10 +128,9 @@ HWY_NOINLINE void TestAllBuildMedium() {
 HWY_NOINLINE void TestAllQueryCorrectness() {
   fprintf(stderr, "=== TestQueryCorrectness ===\n");
   const size_t num_keys = 5000;
-  auto keys = GenerateKeys(num_keys);
+  const auto& keys = GenerateKeys(num_keys);
 
-  auto table =
-      CuckooBuild(CuckooTraits<>{}, keys.data(), num_keys, /*epsilon=*/0.25);
+  auto table = CuckooBuild(CuckooTraits<>{}, Span(keys));
   HWY_ASSERT_M(!table.IsEmpty(), "Build failed");
 
   // Every inserted key must be found.
@@ -158,10 +160,9 @@ HWY_NOINLINE void TestAllQueryCorrectness() {
 HWY_NOINLINE void TestAllBatchQuery() {
   fprintf(stderr, "=== TestBatchQuery ===\n");
   const size_t num_keys = 2000;
-  auto keys = GenerateKeys(num_keys);
+  const auto& keys = GenerateKeys(num_keys);
 
-  auto table =
-      CuckooBuild(CuckooTraits<>{}, keys.data(), num_keys, /*epsilon=*/0.25);
+  auto table = CuckooBuild(CuckooTraits<>{}, Span(keys));
   HWY_ASSERT_M(!table.IsEmpty(), "Build failed");
 
   const ScalableTag<uint32_t> du32;
@@ -200,7 +201,7 @@ HWY_NOINLINE void TestAllBatchQuery() {
 template <bool kPow2>
 void RunBatchQueryU16(const AlignedVector<uint32_t>& keys, uint32_t num_keys) {
   CuckooTraits<WeakTwoMul, /*kBucketSize=*/16, /*kMinBuckets=*/1, kPow2> traits;
-  auto table = CuckooBuild(traits, keys.data(), num_keys, /*epsilon=*/0.25);
+  auto table = CuckooBuild(traits, Span(keys));
   HWY_ASSERT_M(!table.IsEmpty(), "Build failed");
 
   // Skip if not enough buckets for U16 scheme.
@@ -246,7 +247,7 @@ HWY_NOINLINE void TestAllBatchQueryU16() {
   // U16 fingerprints require >= 2^18 buckets. With epsilon=0.25 and
   // kBucketSize=16, we need ~3.4M keys to reach 2^18 buckets.
   const uint32_t num_keys = static_cast<uint32_t>(AdjustedReps(100'000));
-  auto keys = GenerateKeys(num_keys);
+  const auto& keys = GenerateKeys(num_keys);
 
   RunBatchQueryU16<true>(keys, num_keys);
   RunBatchQueryU16<false>(keys, num_keys);
@@ -259,13 +260,15 @@ HWY_NOINLINE void TestAllEpsilonSweep() {
   fprintf(stderr, "=== TestEpsilonSweep ===\n");
   const size_t num_keys = HWY_IS_DEBUG_BUILD ? 1000 : 5000;
 
-  auto keys = GenerateKeys(num_keys);
+  const auto& keys = GenerateKeys(num_keys);
 
   for (double eps : {0.05, 0.10, 0.25, 0.50}) {
     CuckooBuildStats stats;
-    auto table = CuckooBuild(CuckooTraits<>{}, keys.data(), num_keys, eps,
-                             /*max_attempts=*/200,
-                             CuckooBuildAlgo::kHopcroftKarp, &stats);
+    CuckooBuildArgs args;
+    args.epsilon = eps;
+    args.max_attempts = 200;
+    args.algo = CuckooBuildAlgo::kHopcroftKarp;
+    auto table = CuckooBuild(CuckooTraits<>{}, Span(keys), args, &stats);
     (void)table;
 
     if (stats.success) {
@@ -286,21 +289,22 @@ HWY_NOINLINE void TestAllEpsilonSweep() {
 HWY_NOINLINE void TestAllOptimizedBuild() {
   fprintf(stderr, "=== TestOptimizedBuild ===\n");
   const size_t num_keys = AdjustedReps(10'000);
-  auto keys = GenerateKeys(num_keys);
+  const auto& keys = GenerateKeys(num_keys);
+
+  CuckooBuildArgs args;
+  args.max_attempts = 200;
 
   for (double eps : {0.05, 0.10, 0.25, 0.50}) {
     CuckooBuildStats stats_basic, stats_opt, stats_lsa;
+    args.epsilon = eps;
 
     const CuckooTraits<> traits;
-    auto table_basic = CuckooBuild(
-        traits, keys.data(), num_keys, eps,
-        /*max_attempts=*/200, CuckooBuildAlgo::kHopcroftKarp, &stats_basic);
-    auto table_opt = CuckooBuild(traits, keys.data(), num_keys, eps,
-                                 /*max_attempts=*/200,
-                                 CuckooBuildAlgo::kMinCost, &stats_opt);
-    auto table_lsa = CuckooBuild(traits, keys.data(), num_keys, eps,
-                                 /*max_attempts=*/200,
-                                 CuckooBuildAlgo::kLocalSearch, &stats_lsa);
+    args.algo = CuckooBuildAlgo::kHopcroftKarp;
+    auto table_basic = CuckooBuild(traits, Span(keys), args, &stats_basic);
+    args.algo = CuckooBuildAlgo::kMinCost;
+    auto table_opt = CuckooBuild(traits, Span(keys), args, &stats_opt);
+    args.algo = CuckooBuildAlgo::kLocalSearch;
+    auto table_lsa = CuckooBuild(traits, Span(keys), args, &stats_lsa);
 
     if (stats_basic.success && stats_opt.success && stats_lsa.success) {
       // Optimized should have at least as many keys in primary.
@@ -349,16 +353,19 @@ HWY_NOINLINE void TestAllOptimizedBuild() {
 template <uint32_t kBucketSize>
 void TestBucketSize() {
   const size_t key_counts[] = {224'000};
+  const CuckooTraits<WeakTwoMul, kBucketSize> traits;
+  CuckooBuildArgs args;
+  args.max_attempts = 200;
+  args.epsilon = 1.0;
+
   for (size_t num_keys : key_counts) {
-    auto keys = GenerateKeys(num_keys);
+    const auto& keys = GenerateKeys(num_keys);
     for (CuckooBuildAlgo algo :
          {CuckooBuildAlgo::kHopcroftKarp, CuckooBuildAlgo::kLocalSearch,
           CuckooBuildAlgo::kMinCost}) {
       CuckooBuildStats stats;
-      CuckooTraits<WeakTwoMul, kBucketSize> traits;
-      auto table = CuckooBuild(traits, keys.data(),
-                               static_cast<uint32_t>(num_keys), /*epsilon=*/1.0,
-                               /*max_attempts=*/200, algo, &stats);
+      args.algo = algo;
+      auto table = CuckooBuild(traits, Span(keys), args, &stats);
 
       if (!stats.success) {
         fprintf(stderr,
@@ -398,17 +405,19 @@ HWY_NOINLINE void TestAllBucketSizeSweep() {
 HWY_NOINLINE void TestAllNonPow2Buckets() {
   fprintf(stderr, "=== TestNonPow2Buckets ===\n");
   const size_t num_keys = 2000;
-  auto keys = GenerateKeys(num_keys);
+  const auto& keys = GenerateKeys(num_keys);
+
+  using Traits = CuckooTraits<WeakTwoMul, /*kBucketSize=*/16, /*kMinBuckets=*/1,
+                              /*kPow2=*/false>;
 
   for (CuckooBuildAlgo algo :
        {CuckooBuildAlgo::kHopcroftKarp, CuckooBuildAlgo::kLocalSearch,
         CuckooBuildAlgo::kMinCost}) {
     CuckooBuildStats stats;
-    CuckooTraits<WeakTwoMul, /*kBucketSize=*/16, /*kMinBuckets=*/1,
-                 /*kPow2=*/false>
-        traits;
-    auto table = CuckooBuild(traits, keys.data(), num_keys, 0.25,
-                             /*max_attempts=*/200, algo, &stats);
+    CuckooBuildArgs args;
+    args.max_attempts = 200;
+    args.algo = algo;
+    auto table = CuckooBuild(Traits(), Span(keys), args, &stats);
     HWY_ASSERT(stats.success);
     // With num_keys=2000 and eps=0.25, raw_slots=2501, min_buckets=157 which
     // is not a power of 2.
@@ -444,15 +453,17 @@ HWY_NOINLINE void TestAllMinCostFlowComparison() {
   const bool verify_min_cost_flow = true;
 
   for (size_t num_keys : key_counts) {
-    auto keys = GenerateKeys(num_keys);
+    const auto& keys = GenerateKeys(num_keys);
     for (double eps : epsilons) {
       CuckooBuildStats stats;
+      CuckooBuildArgs args;
+      args.epsilon = eps;
+      args.max_attempts = 200;
+      args.algo = CuckooBuildAlgo::kMinCost;
       CuckooTraits<> traits;
       stats.collect_path_cost_stats = true;
       auto t_cuckoo_start = platform::Now();
-      auto table =
-          CuckooBuild(traits, keys.data(), num_keys, eps, /*max_attempts=*/200,
-                      CuckooBuildAlgo::kMinCost, &stats);
+      auto table = CuckooBuild(traits, Span(keys), args, &stats);
       (void)table;
       auto t_cuckoo_end = platform::Now();
       double cuckoo_ms = (t_cuckoo_end - t_cuckoo_start) * 1000;

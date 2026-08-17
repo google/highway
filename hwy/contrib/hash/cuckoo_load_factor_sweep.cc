@@ -98,11 +98,15 @@ void TestBucketSizeAndPow2(size_t num_keys, double epsilon,
        {CuckooBuildAlgo::kHopcroftKarp, CuckooBuildAlgo::kMinCost,
         CuckooBuildAlgo::kLocalSearch}) {
     CuckooBuildStats stats;
-    CuckooTraits<WeakTwoMul, kBucketSize, /*kMinBuckets_=*/1, kPow2> traits;
+    const CuckooTraits<WeakTwoMul, kBucketSize, /*kMinBuckets_=*/1, kPow2>
+        traits;
+    CuckooBuildArgs args;
+    args.epsilon = epsilon;
+    args.max_attempts = max_attempts;
+    args.algo = algo;
     const double t0 = platform::Now();
-    auto table =
-        CuckooBuild(traits, keys.data(), static_cast<uint32_t>(num_keys),
-                    epsilon, max_attempts, algo, &stats);
+    auto table = CuckooBuild(
+        traits, Span<const uint32_t>(keys.data(), num_keys), args, &stats);
     const double build_ms = (platform::Now() - t0) * 1000.0;
 
     if (!stats.success) {

@@ -514,8 +514,11 @@ HWY_NOINLINE void TestCuckooThroughput(size_t num_keys) {
   constexpr size_t kMinBuckets = kUseU16 ? size_t{1} << 18 : 1;
   CuckooTraits<WeakTwoMul, /*kBucketSize=*/0, kMinBuckets, kPow2, kVerbosity>
       traits;
-  auto cuckoo = CuckooBuild(traits, keys.data(), keys.size(), /*epsilon=*/0.1,
-                            /*max_attempts=*/100, CuckooBuildAlgo::kMinCost);
+  CuckooBuildArgs args;
+  args.epsilon = 0.1;
+  args.max_attempts = 100;
+  args.algo = CuckooBuildAlgo::kMinCost;
+  auto cuckoo = CuckooBuild(traits, Span(keys), args);
   if constexpr (kUseU16) {
     cuckoo.BuildU16Slots();
   }
