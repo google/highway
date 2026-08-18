@@ -46,8 +46,11 @@ HWY_INLINE void ReduceAngleTan(D d, V ang, V& x_red, V& sign) {
   quotient = Round(quotient);
   auto ang_mod = NegMulAdd(quotient, pi, ang);
 
-  // Determine sign
-  sign = ang_mod;
+  // Determine sign. Preserve the input's signed zero: when the reduced angle
+  // is exactly zero, the cancellation above can turn a -0 input into +0 on
+  // some targets, but tan(-0) must be -0. For any nonzero reduced angle the
+  // sign correctly follows ang_mod (e.g. tan(2) < 0 for a positive input).
+  sign = IfThenElse(Eq(ang_mod, Zero(d)), ang, ang_mod);
 
   // Absolute value
   x_red = Abs(ang_mod);

@@ -437,6 +437,23 @@ HWY_NOINLINE void TestAllFastTan() {
   ForFloat3264Types(ForPartialVectors<TestFastTanRelative>());
 }
 
+struct TestFastTanSignedZero {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T, D d) {
+    using TU = MakeUnsigned<T>;
+    const T pos0 = ConvertScalarTo<T>(0.0);
+    const T neg0 = ConvertScalarTo<T>(-0.0);
+    const T gp = GetLane(CallFastTan(d, Set(d, pos0)));
+    const T gn = GetLane(CallFastTan(d, Set(d, neg0)));
+    HWY_ASSERT_EQ(BitCastScalar<TU>(pos0), BitCastScalar<TU>(gp));
+    HWY_ASSERT_EQ(BitCastScalar<TU>(neg0), BitCastScalar<TU>(gn));
+  }
+};
+
+HWY_NOINLINE void TestAllFastTanSignedZero() {
+  ForFloat3264Types(ForPartialVectors<TestFastTanSignedZero>());
+}
+
 struct TestFastAtanRelative {
   template <class T, class D>
   HWY_NOINLINE void operator()(T, D d) {
@@ -546,6 +563,7 @@ HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllAtan);
 HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllAtan2);
 HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllHypot);
 HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllFastTan);
+HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllFastTanSignedZero);
 HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllFastAtan);
 HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllFastAtan2);
 
