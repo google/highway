@@ -210,6 +210,39 @@ HWY_NOINLINE void TestAllExpm1SignedZero() {
   ForFloat3264Types(ForPartialVectors<TestExpm1SignedZero>());
 }
 
+// Odd functions (and log1p) must preserve the sign of zero: fn(+/-0) = +/-0
+// (C11 Annex F). The ULP comparator used by the other tests treats +0 == -0,
+// so this is checked bit-exactly.
+struct TestSignedZero {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T, D d) {
+    using TU = MakeUnsigned<T>;
+    const T p0 = ConvertScalarTo<T>(0.0);
+    const T n0 = ConvertScalarTo<T>(-0.0);
+    const TU p0b = BitCastScalar<TU>(p0);
+    const TU n0b = BitCastScalar<TU>(n0);
+#define HWY_ASSERT_SIGNED_ZERO(fn)                                   \
+  HWY_ASSERT_EQ(p0b, BitCastScalar<TU>(GetLane(fn(d, Set(d, p0))))); \
+  HWY_ASSERT_EQ(n0b, BitCastScalar<TU>(GetLane(fn(d, Set(d, n0)))))
+    HWY_ASSERT_SIGNED_ZERO(CallSin);
+    HWY_ASSERT_SIGNED_ZERO(CallTan);
+    HWY_ASSERT_SIGNED_ZERO(CallAsin);
+    HWY_ASSERT_SIGNED_ZERO(CallAtan);
+    HWY_ASSERT_SIGNED_ZERO(CallAsinh);
+    HWY_ASSERT_SIGNED_ZERO(CallAtanh);
+    HWY_ASSERT_SIGNED_ZERO(CallCbrt);
+    HWY_ASSERT_SIGNED_ZERO(CallErf);
+    HWY_ASSERT_SIGNED_ZERO(CallLog1p);
+    HWY_ASSERT_SIGNED_ZERO(CallSinh);
+    HWY_ASSERT_SIGNED_ZERO(CallTanh);
+#undef HWY_ASSERT_SIGNED_ZERO
+  }
+};
+
+HWY_NOINLINE void TestAllSignedZero() {
+  ForFloat3264Types(ForPartialVectors<TestSignedZero>());
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -233,6 +266,7 @@ HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllTgamma);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLogGamma);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllPow);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExpm1SignedZero);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSignedZero);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy

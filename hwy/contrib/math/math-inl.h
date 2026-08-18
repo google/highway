@@ -2860,8 +2860,11 @@ HWY_INLINE V Sin(const D d, V x) {
   const VI32 q = impl.ToInt32(d, MulAdd(abs_x, kOneOverPi, kHalf));
 
   // Reduce range, apply sign, and approximate.
-  return impl.Poly(d, Xor(impl.SinReduce(d, abs_x, q),
-                          Xor(impl.SinSignFromQuadrant(d, q), sign_x)));
+  const V s = impl.Poly(d, Xor(impl.SinReduce(d, abs_x, q),
+                               Xor(impl.SinSignFromQuadrant(d, q), sign_x)));
+  // sin is odd, so sin(-0) must be -0; the polynomial yields +0 for a zero
+  // reduced argument, so reapply x's sign when the result is zero.
+  return IfThenElse(Eq(s, Zero(d)), CopySign(s, x), s);
 }
 
 template <class D, class V>
