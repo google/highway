@@ -192,7 +192,8 @@ bool TriadValidate(const float* HWY_RESTRICT ref,
         hn::Add(sumdiff, hn::AbsDiff(hn::LoadN(df, ref + i, remainder),
                                      hn::LoadN(df, check + i, remainder)));
   }
-  if (hn::ReduceSum(df, sumdiff) < threshold) {
+  const float total_diff = hn::ReduceSum(df, sumdiff);
+  if (total_diff <= threshold * count) {
     ret = true;
   }
   return ret;
