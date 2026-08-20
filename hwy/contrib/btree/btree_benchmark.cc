@@ -700,6 +700,142 @@ void RunBenchmarkSuite(size_t num_keys) {
   HWY_ASSERT(compact_batch_lb_sum == absl_lb_sum);
 }
 
+template <typename KeyT>
+void RunWorstCaseBenchmarkSuite(size_t num_keys) {
+  printf("\n===============================================================\n");
+  printf("  Worst-Case B-Tree Set Benchmark (%zu-bit, N = %zu keys, %s)\n",
+         sizeof(KeyT) * 8, num_keys, hwy::TargetName(HWY_TARGET));
+  printf("  Key Distribution: Uncompressible Uniform %zu-bit Random Keys\n",
+         sizeof(KeyT) * 8);
+  printf("  Query Pattern   : 100%% Lookup Misses (Disjoint Range)\n");
+  printf("===============================================================\n");
+
+  absl::BitGen bitgen;
+  std::vector<KeyT> keys;
+  keys.reserve(num_keys);
+  for (size_t i = 0; i < num_keys; ++i) {
+    keys.push_back(static_cast<KeyT>(
+        absl::Uniform<KeyT>(bitgen, 0, std::numeric_limits<KeyT>::max() / 2) *
+        2));
+  }
+  std::sort(keys.begin(), keys.end());
+  keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
+  num_keys = keys.size();
+
+  // 1. Build Containers
+  const size_t std_before = AllocatedBefore();
+  const double start_std = hwy::platform::Now();
+  std::set<KeyT> std_tree(keys.begin(), keys.end());
+  const double end_std = hwy::platform::Now();
+  const size_t std_bytes = GetAllocatedBytes(std_before, 0);
+
+  const size_t absl_before = AllocatedBefore();
+  const double start_absl = hwy::platform::Now();
+  absl::btree_set<KeyT> absl_tree(keys.begin(), keys.end());
+  const double end_absl = hwy::platform::Now();
+  const size_t absl_bytes = GetAllocatedBytes(absl_before, 0);
+
+  const size_t hwy_before = AllocatedBefore();
+  const double start_hwy = hwy::platform::Now();
+  auto hwy_tree = BTreeSet<KeyT>::Build(keys.data(), keys.size(), 1.0f);
+  const double end_hwy = hwy::platform::Now();
+  const size_t hwy_bytes =
+      GetAllocatedBytes(hwy_before, hwy_tree.AllocatedBytes());
+
+  const size_t compact_before = AllocatedBefore();
+  const double start_compact = hwy::platform::Now();
+  auto compact_tree =
+      CompactBTreeSet<KeyT>::Build(keys.data(), keys.size(), 1.0f);
+  const double end_compact = hwy::platform::Now();
+  const size_t compact_bytes =
+      GetAllocatedBytes(compact_before, compact_tree.AllocatedBytes());
+
+  printf("Worst-Case Build Time:\n");
+  printf("  std::set             : %8.2f ms\n", (end_std - start_std) * 1000.0);
+  printf("  absl::btree_set      : %8.2f ms\n",
+         (end_absl - start_absl) * 1000.0);
+  printf("  hwy::BTreeSet        : %8.2f ms (%.1fx faster than absl)\n",
+         (end_hwy - start_hwy) * 1000.0,
+         (end_absl - start_absl) / (end_hwy - start_hwy));
+  printf("  hwy::CompactBTreeSet : %8.2f ms (%.1fx faster than absl)\n",
+         (end_compact - start_compact) * 1000.0,
+         (end_absl - start_absl) / (end_compact - start_compact));
+
+  printf("\nWorst-Case Memory Footprint (Uncompressible Raw Mode):\n");
+  printf("  std::set             : %5.2f MB (%5.1f B/key)\n",
+         std_bytes / (1024.0 * 1024.0),
+         static_cast<double>(std_bytes) / num_keys);
+  printf("  absl::btree_set      : %5.2f MB (%5.1f B/key)\n",
+         absl_bytes / (1024.0 * 1024.0),
+         static_cast<double>(absl_bytes) / num_keys);
+  printf("  hwy::BTreeSet        : %5.2f MB (%5.1f B/key)\n",
+         hwy_bytes / (1024.0 * 1024.0),
+         static_cast<double>(hwy_bytes) / num_keys);
+  printf("  hwy::CompactBTreeSet : %5.2f MB (%5.1f B/key)\n",
+         compact_bytes / (1024.0 * 1024.0),
+         static_cast<double>(compact_bytes) / num_keys);
+
+  // 2. Worst-case 100% Miss Point Lookups (Odd keys vs Even set)
+  constexpr size_t kNumQueries = 1000000;
+  std::vector<KeyT> miss_queries;
+  miss_queries.reserve(kNumQueries);
+  for (size_t i = 0; i < kNumQueries; ++i) {
+    miss_queries.push_back(static_cast<KeyT>(
+        absl::Uniform<KeyT>(bitgen, 0, std::numeric_limits<KeyT>::max() / 2) *
+            2 +
+        1));
+  }
+
+  uint64_t std_hits = 0, absl_hits = 0, hwy_hits = 0, compact_hits = 0;
+  const double t0 = hwy::platform::Now();
+  for (size_t i = 0; i < kNumQueries; ++i) {
+    std_hits += (std_tree.find(miss_queries[i]) != std_tree.end());
+  }
+  hwy::PreventElision(std_hits);
+  const double t1 = hwy::platform::Now();
+
+  for (size_t i = 0; i < kNumQueries; ++i) {
+    absl_hits += (absl_tree.find(miss_queries[i]) != absl_tree.end());
+  }
+  hwy::PreventElision(absl_hits);
+  const double t2 = hwy::platform::Now();
+
+  for (size_t i = 0; i < kNumQueries; ++i) {
+    hwy_hits += hwy_tree.Contains(miss_queries[i]);
+  }
+  hwy::PreventElision(hwy_hits);
+  const double t3 = hwy::platform::Now();
+
+  for (size_t i = 0; i < kNumQueries; ++i) {
+    compact_hits += compact_tree.contains(miss_queries[i]);
+  }
+  hwy::PreventElision(compact_hits);
+  const double t4 = hwy::platform::Now();
+
+  const double std_miss_ns = (t1 - t0) * 1e9 / kNumQueries;
+  const double absl_miss_ns = (t2 - t1) * 1e9 / kNumQueries;
+  const double hwy_miss_ns = (t3 - t2) * 1e9 / kNumQueries;
+  const double compact_miss_ns = (t4 - t3) * 1e9 / kNumQueries;
+
+  printf("\nWorst-Case Point Lookup Miss Latency (100%% Key Misses):\n");
+  printf("  std::set             : %6.2f ns/op (%6.2f Mops/s)\n", std_miss_ns,
+         1000.0 / std_miss_ns);
+  printf("  absl::btree_set      : %6.2f ns/op (%6.2f Mops/s)\n", absl_miss_ns,
+         1000.0 / absl_miss_ns);
+  printf(
+      "  hwy::BTreeSet        : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
+      hwy_miss_ns, 1000.0 / hwy_miss_ns, absl_miss_ns / hwy_miss_ns);
+  printf(
+      "  hwy::CompactBTreeSet : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
+      compact_miss_ns, 1000.0 / compact_miss_ns,
+      absl_miss_ns / compact_miss_ns);
+
+  HWY_ASSERT(std_hits == 0);
+  HWY_ASSERT(absl_hits == 0);
+  HWY_ASSERT(hwy_hits == 0);
+  HWY_ASSERT(compact_hits == 0);
+}
+
 template <typename KeyT, typename ValueT>
 void RunMapBenchmarkSuite(size_t num_keys) {
   printf("\n===============================================================\n");
@@ -1042,11 +1178,23 @@ HWY_NOINLINE void BenchmarkAll() {
   RunBenchmarkSuite<uint32_t>(1000000);  // 1M keys (RAM)
 
   printf("\n###############################################################\n");
+  printf("  Worst-Case Uncompressible 32-bit Set Benchmarks\n");
+  printf("###############################################################\n");
+  // 100K uncompressible 32-bit keys
+  RunWorstCaseBenchmarkSuite<uint32_t>(100000);
+
+  printf("\n###############################################################\n");
   printf("  64-bit Key Set Benchmarks (BTreeSet<uint64_t>)\n");
   printf("###############################################################\n");
   RunBenchmarkSuite<uint64_t>(10000);    // 10K keys (L1/L2 Cache)
   RunBenchmarkSuite<uint64_t>(100000);   // 100K keys (L3 Cache)
   RunBenchmarkSuite<uint64_t>(1000000);  // 1M keys (RAM)
+
+  printf("\n###############################################################\n");
+  printf("  Worst-Case Uncompressible 64-bit Set Benchmarks\n");
+  printf("###############################################################\n");
+  // 100K uncompressible 64-bit keys
+  RunWorstCaseBenchmarkSuite<uint64_t>(100000);
 
   printf("\n###############################################################\n");
   printf("  32-bit Key Map Benchmarks (BTreeMap<uint32_t, uint64_t>)\n");
