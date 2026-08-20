@@ -6811,6 +6811,17 @@ HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0xFA> /*idx_3210_tag*/,
 // ------------------------------ SlideUpLanes
 
 namespace detail {
+HWY_INLINE const uint8_t* kSlideTable() {
+  alignas(16) static constexpr uint8_t table[48] = {
+    255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255,
+      0,   1,   2,   3,   4,   5,   6,   7,
+      8,   9,  10,  11,  12,  13,  14,  15,
+    255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255
+  };
+  return table;
+}
 
 template <class V, HWY_IF_V_SIZE_LE_V(V, 8)>
 HWY_INLINE V SlideUpLanes(V v, size_t amt) {
@@ -6823,11 +6834,10 @@ HWY_INLINE V SlideUpLanes(V v, size_t amt) {
 
 template <class V, HWY_IF_V_SIZE_V(V, 16)>
 HWY_INLINE V SlideUpLanes(V v, size_t amt) {
-  const DFromV<decltype(v)> d;
+  const DFromV<V> d;
   const Repartition<uint8_t, decltype(d)> du8;
-  const auto idx =
-      Iota(du8, static_cast<uint8_t>(size_t{0} - amt * sizeof(TFromV<V>)));
-  return BitCast(d, TableLookupBytesOr0(BitCast(du8, v), idx));
+  return BitCast(d, TableLookupBytesOr0(BitCast(du8, v),
+    LoadU(du8, kSlideTable() + 16 - sizeof(TFromV<V>) * amt)));
 }
 
 }  // namespace detail
@@ -6969,11 +6979,10 @@ HWY_INLINE V SlideDownLanes(V v, size_t amt) {
 
 template <class V, HWY_IF_V_SIZE_V(V, 16)>
 HWY_INLINE V SlideDownLanes(V v, size_t amt) {
-  const DFromV<decltype(v)> d;
-  const Repartition<int8_t, decltype(d)> di8;
-  auto idx = Iota(di8, static_cast<int8_t>(amt * sizeof(TFromV<V>)));
-  idx = Or(idx, VecFromMask(di8, idx > Set(di8, int8_t{15})));
-  return BitCast(d, TableLookupBytesOr0(BitCast(di8, v), idx));
+  const DFromV<V> d;
+  const Repartition<uint8_t, decltype(d)> du8;
+  return BitCast(d, TableLookupBytesOr0(BitCast(du8, v),
+    LoadU(du8, kSlideTable() + 16 + sizeof(TFromV<V>) * amt)));
 }
 
 }  // namespace detail
@@ -7097,6 +7106,204 @@ HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
 #endif
 
   return detail::SlideDownLanes(v, amt);
+}
+
+// ------------------------------- SlideUpLanesOr
+#ifdef HWY_NATIVE_SLIDE_UP_LANES_OR
+#undef HWY_NATIVE_SLIDE_UP_LANES_OR
+#else
+#define HWY_NATIVE_SLIDE_UP_LANES_OR
+#endif
+namespace detail {
+template <class V, HWY_IF_V_SIZE_V(V, 16)>
+HWY_INLINE V SlideUpLanesOr(V lo, V hi, size_t amt) {
+  const DFromV<V> d;
+  const Repartition<uint8_t, decltype(d)> du8;
+  alignas(16) static constexpr uint8_t table[272] = {
+    16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+     0, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+     0,  1, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
+     0,  1,  2, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28,
+     0,  1,  2,  3, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
+     0,  1,  2,  3,  4, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+     0,  1,  2,  3,  4,  5, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+     0,  1,  2,  3,  4,  5,  6, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+     0,  1,  2,  3,  4,  5,  6,  7, 16, 17, 18, 19, 20, 21, 22, 23,
+     0,  1,  2,  3,  4,  5,  6,  7,  8, 16, 17, 18, 19, 20, 21, 22,
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 16, 17, 18, 19, 20, 21,
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 16, 17, 18, 19, 20,
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 16, 17, 18, 19,
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 16, 17, 18,
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 16, 17,
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 16,
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15,
+  };
+  return BitCast(d, TwoTablesLookupLanes(BitCast(du8, lo), BitCast(du8, hi),
+    Indices128<uint8_t, 16>{LoadU(du8, table + 16 * amt * sizeof(TFromV<V>)).raw}));
+}
+
+template <class V, HWY_IF_V_SIZE_V(V, 8)>
+HWY_INLINE V SlideUpLanesOr(V lo, V hi, size_t amt) {
+  const DFromV<V> d;
+  const Repartition<uint8_t, decltype(d)> du8;
+  alignas(16) static constexpr uint8_t table[72] = {
+    8,  9, 10, 11, 12, 13, 14, 15,
+    0,  8,  9, 10, 11, 12, 13, 14,
+    0,  1,  8,  9, 10, 11, 12, 13,
+    0,  1,  2,  8,  9, 10, 11, 12,
+    0,  1,  2,  3,  8,  9, 10, 11,
+    0,  1,  2,  3,  4,  8,  9, 10,
+    0,  1,  2,  3,  4,  5,  8,  9,
+    0,  1,  2,  3,  4,  5,  6,  8,
+    0,  1,  2,  3,  4,  5,  6,  7
+  };
+  return BitCast(d, TwoTablesLookupLanes(BitCast(du8, lo), BitCast(du8, hi),
+    Indices128<uint8_t, 8>{LoadU(du8, table + 8 * amt * sizeof(TFromV<V>)).raw}));
+}
+
+template <class V, HWY_IF_V_SIZE_V(V, 4)>
+HWY_INLINE V SlideUpLanesOr(V lo, V hi, size_t amt) {
+  const DFromV<V> d;
+  const Repartition<uint8_t, decltype(d)> du8;
+  alignas(16) static constexpr uint8_t table[20] = {
+    4, 5, 6, 7,
+    0, 4, 5, 6,
+    0, 1, 4, 5,
+    0, 1, 2, 4,
+    0, 1, 2, 3,
+  };
+  return BitCast(d, TwoTablesLookupLanes(BitCast(du8, lo), BitCast(du8, hi),
+    Indices128<uint8_t, 4>{LoadU(du8, table + 4 * amt * sizeof(TFromV<V>)).raw}));
+}
+
+template <class V, HWY_IF_V_SIZE_V(V, 2)>
+HWY_INLINE V SlideUpLanesOr(V lo, V hi, size_t amt) {
+  const DFromV<V> d;
+  const Repartition<uint8_t, decltype(d)> du8;
+  alignas(16) static constexpr uint8_t table[6] = {
+    2, 3,
+    0, 2,
+    0, 1
+  };
+  return BitCast(d, TwoTablesLookupLanes(BitCast(du8, lo), BitCast(du8, hi),
+    Indices128<uint8_t, 2>{LoadU(du8, table + 2 * amt * sizeof(TFromV<V>)).raw}));
+}
+}  // namespace detail
+
+template <class D, HWY_IF_LANES_D(D, 1)>
+HWY_API VFromD<D> SlideUpLanesOr(VFromD<D> lo, D d, VFromD<D> hi, size_t amt) {
+  return IfThenElse(FirstN(d, amt), lo, hi);
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_GT_D(D, 1)>
+HWY_API VFromD<D> SlideUpLanesOr(VFromD<D> lo, D d, VFromD<D> hi, size_t amt) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(amt)) {
+    return IfThenElse(FirstN(d, amt), lo, SlideUpLanes(d, hi, amt));
+  }
+#else
+  (void)d;
+#endif
+  return detail::SlideUpLanesOr(lo, hi, amt);
+}
+
+// ------------------------------- SlideDownLanesOr
+#ifdef HWY_NATIVE_SLIDE_DOWN_LANES_OR
+#undef HWY_NATIVE_SLIDE_DOWN_LANES_OR
+#else
+#define HWY_NATIVE_SLIDE_DOWN_LANES_OR
+#endif
+namespace detail {
+template <class V, HWY_IF_V_SIZE_V(V, 16)>
+HWY_INLINE V SlideDownLanesOr(V hi, V lo, size_t amt) {
+  const DFromV<V> d;
+  const Repartition<uint8_t, decltype(d)> du8;
+  alignas(16) static constexpr uint8_t table[272] = {
+    16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+    17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 15,
+    18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 14, 15,
+    19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 13, 14, 15,
+    20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 12, 13, 14, 15,
+    21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 11, 12, 13, 14, 15,
+    22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 10, 11, 12, 13, 14, 15,
+    23, 24, 25, 26, 27, 28, 29, 30, 31,  9, 10, 11, 12, 13, 14, 15,
+    24, 25, 26, 27, 28, 29, 30, 31,  8,  9, 10, 11, 12, 13, 14, 15,
+    25, 26, 27, 28, 29, 30, 31,  7,  8,  9, 10, 11, 12, 13, 14, 15,
+    26, 27, 28, 29, 30, 31,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15,
+    27, 28, 29, 30, 31,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15,
+    28, 29, 30, 31,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15,
+    29, 30, 31,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15,
+    30, 31,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15,
+    31,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15,
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15,
+  };
+  return BitCast(d, TwoTablesLookupLanes(BitCast(du8, hi), BitCast(du8, lo),
+    Indices128<uint8_t, 16>{LoadU(du8, table + 16 * amt * sizeof(TFromV<V>)).raw}));
+}
+
+template <class V, HWY_IF_V_SIZE_V(V, 8)>
+HWY_INLINE V SlideDownLanesOr(V hi, V lo, size_t amt) {
+  const DFromV<V> d;
+  const Repartition<uint8_t, decltype(d)> du8;
+  alignas(16) static constexpr uint8_t table[72] = {
+     8,  9, 10, 11, 12, 13, 14, 15,
+     9, 10, 11, 12, 13, 14, 15, 7,
+    10, 11, 12, 13, 14, 15, 6,  7,
+    11, 12, 13, 14, 15, 5,  6,  7,
+    12, 13, 14, 15, 4,  5,  6,  7,
+    13, 14, 15, 3,  4,  5,  6,  7,
+    14, 15, 2,  3,  4,  5,  6,  7,
+    15, 1,  2,  3,  4,  5,  6,  7,
+    0,  1,  2,  3,  4,  5,  6,  7
+  };
+  return BitCast(d, TwoTablesLookupLanes(BitCast(du8, hi), BitCast(du8, lo),
+    Indices128<uint8_t, 8>{LoadU(du8, table + 8 * amt * sizeof(TFromV<V>)).raw}));
+}
+
+template <class V, HWY_IF_V_SIZE_V(V, 4)>
+HWY_INLINE V SlideDownLanesOr(V hi, V lo, size_t amt) {
+  const DFromV<V> d;
+  const Repartition<uint8_t, decltype(d)> du8;
+  alignas(16) static constexpr uint8_t table[20] = {
+    4, 5, 6, 7,
+    5, 6, 7, 3,
+    6, 7, 2, 3,
+    7, 1, 2, 3,
+    0, 1, 2, 3,
+  };
+  return BitCast(d, TwoTablesLookupLanes(BitCast(du8, hi), BitCast(du8, lo),
+    Indices128<uint8_t, 4>{LoadU(du8, table + 4 * amt * sizeof(TFromV<V>)).raw}));
+}
+
+template <class V, HWY_IF_V_SIZE_V(V, 2)>
+HWY_INLINE V SlideDownLanesOr(V hi, V lo, size_t amt) {
+  const DFromV<V> d;
+  const Repartition<uint8_t, decltype(d)> du8;
+  alignas(16) static constexpr uint8_t table[6] = {
+    2, 3,
+    3, 1,
+    0, 1
+  };
+  return BitCast(d, TwoTablesLookupLanes(BitCast(du8, hi), BitCast(du8, lo),
+    Indices128<uint8_t, 2>{LoadU(du8, table + 2 * amt * sizeof(TFromV<V>)).raw}));
+}
+}  // namespace detail
+
+template <class D, HWY_IF_LANES_D(D, 1)>
+HWY_API VFromD<D> SlideDownLanesOr(VFromD<D> hi, D d, VFromD<D> lo, size_t amt) {
+  return IfThenElse(FirstN(d, amt), hi, lo);
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_GT_D(D, 1)>
+HWY_API VFromD<D> SlideDownLanesOr(VFromD<D> hi, D d, VFromD<D> lo, size_t amt) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(amt)) {
+    return IfThenElse(FirstN(d, Lanes(d) - amt), SlideDownLanes(d, lo, amt), hi);
+  }
+#else
+  (void)d;
+#endif
+  return detail::SlideDownLanesOr(hi, lo, amt);
 }
 
 // ------------------------------- WidenHighMulAdd
