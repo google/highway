@@ -17,10 +17,8 @@
 #include <stdint.h>
 
 #include <iostream>
-#include <numeric>
 #include <random>
 #include <string>
-#include <vector>
 
 #include "hwy/contrib/thread_pool/index_range.h"
 #include "hwy/contrib/thread_pool/thread_pool.h"
@@ -56,7 +54,6 @@ void StreamTriadScalar(float* HWY_RESTRICT a, const float* HWY_RESTRICT b,
   for (size_t i = 0; i < count; ++i) {
     a[i] = b[i] + q * c[i];
   }
-  return;
 }
 
 void StreamTriadSIMD(float* HWY_RESTRICT a, const float* HWY_RESTRICT b,
@@ -90,7 +87,6 @@ void StreamTriadSIMD(float* HWY_RESTRICT a, const float* HWY_RESTRICT b,
                       hn::LoadN(df, b + i, remainder)),
                df, a + i, remainder);
   }
-  return;
 }
 
 IndexRangePartition StaticSIMDPartition(size_t num_items, size_t workers,
@@ -140,8 +136,6 @@ void StreamTriadSIMDThreads(float* HWY_RESTRICT a, const float* HWY_RESTRICT b,
                  df, a + i, remainder);
     }
   });
-
-  return;
 }
 
 IndexRangePartition StaticScalarPartition(size_t num_items, size_t workers) {
@@ -166,8 +160,6 @@ void StreamTriadScalarThreads(float* HWY_RESTRICT a,
       a[i] = b[i] + q * c[i];
     }
   });
-
-  return;
 }
 
 bool TriadValidate(const float* HWY_RESTRICT ref,
@@ -193,7 +185,7 @@ bool TriadValidate(const float* HWY_RESTRICT ref,
                                      hn::LoadN(df, check + i, remainder)));
   }
   const float total_diff = hn::ReduceSum(df, sumdiff);
-  if (total_diff <= threshold * count) {
+  if (total_diff <= threshold * static_cast<float>(count)) {
     ret = true;
   }
   return ret;
