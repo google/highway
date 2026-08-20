@@ -49,7 +49,7 @@ struct PhastPlacement {
 struct PhastConfig {
   PhastConfig() = default;
   PhastConfig(size_t num_keys_in, size_t num_slots_in, size_t num_buckets,
-              uint32_t hash_key_in, const PhastPlacement& placement_in)
+              uint64_t hash_key_in, const PhastPlacement& placement_in)
       : num_slots(num_slots_in),
         hash_key(hash_key_in),
         bucket_mask(static_cast<uint32_t>(num_buckets - 1)),
@@ -66,7 +66,7 @@ struct PhastConfig {
   }
 
   size_t num_slots = 0;  // 0 if build failed
-  uint32_t hash_key = 0;
+  uint64_t hash_key = 0;
   uint32_t bucket_mask = 0;
 
   PhastPlacement placement;
@@ -128,6 +128,9 @@ struct PhastData {
 // required per slot, i.e. potential index returned from queries. This allows us
 // to optimize memory usage.
 HWY_CONTRIB_DLLEXPORT PhastData BuildPhast(Span<const uint32_t> keys,
+                                           size_t payload_bytes,
+                                           ThreadPool& pool);
+HWY_CONTRIB_DLLEXPORT PhastData BuildPhast(Span<const uint64_t> keys,
                                            size_t payload_bytes,
                                            ThreadPool& pool);
 

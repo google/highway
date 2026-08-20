@@ -986,12 +986,19 @@ void ForeachHash64(AesCtrEngine& engine, uint64_t seed, const Func& func) {
 // Returns vector filled with a bijection of a counter. This is not the same as
 // a permutation of [0, count), but no values repeat.
 template <typename T>
-AlignedVector<T> FillRandomDistinct(size_t count, uint32_t key) {
-  Triple32 permutation(key);
+AlignedVector<T> FillRandomDistinct(size_t count, uint64_t key) {
   AlignedVector<T> v;
   v.reserve(count);
-  for (size_t i = 0; i < count; ++i) {
-    v.push_back(permutation(static_cast<uint32_t>(i)));
+  if constexpr (sizeof(T) == 8) {
+    WeakXMX permutation(key);
+    for (size_t i = 0; i < count; ++i) {
+      v.push_back(static_cast<T>(permutation(static_cast<uint64_t>(i))));
+    }
+  } else {
+    Triple32 permutation(static_cast<uint32_t>(key));
+    for (size_t i = 0; i < count; ++i) {
+      v.push_back(static_cast<T>(permutation(static_cast<uint32_t>(i))));
+    }
   }
   return v;
 }

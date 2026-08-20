@@ -157,24 +157,27 @@ HWY_NOINLINE void TestSliceBoundIsTight() {
   const uint32_t hi = 0x000c0000u, hj = 0x73570000u, seed = 0;
   const uint32_t bi = LemireMod(hi, pp.num_slice_offsets);
   const uint32_t bj = LemireMod(hj, pp.num_slice_offsets);
-  HWY_ASSERT_M(bj - bi == pp.slice_mask, "witness slices not slice_length-1 apart");
+  HWY_ASSERT_M(bj - bi == pp.slice_mask,
+               "witness slices not slice_length-1 apart");
   const uint32_t pi = Phast::PosFromHashAndSeed(pp, hi, seed);
   const uint32_t pj = Phast::PosFromHashAndSeed(pp, hj, seed);
-  HWY_ASSERT_M(pi == pj, "witness pair must collide; the bound cannot be tightened");
+  HWY_ASSERT_M(pi == pj,
+               "witness pair must collide; the bound cannot be tightened");
   fprintf(stderr, "  OK: slices %u apart (slice_length-1) collide at slot %u\n",
           bj - bi, pi);
 }
 
-HWY_NOINLINE void TestQueryConsistency() {
-  fprintf(stderr, "=== TestQueryConsistency ===\n");
+template <typename KeyT>
+HWY_NOINLINE void TestQueryConsistencyT() {
+  fprintf(stderr, "=== TestQueryConsistency (%zu-bit) ===\n", sizeof(KeyT) * 8);
   const size_t num_keys = AdjustedReps(5'000);
-  AlignedVector<uint32_t> keys(num_keys);
+  AlignedVector<KeyT> keys(num_keys);
   for (size_t i = 0; i < num_keys; ++i) {
-    keys[i] = static_cast<uint32_t>(i * 37 + 1);  // Distinct, non-sequential.
+    keys[i] = static_cast<KeyT>(i * 37 + 1);  // Distinct, non-sequential.
   }
 
   ThreadPool pool = MakePool();
-  Phast phast = MakePhast(Span(keys), 0, pool);
+  PhastT<KeyT> phast = MakePhast(Span(keys), 0, pool);
 
   // Query each key twice and verify same result.
   for (size_t i = 0; i < num_keys; ++i) {
@@ -185,24 +188,32 @@ HWY_NOINLINE void TestQueryConsistency() {
   fprintf(stderr, "  OK: %zu queries consistent\n", num_keys);
 }
 
+HWY_NOINLINE void TestQueryConsistency() {
+  TestQueryConsistencyT<uint32_t>();
+  TestQueryConsistencyT<uint64_t>();
+}
+
 // --------------------------------------------------------------------------
 // Main test: query all keys, ensure indices distinct and in range.
 
 // Outputs indices for a batch of keys. Considerably higher throughput than
 // repeated single queries: 7.8 GB/s on Turin for 1M keys.
-void QueryBatch(const uint32_t* HWY_RESTRICT keys, size_t num_keys,
-                const Phast& phast, uint32_t* HWY_RESTRICT indices) {
-  const ScalableTag<uint32_t> du32;
+template <typename KeyT>
+void QueryBatch(const KeyT* HWY_RESTRICT keys, size_t num_keys,
+                const PhastT<KeyT>& phast, uint32_t* HWY_RESTRICT indices) {
+  const ScalableTag<KeyT> d;
+  using V = Vec<decltype(d)>;
+  const auto du32 = DemoteTag32(d);
   using VU32 = Vec<decltype(du32)>;
-  HWY_LANES_CONSTEXPR size_t N = Lanes(du32);
+  HWY_LANES_CONSTEXPR size_t N = Lanes(d);
 
   size_t i = 0;
   if (HWY_LIKELY(num_keys >= 2 * N)) {
     for (; i <= num_keys - 2 * N; i += 2 * N) {
-      VU32 v0 = Load(du32, keys + i + 0 * N);
-      VU32 v1 = Load(du32, keys + i + 1 * N);
+      V v0 = Load(d, keys + i + 0 * N);
+      V v1 = Load(d, keys + i + 1 * N);
       VU32 idx0, idx1;
-      phast(du32, v0, v1, idx0, idx1);
+      phast(d, v0, v1, idx0, idx1);
       Store(idx0, du32, indices + i + 0 * N);
       Store(idx1, du32, indices + i + 1 * N);
     }
@@ -211,10 +222,10 @@ void QueryBatch(const uint32_t* HWY_RESTRICT keys, size_t num_keys,
     const size_t remaining = num_keys - i;
     HWY_DASSERT(remaining < 2 * N);
     const size_t remaining1 = remaining <= N ? 0 : remaining - N;
-    VU32 v0 = LoadN(du32, keys + i + 0 * N, remaining);
-    VU32 v1 = LoadN(du32, keys + i + 1 * N, remaining1);
+    V v0 = LoadN(d, keys + i + 0 * N, remaining);
+    V v1 = LoadN(d, keys + i + 1 * N, remaining1);
     VU32 idx0, idx1;
-    phast(du32, v0, v1, idx0, idx1);
+    phast(d, v0, v1, idx0, idx1);
     StoreN(idx0, du32, indices + i + 0 * N, remaining);
     StoreN(idx1, du32, indices + i + 1 * N, remaining1);
   }
@@ -233,22 +244,24 @@ void CheckDistinctAndRange(uint32_t* indices, size_t num_indices,
   }
 }
 
+template <typename KeyT>
 void TestDistinctAndRange(const size_t num_keys) {
   ThreadPool pool = MakePool();
-  AlignedVector<uint32_t> keys = FillRandomDistinct<uint32_t>(num_keys, 0);
+  AlignedVector<KeyT> keys = FillRandomDistinct<KeyT>(num_keys, 0);
 
   const double t0 = platform::Now();
   const size_t payload_bytes = 0;
-  const Phast phast = MakePhast(Span(keys), payload_bytes, pool);
+  const PhastT<KeyT> phast = MakePhast(Span(keys), payload_bytes, pool);
   const double elapsed = platform::Now() - t0;
   const PhastData& data = phast.Data();
-  fprintf(stderr,
-          "    Build(%7zu keys): %7.2f ms, %7zu slots, %.2f b/key config %2zu, "
-          "attempt %2zu\n",
-          num_keys, elapsed * 1E3, data.NumSlots(),
-          static_cast<double>(phast.Data().AllocatedBytes(payload_bytes)) *
-              8.0 / static_cast<double>(num_keys),
-          data.config_idx, data.attempt_idx);
+  fprintf(
+      stderr,
+      "    Build(%7zu %zu-bit keys): %7.2f ms, %7zu slots, %.2f b/key config "
+      "%2zu, attempt %2zu\n",
+      num_keys, sizeof(KeyT) * 8, elapsed * 1E3, data.NumSlots(),
+      static_cast<double>(phast.Data().AllocatedBytes(payload_bytes)) * 8.0 /
+          static_cast<double>(num_keys),
+      data.config_idx, data.attempt_idx);
 
   // Check that all keys map to distinct indices in [0, num_slots).
   AlignedVector<uint32_t> indices(num_keys);
@@ -258,16 +271,32 @@ void TestDistinctAndRange(const size_t num_keys) {
 
 HWY_NOINLINE void TestMultipleSizes() {
   const size_t kMul = 1;  // increase for larger tests.
-  fprintf(stderr, "=== TestSmall ===\n");
+  fprintf(stderr, "=== TestSmall (32-bit) ===\n");
   // Includes num_keys == 64, where MinSliceLength(num_keys) == num_keys.
   for (size_t num_keys = 1; num_keys < 100; ++num_keys) {
-    TestDistinctAndRange(num_keys);
+    TestDistinctAndRange<uint32_t>(num_keys);
   }
-  TestDistinctAndRange(/*num_keys=*/AdjustedReps(AdjustedReps(100 * kMul)));
-  fprintf(stderr, "=== TestMedium ===\n");
-  TestDistinctAndRange(/*num_keys=*/AdjustedReps(AdjustedReps(500 * kMul)));
-  fprintf(stderr, "=== TestLarge ===\n");
-  TestDistinctAndRange(
+  TestDistinctAndRange<uint32_t>(
+      /*num_keys=*/AdjustedReps(AdjustedReps(100 * kMul)));
+  fprintf(stderr, "=== TestSmall (64-bit) ===\n");
+  for (size_t num_keys = 1; num_keys < 100; ++num_keys) {
+    TestDistinctAndRange<uint64_t>(num_keys);
+  }
+  TestDistinctAndRange<uint64_t>(
+      /*num_keys=*/AdjustedReps(AdjustedReps(100 * kMul)));
+
+  fprintf(stderr, "=== TestMedium (32-bit) ===\n");
+  TestDistinctAndRange<uint32_t>(
+      /*num_keys=*/AdjustedReps(AdjustedReps(500 * kMul)));
+  fprintf(stderr, "=== TestMedium (64-bit) ===\n");
+  TestDistinctAndRange<uint64_t>(
+      /*num_keys=*/AdjustedReps(AdjustedReps(500 * kMul)));
+
+  fprintf(stderr, "=== TestLarge (32-bit) ===\n");
+  TestDistinctAndRange<uint32_t>(
+      /*num_keys=*/AdjustedReps(AdjustedReps(2 * kMul)) * 1024);
+  fprintf(stderr, "=== TestLarge (64-bit) ===\n");
+  TestDistinctAndRange<uint64_t>(
       /*num_keys=*/AdjustedReps(AdjustedReps(2 * kMul)) * 1024);
 
   PROFILER_PRINT_RESULTS();
@@ -293,9 +322,15 @@ HWY_AFTER_TEST();
 // sentinel (NumSlots() == 0) rather than aborting.
 TEST(PhastEmptyTest, EmptyKeysReturnEmpty) {
   ThreadPool pool(0);
-  const uint32_t* no_keys = nullptr;
-  const PhastData data = BuildPhast(Span<const uint32_t>(no_keys, 0), 0, pool);
-  HWY_ASSERT_EQ(size_t{0}, data.NumSlots());
+  const uint32_t* no_keys32 = nullptr;
+  const PhastData data32 =
+      BuildPhast(Span<const uint32_t>(no_keys32, 0), 0, pool);
+  HWY_ASSERT_EQ(size_t{0}, data32.NumSlots());
+
+  const uint64_t* no_keys64 = nullptr;
+  const PhastData data64 =
+      BuildPhast(Span<const uint64_t>(no_keys64, 0), 0, pool);
+  HWY_ASSERT_EQ(size_t{0}, data64.NumSlots());
 }
 }  // namespace hwy
 HWY_TEST_MAIN();

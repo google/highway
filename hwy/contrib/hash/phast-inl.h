@@ -67,37 +67,68 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
+template <typename KeyT>
+using PhastHashT = If<IsSameT<KeyT, uint32_t>::value, Triple32, WeakXMX>;
+
+template <class DU32, HWY_IF_U32_D(DU32)>
+HWY_INLINE DU32 DemoteTag32(DU32 du32) {
+  return du32;
+}
+
+template <class DU64, HWY_IF_U64_D(DU64)>
+HWY_INLINE Rebind<uint32_t, DU64> DemoteTag32(DU64 /*du64*/) {
+  return Rebind<uint32_t, DU64>();
+}
+
+template <class DU32, class VU32 = Vec<DU32>, HWY_IF_U32_D(DU32)>
+HWY_INLINE VU32 DemoteHash32(DU32 /*du32*/, VU32 hash) {
+  return hash;
+}
+
+template <class DU64, class VU64 = Vec<DU64>, HWY_IF_U64_D(DU64)>
+HWY_INLINE auto DemoteHash32(DU64 du64, VU64 hash)
+    -> Vec<Rebind<uint32_t, DU64>> {
+  const Rebind<uint32_t, decltype(du64)> du32;
+  return TruncateTo(du32, hash);
+}
+
 // --------------------------------------------------------------------------
 // Phast: query-time structure. Owns/wraps PhastData returned by the builder.
 
-class Phast {
+template <typename KeyT = uint32_t>
+class PhastT {
  public:
-  Phast() = default;
-  explicit Phast(PhastData&& data)
-      : data_(std::move(data)), hash_(data_.config.hash_key) {
+  using HashT = PhastHashT<KeyT>;
+
+  PhastT() = default;
+  explicit PhastT(PhastData&& data)
+      : data_(std::move(data)),
+        hash_(static_cast<KeyT>(data_.config.hash_key)) {
     HWY_ASSERT_M(data_.NumSlots() > 0, "Build failed");
   }
 
-  Phast(Phast&&) = default;
-  Phast& operator=(Phast&&) = default;
+  PhastT(PhastT&&) = default;
+  PhastT& operator=(PhastT&&) = default;
 
   const PhastData& Data() const { return data_; }
 
   // Maps a single key to an index in [0, num_slots). ~15 cycle latency on
   // Turin and Milan.
-  HWY_INLINE uint32_t operator()(uint32_t key) const {
-    const uint32_t hash = hash_(key);
+  HWY_INLINE uint32_t operator()(KeyT key) const {
+    const uint32_t hash = static_cast<uint32_t>(hash_(key));
     const uint32_t seed = data_.seeds.Get(hash & data_.config.bucket_mask);
     return PosFromHashAndSeed(data_.config.placement, hash, seed);
   }
 
   // Two vectors have higher throughput because they utilize all 16-bit lanes
   // for Hash16.
-  template <class DU32, class VU32 = Vec<DU32>>
-  HWY_INLINE void operator()(DU32 du32, VU32 key0, VU32 key1, VU32& idx0,
+  template <class D, class V = Vec<D>, class DU32 = decltype(DemoteTag32(D())),
+            class VU32 = Vec<DU32>>
+  HWY_INLINE void operator()(D d, V key0, V key1, VU32& idx0,
                              VU32& idx1) const {
-    hash_.TwoVec(du32, key0, key1);
-    PosFromHash(du32, key0, key1, idx0, idx1);
+    hash_.TwoVec(d, key0, key1);
+    const DU32 du32;
+    PosFromHash(du32, DemoteHash32(d, key0), DemoteHash32(d, key1), idx0, idx1);
   }
 
   // Maps (hash, seed) -> position. Used by the query operators above and
@@ -251,12 +282,19 @@ class Phast {
   }
 
   PhastData data_;
-  Triple32 hash_;
+  HashT hash_;
 };
 
-inline Phast MakePhast(Span<const uint32_t> keys, size_t payload_bytes,
-                       ThreadPool& pool) {
-  return Phast(BuildPhast(keys, payload_bytes, pool));
+using Phast = PhastT<uint32_t>;
+using Phast64 = PhastT<uint64_t>;
+
+template <typename KeyT>
+inline PhastT<RemoveConst<KeyT>> MakePhast(Span<KeyT> keys,
+                                           size_t payload_bytes,
+                                           ThreadPool& pool) {
+  using RawKeyT = RemoveConst<KeyT>;
+  return PhastT<RawKeyT>(BuildPhast(
+      Span<const RawKeyT>(keys.data(), keys.size()), payload_bytes, pool));
 }
 
 }  // namespace HWY_NAMESPACE

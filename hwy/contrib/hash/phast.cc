@@ -58,7 +58,7 @@ HWY_INLINE_VAR constexpr size_t kMaxAttempts = 512;  // pow2 for faster mul/div.
 
 PhastConfig MakeConfig(size_t num_keys, int headroom_percent,
                        size_t keys_per_bucket, size_t slice_length,
-                       uint32_t seed) {
+                       uint64_t seed) {
   size_t num_slots =
       num_keys * static_cast<size_t>(100 + headroom_percent) / 100 + 1;
   // Prevents underflow in PhastPlacement::num_slice_offsets.
@@ -199,22 +199,25 @@ class Occupancy {
 // --------------------------------------------------------------------------
 
 // Reused for multiple MaybeBuild() calls per worker to reduce allocation cost.
+template <typename KeyT>
 class PerWorkerBuilder {
   static constexpr size_t kMaxHashesPerBucket = 32;
 
  public:
+  using HashT = PhastHashT<KeyT>;
+
   explicit PerWorkerBuilder(size_t num_keys)
       : hash_for_key_idx_(num_keys),
         all_pos_(size_t{kMaxHashesPerBucket} * 256),
         key_idx_for_pos_(num_keys) {}
 
   // This can be used for validating keys are unique without another copy.
-  uint32_t* MutableHashes() { return hash_for_key_idx_.data(); }
+  KeyT* MutableHashes() { return hash_for_key_idx_.data(); }
 
   // Attempts to build with a given config and hash_key, which overrides
   // config_.hash_key. Call Succeeded() to check success.
-  void MaybeBuild(Span<const uint32_t> keys, const PhastConfig& config,
-                  uint32_t hash_key) {
+  void MaybeBuild(Span<const KeyT> keys, const PhastConfig& config,
+                  KeyT hash_key) {
     PROFILER_ZONE("phast.MaybeBuild");
     HWY_ASSERT(keys.size() == hash_for_key_idx_.size());
     HWY_ALIGN uint32_t seed_candidates[256];
@@ -222,7 +225,7 @@ class PerWorkerBuilder {
     config_ = config;
     config_.hash_key = hash_key;
     const size_t num_buckets = config.NumBuckets();
-    hash_ = Triple32(hash_key);
+    hash_ = HashT(hash_key);
     occupancy_ = Occupancy(config.num_slots);
     seeds_ = PhastSeeds(num_buckets);
     committed_seeds_.resize(num_buckets);
@@ -378,8 +381,9 @@ class PerWorkerBuilder {
     const size_t b_begin = total_hashes_before_bucket_[bucket_idx];
     for (size_t idx = 0; idx < b_size; ++idx) {
       const uint32_t key_idx = key_idx_for_pos_[b_begin + idx];
-      slice_begin[idx] = LemireMod(hash_for_key_idx_[key_idx],
-                                   config_.placement.num_slice_offsets);
+      slice_begin[idx] =
+          LemireMod(static_cast<uint32_t>(hash_for_key_idx_[key_idx]),
+                    config_.placement.num_slice_offsets);
     }
   }
 
@@ -387,7 +391,7 @@ class PerWorkerBuilder {
   // Much cheaper than ComputeBucketPos, which computes all 256 seeds.
   uint32_t ComputeOnePos(size_t b_pos, uint32_t seed) const {
     const uint32_t key_idx = key_idx_for_pos_[b_pos];
-    const uint32_t hash = hash_for_key_idx_[key_idx];
+    const uint32_t hash = static_cast<uint32_t>(hash_for_key_idx_[key_idx]);
     return Phast::PosFromHashAndSeed(config_.placement, hash, seed);
   }
 
@@ -404,7 +408,8 @@ class PerWorkerBuilder {
 
     for (size_t idx = 0; idx < b_size; ++idx) {
       const uint32_t key_idx = key_idx_for_pos_[b_begin + idx];
-      const VU32 hash = Set(du32, hash_for_key_idx_[key_idx]);
+      const VU32 hash =
+          Set(du32, static_cast<uint32_t>(hash_for_key_idx_[key_idx]));
       for (size_t seed = 0; seed < 256; seed += 2 * NU32) {
         const VU32 s0 = Iota(du32, seed);
         const VU32 s1 = Iota(du32, seed + NU32);
@@ -523,7 +528,8 @@ class PerWorkerBuilder {
   }
 
   size_t BucketIdxFromKeyIdx(size_t key_idx) const {
-    return hash_for_key_idx_[key_idx] & config_.bucket_mask;
+    return static_cast<size_t>(hash_for_key_idx_[key_idx]) &
+           config_.bucket_mask;
   }
 
   void PopulateBuckets(size_t num_keys) {
@@ -600,6 +606,7 @@ class PerWorkerBuilder {
         avail0 = occupancy_.Unoccupied(du32, avail0, pos0);
         avail1 = occupancy_.Unoccupied(du32, avail1, pos1);
       }
+
       num_candidates +=
           CompressStore(s0, avail0, du32, seed_candidates + num_candidates);
       num_candidates +=
@@ -609,7 +616,7 @@ class PerWorkerBuilder {
     return num_candidates;
   }
 
-  AlignedVector<uint32_t> hash_for_key_idx_;  // [num_keys]
+  AlignedVector<KeyT> hash_for_key_idx_;  // [num_keys]
   // Indexed by [local_idx * 256 + seed], computed per bucket.
   AlignedVector<uint32_t> all_pos_;  // [kMaxHashesPerBucket*256]
 
@@ -620,7 +627,7 @@ class PerWorkerBuilder {
   // Set by MaybeBuild():
 
   PhastConfig config_;
-  Triple32 hash_;
+  HashT hash_;
   Occupancy occupancy_;
   PhastSeeds seeds_;
   AlignedVector<uint8_t> committed_seeds_;  // seed per rank, for backtracking
@@ -638,7 +645,8 @@ class PerWorkerBuilder {
 // --------------------------------------------------------------------------
 
 // Enumerates configs, tries each with parallel workers, returns the best.
-static PhastData BuildPhastImpl(Span<const uint32_t> keys,
+template <typename KeyT>
+static PhastData BuildPhastImpl(Span<const KeyT> keys,
                                 const size_t payload_bytes, ThreadPool& pool) {
   const size_t num_keys = keys.size();
   // An empty key set has no perfect hash to build. Return the same empty/failed
@@ -648,22 +656,24 @@ static PhastData BuildPhastImpl(Span<const uint32_t> keys,
   const size_t num_workers = pool.NumWorkers();
 
   // Allocate per-worker builders once; reused across all configs.
-  AlignedVector<PerWorkerBuilder> per_worker;
+  AlignedVector<PerWorkerBuilder<KeyT>> per_worker;
   per_worker.reserve(num_workers);
   for (size_t i = 0; i < num_workers; ++i) {
     per_worker.emplace_back(num_keys);
   }
 
+  using HashT = PhastHashT<KeyT>;
+
   // Ensure keys are distinct, otherwise building would fail. Sort the hashes
   // because `keys` are immutable, and the hash function is a permutation,
   // hence hash collisions imply duplicate keys.
   AesCtrEngine engine(/*deterministic=*/true);
-  HashArray(Triple32(engine, 0), keys.data(), per_worker[0].MutableHashes(),
+  HashArray(HashT(engine, 0), keys.data(), per_worker[0].MutableHashes(),
             num_keys);
   VQSortStatic(per_worker[0].MutableHashes(), num_keys, SortAscending());
-  const ScalableTag<uint32_t> du32;
+  const ScalableTag<KeyT> d_hash;
   HWY_ASSERT_M(
-      num_keys == Unique(du32, per_worker[0].MutableHashes(), num_keys),
+      num_keys == Unique(d_hash, per_worker[0].MutableHashes(), num_keys),
       "Collision detected");
 
   // Enumerate configs sorted by AllocatedBytes ascending.
@@ -686,8 +696,7 @@ static PhastData BuildPhastImpl(Span<const uint32_t> keys,
         // rep < reps_per_config. Adding outer_rep * reps_per_config makes for a
         // contiguous range < kMaxAttempts.
         const uint64_t seed = config.hash_key + outer_rep * reps_per_config;
-        const uint32_t hash_key =
-            static_cast<uint32_t>(RngStream(engine, seed)());
+        const KeyT hash_key = static_cast<KeyT>(RngStream(engine, seed)());
         per_worker[worker].MaybeBuild(keys, config, hash_key);
       });
 
@@ -707,7 +716,8 @@ static PhastData BuildPhastImpl(Span<const uint32_t> keys,
 }
 
 #else   // HWY_TARGET == HWY_SCALAR
-static PhastData BuildPhastImpl(Span<const uint32_t>, size_t, ThreadPool&) {
+template <typename KeyT>
+static PhastData BuildPhastImpl(Span<const KeyT>, size_t, ThreadPool&) {
   return PhastData();
 }
 #endif  // HWY_TARGET != HWY_SCALAR
@@ -718,12 +728,19 @@ HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
 namespace hwy {
-HWY_EXPORT(BuildPhastImpl);
 
 HWY_CONTRIB_DLLEXPORT PhastData BuildPhast(Span<const uint32_t> keys,
                                            size_t payload_bytes,
                                            ThreadPool& pool) {
-  return HWY_DYNAMIC_DISPATCH(BuildPhastImpl)(keys, payload_bytes, pool);
+  HWY_EXPORT_T(BuildPhast32, BuildPhastImpl<uint32_t>);
+  return HWY_DYNAMIC_DISPATCH_T(BuildPhast32)(keys, payload_bytes, pool);
+}
+
+HWY_CONTRIB_DLLEXPORT PhastData BuildPhast(Span<const uint64_t> keys,
+                                           size_t payload_bytes,
+                                           ThreadPool& pool) {
+  HWY_EXPORT_T(BuildPhast64, BuildPhastImpl<uint64_t>);
+  return HWY_DYNAMIC_DISPATCH_T(BuildPhast64)(keys, payload_bytes, pool);
 }
 
 }  // namespace hwy
