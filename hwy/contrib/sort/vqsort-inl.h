@@ -801,7 +801,7 @@ HWY_INLINE size_t Partition(D d, Traits st, T* const keys, const size_t num,
   HWY_DASSERT(bufL <= Constants::PartitionBufNum(N));
   HWY_DASSERT(num_main + bufL == writeR);
 
-  if (VQSORT_PRINT >= 3) {
+  if constexpr (VQSORT_PRINT >= 3) {
     fprintf(stderr, "  num_main %zu bufL %zu writeR %zu\n", num_main, bufL,
             writeR);
   }
@@ -971,7 +971,7 @@ HWY_NOINLINE bool MaybePartitionTwoValue(D d, Traits st, T* HWY_RESTRICT keys,
         // fuse Not and Xor/Or into one ExclusiveNeither.
         const size_t lane = FindKnownFirstTrue(d, ExclusiveNeither(eqL, eqR));
         third = st.SetKey(d, keys + i + lane);
-        if (VQSORT_PRINT >= 2) {
+        if constexpr (VQSORT_PRINT >= 2) {
           fprintf(stderr, "found 3rd value at vec %zu; writeL %zu\n", i,
                   writeL);
         }
@@ -1002,7 +1002,7 @@ HWY_NOINLINE bool MaybePartitionTwoValue(D d, Traits st, T* HWY_RESTRICT keys,
   if (HWY_UNLIKELY(!AllTrue(d, eq))) {
     const size_t lane = FindKnownFirstTrue(d, Not(eq));
     third = st.SetKey(d, keys + i + lane);
-    if (VQSORT_PRINT >= 2) {
+    if constexpr (VQSORT_PRINT >= 2) {
       fprintf(stderr, "found 3rd value at partial vec %zu; writeL %zu\n", i,
               writeL);
     }
@@ -1027,7 +1027,7 @@ HWY_NOINLINE bool MaybePartitionTwoValue(D d, Traits st, T* HWY_RESTRICT keys,
   }
   StoreN(valueR, d, keys + i, num - i);
 
-  if (VQSORT_PRINT >= 2) {
+  if constexpr (VQSORT_PRINT >= 2) {
     fprintf(stderr, "Successful MaybePartitionTwoValue\n");
   }
   return true;
@@ -1061,7 +1061,7 @@ HWY_INLINE bool MaybePartitionTwoValueR(D d, Traits st, T* HWY_RESTRICT keys,
     if (HWY_UNLIKELY(!AllTrue(d, Or(eqL, eqR)))) {
       const size_t lane = FindKnownFirstTrue(d, ExclusiveNeither(eqL, eqR));
       third = st.SetKey(d, keys + pos + lane);
-      if (VQSORT_PRINT >= 2) {
+      if constexpr (VQSORT_PRINT >= 2) {
         fprintf(stderr, "found 3rd value at vec %zu; countR %zu\n", pos,
                 countR);
         MaybePrintVector(d, "third", third, 0, st.LanesPerKey());
@@ -1096,7 +1096,7 @@ HWY_INLINE bool MaybePartitionTwoValueR(D d, Traits st, T* HWY_RESTRICT keys,
   if (HWY_UNLIKELY(!AllTrue(d, eq))) {
     const size_t lane = FindKnownFirstTrue(d, Not(eq));
     third = st.SetKey(d, keys + lane);
-    if (VQSORT_PRINT >= 2) {
+    if constexpr (VQSORT_PRINT >= 2) {
       fprintf(stderr, "found 3rd value at partial vec %zu; writeR %zu\n", pos,
               countR);
       MaybePrintVector(d, "third", third, 0, st.LanesPerKey());
@@ -1131,7 +1131,7 @@ HWY_INLINE bool MaybePartitionTwoValueR(D d, Traits st, T* HWY_RESTRICT keys,
   Store(valueL, d, buf);
   SafeCopyN(endL - i, d, buf, keys + i);  // avoids ASan overrun
 
-  if (VQSORT_PRINT >= 2) {
+  if constexpr (VQSORT_PRINT >= 2) {
     fprintf(stderr,
             "MaybePartitionTwoValueR countR %zu pos %zu i %zu endL %zu\n",
             countR, pos, i, endL);
@@ -1151,7 +1151,7 @@ HWY_INLINE bool PartitionIfTwoKeys(D d, Traits st, const Vec<D> pivot,
                                    Vec<D>& third, T* HWY_RESTRICT buf) {
   // True if second comes before pivot.
   const bool is_pivotR = AllFalse(d, st.Compare(d, pivot, second));
-  if (VQSORT_PRINT >= 1) {
+  if constexpr (VQSORT_PRINT >= 1) {
     fprintf(stderr, "Samples all equal, diff at %zu, isPivotR %d\n", idx_second,
             is_pivotR);
   }
@@ -1321,7 +1321,7 @@ HWY_INLINE void SortSamples(D d, Traits st, T* HWY_RESTRICT buf) {
 
   BaseCase(d, st, buf, kSampleLanes, buf + kSampleLanes);
 
-  if (VQSORT_PRINT >= 2) {
+  if constexpr (VQSORT_PRINT >= 2) {
     fprintf(stderr, "Samples:\n");
     for (size_t i = 0; i < kSampleLanes; i += N) {
       MaybePrintVector(d, "", Load(d, buf + i), 0, N);
@@ -1392,7 +1392,7 @@ HWY_INLINE Vec<D> ChoosePivotByRank(D d, Traits st,
                                     const T* HWY_RESTRICT samples) {
   const size_t pivot_rank = PivotRank(st, samples);
   const Vec<D> pivot = st.SetKey(d, samples + pivot_rank);
-  if (VQSORT_PRINT >= 2) {
+  if constexpr (VQSORT_PRINT >= 2) {
     fprintf(stderr, "  Pivot rank %3zu\n", pivot_rank);
     HWY_ALIGN T pivot_lanes[MaxLanes(d)];
     Store(pivot, d, pivot_lanes);
@@ -1504,7 +1504,7 @@ HWY_INLINE bool AllEqual(D d, Traits st, const Vec<D> pivot,
     return false;
   }
 
-  if (VQSORT_PRINT >= 1) {
+  if constexpr (VQSORT_PRINT >= 1) {
     fprintf(stderr, "All keys equal\n");
   }
   return true;  // all equal
@@ -1517,7 +1517,7 @@ HWY_INLINE bool ExistsAnyBefore(D d, Traits st, const T* HWY_RESTRICT keys,
   const size_t N = Lanes(d);
   HWY_DASSERT(num >= N);  // See HandleSpecialCases
 
-  if (VQSORT_PRINT >= 2) {
+  if constexpr (VQSORT_PRINT >= 2) {
     fprintf(stderr, "Scanning for before\n");
   }
 
@@ -1538,7 +1538,7 @@ HWY_INLINE bool ExistsAnyBefore(D d, Traits st, const T* HWY_RESTRICT keys,
       }
 
       if (HWY_UNLIKELY(!AllFalse(d, st.Compare(d, first, pivot)))) {
-        if (VQSORT_PRINT >= 2) {
+        if constexpr (VQSORT_PRINT >= 2) {
           fprintf(stderr, "Stopped scanning at end of group %zu\n",
                   i + lanes_per_group);
         }
@@ -1550,7 +1550,7 @@ HWY_INLINE bool ExistsAnyBefore(D d, Traits st, const T* HWY_RESTRICT keys,
   for (; i <= num - N; i += N) {
     const Vec<D> curr = LoadU(d, keys + i);
     if (HWY_UNLIKELY(!AllFalse(d, st.Compare(d, curr, pivot)))) {
-      if (VQSORT_PRINT >= 2) {
+      if constexpr (VQSORT_PRINT >= 2) {
         fprintf(stderr, "Stopped scanning at %zu\n", i);
       }
       return true;
@@ -1560,7 +1560,7 @@ HWY_INLINE bool ExistsAnyBefore(D d, Traits st, const T* HWY_RESTRICT keys,
   if (HWY_LIKELY(i != num)) {
     const Vec<D> curr = LoadU(d, keys + num - N);
     if (HWY_UNLIKELY(!AllFalse(d, st.Compare(d, curr, pivot)))) {
-      if (VQSORT_PRINT >= 2) {
+      if constexpr (VQSORT_PRINT >= 2) {
         fprintf(stderr, "Stopped scanning at last %zu\n", num - N);
       }
       return true;
@@ -1577,7 +1577,7 @@ HWY_INLINE bool ExistsAnyAfter(D d, Traits st, const T* HWY_RESTRICT keys,
   const size_t N = Lanes(d);
   HWY_DASSERT(num >= N);  // See HandleSpecialCases
 
-  if (VQSORT_PRINT >= 2) {
+  if constexpr (VQSORT_PRINT >= 2) {
     fprintf(stderr, "Scanning for after\n");
   }
 
@@ -1598,7 +1598,7 @@ HWY_INLINE bool ExistsAnyAfter(D d, Traits st, const T* HWY_RESTRICT keys,
       }
 
       if (HWY_UNLIKELY(!AllFalse(d, st.Compare(d, pivot, last)))) {
-        if (VQSORT_PRINT >= 2) {
+        if constexpr (VQSORT_PRINT >= 2) {
           fprintf(stderr, "Stopped scanning at end of group %zu\n",
                   i + lanes_per_group);
         }
@@ -1610,7 +1610,7 @@ HWY_INLINE bool ExistsAnyAfter(D d, Traits st, const T* HWY_RESTRICT keys,
   for (; i <= num - N; i += N) {
     const Vec<D> curr = LoadU(d, keys + i);
     if (HWY_UNLIKELY(!AllFalse(d, st.Compare(d, pivot, curr)))) {
-      if (VQSORT_PRINT >= 2) {
+      if constexpr (VQSORT_PRINT >= 2) {
         fprintf(stderr, "Stopped scanning at %zu\n", i);
       }
       return true;
@@ -1620,7 +1620,7 @@ HWY_INLINE bool ExistsAnyAfter(D d, Traits st, const T* HWY_RESTRICT keys,
   if (HWY_LIKELY(i != num)) {
     const Vec<D> curr = LoadU(d, keys + num - N);
     if (HWY_UNLIKELY(!AllFalse(d, st.Compare(d, pivot, curr)))) {
-      if (VQSORT_PRINT >= 2) {
+      if constexpr (VQSORT_PRINT >= 2) {
         fprintf(stderr, "Stopped scanning at last %zu\n", num - N);
       }
       return true;
@@ -1643,13 +1643,13 @@ HWY_INLINE Vec<D> ChoosePivotForEqualSamples(D d, Traits st,
   // Early out for mostly-0 arrays, where pivot is often FirstValue.
   if (HWY_UNLIKELY(AllTrue(d, st.EqualKeys(d, pivot, st.FirstValue(d))))) {
     result = PivotResult::kIsFirst;
-    if (VQSORT_PRINT >= 2) {
+    if constexpr (VQSORT_PRINT >= 2) {
       fprintf(stderr, "Pivot equals first possible value\n");
     }
     return pivot;
   }
   if (HWY_UNLIKELY(AllTrue(d, st.EqualKeys(d, pivot, st.LastValue(d))))) {
-    if (VQSORT_PRINT >= 2) {
+    if constexpr (VQSORT_PRINT >= 2) {
       fprintf(stderr, "Pivot equals last possible value\n");
     }
     result = PivotResult::kWasLast;
@@ -1741,7 +1741,7 @@ enum class RecurseMode {
 template <class D, class Traits, typename T>
 HWY_NOINLINE void PrintMinMax(D d, Traits st, const T* HWY_RESTRICT keys,
                               size_t num, T* HWY_RESTRICT buf) {
-  if (VQSORT_PRINT >= 2) {
+  if constexpr (VQSORT_PRINT >= 2) {
     const size_t N = Lanes(d);
     if (num < N) return;
 
@@ -1782,7 +1782,7 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
   }
 
   // Move after BaseCase so we skip printing for small subarrays.
-  if (VQSORT_PRINT >= 1) {
+  if constexpr (VQSORT_PRINT >= 1) {
     fprintf(stderr, "\n\n=== Recurse depth=%zu len=%zu k=%zu\n",
             remaining_levels, num, k);
     PrintMinMax(d, st, keys, num, buf);
@@ -1836,7 +1836,7 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
   // Too many recursions. This is unlikely to happen because we select pivots
   // from large (though still O(1)) samples.
   if (HWY_UNLIKELY(remaining_levels == 0)) {
-    if (VQSORT_PRINT >= 1) {
+    if constexpr (VQSORT_PRINT >= 1) {
       fprintf(stderr, "HeapSort reached, size=%zu\n", num);
     }
     HeapSort(st, keys, num);  // Slow but N*logN.
@@ -1844,7 +1844,7 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
   }
 
   const size_t bound = Partition(d, st, keys, num, pivot, buf);
-  if (VQSORT_PRINT >= 2) {
+  if constexpr (VQSORT_PRINT >= 2) {
     fprintf(stderr, "bound %zu num %zu result %s\n", bound, num,
             PivotResultString(result));
   }
@@ -1894,7 +1894,7 @@ HWY_INLINE bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys,
   // Recurse will also check this, but doing so here first avoids setting up
   // the random generator state.
   if (HWY_UNLIKELY(num <= base_case_num)) {
-    if (VQSORT_PRINT >= 1) {
+    if constexpr (VQSORT_PRINT >= 1) {
       fprintf(stderr, "Special-casing small, %zu lanes\n", num);
     }
     BaseCase(d, st, keys, num, buf);
@@ -1913,7 +1913,7 @@ HWY_INLINE bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys,
       HWY_MAX_BYTES / sizeof(T) > Constants::kMaxRows * Constants::kMaxCols;
   const bool huge_vec = kPotentiallyHuge && (2 * N > base_case_num);
   if (partial_128 || huge_vec) {
-    if (VQSORT_PRINT >= 1) {
+    if constexpr (VQSORT_PRINT >= 1) {
       HWY_WARN("using slow HeapSort: partial %d huge %d\n", partial_128,
                huge_vec);
     }
@@ -2003,7 +2003,7 @@ HWY_INLINE size_t PartitionNaNToBack(D, Traits, T* HWY_RESTRICT, size_t) {
 template <class D, class Traits, typename T>
 void Sort(D d, Traits st, T* HWY_RESTRICT keys, const size_t num,
           T* HWY_RESTRICT buf) {
-  if (VQSORT_PRINT >= 1) {
+  if constexpr (VQSORT_PRINT >= 1) {
     fprintf(stderr, "=============== Sort %s num=%zu, vec bytes=%zu\n",
             st.KeyString(), num, sizeof(T) * Lanes(d));
   }
@@ -2029,7 +2029,7 @@ void Sort(D d, Traits st, T* HWY_RESTRICT keys, const size_t num,
 #else   // !VQSORT_ENABLED
   (void)d;
   (void)buf;
-  if (VQSORT_PRINT >= 1) {
+  if constexpr (VQSORT_PRINT >= 1) {
     HWY_WARN("using slow HeapSort because vqsort disabled\n");
   }
   detail::HeapSort(st, keys, num);
@@ -2043,7 +2043,7 @@ void Sort(D d, Traits st, T* HWY_RESTRICT keys, const size_t num,
 template <class D, class Traits, typename T>
 void PartialSort(D d, Traits st, T* HWY_RESTRICT keys, size_t num, size_t k,
                  T* HWY_RESTRICT buf) {
-  if (VQSORT_PRINT >= 1) {
+  if constexpr (VQSORT_PRINT >= 1) {
     fprintf(stderr,
             "=============== PartialSort %s num=%zu, k=%zu vec bytes=%zu\n",
             st.KeyString(), num, k, sizeof(T) * Lanes(d));
@@ -2081,7 +2081,7 @@ void PartialSort(D d, Traits st, T* HWY_RESTRICT keys, size_t num, size_t k,
 #else   // !VQSORT_ENABLED
   (void)d;
   (void)buf;
-  if (VQSORT_PRINT >= 1) {
+  if constexpr (VQSORT_PRINT >= 1) {
     HWY_WARN("using slow HeapSort because vqsort disabled\n");
   }
   detail::HeapPartialSort(st, keys, num_valid, k_valid);
@@ -2091,7 +2091,7 @@ void PartialSort(D d, Traits st, T* HWY_RESTRICT keys, size_t num, size_t k,
 template <class D, class Traits, typename T>
 void Select(D d, Traits st, T* HWY_RESTRICT keys, const size_t num,
             const size_t k, T* HWY_RESTRICT buf) {
-  if (VQSORT_PRINT >= 1) {
+  if constexpr (VQSORT_PRINT >= 1) {
     fprintf(stderr, "=============== Select %s num=%zu, k=%zu vec bytes=%zu\n",
             st.KeyString(), num, k, sizeof(T) * Lanes(d));
   }
@@ -2121,7 +2121,7 @@ void Select(D d, Traits st, T* HWY_RESTRICT keys, const size_t num,
 #else   // !VQSORT_ENABLED
   (void)d;
   (void)buf;
-  if (VQSORT_PRINT >= 1) {
+  if constexpr (VQSORT_PRINT >= 1) {
     HWY_WARN("using slow HeapSort because vqsort disabled\n");
   }
   detail::HeapSelect(st, keys, num_valid, k);
