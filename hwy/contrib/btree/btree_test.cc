@@ -1388,6 +1388,216 @@ void TestCompactDynamicInsertAndErase(size_t num_mutations) {
   }
 }
 
+template <typename KeyT, typename ValueT>
+void TestCompactMapEmpty() {
+  CompactBTreeMap<KeyT, ValueT> map;
+  HWY_ASSERT(map.empty());
+  HWY_ASSERT_EQ(map.size(), size_t{0});
+  HWY_ASSERT(map.begin() == map.end());
+  HWY_ASSERT(!map.contains(10));
+  HWY_ASSERT(map.find(10) == map.end());
+  HWY_ASSERT(map.lower_bound(10) == map.end());
+}
+
+template <typename KeyT, typename ValueT>
+void TestCompactMapSingleLeaf() {
+  std::vector<KeyT> keys = {10, 20, 30, 40, 50};
+  std::vector<ValueT> vals = {100, 200, 300, 400, 500};
+  auto map = CompactBTreeMap<KeyT, ValueT>::Build(
+      keys.data(), vals.data(), keys.size());
+
+  HWY_ASSERT(!map.empty());
+  HWY_ASSERT_EQ(map.size(), size_t{5});
+  HWY_ASSERT_EQ(map.height(), 0);
+
+  for (size_t i = 0; i < keys.size(); ++i) {
+    HWY_ASSERT(map.contains(keys[i]));
+    auto it = map.find(keys[i]);
+    HWY_ASSERT(it != map.end());
+    HWY_ASSERT_EQ(it->first, keys[i]);
+    HWY_ASSERT_EQ(it->second, vals[i]);
+    HWY_ASSERT_EQ(map[keys[i]], vals[i]);
+    HWY_ASSERT_EQ(map.at(keys[i]), vals[i]);
+  }
+
+  HWY_ASSERT(!map.contains(5));
+  HWY_ASSERT(!map.contains(25));
+  HWY_ASSERT(!map.contains(55));
+
+  HWY_ASSERT_EQ(map.lower_bound(5)->first, 10);
+  HWY_ASSERT_EQ(map.lower_bound(10)->first, 10);
+  HWY_ASSERT_EQ(map.lower_bound(25)->first, 30);
+  HWY_ASSERT_EQ(map.lower_bound(50)->first, 50);
+  HWY_ASSERT(map.lower_bound(55) == map.end());
+}
+
+template <typename KeyT, typename ValueT>
+void TestCompactMapRandomizedComparisonAgainstAbsl(size_t num_keys,
+                                                  size_t num_queries) {
+  absl::BitGen bitgen;
+  std::map<KeyT, ValueT> ref_map;
+  while (ref_map.size() < num_keys) {
+    KeyT k = static_cast<KeyT>(absl::Uniform<uint64_t>(bitgen, 1, 10000000));
+    ValueT v =
+        static_cast<ValueT>(absl::Uniform<uint64_t>(bitgen, 1, 10000000));
+    ref_map[k] = v;
+  }
+
+  std::vector<KeyT> sorted_keys;
+  std::vector<ValueT> sorted_vals;
+  sorted_keys.reserve(ref_map.size());
+  sorted_vals.reserve(ref_map.size());
+  for (const auto& [k, v] : ref_map) {
+    sorted_keys.push_back(k);
+    sorted_vals.push_back(v);
+  }
+
+  auto compact_map = CompactBTreeMap<KeyT, ValueT>::Build(
+      sorted_keys.data(), sorted_vals.data(), sorted_keys.size());
+
+  HWY_ASSERT_EQ(compact_map.size(), ref_map.size());
+
+  // Traversal check
+  size_t idx = 0;
+  for (auto it = compact_map.begin(); it != compact_map.end(); ++it, ++idx) {
+    HWY_ASSERT_EQ(it->first, sorted_keys[idx]);
+    HWY_ASSERT_EQ(it->second, sorted_vals[idx]);
+  }
+  HWY_ASSERT_EQ(idx, sorted_keys.size());
+
+  // Random Queries
+  for (size_t q = 0; q < num_queries; ++q) {
+    KeyT query_key =
+        static_cast<KeyT>(absl::Uniform<uint64_t>(bitgen, 0, 10000050));
+
+    auto ref_it = ref_map.find(query_key);
+    bool expected_contains = (ref_it != ref_map.end());
+    HWY_ASSERT_EQ(compact_map.contains(query_key), expected_contains);
+
+    auto compact_it = compact_map.find(query_key);
+    if (expected_contains) {
+      HWY_ASSERT(compact_it != compact_map.end());
+      HWY_ASSERT_EQ(compact_it->first, ref_it->first);
+      HWY_ASSERT_EQ(compact_it->second, ref_it->second);
+    } else {
+      HWY_ASSERT(compact_it == compact_map.end());
+    }
+
+    auto ref_lb = ref_map.lower_bound(query_key);
+    auto compact_lb = compact_map.lower_bound(query_key);
+    if (ref_lb == ref_map.end()) {
+      HWY_ASSERT(compact_lb == compact_map.end());
+    } else {
+      HWY_ASSERT(compact_lb != compact_map.end());
+      HWY_ASSERT_EQ(compact_lb->first, ref_lb->first);
+      HWY_ASSERT_EQ(compact_lb->second, ref_lb->second);
+    }
+  }
+}
+
+template <typename KeyT, typename ValueT>
+void TestCompactMapBatchQueries(size_t num_keys, size_t num_queries) {
+  absl::BitGen bitgen;
+  std::map<KeyT, ValueT> ref_map;
+  while (ref_map.size() < num_keys) {
+    KeyT k = static_cast<KeyT>(absl::Uniform<uint64_t>(bitgen, 1, 10000000));
+    ValueT v =
+        static_cast<ValueT>(absl::Uniform<uint64_t>(bitgen, 1, 10000000));
+    ref_map[k] = v;
+  }
+
+  std::vector<KeyT> sorted_keys;
+  std::vector<ValueT> sorted_vals;
+  sorted_keys.reserve(ref_map.size());
+  sorted_vals.reserve(ref_map.size());
+  for (const auto& [k, v] : ref_map) {
+    sorted_keys.push_back(k);
+    sorted_vals.push_back(v);
+  }
+
+  auto compact_map = CompactBTreeMap<KeyT, ValueT>::Build(
+      sorted_keys.data(), sorted_vals.data(), sorted_keys.size());
+
+  std::vector<KeyT> queries(num_queries);
+  for (size_t i = 0; i < num_queries; ++i) {
+    queries[i] =
+        static_cast<KeyT>(absl::Uniform<uint64_t>(bitgen, 0, 10000050));
+  }
+
+  std::unique_ptr<bool[]> out_found(new bool[num_queries]);
+  compact_map.ContainsBatch(queries.data(), num_queries, out_found.get());
+  for (size_t i = 0; i < num_queries; ++i) {
+    bool expected = (ref_map.find(queries[i]) != ref_map.end());
+    HWY_ASSERT_EQ(out_found[i], expected);
+  }
+
+  std::vector<ValueT> out_values(num_queries);
+  compact_map.LookupBatch(queries.data(), num_queries, out_values.data(),
+                          out_found.get());
+  for (size_t i = 0; i < num_queries; ++i) {
+    auto it = ref_map.find(queries[i]);
+    if (it != ref_map.end()) {
+      HWY_ASSERT(out_found[i]);
+      HWY_ASSERT_EQ(out_values[i], it->second);
+    } else {
+      HWY_ASSERT(!out_found[i]);
+    }
+  }
+}
+
+template <typename KeyT, typename ValueT>
+void TestCompactMapDynamicInsertAndErase(size_t num_mutations) {
+  absl::BitGen bitgen;
+  std::map<KeyT, ValueT> reference_map;
+  CompactBTreeMap<KeyT, ValueT> compact_map;
+
+  std::vector<KeyT> inserted_keys;
+  inserted_keys.reserve(num_mutations);
+
+  for (size_t i = 0; i < num_mutations; ++i) {
+    KeyT k = static_cast<KeyT>(absl::Uniform<uint64_t>(bitgen, 1, 50000000));
+    ValueT v =
+        static_cast<ValueT>(absl::Uniform<uint64_t>(bitgen, 1, 50000000));
+
+    auto ref_res = reference_map.insert({k, v});
+    auto compact_res = compact_map.insert({k, v});
+
+    HWY_ASSERT_EQ(compact_res.second, ref_res.second);
+    HWY_ASSERT_EQ(compact_res.first->first, ref_res.first->first);
+    HWY_ASSERT_EQ(compact_res.first->second, ref_res.first->second);
+    HWY_ASSERT_EQ(compact_map.size(), reference_map.size());
+    if (ref_res.second) {
+      inserted_keys.push_back(k);
+    }
+  }
+
+  for (KeyT k : inserted_keys) {
+    HWY_ASSERT(compact_map.contains(k));
+    auto it = compact_map.find(k);
+    HWY_ASSERT(it != compact_map.end());
+    HWY_ASSERT_EQ(it->first, k);
+    HWY_ASSERT_EQ(it->second, reference_map[k]);
+  }
+
+  std::shuffle(inserted_keys.begin(), inserted_keys.end(), bitgen);
+  size_t to_delete = inserted_keys.size() / 2;
+  for (size_t i = 0; i < to_delete; ++i) {
+    KeyT k = inserted_keys[i];
+    size_t ref_erased = reference_map.erase(k);
+    size_t compact_erased = compact_map.erase(k);
+
+    HWY_ASSERT_EQ(compact_erased, ref_erased);
+    HWY_ASSERT_EQ(compact_map.size(), reference_map.size());
+    HWY_ASSERT(!compact_map.contains(k));
+  }
+
+  for (size_t i = to_delete; i < inserted_keys.size(); ++i) {
+    KeyT k = inserted_keys[i];
+    HWY_ASSERT(compact_map.contains(k));
+    HWY_ASSERT_EQ(compact_map.find(k)->second, reference_map[k]);
+  }
+}
+
 void TestAll() {
   fprintf(stderr, "Running Set 32-bit tests...\n");
   TestEmptyTree<uint32_t>();
@@ -1471,6 +1681,20 @@ void TestAll() {
   TestCompactBatchQueries<uint64_t>(5000, 1000);
   TestCompactDiverseBitModes<uint64_t>();
   TestCompactDynamicInsertAndErase<uint64_t>(5000);
+
+  fprintf(stderr, "Running CompactBTreeMap uint32_t -> uint64_t tests...\n");
+  TestCompactMapEmpty<uint32_t, uint64_t>();
+  TestCompactMapSingleLeaf<uint32_t, uint64_t>();
+  TestCompactMapRandomizedComparisonAgainstAbsl<uint32_t, uint64_t>(5000, 2000);
+  TestCompactMapBatchQueries<uint32_t, uint64_t>(5000, 1000);
+  TestCompactMapDynamicInsertAndErase<uint32_t, uint64_t>(5000);
+
+  fprintf(stderr, "Running CompactBTreeMap uint64_t -> uint64_t tests...\n");
+  TestCompactMapEmpty<uint64_t, uint64_t>();
+  TestCompactMapSingleLeaf<uint64_t, uint64_t>();
+  TestCompactMapRandomizedComparisonAgainstAbsl<uint64_t, uint64_t>(5000, 2000);
+  TestCompactMapBatchQueries<uint64_t, uint64_t>(5000, 1000);
+  TestCompactMapDynamicInsertAndErase<uint64_t, uint64_t>(5000);
 
   fprintf(stderr, "All tests passed!\n");
 }
