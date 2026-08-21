@@ -110,6 +110,7 @@ HWY_CONTRIB_TESTS = (
         [
             ":algo",
             ":hash",
+            ":phast",
             ":profiler",
             ":random",
             ":thread_pool",
@@ -122,6 +123,7 @@ HWY_CONTRIB_TESTS = (
         "cuckoo2x2_test",
         [
             ":hash",
+            ":cuckoo",
             ":profiler",
             ":random",
             ":thread_pool",
@@ -133,6 +135,7 @@ HWY_CONTRIB_TESTS = (
         "cuckoo_test",
         [
             ":algo",
+            ":cuckoo",
             ":hash",
             ":random",
             "//hwy/contrib/sort:vqsort",

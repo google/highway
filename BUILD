@@ -458,24 +458,59 @@ cc_library(
 
 cc_library(
     name = "hash",
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/hash/hash-inl.h",
+    ],
+    deps = [
+        ":hwy",
+        ":random",
+    ],
+)
+
+cc_library(
+    name = "phast",
     srcs = [
-        "hwy/contrib/hash/cuckoo2x2.cc",
         "hwy/contrib/hash/phast.cc",
     ],
     hdrs = [
-        "hwy/contrib/hash/cuckoo2x2.h",
         "hwy/contrib/hash/phast.h",
     ],
     compatible_with = [],
     copts = COPTS,
     textual_hdrs = [
-        "hwy/contrib/hash/cuckoo-inl.h",
-        "hwy/contrib/hash/hash-inl.h",
         "hwy/contrib/hash/phast-inl.h",
+    ],
+    deps = [
+        ":algo",
+        ":hash",
+        ":hwy",
+        ":profiler",
+        ":random",
+        ":thread_pool",
+        ":timer",
+        "//hwy/contrib/sort:vqsort",
+    ],
+)
+
+cc_library(
+    name = "cuckoo",
+    srcs = [
+        "hwy/contrib/hash/cuckoo2x2.cc",
+    ],
+    hdrs = [
+        "hwy/contrib/hash/cuckoo2x2.h",
+    ],
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/hash/cuckoo-inl.h",
         "hwy/contrib/hash/cuckoo2x2-inl.h",
     ],
     deps = [
         ":algo",
+        ":hash",
         ":hwy",
         ":profiler",
         ":random",
@@ -909,7 +944,9 @@ cc_test(
         "notap",
     ],
     deps = HWY_TEST_DEPS + [
+        ":cuckoo",
         ":hash",
+        ":phast",
         ":profiler",
         ":random",
         ":robust_statistics",
@@ -926,6 +963,7 @@ cc_test(
     srcs = ["hwy/contrib/hash/cuckoo_load_factor_sweep.cc"],
     copts = COPTS,
     deps = [
+        ":cuckoo",
         ":hash",
         ":hwy",
         ":random",

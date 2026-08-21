@@ -154,10 +154,10 @@ class MaskedWeakTwoMul {
       kBits == 32 ? ~uint32_t{0} : (uint32_t{1} << kBits) - 1;
 
   MaskedWeakTwoMul() = default;
-  explicit MaskedWeakTwoMul(uint32_t key) : key_(key) {}
+  explicit MaskedWeakTwoMul(uint32_t key)
+      : key_(detail::MaybeMask1<kBits>(key, kMask)) {}
   MaskedWeakTwoMul(AesCtrEngine& engine, uint64_t seed)
-      : key_(detail::MaybeMask1<kBits>(
-            static_cast<uint32_t>(RngStream(engine, seed)()), kMask)) {}
+      : MaskedWeakTwoMul(static_cast<uint32_t>(RngStream(engine, seed)())) {}
 
   uint32_t operator()(uint32_t x) const {
     detail::MaybeCompare1<kBits>(x, kMask);
@@ -223,10 +223,10 @@ class MaskedTriple32 {
       kBits == 32 ? ~uint32_t{0} : (uint32_t{1} << kBits) - 1;
 
   MaskedTriple32() = default;
-  explicit MaskedTriple32(uint32_t key) : key_(key) {}
+  explicit MaskedTriple32(uint32_t key)
+      : key_(detail::MaybeMask1<kBits>(key, kMask)) {}
   MaskedTriple32(AesCtrEngine& engine, uint64_t seed)
-      : key_(detail::MaybeMask1<kBits>(
-            static_cast<uint32_t>(RngStream(engine, seed)()), kMask)) {}
+      : MaskedTriple32(static_cast<uint32_t>(RngStream(engine, seed)())) {}
 
   uint32_t Key() const { return key_; }
 
@@ -308,8 +308,10 @@ class MaskedMoremur {
       kBits == 64 ? ~uint64_t{0} : (uint64_t{1} << kBits) - 1;
 
   MaskedMoremur() = default;
+  explicit MaskedMoremur(uint64_t key)
+      : key_(detail::MaybeMask1<kBits>(key, kMask)) {}
   MaskedMoremur(AesCtrEngine& engine, uint64_t seed)
-      : key_(detail::MaybeMask1<kBits>(RngStream(engine, seed)(), kMask)) {}
+      : MaskedMoremur(RngStream(engine, seed)()) {}
 
   uint64_t operator()(uint64_t x) const {
     detail::MaybeCompare1<kBits>(x, kMask);
@@ -383,7 +385,7 @@ class MaskedWeakXMX {
   explicit MaskedWeakXMX(uint64_t key)
       : key_(detail::MaybeMask1<kBits>(key, kMask)) {}
   MaskedWeakXMX(AesCtrEngine& engine, uint64_t seed)
-      : key_(detail::MaybeMask1<kBits>(RngStream(engine, seed)(), kMask)) {}
+      : MaskedWeakXMX(RngStream(engine, seed)()) {}
 
   uint64_t operator()(uint64_t x) const {
     detail::MaybeCompare1<kBits>(x, kMask);
