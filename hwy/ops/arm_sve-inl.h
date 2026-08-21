@@ -1374,7 +1374,7 @@ HWY_API V BroadcastSignBit(const V v) {
 // ------------------------------ Abs (ShiftRight, Add, Xor, AndN)
 
 // Workaround for incorrect results with `svabs`.
-#if HWY_COMPILER_CLANG
+#if HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 2000
 template <class V, HWY_IF_SIGNED_V(V)>
 HWY_API V Abs(V v) {
   const V sign = BroadcastSignBit(v);
