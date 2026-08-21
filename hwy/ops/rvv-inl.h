@@ -5488,7 +5488,7 @@ HWY_RVV_FOREACH_F(HWY_RVV_REDUCE, RedMin, fredmin, _ALL_VIRT)
 template <class D, typename T = TFromD<D>, HWY_IF_REDUCE_D(D)>
 HWY_API T ReduceMin(D d, const VFromD<D> v) {
   const ScalableTag<T> d1;  // always m1
-  return detail::RedMin(d, v, Set(d1, HighestValue<T>()));
+  return detail::RedMin(d, v, Set(d1, PositiveInfOrHighestValue<T>()));
 }
 
 // ------------------------------ ReduceMax
@@ -5501,7 +5501,7 @@ HWY_RVV_FOREACH_F(HWY_RVV_REDUCE, RedMax, fredmax, _ALL_VIRT)
 template <class D, typename T = TFromD<D>, HWY_IF_REDUCE_D(D)>
 HWY_API T ReduceMax(D d, const VFromD<D> v) {
   const ScalableTag<T> d1;  // always m1
-  return detail::RedMax(d, v, Set(d1, LowestValue<T>()));
+  return detail::RedMax(d, v, Set(d1, NegativeInfOrLowestValue<T>()));
 }
 
 #undef HWY_RVV_REDUCE
