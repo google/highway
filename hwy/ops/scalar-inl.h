@@ -2130,7 +2130,11 @@ HWY_API Vec1<int32_t> ReorderWidenMulAccumulate(D32 /* tag */, Vec1<int16_t> a,
                                                 Vec1<int16_t> b,
                                                 const Vec1<int32_t> sum0,
                                                 Vec1<int32_t>& /* sum1 */) {
-  return Vec1<int32_t>(a.raw * b.raw + sum0.raw);
+  // Accumulate via unsigned to avoid signed-overflow UB when sum0 is near
+  // the int32 limits (the product a*b always fits in int32). This matches the
+  // uint16 overload below and the defined wraparound of the SIMD targets.
+  return Vec1<int32_t>(static_cast<int32_t>(
+      static_cast<uint32_t>(a.raw * b.raw) + static_cast<uint32_t>(sum0.raw)));
 }
 
 template <class DU32, HWY_IF_U32_D(DU32)>
