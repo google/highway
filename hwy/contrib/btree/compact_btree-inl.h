@@ -24,6 +24,7 @@
 #include <cstring>
 #include <iterator>
 #include <limits>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -69,7 +70,7 @@ enum CompactBitMode : uint8_t {
 // Compact Node Definitions
 // -----------------------------------------------------------------------------
 
-// Leaf node storing compressed key offsets.
+// Leaf node storing compressed key offsets (Set).
 // Total node size is 512 bytes (8 cache lines):
 // Matches TCMalloc's 512-byte size-class bin with zero internal fragmentation.
 // 492-byte (32-bit) / 488-byte (64-bit) payload placed at offset 0.
@@ -102,6 +103,10 @@ struct alignas(512) CompactLeafNode {
     // comparisons.
     std::memset(data, 0xFF, kDataBytes);
   }
+
+  // Uniform key buffer accessor across Set and Map leaf node layouts.
+  const uint8_t* KeyData() const { return data; }
+  uint8_t* KeyData() { return data; }
 
   // Bit 0..1 of next_tagged: bit_mode (2 bits, values 0..3)
   HWY_INLINE uint8_t BitMode() const {
@@ -151,6 +156,137 @@ static_assert(alignof(CompactLeafNode<uint32_t>) ==
 static_assert(alignof(CompactLeafNode<uint64_t>) ==
               CompactLeafNode<uint64_t>::kNodeBytes);
 
+// Leaf node storing structure-of-arrays compressed keys and values (Map).
+// Aligned to 512 bytes: payload placed at offset 0.
+// Metadata placed at tail (base_key, next_tagged, prev_tagged).
+// Aligned to kNodeBytes (512 bytes), guaranteeing 9 (log2(512)) low zero bits
+// in both next_tagged and prev_tagged pointers.
+template <typename KeyT, typename ValueT>
+struct alignas(512) CompactMapLeafNode {
+  using mapped_type = ValueT;
+
+  static_assert(std::is_trivially_copyable_v<ValueT>,
+                "ValueT must be trivially copyable");
+
+  static constexpr size_t kNodeBytes = 512;
+  // Bitmask for tagged pointer low bits (e.g. 512 - 1 = 0x1FF, gives 9 bits
+  // for storing num_keys up to 511 without separate metadata overhead).
+  static constexpr uintptr_t kNumKeysMask = kNodeBytes - 1;
+  static constexpr size_t kDataBytes = (sizeof(KeyT) == 4) ? 492 : 488;
+  static constexpr size_t kPayloadBytes = kDataBytes;
+
+  template <typename OffsetT>
+  static constexpr size_t ValuesOffset(size_t max_pairs) {
+    const size_t raw_offset = max_pairs * sizeof(OffsetT);
+    const size_t align = alignof(ValueT);
+    return (raw_offset + align - 1) & ~(align - 1);
+  }
+
+  template <typename OffsetT>
+  static constexpr size_t ComputeMaxPairs() {
+    size_t n = kPayloadBytes / (sizeof(OffsetT) + sizeof(ValueT));
+    while (n > 0 &&
+           (ValuesOffset<OffsetT>(n) + n * sizeof(ValueT) > kPayloadBytes)) {
+      --n;
+    }
+    return n;
+  }
+
+  static constexpr size_t kMax8 = ComputeMaxPairs<uint8_t>();
+  static constexpr size_t kMax16 = ComputeMaxPairs<uint16_t>();
+  static constexpr size_t kMax32 = ComputeMaxPairs<uint32_t>();
+  static constexpr size_t kMax64 = ComputeMaxPairs<uint64_t>();
+
+  uint8_t payload[kPayloadBytes];
+
+  KeyT base_key = 0;
+  uintptr_t next_tagged = 0;  // Low 2 bits: bit_mode (0..3)
+  uintptr_t prev_tagged = 0;  // Low 9 bits: num_keys (0..511)
+
+  CompactMapLeafNode() { std::memset(payload, 0xFF, kPayloadBytes); }
+
+  // Uniform key buffer accessor across Set and Map leaf node layouts.
+  const uint8_t* KeyData() const { return payload; }
+  uint8_t* KeyData() { return payload; }
+
+  HWY_INLINE uint8_t BitMode() const {
+    return static_cast<uint8_t>(next_tagged & 0x03);
+  }
+
+  HWY_INLINE void SetBitMode(uint8_t mode) {
+    next_tagged = (next_tagged & ~uintptr_t{0x03}) | (mode & 0x03);
+  }
+
+  HWY_INLINE uint16_t NumKeys() const {
+    return static_cast<uint16_t>(prev_tagged & kNumKeysMask);
+  }
+
+  HWY_INLINE void SetNumKeys(uint16_t count) {
+    prev_tagged = (prev_tagged & ~kNumKeysMask) |
+                  (static_cast<uintptr_t>(count) & kNumKeysMask);
+  }
+
+  HWY_INLINE CompactMapLeafNode* Next() const {
+    return reinterpret_cast<CompactMapLeafNode*>(next_tagged & ~kNumKeysMask);
+  }
+
+  HWY_INLINE void SetNext(CompactMapLeafNode* ptr) {
+    const uintptr_t tag = next_tagged & uintptr_t{0x03};
+    next_tagged = (reinterpret_cast<uintptr_t>(ptr) & ~kNumKeysMask) | tag;
+  }
+
+  HWY_INLINE CompactMapLeafNode* Prev() const {
+    return reinterpret_cast<CompactMapLeafNode*>(prev_tagged & ~kNumKeysMask);
+  }
+
+  HWY_INLINE void SetPrev(CompactMapLeafNode* ptr) {
+    const uintptr_t tag = prev_tagged & kNumKeysMask;
+    prev_tagged = (reinterpret_cast<uintptr_t>(ptr) & ~kNumKeysMask) | tag;
+  }
+
+  const ValueT* Values() const {
+    const uint8_t mode = BitMode();
+    if (HWY_LIKELY(mode == kMode16Bit)) {
+      return HWY_RCAST_ALIGNED(const ValueT*,
+                               payload + ValuesOffset<uint16_t>(kMax16));
+    } else if (mode == kMode8Bit) {
+      return HWY_RCAST_ALIGNED(const ValueT*,
+                               payload + ValuesOffset<uint8_t>(kMax8));
+    } else if (mode == kMode32Bit) {
+      return HWY_RCAST_ALIGNED(const ValueT*,
+                               payload + ValuesOffset<uint32_t>(kMax32));
+    } else {
+      return HWY_RCAST_ALIGNED(const ValueT*,
+                               payload + ValuesOffset<uint64_t>(kMax64));
+    }
+  }
+
+  ValueT* Values() {
+    const uint8_t mode = BitMode();
+    if (HWY_LIKELY(mode == kMode16Bit)) {
+      return HWY_RCAST_ALIGNED(ValueT*,
+                               payload + ValuesOffset<uint16_t>(kMax16));
+    } else if (mode == kMode8Bit) {
+      return HWY_RCAST_ALIGNED(ValueT*, payload + ValuesOffset<uint8_t>(kMax8));
+    } else if (mode == kMode32Bit) {
+      return HWY_RCAST_ALIGNED(ValueT*,
+                               payload + ValuesOffset<uint32_t>(kMax32));
+    } else {
+      return HWY_RCAST_ALIGNED(ValueT*,
+                               payload + ValuesOffset<uint64_t>(kMax64));
+    }
+  }
+};
+
+static_assert(sizeof(CompactMapLeafNode<uint32_t, uint32_t>) ==
+              CompactMapLeafNode<uint32_t, uint32_t>::kNodeBytes);
+static_assert(sizeof(CompactMapLeafNode<uint32_t, uint64_t>) ==
+              CompactMapLeafNode<uint32_t, uint64_t>::kNodeBytes);
+static_assert(sizeof(CompactMapLeafNode<uint64_t, uint64_t>) ==
+              CompactMapLeafNode<uint64_t, uint64_t>::kNodeBytes);
+static_assert(sizeof(CompactMapLeafNode<uint64_t, uint32_t>) ==
+              CompactMapLeafNode<uint64_t, uint32_t>::kNodeBytes);
+
 // -----------------------------------------------------------------------------
 // Internal Node
 // -----------------------------------------------------------------------------
@@ -193,35 +329,70 @@ static_assert(sizeof(CompactInternalNode<uint64_t>) == 320,
 static constexpr size_t kMaxTreeHeight = 32;
 
 // -----------------------------------------------------------------------------
+// Traits Definitions
+// -----------------------------------------------------------------------------
+
+template <typename KeyT>
+struct CompactSetTraits {
+  using key_type = KeyT;
+  using value_type = KeyT;
+  using mapped_type = void;
+  static constexpr bool kIsMap = false;
+
+  using Leaf = CompactLeafNode<KeyT>;
+
+  template <typename OffsetT>
+  static constexpr size_t MaxKeys() {
+    return Leaf::kDataBytes / sizeof(OffsetT);
+  }
+};
+
+// Traits specialization for CompactBTreeMap.
+template <typename KeyT, typename ValueT>
+struct CompactMapTraits {
+  using key_type = KeyT;
+  using value_type = std::pair<KeyT, ValueT>;
+  using mapped_type = ValueT;
+  static constexpr bool kIsMap = true;
+
+  using Leaf = CompactMapLeafNode<KeyT, ValueT>;
+
+  template <typename OffsetT>
+  static constexpr size_t MaxKeys() {
+    return Leaf::template ComputeMaxPairs<OffsetT>();
+  }
+};
+
+// -----------------------------------------------------------------------------
 // Key Decompression & Slot Search Primitives
 // -----------------------------------------------------------------------------
 
 // Decompresses and returns the raw key stored at the given slot index in a
-// leaf.
-template <typename KeyT>
-HWY_INLINE KeyT GetCompactKey(const CompactLeafNode<KeyT>* HWY_RESTRICT leaf,
-                              size_t slot) {
-  if (slot == 0) return leaf->base_key;
+// leaf. Reinterprets the raw byte buffer leaf->KeyData() as the appropriate
+// integer array (uint8_t, uint16_t, uint32_t, or uint64_t) and adds base_key.
+template <typename LeafNode>
+HWY_INLINE auto GetCompactKey(const LeafNode* HWY_RESTRICT leaf, size_t slot) {
+  using KeyT = decltype(leaf->base_key);
+  if (HWY_UNLIKELY(slot == 0)) return leaf->base_key;
 
   const uint8_t mode = leaf->BitMode();
-  // Reinterprets the raw byte buffer leaf->data as the appropriate integer
-  // array (uint8_t, uint16_t, uint32_t, or uint64_t) and adds base_key.
   if (HWY_LIKELY(mode == kMode16Bit)) {
-    const auto* offsets = HWY_RCAST_ALIGNED(const uint16_t*, leaf->data);
+    const auto* offsets = HWY_RCAST_ALIGNED(const uint16_t*, leaf->KeyData());
     return leaf->base_key + static_cast<KeyT>(offsets[slot]);
   } else if (mode == kMode8Bit) {
-    const auto* offsets = HWY_RCAST_ALIGNED(const uint8_t*, leaf->data);
+    const auto* offsets = HWY_RCAST_ALIGNED(const uint8_t*, leaf->KeyData());
     return leaf->base_key + static_cast<KeyT>(offsets[slot]);
   } else if (mode == kMode32Bit) {
     if constexpr (sizeof(KeyT) == 4) {
-      const auto* raw_keys = HWY_RCAST_ALIGNED(const uint32_t*, leaf->data);
+      const auto* raw_keys =
+          HWY_RCAST_ALIGNED(const uint32_t*, leaf->KeyData());
       return static_cast<KeyT>(raw_keys[slot]);
     } else {
-      const auto* offsets = HWY_RCAST_ALIGNED(const uint32_t*, leaf->data);
+      const auto* offsets = HWY_RCAST_ALIGNED(const uint32_t*, leaf->KeyData());
       return leaf->base_key + static_cast<KeyT>(offsets[slot]);
     }
   } else {
-    const auto* raw_keys = HWY_RCAST_ALIGNED(const uint64_t*, leaf->data);
+    const auto* raw_keys = HWY_RCAST_ALIGNED(const uint64_t*, leaf->KeyData());
     return static_cast<KeyT>(raw_keys[slot]);
   }
 }
@@ -280,45 +451,45 @@ HWY_INLINE bool HasCompactOffset(const void* HWY_RESTRICT data,
 }
 
 // Finds the lower_bound slot index (0..num_keys) for target within a leaf node.
-template <typename KeyT>
-HWY_INLINE size_t FindCompactLeafSlot(
-    const CompactLeafNode<KeyT>* HWY_RESTRICT leaf, KeyT target) {
-  using Node = CompactLeafNode<KeyT>;
-  if (target <= leaf->base_key) return 0;
+template <typename LeafNode, typename KeyT>
+HWY_INLINE size_t FindCompactLeafSlot(const LeafNode* HWY_RESTRICT leaf,
+                                      KeyT target) {
+  using Node = LeafNode;
+  if (HWY_UNLIKELY(target <= leaf->base_key)) return 0;
 
   const uint64_t delta = static_cast<uint64_t>(target - leaf->base_key);
   const uint8_t mode = leaf->BitMode();
 
   if (HWY_LIKELY(mode == kMode16Bit)) {
-    if (delta > 65535) return leaf->NumKeys();
+    if (HWY_UNLIKELY(delta > 65535)) return leaf->NumKeys();
     return ScanCompactOffsets<uint16_t, Node::kMax16>(
-        leaf->data, static_cast<uint16_t>(delta));
+        leaf->KeyData(), static_cast<uint16_t>(delta));
   } else if (mode == kMode8Bit) {
-    if (delta > 255) return leaf->NumKeys();
+    if (HWY_UNLIKELY(delta > 255)) return leaf->NumKeys();
     return ScanCompactOffsets<uint8_t, Node::kMax8>(
-        leaf->data, static_cast<uint8_t>(delta));
+        leaf->KeyData(), static_cast<uint8_t>(delta));
   } else if (mode == kMode32Bit) {
     if constexpr (sizeof(KeyT) == 4) {
       return ScanCompactOffsets<uint32_t, Node::kMax32>(
-          leaf->data, static_cast<uint32_t>(target));
+          leaf->KeyData(), static_cast<uint32_t>(target));
     } else {
-      if (delta > 0xFFFFFFFFULL) return leaf->NumKeys();
+      if (HWY_UNLIKELY(delta > 0xFFFFFFFFULL)) return leaf->NumKeys();
       return ScanCompactOffsets<uint32_t, Node::kMax32>(
-          leaf->data, static_cast<uint32_t>(delta));
+          leaf->KeyData(), static_cast<uint32_t>(delta));
     }
   } else {
     return ScanCompactOffsets<uint64_t, Node::kMax64>(
-        leaf->data, static_cast<uint64_t>(target));
+        leaf->KeyData(), static_cast<uint64_t>(target));
   }
 }
 
 // Returns true if target exists in the leaf. If found, optionally writes the
 // slot index.
-template <typename KeyT>
-HWY_INLINE bool CompactLeafContains(
-    const CompactLeafNode<KeyT>* HWY_RESTRICT leaf, KeyT target,
-    size_t* HWY_RESTRICT out_slot = nullptr) {
-  using Node = CompactLeafNode<KeyT>;
+template <typename LeafNode, typename KeyT>
+HWY_INLINE bool CompactLeafContains(const LeafNode* HWY_RESTRICT leaf,
+                                    KeyT target,
+                                    size_t* HWY_RESTRICT out_slot = nullptr) {
+  using Node = LeafNode;
 
   // If caller requested the exact slot index (for insert/erase/find),
   // compute the lower_bound slot via Lt comparisons.
@@ -331,47 +502,47 @@ HWY_INLINE bool CompactLeafContains(
 
   // Fast-path point lookup via SIMD Eq comparisons (for
   // contains/ContainsBatch).
-  if (target < leaf->base_key) return false;
-  if (target == leaf->base_key) return true;
+  if (HWY_UNLIKELY(target < leaf->base_key)) return false;
+  if (HWY_UNLIKELY(target == leaf->base_key)) return true;
 
   const uint64_t delta = static_cast<uint64_t>(target - leaf->base_key);
   const uint8_t mode = leaf->BitMode();
 
   if (HWY_LIKELY(mode == kMode16Bit)) {
-    if (delta > 65535) return false;
-    if (delta == 65535) {
+    if (HWY_UNLIKELY(delta > 65535)) return false;
+    if (HWY_UNLIKELY(delta == 65535)) {
       return GetCompactKey(leaf, leaf->NumKeys() - 1) == target;
     }
     return HasCompactOffset<uint16_t, Node::kMax16>(
-        leaf->data, static_cast<uint16_t>(delta));
+        leaf->KeyData(), static_cast<uint16_t>(delta));
   } else if (mode == kMode8Bit) {
-    if (delta > 255) return false;
-    if (delta == 255) {
+    if (HWY_UNLIKELY(delta > 255)) return false;
+    if (HWY_UNLIKELY(delta == 255)) {
       return GetCompactKey(leaf, leaf->NumKeys() - 1) == target;
     }
-    return HasCompactOffset<uint8_t, Node::kMax8>(leaf->data,
+    return HasCompactOffset<uint8_t, Node::kMax8>(leaf->KeyData(),
                                                   static_cast<uint8_t>(delta));
   } else if (mode == kMode32Bit) {
     if constexpr (sizeof(KeyT) == 4) {
-      if (target == 0xFFFFFFFF) {
+      if (HWY_UNLIKELY(target == 0xFFFFFFFF)) {
         return GetCompactKey(leaf, leaf->NumKeys() - 1) == target;
       }
       return HasCompactOffset<uint32_t, Node::kMax32>(
-          leaf->data, static_cast<uint32_t>(target));
+          leaf->KeyData(), static_cast<uint32_t>(target));
     } else {
-      if (delta > 0xFFFFFFFFULL) return false;
-      if (delta == 0xFFFFFFFFULL) {
+      if (HWY_UNLIKELY(delta > 0xFFFFFFFFULL)) return false;
+      if (HWY_UNLIKELY(delta == 0xFFFFFFFFULL)) {
         return GetCompactKey(leaf, leaf->NumKeys() - 1) == target;
       }
       return HasCompactOffset<uint32_t, Node::kMax32>(
-          leaf->data, static_cast<uint32_t>(delta));
+          leaf->KeyData(), static_cast<uint32_t>(delta));
     }
   } else {
-    if (target == 0xFFFFFFFFFFFFFFFFULL) {
+    if (HWY_UNLIKELY(target == 0xFFFFFFFFFFFFFFFFULL)) {
       return GetCompactKey(leaf, leaf->NumKeys() - 1) == target;
     }
     return HasCompactOffset<uint64_t, Node::kMax64>(
-        leaf->data, static_cast<uint64_t>(target));
+        leaf->KeyData(), static_cast<uint64_t>(target));
   }
 }
 
@@ -398,12 +569,23 @@ HWY_INLINE size_t FindCompactChild(
 // -----------------------------------------------------------------------------
 
 // Decompresses all keys from a leaf into the out_keys destination array.
-template <typename KeyT>
-HWY_INLINE void DecompressLeaf(const CompactLeafNode<KeyT>* leaf,
-                               KeyT* out_keys) {
+template <typename LeafNode, typename KeyT>
+HWY_INLINE void DecompressLeaf(const LeafNode* leaf, KeyT* out_keys) {
   const size_t count = leaf->NumKeys();
   for (size_t i = 0; i < count; ++i) {
     out_keys[i] = GetCompactKey(leaf, i);
+  }
+}
+
+// Decompresses all keys and values from a map leaf into destination arrays.
+template <typename KeyT, typename ValueT>
+HWY_INLINE void DecompressMapLeaf(const CompactMapLeafNode<KeyT, ValueT>* leaf,
+                                  KeyT* out_keys, ValueT* out_values) {
+  const size_t count = leaf->NumKeys();
+  const ValueT* vals = leaf->Values();
+  for (size_t i = 0; i < count; ++i) {
+    out_keys[i] = GetCompactKey(leaf, i);
+    out_values[i] = vals[i];
   }
 }
 
@@ -411,18 +593,17 @@ HWY_INLINE void DecompressLeaf(const CompactLeafNode<KeyT>* leaf,
 // buffer.
 template <typename OffsetT, OffsetT kSentinel, typename KeyT>
 HWY_INLINE void StoreCompressedOffsets(void* dst_data, const KeyT* keys,
-                                       size_t count, KeyT base_key) {
-  constexpr size_t kCapacity =
-      CompactLeafNode<KeyT>::kDataBytes / sizeof(OffsetT);
+                                       size_t count, KeyT base_key,
+                                       size_t capacity) {
   auto* dst = HWY_RCAST_ALIGNED(OffsetT*, dst_data);
   for (size_t k = 0; k < count; ++k) {
     dst[k] = static_cast<OffsetT>(keys[k] - base_key);
   }
-  std::fill_n(dst + count, kCapacity - count, kSentinel);
+  std::fill_n(dst + count, capacity - count, kSentinel);
 }
 
 // Encodes a sorted key array into a leaf node using the narrowest viable
-// compression mode.
+// compression mode (Set).
 template <typename KeyT>
 HWY_INLINE void CompressIntoLeaf(CompactLeafNode<KeyT>* leaf, const KeyT* keys,
                                  size_t count) {
@@ -434,7 +615,6 @@ HWY_INLINE void CompressIntoLeaf(CompactLeafNode<KeyT>* leaf, const KeyT* keys,
   }
 
   leaf->base_key = keys[0];
-
   constexpr size_t kMax8 = CompactLeafNode<KeyT>::kMax8;
   constexpr size_t kMax16 = CompactLeafNode<KeyT>::kMax16;
   constexpr size_t kMax32 = CompactLeafNode<KeyT>::kMax32;
@@ -446,11 +626,11 @@ HWY_INLINE void CompressIntoLeaf(CompactLeafNode<KeyT>* leaf, const KeyT* keys,
   if (count <= kMax8 && max_delta <= 255) {
     leaf->SetBitMode(kMode8Bit);
     StoreCompressedOffsets<uint8_t, 0xFF>(leaf->data, keys, count,
-                                          leaf->base_key);
+                                          leaf->base_key, kMax8);
   } else if (count <= kMax16 && max_delta <= 65535) {
     leaf->SetBitMode(kMode16Bit);
     StoreCompressedOffsets<uint16_t, 0xFFFF>(leaf->data, keys, count,
-                                             leaf->base_key);
+                                             leaf->base_key, kMax16);
   } else if (count <= kMax32 &&
              (sizeof(KeyT) == 4 || max_delta <= 0xFFFFFFFFULL)) {
     leaf->SetBitMode(kMode32Bit);
@@ -462,7 +642,7 @@ HWY_INLINE void CompressIntoLeaf(CompactLeafNode<KeyT>* leaf, const KeyT* keys,
       std::fill_n(dst + count, kMax32 - count, 0xFFFFFFFF);
     } else {
       StoreCompressedOffsets<uint32_t, 0xFFFFFFFF>(leaf->data, keys, count,
-                                                   leaf->base_key);
+                                                   leaf->base_key, kMax32);
     }
   } else {
     leaf->SetBitMode(kModeRaw64);
@@ -475,13 +655,70 @@ HWY_INLINE void CompressIntoLeaf(CompactLeafNode<KeyT>* leaf, const KeyT* keys,
   leaf->SetNumKeys(static_cast<uint16_t>(count));
 }
 
+// Encodes sorted keys and values into a map leaf using the narrowest viable
+// compression mode (Map).
+template <typename KeyT, typename ValueT>
+HWY_INLINE void CompressIntoLeaf(CompactMapLeafNode<KeyT, ValueT>* leaf,
+                                 const KeyT* keys, const ValueT* values,
+                                 size_t count) {
+  if (count == 0) {
+    leaf->SetNumKeys(0);
+    leaf->base_key = 0;
+    std::memset(leaf->payload, 0xFF,
+                CompactMapLeafNode<KeyT, ValueT>::kPayloadBytes);
+    return;
+  }
+
+  leaf->base_key = keys[0];
+  constexpr size_t kMax8 = CompactMapLeafNode<KeyT, ValueT>::kMax8;
+  constexpr size_t kMax16 = CompactMapLeafNode<KeyT, ValueT>::kMax16;
+  constexpr size_t kMax32 = CompactMapLeafNode<KeyT, ValueT>::kMax32;
+  constexpr size_t kMax64 = CompactMapLeafNode<KeyT, ValueT>::kMax64;
+
+  const uint64_t max_delta =
+      (count > 1) ? static_cast<uint64_t>(keys[count - 1] - keys[0]) : 0;
+
+  if (count <= kMax8 && max_delta <= 255) {
+    leaf->SetBitMode(kMode8Bit);
+    StoreCompressedOffsets<uint8_t, 0xFF>(leaf->KeyData(), keys, count,
+                                          leaf->base_key, kMax8);
+  } else if (count <= kMax16 && max_delta <= 65535) {
+    leaf->SetBitMode(kMode16Bit);
+    StoreCompressedOffsets<uint16_t, 0xFFFF>(leaf->KeyData(), keys, count,
+                                             leaf->base_key, kMax16);
+  } else if (count <= kMax32 &&
+             (sizeof(KeyT) == 4 || max_delta <= 0xFFFFFFFFULL)) {
+    leaf->SetBitMode(kMode32Bit);
+    if constexpr (sizeof(KeyT) == 4) {
+      auto* dst = HWY_RCAST_ALIGNED(uint32_t*, leaf->KeyData());
+      for (size_t k = 0; k < count; ++k) {
+        dst[k] = static_cast<uint32_t>(keys[k]);
+      }
+      std::fill_n(dst + count, kMax32 - count, 0xFFFFFFFF);
+    } else {
+      StoreCompressedOffsets<uint32_t, 0xFFFFFFFF>(leaf->KeyData(), keys, count,
+                                                   leaf->base_key, kMax32);
+    }
+  } else {
+    leaf->SetBitMode(kModeRaw64);
+    auto* dst = HWY_RCAST_ALIGNED(uint64_t*, leaf->KeyData());
+    for (size_t k = 0; k < count; ++k) {
+      dst[k] = static_cast<uint64_t>(keys[k]);
+    }
+    std::fill_n(dst + count, kMax64 - count, 0xFFFFFFFFFFFFFFFFULL);
+  }
+
+  ValueT* vals = leaf->Values();
+  std::memcpy(vals, values, count * sizeof(ValueT));
+  leaf->SetNumKeys(static_cast<uint16_t>(count));
+}
+
 // Returns true if a new key can fit into the leaf (potentially upgrading its
 // compression mode).
-template <typename KeyT>
-HWY_INLINE bool CanLeafFitInsert(const CompactLeafNode<KeyT>* leaf,
-                                 KeyT new_key) {
+template <typename LeafNode, typename KeyT>
+HWY_INLINE bool CanLeafFitInsert(const LeafNode* leaf, KeyT new_key) {
   const size_t cur_num = leaf->NumKeys();
-  if (cur_num == 0) return true;
+  if (HWY_UNLIKELY(cur_num == 0)) return true;
   const size_t new_count = cur_num + 1;
   const KeyT min_k = std::min(leaf->base_key, new_key);
   const KeyT max_existing =
@@ -489,10 +726,10 @@ HWY_INLINE bool CanLeafFitInsert(const CompactLeafNode<KeyT>* leaf,
   const KeyT max_k = std::max(max_existing, new_key);
   const uint64_t max_delta = static_cast<uint64_t>(max_k - min_k);
 
-  constexpr size_t kMax8 = CompactLeafNode<KeyT>::kMax8;
-  constexpr size_t kMax16 = CompactLeafNode<KeyT>::kMax16;
-  constexpr size_t kMax32 = CompactLeafNode<KeyT>::kMax32;
-  constexpr size_t kMax64 = CompactLeafNode<KeyT>::kMax64;
+  constexpr size_t kMax8 = LeafNode::kMax8;
+  constexpr size_t kMax16 = LeafNode::kMax16;
+  constexpr size_t kMax32 = LeafNode::kMax32;
+  constexpr size_t kMax64 = LeafNode::kMax64;
 
   if (new_count <= kMax8 && max_delta <= 255) return true;
   if (new_count <= kMax16 && max_delta <= 65535) return true;
@@ -520,8 +757,29 @@ HWY_INLINE size_t DecompressAndInsertKey(const CompactLeafNode<KeyT>* leaf,
   return count + 1;
 }
 
+// Decompresses all existing pairs from map leaf and inserts (new_key, new_val)
+// in sorted order.
+template <typename KeyT, typename ValueT>
+HWY_INLINE size_t DecompressAndInsertMapPair(
+    const CompactMapLeafNode<KeyT, ValueT>* leaf, KeyT new_key,
+    const ValueT& new_value, KeyT* out_keys, ValueT* out_values) {
+  DecompressMapLeaf(leaf, out_keys, out_values);
+  const size_t count = leaf->NumKeys();
+  size_t slot = 0;
+  while (slot < count && out_keys[slot] < new_key) {
+    slot++;
+  }
+  std::memmove(out_keys + slot + 1, out_keys + slot,
+               (count - slot) * sizeof(KeyT));
+  std::memmove(out_values + slot + 1, out_values + slot,
+               (count - slot) * sizeof(ValueT));
+  out_keys[slot] = new_key;
+  out_values[slot] = new_value;
+  return count + 1;
+}
+
 // Decompresses a leaf, inserts the new key in sorted order, and recompresses
-// the leaf.
+// the leaf (Set).
 template <typename KeyT>
 HWY_INLINE void InsertIntoLeaf(CompactLeafNode<KeyT>* leaf, KeyT new_key) {
   // Temporary scratch buffer on the stack to hold decompressed keys.
@@ -534,23 +792,41 @@ HWY_INLINE void InsertIntoLeaf(CompactLeafNode<KeyT>* leaf, KeyT new_key) {
   CompressIntoLeaf(leaf, temp, new_count);
 }
 
+// Decompresses a leaf, inserts the new key-value pair in sorted order, and
+// recompresses the leaf (Map).
+template <typename KeyT, typename ValueT>
+HWY_INLINE void InsertIntoLeaf(CompactMapLeafNode<KeyT, ValueT>* leaf,
+                               KeyT new_key, const ValueT& new_value) {
+  // Temporary scratch buffers on the stack to hold decompressed keys and
+  // values.
+  KeyT temp_keys[512];
+  ValueT temp_values[512];
+
+  // Decompress existing pairs and insert (new_key, new_val) in sorted order.
+  const size_t new_count = DecompressAndInsertMapPair(leaf, new_key, new_value,
+                                                      temp_keys, temp_values);
+
+  // Recompress the sorted arrays back into the leaf node.
+  CompressIntoLeaf(leaf, temp_keys, temp_values, new_count);
+}
+
 // In-place fast path for inserting a key into a compressed offset leaf without
-// recompression.
-template <typename OffsetT, uint64_t kMaxDelta, typename KeyT>
+// recompression (Set).
+template <typename Traits, typename OffsetT, uint64_t kMaxDelta, typename KeyT>
 HWY_INLINE bool TryFastInsertOffset(CompactLeafNode<KeyT>* leaf, KeyT new_key,
                                     size_t slot) {
   constexpr size_t kCapacity =
       CompactLeafNode<KeyT>::kDataBytes / sizeof(OffsetT);
   const size_t cur_num = leaf->NumKeys();
-  if (cur_num >= kCapacity) return false;
+  if (HWY_UNLIKELY(cur_num >= kCapacity)) return false;
 
   auto* offsets = HWY_RCAST_ALIGNED(OffsetT*, leaf->data);
 
   // new_key >= base_key.
   // base_key stays unchanged; compute positive offset delta from base_key.
-  if (new_key >= leaf->base_key) {
+  if (HWY_LIKELY(new_key >= leaf->base_key)) {
     const uint64_t delta = static_cast<uint64_t>(new_key - leaf->base_key);
-    if (delta <= kMaxDelta) {
+    if (HWY_LIKELY(delta <= kMaxDelta)) {
       std::memmove(offsets + slot + 1, offsets + slot,
                    (kCapacity - 1 - slot) * sizeof(OffsetT));
       offsets[slot] = static_cast<OffsetT>(delta);
@@ -563,7 +839,7 @@ HWY_INLINE bool TryFastInsertOffset(CompactLeafNode<KeyT>* leaf, KeyT new_key,
     // are shifted up by (old_base_key - new_key).
     const KeyT max_existing = GetCompactKey(leaf, cur_num - 1);
     const uint64_t new_span = static_cast<uint64_t>(max_existing - new_key);
-    if (new_span <= kMaxDelta) {
+    if (HWY_LIKELY(new_span <= kMaxDelta)) {
       const OffsetT shift = static_cast<OffsetT>(leaf->base_key - new_key);
       // Constant-size move for the full payload without libc
       // length branching.
@@ -580,53 +856,158 @@ HWY_INLINE bool TryFastInsertOffset(CompactLeafNode<KeyT>* leaf, KeyT new_key,
   return false;
 }
 
+// In-place fast path for inserting a key-value pair into a compressed map leaf
+// without recompression (Map).
+template <typename Traits, typename OffsetT, uint64_t kMaxDelta, typename KeyT,
+          typename ValueT>
+HWY_INLINE bool TryFastInsertOffset(CompactMapLeafNode<KeyT, ValueT>* leaf,
+                                    KeyT new_key, const ValueT& new_value,
+                                    size_t slot) {
+  const size_t count = leaf->NumKeys();
+  const size_t kCapacity = Traits::template MaxKeys<OffsetT>();
+  if (HWY_UNLIKELY(count >= kCapacity)) return false;
+
+  auto* offsets = HWY_RCAST_ALIGNED(OffsetT*, leaf->payload);
+  ValueT* vals = leaf->Values();
+
+  // Branch 1: new_key >= base_key.
+  // base_key stays unchanged; compute positive offset delta and shift values.
+  if (HWY_LIKELY(new_key >= leaf->base_key)) {
+    const uint64_t delta = static_cast<uint64_t>(new_key - leaf->base_key);
+    if (HWY_LIKELY(delta <= kMaxDelta)) {
+      std::memmove(offsets + slot + 1, offsets + slot,
+                   (count - slot) * sizeof(OffsetT));
+      std::memmove(vals + slot + 1, vals + slot,
+                   (count - slot) * sizeof(ValueT));
+      offsets[slot] = static_cast<OffsetT>(delta);
+      vals[slot] = new_value;
+      leaf->SetNumKeys(count + 1);
+      return true;
+    }
+  } else {
+    // Branch 2: new_key < base_key (inserted at slot 0).
+    // new_key becomes the new base_key (offset 0), and all existing offsets
+    // and values are shifted up by (old_base_key - new_key).
+    const KeyT max_existing = GetCompactKey(leaf, count - 1);
+    const uint64_t new_span = static_cast<uint64_t>(max_existing - new_key);
+    if (HWY_LIKELY(new_span <= kMaxDelta)) {
+      const OffsetT shift = static_cast<OffsetT>(leaf->base_key - new_key);
+      std::memmove(offsets + 1, offsets, count * sizeof(OffsetT));
+      std::memmove(vals + 1, vals, count * sizeof(ValueT));
+      offsets[0] = 0;
+      vals[0] = new_value;
+      for (size_t i = 1; i <= count; ++i) {
+        offsets[i] += shift;
+      }
+      leaf->base_key = new_key;
+      leaf->SetNumKeys(count + 1);
+      return true;
+    }
+  }
+  return false;
+}
+
 // Fast-path dispatcher that attempts in-place insertion into a leaf without
-// full recompression.
-template <typename KeyT>
+// full recompression (Set).
+template <typename Traits, typename KeyT>
 HWY_INLINE bool TryFastInsertIntoLeaf(CompactLeafNode<KeyT>* leaf, KeyT new_key,
                                       size_t slot) {
   const size_t cur_num = leaf->NumKeys();
-  if (cur_num == 0) {
+  if (HWY_UNLIKELY(cur_num == 0)) {
     CompressIntoLeaf(leaf, &new_key, 1);
     return true;
   }
 
   const uint8_t mode = leaf->BitMode();
   if (HWY_LIKELY(mode == kMode16Bit)) {
-    return TryFastInsertOffset<uint16_t, 65535>(leaf, new_key, slot);
+    return TryFastInsertOffset<Traits, uint16_t, 65535>(leaf, new_key, slot);
   } else if (mode == kMode8Bit) {
-    return TryFastInsertOffset<uint8_t, 255>(leaf, new_key, slot);
+    return TryFastInsertOffset<Traits, uint8_t, 255>(leaf, new_key, slot);
   } else if (mode == kMode32Bit) {
     constexpr size_t kCapacity = CompactLeafNode<KeyT>::kMax32;
-    if (cur_num >= kCapacity) return false;
+    if (HWY_UNLIKELY(cur_num >= kCapacity)) return false;
 
     if constexpr (sizeof(KeyT) == 4) {
       auto* raw_keys = HWY_RCAST_ALIGNED(uint32_t*, leaf->data);
       std::memmove(raw_keys + slot + 1, raw_keys + slot,
                    (kCapacity - 1 - slot) * sizeof(uint32_t));
       raw_keys[slot] = static_cast<uint32_t>(new_key);
-      if (slot == 0) leaf->base_key = new_key;
+      if (HWY_UNLIKELY(slot == 0)) leaf->base_key = new_key;
       leaf->SetNumKeys(cur_num + 1);
       return true;
     } else {
-      return TryFastInsertOffset<uint32_t, 0xFFFFFFFFULL>(leaf, new_key, slot);
+      return TryFastInsertOffset<Traits, uint32_t, 0xFFFFFFFFULL>(leaf, new_key,
+                                                                  slot);
     }
   } else {
     constexpr size_t kCapacity = CompactLeafNode<KeyT>::kMax64;
-    if (cur_num >= kCapacity) return false;
+    if (HWY_UNLIKELY(cur_num >= kCapacity)) return false;
     auto* raw_keys = HWY_RCAST_ALIGNED(uint64_t*, leaf->data);
     std::memmove(raw_keys + slot + 1, raw_keys + slot,
                  (kCapacity - 1 - slot) * sizeof(uint64_t));
     raw_keys[slot] = static_cast<uint64_t>(new_key);
-    if (slot == 0) leaf->base_key = new_key;
+    if (HWY_UNLIKELY(slot == 0)) leaf->base_key = new_key;
     leaf->SetNumKeys(cur_num + 1);
     return true;
   }
-
-  return false;
 }
 
-// In-place fast path for erasing a key at slot from a compressed offset leaf.
+// Fast-path dispatcher that attempts in-place insertion into a map leaf across
+// all bit modes (Map).
+template <typename Traits, typename KeyT, typename ValueT>
+HWY_INLINE bool TryFastInsertIntoLeaf(CompactMapLeafNode<KeyT, ValueT>* leaf,
+                                      KeyT new_key, const ValueT& value,
+                                      size_t slot) {
+  using Leaf = CompactMapLeafNode<KeyT, ValueT>;
+  const size_t count = leaf->NumKeys();
+  if (count == 0) {
+    CompressIntoLeaf(leaf, &new_key, &value, 1);
+    return true;
+  }
+
+  const uint8_t mode = leaf->BitMode();
+  if (HWY_LIKELY(mode == kMode16Bit)) {
+    return TryFastInsertOffset<Traits, uint16_t, 65535>(leaf, new_key, value,
+                                                        slot);
+  } else if (mode == kMode8Bit) {
+    return TryFastInsertOffset<Traits, uint8_t, 255>(leaf, new_key, value,
+                                                     slot);
+  } else if (mode == kMode32Bit) {
+    if (HWY_UNLIKELY(count >= Leaf::kMax32)) return false;
+    ValueT* vals = leaf->Values();
+
+    if constexpr (sizeof(KeyT) == 4) {
+      auto* raw_keys = HWY_RCAST_ALIGNED(uint32_t*, leaf->payload);
+      std::memmove(raw_keys + slot + 1, raw_keys + slot,
+                   (count - slot) * sizeof(uint32_t));
+      std::memmove(vals + slot + 1, vals + slot,
+                   (count - slot) * sizeof(ValueT));
+      raw_keys[slot] = static_cast<uint32_t>(new_key);
+      vals[slot] = value;
+      if (HWY_UNLIKELY(slot == 0)) leaf->base_key = new_key;
+      leaf->SetNumKeys(count + 1);
+      return true;
+    } else {
+      return TryFastInsertOffset<Traits, uint32_t, 0xFFFFFFFFULL>(leaf, new_key,
+                                                                  value, slot);
+    }
+  } else {
+    if (HWY_UNLIKELY(count >= Leaf::kMax64)) return false;
+    ValueT* vals = leaf->Values();
+    auto* raw_keys = HWY_RCAST_ALIGNED(uint64_t*, leaf->payload);
+    std::memmove(raw_keys + slot + 1, raw_keys + slot,
+                 (count - slot) * sizeof(uint64_t));
+    std::memmove(vals + slot + 1, vals + slot, (count - slot) * sizeof(ValueT));
+    raw_keys[slot] = static_cast<uint64_t>(new_key);
+    vals[slot] = value;
+    if (HWY_UNLIKELY(slot == 0)) leaf->base_key = new_key;
+    leaf->SetNumKeys(count + 1);
+    return true;
+  }
+}
+
+// In-place fast path for erasing a key at slot from a compressed offset leaf
+// (Set).
 template <typename OffsetT, OffsetT kSentinel, typename KeyT>
 HWY_INLINE bool TryFastEraseOffset(CompactLeafNode<KeyT>* leaf, size_t slot) {
   constexpr size_t kCapacity =
@@ -634,7 +1015,7 @@ HWY_INLINE bool TryFastEraseOffset(CompactLeafNode<KeyT>* leaf, size_t slot) {
   const size_t cur_num = leaf->NumKeys();
   auto* offsets = HWY_RCAST_ALIGNED(OffsetT*, leaf->data);
   // If erasing slot 0 (the base_key), shift all offsets and advance base_key.
-  if (slot == 0) {
+  if (HWY_UNLIKELY(slot == 0)) {
     const OffsetT shift = offsets[1];
     for (size_t i = 1; i < cur_num; ++i) {
       offsets[i - 1] = offsets[i] - shift;
@@ -651,12 +1032,41 @@ HWY_INLINE bool TryFastEraseOffset(CompactLeafNode<KeyT>* leaf, size_t slot) {
   return true;
 }
 
+// In-place fast path for erasing a key-value pair from a compressed map leaf
+// (Map).
+template <typename OffsetT, OffsetT kSentinel, typename KeyT, typename ValueT>
+HWY_INLINE bool TryFastEraseMapOffset(CompactMapLeafNode<KeyT, ValueT>* leaf,
+                                      size_t slot) {
+  const size_t count = leaf->NumKeys();
+  auto* offsets = HWY_RCAST_ALIGNED(OffsetT*, leaf->payload);
+  ValueT* vals = leaf->Values();
+  // If erasing slot 0 (the base_key), shift all offsets and advance base_key.
+  if (HWY_UNLIKELY(slot == 0)) {
+    const OffsetT shift = offsets[1];
+    for (size_t i = 1; i < count; ++i) {
+      offsets[i - 1] = offsets[i] - shift;
+    }
+    std::memmove(vals, vals + 1, (count - 1) * sizeof(ValueT));
+    offsets[count - 1] = kSentinel;
+    leaf->base_key += shift;
+  } else {
+    // If erasing slot > 0, shift subsequent offsets and values left.
+    std::memmove(offsets + slot, offsets + slot + 1,
+                 (count - 1 - slot) * sizeof(OffsetT));
+    std::memmove(vals + slot, vals + slot + 1,
+                 (count - 1 - slot) * sizeof(ValueT));
+    offsets[count - 1] = kSentinel;
+  }
+  leaf->SetNumKeys(count - 1);
+  return true;
+}
+
 // Fast-path dispatcher that erases a key from a leaf in-place across all bit
-// modes.
+// modes (Set).
 template <typename KeyT>
 HWY_INLINE bool TryFastEraseFromLeaf(CompactLeafNode<KeyT>* leaf, size_t slot) {
   const size_t cur_num = leaf->NumKeys();
-  if (cur_num <= 1) {
+  if (HWY_UNLIKELY(cur_num <= 1)) {
     leaf->SetNumKeys(0);
     leaf->base_key = 0;
     std::memset(leaf->data, 0xFF, CompactLeafNode<KeyT>::kDataBytes);
@@ -675,7 +1085,7 @@ HWY_INLINE bool TryFastEraseFromLeaf(CompactLeafNode<KeyT>* leaf, size_t slot) {
       std::memmove(raw_keys + slot, raw_keys + slot + 1,
                    (kCapacity - 1 - slot) * sizeof(uint32_t));
       raw_keys[cur_num - 1] = 0xFFFFFFFF;
-      if (slot == 0 && cur_num > 1) {
+      if (HWY_UNLIKELY(slot == 0 && cur_num > 1)) {
         leaf->base_key = static_cast<KeyT>(raw_keys[0]);
       }
       leaf->SetNumKeys(cur_num - 1);
@@ -689,7 +1099,7 @@ HWY_INLINE bool TryFastEraseFromLeaf(CompactLeafNode<KeyT>* leaf, size_t slot) {
     std::memmove(raw_keys + slot, raw_keys + slot + 1,
                  (kCapacity - 1 - slot) * sizeof(uint64_t));
     raw_keys[cur_num - 1] = 0xFFFFFFFFFFFFFFFFULL;
-    if (slot == 0 && cur_num > 1) {
+    if (HWY_UNLIKELY(slot == 0 && cur_num > 1)) {
       leaf->base_key = static_cast<KeyT>(raw_keys[0]);
     }
     leaf->SetNumKeys(cur_num - 1);
@@ -697,8 +1107,60 @@ HWY_INLINE bool TryFastEraseFromLeaf(CompactLeafNode<KeyT>* leaf, size_t slot) {
   }
 }
 
+// Fast-path dispatcher that erases a key from a map leaf in-place across all
+// bit modes (Map).
+template <typename KeyT, typename ValueT>
+HWY_INLINE bool TryFastEraseFromLeaf(CompactMapLeafNode<KeyT, ValueT>* leaf,
+                                     size_t slot) {
+  const size_t count = leaf->NumKeys();
+  if (HWY_UNLIKELY(count <= 1)) {
+    leaf->SetNumKeys(0);
+    leaf->base_key = 0;
+    std::memset(leaf->payload, 0xFF,
+                CompactMapLeafNode<KeyT, ValueT>::kPayloadBytes);
+    return true;
+  }
+
+  const uint8_t mode = leaf->BitMode();
+  if (HWY_LIKELY(mode == kMode16Bit)) {
+    return TryFastEraseMapOffset<uint16_t, 0xFFFF>(leaf, slot);
+  } else if (mode == kMode8Bit) {
+    return TryFastEraseMapOffset<uint8_t, 0xFF>(leaf, slot);
+  } else if (mode == kMode32Bit) {
+    ValueT* vals = leaf->Values();
+    if constexpr (sizeof(KeyT) == 4) {
+      auto* raw_keys = HWY_RCAST_ALIGNED(uint32_t*, leaf->payload);
+      std::memmove(raw_keys + slot, raw_keys + slot + 1,
+                   (count - 1 - slot) * sizeof(uint32_t));
+      std::memmove(vals + slot, vals + slot + 1,
+                   (count - 1 - slot) * sizeof(ValueT));
+      raw_keys[count - 1] = 0xFFFFFFFF;
+      if (HWY_UNLIKELY(slot == 0 && count > 1)) {
+        leaf->base_key = static_cast<KeyT>(raw_keys[0]);
+      }
+      leaf->SetNumKeys(count - 1);
+      return true;
+    } else {
+      return TryFastEraseMapOffset<uint32_t, 0xFFFFFFFF>(leaf, slot);
+    }
+  } else {
+    ValueT* vals = leaf->Values();
+    auto* raw_keys = HWY_RCAST_ALIGNED(uint64_t*, leaf->payload);
+    std::memmove(raw_keys + slot, raw_keys + slot + 1,
+                 (count - 1 - slot) * sizeof(uint64_t));
+    std::memmove(vals + slot, vals + slot + 1,
+                 (count - 1 - slot) * sizeof(ValueT));
+    raw_keys[count - 1] = 0xFFFFFFFFFFFFFFFFULL;
+    if (HWY_UNLIKELY(slot == 0 && count > 1)) {
+      leaf->base_key = static_cast<KeyT>(raw_keys[0]);
+    }
+    leaf->SetNumKeys(count - 1);
+    return true;
+  }
+}
+
 // Splits a full leaf plus a new key into two balanced leaves and returns the
-// separator key.
+// separator key (Set).
 template <typename KeyT>
 HWY_INLINE void SplitLeafNode(CompactLeafNode<KeyT>* leaf,
                               CompactLeafNode<KeyT>* new_leaf, KeyT new_key,
@@ -724,33 +1186,62 @@ HWY_INLINE void SplitLeafNode(CompactLeafNode<KeyT>* leaf,
   *out_promo_key = new_leaf->base_key;
 }
 
+// Splits a full leaf plus a new key/value pair into two balanced leaves and
+// returns the separator key (Map).
+template <typename KeyT, typename ValueT>
+HWY_INLINE void SplitLeafNode(CompactMapLeafNode<KeyT, ValueT>* leaf,
+                              CompactMapLeafNode<KeyT, ValueT>* new_leaf,
+                              KeyT new_key, const ValueT& new_value,
+                              KeyT* out_promo_key) {
+  // Stack storage to avoid heap allocation.
+  KeyT temp_keys[512];
+  ValueT temp_values[512];
+
+  // Decompress all existing pairs from leaf and insert (new_key, new_value) in
+  // sorted order.
+  const size_t total = DecompressAndInsertMapPair(leaf, new_key, new_value,
+                                                  temp_keys, temp_values);
+
+  // Find the exact midpoint.
+  const size_t mid = total / 2;
+
+  // Recompress left half back into original leaf.
+  CompressIntoLeaf(leaf, temp_keys, temp_values, mid);
+
+  // Recompress right half into the new_leaf.
+  CompressIntoLeaf(new_leaf, temp_keys + mid, temp_values + mid, total - mid);
+
+  // The first key of right half becomes the separator key for parent routing.
+  *out_promo_key = temp_keys[mid];
+}
+
 // Returns true if two adjacent leaves can merge without exceeding leaf
 // capacity.
-template <typename KeyT>
-HWY_INLINE bool CanMergeCompactLeaves(const CompactLeafNode<KeyT>* leaf,
-                                      const CompactLeafNode<KeyT>* next_leaf) {
-  using Node = CompactLeafNode<KeyT>;
-  const size_t leaf_keys = leaf->NumKeys();
-  const size_t next_keys = next_leaf->NumKeys();
-  if (leaf_keys + next_keys > Node::kMax16) return false;
-  if (leaf_keys == 0 || next_keys == 0) return true;
+template <typename LeafNode>
+HWY_INLINE bool CanMergeCompactLeaves(const LeafNode* leaf,
+                                      const LeafNode* next_leaf) {
+  using Node = LeafNode;
+  using KeyT = decltype(leaf->base_key);
+  const size_t total_keys = leaf->NumKeys() + next_leaf->NumKeys();
+  if (total_keys > Node::kMax16) return false;
+  if (leaf->NumKeys() == 0 || next_leaf->NumKeys() == 0) return true;
 
-  const KeyT max_key = GetCompactKey(next_leaf, next_keys - 1);
+  const KeyT max_key = GetCompactKey(next_leaf, next_leaf->NumKeys() - 1);
   const uint64_t spread = static_cast<uint64_t>(max_key - leaf->base_key);
 
   if (spread <= 65535) return true;
   if constexpr (sizeof(KeyT) == 4) {
-    return (leaf_keys + next_keys <= Node::kMax32);
+    return (total_keys <= Node::kMax32);
   } else {
     if (spread <= 0xFFFFFFFFULL) {
-      return (leaf_keys + next_keys <= Node::kMax32);
+      return (total_keys <= Node::kMax32);
     }
-    return (leaf_keys + next_keys <= Node::kMax64);
+    return (total_keys <= Node::kMax64);
   }
 }
 
 // Merges next_leaf into leaf, updates doubly linked pointers, and frees
-// next_leaf.
+// next_leaf (Set).
 template <typename KeyT>
 HWY_INLINE void MergeCompactLeaves(CompactLeafNode<KeyT>* leaf,
                                    CompactLeafNode<KeyT>* next_leaf,
@@ -776,36 +1267,117 @@ HWY_INLINE void MergeCompactLeaves(CompactLeafNode<KeyT>* leaf,
   delete next_leaf;
 }
 
+// Merges next_leaf into leaf, updates doubly linked pointers, and frees
+// next_leaf (Map).
+template <typename KeyT, typename ValueT>
+HWY_INLINE void MergeCompactLeaves(
+    CompactMapLeafNode<KeyT, ValueT>* leaf,
+    CompactMapLeafNode<KeyT, ValueT>* next_leaf,
+    CompactMapLeafNode<KeyT, ValueT>*& last_leaf) {
+  const size_t leaf_keys = leaf->NumKeys();
+  const size_t next_keys = next_leaf->NumKeys();
+  if (next_keys > 0) {
+    KeyT temp_keys[512];
+    ValueT temp_values[512];
+    DecompressMapLeaf(leaf, temp_keys, temp_values);
+    DecompressMapLeaf(next_leaf, temp_keys + leaf_keys,
+                      temp_values + leaf_keys);
+    const size_t total_keys = leaf_keys + next_keys;
+    CompressIntoLeaf(leaf, temp_keys, temp_values, total_keys);
+  }
+
+  CompactMapLeafNode<KeyT, ValueT>* next_next = next_leaf->Next();
+  leaf->SetNext(next_next);
+  if (next_next != nullptr) {
+    next_next->SetPrev(leaf);
+  } else {
+    last_leaf = leaf;
+  }
+
+  delete next_leaf;
+}
+
 // -----------------------------------------------------------------------------
-// CompactBTreeSet
+// Unified CompactBTree Engine
 // -----------------------------------------------------------------------------
 
-template <typename KeyT>
-class CompactBTreeSet {
+template <typename Traits>
+class CompactBTree {
  public:
-  using Leaf = CompactLeafNode<KeyT>;
+  using KeyT = typename Traits::key_type;
+  using Leaf = typename Traits::Leaf;
   using Internal = CompactInternalNode<KeyT>;
+  using key_type = KeyT;
+  using value_type = typename Traits::value_type;
+  using mapped_type = typename Traits::mapped_type;
+  using size_type = size_t;
+  using difference_type = std::ptrdiff_t;
 
-  // Forward iterator providing on-the-fly key decompression as it traverses
-  // across doubly linked leaf nodes.
+  // ---------------------------------------------------------------------------
+  // Bidirectional Iterators
+  // ---------------------------------------------------------------------------
+  // Iterators traverse leaf linked-list nodes in ascending sorted order.
+  // Because keys are compressed dynamically on the fly, operator* and
+  // operator-> return lightweight proxy objects without heap allocation.
+
+  struct SetConstRef {
+    KeyT val;
+    KeyT operator*() const { return val; }
+    const KeyT* operator->() const { return &val; }
+  };
+
+  struct MapConstRef {
+    KeyT first;
+    const mapped_type& second;
+  };
+
+  struct MapConstArrowProxy {
+    MapConstRef ref;
+    const MapConstRef* operator->() const { return &ref; }
+  };
+
+  struct MapMutRef {
+    KeyT first;
+    mapped_type& second;
+  };
+
+  struct MapMutArrowProxy {
+    MapMutRef ref;
+    MapMutRef* operator->() { return &ref; }
+  };
+
   class const_iterator {
    public:
-    using iterator_category = std::forward_iterator_tag;
-    using value_type = KeyT;
+    using iterator_category = std::bidirectional_iterator_tag;
+    using value_type = typename Traits::value_type;
     using difference_type = std::ptrdiff_t;
-    using pointer = const KeyT*;
-    using reference = KeyT;
 
     const_iterator() = default;
     const_iterator(const Leaf* leaf, size_t slot,
                    const Leaf* last_leaf = nullptr)
         : leaf_(leaf), slot_(slot), last_leaf_(last_leaf) {}
 
-    reference operator*() const { return GetCompactKey(leaf_, slot_); }
+    auto operator*() const {
+      if constexpr (Traits::kIsMap) {
+        return MapConstRef{GetCompactKey(leaf_, slot_), leaf_->Values()[slot_]};
+      } else {
+        return GetCompactKey(leaf_, slot_);
+      }
+    }
+
+    auto operator->() const {
+      if constexpr (Traits::kIsMap) {
+        return MapConstArrowProxy{operator*()};
+      } else {
+        return SetConstRef{GetCompactKey(leaf_, slot_)};
+      }
+    }
 
     const_iterator& operator++() {
+      if (HWY_UNLIKELY(leaf_ == nullptr)) return *this;
       slot_++;
-      if (slot_ >= leaf_->NumKeys()) {
+      if (HWY_UNLIKELY(slot_ >= leaf_->NumKeys())) {
+        last_leaf_ = leaf_;
         leaf_ = leaf_->Next();
         slot_ = 0;
       }
@@ -818,25 +1390,132 @@ class CompactBTreeSet {
       return tmp;
     }
 
+    const_iterator& operator--() {
+      if (HWY_UNLIKELY(leaf_ == nullptr)) {
+        leaf_ = last_leaf_;
+        slot_ = (leaf_ != nullptr && leaf_->NumKeys() > 0)
+                    ? leaf_->NumKeys() - 1
+                    : 0;
+        return *this;
+      }
+      if (HWY_UNLIKELY(slot_ == 0)) {
+        leaf_ = leaf_->Prev();
+        slot_ = (leaf_ != nullptr && leaf_->NumKeys() > 0)
+                    ? leaf_->NumKeys() - 1
+                    : 0;
+      } else {
+        --slot_;
+      }
+      return *this;
+    }
+
+    const_iterator operator--(int) {
+      const_iterator tmp = *this;
+      --(*this);
+      return tmp;
+    }
+
     bool operator==(const const_iterator& other) const {
+      if (leaf_ == nullptr && other.leaf_ == nullptr) return true;
       return leaf_ == other.leaf_ && slot_ == other.slot_;
     }
     bool operator!=(const const_iterator& other) const {
       return !(*this == other);
     }
 
-   private:
+    const Leaf* node() const { return leaf_; }
+    const Leaf* leaf() const { return leaf_; }
+    size_t slot() const { return slot_; }
+
+   protected:
     const Leaf* leaf_ = nullptr;
     size_t slot_ = 0;
     const Leaf* last_leaf_ = nullptr;
   };
 
-  using iterator = const_iterator;
+  class iterator : public const_iterator {
+   public:
+    using iterator_category = std::bidirectional_iterator_tag;
+    using value_type = typename Traits::value_type;
+    using difference_type = std::ptrdiff_t;
 
-  CompactBTreeSet() = default;
-  ~CompactBTreeSet() { clear(); }
+    iterator() = default;
+    iterator(Leaf* leaf, size_t slot, Leaf* last_leaf = nullptr)
+        : const_iterator(leaf, slot, last_leaf) {}
 
-  CompactBTreeSet(CompactBTreeSet&& other) noexcept
+    auto operator*() const {
+      if constexpr (Traits::kIsMap) {
+        return MapMutRef{GetCompactKey(this->leaf_, this->slot_),
+                         const_cast<Leaf*>(this->leaf_)->Values()[this->slot_]};
+      } else {
+        return GetCompactKey(this->leaf_, this->slot_);
+      }
+    }
+
+    auto operator->() const {
+      if constexpr (Traits::kIsMap) {
+        return MapMutArrowProxy{operator*()};
+      } else {
+        return SetConstRef{GetCompactKey(this->leaf_, this->slot_)};
+      }
+    }
+
+    iterator& operator++() {
+      if (HWY_UNLIKELY(this->leaf_ == nullptr)) return *this;
+      this->slot_++;
+      if (HWY_UNLIKELY(this->slot_ >= this->leaf_->NumKeys())) {
+        this->last_leaf_ = this->leaf_;
+        this->leaf_ = this->leaf_->Next();
+        this->slot_ = 0;
+      }
+      return *this;
+    }
+
+    iterator operator++(int) {
+      iterator tmp = *this;
+      ++(*this);
+      return tmp;
+    }
+
+    iterator& operator--() {
+      if (HWY_UNLIKELY(this->leaf_ == nullptr)) {
+        this->leaf_ = this->last_leaf_;
+        this->slot_ = (this->leaf_ != nullptr && this->leaf_->NumKeys() > 0)
+                          ? this->leaf_->NumKeys() - 1
+                          : 0;
+        return *this;
+      }
+      if (HWY_UNLIKELY(this->slot_ == 0)) {
+        this->leaf_ = this->leaf_->Prev();
+        this->slot_ = (this->leaf_ != nullptr && this->leaf_->NumKeys() > 0)
+                          ? this->leaf_->NumKeys() - 1
+                          : 0;
+      } else {
+        --this->slot_;
+      }
+      return *this;
+    }
+
+    iterator operator--(int) {
+      iterator tmp = *this;
+      --(*this);
+      return tmp;
+    }
+
+    operator const_iterator() const {
+      return const_iterator(this->leaf_, this->slot_, this->last_leaf_);
+    }
+
+    Leaf* leaf() const { return const_cast<Leaf*>(this->leaf_); }
+  };
+
+  using reverse_iterator = std::reverse_iterator<iterator>;
+  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+
+  CompactBTree() = default;
+  ~CompactBTree() { clear(); }
+
+  CompactBTree(CompactBTree&& other) noexcept
       : root_(other.root_),
         first_leaf_(other.first_leaf_),
         last_leaf_(other.last_leaf_),
@@ -853,7 +1532,7 @@ class CompactBTreeSet {
     other.num_internals_ = 0;
   }
 
-  CompactBTreeSet& operator=(CompactBTreeSet&& other) noexcept {
+  CompactBTree& operator=(CompactBTree&& other) noexcept {
     if (this != &other) {
       clear();
       root_ = other.root_;
@@ -874,11 +1553,11 @@ class CompactBTreeSet {
     return *this;
   }
 
-  CompactBTreeSet(const CompactBTreeSet&) = delete;
-  CompactBTreeSet& operator=(const CompactBTreeSet&) = delete;
+  CompactBTree(const CompactBTree&) = delete;
+  CompactBTree& operator=(const CompactBTree&) = delete;
 
   // ---------------------------------------------------------------------------
-  // Bulk Construction from Sorted Keys
+  // Bulk Construction from Sorted Keys / Key-Value Pairs
   // ---------------------------------------------------------------------------
 
   // Constructs a CompactBTreeSet from an array of pre-sorted, unique keys in
@@ -887,221 +1566,70 @@ class CompactBTreeSet {
   // Example usage:
   //   std::vector<uint32_t> sorted_keys = {10, 20, 30, 40, 50};
   //   auto tree = CompactBTreeSet<uint32_t>::Build(sorted_keys.data(),
-  //   sorted_keys.size());
-  //   bool found = tree.Contains(30);
+  //                                               sorted_keys.size());
+  //   bool found = tree.contains(30);
   //
   // Parameters:
   // - keys: Pointer to an array of strictly ascending keys.
   // - num_keys: Total number of keys in the array.
-  // - fill_ratio: Target fill factor per leaf node (between 0.0 and 1.0).
+  // - fill_ratio: Target fill factor per leaf node (between 0.1 and 1.0).
   //     * 1.0f (default): Maximum memory density and fastest throughput for
-  //     read-heavy
-  //       or static lookup workloads.
+  //       read-heavy or static lookup workloads.
   //     * 0.75f - 0.85f: Leaves headroom in leaves to accommodate subsequent
-  //     dynamic
-  //       insertions without triggering immediate node splits.
+  //       dynamic insertions without immediate splits.
+  static CompactBTree Build(const KeyT* sorted_keys, size_t num_keys,
+                            float fill_ratio = 1.0f) {
+    static_assert(!Traits::kIsMap, "Build with keys only is for Sets");
+    return BuildInternal(sorted_keys, static_cast<const mapped_type*>(nullptr),
+                         num_keys, fill_ratio);
+  }
+
+  // Constructs a CompactBTreeMap from pre-sorted arrays of unique keys and
+  // values in O(N) time.
   //
-  // Returns: A fully constructed CompactBTreeSet.
-  static CompactBTreeSet Build(const KeyT* keys, size_t num_keys,
-                               float fill_ratio = 1.0f) {
-    CompactBTreeSet tree;
-    if (num_keys == 0) return tree;
-
-    tree.num_elements_ = num_keys;
-    // Pointers to nodes at the current level being linked into parent internal
-    // nodes.
-    std::vector<void*> current_level_ptrs;
-    // Separator keys between adjacent children, used to populate internal node
-    // keys.
-    std::vector<KeyT> delimiters;
-
-    size_t key_idx = 0;
-    Leaf* prev_leaf = nullptr;
-
-    const size_t max_keys_8 = std::clamp<size_t>(
-        static_cast<size_t>(Leaf::kMax8 * fill_ratio), 2, Leaf::kMax8);
-    const size_t max_keys_16 = std::clamp<size_t>(
-        static_cast<size_t>(Leaf::kMax16 * fill_ratio), 2, Leaf::kMax16);
-    const size_t max_keys_32 = std::clamp<size_t>(
-        static_cast<size_t>(Leaf::kMax32 * fill_ratio), 2, Leaf::kMax32);
-    const size_t max_keys_64 = std::clamp<size_t>(
-        static_cast<size_t>(Leaf::kMax64 * fill_ratio), 2, Leaf::kMax64);
-
-    // Build compressed leaf level
-    while (key_idx < num_keys) {
-      auto* leaf = new Leaf();
-      tree.num_leaves_++;
-      if (tree.first_leaf_ == nullptr) tree.first_leaf_ = leaf;
-      if (prev_leaf != nullptr) {
-        prev_leaf->SetNext(leaf);
-        leaf->SetPrev(prev_leaf);
-      }
-
-      leaf->base_key = keys[key_idx];
-      const size_t remaining = num_keys - key_idx;
-      size_t count = 0;
-
-      // Select the narrowest compression mode that can accommodate the key
-      // range. Tries 8-bit, then 16-bit, then 32-bit, and falls back to raw
-      // 64-bit keys.
-      const size_t try8 = std::min(remaining, max_keys_8);
-      if (try8 > 0 && static_cast<uint64_t>(keys[key_idx + try8 - 1] -
-                                            leaf->base_key) <= 255) {
-        leaf->SetBitMode(kMode8Bit);
-        count = try8;
-        auto* offsets = HWY_RCAST_ALIGNED(uint8_t*, leaf->data);
-        for (size_t k = 0; k < count; ++k) {
-          offsets[k] = static_cast<uint8_t>(keys[key_idx + k] - leaf->base_key);
-        }
-        // Pad unused trailing slots with sentinels for SIMD scanning.
-        std::fill_n(offsets + count, Leaf::kMax8 - count, 0xFF);
-      } else if (const size_t try16 = std::min(remaining, max_keys_16);
-                 try16 > 0 && static_cast<uint64_t>(keys[key_idx + try16 - 1] -
-                                                    leaf->base_key) <= 65535) {
-        leaf->SetBitMode(kMode16Bit);
-        count = try16;
-        auto* offsets = HWY_RCAST_ALIGNED(uint16_t*, leaf->data);
-        for (size_t k = 0; k < count; ++k) {
-          offsets[k] =
-              static_cast<uint16_t>(keys[key_idx + k] - leaf->base_key);
-        }
-        std::fill_n(offsets + count, Leaf::kMax16 - count, 0xFFFF);
-      } else if (sizeof(KeyT) == 4 ||
-                 (std::min(remaining, max_keys_32) > 0 &&
-                  static_cast<uint64_t>(
-                      keys[key_idx + std::min(remaining, max_keys_32) - 1] -
-                      leaf->base_key) <= 0xFFFFFFFFULL)) {
-        leaf->SetBitMode(kMode32Bit);
-        count = std::min(remaining, max_keys_32);
-        if constexpr (sizeof(KeyT) == 4) {
-          auto* raw_keys = HWY_RCAST_ALIGNED(uint32_t*, leaf->data);
-          for (size_t k = 0; k < count; ++k) {
-            raw_keys[k] = static_cast<uint32_t>(keys[key_idx + k]);
-          }
-          std::fill_n(raw_keys + count, Leaf::kMax32 - count, 0xFFFFFFFF);
-        } else {
-          auto* offsets = HWY_RCAST_ALIGNED(uint32_t*, leaf->data);
-          for (size_t k = 0; k < count; ++k) {
-            offsets[k] =
-                static_cast<uint32_t>(keys[key_idx + k] - leaf->base_key);
-          }
-          std::fill_n(offsets + count, Leaf::kMax32 - count, 0xFFFFFFFF);
-        }
-      } else {
-        leaf->SetBitMode(kModeRaw64);
-        count = std::min(remaining, max_keys_64);
-        auto* raw_keys = HWY_RCAST_ALIGNED(uint64_t*, leaf->data);
-        for (size_t k = 0; k < count; ++k) {
-          raw_keys[k] = static_cast<uint64_t>(keys[key_idx + k]);
-        }
-        std::fill_n(raw_keys + count, Leaf::kMax64 - count,
-                    0xFFFFFFFFFFFFFFFFULL);
-      }
-
-      leaf->SetNumKeys(static_cast<uint16_t>(count));
-      current_level_ptrs.push_back(leaf);
-
-      if (key_idx > 0) {
-        delimiters.push_back(leaf->base_key);
-      }
-
-      key_idx += count;
-      prev_leaf = leaf;
-    }
-    tree.last_leaf_ = prev_leaf;
-
-    // If single leaf, root is the leaf
-    if (current_level_ptrs.size() == 1) {
-      tree.root_ = current_level_ptrs[0];
-      tree.tree_height_ = 0;
-      return tree;
-    }
-
-    // Build internal levels bottom-up until a single root node remains.
-    uint16_t level_height = 0;
-    while (current_level_ptrs.size() > 1) {
-      level_height++;
-      std::vector<void*> next_level_ptrs;
-      std::vector<KeyT> next_delimiters;
-
-      constexpr size_t max_children = Internal::kMaxChildren;
-      const size_t num_children = current_level_ptrs.size();
-      const size_t num_internals =
-          (num_children + max_children - 1) / max_children;
-      next_level_ptrs.reserve(num_internals);
-      if (num_internals > 1) {
-        next_delimiters.reserve(num_internals - 1);
-      }
-      for (size_t i = 0; i < num_internals; ++i) {
-        auto* internal = new Internal();
-        tree.num_internals_++;
-        const size_t child_start = i * max_children;
-        const size_t child_count =
-            std::min(max_children, num_children - child_start);
-
-        // Link child node pointers into this internal node.
-        for (size_t c = 0; c < child_count; ++c) {
-          internal->children[c] = current_level_ptrs[child_start + c];
-        }
-
-        // Set separator keys (N children are separated by N - 1 keys).
-        const size_t key_count = child_count - 1;
-        internal->num_keys = static_cast<uint8_t>(key_count);
-        for (size_t k = 0; k < key_count; ++k) {
-          internal->keys[k] = delimiters[child_start + k];
-        }
-
-        // Propagate the delimiter separating this internal node from the
-        // previous one.
-        if (i > 0) {
-          next_delimiters.push_back(delimiters[child_start - 1]);
-        }
-
-        next_level_ptrs.push_back(internal);
-      }
-
-      // Advance up to the next internal level.
-      current_level_ptrs = std::move(next_level_ptrs);
-      delimiters = std::move(next_delimiters);
-    }
-
-    tree.root_ = current_level_ptrs[0];
-    tree.tree_height_ = level_height;
-    return tree;
+  // Example usage:
+  //   std::vector<uint32_t> sorted_keys = {10, 20, 30, 40, 50};
+  //   std::vector<uint64_t> sorted_vals = {100, 200, 300, 400, 500};
+  //   auto map = CompactBTreeMap<uint32_t, uint64_t>::Build(
+  //       sorted_keys.data(), sorted_vals.data(), sorted_keys.size());
+  //   bool found = map.contains(30);
+  //
+  // Parameters:
+  // - sorted_keys: Pointer to strictly ascending keys.
+  // - sorted_values: Pointer to corresponding values.
+  // - num_keys: Number of key-value pairs.
+  // - fill_ratio: Target fill factor per leaf node (between 0.1 and 1.0).
+  template <typename V = mapped_type,
+            typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
+  static CompactBTree Build(const KeyT* sorted_keys, const V* sorted_values,
+                            size_t num_keys, float fill_ratio = 1.0f) {
+    return BuildInternal(sorted_keys, sorted_values, num_keys, fill_ratio);
   }
 
   // ---------------------------------------------------------------------------
-  // Iterators & Accessors
-  // ---------------------------------------------------------------------------
-  const_iterator begin() const {
-    if (first_leaf_ == nullptr || num_elements_ == 0) return end();
-    return const_iterator(first_leaf_, 0, last_leaf_);
-  }
-
-  const_iterator end() const { return const_iterator(nullptr, 0, last_leaf_); }
-
-  // ---------------------------------------------------------------------------
-  // Point Lookup & Range Queries
+  // Point Lookups
   // ---------------------------------------------------------------------------
 
-  // Returns true if key exists in the tree, false otherwise.
-  HWY_INLINE bool contains(KeyT key) const {
-    if (root_ == nullptr || num_elements_ == 0) return false;
+  // Returns true if key is present in the tree.
+  bool contains(KeyT key) const {
+    if (HWY_UNLIKELY(root_ == nullptr)) return false;
     void* curr = root_;
     for (uint16_t lvl = tree_height_; lvl > 0; --lvl) {
       auto* internal = static_cast<Internal*>(curr);
-      curr = internal->children[FindCompactChild(internal, key)];
+      size_t child_idx = FindCompactChild(internal, key);
+      curr = internal->children[child_idx];
     }
     return CompactLeafContains(static_cast<Leaf*>(curr), key);
   }
 
-  // Returns an iterator pointing to the key if found, or end() if not present.
-  HWY_INLINE const_iterator find(KeyT key) const {
-    if (root_ == nullptr || num_elements_ == 0) return end();
+  // Returns const_iterator to key if found, or end() otherwise.
+  const_iterator find(KeyT key) const {
+    if (HWY_UNLIKELY(root_ == nullptr)) return end();
     void* curr = root_;
     for (uint16_t lvl = tree_height_; lvl > 0; --lvl) {
       auto* internal = static_cast<Internal*>(curr);
-      curr = internal->children[FindCompactChild(internal, key)];
+      size_t child_idx = FindCompactChild(internal, key);
+      curr = internal->children[child_idx];
     }
     auto* leaf = static_cast<Leaf*>(curr);
     size_t slot = 0;
@@ -1111,98 +1639,231 @@ class CompactBTreeSet {
     return end();
   }
 
-  // Returns an iterator to the first key that is >= target, or end() if none.
-  HWY_INLINE const_iterator lower_bound(KeyT target) const {
-    if (root_ == nullptr || num_elements_ == 0) return end();
+  // Returns iterator to key if found, or end() otherwise.
+  iterator find(KeyT key) {
+    if (HWY_UNLIKELY(root_ == nullptr)) return end();
     void* curr = root_;
     for (uint16_t lvl = tree_height_; lvl > 0; --lvl) {
       auto* internal = static_cast<Internal*>(curr);
-      size_t c_idx = FindCompactChild(internal, target);
-      curr = internal->children[c_idx];
+      size_t child_idx = FindCompactChild(internal, key);
+      curr = internal->children[child_idx];
+    }
+    auto* leaf = static_cast<Leaf*>(curr);
+    size_t slot = 0;
+    if (CompactLeafContains(leaf, key, &slot)) {
+      return iterator(leaf, slot, last_leaf_);
+    }
+    return end();
+  }
+
+  // Returns const_iterator to the first key >= target, or end() if all keys <
+  // target.
+  const_iterator lower_bound(KeyT target) const {
+    if (HWY_UNLIKELY(root_ == nullptr)) return end();
+    void* curr = root_;
+    for (uint16_t lvl = tree_height_; lvl > 0; --lvl) {
+      auto* internal = static_cast<Internal*>(curr);
+      size_t child_idx = FindCompactChild(internal, target);
+      curr = internal->children[child_idx];
     }
     auto* leaf = static_cast<Leaf*>(curr);
     size_t slot = FindCompactLeafSlot(leaf, target);
-    if (slot < leaf->NumKeys()) {
+    if (HWY_LIKELY(slot < leaf->NumKeys())) {
       return const_iterator(leaf, slot, last_leaf_);
     }
-    if (leaf->Next() != nullptr) {
+    if (HWY_LIKELY(leaf->Next() != nullptr && leaf->Next()->NumKeys() > 0)) {
       return const_iterator(leaf->Next(), 0, last_leaf_);
     }
     return end();
   }
 
+  // Returns iterator to the first key >= target, or end() if all keys < target.
+  iterator lower_bound(KeyT target) {
+    if (HWY_UNLIKELY(root_ == nullptr)) return end();
+    void* curr = root_;
+    for (uint16_t lvl = tree_height_; lvl > 0; --lvl) {
+      auto* internal = static_cast<Internal*>(curr);
+      size_t child_idx = FindCompactChild(internal, target);
+      curr = internal->children[child_idx];
+    }
+    auto* leaf = static_cast<Leaf*>(curr);
+    size_t slot = FindCompactLeafSlot(leaf, target);
+    if (HWY_LIKELY(slot < leaf->NumKeys())) {
+      return iterator(leaf, slot, last_leaf_);
+    }
+    if (HWY_LIKELY(leaf->Next() != nullptr && leaf->Next()->NumKeys() > 0)) {
+      return iterator(leaf->Next(), 0, last_leaf_);
+    }
+    return end();
+  }
+
   // ---------------------------------------------------------------------------
-  // 8-Way Pipelined Batch Queries with Software Prefetching
+  // Batch Lookups (8-Way Pipelined SIMD Prefetching)
   // ---------------------------------------------------------------------------
 
-  // Checks existence for a batch of keys in parallel with software prefetching.
-  void ContainsBatch(const KeyT* queries, size_t count, bool* out_found) const {
+  // Executes multiple contains queries with 8-way software pipelining.
+  template <typename FoundT>
+  void ContainsBatch(const KeyT* HWY_RESTRICT queries, size_t count,
+                     FoundT* HWY_RESTRICT out_found) const {
     if (count == 0) return;
-    if (root_ == nullptr || num_elements_ == 0) {
+    if (HWY_UNLIKELY(root_ == nullptr || num_elements_ == 0)) {
+      std::fill_n(out_found, count, static_cast<FoundT>(0));
+      return;
+    }
+
+    constexpr size_t kBatchSize = 8;
+    size_t i = 0;
+    for (; i + kBatchSize <= count; i += kBatchSize) {
+      void* curr[kBatchSize];
+      for (size_t b = 0; b < kBatchSize; ++b) {
+        curr[b] = root_;
+      }
+
+      for (uint16_t lvl = tree_height_; lvl > 0; --lvl) {
+        for (size_t b = 0; b < kBatchSize; ++b) {
+          auto* internal = static_cast<Internal*>(curr[b]);
+          size_t child_idx = FindCompactChild(internal, queries[i + b]);
+          curr[b] = internal->children[child_idx];
+          hwy::Prefetch(curr[b]);
+        }
+      }
+
+      for (size_t b = 0; b < kBatchSize; ++b) {
+        out_found[i + b] = static_cast<FoundT>(
+            CompactLeafContains(static_cast<Leaf*>(curr[b]), queries[i + b]));
+      }
+    }
+
+    for (; i < count; ++i) {
+      out_found[i] = static_cast<FoundT>(contains(queries[i]));
+    }
+  }
+
+  // Executes multiple map value lookups with 8-way pipelined prefetching.
+  template <typename V = mapped_type,
+            typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
+  void LookupBatch(const KeyT* HWY_RESTRICT queries, size_t count,
+                   V* HWY_RESTRICT out_values,
+                   bool* HWY_RESTRICT out_found) const {
+    if (count == 0) return;
+    if (HWY_UNLIKELY(root_ == nullptr || num_elements_ == 0)) {
       std::fill_n(out_found, count, false);
       return;
     }
 
     constexpr size_t kBatchSize = 8;
     size_t i = 0;
-
     for (; i + kBatchSize <= count; i += kBatchSize) {
       void* curr[kBatchSize];
-      for (size_t b = 0; b < kBatchSize; ++b) curr[b] = root_;
+      for (size_t b = 0; b < kBatchSize; ++b) {
+        curr[b] = root_;
+      }
 
       for (uint16_t lvl = tree_height_; lvl > 0; --lvl) {
         for (size_t b = 0; b < kBatchSize; ++b) {
           auto* internal = static_cast<Internal*>(curr[b]);
-          size_t c_idx = FindCompactChild(internal, queries[i + b]);
-          void* next_child = internal->children[c_idx];
-          hwy::Prefetch(next_child);
-          curr[b] = next_child;
+          size_t child_idx = FindCompactChild(internal, queries[i + b]);
+          curr[b] = internal->children[child_idx];
+          hwy::Prefetch(curr[b]);
         }
       }
 
       for (size_t b = 0; b < kBatchSize; ++b) {
-        out_found[i + b] =
-            CompactLeafContains(static_cast<Leaf*>(curr[b]), queries[i + b]);
+        auto* leaf = static_cast<Leaf*>(curr[b]);
+        size_t slot = 0;
+        if (CompactLeafContains(leaf, queries[i + b], &slot)) {
+          out_found[i + b] = true;
+          out_values[i + b] = leaf->Values()[slot];
+        } else {
+          out_found[i + b] = false;
+        }
       }
     }
 
     for (; i < count; ++i) {
-      out_found[i] = contains(queries[i]);
+      const V* val_ptr = FindValue(queries[i]);
+      if (val_ptr != nullptr) {
+        out_found[i] = true;
+        out_values[i] = *val_ptr;
+      } else {
+        out_found[i] = false;
+      }
     }
   }
 
-  // Computes lower_bound for a batch of keys in parallel with prefetching.
-  void LowerBoundBatch(const KeyT* targets, size_t count,
-                       const_iterator* results) const {
-    if (count == 0) return;
-    if (root_ == nullptr || num_elements_ == 0) {
-      for (size_t i = 0; i < count; ++i) results[i] = end();
+  // Executes multiple find queries with 8-way pipelined prefetching.
+  void FindBatch(const KeyT* HWY_RESTRICT targets, size_t num_queries,
+                 const_iterator* HWY_RESTRICT results) const {
+    if (HWY_UNLIKELY(root_ == nullptr)) {
+      for (size_t k = 0; k < num_queries; ++k) results[k] = end();
       return;
     }
 
     constexpr size_t kBatchSize = 8;
     size_t i = 0;
-
-    for (; i + kBatchSize <= count; i += kBatchSize) {
+    for (; i + kBatchSize <= num_queries; i += kBatchSize) {
       void* curr[kBatchSize];
-      for (size_t b = 0; b < kBatchSize; ++b) curr[b] = root_;
+      for (size_t b = 0; b < kBatchSize; ++b) {
+        curr[b] = root_;
+      }
 
       for (uint16_t lvl = tree_height_; lvl > 0; --lvl) {
         for (size_t b = 0; b < kBatchSize; ++b) {
           auto* internal = static_cast<Internal*>(curr[b]);
-          size_t c_idx = FindCompactChild(internal, targets[i + b]);
-          void* next_child = internal->children[c_idx];
-          hwy::Prefetch(next_child);
-          curr[b] = next_child;
+          size_t child_idx = FindCompactChild(internal, targets[i + b]);
+          curr[b] = internal->children[child_idx];
+          hwy::Prefetch(curr[b]);
+        }
+      }
+
+      for (size_t b = 0; b < kBatchSize; ++b) {
+        auto* leaf = static_cast<Leaf*>(curr[b]);
+        size_t slot = 0;
+        if (CompactLeafContains(leaf, targets[i + b], &slot)) {
+          results[i + b] = const_iterator(leaf, slot, last_leaf_);
+        } else {
+          results[i + b] = end();
+        }
+      }
+    }
+
+    for (; i < num_queries; ++i) {
+      results[i] = find(targets[i]);
+    }
+  }
+
+  // Executes multiple lower_bound queries with 8-way pipelined prefetching.
+  void LowerBoundBatch(const KeyT* HWY_RESTRICT targets, size_t num_queries,
+                       const_iterator* HWY_RESTRICT results) const {
+    if (HWY_UNLIKELY(root_ == nullptr)) {
+      for (size_t k = 0; k < num_queries; ++k) results[k] = end();
+      return;
+    }
+
+    constexpr size_t kBatchSize = 8;
+    size_t i = 0;
+    for (; i + kBatchSize <= num_queries; i += kBatchSize) {
+      void* curr[kBatchSize];
+      for (size_t b = 0; b < kBatchSize; ++b) {
+        curr[b] = root_;
+      }
+
+      for (uint16_t lvl = tree_height_; lvl > 0; --lvl) {
+        for (size_t b = 0; b < kBatchSize; ++b) {
+          auto* internal = static_cast<Internal*>(curr[b]);
+          size_t child_idx = FindCompactChild(internal, targets[i + b]);
+          curr[b] = internal->children[child_idx];
+          hwy::Prefetch(curr[b]);
         }
       }
 
       for (size_t b = 0; b < kBatchSize; ++b) {
         auto* leaf = static_cast<Leaf*>(curr[b]);
         size_t slot = FindCompactLeafSlot(leaf, targets[i + b]);
-        if (slot < leaf->NumKeys()) {
+        if (HWY_LIKELY(slot < leaf->NumKeys())) {
           results[i + b] = const_iterator(leaf, slot, last_leaf_);
-        } else if (leaf->Next() != nullptr) {
+        } else if (HWY_LIKELY(leaf->Next() != nullptr &&
+                              leaf->Next()->NumKeys() > 0)) {
           results[i + b] = const_iterator(leaf->Next(), 0, last_leaf_);
         } else {
           results[i + b] = end();
@@ -1210,8 +1871,7 @@ class CompactBTreeSet {
       }
     }
 
-    // Remainder
-    for (; i < count; ++i) {
+    for (; i < num_queries; ++i) {
       results[i] = lower_bound(targets[i]);
     }
   }
@@ -1219,40 +1879,294 @@ class CompactBTreeSet {
   // ---------------------------------------------------------------------------
   // Dynamic Mutations (Insertions & Deletions)
   // ---------------------------------------------------------------------------
-  // Inserts a key into the set if not already present. Returns pair of
-  // (iterator, bool_inserted).
-  std::pair<const_iterator, bool> insert(KeyT key) {
+
+  // Inserts a key into the Set. Returns pair of (iterator, bool_inserted).
+  template <bool IsMap = Traits::kIsMap, typename = std::enable_if_t<!IsMap>>
+  std::pair<iterator, bool> insert(KeyT key) {
+    return InsertSetInternal(key);
+  }
+
+  // Inserts a key-value pair into the Map. Returns pair of (iterator,
+  // bool_inserted).
+  template <typename V = mapped_type,
+            typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
+  std::pair<iterator, bool> insert(const std::pair<KeyT, V>& kv) {
+    return InsertMapInternal(kv.first, kv.second, /*assign_if_exists=*/false);
+  }
+
+  // Inserts a key and value into the Map. Returns pair of (iterator,
+  // bool_inserted).
+  template <typename V = mapped_type,
+            typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
+  std::pair<iterator, bool> insert(KeyT key, const V& value) {
+    return InsertMapInternal(key, value, /*assign_if_exists=*/false);
+  }
+
+  // Inserts a key-value pair or updates existing key's value.
+  template <typename V = mapped_type,
+            typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
+  std::pair<iterator, bool> insert_or_assign(KeyT key, const V& value) {
+    return InsertMapInternal(key, value, /*assign_if_exists=*/true);
+  }
+
+  // Emplaces a key-value pair into the Map.
+  template <typename V = mapped_type, typename... Args,
+            typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
+  std::pair<iterator, bool> emplace(KeyT key, Args&&... args) {
+    return insert_or_assign(key, V(std::forward<Args>(args)...));
+  }
+
+  // Emplaces a key into the Set.
+  template <typename... Args, bool IsMap = Traits::kIsMap,
+            typename = std::enable_if_t<!IsMap>>
+  std::pair<iterator, bool> emplace(Args&&... args) {
+    return insert(KeyT(std::forward<Args>(args)...));
+  }
+
+  // Subscript operator for Map: inserts default value if key not present.
+  template <typename V = mapped_type,
+            typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
+  V& operator[](KeyT key) {
+    auto res = insert(key, V{});
+    return res.first.leaf()->Values()[res.first.slot()];
+  }
+
+  // Bounds-checked value accessor (const).
+  template <typename V = mapped_type,
+            typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
+  const V& at(KeyT key) const {
+    auto it = find(key);
+    if (it == end()) {
+      HWY_ABORT("CompactBTreeMap::at: key not found");
+    }
+    return it.leaf()->Values()[it.slot()];
+  }
+
+  // Bounds-checked value accessor (mutable).
+  template <typename V = mapped_type,
+            typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
+  V& at(KeyT key) {
+    auto it = find(key);
+    if (it == end()) {
+      HWY_ABORT("CompactBTreeMap::at: key not found");
+    }
+    return it.leaf()->Values()[it.slot()];
+  }
+
+  // Fast direct value pointer lookup without iterator construction (const).
+  template <typename V = mapped_type,
+            typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
+  const V* FindValue(KeyT key) const {
+    if (HWY_UNLIKELY(root_ == nullptr)) return nullptr;
+    void* curr = root_;
+    for (uint16_t lvl = tree_height_; lvl > 0; --lvl) {
+      auto* internal = static_cast<Internal*>(curr);
+      size_t child_idx = FindCompactChild(internal, key);
+      curr = internal->children[child_idx];
+    }
+    auto* leaf = static_cast<Leaf*>(curr);
+    size_t slot = 0;
+    if (CompactLeafContains(leaf, key, &slot)) {
+      return leaf->Values() + slot;
+    }
+    return nullptr;
+  }
+
+  // Fast direct value pointer lookup without iterator construction (mutable).
+  template <typename V = mapped_type,
+            typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
+  V* FindValue(KeyT key) {
+    if (HWY_UNLIKELY(root_ == nullptr)) return nullptr;
+    void* curr = root_;
+    for (uint16_t lvl = tree_height_; lvl > 0; --lvl) {
+      auto* internal = static_cast<Internal*>(curr);
+      size_t child_idx = FindCompactChild(internal, key);
+      curr = internal->children[child_idx];
+    }
+    auto* leaf = static_cast<Leaf*>(curr);
+    size_t slot = 0;
+    if (CompactLeafContains(leaf, key, &slot)) {
+      return leaf->Values() + slot;
+    }
+    return nullptr;
+  }
+
+  // Erases a key from the tree. Returns 1 if erased, 0 if not found.
+  size_t erase(KeyT key) {
+    if (HWY_UNLIKELY(root_ == nullptr || num_elements_ == 0)) return 0;
+
+    // Handle single-node tree (height == 0)
+    if (tree_height_ == 0) {
+      auto* leaf = static_cast<Leaf*>(root_);
+      size_t slot = 0;
+      // Check if key exists in leaf
+      if (!CompactLeafContains(leaf, key, &slot)) return 0;
+
+      // In-place fast erase from leaf
+      TryFastEraseFromLeaf(leaf, slot);
+      num_elements_--;
+      if (HWY_UNLIKELY(leaf->NumKeys() == 0)) {
+        delete leaf;
+        root_ = nullptr;
+        first_leaf_ = nullptr;
+        last_leaf_ = nullptr;
+        num_leaves_ = 0;
+      }
+      return 1;
+    }
+
+    // Multi-level tree: Record descent path from root to target leaf
+    // (ancestors are saved on stack to propagate parent splits without
+    // recursion).
+    Internal* path[kMaxTreeHeight];
+    size_t child_indices[kMaxTreeHeight];
+    void* curr = root_;
+    for (uint16_t lvl = tree_height_; lvl > 0; --lvl) {
+      auto* internal = static_cast<Internal*>(curr);
+      path[lvl] = internal;
+      size_t child_idx = FindCompactChild(internal, key);
+      child_indices[lvl] = child_idx;
+      curr = internal->children[child_idx];
+    }
+
+    auto* leaf = static_cast<Leaf*>(curr);
+    size_t slot = 0;
+    // Check if key exists in leaf
+    if (!CompactLeafContains(leaf, key, &slot)) return 0;
+
+    // In-place fast erase from leaf
+    TryFastEraseFromLeaf(leaf, slot);
+    num_elements_--;
+
+    // Underflow Handling: If leaf has <= Leaf::kMax16 / 2 keys, attempt merge
+    // with adjacent siblings
+    Internal* parent = path[1];
+    size_t c_idx = child_indices[1];
+
+    if (HWY_UNLIKELY(leaf->NumKeys() <= Leaf::kMax16 / 2)) {
+      // Determine merge index: right sibling (c_idx) or left sibling (c_idx -
+      // 1)
+      const size_t merge_idx =
+          (c_idx + 1 <= parent->num_keys)
+              ? c_idx
+              : (c_idx > 0 ? c_idx - 1 : static_cast<size_t>(-1));
+
+      if (merge_idx != static_cast<size_t>(-1)) {
+        auto* l_leaf = static_cast<Leaf*>(parent->children[merge_idx]);
+        auto* r_leaf = static_cast<Leaf*>(parent->children[merge_idx + 1]);
+
+        if (CanMergeCompactLeaves(l_leaf, r_leaf)) {
+          MergeCompactLeaves(l_leaf, r_leaf, last_leaf_);
+          num_leaves_--;
+
+          // Remove separator key and child pointer from parent
+          std::memmove(parent->keys + merge_idx, parent->keys + merge_idx + 1,
+                       (parent->num_keys - 1 - merge_idx) * sizeof(KeyT));
+          std::memmove(parent->children + merge_idx + 1,
+                       parent->children + merge_idx + 2,
+                       (parent->num_keys - 1 - merge_idx) * sizeof(void*));
+          parent->num_keys--;
+          parent->keys[parent->num_keys] = std::numeric_limits<KeyT>::max();
+          parent->children[parent->num_keys + 1] = nullptr;
+
+          // If root internal node becomes empty, shrink tree height to 0
+          if (parent->num_keys == 0 && parent == root_ && tree_height_ == 1) {
+            delete parent;
+            num_internals_--;
+            root_ = l_leaf;
+            tree_height_ = 0;
+          }
+        }
+      }
+    }
+
+    return 1;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Capacity & Iteration
+  // ---------------------------------------------------------------------------
+
+  void clear() {
+    DestroySubtree(root_, tree_height_);
+    root_ = nullptr;
+    first_leaf_ = nullptr;
+    last_leaf_ = nullptr;
+    tree_height_ = 0;
+    num_elements_ = 0;
+    num_leaves_ = 0;
+    num_internals_ = 0;
+  }
+
+  size_t size() const { return num_elements_; }
+  bool empty() const { return num_elements_ == 0; }
+  size_t height() const { return tree_height_; }
+  size_t AllocatedBytes() const {
+    return num_leaves_ * sizeof(Leaf) + num_internals_ * sizeof(Internal);
+  }
+
+  iterator begin() { return iterator(first_leaf_, 0, last_leaf_); }
+  iterator end() { return iterator(nullptr, 0, last_leaf_); }
+  const_iterator begin() const {
+    return const_iterator(first_leaf_, 0, last_leaf_);
+  }
+  const_iterator end() const { return const_iterator(nullptr, 0, last_leaf_); }
+  const_iterator cbegin() const { return begin(); }
+  const_iterator cend() const { return end(); }
+
+  reverse_iterator rbegin() { return reverse_iterator(end()); }
+  reverse_iterator rend() { return reverse_iterator(begin()); }
+  const_reverse_iterator rbegin() const {
+    return const_reverse_iterator(end());
+  }
+  const_reverse_iterator rend() const {
+    return const_reverse_iterator(begin());
+  }
+  const_reverse_iterator crbegin() const {
+    return const_reverse_iterator(cend());
+  }
+  const_reverse_iterator crend() const {
+    return const_reverse_iterator(cbegin());
+  }
+
+ private:
+  std::pair<iterator, bool> InsertSetInternal(KeyT key) {
     // Handle empty tree initialization
-    if (root_ == nullptr) {
+    if (HWY_UNLIKELY(root_ == nullptr)) {
       first_leaf_ = last_leaf_ = new Leaf();
       num_leaves_ = 1;
       CompressIntoLeaf(first_leaf_, &key, 1);
       root_ = first_leaf_;
       tree_height_ = 0;
       num_elements_ = 1;
-      return {const_iterator(first_leaf_, 0, last_leaf_), true};
+      return {iterator(first_leaf_, 0, last_leaf_), true};
     }
 
-    // Handle single-node tree (height == 0)
+    // Root leaf handling (height == 0)
     if (tree_height_ == 0) {
       auto* leaf = static_cast<Leaf*>(root_);
       size_t slot = 0;
+      // Check for duplicate key (set semantics)
       if (CompactLeafContains(leaf, key, &slot)) {
-        return {const_iterator(leaf, slot, last_leaf_), false};
+        return {iterator(leaf, slot, last_leaf_), false};
       }
 
-      if (HWY_LIKELY(TryFastInsertIntoLeaf(leaf, key, slot))) {
+      // Tier 1: Fast-path in-place insert without recompression
+      if (HWY_LIKELY(TryFastInsertIntoLeaf<Traits>(leaf, key, slot))) {
         num_elements_++;
-        return {const_iterator(leaf, slot, last_leaf_), true};
+        return {iterator(leaf, slot, last_leaf_), true};
       }
 
+      // Tier 2: Slow-path mode widening (upgrades compression mode if leaf has
+      // capacity)
       if (CanLeafFitInsert(leaf, key)) {
         InsertIntoLeaf(leaf, key);
         num_elements_++;
         return {find(key), true};
       }
 
-      // Root leaf split
+      // Tier 3: Root leaf split (allocates new leaf and creates root internal
+      // node)
       auto* new_leaf = new Leaf();
       num_leaves_++;
       KeyT promo_key = 0;
@@ -1275,6 +2189,7 @@ class CompactBTreeSet {
       root_ = new_root;
       tree_height_ = 1;
       num_elements_++;
+
       return {find(key), true};
     }
 
@@ -1287,23 +2202,22 @@ class CompactBTreeSet {
     for (uint16_t lvl = tree_height_; lvl > 0; --lvl) {
       auto* internal = static_cast<Internal*>(curr);
       path[lvl] = internal;
-      size_t c_idx = FindCompactChild(internal, key);
-      child_indices[lvl] = c_idx;
-      curr = internal->children[c_idx];
+      size_t child_idx = FindCompactChild(internal, key);
+      child_indices[lvl] = child_idx;
+      curr = internal->children[child_idx];
     }
 
     auto* leaf = static_cast<Leaf*>(curr);
-
-    // Check for duplicate key (set semantics)
     size_t slot = 0;
+    // Check for duplicate key (set semantics)
     if (CompactLeafContains(leaf, key, &slot)) {
-      return {const_iterator(leaf, slot, last_leaf_), false};
+      return {iterator(leaf, slot, last_leaf_), false};
     }
 
     // Tier 1: Fast-path in-place insert without recompression
-    if (HWY_LIKELY(TryFastInsertIntoLeaf(leaf, key, slot))) {
+    if (HWY_LIKELY(TryFastInsertIntoLeaf<Traits>(leaf, key, slot))) {
       num_elements_++;
-      return {const_iterator(leaf, slot, last_leaf_), true};
+      return {iterator(leaf, slot, last_leaf_), true};
     }
 
     // Tier 2: Slow-path mode widening (upgrades compression mode if leaf has
@@ -1331,19 +2245,17 @@ class CompactBTreeSet {
     leaf->SetNext(new_leaf);
     num_elements_++;
 
-    void* promo_child = new_leaf;
-
     // Propagate separator keys and splits up ancestor internal levels
+    void* promo_child = new_leaf;
     for (uint16_t lvl = 1; lvl <= tree_height_; ++lvl) {
-      auto* parent = path[lvl];
-      size_t c_idx = child_indices[lvl];
-
+      Internal* parent = path[lvl];
       // Case A: Parent has room (num_keys < 16).
       // Shift keys and children right of c_idx to insert the new entry.
-      if (parent->num_keys < Internal::kCapacity) {
-        for (size_t i = parent->num_keys; i > c_idx; --i) {
-          parent->keys[i] = parent->keys[i - 1];
-          parent->children[i + 1] = parent->children[i];
+      if (HWY_LIKELY(parent->num_keys < Internal::kCapacity)) {
+        size_t c_idx = child_indices[lvl];
+        for (size_t k = parent->num_keys; k > c_idx; --k) {
+          parent->keys[k] = parent->keys[k - 1];
+          parent->children[k + 1] = parent->children[k];
         }
         parent->keys[c_idx] = promo_key;
         parent->children[c_idx + 1] = promo_child;
@@ -1359,6 +2271,7 @@ class CompactBTreeSet {
       constexpr size_t kTotalK = Internal::kCapacity + 1;
       KeyT temp_keys[kTotalK];
       void* temp_children[kTotalK + 1];
+      size_t c_idx = child_indices[lvl];
 
       for (size_t i = 0; i < c_idx; ++i) {
         temp_keys[i] = parent->keys[i];
@@ -1407,138 +2320,391 @@ class CompactBTreeSet {
     return {find(key), true};
   }
 
-  template <typename... Args>
-  std::pair<const_iterator, bool> emplace(Args&&... args) {
-    return insert(KeyT(std::forward<Args>(args)...));
-  }
+  template <typename V>
+  std::pair<iterator, bool> InsertMapInternal(KeyT key, const V& value,
+                                              bool assign_if_exists) {
+    // Handle empty tree initialization
+    if (HWY_UNLIKELY(root_ == nullptr)) {
+      first_leaf_ = last_leaf_ = new Leaf();
+      num_leaves_ = 1;
+      CompressIntoLeaf(first_leaf_, &key, &value, 1);
+      root_ = first_leaf_;
+      tree_height_ = 0;
+      num_elements_ = 1;
+      return {iterator(first_leaf_, 0, last_leaf_), true};
+    }
 
-  // Erases a key from the set. Returns 1 if erased, 0 if not found.
-  size_t erase(KeyT key) {
-    if (root_ == nullptr || num_elements_ == 0) return 0;
-
-    // Handle single-node tree (height == 0)
+    // Root leaf handling (height == 0)
     if (tree_height_ == 0) {
       auto* leaf = static_cast<Leaf*>(root_);
       size_t slot = 0;
-      if (!CompactLeafContains(leaf, key, &slot)) return 0;
-
-      TryFastEraseFromLeaf(leaf, slot);
-      num_elements_--;
-      if (leaf->NumKeys() == 0) {
-        delete leaf;
-        root_ = nullptr;
-        first_leaf_ = nullptr;
-        last_leaf_ = nullptr;
-        num_leaves_ = 0;
+      // Check for existing key (map assign semantics)
+      if (CompactLeafContains(leaf, key, &slot)) {
+        if (assign_if_exists) {
+          leaf->Values()[slot] = value;
+        }
+        return {iterator(leaf, slot, last_leaf_), false};
       }
-      return 1;
+
+      // Tier 1: Fast-path in-place insert without recompression
+      if (HWY_LIKELY(TryFastInsertIntoLeaf<Traits>(leaf, key, value, slot))) {
+        num_elements_++;
+        return {iterator(leaf, slot, last_leaf_), true};
+      }
+
+      // Tier 2: Slow-path mode widening (upgrades compression mode if leaf has
+      // capacity)
+      if (CanLeafFitInsert(leaf, key)) {
+        InsertIntoLeaf(leaf, key, value);
+        num_elements_++;
+        return {find(key), true};
+      }
+
+      // Tier 3: Root leaf split (allocates new leaf and creates root internal
+      // node)
+      auto* new_leaf = new Leaf();
+      num_leaves_++;
+      KeyT promo_key = 0;
+      SplitLeafNode(leaf, new_leaf, key, value, &promo_key);
+
+      new_leaf->SetNext(leaf->Next());
+      new_leaf->SetPrev(leaf);
+      if (leaf->Next() != nullptr) {
+        leaf->Next()->SetPrev(new_leaf);
+      }
+      leaf->SetNext(new_leaf);
+      last_leaf_ = new_leaf;
+
+      auto* new_root = new Internal();
+      num_internals_++;
+      new_root->keys[0] = promo_key;
+      new_root->children[0] = leaf;
+      new_root->children[1] = new_leaf;
+      new_root->num_keys = 1;
+      root_ = new_root;
+      tree_height_ = 1;
+      num_elements_++;
+
+      return {find(key), true};
     }
 
-    // Multi-level tree: Record descent path from root to target leaf
+    // General case (height >= 1): Record descent path from root to target
+    // leaf (ancestors are saved on stack to propagate parent splits without
+    // recursion).
     Internal* path[kMaxTreeHeight];
     size_t child_indices[kMaxTreeHeight];
     void* curr = root_;
     for (uint16_t lvl = tree_height_; lvl > 0; --lvl) {
       auto* internal = static_cast<Internal*>(curr);
       path[lvl] = internal;
-      size_t c_idx = FindCompactChild(internal, key);
-      child_indices[lvl] = c_idx;
-      curr = internal->children[c_idx];
+      size_t child_idx = FindCompactChild(internal, key);
+      child_indices[lvl] = child_idx;
+      curr = internal->children[child_idx];
     }
+
     auto* leaf = static_cast<Leaf*>(curr);
-
-    // Check if key exists in leaf
     size_t slot = 0;
-    if (!CompactLeafContains(leaf, key, &slot)) return 0;
-
-    // In-place fast erase from leaf
-    TryFastEraseFromLeaf(leaf, slot);
-    num_elements_--;
-
-    // Underflow Handling: If leaf has <= Leaf::kMax16 / 2 keys, attempt merge
-    // with adjacent siblings
-    Internal* parent = path[1];
-    size_t c_idx = child_indices[1];
-    if (leaf->NumKeys() <= Leaf::kMax16 / 2) {
-      // Determine merge index: right sibling (c_idx) or left sibling (c_idx -
-      // 1)
-      const size_t merge_idx =
-          (c_idx + 1 <= parent->num_keys)
-              ? c_idx
-              : (c_idx > 0 ? c_idx - 1 : static_cast<size_t>(-1));
-      if (merge_idx != static_cast<size_t>(-1)) {
-        auto* left = static_cast<Leaf*>(parent->children[merge_idx]);
-        auto* right = static_cast<Leaf*>(parent->children[merge_idx + 1]);
-        if (CanMergeCompactLeaves(left, right)) {
-          MergeCompactLeaves(left, right, last_leaf_);
-          num_leaves_--;
-
-          // Remove separator key and child pointer from parent
-          std::memmove(parent->keys + merge_idx, parent->keys + merge_idx + 1,
-                       (parent->num_keys - 1 - merge_idx) * sizeof(KeyT));
-          std::memmove(parent->children + merge_idx + 1,
-                       parent->children + merge_idx + 2,
-                       (parent->num_keys - 1 - merge_idx) * sizeof(void*));
-          parent->num_keys--;
-          parent->keys[parent->num_keys] = std::numeric_limits<KeyT>::max();
-          parent->children[parent->num_keys + 1] = nullptr;
-
-          // If root internal node becomes empty, shrink tree height to 0
-          if (parent->num_keys == 0 && parent == root_ && tree_height_ == 1) {
-            delete parent;
-            num_internals_--;
-            root_ = left;
-            tree_height_ = 0;
-          }
-        }
+    // Check for existing key (map assign semantics)
+    if (CompactLeafContains(leaf, key, &slot)) {
+      if (assign_if_exists) {
+        leaf->Values()[slot] = value;
       }
+      return {iterator(leaf, slot, last_leaf_), false};
     }
-    return 1;
+
+    // Tier 1: Fast-path in-place insert without recompression
+    if (HWY_LIKELY(TryFastInsertIntoLeaf<Traits>(leaf, key, value, slot))) {
+      num_elements_++;
+      return {iterator(leaf, slot, last_leaf_), true};
+    }
+
+    // Tier 2: Slow-path mode widening (upgrades compression mode if leaf has
+    // capacity)
+    if (CanLeafFitInsert(leaf, key)) {
+      InsertIntoLeaf(leaf, key, value);
+      num_elements_++;
+      return {find(key), true};
+    }
+
+    // Tier 3: Leaf split (leaf is full; allocates new leaf and divides
+    // keys/values 50/50)
+    auto* new_leaf = new Leaf();
+    num_leaves_++;
+    KeyT promo_key = 0;
+    SplitLeafNode(leaf, new_leaf, key, value, &promo_key);
+
+    new_leaf->SetNext(leaf->Next());
+    new_leaf->SetPrev(leaf);
+    if (leaf->Next() != nullptr) {
+      leaf->Next()->SetPrev(new_leaf);
+    } else {
+      last_leaf_ = new_leaf;
+    }
+    leaf->SetNext(new_leaf);
+    num_elements_++;
+
+    // Propagate separator keys and splits up ancestor internal levels
+    void* promo_child = new_leaf;
+    for (uint16_t lvl = 1; lvl <= tree_height_; ++lvl) {
+      Internal* parent = path[lvl];
+      // Case A: Parent has room (num_keys < 16).
+      // Shift keys and children right of c_idx to insert the new entry.
+      if (HWY_LIKELY(parent->num_keys < Internal::kCapacity)) {
+        size_t c_idx = child_indices[lvl];
+        for (size_t k = parent->num_keys; k > c_idx; --k) {
+          parent->keys[k] = parent->keys[k - 1];
+          parent->children[k + 1] = parent->children[k];
+        }
+        parent->keys[c_idx] = promo_key;
+        parent->children[c_idx + 1] = promo_child;
+        parent->num_keys++;
+        return {find(key), true};
+      }
+
+      // Case B: Parent is full (16 keys, 17 children) -> Internal node split!
+      auto* new_internal = new Internal();
+      num_internals_++;
+
+      // Assemble all 17 keys and 18 children in sorted order on the stack.
+      constexpr size_t kTotalK = Internal::kCapacity + 1;
+      KeyT temp_keys[kTotalK];
+      void* temp_children[kTotalK + 1];
+      size_t c_idx = child_indices[lvl];
+
+      for (size_t i = 0; i < c_idx; ++i) {
+        temp_keys[i] = parent->keys[i];
+        temp_children[i] = parent->children[i];
+      }
+      temp_children[c_idx] = parent->children[c_idx];
+      temp_keys[c_idx] = promo_key;
+      temp_children[c_idx + 1] = promo_child;
+      for (size_t i = c_idx; i < parent->num_keys; ++i) {
+        temp_keys[i + 1] = parent->keys[i];
+        temp_children[i + 2] = parent->children[i + 1];
+      }
+
+      // Promote the middle key (index 8) to the next ancestor level.
+      constexpr size_t kMid = kTotalK / 2;
+      promo_key = temp_keys[kMid];
+      promo_child = new_internal;
+
+      // Left node (parent) keeps 8 keys and 9 children.
+      std::copy_n(temp_keys, kMid, parent->keys);
+      std::copy_n(temp_children, kMid + 1, parent->children);
+      parent->num_keys = static_cast<uint8_t>(kMid);
+      std::fill_n(parent->keys + kMid, Internal::kCapacity - kMid,
+                  std::numeric_limits<KeyT>::max());
+
+      // Right node (new_internal) gets 8 keys and 9 children.
+      const size_t right_k = kTotalK - kMid - 1;
+      std::copy_n(temp_keys + kMid + 1, right_k, new_internal->keys);
+      std::copy_n(temp_children + kMid + 1, right_k + 1,
+                  new_internal->children);
+      new_internal->num_keys = static_cast<uint8_t>(right_k);
+      std::fill_n(new_internal->keys + right_k, Internal::kCapacity - right_k,
+                  std::numeric_limits<KeyT>::max());
+    }
+
+    // Root split (grows tree height by 1)
+    auto* new_root = new Internal();
+    num_internals_++;
+    new_root->keys[0] = promo_key;
+    new_root->children[0] = root_;
+    new_root->children[1] = promo_child;
+    new_root->num_keys = 1;
+    root_ = new_root;
+    tree_height_++;
+
+    return {find(key), true};
   }
 
-  // Recursively deletes all nodes in the subtree.
+  template <typename V>
+  static CompactBTree BuildInternal(const KeyT* sorted_keys,
+                                    const V* sorted_values, size_t num_keys,
+                                    float fill_ratio) {
+    CompactBTree tree;
+    if (num_keys == 0) return tree;
+
+    tree.num_elements_ = num_keys;
+    fill_ratio = std::clamp(fill_ratio, 0.1f, 1.0f);
+
+    const size_t max_keys_8 =
+        std::max<size_t>(1, static_cast<size_t>(Leaf::kMax8 * fill_ratio));
+    const size_t max_keys_16 =
+        std::max<size_t>(1, static_cast<size_t>(Leaf::kMax16 * fill_ratio));
+    const size_t max_keys_32 =
+        std::max<size_t>(1, static_cast<size_t>(Leaf::kMax32 * fill_ratio));
+    const size_t max_keys_64 =
+        std::max<size_t>(1, static_cast<size_t>(Leaf::kMax64 * fill_ratio));
+
+    // Pointers to nodes at the current level being linked into parent internal
+    // nodes.
+    std::vector<void*> current_level_ptrs;
+    // Separator keys between adjacent children, used to populate internal node
+    // keys.
+    std::vector<KeyT> separators;
+    Leaf* prev_leaf = nullptr;
+
+    // Build compressed leaf level
+    for (size_t key_idx = 0; key_idx < num_keys;) {
+      auto* leaf = new Leaf();
+      tree.num_leaves_++;
+      if (tree.first_leaf_ == nullptr) tree.first_leaf_ = leaf;
+      if (prev_leaf != nullptr) {
+        prev_leaf->SetNext(leaf);
+        leaf->SetPrev(prev_leaf);
+      }
+
+      leaf->base_key = sorted_keys[key_idx];
+      const size_t remaining = num_keys - key_idx;
+      size_t count = 0;
+
+      // Select the narrowest compression mode that can accommodate the key
+      // range. Tries 8-bit, then 16-bit, then 32-bit, and falls back to raw
+      // 64-bit keys.
+      const size_t try8 = std::min(remaining, max_keys_8);
+      if (try8 > 0 && static_cast<uint64_t>(sorted_keys[key_idx + try8 - 1] -
+                                            leaf->base_key) <= 255) {
+        leaf->SetBitMode(kMode8Bit);
+        count = try8;
+        auto* offsets = HWY_RCAST_ALIGNED(uint8_t*, leaf->KeyData());
+        for (size_t k = 0; k < count; ++k) {
+          offsets[k] =
+              static_cast<uint8_t>(sorted_keys[key_idx + k] - leaf->base_key);
+        }
+        // Pad unused trailing slots with sentinels for SIMD scanning.
+        std::fill_n(offsets + count, Leaf::kMax8 - count, 0xFF);
+      } else if (const size_t try16 = std::min(remaining, max_keys_16);
+                 try16 > 0 &&
+                 static_cast<uint64_t>(sorted_keys[key_idx + try16 - 1] -
+                                       leaf->base_key) <= 65535) {
+        leaf->SetBitMode(kMode16Bit);
+        count = try16;
+        auto* offsets = HWY_RCAST_ALIGNED(uint16_t*, leaf->KeyData());
+        for (size_t k = 0; k < count; ++k) {
+          offsets[k] =
+              static_cast<uint16_t>(sorted_keys[key_idx + k] - leaf->base_key);
+        }
+        // Pad unused trailing slots with sentinels for SIMD scanning.
+        std::fill_n(offsets + count, Leaf::kMax16 - count, 0xFFFF);
+      } else if (const size_t try32 = std::min(remaining, max_keys_32);
+                 try32 > 0 &&
+                 (sizeof(KeyT) == 4 ||
+                  static_cast<uint64_t>(sorted_keys[key_idx + try32 - 1] -
+                                        leaf->base_key) <= 0xFFFFFFFFULL)) {
+        leaf->SetBitMode(kMode32Bit);
+        count = try32;
+        if constexpr (sizeof(KeyT) == 4) {
+          auto* raw_keys = HWY_RCAST_ALIGNED(uint32_t*, leaf->KeyData());
+          for (size_t k = 0; k < count; ++k) {
+            raw_keys[k] = static_cast<uint32_t>(sorted_keys[key_idx + k]);
+          }
+          std::fill_n(raw_keys + count, Leaf::kMax32 - count, 0xFFFFFFFF);
+        } else {
+          auto* offsets = HWY_RCAST_ALIGNED(uint32_t*, leaf->KeyData());
+          for (size_t k = 0; k < count; ++k) {
+            offsets[k] = static_cast<uint32_t>(sorted_keys[key_idx + k] -
+                                               leaf->base_key);
+          }
+          // Pad unused trailing slots with sentinels for SIMD scanning.
+          std::fill_n(offsets + count, Leaf::kMax32 - count, 0xFFFFFFFF);
+        }
+      } else {
+        leaf->SetBitMode(kModeRaw64);
+        count = std::min(remaining, max_keys_64);
+        auto* raw_keys = HWY_RCAST_ALIGNED(uint64_t*, leaf->KeyData());
+        for (size_t k = 0; k < count; ++k) {
+          raw_keys[k] = static_cast<uint64_t>(sorted_keys[key_idx + k]);
+        }
+        std::fill_n(raw_keys + count, Leaf::kMax64 - count,
+                    0xFFFFFFFFFFFFFFFFULL);
+      }
+
+      if constexpr (Traits::kIsMap) {
+        auto* vals = leaf->Values();
+        for (size_t k = 0; k < count; ++k) {
+          vals[k] = sorted_values[key_idx + k];
+        }
+      }
+
+      leaf->SetNumKeys(static_cast<uint16_t>(count));
+      current_level_ptrs.push_back(leaf);
+
+      if (key_idx > 0) {
+        separators.push_back(leaf->base_key);
+      }
+
+      key_idx += count;
+      prev_leaf = leaf;
+    }
+
+    tree.last_leaf_ = prev_leaf;
+
+    // If single leaf, root is the leaf
+    if (current_level_ptrs.size() == 1) {
+      tree.root_ = current_level_ptrs[0];
+      tree.tree_height_ = 0;
+      return tree;
+    }
+
+    // Build internal levels bottom-up until a single root node remains.
+    size_t current_height = 0;
+    while (current_level_ptrs.size() > 1) {
+      current_height++;
+      std::vector<void*> next_level_ptrs;
+      std::vector<KeyT> next_separators;
+
+      constexpr size_t kBranching = Internal::kMaxChildren;
+      size_t num_nodes = current_level_ptrs.size();
+
+      for (size_t idx = 0; idx < num_nodes;) {
+        auto* internal = new Internal();
+        tree.num_internals_++;
+
+        size_t children_count = std::min(kBranching, num_nodes - idx);
+        // Link child node pointers into this internal node.
+        for (size_t c = 0; c < children_count; ++c) {
+          internal->children[c] = current_level_ptrs[idx + c];
+          // Set separator keys (N children are separated by N - 1 keys).
+          if (c > 0) {
+            internal->keys[c - 1] = separators[idx + c - 1];
+          }
+        }
+        internal->num_keys = static_cast<uint8_t>(children_count - 1);
+        next_level_ptrs.push_back(internal);
+
+        // Propagate the delimiter separating this internal node from the
+        // previous one.
+        if (idx > 0) {
+          next_separators.push_back(separators[idx - 1]);
+        }
+
+        idx += children_count;
+      }
+
+      // Advance up to the next internal level.
+      current_level_ptrs = std::move(next_level_ptrs);
+      separators = std::move(next_separators);
+    }
+
+    tree.root_ = current_level_ptrs[0];
+    tree.tree_height_ = current_height;
+    return tree;
+  }
+
   static void DestroySubtree(void* node, size_t height) {
     if (node == nullptr) return;
     if (height == 0) {
       delete static_cast<Leaf*>(node);
-    } else {
-      auto* internal = static_cast<Internal*>(node);
-      for (size_t i = 0; i <= internal->num_keys; ++i) {
-        if (internal->children[i] != nullptr) {
-          DestroySubtree(internal->children[i], height - 1);
-        }
-      }
-      delete internal;
+      return;
     }
+    auto* internal = static_cast<Internal*>(node);
+    for (size_t i = 0; i <= internal->num_keys; ++i) {
+      DestroySubtree(internal->children[i], height - 1);
+    }
+    delete internal;
   }
 
-  // Erases all elements and frees all tree nodes.
-  void clear() {
-    DestroySubtree(root_, tree_height_);
-    root_ = nullptr;
-    first_leaf_ = nullptr;
-    last_leaf_ = nullptr;
-    tree_height_ = 0;
-    num_elements_ = 0;
-    num_leaves_ = 0;
-    num_internals_ = 0;
-  }
-
-  // Returns the number of elements in the set.
-  size_t size() const { return num_elements_; }
-
-  // Returns true if the set contains no elements.
-  bool empty() const { return num_elements_ == 0; }
-
-  // Returns the height of the tree (0 for leaf-only root).
-  size_t height() const { return tree_height_; }
-
-  // Returns the total heap memory allocated for leaf and internal nodes.
-  size_t AllocatedBytes() const {
-    return num_leaves_ * sizeof(Leaf) + num_internals_ * sizeof(Internal);
-  }
-
- private:
   void* root_ = nullptr;
   Leaf* first_leaf_ = nullptr;
   Leaf* last_leaf_ = nullptr;
@@ -1548,6 +2714,16 @@ class CompactBTreeSet {
   size_t num_internals_ = 0;
 };
 
+// -----------------------------------------------------------------------------
+// Public Type Aliases
+// -----------------------------------------------------------------------------
+
+template <typename KeyT>
+using CompactBTreeSet = CompactBTree<CompactSetTraits<KeyT>>;
+
+template <typename KeyT, typename ValueT>
+using CompactBTreeMap = CompactBTree<CompactMapTraits<KeyT, ValueT>>;
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -1555,6 +2731,7 @@ HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
 namespace hwy {
+using HWY_NAMESPACE::CompactBTreeMap;
 using HWY_NAMESPACE::CompactBTreeSet;
 }  // namespace hwy
 #endif
