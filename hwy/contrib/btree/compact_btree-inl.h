@@ -53,7 +53,7 @@ namespace HWY_NAMESPACE {
 namespace hn = hwy::HWY_NAMESPACE;
 
 // -----------------------------------------------------------------------------
-// Bit-Mode Compression Enums
+// Enums
 // -----------------------------------------------------------------------------
 
 // Controls how keys within a leaf node are compressed relative to base_key.
@@ -64,6 +64,13 @@ enum CompactBitMode : uint8_t {
   kMode16Bit = 1,  // 16-bit unsigned offsets (holds up to 246/244 keys)
   kMode32Bit = 2,  // 32-bit offsets/keys (holds up to 123/122 keys)
   kModeRaw64 = 3,  // 64-bit raw uncompressed keys (holds up to 61 keys)
+};
+
+// Controls whether leaf slot scanning computes lower_bound (< target) or
+// upper_bound (<= target).
+enum class BoundMode : uint8_t {
+  kLowerBound = 0,  // Finds first slot where key >= target (strict Lt scan)
+  kUpperBound = 1,  // Finds first slot where key > target (Le scan)
 };
 
 // -----------------------------------------------------------------------------
@@ -398,8 +405,10 @@ HWY_INLINE auto GetCompactKey(const LeafNode* HWY_RESTRICT leaf, size_t slot) {
 }
 
 // Given an array of compressed offsets, returns
-// the number of elements strictly less than target_val (the lower_bound slot).
-template <typename OffsetT, size_t kTotal>
+// the number of elements strictly less than target_val (kLowerBound) or
+// less than or equal to target_val (kUpperBound).
+template <BoundMode kBound = BoundMode::kLowerBound, typename OffsetT,
+          size_t kTotal>
 HWY_INLINE size_t ScanCompactOffsets(const void* HWY_RESTRICT data,
                                      OffsetT target_val) {
   const auto* offsets = static_cast<const OffsetT*>(data);
@@ -410,14 +419,22 @@ HWY_INLINE size_t ScanCompactOffsets(const void* HWY_RESTRICT data,
   size_t i = 0;
   for (; i + N <= kTotal; i += N) {
     const auto v = hn::Load(d, offsets + i);
-    count += hn::CountTrue(d, hn::Lt(v, v_target));
+    if constexpr (kBound == BoundMode::kLowerBound) {
+      count += hn::CountTrue(d, hn::Lt(v, v_target));
+    } else {
+      count += hn::CountTrue(d, hn::Le(v, v_target));
+    }
   }
 
   if (i < kTotal) {
     const size_t remaining = kTotal - i;
     const auto v = hn::LoadU(d, offsets + i);
     const auto mask = hn::FirstN(d, remaining);
-    count += hn::CountTrue(d, hn::MaskedLt(mask, v, v_target));
+    if constexpr (kBound == BoundMode::kLowerBound) {
+      count += hn::CountTrue(d, hn::MaskedLt(mask, v, v_target));
+    } else {
+      count += hn::CountTrue(d, hn::MaskedLe(mask, v, v_target));
+    }
   }
 
   return count;
@@ -450,35 +467,41 @@ HWY_INLINE bool HasCompactOffset(const void* HWY_RESTRICT data,
   return !hn::AllFalse(d, any_match);
 }
 
-// Finds the lower_bound slot index (0..num_keys) for target within a leaf node.
-template <typename LeafNode, typename KeyT>
+// Finds the lower_bound or upper_bound slot index (0..num_keys) for target
+// within a leaf node.
+template <BoundMode kBound = BoundMode::kLowerBound, typename LeafNode,
+          typename KeyT>
 HWY_INLINE size_t FindCompactLeafSlot(const LeafNode* HWY_RESTRICT leaf,
                                       KeyT target) {
   using Node = LeafNode;
-  if (HWY_UNLIKELY(target <= leaf->base_key)) return 0;
+  if constexpr (kBound == BoundMode::kLowerBound) {
+    if (HWY_UNLIKELY(target <= leaf->base_key)) return 0;
+  } else {
+    if (HWY_UNLIKELY(target < leaf->base_key)) return 0;
+  }
 
   const uint64_t delta = static_cast<uint64_t>(target - leaf->base_key);
   const uint8_t mode = leaf->BitMode();
 
   if (HWY_LIKELY(mode == kMode16Bit)) {
     if (HWY_UNLIKELY(delta > 65535)) return leaf->NumKeys();
-    return ScanCompactOffsets<uint16_t, Node::kMax16>(
+    return ScanCompactOffsets<kBound, uint16_t, Node::kMax16>(
         leaf->KeyData(), static_cast<uint16_t>(delta));
   } else if (mode == kMode8Bit) {
     if (HWY_UNLIKELY(delta > 255)) return leaf->NumKeys();
-    return ScanCompactOffsets<uint8_t, Node::kMax8>(
+    return ScanCompactOffsets<kBound, uint8_t, Node::kMax8>(
         leaf->KeyData(), static_cast<uint8_t>(delta));
   } else if (mode == kMode32Bit) {
     if constexpr (sizeof(KeyT) == 4) {
-      return ScanCompactOffsets<uint32_t, Node::kMax32>(
+      return ScanCompactOffsets<kBound, uint32_t, Node::kMax32>(
           leaf->KeyData(), static_cast<uint32_t>(target));
     } else {
       if (HWY_UNLIKELY(delta > 0xFFFFFFFFULL)) return leaf->NumKeys();
-      return ScanCompactOffsets<uint32_t, Node::kMax32>(
+      return ScanCompactOffsets<kBound, uint32_t, Node::kMax32>(
           leaf->KeyData(), static_cast<uint32_t>(delta));
     }
   } else {
-    return ScanCompactOffsets<uint64_t, Node::kMax64>(
+    return ScanCompactOffsets<kBound, uint64_t, Node::kMax64>(
         leaf->KeyData(), static_cast<uint64_t>(target));
   }
 }
@@ -1692,6 +1715,46 @@ class CompactBTree {
       return iterator(leaf, slot, last_leaf_);
     }
     if (HWY_LIKELY(leaf->Next() != nullptr && leaf->Next()->NumKeys() > 0)) {
+      return iterator(leaf->Next(), 0, last_leaf_);
+    }
+    return end();
+  }
+
+  // Returns an iterator to the first key that is > target, or end() if none.
+  HWY_INLINE const_iterator upper_bound(KeyT target) const {
+    if (HWY_UNLIKELY(root_ == nullptr)) return end();
+    void* curr = root_;
+    for (uint16_t lvl = tree_height_; lvl > 0; --lvl) {
+      auto* internal = static_cast<Internal*>(curr);
+      size_t child_idx = FindCompactChild(internal, target);
+      curr = internal->children[child_idx];
+    }
+    auto* leaf = static_cast<Leaf*>(curr);
+    size_t slot = FindCompactLeafSlot<BoundMode::kUpperBound>(leaf, target);
+    if (slot < leaf->NumKeys()) {
+      return const_iterator(leaf, slot, last_leaf_);
+    }
+    if (leaf->Next() != nullptr && leaf->Next()->NumKeys() > 0) {
+      return const_iterator(leaf->Next(), 0, last_leaf_);
+    }
+    return end();
+  }
+
+  // Returns an iterator to the first key that is > target, or end() if none.
+  HWY_INLINE iterator upper_bound(KeyT target) {
+    if (HWY_UNLIKELY(root_ == nullptr)) return end();
+    void* curr = root_;
+    for (uint16_t lvl = tree_height_; lvl > 0; --lvl) {
+      auto* internal = static_cast<Internal*>(curr);
+      size_t child_idx = FindCompactChild(internal, target);
+      curr = internal->children[child_idx];
+    }
+    auto* leaf = static_cast<Leaf*>(curr);
+    size_t slot = FindCompactLeafSlot<BoundMode::kUpperBound>(leaf, target);
+    if (slot < leaf->NumKeys()) {
+      return iterator(leaf, slot, last_leaf_);
+    }
+    if (leaf->Next() != nullptr && leaf->Next()->NumKeys() > 0) {
       return iterator(leaf->Next(), 0, last_leaf_);
     }
     return end();

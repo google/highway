@@ -252,6 +252,57 @@ void RunBenchmarkSuite(size_t num_keys) {
       "  hwy::CompactBTreeSet : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
       compact_lb_ns, 1000.0 / compact_lb_ns, absl_lb_ns / compact_lb_ns);
 
+  // 4b. Ordered Range Queries (UpperBound)
+  uint64_t hwy_ub_sum = 0, compact_ub_sum = 0, absl_ub_sum = 0, std_ub_sum = 0;
+
+  const double u0 = hwy::platform::Now();
+  for (size_t i = 0; i < kNumQueries; ++i) {
+    auto it = std_tree.upper_bound(queries[i]);
+    if (it != std_tree.end()) std_ub_sum += *it;
+  }
+  hwy::PreventElision(std_ub_sum);
+  const double u1 = hwy::platform::Now();
+
+  for (size_t i = 0; i < kNumQueries; ++i) {
+    auto it = absl_tree.upper_bound(queries[i]);
+    if (it != absl_tree.end()) absl_ub_sum += *it;
+  }
+  hwy::PreventElision(absl_ub_sum);
+  const double u2 = hwy::platform::Now();
+
+  for (size_t i = 0; i < kNumQueries; ++i) {
+    auto it = hwy_tree.upper_bound(queries[i]);
+    if (it != hwy_tree.end()) hwy_ub_sum += *it;
+  }
+  hwy::PreventElision(hwy_ub_sum);
+  const double u3 = hwy::platform::Now();
+
+  for (size_t i = 0; i < kNumQueries; ++i) {
+    auto it = compact_tree.upper_bound(queries[i]);
+    if (it != compact_tree.end()) compact_ub_sum += *it;
+  }
+  hwy::PreventElision(compact_ub_sum);
+  const double u4 = hwy::platform::Now();
+
+  const double std_ub_ns = (u1 - u0) * 1e9 / kNumQueries;
+  const double absl_ub_ns = (u2 - u1) * 1e9 / kNumQueries;
+  const double hwy_ub_ns = (u3 - u2) * 1e9 / kNumQueries;
+  const double compact_ub_ns = (u4 - u3) * 1e9 / kNumQueries;
+
+  printf(
+      "\nUpperBound Range Query Latency (1M queries on 100%% Bulk-Loaded "
+      "Tree):\n");
+  printf("  std::set             : %6.2f ns/op (%6.2f Mops/s)\n", std_ub_ns,
+         1000.0 / std_ub_ns);
+  printf("  absl::btree_set      : %6.2f ns/op (%6.2f Mops/s)\n", absl_ub_ns,
+         1000.0 / absl_ub_ns);
+  printf(
+      "  hwy::BTreeSet        : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
+      hwy_ub_ns, 1000.0 / hwy_ub_ns, absl_ub_ns / hwy_ub_ns);
+  printf(
+      "  hwy::CompactBTreeSet : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
+      compact_ub_ns, 1000.0 / compact_ub_ns, absl_ub_ns / compact_ub_ns);
+
   // 5. Batch Point Lookups (ContainsBatch - 8-way pipelined prefetch)
   auto batch_found = std::make_unique<bool[]>(kNumQueries);
   const double b0 = hwy::platform::Now();
@@ -982,8 +1033,7 @@ void RunMapBenchmarkSuite(size_t num_keys) {
       absl_lookup_ns / compact_lookup_ns);
 
   // 4. Ordered Range Queries (LowerBound)
-  uint64_t hwy_lb_sum = 0, compact_lb_sum = 0, absl_lb_sum = 0,
-           std_lb_sum = 0;
+  uint64_t hwy_lb_sum = 0, compact_lb_sum = 0, absl_lb_sum = 0, std_lb_sum = 0;
 
   const double r0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumQueries; ++i) {
@@ -1026,14 +1076,67 @@ void RunMapBenchmarkSuite(size_t num_keys) {
       "Map):\n");
   printf("  std::map             : %6.2f ns/op (%6.2f Mops/s)\n", std_lb_ns,
          1000.0 / std_lb_ns);
-  printf("  absl::btree_map      : %6.2f ns/op (%6.2f Mops/s)\n",
-         absl_lb_ns, 1000.0 / absl_lb_ns);
+  printf("  absl::btree_map      : %6.2f ns/op (%6.2f Mops/s)\n", absl_lb_ns,
+         1000.0 / absl_lb_ns);
   printf(
       "  hwy::BTreeMap        : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
       hwy_lb_ns, 1000.0 / hwy_lb_ns, absl_lb_ns / hwy_lb_ns);
   printf(
       "  hwy::CompactBTreeMap : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
       compact_lb_ns, 1000.0 / compact_lb_ns, absl_lb_ns / compact_lb_ns);
+
+  // 4b. Ordered Range Queries (UpperBound)
+  uint64_t hwy_ub_sum = 0, compact_ub_sum = 0, absl_ub_sum = 0, std_ub_sum = 0;
+
+  const double u0 = hwy::platform::Now();
+  for (size_t i = 0; i < kNumQueries; ++i) {
+    auto it = std_map.upper_bound(queries[i]);
+    if (it != std_map.end()) std_ub_sum += static_cast<uint64_t>(it->second);
+  }
+  hwy::PreventElision(std_ub_sum);
+  const double u1 = hwy::platform::Now();
+
+  for (size_t i = 0; i < kNumQueries; ++i) {
+    auto it = absl_map.upper_bound(queries[i]);
+    if (it != absl_map.end()) absl_ub_sum += static_cast<uint64_t>(it->second);
+  }
+  hwy::PreventElision(absl_ub_sum);
+  const double u2 = hwy::platform::Now();
+
+  for (size_t i = 0; i < kNumQueries; ++i) {
+    auto it = hwy_map.upper_bound(queries[i]);
+    if (it != hwy_map.end()) hwy_ub_sum += static_cast<uint64_t>(it->second);
+  }
+  hwy::PreventElision(hwy_ub_sum);
+  const double u3 = hwy::platform::Now();
+
+  for (size_t i = 0; i < kNumQueries; ++i) {
+    auto it = compact_map.upper_bound(queries[i]);
+    if (it != compact_map.end()) {
+      compact_ub_sum += static_cast<uint64_t>(it->second);
+    }
+  }
+  hwy::PreventElision(compact_ub_sum);
+  const double u4 = hwy::platform::Now();
+
+  const double std_ub_ns = (u1 - u0) * 1e9 / kNumQueries;
+  const double absl_ub_ns = (u2 - u1) * 1e9 / kNumQueries;
+  const double hwy_ub_ns = (u3 - u2) * 1e9 / kNumQueries;
+  const double compact_ub_ns = (u4 - u3) * 1e9 / kNumQueries;
+
+  printf(
+      "\nUpperBound Range Query Latency (1M queries on 100%% Bulk-Loaded "
+      "Map):\n");
+  printf("  std::map             : %6.2f ns/op (%6.2f Mops/s)\n", std_ub_ns,
+         1000.0 / std_ub_ns);
+  printf("  absl::btree_map      : %6.2f ns/op (%6.2f Mops/s)\n", absl_ub_ns,
+         1000.0 / absl_ub_ns);
+  printf(
+      "  hwy::BTreeMap        : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
+      hwy_ub_ns, 1000.0 / hwy_ub_ns, absl_ub_ns / hwy_ub_ns);
+  printf(
+      "  hwy::CompactBTreeMap : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
+      compact_ub_ns, 1000.0 / compact_ub_ns, absl_ub_ns / compact_ub_ns);
 
   // 5. Batch Value Lookups (FindValueBatch - 8-way pipelined prefetch)
   std::vector<const ValueT*> batch_vals(kNumQueries);
@@ -1053,8 +1156,7 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   std::unique_ptr<bool[]> compact_batch_found(new bool[kNumQueries]);
   const double cmb0 = hwy::platform::Now();
   compact_map.LookupBatch(queries.data(), kNumQueries,
-                          compact_batch_vals.data(),
-                          compact_batch_found.get());
+                          compact_batch_vals.data(), compact_batch_found.get());
   const double cmb1 = hwy::platform::Now();
 
   uint64_t compact_batch_hits = 0;
@@ -1136,8 +1238,7 @@ void RunMapBenchmarkSuite(size_t num_keys) {
       "  hwy::CompactBTreeMap (Batch)  : %6.2f ns/op (%6.2f Mops/s) -> %.2fx "
       "vs Serial (%.2fx vs absl)\n",
       compact_batch_lb_ns, 1000.0 / compact_batch_lb_ns,
-      compact_lb_ns / compact_batch_lb_ns,
-      absl_lb_ns / compact_batch_lb_ns);
+      compact_lb_ns / compact_batch_lb_ns, absl_lb_ns / compact_batch_lb_ns);
 
   // 7. Dynamic Random Insertions & 8. Dynamic Deletions on Empty Map
   const size_t kNumMutations = std::min(num_keys, static_cast<size_t>(100000));
@@ -1260,8 +1361,7 @@ void RunMapBenchmarkSuite(size_t num_keys) {
       compact_ins_ns,
       static_cast<double>(compact_dyn_map_bytes) /
           (compact_dyn_map.size() + kNumErases),
-      compact_dyn_map_bytes / (1024.0 * 1024.0),
-      absl_ins_ns / compact_ins_ns);
+      compact_dyn_map_bytes / (1024.0 * 1024.0), absl_ins_ns / compact_ins_ns);
 
   const double std_erase_ns = (me_std_1 - me_std_0) * 1e9 / kNumErases;
   const double absl_erase_ns = (me_absl_1 - me_absl_0) * 1e9 / kNumErases;
@@ -1328,8 +1428,7 @@ void RunMapBenchmarkSuite(size_t num_keys) {
 
     // --- std::map ---
     const size_t std_inc_map_before = AllocatedBefore();
-    std::map<KeyT, ValueT> std_prebuilt_map(kv_pairs.begin(),
-                                            kv_pairs.end());
+    std::map<KeyT, ValueT> std_prebuilt_map(kv_pairs.begin(), kv_pairs.end());
     const double inc_std_0 = hwy::platform::Now();
     for (size_t i = 0; i < kNumIncremental; ++i) {
       std_prebuilt_map[inc_keys[i]] = inc_vals[i];
@@ -1453,8 +1552,7 @@ void RunMapBenchmarkSuite(size_t num_keys) {
           compact_inc_map_bytes / (1024.0 * 1024.0),
           absl_inc_ns / compact_inc_ns,
           100.0 *
-              (static_cast<double>(compact_inc_map_bytes) /
-                   absl_inc_map_bytes -
+              (static_cast<double>(compact_inc_map_bytes) / absl_inc_map_bytes -
                1.0));
     }
 
@@ -1471,21 +1569,18 @@ void RunMapBenchmarkSuite(size_t num_keys) {
         kNumIncremental, num_keys, std_prebuilt_map.size());
     printf("  std::map             : %6.2f ns/op (%5.1f B/pair, %5.2f MB)\n",
            std_dec_ns,
-           static_cast<double>(std_inc_map_del_bytes) /
-               std_prebuilt_map.size(),
+           static_cast<double>(std_inc_map_del_bytes) / std_prebuilt_map.size(),
            std_inc_map_del_bytes / (1024.0 * 1024.0));
     printf(
         "  absl::btree_map      : %6.2f ns/op (%5.1f B/pair, %5.2f MB)\n",
         absl_dec_ns,
-        static_cast<double>(absl_inc_map_del_bytes) /
-            absl_prebuilt_map.size(),
+        static_cast<double>(absl_inc_map_del_bytes) / absl_prebuilt_map.size(),
         absl_inc_map_del_bytes / (1024.0 * 1024.0));
     printf(
         "  hwy::BTreeMap        : %6.2f ns/op (%5.1f B/pair, %5.2f MB) -> "
         "%.2fx speedup vs absl\n",
         hwy_dec_ns,
-        static_cast<double>(hwy_inc_map_del_bytes) /
-            hwy_prebuilt_map.size(),
+        static_cast<double>(hwy_inc_map_del_bytes) / hwy_prebuilt_map.size(),
         hwy_inc_map_del_bytes / (1024.0 * 1024.0), absl_dec_ns / hwy_dec_ns);
     if (compact_inc_map_del_bytes <= absl_inc_map_del_bytes) {
       printf(
@@ -1675,8 +1770,8 @@ void RunWorstCaseMapBenchmarkSuite(size_t num_keys) {
   printf("\nWorst-Case Point Lookup Miss Latency (100%% Key Misses):\n");
   printf("  std::map             : %6.2f ns/op (%6.2f Mops/s)\n", std_miss_ns,
          1000.0 / std_miss_ns);
-  printf("  absl::btree_map      : %6.2f ns/op (%6.2f Mops/s)\n",
-         absl_miss_ns, 1000.0 / absl_miss_ns);
+  printf("  absl::btree_map      : %6.2f ns/op (%6.2f Mops/s)\n", absl_miss_ns,
+         1000.0 / absl_miss_ns);
   printf(
       "  hwy::BTreeMap        : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
       hwy_miss_ns, 1000.0 / hwy_miss_ns, absl_miss_ns / hwy_miss_ns);
