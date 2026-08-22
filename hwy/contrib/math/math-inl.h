@@ -165,7 +165,7 @@ HWY_NOINLINE V CallCbrt(const D d, VecArg<V> x) {
  *      Valid Range: [-39000, +39000]
  * @return cosine of 'x'
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Cos(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallCos(const D d, VecArg<V> x) {
@@ -182,7 +182,7 @@ HWY_NOINLINE V CallCos(const D d, VecArg<V> x) {
  * ~300 ULP. Valid Range: [-39000, +39000]
  * @return tangent of 'x'
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Tan(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallTan(const D d, VecArg<V> x) {
@@ -317,7 +317,7 @@ HWY_NOINLINE V CallLog2(const D d, VecArg<V> x) {
  *      Valid Range: [-39000, +39000]
  * @return sine of 'x'
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Sin(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallSin(const D d, VecArg<V> x) {
@@ -408,7 +408,7 @@ HWY_NOINLINE V CallLogGamma(const D d, VecArg<V> x) {
  *        Max Error: ULP = 1
  *      Valid Range: [-39000, +39000]
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE void SinCos(D d, V x, V& s, V& c);
 template <class D, class V>
 HWY_NOINLINE void CallSinCos(const D d, VecArg<V> x, V& s, V& c) {
@@ -2549,7 +2549,9 @@ HWY_INLINE V Cbrt(const D d, V x) {
   return y;
 }
 
-template <class D, class V>
+template <class D, class V,
+          hwy::EnableIf<
+              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
 HWY_INLINE V Cos(const D d, V x) {
   using T = TFromD<D>;
   impl::CosSinImpl<T> impl;
@@ -2840,7 +2842,9 @@ HWY_INLINE V Pow(D d, V a, V b) {
   return result;
 }
 
-template <class D, class V>
+template <class D, class V,
+          hwy::EnableIf<
+              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
 HWY_INLINE V Sin(const D d, V x) {
   using T = TFromD<D>;
   impl::CosSinImpl<T> impl;
@@ -2909,14 +2913,18 @@ HWY_INLINE V Tanh(const D d, V x) {
   return Xor(z, sign);  // Reapply the sign bit
 }
 
-template <class D, class V>
+template <class D, class V,
+          hwy::EnableIf<
+              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
 HWY_INLINE void SinCos(const D d, V x, V& s, V& c) {
   using T = TFromD<D>;
   impl::SinCosImpl<T> impl;
   impl.SinCos(d, x, s, c);
 }
 
-template <class D, class V>
+template <class D, class V,
+          hwy::EnableIf<
+              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
 HWY_INLINE V Tan(const D d, V x) {
   V s, c;
   SinCos(d, x, s, c);
