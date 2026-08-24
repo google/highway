@@ -10686,7 +10686,7 @@ template <typename T, size_t N, HWY_IF_T_SIZE(T, 1), HWY_IF_LANES(N, 16)>
 HWY_INLINE Vec128<T, N> Compress(Vec128<T, N> v, uint64_t lo, uint64_t hi) {
   using D = DFromV<decltype(v)>;
 
-  alignas(16) static constexpr uint8_t SlideTable[144] = {
+  alignas(16) static constexpr uint8_t kSlideTable[8 * 16 + 16] = {
       8,  9,  10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4,  5,  6,  7,  0,  8,
       9,  10, 11, 12, 13, 14, 15, 1,  2, 3, 4, 5, 6,  7,  0,  1,  8,  9,
       10, 11, 12, 13, 14, 15, 2,  3,  4, 5, 6, 7, 0,  1,  2,  8,  9,  10,
@@ -10707,7 +10707,7 @@ HWY_INLINE Vec128<T, N> Compress(Vec128<T, N> v, uint64_t lo, uint64_t hi) {
   const auto mi = TableLookupBytes(v, idx);
   const Repartition<uint8_t, D> d8;
   return BitCast(D(), TableLookupBytes(BitCast(d8, mi),
-                                       Load(d8, SlideTable + 16 * lo_cnt)));
+                                       Load(d8, kSlideTable + 16 * lo_cnt)));
 }
 
 template <typename T, size_t N>
@@ -10722,7 +10722,7 @@ HWY_INLINE Vec128<T, N> CompressNot(Vec128<T, N> v, uint64_t mask_bits) {
 template <typename T, size_t N, HWY_IF_T_SIZE(T, 1), HWY_IF_LANES(N, 16)>
 HWY_INLINE Vec128<T, N> CompressNot(Vec128<T, N> v, uint64_t lo, uint64_t hi) {
   using D = DFromV<decltype(v)>;
-  alignas(16) static constexpr uint8_t SlideTable[144] = {
+  alignas(16) static constexpr uint8_t kSlideTable[8 * 16 + 16] = {
       8,  9,  10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4,  5,  6,  7,  0,  8,
       9,  10, 11, 12, 13, 14, 15, 1,  2, 3, 4, 5, 6,  7,  0,  1,  8,  9,
       10, 11, 12, 13, 14, 15, 2,  3,  4, 5, 6, 7, 0,  1,  2,  8,  9,  10,
@@ -10732,7 +10732,7 @@ HWY_INLINE Vec128<T, N> CompressNot(Vec128<T, N> v, uint64_t lo, uint64_t hi) {
       14, 15, 6,  7,  0,  1,  2,  3,  4, 5, 6, 8, 9,  10, 11, 12, 13, 14,
       15, 7,  0,  1,  2,  3,  4,  5,  6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
   };
-  alignas(16) static constexpr uint8_t PopCountNotTable[256] = {
+  alignas(16) static constexpr uint8_t kPopCountNotTable[256] = {
       8, 7, 7, 6, 7, 6, 6, 5, 7, 6, 6, 5, 6, 5, 5, 4, 
       7, 6, 6, 5, 6, 5, 5, 4, 6, 5, 5, 4, 5, 4, 4, 3, 
       7, 6, 6, 5, 6, 5, 5, 4, 6, 5, 5, 4, 5, 4, 4, 3, 
@@ -10751,7 +10751,7 @@ HWY_INLINE Vec128<T, N> CompressNot(Vec128<T, N> v, uint64_t lo, uint64_t hi) {
       4, 3, 3, 2, 3, 2, 2, 1, 3, 2, 2, 1, 2, 1, 1, 0, 
   };
 
-  const size_t lo_cnt = PopCountNotTable[lo];
+  const size_t lo_cnt = kPopCountNotTable[lo];
 
   const auto idx = Combine(
       D(),
@@ -10762,7 +10762,7 @@ HWY_INLINE Vec128<T, N> CompressNot(Vec128<T, N> v, uint64_t lo, uint64_t hi) {
   const auto mi = TableLookupBytes(v, idx);
   const Repartition<uint8_t, D> d8;
   return BitCast(D(), TableLookupBytes(BitCast(d8, mi),
-                                       Load(d8, SlideTable + 16 * lo_cnt)));
+                                       Load(d8, kSlideTable + 16 * lo_cnt)));
 }
 }  // namespace detail
 
@@ -10881,41 +10881,41 @@ template <typename D, HWY_IF_LANES_D(D, 1)>
 HWY_INLINE auto BitsAndCountFromMask(D, MFromD<D> m) {
   RebindToUnsigned<D> du;
   using TU = TFromD<decltype(du)>;
-  alignas(16) static constexpr TU weights[1] = {1 + 2};
-  const TU s = ReduceSum(du, And(VecFromMask(du, RebindMask(du, m)), Load(du, weights)));
+  alignas(16) static constexpr TU kWeights[1] = {1 + 2};
+  const TU s = ReduceSum(du, And(VecFromMask(du, RebindMask(du, m)), Load(du, kWeights)));
   return BitsAndCount{static_cast<uint64_t>(s & 1), static_cast<size_t>(s >> 1)};
 }
 template <typename D, HWY_IF_LANES_D(D, 2)>
 HWY_INLINE auto BitsAndCountFromMask(D, MFromD<D> m) {
   RebindToUnsigned<D> du;
   using TU = TFromD<decltype(du)>;
-  alignas(16) static constexpr TU weights[2] = {1 + 4, 2 + 4};
-  const TU s = ReduceSum(du, And(VecFromMask(du, RebindMask(du, m)), Load(du, weights)));
+  alignas(16) static constexpr TU kWeights[2] = {1 + 4, 2 + 4};
+  const TU s = ReduceSum(du, And(VecFromMask(du, RebindMask(du, m)), Load(du, kWeights)));
   return BitsAndCount{static_cast<uint64_t>(s & 3), static_cast<size_t>(s >> 2)};
 }
 template <typename D, HWY_IF_LANES_D(D, 4)>
 HWY_INLINE auto BitsAndCountFromMask(D, MFromD<D> m) {
   RebindToUnsigned<D> du;
   using TU = TFromD<decltype(du)>;
-  alignas(16) static constexpr TU weights[4] = {1 + 16, 2 + 16, 4 + 16, 8 + 16};
-  const TU s = ReduceSum(du, And(VecFromMask(du, RebindMask(du, m)), Load(du, weights)));
+  alignas(16) static constexpr TU kWeights[4] = {1 + 16, 2 + 16, 4 + 16, 8 + 16};
+  const TU s = ReduceSum(du, And(VecFromMask(du, RebindMask(du, m)), Load(du, kWeights)));
   return BitsAndCount{static_cast<uint64_t>(s & 15), static_cast<size_t>(s >> 4)};
 }
 template <typename D, HWY_IF_NOT_T_SIZE_D(D, 1) /* because 256 > max value in u8 */, HWY_IF_LANES_D(D, 8)>
 HWY_INLINE auto BitsAndCountFromMask(D, MFromD<D> m) {
   RebindToUnsigned<D> du;
   using TU = TFromD<decltype(du)>;
-  alignas(16) static constexpr TU weights[8] = {1 + 256, 2 + 256, 4 + 256, 8 + 256, 16 + 256, 32 + 256, 64 + 256, 128 + 256};
-  const TU s = ReduceSum(du, And(VecFromMask(du, RebindMask(du, m)), Load(du, weights)));
+  alignas(16) static constexpr TU kWeights[8] = {1 + 256, 2 + 256, 4 + 256, 8 + 256, 16 + 256, 32 + 256, 64 + 256, 128 + 256};
+  const TU s = ReduceSum(du, And(VecFromMask(du, RebindMask(du, m)), Load(du, kWeights)));
   return BitsAndCount{static_cast<uint64_t>(s & 255), static_cast<size_t>(s >> 8)};
 }
 template <typename D, HWY_IF_T_SIZE_D(D, 1), HWY_IF_LANES_D(D, 8)>
 HWY_INLINE auto BitsAndCountFromMask(D, MFromD<D> m) {
   RebindToUnsigned<D> du;
   using TU = TFromD<decltype(du)>;
-  alignas(16) static constexpr TU weights[8] = {1, 2, 4, 8, 16, 32, 64, 128};
+  alignas(16) static constexpr TU kWeights[8] = {1, 2, 4, 8, 16, 32, 64, 128};
   const TU s =
-      ReduceSum(du, And(VecFromMask(du, RebindMask(du, m)), Load(du, weights)));
+      ReduceSum(du, And(VecFromMask(du, RebindMask(du, m)), Load(du, kWeights)));
   return BitsAndCount{static_cast<uint64_t>(s),
                       static_cast<size_t>(PopCountTable()[s])};
 }
