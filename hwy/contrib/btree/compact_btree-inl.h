@@ -1195,14 +1195,24 @@ HWY_INLINE void SplitLeafNode(CompactLeafNode<KeyT>* leaf,
   // order.
   const size_t total = DecompressAndInsertKey(leaf, new_key, temp);
 
-  // Find the exact midpoint.
-  const size_t mid = total / 2;
+  // Position-biased split (similar to absl::btree):
+  // When appending at the end of the rightmost leaf (ascending sequence),
+  // bias the split so the left leaf stays full (100% fill factor).
+  // When prepending at the start of the leftmost leaf (descending sequence),
+  // bias the split so the right leaf stays full.
+  // Otherwise, split 50/50 for balanced tree depth under random workloads.
+  size_t split_point = total / 2;
+  if (leaf->Next() == nullptr && new_key == temp[total - 1]) {
+    split_point = total - 1;
+  } else if (leaf->Prev() == nullptr && new_key == temp[0]) {
+    split_point = 1;
+  }
 
-  // Recompress left half (temp[0..mid-1]) back into original leaf.
-  CompressIntoLeaf(leaf, temp, mid);
+  // Recompress left half (temp[0..split_point-1]) back into original leaf.
+  CompressIntoLeaf(leaf, temp, split_point);
 
-  // Recompress right half (temp[mid..total-1]) into the new_leaf.
-  CompressIntoLeaf(new_leaf, temp + mid, total - mid);
+  // Recompress right half (temp[split_point..total-1]) into the new_leaf.
+  CompressIntoLeaf(new_leaf, temp + split_point, total - split_point);
 
   // The first key of right half becomes the separator key for parent
   // routing.
@@ -1225,17 +1235,28 @@ HWY_INLINE void SplitLeafNode(CompactMapLeafNode<KeyT, ValueT>* leaf,
   const size_t total = DecompressAndInsertMapPair(leaf, new_key, new_value,
                                                   temp_keys, temp_values);
 
-  // Find the exact midpoint.
-  const size_t mid = total / 2;
+  // Position-biased split (similar to absl::btree):
+  // When appending at the end of the rightmost leaf (ascending sequence),
+  // bias the split so the left leaf stays full (100% fill factor).
+  // When prepending at the start of the leftmost leaf (descending sequence),
+  // bias the split so the right leaf stays full.
+  // Otherwise, split 50/50 for balanced tree depth under random workloads.
+  size_t split_point = total / 2;
+  if (leaf->Next() == nullptr && new_key == temp_keys[total - 1]) {
+    split_point = total - 1;
+  } else if (leaf->Prev() == nullptr && new_key == temp_keys[0]) {
+    split_point = 1;
+  }
 
   // Recompress left half back into original leaf.
-  CompressIntoLeaf(leaf, temp_keys, temp_values, mid);
+  CompressIntoLeaf(leaf, temp_keys, temp_values, split_point);
 
   // Recompress right half into the new_leaf.
-  CompressIntoLeaf(new_leaf, temp_keys + mid, temp_values + mid, total - mid);
+  CompressIntoLeaf(new_leaf, temp_keys + split_point, temp_values + split_point,
+                   total - split_point);
 
   // The first key of right half becomes the separator key for parent routing.
-  *out_promo_key = temp_keys[mid];
+  *out_promo_key = temp_keys[split_point];
 }
 
 // Returns true if two adjacent leaves can merge without exceeding leaf
