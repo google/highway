@@ -9947,7 +9947,11 @@ HWY_API bool AllTrue(D d, MFromD<D> m) {
 }
 
 // ------------------------------ Compress
-
+#ifdef HWY_NATIVE_COMPRESS8
+#undef HWY_NATIVE_COMPRESS8
+#else
+#define HWY_NATIVE_COMPRESS8
+#endif
 template <typename T>
 struct CompressIsPartition {
   enum { value = (sizeof(T) != 1) };
@@ -9966,6 +9970,287 @@ HWY_INLINE Vec128<uint8_t> Load8Bytes(D /*tag*/, const uint8_t* bytes) {
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8)>
 HWY_INLINE VFromD<D> Load8Bytes(D d, const uint8_t* bytes) {
   return Load(d, bytes);
+}
+
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> IdxFromBits(hwy::SizeTag<1> /*tag*/,
+                                    uint64_t mask_bits) {
+  HWY_DASSERT(mask_bits < 256);
+  const Simd<T, N, 0> d;
+  const Repartition<uint8_t, decltype(d)> d8;
+
+  alignas(16) static constexpr uint8_t table[256 * 8] = {
+      0, 1, 2, 3, 4, 5, 6, 7, /**/ 0, 1, 2, 3, 4, 5, 6, 7,  //
+      1, 0, 2, 3, 4, 5, 6, 7, /**/ 0, 1, 2, 3, 4, 5, 6, 7,  //
+      2, 0, 1, 3, 4, 5, 6, 7, /**/ 0, 2, 1, 3, 4, 5, 6, 7,  //
+      1, 2, 0, 3, 4, 5, 6, 7, /**/ 0, 1, 2, 3, 4, 5, 6, 7,  //
+      3, 0, 1, 2, 4, 5, 6, 7, /**/ 0, 3, 1, 2, 4, 5, 6, 7,  //
+      1, 3, 0, 2, 4, 5, 6, 7, /**/ 0, 1, 3, 2, 4, 5, 6, 7,  //
+      2, 3, 0, 1, 4, 5, 6, 7, /**/ 0, 2, 3, 1, 4, 5, 6, 7,  //
+      1, 2, 3, 0, 4, 5, 6, 7, /**/ 0, 1, 2, 3, 4, 5, 6, 7,  //
+      4, 0, 1, 2, 3, 5, 6, 7, /**/ 0, 4, 1, 2, 3, 5, 6, 7,  //
+      1, 4, 0, 2, 3, 5, 6, 7, /**/ 0, 1, 4, 2, 3, 5, 6, 7,  //
+      2, 4, 0, 1, 3, 5, 6, 7, /**/ 0, 2, 4, 1, 3, 5, 6, 7,  //
+      1, 2, 4, 0, 3, 5, 6, 7, /**/ 0, 1, 2, 4, 3, 5, 6, 7,  //
+      3, 4, 0, 1, 2, 5, 6, 7, /**/ 0, 3, 4, 1, 2, 5, 6, 7,  //
+      1, 3, 4, 0, 2, 5, 6, 7, /**/ 0, 1, 3, 4, 2, 5, 6, 7,  //
+      2, 3, 4, 0, 1, 5, 6, 7, /**/ 0, 2, 3, 4, 1, 5, 6, 7,  //
+      1, 2, 3, 4, 0, 5, 6, 7, /**/ 0, 1, 2, 3, 4, 5, 6, 7,  //
+      5, 0, 1, 2, 3, 4, 6, 7, /**/ 0, 5, 1, 2, 3, 4, 6, 7,  //
+      1, 5, 0, 2, 3, 4, 6, 7, /**/ 0, 1, 5, 2, 3, 4, 6, 7,  //
+      2, 5, 0, 1, 3, 4, 6, 7, /**/ 0, 2, 5, 1, 3, 4, 6, 7,  //
+      1, 2, 5, 0, 3, 4, 6, 7, /**/ 0, 1, 2, 5, 3, 4, 6, 7,  //
+      3, 5, 0, 1, 2, 4, 6, 7, /**/ 0, 3, 5, 1, 2, 4, 6, 7,  //
+      1, 3, 5, 0, 2, 4, 6, 7, /**/ 0, 1, 3, 5, 2, 4, 6, 7,  //
+      2, 3, 5, 0, 1, 4, 6, 7, /**/ 0, 2, 3, 5, 1, 4, 6, 7,  //
+      1, 2, 3, 5, 0, 4, 6, 7, /**/ 0, 1, 2, 3, 5, 4, 6, 7,  //
+      4, 5, 0, 1, 2, 3, 6, 7, /**/ 0, 4, 5, 1, 2, 3, 6, 7,  //
+      1, 4, 5, 0, 2, 3, 6, 7, /**/ 0, 1, 4, 5, 2, 3, 6, 7,  //
+      2, 4, 5, 0, 1, 3, 6, 7, /**/ 0, 2, 4, 5, 1, 3, 6, 7,  //
+      1, 2, 4, 5, 0, 3, 6, 7, /**/ 0, 1, 2, 4, 5, 3, 6, 7,  //
+      3, 4, 5, 0, 1, 2, 6, 7, /**/ 0, 3, 4, 5, 1, 2, 6, 7,  //
+      1, 3, 4, 5, 0, 2, 6, 7, /**/ 0, 1, 3, 4, 5, 2, 6, 7,  //
+      2, 3, 4, 5, 0, 1, 6, 7, /**/ 0, 2, 3, 4, 5, 1, 6, 7,  //
+      1, 2, 3, 4, 5, 0, 6, 7, /**/ 0, 1, 2, 3, 4, 5, 6, 7,  //
+      6, 0, 1, 2, 3, 4, 5, 7, /**/ 0, 6, 1, 2, 3, 4, 5, 7,  //
+      1, 6, 0, 2, 3, 4, 5, 7, /**/ 0, 1, 6, 2, 3, 4, 5, 7,  //
+      2, 6, 0, 1, 3, 4, 5, 7, /**/ 0, 2, 6, 1, 3, 4, 5, 7,  //
+      1, 2, 6, 0, 3, 4, 5, 7, /**/ 0, 1, 2, 6, 3, 4, 5, 7,  //
+      3, 6, 0, 1, 2, 4, 5, 7, /**/ 0, 3, 6, 1, 2, 4, 5, 7,  //
+      1, 3, 6, 0, 2, 4, 5, 7, /**/ 0, 1, 3, 6, 2, 4, 5, 7,  //
+      2, 3, 6, 0, 1, 4, 5, 7, /**/ 0, 2, 3, 6, 1, 4, 5, 7,  //
+      1, 2, 3, 6, 0, 4, 5, 7, /**/ 0, 1, 2, 3, 6, 4, 5, 7,  //
+      4, 6, 0, 1, 2, 3, 5, 7, /**/ 0, 4, 6, 1, 2, 3, 5, 7,  //
+      1, 4, 6, 0, 2, 3, 5, 7, /**/ 0, 1, 4, 6, 2, 3, 5, 7,  //
+      2, 4, 6, 0, 1, 3, 5, 7, /**/ 0, 2, 4, 6, 1, 3, 5, 7,  //
+      1, 2, 4, 6, 0, 3, 5, 7, /**/ 0, 1, 2, 4, 6, 3, 5, 7,  //
+      3, 4, 6, 0, 1, 2, 5, 7, /**/ 0, 3, 4, 6, 1, 2, 5, 7,  //
+      1, 3, 4, 6, 0, 2, 5, 7, /**/ 0, 1, 3, 4, 6, 2, 5, 7,  //
+      2, 3, 4, 6, 0, 1, 5, 7, /**/ 0, 2, 3, 4, 6, 1, 5, 7,  //
+      1, 2, 3, 4, 6, 0, 5, 7, /**/ 0, 1, 2, 3, 4, 6, 5, 7,  //
+      5, 6, 0, 1, 2, 3, 4, 7, /**/ 0, 5, 6, 1, 2, 3, 4, 7,  //
+      1, 5, 6, 0, 2, 3, 4, 7, /**/ 0, 1, 5, 6, 2, 3, 4, 7,  //
+      2, 5, 6, 0, 1, 3, 4, 7, /**/ 0, 2, 5, 6, 1, 3, 4, 7,  //
+      1, 2, 5, 6, 0, 3, 4, 7, /**/ 0, 1, 2, 5, 6, 3, 4, 7,  //
+      3, 5, 6, 0, 1, 2, 4, 7, /**/ 0, 3, 5, 6, 1, 2, 4, 7,  //
+      1, 3, 5, 6, 0, 2, 4, 7, /**/ 0, 1, 3, 5, 6, 2, 4, 7,  //
+      2, 3, 5, 6, 0, 1, 4, 7, /**/ 0, 2, 3, 5, 6, 1, 4, 7,  //
+      1, 2, 3, 5, 6, 0, 4, 7, /**/ 0, 1, 2, 3, 5, 6, 4, 7,  //
+      4, 5, 6, 0, 1, 2, 3, 7, /**/ 0, 4, 5, 6, 1, 2, 3, 7,  //
+      1, 4, 5, 6, 0, 2, 3, 7, /**/ 0, 1, 4, 5, 6, 2, 3, 7,  //
+      2, 4, 5, 6, 0, 1, 3, 7, /**/ 0, 2, 4, 5, 6, 1, 3, 7,  //
+      1, 2, 4, 5, 6, 0, 3, 7, /**/ 0, 1, 2, 4, 5, 6, 3, 7,  //
+      3, 4, 5, 6, 0, 1, 2, 7, /**/ 0, 3, 4, 5, 6, 1, 2, 7,  //
+      1, 3, 4, 5, 6, 0, 2, 7, /**/ 0, 1, 3, 4, 5, 6, 2, 7,  //
+      2, 3, 4, 5, 6, 0, 1, 7, /**/ 0, 2, 3, 4, 5, 6, 1, 7,  //
+      1, 2, 3, 4, 5, 6, 0, 7, /**/ 0, 1, 2, 3, 4, 5, 6, 7,  //
+      7, 0, 1, 2, 3, 4, 5, 6, /**/ 0, 7, 1, 2, 3, 4, 5, 6,  //
+      1, 7, 0, 2, 3, 4, 5, 6, /**/ 0, 1, 7, 2, 3, 4, 5, 6,  //
+      2, 7, 0, 1, 3, 4, 5, 6, /**/ 0, 2, 7, 1, 3, 4, 5, 6,  //
+      1, 2, 7, 0, 3, 4, 5, 6, /**/ 0, 1, 2, 7, 3, 4, 5, 6,  //
+      3, 7, 0, 1, 2, 4, 5, 6, /**/ 0, 3, 7, 1, 2, 4, 5, 6,  //
+      1, 3, 7, 0, 2, 4, 5, 6, /**/ 0, 1, 3, 7, 2, 4, 5, 6,  //
+      2, 3, 7, 0, 1, 4, 5, 6, /**/ 0, 2, 3, 7, 1, 4, 5, 6,  //
+      1, 2, 3, 7, 0, 4, 5, 6, /**/ 0, 1, 2, 3, 7, 4, 5, 6,  //
+      4, 7, 0, 1, 2, 3, 5, 6, /**/ 0, 4, 7, 1, 2, 3, 5, 6,  //
+      1, 4, 7, 0, 2, 3, 5, 6, /**/ 0, 1, 4, 7, 2, 3, 5, 6,  //
+      2, 4, 7, 0, 1, 3, 5, 6, /**/ 0, 2, 4, 7, 1, 3, 5, 6,  //
+      1, 2, 4, 7, 0, 3, 5, 6, /**/ 0, 1, 2, 4, 7, 3, 5, 6,  //
+      3, 4, 7, 0, 1, 2, 5, 6, /**/ 0, 3, 4, 7, 1, 2, 5, 6,  //
+      1, 3, 4, 7, 0, 2, 5, 6, /**/ 0, 1, 3, 4, 7, 2, 5, 6,  //
+      2, 3, 4, 7, 0, 1, 5, 6, /**/ 0, 2, 3, 4, 7, 1, 5, 6,  //
+      1, 2, 3, 4, 7, 0, 5, 6, /**/ 0, 1, 2, 3, 4, 7, 5, 6,  //
+      5, 7, 0, 1, 2, 3, 4, 6, /**/ 0, 5, 7, 1, 2, 3, 4, 6,  //
+      1, 5, 7, 0, 2, 3, 4, 6, /**/ 0, 1, 5, 7, 2, 3, 4, 6,  //
+      2, 5, 7, 0, 1, 3, 4, 6, /**/ 0, 2, 5, 7, 1, 3, 4, 6,  //
+      1, 2, 5, 7, 0, 3, 4, 6, /**/ 0, 1, 2, 5, 7, 3, 4, 6,  //
+      3, 5, 7, 0, 1, 2, 4, 6, /**/ 0, 3, 5, 7, 1, 2, 4, 6,  //
+      1, 3, 5, 7, 0, 2, 4, 6, /**/ 0, 1, 3, 5, 7, 2, 4, 6,  //
+      2, 3, 5, 7, 0, 1, 4, 6, /**/ 0, 2, 3, 5, 7, 1, 4, 6,  //
+      1, 2, 3, 5, 7, 0, 4, 6, /**/ 0, 1, 2, 3, 5, 7, 4, 6,  //
+      4, 5, 7, 0, 1, 2, 3, 6, /**/ 0, 4, 5, 7, 1, 2, 3, 6,  //
+      1, 4, 5, 7, 0, 2, 3, 6, /**/ 0, 1, 4, 5, 7, 2, 3, 6,  //
+      2, 4, 5, 7, 0, 1, 3, 6, /**/ 0, 2, 4, 5, 7, 1, 3, 6,  //
+      1, 2, 4, 5, 7, 0, 3, 6, /**/ 0, 1, 2, 4, 5, 7, 3, 6,  //
+      3, 4, 5, 7, 0, 1, 2, 6, /**/ 0, 3, 4, 5, 7, 1, 2, 6,  //
+      1, 3, 4, 5, 7, 0, 2, 6, /**/ 0, 1, 3, 4, 5, 7, 2, 6,  //
+      2, 3, 4, 5, 7, 0, 1, 6, /**/ 0, 2, 3, 4, 5, 7, 1, 6,  //
+      1, 2, 3, 4, 5, 7, 0, 6, /**/ 0, 1, 2, 3, 4, 5, 7, 6,  //
+      6, 7, 0, 1, 2, 3, 4, 5, /**/ 0, 6, 7, 1, 2, 3, 4, 5,  //
+      1, 6, 7, 0, 2, 3, 4, 5, /**/ 0, 1, 6, 7, 2, 3, 4, 5,  //
+      2, 6, 7, 0, 1, 3, 4, 5, /**/ 0, 2, 6, 7, 1, 3, 4, 5,  //
+      1, 2, 6, 7, 0, 3, 4, 5, /**/ 0, 1, 2, 6, 7, 3, 4, 5,  //
+      3, 6, 7, 0, 1, 2, 4, 5, /**/ 0, 3, 6, 7, 1, 2, 4, 5,  //
+      1, 3, 6, 7, 0, 2, 4, 5, /**/ 0, 1, 3, 6, 7, 2, 4, 5,  //
+      2, 3, 6, 7, 0, 1, 4, 5, /**/ 0, 2, 3, 6, 7, 1, 4, 5,  //
+      1, 2, 3, 6, 7, 0, 4, 5, /**/ 0, 1, 2, 3, 6, 7, 4, 5,  //
+      4, 6, 7, 0, 1, 2, 3, 5, /**/ 0, 4, 6, 7, 1, 2, 3, 5,  //
+      1, 4, 6, 7, 0, 2, 3, 5, /**/ 0, 1, 4, 6, 7, 2, 3, 5,  //
+      2, 4, 6, 7, 0, 1, 3, 5, /**/ 0, 2, 4, 6, 7, 1, 3, 5,  //
+      1, 2, 4, 6, 7, 0, 3, 5, /**/ 0, 1, 2, 4, 6, 7, 3, 5,  //
+      3, 4, 6, 7, 0, 1, 2, 5, /**/ 0, 3, 4, 6, 7, 1, 2, 5,  //
+      1, 3, 4, 6, 7, 0, 2, 5, /**/ 0, 1, 3, 4, 6, 7, 2, 5,  //
+      2, 3, 4, 6, 7, 0, 1, 5, /**/ 0, 2, 3, 4, 6, 7, 1, 5,  //
+      1, 2, 3, 4, 6, 7, 0, 5, /**/ 0, 1, 2, 3, 4, 6, 7, 5,  //
+      5, 6, 7, 0, 1, 2, 3, 4, /**/ 0, 5, 6, 7, 1, 2, 3, 4,  //
+      1, 5, 6, 7, 0, 2, 3, 4, /**/ 0, 1, 5, 6, 7, 2, 3, 4,  //
+      2, 5, 6, 7, 0, 1, 3, 4, /**/ 0, 2, 5, 6, 7, 1, 3, 4,  //
+      1, 2, 5, 6, 7, 0, 3, 4, /**/ 0, 1, 2, 5, 6, 7, 3, 4,  //
+      3, 5, 6, 7, 0, 1, 2, 4, /**/ 0, 3, 5, 6, 7, 1, 2, 4,  //
+      1, 3, 5, 6, 7, 0, 2, 4, /**/ 0, 1, 3, 5, 6, 7, 2, 4,  //
+      2, 3, 5, 6, 7, 0, 1, 4, /**/ 0, 2, 3, 5, 6, 7, 1, 4,  //
+      1, 2, 3, 5, 6, 7, 0, 4, /**/ 0, 1, 2, 3, 5, 6, 7, 4,  //
+      4, 5, 6, 7, 0, 1, 2, 3, /**/ 0, 4, 5, 6, 7, 1, 2, 3,  //
+      1, 4, 5, 6, 7, 0, 2, 3, /**/ 0, 1, 4, 5, 6, 7, 2, 3,  //
+      2, 4, 5, 6, 7, 0, 1, 3, /**/ 0, 2, 4, 5, 6, 7, 1, 3,  //
+      1, 2, 4, 5, 6, 7, 0, 3, /**/ 0, 1, 2, 4, 5, 6, 7, 3,  //
+      3, 4, 5, 6, 7, 0, 1, 2, /**/ 0, 3, 4, 5, 6, 7, 1, 2,  //
+      1, 3, 4, 5, 6, 7, 0, 2, /**/ 0, 1, 3, 4, 5, 6, 7, 2,  //
+      2, 3, 4, 5, 6, 7, 0, 1, /**/ 0, 2, 3, 4, 5, 6, 7, 1,  //
+      1, 2, 3, 4, 5, 6, 7, 0, /**/ 0, 1, 2, 3, 4, 5, 6, 7};
+
+  return BitCast(d, Load8Bytes(d8, table + mask_bits * 8));
+}
+
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> IdxFromNotBits(hwy::SizeTag<1> /*tag*/,
+                                       uint64_t mask_bits) {
+  HWY_DASSERT(mask_bits < 256);
+  const Simd<T, N, 0> d;
+  const Repartition<uint8_t, decltype(d)> d8;
+
+  alignas(16) static constexpr uint8_t table[256 * 8] = {
+      0, 1, 2, 3, 4, 5, 6, 7, /**/ 1, 2, 3, 4, 5, 6, 7, 0,  //
+      0, 2, 3, 4, 5, 6, 7, 1, /**/ 2, 3, 4, 5, 6, 7, 0, 1,  //
+      0, 1, 3, 4, 5, 6, 7, 2, /**/ 1, 3, 4, 5, 6, 7, 0, 2,  //
+      0, 3, 4, 5, 6, 7, 1, 2, /**/ 3, 4, 5, 6, 7, 0, 1, 2,  //
+      0, 1, 2, 4, 5, 6, 7, 3, /**/ 1, 2, 4, 5, 6, 7, 0, 3,  //
+      0, 2, 4, 5, 6, 7, 1, 3, /**/ 2, 4, 5, 6, 7, 0, 1, 3,  //
+      0, 1, 4, 5, 6, 7, 2, 3, /**/ 1, 4, 5, 6, 7, 0, 2, 3,  //
+      0, 4, 5, 6, 7, 1, 2, 3, /**/ 4, 5, 6, 7, 0, 1, 2, 3,  //
+      0, 1, 2, 3, 5, 6, 7, 4, /**/ 1, 2, 3, 5, 6, 7, 0, 4,  //
+      0, 2, 3, 5, 6, 7, 1, 4, /**/ 2, 3, 5, 6, 7, 0, 1, 4,  //
+      0, 1, 3, 5, 6, 7, 2, 4, /**/ 1, 3, 5, 6, 7, 0, 2, 4,  //
+      0, 3, 5, 6, 7, 1, 2, 4, /**/ 3, 5, 6, 7, 0, 1, 2, 4,  //
+      0, 1, 2, 5, 6, 7, 3, 4, /**/ 1, 2, 5, 6, 7, 0, 3, 4,  //
+      0, 2, 5, 6, 7, 1, 3, 4, /**/ 2, 5, 6, 7, 0, 1, 3, 4,  //
+      0, 1, 5, 6, 7, 2, 3, 4, /**/ 1, 5, 6, 7, 0, 2, 3, 4,  //
+      0, 5, 6, 7, 1, 2, 3, 4, /**/ 5, 6, 7, 0, 1, 2, 3, 4,  //
+      0, 1, 2, 3, 4, 6, 7, 5, /**/ 1, 2, 3, 4, 6, 7, 0, 5,  //
+      0, 2, 3, 4, 6, 7, 1, 5, /**/ 2, 3, 4, 6, 7, 0, 1, 5,  //
+      0, 1, 3, 4, 6, 7, 2, 5, /**/ 1, 3, 4, 6, 7, 0, 2, 5,  //
+      0, 3, 4, 6, 7, 1, 2, 5, /**/ 3, 4, 6, 7, 0, 1, 2, 5,  //
+      0, 1, 2, 4, 6, 7, 3, 5, /**/ 1, 2, 4, 6, 7, 0, 3, 5,  //
+      0, 2, 4, 6, 7, 1, 3, 5, /**/ 2, 4, 6, 7, 0, 1, 3, 5,  //
+      0, 1, 4, 6, 7, 2, 3, 5, /**/ 1, 4, 6, 7, 0, 2, 3, 5,  //
+      0, 4, 6, 7, 1, 2, 3, 5, /**/ 4, 6, 7, 0, 1, 2, 3, 5,  //
+      0, 1, 2, 3, 6, 7, 4, 5, /**/ 1, 2, 3, 6, 7, 0, 4, 5,  //
+      0, 2, 3, 6, 7, 1, 4, 5, /**/ 2, 3, 6, 7, 0, 1, 4, 5,  //
+      0, 1, 3, 6, 7, 2, 4, 5, /**/ 1, 3, 6, 7, 0, 2, 4, 5,  //
+      0, 3, 6, 7, 1, 2, 4, 5, /**/ 3, 6, 7, 0, 1, 2, 4, 5,  //
+      0, 1, 2, 6, 7, 3, 4, 5, /**/ 1, 2, 6, 7, 0, 3, 4, 5,  //
+      0, 2, 6, 7, 1, 3, 4, 5, /**/ 2, 6, 7, 0, 1, 3, 4, 5,  //
+      0, 1, 6, 7, 2, 3, 4, 5, /**/ 1, 6, 7, 0, 2, 3, 4, 5,  //
+      0, 6, 7, 1, 2, 3, 4, 5, /**/ 6, 7, 0, 1, 2, 3, 4, 5,  //
+      0, 1, 2, 3, 4, 5, 7, 6, /**/ 1, 2, 3, 4, 5, 7, 0, 6,  //
+      0, 2, 3, 4, 5, 7, 1, 6, /**/ 2, 3, 4, 5, 7, 0, 1, 6,  //
+      0, 1, 3, 4, 5, 7, 2, 6, /**/ 1, 3, 4, 5, 7, 0, 2, 6,  //
+      0, 3, 4, 5, 7, 1, 2, 6, /**/ 3, 4, 5, 7, 0, 1, 2, 6,  //
+      0, 1, 2, 4, 5, 7, 3, 6, /**/ 1, 2, 4, 5, 7, 0, 3, 6,  //
+      0, 2, 4, 5, 7, 1, 3, 6, /**/ 2, 4, 5, 7, 0, 1, 3, 6,  //
+      0, 1, 4, 5, 7, 2, 3, 6, /**/ 1, 4, 5, 7, 0, 2, 3, 6,  //
+      0, 4, 5, 7, 1, 2, 3, 6, /**/ 4, 5, 7, 0, 1, 2, 3, 6,  //
+      0, 1, 2, 3, 5, 7, 4, 6, /**/ 1, 2, 3, 5, 7, 0, 4, 6,  //
+      0, 2, 3, 5, 7, 1, 4, 6, /**/ 2, 3, 5, 7, 0, 1, 4, 6,  //
+      0, 1, 3, 5, 7, 2, 4, 6, /**/ 1, 3, 5, 7, 0, 2, 4, 6,  //
+      0, 3, 5, 7, 1, 2, 4, 6, /**/ 3, 5, 7, 0, 1, 2, 4, 6,  //
+      0, 1, 2, 5, 7, 3, 4, 6, /**/ 1, 2, 5, 7, 0, 3, 4, 6,  //
+      0, 2, 5, 7, 1, 3, 4, 6, /**/ 2, 5, 7, 0, 1, 3, 4, 6,  //
+      0, 1, 5, 7, 2, 3, 4, 6, /**/ 1, 5, 7, 0, 2, 3, 4, 6,  //
+      0, 5, 7, 1, 2, 3, 4, 6, /**/ 5, 7, 0, 1, 2, 3, 4, 6,  //
+      0, 1, 2, 3, 4, 7, 5, 6, /**/ 1, 2, 3, 4, 7, 0, 5, 6,  //
+      0, 2, 3, 4, 7, 1, 5, 6, /**/ 2, 3, 4, 7, 0, 1, 5, 6,  //
+      0, 1, 3, 4, 7, 2, 5, 6, /**/ 1, 3, 4, 7, 0, 2, 5, 6,  //
+      0, 3, 4, 7, 1, 2, 5, 6, /**/ 3, 4, 7, 0, 1, 2, 5, 6,  //
+      0, 1, 2, 4, 7, 3, 5, 6, /**/ 1, 2, 4, 7, 0, 3, 5, 6,  //
+      0, 2, 4, 7, 1, 3, 5, 6, /**/ 2, 4, 7, 0, 1, 3, 5, 6,  //
+      0, 1, 4, 7, 2, 3, 5, 6, /**/ 1, 4, 7, 0, 2, 3, 5, 6,  //
+      0, 4, 7, 1, 2, 3, 5, 6, /**/ 4, 7, 0, 1, 2, 3, 5, 6,  //
+      0, 1, 2, 3, 7, 4, 5, 6, /**/ 1, 2, 3, 7, 0, 4, 5, 6,  //
+      0, 2, 3, 7, 1, 4, 5, 6, /**/ 2, 3, 7, 0, 1, 4, 5, 6,  //
+      0, 1, 3, 7, 2, 4, 5, 6, /**/ 1, 3, 7, 0, 2, 4, 5, 6,  //
+      0, 3, 7, 1, 2, 4, 5, 6, /**/ 3, 7, 0, 1, 2, 4, 5, 6,  //
+      0, 1, 2, 7, 3, 4, 5, 6, /**/ 1, 2, 7, 0, 3, 4, 5, 6,  //
+      0, 2, 7, 1, 3, 4, 5, 6, /**/ 2, 7, 0, 1, 3, 4, 5, 6,  //
+      0, 1, 7, 2, 3, 4, 5, 6, /**/ 1, 7, 0, 2, 3, 4, 5, 6,  //
+      0, 7, 1, 2, 3, 4, 5, 6, /**/ 7, 0, 1, 2, 3, 4, 5, 6,  //
+      0, 1, 2, 3, 4, 5, 6, 7, /**/ 1, 2, 3, 4, 5, 6, 0, 7,  //
+      0, 2, 3, 4, 5, 6, 1, 7, /**/ 2, 3, 4, 5, 6, 0, 1, 7,  //
+      0, 1, 3, 4, 5, 6, 2, 7, /**/ 1, 3, 4, 5, 6, 0, 2, 7,  //
+      0, 3, 4, 5, 6, 1, 2, 7, /**/ 3, 4, 5, 6, 0, 1, 2, 7,  //
+      0, 1, 2, 4, 5, 6, 3, 7, /**/ 1, 2, 4, 5, 6, 0, 3, 7,  //
+      0, 2, 4, 5, 6, 1, 3, 7, /**/ 2, 4, 5, 6, 0, 1, 3, 7,  //
+      0, 1, 4, 5, 6, 2, 3, 7, /**/ 1, 4, 5, 6, 0, 2, 3, 7,  //
+      0, 4, 5, 6, 1, 2, 3, 7, /**/ 4, 5, 6, 0, 1, 2, 3, 7,  //
+      0, 1, 2, 3, 5, 6, 4, 7, /**/ 1, 2, 3, 5, 6, 0, 4, 7,  //
+      0, 2, 3, 5, 6, 1, 4, 7, /**/ 2, 3, 5, 6, 0, 1, 4, 7,  //
+      0, 1, 3, 5, 6, 2, 4, 7, /**/ 1, 3, 5, 6, 0, 2, 4, 7,  //
+      0, 3, 5, 6, 1, 2, 4, 7, /**/ 3, 5, 6, 0, 1, 2, 4, 7,  //
+      0, 1, 2, 5, 6, 3, 4, 7, /**/ 1, 2, 5, 6, 0, 3, 4, 7,  //
+      0, 2, 5, 6, 1, 3, 4, 7, /**/ 2, 5, 6, 0, 1, 3, 4, 7,  //
+      0, 1, 5, 6, 2, 3, 4, 7, /**/ 1, 5, 6, 0, 2, 3, 4, 7,  //
+      0, 5, 6, 1, 2, 3, 4, 7, /**/ 5, 6, 0, 1, 2, 3, 4, 7,  //
+      0, 1, 2, 3, 4, 6, 5, 7, /**/ 1, 2, 3, 4, 6, 0, 5, 7,  //
+      0, 2, 3, 4, 6, 1, 5, 7, /**/ 2, 3, 4, 6, 0, 1, 5, 7,  //
+      0, 1, 3, 4, 6, 2, 5, 7, /**/ 1, 3, 4, 6, 0, 2, 5, 7,  //
+      0, 3, 4, 6, 1, 2, 5, 7, /**/ 3, 4, 6, 0, 1, 2, 5, 7,  //
+      0, 1, 2, 4, 6, 3, 5, 7, /**/ 1, 2, 4, 6, 0, 3, 5, 7,  //
+      0, 2, 4, 6, 1, 3, 5, 7, /**/ 2, 4, 6, 0, 1, 3, 5, 7,  //
+      0, 1, 4, 6, 2, 3, 5, 7, /**/ 1, 4, 6, 0, 2, 3, 5, 7,  //
+      0, 4, 6, 1, 2, 3, 5, 7, /**/ 4, 6, 0, 1, 2, 3, 5, 7,  //
+      0, 1, 2, 3, 6, 4, 5, 7, /**/ 1, 2, 3, 6, 0, 4, 5, 7,  //
+      0, 2, 3, 6, 1, 4, 5, 7, /**/ 2, 3, 6, 0, 1, 4, 5, 7,  //
+      0, 1, 3, 6, 2, 4, 5, 7, /**/ 1, 3, 6, 0, 2, 4, 5, 7,  //
+      0, 3, 6, 1, 2, 4, 5, 7, /**/ 3, 6, 0, 1, 2, 4, 5, 7,  //
+      0, 1, 2, 6, 3, 4, 5, 7, /**/ 1, 2, 6, 0, 3, 4, 5, 7,  //
+      0, 2, 6, 1, 3, 4, 5, 7, /**/ 2, 6, 0, 1, 3, 4, 5, 7,  //
+      0, 1, 6, 2, 3, 4, 5, 7, /**/ 1, 6, 0, 2, 3, 4, 5, 7,  //
+      0, 6, 1, 2, 3, 4, 5, 7, /**/ 6, 0, 1, 2, 3, 4, 5, 7,  //
+      0, 1, 2, 3, 4, 5, 6, 7, /**/ 1, 2, 3, 4, 5, 0, 6, 7,  //
+      0, 2, 3, 4, 5, 1, 6, 7, /**/ 2, 3, 4, 5, 0, 1, 6, 7,  //
+      0, 1, 3, 4, 5, 2, 6, 7, /**/ 1, 3, 4, 5, 0, 2, 6, 7,  //
+      0, 3, 4, 5, 1, 2, 6, 7, /**/ 3, 4, 5, 0, 1, 2, 6, 7,  //
+      0, 1, 2, 4, 5, 3, 6, 7, /**/ 1, 2, 4, 5, 0, 3, 6, 7,  //
+      0, 2, 4, 5, 1, 3, 6, 7, /**/ 2, 4, 5, 0, 1, 3, 6, 7,  //
+      0, 1, 4, 5, 2, 3, 6, 7, /**/ 1, 4, 5, 0, 2, 3, 6, 7,  //
+      0, 4, 5, 1, 2, 3, 6, 7, /**/ 4, 5, 0, 1, 2, 3, 6, 7,  //
+      0, 1, 2, 3, 5, 4, 6, 7, /**/ 1, 2, 3, 5, 0, 4, 6, 7,  //
+      0, 2, 3, 5, 1, 4, 6, 7, /**/ 2, 3, 5, 0, 1, 4, 6, 7,  //
+      0, 1, 3, 5, 2, 4, 6, 7, /**/ 1, 3, 5, 0, 2, 4, 6, 7,  //
+      0, 3, 5, 1, 2, 4, 6, 7, /**/ 3, 5, 0, 1, 2, 4, 6, 7,  //
+      0, 1, 2, 5, 3, 4, 6, 7, /**/ 1, 2, 5, 0, 3, 4, 6, 7,  //
+      0, 2, 5, 1, 3, 4, 6, 7, /**/ 2, 5, 0, 1, 3, 4, 6, 7,  //
+      0, 1, 5, 2, 3, 4, 6, 7, /**/ 1, 5, 0, 2, 3, 4, 6, 7,  //
+      0, 5, 1, 2, 3, 4, 6, 7, /**/ 5, 0, 1, 2, 3, 4, 6, 7,  //
+      0, 1, 2, 3, 4, 5, 6, 7, /**/ 1, 2, 3, 4, 0, 5, 6, 7,  //
+      0, 2, 3, 4, 1, 5, 6, 7, /**/ 2, 3, 4, 0, 1, 5, 6, 7,  //
+      0, 1, 3, 4, 2, 5, 6, 7, /**/ 1, 3, 4, 0, 2, 5, 6, 7,  //
+      0, 3, 4, 1, 2, 5, 6, 7, /**/ 3, 4, 0, 1, 2, 5, 6, 7,  //
+      0, 1, 2, 4, 3, 5, 6, 7, /**/ 1, 2, 4, 0, 3, 5, 6, 7,  //
+      0, 2, 4, 1, 3, 5, 6, 7, /**/ 2, 4, 0, 1, 3, 5, 6, 7,  //
+      0, 1, 4, 2, 3, 5, 6, 7, /**/ 1, 4, 0, 2, 3, 5, 6, 7,  //
+      0, 4, 1, 2, 3, 5, 6, 7, /**/ 4, 0, 1, 2, 3, 5, 6, 7,  //
+      0, 1, 2, 3, 4, 5, 6, 7, /**/ 1, 2, 3, 0, 4, 5, 6, 7,  //
+      0, 2, 3, 1, 4, 5, 6, 7, /**/ 2, 3, 0, 1, 4, 5, 6, 7,  //
+      0, 1, 3, 2, 4, 5, 6, 7, /**/ 1, 3, 0, 2, 4, 5, 6, 7,  //
+      0, 3, 1, 2, 4, 5, 6, 7, /**/ 3, 0, 1, 2, 4, 5, 6, 7,  //
+      0, 1, 2, 3, 4, 5, 6, 7, /**/ 1, 2, 0, 3, 4, 5, 6, 7,  //
+      0, 2, 1, 3, 4, 5, 6, 7, /**/ 2, 0, 1, 3, 4, 5, 6, 7,  //
+      0, 1, 2, 3, 4, 5, 6, 7, /**/ 1, 0, 2, 3, 4, 5, 6, 7,  //
+      0, 1, 2, 3, 4, 5, 6, 7, /**/ 0, 1, 2, 3, 4, 5, 6, 7,
+  };
+
+  return BitCast(d, Load8Bytes(d8, table + mask_bits * 8));
 }
 
 template <typename T, size_t N>
@@ -10369,6 +10654,23 @@ HWY_INLINE Vec128<T, N> IdxFromNotBits(hwy::SizeTag<8> /*tag*/,
 
 #endif
 
+HWY_INLINE const uint8_t* PopCountTable() {
+  alignas(16) static constexpr uint8_t table[256] = {
+      0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4, 1, 2, 2, 3, 2, 3, 3, 4,
+      2, 3, 3, 4, 3, 4, 4, 5, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
+      2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 1, 2, 2, 3, 2, 3, 3, 4,
+      2, 3, 3, 4, 3, 4, 4, 5, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
+      2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 3, 4, 4, 5, 4, 5, 5, 6,
+      4, 5, 5, 6, 5, 6, 6, 7, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
+      2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 2, 3, 3, 4, 3, 4, 4, 5,
+      3, 4, 4, 5, 4, 5, 5, 6, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7,
+      2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 3, 4, 4, 5, 4, 5, 5, 6,
+      4, 5, 5, 6, 5, 6, 6, 7, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7,
+      4, 5, 5, 6, 5, 6, 6, 7, 5, 6, 6, 7, 6, 7, 7, 8,
+  };
+  return table;
+}
+
 // Helper function called by both Compress and CompressStore - avoids a
 // redundant BitsFromMask in the latter.
 template <typename T, size_t N>
@@ -10380,6 +10682,34 @@ HWY_INLINE Vec128<T, N> Compress(Vec128<T, N> v, uint64_t mask_bits) {
   return BitCast(D(), TableLookupBytes(BitCast(di, v), BitCast(di, idx)));
 }
 
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 1), HWY_IF_LANES(N, 16)>
+HWY_INLINE Vec128<T, N> Compress(Vec128<T, N> v, uint64_t lo, uint64_t hi) {
+  using D = DFromV<decltype(v)>;
+
+  alignas(16) static constexpr uint8_t kSlideTable[8 * 16 + 16] = {
+      8,  9,  10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4,  5,  6,  7,  0,  8,
+      9,  10, 11, 12, 13, 14, 15, 1,  2, 3, 4, 5, 6,  7,  0,  1,  8,  9,
+      10, 11, 12, 13, 14, 15, 2,  3,  4, 5, 6, 7, 0,  1,  2,  8,  9,  10,
+      11, 12, 13, 14, 15, 3,  4,  5,  6, 7, 0, 1, 2,  3,  8,  9,  10, 11,
+      12, 13, 14, 15, 4,  5,  6,  7,  0, 1, 2, 3, 4,  8,  9,  10, 11, 12,
+      13, 14, 15, 5,  6,  7,  0,  1,  2, 3, 4, 5, 8,  9,  10, 11, 12, 13,
+      14, 15, 6,  7,  0,  1,  2,  3,  4, 5, 6, 8, 9,  10, 11, 12, 13, 14,
+      15, 7,  0,  1,  2,  3,  4,  5,  6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+  };
+  const size_t lo_cnt = PopCountTable()[lo];
+
+  const auto idx =
+      Combine(D(),
+              Or(detail::IdxFromBits<T, N / 2>(hwy::SizeTag<sizeof(T)>(), hi),
+                 Set(Half<D>(), 8)),
+              detail::IdxFromBits<T, N / 2>(hwy::SizeTag<sizeof(T)>(), lo));
+
+  const auto mi = TableLookupBytes(v, idx);
+  const Repartition<uint8_t, D> d8;
+  return BitCast(D(), TableLookupBytes(BitCast(d8, mi),
+                                       Load(d8, kSlideTable + 16 * lo_cnt)));
+}
+
 template <typename T, size_t N>
 HWY_INLINE Vec128<T, N> CompressNot(Vec128<T, N> v, uint64_t mask_bits) {
   const auto idx =
@@ -10389,6 +10719,51 @@ HWY_INLINE Vec128<T, N> CompressNot(Vec128<T, N> v, uint64_t mask_bits) {
   return BitCast(D(), TableLookupBytes(BitCast(di, v), BitCast(di, idx)));
 }
 
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 1), HWY_IF_LANES(N, 16)>
+HWY_INLINE Vec128<T, N> CompressNot(Vec128<T, N> v, uint64_t lo, uint64_t hi) {
+  using D = DFromV<decltype(v)>;
+  alignas(16) static constexpr uint8_t kSlideTable[8 * 16 + 16] = {
+      8,  9,  10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4,  5,  6,  7,  0,  8,
+      9,  10, 11, 12, 13, 14, 15, 1,  2, 3, 4, 5, 6,  7,  0,  1,  8,  9,
+      10, 11, 12, 13, 14, 15, 2,  3,  4, 5, 6, 7, 0,  1,  2,  8,  9,  10,
+      11, 12, 13, 14, 15, 3,  4,  5,  6, 7, 0, 1, 2,  3,  8,  9,  10, 11,
+      12, 13, 14, 15, 4,  5,  6,  7,  0, 1, 2, 3, 4,  8,  9,  10, 11, 12,
+      13, 14, 15, 5,  6,  7,  0,  1,  2, 3, 4, 5, 8,  9,  10, 11, 12, 13,
+      14, 15, 6,  7,  0,  1,  2,  3,  4, 5, 6, 8, 9,  10, 11, 12, 13, 14,
+      15, 7,  0,  1,  2,  3,  4,  5,  6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+  };
+  alignas(16) static constexpr uint8_t kPopCountNotTable[256] = {
+      8, 7, 7, 6, 7, 6, 6, 5, 7, 6, 6, 5, 6, 5, 5, 4, 
+      7, 6, 6, 5, 6, 5, 5, 4, 6, 5, 5, 4, 5, 4, 4, 3, 
+      7, 6, 6, 5, 6, 5, 5, 4, 6, 5, 5, 4, 5, 4, 4, 3, 
+      6, 5, 5, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 3, 3, 2, 
+      7, 6, 6, 5, 6, 5, 5, 4, 6, 5, 5, 4, 5, 4, 4, 3, 
+      6, 5, 5, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 3, 3, 2, 
+      6, 5, 5, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 3, 3, 2, 
+      5, 4, 4, 3, 4, 3, 3, 2, 4, 3, 3, 2, 3, 2, 2, 1, 
+      7, 6, 6, 5, 6, 5, 5, 4, 6, 5, 5, 4, 5, 4, 4, 3, 
+      6, 5, 5, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 3, 3, 2, 
+      6, 5, 5, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 3, 3, 2, 
+      5, 4, 4, 3, 4, 3, 3, 2, 4, 3, 3, 2, 3, 2, 2, 1, 
+      6, 5, 5, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 3, 3, 2, 
+      5, 4, 4, 3, 4, 3, 3, 2, 4, 3, 3, 2, 3, 2, 2, 1, 
+      5, 4, 4, 3, 4, 3, 3, 2, 4, 3, 3, 2, 3, 2, 2, 1, 
+      4, 3, 3, 2, 3, 2, 2, 1, 3, 2, 2, 1, 2, 1, 1, 0, 
+  };
+
+  const size_t lo_cnt = kPopCountNotTable[lo];
+
+  const auto idx = Combine(
+      D(),
+      Or(detail::IdxFromNotBits<T, N / 2>(hwy::SizeTag<sizeof(T)>(), hi),
+         Set(Half<D>(), 8)),
+      detail::IdxFromNotBits<T, N / 2>(hwy::SizeTag<sizeof(T)>(), lo));
+
+  const auto mi = TableLookupBytes(v, idx);
+  const Repartition<uint8_t, D> d8;
+  return BitCast(D(), TableLookupBytes(BitCast(d8, mi),
+                                       Load(d8, kSlideTable + 16 * lo_cnt)));
+}
 }  // namespace detail
 
 // Single lane: no-op
@@ -10409,11 +10784,23 @@ HWY_API Vec128<T, N> Compress(Vec128<T, N> v, Mask128<T, N> mask) {
   return IfVecThenElse(swap, Shuffle01(v), v);
 }
 
-// General case, 2 or 4 byte lanes
-template <typename T, size_t N, HWY_IF_T_SIZE_ONE_OF(T, (1 << 2) | (1 << 4))>
+// General case, 1(8 lanes), 2 or 4 byte lanes
+template <typename T, size_t N,
+          HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2) | (1 << 4)), HWY_IF_LANES_LE(N, 8)>
 HWY_API Vec128<T, N> Compress(Vec128<T, N> v, Mask128<T, N> mask) {
   const DFromV<decltype(v)> d;
   return detail::Compress(v, BitsFromMask(d, mask));
+}
+
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 1), HWY_IF_LANES(N, 16)>
+HWY_API Vec128<T, N> Compress(Vec128<T, N> v, Mask128<T, N> mask) {
+  const DFromV<decltype(v)> d;
+  const Half<decltype(d)> d_half;
+  const uint64_t lo = BitsFromMask(
+      d_half, MaskFromVec(LowerHalf(d_half, VecFromMask(d, mask))));
+  const uint64_t hi = BitsFromMask(
+      d_half, MaskFromVec(UpperHalf(d_half, VecFromMask(d, mask))));
+  return detail::Compress(v, lo, hi);
 }
 
 // Single lane: no-op
@@ -10434,8 +10821,9 @@ HWY_API Vec128<T> CompressNot(Vec128<T> v, Mask128<T> mask) {
   return IfVecThenElse(swap, Shuffle01(v), v);
 }
 
-// General case, 2 or 4 byte lanes
-template <typename T, size_t N, HWY_IF_T_SIZE_ONE_OF(T, (1 << 2) | (1 << 4))>
+// General case, 1(8 lanes), 2 or 4 byte lanes
+template <typename T, size_t N,
+          HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2) | (1 << 4)), HWY_IF_LANES_LE(N, 8)>
 HWY_API Vec128<T, N> CompressNot(Vec128<T, N> v, Mask128<T, N> mask) {
   const DFromV<decltype(v)> d;
   // For partial vectors, we cannot pull the Not() into the table because
@@ -10446,6 +10834,17 @@ HWY_API Vec128<T, N> CompressNot(Vec128<T, N> v, Mask128<T, N> mask) {
   return detail::CompressNot(v, BitsFromMask(d, mask));
 }
 
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 1), HWY_IF_LANES(N, 16)>
+HWY_API Vec128<T, N> CompressNot(Vec128<T, N> v, Mask128<T, N> mask) {
+  const DFromV<decltype(v)> d;
+  const Half<decltype(d)> d_half;
+  const uint64_t lo = BitsFromMask(
+      d_half, MaskFromVec(LowerHalf(d_half, VecFromMask(d, mask))));
+  const uint64_t hi = BitsFromMask(
+      d_half, MaskFromVec(UpperHalf(d_half, VecFromMask(d, mask))));
+  return detail::CompressNot(v, lo, hi);
+}
+
 // ------------------------------ CompressBlocksNot
 HWY_API Vec128<uint64_t> CompressBlocksNot(Vec128<uint64_t> v,
                                            Mask128<uint64_t> /* m */) {
@@ -10454,7 +10853,8 @@ HWY_API Vec128<uint64_t> CompressBlocksNot(Vec128<uint64_t> v,
 
 // ------------------------------ CompressBits
 
-template <typename T, size_t N, HWY_IF_NOT_T_SIZE(T, 1)>
+template <typename T, size_t N,
+          EnableIf<!(N == 16 && sizeof(T) == 1)>* = nullptr>
 HWY_INLINE Vec128<T, N> CompressBits(Vec128<T, N> v,
                                      const uint8_t* HWY_RESTRICT bits) {
   uint64_t mask_bits = 0;
@@ -10466,6 +10866,11 @@ HWY_INLINE Vec128<T, N> CompressBits(Vec128<T, N> v,
 
   return detail::Compress(v, mask_bits);
 }
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 1), HWY_IF_LANES(N, 16)>
+HWY_INLINE Vec128<T, N> CompressBits(Vec128<T, N> v,
+                                     const uint8_t* HWY_RESTRICT bits) {
+  return detail::Compress(v, bits[0], bits[1]);
+}
 
 namespace detail {
 struct BitsAndCount {
@@ -10476,38 +10881,48 @@ template <typename D, HWY_IF_LANES_D(D, 1)>
 HWY_INLINE auto BitsAndCountFromMask(D, MFromD<D> m) {
   RebindToUnsigned<D> du;
   using TU = TFromD<decltype(du)>;
-  alignas(16) static constexpr TU weights[1] = {1 + 2};
-  const TU s = ReduceSum(du, And(VecFromMask(du, RebindMask(du, m)), Load(du, weights)));
+  alignas(16) static constexpr TU kWeights[1] = {1 + 2};
+  const TU s = ReduceSum(du, And(VecFromMask(du, RebindMask(du, m)), Load(du, kWeights)));
   return BitsAndCount{static_cast<uint64_t>(s & 1), static_cast<size_t>(s >> 1)};
 }
 template <typename D, HWY_IF_LANES_D(D, 2)>
 HWY_INLINE auto BitsAndCountFromMask(D, MFromD<D> m) {
   RebindToUnsigned<D> du;
   using TU = TFromD<decltype(du)>;
-  alignas(16) static constexpr TU weights[2] = {1 + 4, 2 + 4};
-  const TU s = ReduceSum(du, And(VecFromMask(du, RebindMask(du, m)), Load(du, weights)));
+  alignas(16) static constexpr TU kWeights[2] = {1 + 4, 2 + 4};
+  const TU s = ReduceSum(du, And(VecFromMask(du, RebindMask(du, m)), Load(du, kWeights)));
   return BitsAndCount{static_cast<uint64_t>(s & 3), static_cast<size_t>(s >> 2)};
 }
 template <typename D, HWY_IF_LANES_D(D, 4)>
 HWY_INLINE auto BitsAndCountFromMask(D, MFromD<D> m) {
   RebindToUnsigned<D> du;
   using TU = TFromD<decltype(du)>;
-  alignas(16) static constexpr TU weights[4] = {1 + 16, 2 + 16, 4 + 16, 8 + 16};
-  const TU s = ReduceSum(du, And(VecFromMask(du, RebindMask(du, m)), Load(du, weights)));
+  alignas(16) static constexpr TU kWeights[4] = {1 + 16, 2 + 16, 4 + 16, 8 + 16};
+  const TU s = ReduceSum(du, And(VecFromMask(du, RebindMask(du, m)), Load(du, kWeights)));
   return BitsAndCount{static_cast<uint64_t>(s & 15), static_cast<size_t>(s >> 4)};
 }
 template <typename D, HWY_IF_NOT_T_SIZE_D(D, 1) /* because 256 > max value in u8 */, HWY_IF_LANES_D(D, 8)>
 HWY_INLINE auto BitsAndCountFromMask(D, MFromD<D> m) {
   RebindToUnsigned<D> du;
   using TU = TFromD<decltype(du)>;
-  alignas(16) static constexpr TU weights[8] = {1 + 256, 2 + 256, 4 + 256, 8 + 256, 16 + 256, 32 + 256, 64 + 256, 128 + 256};
-  const TU s = ReduceSum(du, And(VecFromMask(du, RebindMask(du, m)), Load(du, weights)));
+  alignas(16) static constexpr TU kWeights[8] = {1 + 256, 2 + 256, 4 + 256, 8 + 256, 16 + 256, 32 + 256, 64 + 256, 128 + 256};
+  const TU s = ReduceSum(du, And(VecFromMask(du, RebindMask(du, m)), Load(du, kWeights)));
   return BitsAndCount{static_cast<uint64_t>(s & 255), static_cast<size_t>(s >> 8)};
+}
+template <typename D, HWY_IF_T_SIZE_D(D, 1), HWY_IF_LANES_D(D, 8)>
+HWY_INLINE auto BitsAndCountFromMask(D, MFromD<D> m) {
+  RebindToUnsigned<D> du;
+  using TU = TFromD<decltype(du)>;
+  alignas(16) static constexpr TU kWeights[8] = {1, 2, 4, 8, 16, 32, 64, 128};
+  const TU s =
+      ReduceSum(du, And(VecFromMask(du, RebindMask(du, m)), Load(du, kWeights)));
+  return BitsAndCount{static_cast<uint64_t>(s),
+                      static_cast<size_t>(PopCountTable()[s])};
 }
 }  // namespace detail
 
 // ------------------------------ CompressStore
-template <class D, HWY_IF_NOT_T_SIZE_D(D, 1)>
+template <class D, HWY_IF_LANES_LE_D(D, 8)>
 HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> mask, D d,
                              TFromD<D>* HWY_RESTRICT unaligned) {
   const detail::BitsAndCount bits_and_count = detail::BitsAndCountFromMask(d, mask);
@@ -10515,8 +10930,21 @@ HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> mask, D d,
   return bits_and_count.count;
 }
 
+template <class D, HWY_IF_T_SIZE_D(D, 1), HWY_IF_LANES_D(D, 16)>
+HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> mask, D d,
+                             TFromD<D>* HWY_RESTRICT unaligned) {
+  const Half<decltype(d)> d_half;
+  const uint64_t bits = BitsFromMask(d, mask);
+
+  const uint64_t lo = PopCount(bits & 255);
+  StoreU(detail::Compress(LowerHalf(v), bits & 255), d_half, unaligned);
+  StoreU(detail::Compress(UpperHalf(d_half, v), bits >> 8), d_half, unaligned + lo);
+  return static_cast<size_t>(lo + PopCount(bits >> 8));
+}
+
 // ------------------------------ CompressBlendedStore
-template <class D, HWY_IF_NOT_T_SIZE_D(D, 1)>
+template <class D, EnableIf<!(HWY_MAX_LANES_D(D) == 16 &&
+                              sizeof(TFromD<D>) == 1)>* = nullptr>
 HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> m, D d,
                                     TFromD<D>* HWY_RESTRICT unaligned) {
   const RebindToUnsigned<decltype(d)> du;  // so we can support fp16/bf16
@@ -10530,9 +10958,22 @@ HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> m, D d,
   return count;
 }
 
+template <class D, HWY_IF_T_SIZE_D(D, 1), HWY_IF_LANES_D(D, 16)>
+HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> m, D d,
+                                    TFromD<D>* HWY_RESTRICT unaligned) {
+  const RebindToUnsigned<decltype(d)> du;
+  const uint64_t bits = BitsFromMask(d, m);
+  const size_t count = CountTrue(d, m);
+  const MFromD<D> store_mask = RebindMask(d, FirstN(du, count));
+  const VFromD<decltype(du)> compressed =
+      detail::Compress(BitCast(du, v), bits & 255, bits >> 8);
+  BlendedStore(BitCast(d, compressed), store_mask, d, unaligned);
+  return count;
+}
+
 // ------------------------------ CompressBitsStore
 
-template <class D, HWY_IF_NOT_T_SIZE_D(D, 1)>
+template <class D, HWY_IF_T_SIZE_GT_D(D, 1)>
 HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
                                  D d, TFromD<D>* HWY_RESTRICT unaligned) {
   uint64_t mask_bits = 0;
@@ -10546,6 +10987,28 @@ HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
   return PopCount(mask_bits);
 }
 
+template <class D, HWY_IF_T_SIZE_D(D, 1), HWY_IF_LANES_LE_D(D, 8)>
+HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
+                                 D d, TFromD<D>* HWY_RESTRICT unaligned) {
+  uint64_t mask_bits = 0;
+  constexpr size_t kNumBytes = (d.MaxLanes() + 7) / 8;
+  CopyBytes<kNumBytes>(bits, &mask_bits);
+  if (d.MaxLanes() < 8) {
+    mask_bits &= (1ull << d.MaxLanes()) - 1;
+  }
+
+  StoreU(detail::Compress(v, mask_bits), d, unaligned);
+  return detail::PopCountTable()[mask_bits];
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 1), HWY_IF_LANES_D(D, 16)>
+HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
+                                 D, TFromD<D>* HWY_RESTRICT unaligned) {
+  const Half<D> d_half;
+  const size_t lo = CompressBitsStore(LowerHalf(v), bits, d_half, unaligned);
+  return lo + CompressBitsStore(UpperHalf(d_half, v), bits + 1, d_half,
+                                unaligned + lo);
+}
 // ------------------------------ LoadInterleaved2
 
 // Per-target flag to prevent generic_ops-inl.h from defining LoadInterleaved2.
