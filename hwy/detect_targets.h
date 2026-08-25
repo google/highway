@@ -409,8 +409,17 @@
 // remains with 13.2, see #1683. This is separate from HWY_BROKEN_TARGETS
 // because it affects the fallback target, which must always be enabled. If 1,
 // we instead choose HWY_SCALAR even without HWY_COMPILE_ONLY_SCALAR being set.
+// The extension of this opt-out to GCC 14 and 15 was prompted by Armv7
+// failures (#1683, #2622), both of which trace to
+// https://gcc.gnu.org/PR111231. RISC-V has no native SIMD baseline unless the
+// V extension is enabled, so there EMU128 is the only fallback able to provide
+// fixed-width tags: substituting HWY_SCALAR does not merely lose speed, it
+// makes FixedTag<T, N> with N > 1 fail to compile, which breaks downstream
+// users such as V8's JSON stringifier. Keep the older blanket GCC < 14 opt-out,
+// but do not extend it to RISC-V, where the bug has not been observed.
 #if !defined(HWY_BROKEN_EMU128)  // allow overriding
-#if (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1600) || \
+#if (HWY_COMPILER_GCC_ACTUAL &&                                   \
+     HWY_COMPILER_GCC_ACTUAL < (HWY_ARCH_RISCV ? 1400 : 1600)) || \
     defined(HWY_NO_LIBCXX)
 #define HWY_BROKEN_EMU128 1
 #else
