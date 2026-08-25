@@ -602,8 +602,8 @@ HWY_INLINE void DecompressLeaf(const LeafNode* leaf, KeyT* out_keys) {
 
 // Decompresses all keys and values from a map leaf into destination arrays.
 template <typename KeyT, typename ValueT>
-HWY_INLINE void DecompressMapLeaf(const CompactMapLeafNode<KeyT, ValueT>* leaf,
-                                  KeyT* out_keys, ValueT* out_values) {
+HWY_INLINE void DecompressLeaf(const CompactMapLeafNode<KeyT, ValueT>* leaf,
+                               KeyT* out_keys, ValueT* out_values) {
   const size_t count = leaf->NumKeys();
   const ValueT* vals = leaf->Values();
   for (size_t i = 0; i < count; ++i) {
@@ -786,7 +786,7 @@ template <typename KeyT, typename ValueT>
 HWY_INLINE size_t DecompressAndInsertMapPair(
     const CompactMapLeafNode<KeyT, ValueT>* leaf, KeyT new_key,
     const ValueT& new_value, KeyT* out_keys, ValueT* out_values) {
-  DecompressMapLeaf(leaf, out_keys, out_values);
+  DecompressLeaf(leaf, out_keys, out_values);
   const size_t count = leaf->NumKeys();
   size_t slot = 0;
   while (slot < count && out_keys[slot] < new_key) {
@@ -840,8 +840,8 @@ HWY_INLINE bool TryFastInsertOffset(CompactLeafNode<KeyT>* leaf, KeyT new_key,
                                     size_t slot) {
   constexpr size_t kCapacity =
       CompactLeafNode<KeyT>::kDataBytes / sizeof(OffsetT);
-  const size_t cur_num = leaf->NumKeys();
-  if (HWY_UNLIKELY(cur_num >= kCapacity)) return false;
+  const size_t count = leaf->NumKeys();
+  if (HWY_UNLIKELY(count >= kCapacity)) return false;
 
   auto* offsets = HWY_RCAST_ALIGNED(OffsetT*, leaf->data);
 
@@ -853,14 +853,14 @@ HWY_INLINE bool TryFastInsertOffset(CompactLeafNode<KeyT>* leaf, KeyT new_key,
       std::memmove(offsets + slot + 1, offsets + slot,
                    (kCapacity - 1 - slot) * sizeof(OffsetT));
       offsets[slot] = static_cast<OffsetT>(delta);
-      leaf->SetNumKeys(cur_num + 1);
+      leaf->SetNumKeys(count + 1);
       return true;
     }
   } else {
     // new_key < base_key (inserted at slot 0).
     // new_key becomes the new base_key (offset 0), and all existing offsets
     // are shifted up by (old_base_key - new_key).
-    const KeyT max_existing = GetCompactKey(leaf, cur_num - 1);
+    const KeyT max_existing = GetCompactKey(leaf, count - 1);
     const uint64_t new_span = static_cast<uint64_t>(max_existing - new_key);
     if (HWY_LIKELY(new_span <= kMaxDelta)) {
       const OffsetT shift = static_cast<OffsetT>(leaf->base_key - new_key);
@@ -868,11 +868,11 @@ HWY_INLINE bool TryFastInsertOffset(CompactLeafNode<KeyT>* leaf, KeyT new_key,
       // length branching.
       std::memmove(offsets + 1, offsets, (kCapacity - 1) * sizeof(OffsetT));
       offsets[0] = 0;
-      for (size_t i = 1; i <= cur_num; ++i) {
+      for (size_t i = 1; i <= count; ++i) {
         offsets[i] += shift;
       }
       leaf->base_key = new_key;
-      leaf->SetNumKeys(cur_num + 1);
+      leaf->SetNumKeys(count + 1);
       return true;
     }
   }
@@ -935,8 +935,9 @@ HWY_INLINE bool TryFastInsertOffset(CompactMapLeafNode<KeyT, ValueT>* leaf,
 template <typename Traits, typename KeyT>
 HWY_INLINE bool TryFastInsertIntoLeaf(CompactLeafNode<KeyT>* leaf, KeyT new_key,
                                       size_t slot) {
-  const size_t cur_num = leaf->NumKeys();
-  if (HWY_UNLIKELY(cur_num == 0)) {
+  using Leaf = CompactLeafNode<KeyT>;
+  const size_t count = leaf->NumKeys();
+  if (HWY_UNLIKELY(count == 0)) {
     CompressIntoLeaf(leaf, &new_key, 1);
     return true;
   }
@@ -947,30 +948,28 @@ HWY_INLINE bool TryFastInsertIntoLeaf(CompactLeafNode<KeyT>* leaf, KeyT new_key,
   } else if (mode == kMode8Bit) {
     return TryFastInsertOffset<Traits, uint8_t, 255>(leaf, new_key, slot);
   } else if (mode == kMode32Bit) {
-    constexpr size_t kCapacity = CompactLeafNode<KeyT>::kMax32;
-    if (HWY_UNLIKELY(cur_num >= kCapacity)) return false;
+    if (HWY_UNLIKELY(count >= Leaf::kMax32)) return false;
 
     if constexpr (sizeof(KeyT) == 4) {
       auto* raw_keys = HWY_RCAST_ALIGNED(uint32_t*, leaf->data);
       std::memmove(raw_keys + slot + 1, raw_keys + slot,
-                   (kCapacity - 1 - slot) * sizeof(uint32_t));
+                   (Leaf::kMax32 - 1 - slot) * sizeof(uint32_t));
       raw_keys[slot] = static_cast<uint32_t>(new_key);
       if (HWY_UNLIKELY(slot == 0)) leaf->base_key = new_key;
-      leaf->SetNumKeys(cur_num + 1);
+      leaf->SetNumKeys(count + 1);
       return true;
     } else {
       return TryFastInsertOffset<Traits, uint32_t, 0xFFFFFFFFULL>(leaf, new_key,
                                                                   slot);
     }
   } else {
-    constexpr size_t kCapacity = CompactLeafNode<KeyT>::kMax64;
-    if (HWY_UNLIKELY(cur_num >= kCapacity)) return false;
+    if (HWY_UNLIKELY(count >= Leaf::kMax64)) return false;
     auto* raw_keys = HWY_RCAST_ALIGNED(uint64_t*, leaf->data);
     std::memmove(raw_keys + slot + 1, raw_keys + slot,
-                 (kCapacity - 1 - slot) * sizeof(uint64_t));
+                 (Leaf::kMax64 - 1 - slot) * sizeof(uint64_t));
     raw_keys[slot] = static_cast<uint64_t>(new_key);
     if (HWY_UNLIKELY(slot == 0)) leaf->base_key = new_key;
-    leaf->SetNumKeys(cur_num + 1);
+    leaf->SetNumKeys(count + 1);
     return true;
   }
 }
@@ -1035,31 +1034,31 @@ template <typename OffsetT, OffsetT kSentinel, typename KeyT>
 HWY_INLINE bool TryFastEraseOffset(CompactLeafNode<KeyT>* leaf, size_t slot) {
   constexpr size_t kCapacity =
       CompactLeafNode<KeyT>::kDataBytes / sizeof(OffsetT);
-  const size_t cur_num = leaf->NumKeys();
+  const size_t count = leaf->NumKeys();
   auto* offsets = HWY_RCAST_ALIGNED(OffsetT*, leaf->data);
   // If erasing slot 0 (the base_key), shift all offsets and advance base_key.
   if (HWY_UNLIKELY(slot == 0)) {
     const OffsetT shift = offsets[1];
-    for (size_t i = 1; i < cur_num; ++i) {
+    for (size_t i = 1; i < count; ++i) {
       offsets[i - 1] = offsets[i] - shift;
     }
-    offsets[cur_num - 1] = kSentinel;
+    offsets[count - 1] = kSentinel;
     leaf->base_key += shift;
   } else {
     // If erasing slot > 0, shift subsequent offsets left.
     std::memmove(offsets + slot, offsets + slot + 1,
                  (kCapacity - 1 - slot) * sizeof(OffsetT));
-    offsets[cur_num - 1] = kSentinel;
+    offsets[count - 1] = kSentinel;
   }
-  leaf->SetNumKeys(cur_num - 1);
+  leaf->SetNumKeys(count - 1);
   return true;
 }
 
 // In-place fast path for erasing a key-value pair from a compressed map leaf
 // (Map).
 template <typename OffsetT, OffsetT kSentinel, typename KeyT, typename ValueT>
-HWY_INLINE bool TryFastEraseMapOffset(CompactMapLeafNode<KeyT, ValueT>* leaf,
-                                      size_t slot) {
+HWY_INLINE bool TryFastEraseOffset(CompactMapLeafNode<KeyT, ValueT>* leaf,
+                                   size_t slot) {
   const size_t count = leaf->NumKeys();
   auto* offsets = HWY_RCAST_ALIGNED(OffsetT*, leaf->payload);
   ValueT* vals = leaf->Values();
@@ -1088,11 +1087,12 @@ HWY_INLINE bool TryFastEraseMapOffset(CompactMapLeafNode<KeyT, ValueT>* leaf,
 // modes (Set).
 template <typename KeyT>
 HWY_INLINE bool TryFastEraseFromLeaf(CompactLeafNode<KeyT>* leaf, size_t slot) {
-  const size_t cur_num = leaf->NumKeys();
-  if (HWY_UNLIKELY(cur_num <= 1)) {
+  using Leaf = CompactLeafNode<KeyT>;
+  const size_t count = leaf->NumKeys();
+  if (HWY_UNLIKELY(count <= 1)) {
     leaf->SetNumKeys(0);
     leaf->base_key = 0;
-    std::memset(leaf->data, 0xFF, CompactLeafNode<KeyT>::kDataBytes);
+    std::memset(leaf->data, 0xFF, Leaf::kDataBytes);
     return true;
   }
 
@@ -1103,29 +1103,27 @@ HWY_INLINE bool TryFastEraseFromLeaf(CompactLeafNode<KeyT>* leaf, size_t slot) {
     return TryFastEraseOffset<uint8_t, 0xFF>(leaf, slot);
   } else if (mode == kMode32Bit) {
     if constexpr (sizeof(KeyT) == 4) {
-      constexpr size_t kCapacity = CompactLeafNode<KeyT>::kMax32;
       auto* raw_keys = HWY_RCAST_ALIGNED(uint32_t*, leaf->data);
       std::memmove(raw_keys + slot, raw_keys + slot + 1,
-                   (kCapacity - 1 - slot) * sizeof(uint32_t));
-      raw_keys[cur_num - 1] = 0xFFFFFFFF;
-      if (HWY_UNLIKELY(slot == 0 && cur_num > 1)) {
+                   (Leaf::kMax32 - 1 - slot) * sizeof(uint32_t));
+      raw_keys[count - 1] = 0xFFFFFFFF;
+      if (HWY_UNLIKELY(slot == 0 && count > 1)) {
         leaf->base_key = static_cast<KeyT>(raw_keys[0]);
       }
-      leaf->SetNumKeys(cur_num - 1);
+      leaf->SetNumKeys(count - 1);
       return true;
     } else {
       return TryFastEraseOffset<uint32_t, 0xFFFFFFFF>(leaf, slot);
     }
   } else {
-    constexpr size_t kCapacity = CompactLeafNode<KeyT>::kMax64;
     auto* raw_keys = HWY_RCAST_ALIGNED(uint64_t*, leaf->data);
     std::memmove(raw_keys + slot, raw_keys + slot + 1,
-                 (kCapacity - 1 - slot) * sizeof(uint64_t));
-    raw_keys[cur_num - 1] = 0xFFFFFFFFFFFFFFFFULL;
-    if (HWY_UNLIKELY(slot == 0 && cur_num > 1)) {
+                 (Leaf::kMax64 - 1 - slot) * sizeof(uint64_t));
+    raw_keys[count - 1] = 0xFFFFFFFFFFFFFFFFULL;
+    if (HWY_UNLIKELY(slot == 0 && count > 1)) {
       leaf->base_key = static_cast<KeyT>(raw_keys[0]);
     }
-    leaf->SetNumKeys(cur_num - 1);
+    leaf->SetNumKeys(count - 1);
     return true;
   }
 }
@@ -1135,20 +1133,20 @@ HWY_INLINE bool TryFastEraseFromLeaf(CompactLeafNode<KeyT>* leaf, size_t slot) {
 template <typename KeyT, typename ValueT>
 HWY_INLINE bool TryFastEraseFromLeaf(CompactMapLeafNode<KeyT, ValueT>* leaf,
                                      size_t slot) {
+  using Leaf = CompactMapLeafNode<KeyT, ValueT>;
   const size_t count = leaf->NumKeys();
   if (HWY_UNLIKELY(count <= 1)) {
     leaf->SetNumKeys(0);
     leaf->base_key = 0;
-    std::memset(leaf->payload, 0xFF,
-                CompactMapLeafNode<KeyT, ValueT>::kPayloadBytes);
+    std::memset(leaf->payload, 0xFF, Leaf::kPayloadBytes);
     return true;
   }
 
   const uint8_t mode = leaf->BitMode();
   if (HWY_LIKELY(mode == kMode16Bit)) {
-    return TryFastEraseMapOffset<uint16_t, 0xFFFF>(leaf, slot);
+    return TryFastEraseOffset<uint16_t, 0xFFFF>(leaf, slot);
   } else if (mode == kMode8Bit) {
-    return TryFastEraseMapOffset<uint8_t, 0xFF>(leaf, slot);
+    return TryFastEraseOffset<uint8_t, 0xFF>(leaf, slot);
   } else if (mode == kMode32Bit) {
     ValueT* vals = leaf->Values();
     if constexpr (sizeof(KeyT) == 4) {
@@ -1164,7 +1162,7 @@ HWY_INLINE bool TryFastEraseFromLeaf(CompactMapLeafNode<KeyT, ValueT>* leaf,
       leaf->SetNumKeys(count - 1);
       return true;
     } else {
-      return TryFastEraseMapOffset<uint32_t, 0xFFFFFFFF>(leaf, slot);
+      return TryFastEraseOffset<uint32_t, 0xFFFFFFFF>(leaf, slot);
     }
   } else {
     ValueT* vals = leaf->Values();
@@ -1323,9 +1321,8 @@ HWY_INLINE void MergeCompactLeaves(
   if (next_keys > 0) {
     KeyT temp_keys[512];
     ValueT temp_values[512];
-    DecompressMapLeaf(leaf, temp_keys, temp_values);
-    DecompressMapLeaf(next_leaf, temp_keys + leaf_keys,
-                      temp_values + leaf_keys);
+    DecompressLeaf(leaf, temp_keys, temp_values);
+    DecompressLeaf(next_leaf, temp_keys + leaf_keys, temp_values + leaf_keys);
     const size_t total_keys = leaf_keys + next_keys;
     CompressIntoLeaf(leaf, temp_keys, temp_values, total_keys);
   }
