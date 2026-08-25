@@ -1339,6 +1339,7 @@ class BTree {
   using mapped_type = typename Traits::mapped_type;
   using size_type = size_t;
   using difference_type = std::ptrdiff_t;
+  static constexpr bool kIsMap = Traits::kIsMap;
 
   // ---------------------------------------------------------------------------
   // Bidirectional Iterators
@@ -1378,6 +1379,8 @@ class BTree {
     using iterator_category = std::bidirectional_iterator_tag;
     using value_type = typename Traits::value_type;
     using difference_type = std::ptrdiff_t;
+    using reference = hwy::If<Traits::kIsMap, MapConstRef, KeyT>;
+    using pointer = hwy::If<Traits::kIsMap, MapConstArrowProxy, SetConstRef>;
 
     const_iterator() = default;
     const_iterator(const Leaf* leaf, size_t slot,
@@ -1465,6 +1468,8 @@ class BTree {
     using iterator_category = std::bidirectional_iterator_tag;
     using value_type = typename Traits::value_type;
     using difference_type = std::ptrdiff_t;
+    using reference = hwy::If<Traits::kIsMap, MapMutRef, KeyT>;
+    using pointer = hwy::If<Traits::kIsMap, MapMutArrowProxy, SetConstRef>;
 
     iterator() = default;
     iterator(Leaf* leaf, size_t slot, Leaf* last_leaf = nullptr)
@@ -1536,8 +1541,119 @@ class BTree {
     Leaf* leaf() const { return const_cast<Leaf*>(this->leaf_); }
   };
 
-  using reverse_iterator = std::reverse_iterator<iterator>;
-  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+  class const_reverse_iterator {
+   public:
+    using iterator_category = std::bidirectional_iterator_tag;
+    using value_type = typename Traits::value_type;
+    using difference_type = std::ptrdiff_t;
+    using reference = hwy::If<Traits::kIsMap, MapConstRef, KeyT>;
+    using pointer = hwy::If<Traits::kIsMap, MapConstArrowProxy, SetConstRef>;
+
+    const_reverse_iterator() = default;
+    explicit const_reverse_iterator(const_iterator it) : current_(it) {}
+
+    auto operator*() const {
+      auto tmp = current_;
+      --tmp;
+      return *tmp;
+    }
+
+    auto operator->() const {
+      auto tmp = current_;
+      --tmp;
+      return tmp.operator->();
+    }
+
+    const_reverse_iterator& operator++() {
+      --current_;
+      return *this;
+    }
+    const_reverse_iterator operator++(int) {
+      const_reverse_iterator tmp = *this;
+      --current_;
+      return tmp;
+    }
+    const_reverse_iterator& operator--() {
+      ++current_;
+      return *this;
+    }
+    const_reverse_iterator operator--(int) {
+      const_reverse_iterator tmp = *this;
+      ++current_;
+      return tmp;
+    }
+
+    bool operator==(const const_reverse_iterator& other) const {
+      return current_ == other.current_;
+    }
+    bool operator!=(const const_reverse_iterator& other) const {
+      return current_ != other.current_;
+    }
+
+    const_iterator base() const { return current_; }
+
+   private:
+    const_iterator current_;
+  };
+
+  class reverse_iterator {
+   public:
+    using iterator_category = std::bidirectional_iterator_tag;
+    using value_type = typename Traits::value_type;
+    using difference_type = std::ptrdiff_t;
+    using reference = hwy::If<Traits::kIsMap, MapMutRef, KeyT>;
+    using pointer = hwy::If<Traits::kIsMap, MapMutArrowProxy, SetConstRef>;
+
+    reverse_iterator() = default;
+    explicit reverse_iterator(iterator it) : current_(it) {}
+
+    auto operator*() const {
+      auto tmp = current_;
+      --tmp;
+      return *tmp;
+    }
+
+    auto operator->() const {
+      auto tmp = current_;
+      --tmp;
+      return tmp.operator->();
+    }
+
+    reverse_iterator& operator++() {
+      --current_;
+      return *this;
+    }
+    reverse_iterator operator++(int) {
+      reverse_iterator tmp = *this;
+      --current_;
+      return tmp;
+    }
+    reverse_iterator& operator--() {
+      ++current_;
+      return *this;
+    }
+    reverse_iterator operator--(int) {
+      reverse_iterator tmp = *this;
+      ++current_;
+      return tmp;
+    }
+
+    bool operator==(const reverse_iterator& other) const {
+      return current_ == other.current_;
+    }
+    bool operator!=(const reverse_iterator& other) const {
+      return current_ != other.current_;
+    }
+
+    operator const_reverse_iterator() const {
+      return const_reverse_iterator(current_);
+    }
+
+    iterator base() const { return current_; }
+
+   private:
+    iterator current_;
+  };
 
   BTree() = default;
   ~BTree() { clear(); }

@@ -17,10 +17,7 @@
 #include <stdio.h>
 
 #include <algorithm>
-#include <iterator>
-#include <limits>
 #include <map>
-#include <memory>
 #include <set>
 #include <utility>
 #include <vector>
@@ -33,7 +30,6 @@
 #if HWY_HAVE_ABSL
 #include "third_party/absl/container/btree_map.h"
 #include "third_party/absl/container/btree_set.h"
-#include "third_party/absl/random/random.h"
 #endif
 #include "hwy/base.h"
 
@@ -44,6 +40,7 @@
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 // After foreach_target
 #include "hwy/contrib/btree/btree-inl.h"
+#include "hwy/contrib/random/random-inl.h"
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
 
@@ -56,494 +53,633 @@ namespace {
 HWY_NOINLINE void TestAll() {}
 #else
 
-template <typename KeyT>
-void TestEmptyTree() {
-  auto tree = BTreeSet<KeyT>::Build(nullptr, 0);
-  HWY_ASSERT(tree.empty());
-  HWY_ASSERT_EQ(tree.size(), size_t{0});
-  HWY_ASSERT_EQ(tree.height(), uint16_t{0});
-  HWY_ASSERT(!tree.contains(10));
-  HWY_ASSERT(tree.find(10) == tree.end());
-  HWY_ASSERT(tree.lower_bound(10) == tree.end());
-  HWY_ASSERT(tree.begin() == tree.end());
+// =============================================================================
+// Unified Differential Verification Harness (similar to absl:: tests)
+// =============================================================================
+
+template <typename T, typename = void>
+struct IsPairLike : std::false_type {};
+
+template <typename T>
+struct IsPairLike<T, std::void_t<decltype(std::declval<T>().first),
+                                 decltype(std::declval<T>().second)> >
+    : std::true_type {};
+
+template <typename T, typename U>
+void VerifyEqualValues(const T& a, const U& b) {
+  if constexpr (IsPairLike<T>::value) {
+    HWY_ASSERT_EQ(a.first, b.first);
+    HWY_ASSERT_EQ(a.second, b.second);
+  } else {
+    HWY_ASSERT_EQ(a, b);
+  }
 }
 
-template <typename KeyT>
-void TestSingleLeaf() {
-  std::vector<KeyT> keys = {10, 20, 30, 40, 50};
-  auto tree = BTreeSet<KeyT>::Build(keys.data(), keys.size());
-  HWY_ASSERT(!tree.empty());
-  HWY_ASSERT_EQ(tree.size(), size_t{5});
-  HWY_ASSERT_EQ(tree.height(), uint16_t{0});
-
-  for (KeyT k : keys) {
-    HWY_ASSERT(tree.contains(k));
-    auto it = tree.find(k);
-    HWY_ASSERT(it != tree.end());
-    HWY_ASSERT_EQ(*it, k);
-  }
-  HWY_ASSERT(!tree.contains(15));
-  HWY_ASSERT(tree.find(15) == tree.end());
-
-  auto lb = tree.lower_bound(25);
-  HWY_ASSERT(lb != tree.end());
-  HWY_ASSERT_EQ(*lb, 30);
-
-  size_t idx = 0;
-  for (auto it = tree.begin(); it != tree.end(); ++it) {
-    HWY_ASSERT_EQ(*it, keys[idx++]);
-  }
-  HWY_ASSERT_EQ(idx, size_t{5});
+template <typename Iter1, typename Iter2>
+void VerifyEqualElements(Iter1 it1, Iter2 it2) {
+  VerifyEqualValues(*it1, *it2);
 }
 
-template <typename KeyT>
-void TestRandomizedComparisonAgainstAbsl(size_t n, size_t num_queries) {
-  absl::BitGen bitgen;
-  std::set<KeyT> unique_keys;
-  for (size_t i = 0; i < n; ++i) {
-    unique_keys.insert(
-        static_cast<KeyT>(absl::Uniform<KeyT>(bitgen, 0, n * 50)));
-  }
-  std::vector<KeyT> sorted_keys(unique_keys.begin(), unique_keys.end());
-  absl::btree_set<KeyT> absl_tree(sorted_keys.begin(), sorted_keys.end());
-  auto tree = BTreeSet<KeyT>::Build(sorted_keys.data(), sorted_keys.size());
+template <typename ValueT>
+struct ValueGenerator {
+  uint64_t max_val;
+  explicit ValueGenerator(uint64_t m) : max_val(m) {}
 
-  HWY_ASSERT_EQ(tree.size(), absl_tree.size());
-
-  for (size_t q = 0; q < num_queries; ++q) {
-    KeyT query_key = static_cast<KeyT>(absl::Uniform<KeyT>(bitgen, 0, n * 60));
-    bool absl_contains = absl_tree.contains(query_key);
-    bool hwy_contains = tree.contains(query_key);
-    HWY_ASSERT_EQ(hwy_contains, absl_contains);
-
-    auto hwy_it = tree.find(query_key);
-    if (absl_contains) {
-      HWY_ASSERT(hwy_it != tree.end());
-      HWY_ASSERT_EQ(*hwy_it, query_key);
+  ValueT operator()(uint64_t i) const {
+    if constexpr (hwy::IsSameEither<ValueT, float, double>()) {
+      return static_cast<ValueT>(i) * static_cast<ValueT>(0.5);
     } else {
-      HWY_ASSERT(hwy_it == tree.end());
+      return static_cast<ValueT>(i);
     }
+  }
+};
 
-    auto absl_lb = absl_tree.lower_bound(query_key);
-    auto hwy_lb = tree.lower_bound(query_key);
-    if (absl_lb == absl_tree.end()) {
-      HWY_ASSERT(hwy_lb == tree.end());
+template <typename K, typename V>
+struct ValueGenerator<std::pair<K, V> > {
+  uint64_t max_val;
+  explicit ValueGenerator(uint64_t m) : max_val(m) {}
+
+  std::pair<K, V> operator()(uint64_t i) const {
+    K k = static_cast<K>(i);
+    V v;
+    if constexpr (hwy::IsSameEither<V, float, double>()) {
+      v = static_cast<V>(i) * static_cast<V>(1.5);
     } else {
-      HWY_ASSERT(hwy_lb != tree.end());
-      HWY_ASSERT_EQ(*hwy_lb, *absl_lb);
+      v = static_cast<V>(i * 10 + 7);
+    }
+    return {k, v};
+  }
+};
+
+template <typename V>
+std::vector<V> GenerateValuesWithSeed(size_t n, uint64_t max_val,
+                                      uint32_t seed) {
+  if (n == 0) return {};
+  hn::AesCtrEngine engine(/*deterministic=*/true);
+  hn::RngStream rng(engine, seed);
+  std::set<uint64_t> unique_nums;
+  std::vector<uint64_t> nums;
+  nums.reserve(n);
+  while (nums.size() < n) {
+    uint64_t val = (rng() % (max_val + 1)) + 1;
+    if (unique_nums.insert(val).second) {
+      nums.push_back(val);
     }
   }
-
-  auto absl_it = absl_tree.begin();
-  auto hwy_it = tree.begin();
-  while (absl_it != absl_tree.end()) {
-    HWY_ASSERT(hwy_it != tree.end());
-    HWY_ASSERT_EQ(*hwy_it, *absl_it);
-    ++absl_it;
-    ++hwy_it;
+  ValueGenerator<V> gen(max_val);
+  std::vector<V> res;
+  res.reserve(n);
+  for (uint64_t x : nums) {
+    res.push_back(gen(x));
   }
-  HWY_ASSERT(hwy_it == tree.end());
+  return res;
 }
 
-template <typename KeyT>
-void TestBatchQueries(size_t n, size_t num_queries) {
-  absl::BitGen bitgen;
-  std::set<KeyT> unique_keys;
-  for (size_t i = 0; i < n; ++i) {
-    unique_keys.insert(
-        static_cast<KeyT>(absl::Uniform<KeyT>(bitgen, 0, n * 50)));
+template <typename T>
+struct KeyExtractor {
+  static const T& Get(const T& v) { return v; }
+};
+
+template <typename K, typename V>
+struct KeyExtractor<std::pair<K, V> > {
+  static const K& Get(const std::pair<K, V>& p) { return p.first; }
+};
+
+template <typename K, typename V>
+struct KeyExtractor<std::pair<const K, V> > {
+  static const K& Get(const std::pair<const K, V>& p) { return p.first; }
+};
+
+template <typename ValueT>
+auto ExtractKey(const ValueT& v) {
+  return KeyExtractor<ValueT>::Get(v);
+}
+
+template <typename ValueT>
+struct ValueComparator {
+  bool operator()(const ValueT& a, const ValueT& b) const { return a < b; }
+};
+
+template <typename K, typename V>
+struct ValueComparator<std::pair<K, V> > {
+  bool operator()(const std::pair<K, V>& a, const std::pair<K, V>& b) const {
+    return a.first < b.first;
   }
-  std::vector<KeyT> sorted_keys(unique_keys.begin(), unique_keys.end());
-  absl::btree_set<KeyT> absl_tree(sorted_keys.begin(), sorted_keys.end());
-  auto tree = BTreeSet<KeyT>::Build(sorted_keys.data(), sorted_keys.size());
+};
 
-  std::vector<KeyT> queries(num_queries);
-  for (size_t i = 0; i < num_queries; ++i) {
-    queries[i] = static_cast<KeyT>(absl::Uniform<KeyT>(bitgen, 0, n * 60));
+template <typename K, typename V>
+struct ValueComparator<std::pair<const K, V> > {
+  bool operator()(const std::pair<const K, V>& a,
+                  const std::pair<const K, V>& b) const {
+    return a.first < b.first;
   }
+};
 
-  std::vector<uint8_t> batch_found(num_queries);
-  tree.ContainsBatch(queries.data(), num_queries,
-                     reinterpret_cast<bool*>(batch_found.data()));
-  for (size_t i = 0; i < num_queries; ++i) {
-    const bool absl_found = (absl_tree.find(queries[i]) != absl_tree.end());
-    HWY_ASSERT_EQ(static_cast<bool>(batch_found[i]), absl_found);
+template <typename ValueT>
+struct ValueEquality {
+  bool operator()(const ValueT& a, const ValueT& b) const { return a == b; }
+};
+
+template <typename K, typename V>
+struct ValueEquality<std::pair<K, V> > {
+  bool operator()(const std::pair<K, V>& a, const std::pair<K, V>& b) const {
+    return a.first == b.first;
   }
+};
 
-  std::vector<typename BTreeSet<KeyT>::const_iterator> batch_results(
-      num_queries);
-  tree.LowerBoundBatch(queries.data(), num_queries, batch_results.data());
+template <typename K, typename V>
+struct ValueEquality<std::pair<const K, V> > {
+  bool operator()(const std::pair<const K, V>& a,
+                  const std::pair<const K, V>& b) const {
+    return a.first == b.first;
+  }
+};
 
-  for (size_t i = 0; i < num_queries; ++i) {
-    auto absl_lb = absl_tree.lower_bound(queries[i]);
-    if (absl_lb == absl_tree.end()) {
-      HWY_ASSERT(batch_results[i] == tree.end());
-    } else {
-      HWY_ASSERT(batch_results[i] != tree.end());
-      HWY_ASSERT_EQ(*batch_results[i], *absl_lb);
+template <typename ValueT>
+void SortUniqueValues(std::vector<ValueT>& values) {
+  std::sort(values.begin(), values.end(), ValueComparator<ValueT>{});
+  values.erase(
+      std::unique(values.begin(), values.end(), ValueEquality<ValueT>{}),
+      values.end());
+}
+
+template <typename TreeT, typename ValueT>
+TreeT BuildTreeFromValues(const std::vector<ValueT>& values,
+                          float fill_ratio = 1.0f) {
+  if constexpr (TreeT::kIsMap) {
+    std::vector<typename TreeT::key_type> keys;
+    std::vector<typename TreeT::mapped_type> vals;
+    keys.reserve(values.size());
+    vals.reserve(values.size());
+    for (const auto& item : values) {
+      keys.push_back(item.first);
+      vals.push_back(item.second);
     }
+    return TreeT::Build(keys.data(), vals.data(), keys.size(), fill_ratio);
+  } else {
+    return TreeT::Build(values.data(), values.size(), fill_ratio);
   }
 }
 
-template <typename KeyT>
-void TestDiverseBitModes() {
-  std::vector<KeyT> dense_keys;
-  for (size_t i = 0; i < 500; ++i) {
-    dense_keys.push_back(static_cast<KeyT>(i * 2 + 10));
-  }
-  auto dense_tree = BTreeSet<KeyT>::Build(dense_keys.data(), dense_keys.size());
-  for (KeyT k : dense_keys) {
-    HWY_ASSERT(dense_tree.contains(k));
-    HWY_ASSERT_EQ(*dense_tree.lower_bound(k), k);
-  }
+// -----------------------------------------------------------------------------
+// BTreeChecker: Continuous Invariant and Differential Verification
+// -----------------------------------------------------------------------------
 
-  std::vector<KeyT> sparse_keys;
-  for (size_t i = 0; i < 200; ++i) {
-    if constexpr (sizeof(KeyT) == 4) {
-      sparse_keys.push_back(static_cast<KeyT>(i * 10000000U + 500));
-    } else {
-      sparse_keys.push_back(
-          static_cast<KeyT>(static_cast<uint64_t>(i) * 10000000000ULL + 500));
+template <typename TreeT, typename StdRefT>
+class BTreeChecker {
+ public:
+  using key_type = typename TreeT::key_type;
+  using value_type = typename TreeT::value_type;
+  using iterator = typename TreeT::iterator;
+  using const_iterator = typename TreeT::const_iterator;
+  using reverse_iterator = typename TreeT::reverse_iterator;
+  using const_reverse_iterator = typename TreeT::const_reverse_iterator;
+  static constexpr bool kIsMap = TreeT::kIsMap;
+
+  BTreeChecker() = default;
+
+  std::pair<iterator, bool> insert(const value_type& v) {
+    const size_t prev_size = tree_.size();
+    auto ref_res = ref_.insert(v);
+    auto tree_res = tree_.insert(v);
+
+    HWY_ASSERT_EQ(tree_res.second, ref_res.second);
+    HWY_ASSERT_EQ(tree_.size(), ref_.size());
+    HWY_ASSERT_EQ(tree_.size(), prev_size + (tree_res.second ? 1 : 0));
+    if (tree_res.second) {
+      VerifyEqualElements(tree_res.first, ref_res.first);
     }
-  }
-  auto sparse_tree =
-      BTreeSet<KeyT>::Build(sparse_keys.data(), sparse_keys.size());
-  for (KeyT k : sparse_keys) {
-    HWY_ASSERT(sparse_tree.contains(k));
-    HWY_ASSERT_EQ(*sparse_tree.lower_bound(k), k);
-  }
-}
-
-template <typename KeyT>
-void TestDynamicInsertAndErase(size_t num_mutations) {
-  absl::BitGen bitgen;
-  absl::btree_set<KeyT> reference_set;
-  BTreeSet<KeyT> tree;
-
-  std::vector<KeyT> inserted_keys;
-  inserted_keys.reserve(num_mutations);
-
-  // 1. Dynamic Insertions from Empty Tree
-  for (size_t i = 0; i < num_mutations; ++i) {
-    KeyT k = static_cast<KeyT>(absl::Uniform<uint64_t>(bitgen, 1, 50000000));
-    auto ref_res = reference_set.insert(k);
-    auto res = tree.insert(k);
-
-    HWY_ASSERT_EQ(res.second, ref_res.second);
-    HWY_ASSERT_EQ(*res.first, k);
-    HWY_ASSERT_EQ(tree.size(), reference_set.size());
-    if (ref_res.second) {
-      inserted_keys.push_back(k);
-    }
+    return tree_res;
   }
 
-  // 2. Full In-Order Traversal Verification vs std::set
-  HWY_ASSERT(std::equal(tree.begin(), tree.end(), reference_set.begin(),
-                        reference_set.end()));
+  size_t erase(key_type key) {
+    const size_t prev_size = tree_.size();
+    size_t ref_erased = ref_.erase(key);
+    size_t tree_erased = tree_.erase(key);
 
-  // 3. Verification of Contains & LowerBound across all inserted keys
-  for (KeyT k : inserted_keys) {
-    HWY_ASSERT(tree.contains(k));
-    auto it = tree.find(k);
-    HWY_ASSERT(it != tree.end());
-    HWY_ASSERT_EQ(*it, k);
-    HWY_ASSERT_EQ(*tree.lower_bound(k), k);
+    HWY_ASSERT_EQ(tree_erased, ref_erased);
+    HWY_ASSERT_EQ(tree_.size(), ref_.size());
+    HWY_ASSERT_EQ(tree_.size(), prev_size - tree_erased);
+    HWY_ASSERT(!tree_.contains(key));
+    return tree_erased;
   }
 
-  // 4. Random Query Verification
-  for (size_t i = 0; i < 2000; ++i) {
-    KeyT q = static_cast<KeyT>(absl::Uniform<uint64_t>(bitgen, 0, 50000050));
-    bool expected_contains = (reference_set.find(q) != reference_set.end());
-    HWY_ASSERT_EQ(tree.contains(q), expected_contains);
-    HWY_ASSERT_EQ(tree.find(q) != tree.end(), expected_contains);
+  void CheckLookup(key_type key) const {
+    const bool expected_contains = (ref_.find(key) != ref_.end());
+    HWY_ASSERT_EQ(tree_.contains(key), expected_contains);
 
-    auto ref_lb = reference_set.lower_bound(q);
-    auto lb = tree.lower_bound(q);
-    if (ref_lb == reference_set.end()) {
-      HWY_ASSERT(lb == tree.end());
-    } else {
-      HWY_ASSERT(lb != tree.end());
-      HWY_ASSERT_EQ(*lb, *ref_lb);
-    }
-  }
-
-  // 5. Dynamic Deletions (Erase Half the Keys)
-  std::shuffle(inserted_keys.begin(), inserted_keys.end(), bitgen);
-  size_t to_delete = inserted_keys.size() / 2;
-  for (size_t i = 0; i < to_delete; ++i) {
-    KeyT k = inserted_keys[i];
-    size_t ref_erased = reference_set.erase(k);
-    size_t erased = tree.erase(k);
-
-    HWY_ASSERT_EQ(erased, ref_erased);
-    HWY_ASSERT_EQ(tree.size(), reference_set.size());
-    HWY_ASSERT(!tree.contains(k));
-  }
-
-  // 6. In-Order Traversal Check After Deletions
-  HWY_ASSERT(std::equal(tree.begin(), tree.end(), reference_set.begin(),
-                        reference_set.end()));
-
-  // 7. Verify Non-Deleted Keys
-  for (size_t i = to_delete; i < inserted_keys.size(); ++i) {
-    KeyT k = inserted_keys[i];
-    HWY_ASSERT(tree.contains(k));
-    HWY_ASSERT_EQ(*tree.lower_bound(k), k);
-  }
-
-  // 8. Dynamic Re-insertions
-  for (size_t i = 0; i < to_delete / 2; ++i) {
-    KeyT k = inserted_keys[i];
-    reference_set.insert(k);
-    auto res = tree.insert(k);
-    HWY_ASSERT(res.second);
-    HWY_ASSERT_EQ(tree.size(), reference_set.size());
-    HWY_ASSERT(tree.contains(k));
-  }
-}
-
-template <typename KeyT, typename ValueT>
-void TestMapEmpty() {
-  BTreeMap<KeyT, ValueT> map;
-  HWY_ASSERT(map.empty());
-  HWY_ASSERT_EQ(map.size(), size_t{0});
-  HWY_ASSERT(map.begin() == map.end());
-  HWY_ASSERT(!map.contains(10));
-  HWY_ASSERT(map.find(10) == map.end());
-  HWY_ASSERT(map.lower_bound(10) == map.end());
-}
-
-template <typename KeyT, typename ValueT>
-void TestMapSingleLeaf() {
-  std::vector<KeyT> keys = {10, 20, 30, 40, 50};
-  std::vector<ValueT> vals = {100, 200, 300, 400, 500};
-  auto map =
-      BTreeMap<KeyT, ValueT>::Build(keys.data(), vals.data(), keys.size());
-
-  HWY_ASSERT(!map.empty());
-  HWY_ASSERT_EQ(map.size(), size_t{5});
-  HWY_ASSERT_EQ(map.height(), 0);
-
-  for (size_t i = 0; i < keys.size(); ++i) {
-    HWY_ASSERT(map.contains(keys[i]));
-    auto it = map.find(keys[i]);
-    HWY_ASSERT(it != map.end());
-    HWY_ASSERT_EQ(it->first, keys[i]);
-    HWY_ASSERT_EQ(it->second, vals[i]);
-    HWY_ASSERT_EQ(map[keys[i]], vals[i]);
-    HWY_ASSERT_EQ(map.at(keys[i]), vals[i]);
-  }
-
-  HWY_ASSERT(!map.contains(5));
-  HWY_ASSERT(!map.contains(25));
-  HWY_ASSERT(!map.contains(55));
-
-  HWY_ASSERT_EQ(map.lower_bound(5)->first, 10);
-  HWY_ASSERT_EQ(map.lower_bound(10)->first, 10);
-  HWY_ASSERT_EQ(map.lower_bound(25)->first, 30);
-  HWY_ASSERT_EQ(map.lower_bound(50)->first, 50);
-  HWY_ASSERT(map.lower_bound(55) == map.end());
-}
-
-template <typename KeyT, typename ValueT>
-void TestMapRandomizedComparisonAgainstAbsl(size_t num_keys,
-                                            size_t num_queries) {
-  absl::BitGen bitgen;
-  std::map<KeyT, ValueT> ref_map;
-  while (ref_map.size() < num_keys) {
-    KeyT k = static_cast<KeyT>(absl::Uniform<uint64_t>(bitgen, 1, 10000000));
-    ValueT v =
-        static_cast<ValueT>(absl::Uniform<uint64_t>(bitgen, 1, 10000000));
-    ref_map[k] = v;
-  }
-
-  std::vector<KeyT> sorted_keys;
-  std::vector<ValueT> sorted_vals;
-  sorted_keys.reserve(ref_map.size());
-  sorted_vals.reserve(ref_map.size());
-  for (const auto& [k, v] : ref_map) {
-    sorted_keys.push_back(k);
-    sorted_vals.push_back(v);
-  }
-
-  auto map = BTreeMap<KeyT, ValueT>::Build(
-      sorted_keys.data(), sorted_vals.data(), sorted_keys.size());
-
-  HWY_ASSERT_EQ(map.size(), ref_map.size());
-
-  // Traversal check
-  size_t idx = 0;
-  for (auto it = map.begin(); it != map.end(); ++it, ++idx) {
-    HWY_ASSERT_EQ(it->first, sorted_keys[idx]);
-    HWY_ASSERT_EQ(it->second, sorted_vals[idx]);
-  }
-  HWY_ASSERT_EQ(idx, sorted_keys.size());
-
-  // Random Queries
-  for (size_t q = 0; q < num_queries; ++q) {
-    KeyT query_key =
-        static_cast<KeyT>(absl::Uniform<uint64_t>(bitgen, 0, 10000050));
-
-    auto ref_it = ref_map.find(query_key);
-    bool expected_contains = (ref_it != ref_map.end());
-    HWY_ASSERT_EQ(map.contains(query_key), expected_contains);
-
-    auto it = map.find(query_key);
+    auto tree_find = tree_.find(key);
+    auto ref_find = ref_.find(key);
     if (expected_contains) {
-      HWY_ASSERT(it != map.end());
-      HWY_ASSERT_EQ(it->first, ref_it->first);
-      HWY_ASSERT_EQ(it->second, ref_it->second);
+      HWY_ASSERT(tree_find != tree_.end());
+      VerifyEqualElements(tree_find, ref_find);
     } else {
-      HWY_ASSERT(it == map.end());
+      HWY_ASSERT(tree_find == tree_.end());
     }
 
-    auto ref_lb = ref_map.lower_bound(query_key);
-    auto lb = map.lower_bound(query_key);
-    if (ref_lb == ref_map.end()) {
-      HWY_ASSERT(lb == map.end());
+    auto tree_lb = tree_.lower_bound(key);
+    auto ref_lb = ref_.lower_bound(key);
+    if (ref_lb == ref_.end()) {
+      HWY_ASSERT(tree_lb == tree_.end());
     } else {
-      HWY_ASSERT(lb != map.end());
-      HWY_ASSERT_EQ(lb->first, ref_lb->first);
-      HWY_ASSERT_EQ(lb->second, ref_lb->second);
+      HWY_ASSERT(tree_lb != tree_.end());
+      VerifyEqualElements(tree_lb, ref_lb);
+    }
+
+    auto tree_ub = tree_.upper_bound(key);
+    auto ref_ub = ref_.upper_bound(key);
+    if (ref_ub == ref_.end()) {
+      HWY_ASSERT(tree_ub == tree_.end());
+    } else {
+      HWY_ASSERT(tree_ub != tree_.end());
+      VerifyEqualElements(tree_ub, ref_ub);
+    }
+
+    if constexpr (kIsMap) {
+      const auto* vp = tree_.FindValue(key);
+      if (expected_contains) {
+        HWY_ASSERT(vp != nullptr);
+        HWY_ASSERT_EQ(*vp, ref_find->second);
+        HWY_ASSERT_EQ(tree_.at(key), ref_find->second);
+      } else {
+        HWY_ASSERT(vp == nullptr);
+      }
     }
   }
-}
 
-template <typename KeyT, typename ValueT>
-void TestMapBatchQueries(size_t num_keys, size_t num_queries) {
-  absl::BitGen bitgen;
-  std::map<KeyT, ValueT> ref_map;
-  while (ref_map.size() < num_keys) {
-    KeyT k = static_cast<KeyT>(absl::Uniform<uint64_t>(bitgen, 1, 10000000));
-    ValueT v =
-        static_cast<ValueT>(absl::Uniform<uint64_t>(bitgen, 1, 10000000));
-    ref_map[k] = v;
-  }
+  void verify() const {
+    HWY_ASSERT_EQ(tree_.size(), ref_.size());
+    HWY_ASSERT_EQ(tree_.empty(), ref_.empty());
 
-  std::vector<KeyT> sorted_keys;
-  std::vector<ValueT> sorted_vals;
-  sorted_keys.reserve(ref_map.size());
-  sorted_vals.reserve(ref_map.size());
-  for (const auto& [k, v] : ref_map) {
-    sorted_keys.push_back(k);
-    sorted_vals.push_back(v);
-  }
+    // 1. Forward iteration
+    auto ref_it = ref_.begin();
+    auto tree_it = tree_.begin();
+    size_t count = 0;
+    for (; tree_it != tree_.end(); ++tree_it, ++ref_it, ++count) {
+      HWY_ASSERT(ref_it != ref_.end());
+      VerifyEqualElements(tree_it, ref_it);
+    }
+    HWY_ASSERT(ref_it == ref_.end());
+    HWY_ASSERT_EQ(count, tree_.size());
 
-  auto map = BTreeMap<KeyT, ValueT>::Build(
-      sorted_keys.data(), sorted_vals.data(), sorted_keys.size());
+    // 2. Reverse iteration
+    auto ref_rit = ref_.rbegin();
+    auto tree_rit = tree_.rbegin();
+    count = 0;
+    for (; tree_rit != tree_.rend(); ++tree_rit, ++ref_rit, ++count) {
+      HWY_ASSERT(ref_rit != ref_.rend());
+      VerifyEqualElements(tree_rit, ref_rit);
+    }
+    HWY_ASSERT(ref_rit == ref_.rend());
+    HWY_ASSERT_EQ(count, tree_.size());
 
-  std::vector<KeyT> queries(num_queries);
-  for (size_t i = 0; i < num_queries; ++i) {
-    queries[i] =
-        static_cast<KeyT>(absl::Uniform<uint64_t>(bitgen, 0, 10000050));
-  }
-
-  std::unique_ptr<bool[]> out_found(new bool[num_queries]);
-  map.ContainsBatch(queries.data(), num_queries, out_found.get());
-  for (size_t i = 0; i < num_queries; ++i) {
-    bool expected = (ref_map.find(queries[i]) != ref_map.end());
-    HWY_ASSERT_EQ(out_found[i], expected);
-  }
-
-  std::vector<ValueT> out_values(num_queries);
-  map.LookupBatch(queries.data(), num_queries, out_values.data(),
-                  out_found.get());
-  for (size_t i = 0; i < num_queries; ++i) {
-    auto it = ref_map.find(queries[i]);
-    if (it != ref_map.end()) {
-      HWY_ASSERT(out_found[i]);
-      HWY_ASSERT_EQ(out_values[i], it->second);
-    } else {
-      HWY_ASSERT(!out_found[i]);
+    // 3. Backward decrementing with --it from end() to begin()
+    if (!tree_.empty()) {
+      auto b_tree_it = tree_.end();
+      auto b_ref_it = ref_.end();
+      --b_tree_it;
+      --b_ref_it;
+      while (true) {
+        VerifyEqualElements(b_tree_it, b_ref_it);
+        if (b_tree_it == tree_.begin()) {
+          HWY_ASSERT(b_ref_it == ref_.begin());
+          break;
+        }
+        --b_tree_it;
+        --b_ref_it;
+      }
     }
   }
-}
 
-template <typename KeyT, typename ValueT>
-void TestMapDynamicInsertAndErase(size_t num_mutations) {
-  absl::BitGen bitgen;
-  std::map<KeyT, ValueT> reference_map;
-  BTreeMap<KeyT, ValueT> map;
+  void clear() {
+    tree_.clear();
+    ref_.clear();
+    verify();
+  }
 
-  std::vector<KeyT> inserted_keys;
-  inserted_keys.reserve(num_mutations);
+  size_t size() const { return tree_.size(); }
+  bool empty() const { return tree_.empty(); }
 
-  for (size_t i = 0; i < num_mutations; ++i) {
-    KeyT k = static_cast<KeyT>(absl::Uniform<uint64_t>(bitgen, 1, 50000000));
-    ValueT v =
-        static_cast<ValueT>(absl::Uniform<uint64_t>(bitgen, 1, 50000000));
+  TreeT& tree() { return tree_; }
+  const TreeT& tree() const { return tree_; }
+  const StdRefT& ref() const { return ref_; }
 
-    auto ref_res = reference_map.insert({k, v});
-    auto res = map.insert({k, v});
+ private:
+  TreeT tree_;
+  StdRefT ref_;
+};
 
-    HWY_ASSERT_EQ(res.second, ref_res.second);
-    HWY_ASSERT_EQ(res.first->first, ref_res.first->first);
-    HWY_ASSERT_EQ(res.first->second, ref_res.first->second);
-    HWY_ASSERT_EQ(map.size(), reference_map.size());
-    if (ref_res.second) {
+// -----------------------------------------------------------------------------
+// Test Suites
+// -----------------------------------------------------------------------------
+
+template <typename TreeT, typename StdRefT>
+void DoFullContainerTest(const std::vector<typename TreeT::value_type>& values,
+                         uint32_t seed) {
+  using key_type = typename TreeT::key_type;
+  static constexpr bool kIsMap = TreeT::kIsMap;
+
+  BTreeChecker<TreeT, StdRefT> checker;
+  checker.verify();
+  HWY_ASSERT(checker.empty());
+  HWY_ASSERT_EQ(checker.size(), size_t{0});
+
+  // 1. Insert elements and verify invariant at each step
+  std::vector<key_type> inserted_keys;
+  inserted_keys.reserve(values.size());
+  for (const auto& val : values) {
+    auto res = checker.insert(val);
+    key_type k = ExtractKey(val);
+    if (res.second) {
       inserted_keys.push_back(k);
     }
+    checker.CheckLookup(k);
+  }
+  checker.verify();
+
+  // 2. Lookups on all inserted keys and random queries
+  for (key_type k : inserted_keys) {
+    checker.CheckLookup(k);
+  }
+  hn::AesCtrEngine engine(/*deterministic=*/true);
+  hn::RngStream q_rng(engine, seed + 42);
+  for (size_t i = 0; i < 500; ++i) {
+    key_type q =
+        static_cast<key_type>((q_rng() % (values.size() * 50 + 10)) + 1);
+    checker.CheckLookup(q);
   }
 
-  for (KeyT k : inserted_keys) {
-    HWY_ASSERT(map.contains(k));
-    auto it = map.find(k);
-    HWY_ASSERT(it != map.end());
-    HWY_ASSERT_EQ(it->first, k);
-    HWY_ASSERT_EQ(it->second, reference_map[k]);
+  // 3. Move construction & assignment verification
+  {
+    TreeT moved_tree(std::move(checker.tree()));
+    HWY_ASSERT(checker.tree().empty());
+    HWY_ASSERT_EQ(moved_tree.size(), checker.ref().size());
+    for (key_type k : inserted_keys) {
+      HWY_ASSERT(moved_tree.contains(k));
+    }
+    checker.tree() = std::move(moved_tree);
+    HWY_ASSERT(moved_tree.empty());
+    HWY_ASSERT_EQ(checker.tree().size(), checker.ref().size());
   }
 
-  std::shuffle(inserted_keys.begin(), inserted_keys.end(), bitgen);
+  // 4. Deletions (Erase half the inserted elements)
+  hn::RngStream shuf_rng(engine, seed + 84);
+  std::shuffle(inserted_keys.begin(), inserted_keys.end(), shuf_rng);
   size_t to_delete = inserted_keys.size() / 2;
   for (size_t i = 0; i < to_delete; ++i) {
-    KeyT k = inserted_keys[i];
-    size_t ref_erased = reference_map.erase(k);
-    size_t erased = map.erase(k);
-
-    HWY_ASSERT_EQ(erased, ref_erased);
-    HWY_ASSERT_EQ(map.size(), reference_map.size());
-    HWY_ASSERT(!map.contains(k));
+    key_type k = inserted_keys[i];
+    checker.erase(k);
+    checker.CheckLookup(k);
   }
+  checker.verify();
 
+  // Non-deleted keys check
   for (size_t i = to_delete; i < inserted_keys.size(); ++i) {
-    KeyT k = inserted_keys[i];
-    HWY_ASSERT(map.contains(k));
-    HWY_ASSERT_EQ(map.find(k)->second, reference_map[k]);
+    key_type k = inserted_keys[i];
+    checker.CheckLookup(k);
   }
+
+  // 5. Re-insertion of deleted elements
+  for (size_t i = 0; i < to_delete; ++i) {
+    key_type k = inserted_keys[i];
+    if constexpr (kIsMap) {
+      checker.insert({k, static_cast<typename TreeT::mapped_type>(k * 10 + 3)});
+    } else {
+      checker.insert(k);
+    }
+    checker.CheckLookup(k);
+  }
+  checker.verify();
+
+  // 6. Clear
+  checker.clear();
+}
+
+template <typename TreeT, typename StdRefT>
+void DoBulkBuildAndBatchTest(size_t n, uint32_t seed) {
+  using key_type = typename TreeT::key_type;
+  using value_type = typename TreeT::value_type;
+  static constexpr bool kIsMap = TreeT::kIsMap;
+
+  auto values = GenerateValuesWithSeed<value_type>(n, n * 50, seed);
+  SortUniqueValues(values);
+  n = values.size();
+
+  StdRefT ref(values.begin(), values.end());
+
+  for (float fill_ratio : {0.5f, 0.75f, 1.0f}) {
+    TreeT tree = BuildTreeFromValues<TreeT>(values, fill_ratio);
+    HWY_ASSERT_EQ(tree.size(), ref.size());
+    HWY_ASSERT_EQ(tree.empty(), ref.empty());
+
+    // 1. In-order forward traversal
+    auto ref_it = ref.begin();
+    auto tree_it = tree.begin();
+    for (; tree_it != tree.end(); ++tree_it, ++ref_it) {
+      VerifyEqualElements(tree_it, ref_it);
+    }
+    HWY_ASSERT(ref_it == ref.end());
+
+    // 2. Reverse traversal
+    auto ref_rit = ref.rbegin();
+    auto tree_rit = tree.rbegin();
+    for (; tree_rit != tree.rend(); ++tree_rit, ++ref_rit) {
+      VerifyEqualElements(tree_rit, ref_rit);
+    }
+    HWY_ASSERT(ref_rit == ref.rend());
+
+    // 3. Backward traversal with --it
+    if (!tree.empty()) {
+      auto b_tree_it = tree.end();
+      auto b_ref_it = ref.end();
+      --b_tree_it;
+      --b_ref_it;
+      while (true) {
+        VerifyEqualElements(b_tree_it, b_ref_it);
+        if (b_tree_it == tree.begin()) break;
+        --b_tree_it;
+        --b_ref_it;
+      }
+    }
+
+    // 4. Batch query sweeps across multiple batch sizes
+    hn::AesCtrEngine engine(/*deterministic=*/true);
+    hn::RngStream q_rng(engine, seed + 100);
+    for (size_t batch_sz :
+         {size_t{0}, size_t{1}, size_t{7}, size_t{8}, size_t{9}, size_t{15},
+          size_t{16}, size_t{17}, size_t{64}, size_t{256}}) {
+      std::vector<key_type> queries(batch_sz);
+      for (size_t i = 0; i < batch_sz; ++i) {
+        queries[i] = static_cast<key_type>((q_rng() % (n * 60 + 10)) + 1);
+      }
+
+      std::vector<uint8_t> found(batch_sz);
+      tree.ContainsBatch(queries.data(), batch_sz,
+                         reinterpret_cast<bool*>(found.data()));
+      for (size_t i = 0; i < batch_sz; ++i) {
+        bool expected = (ref.find(queries[i]) != ref.end());
+        HWY_ASSERT_EQ(static_cast<bool>(found[i]), expected);
+      }
+
+      std::vector<typename TreeT::const_iterator> batch_lb(batch_sz);
+      tree.LowerBoundBatch(queries.data(), batch_sz, batch_lb.data());
+      for (size_t i = 0; i < batch_sz; ++i) {
+        auto ref_lb = ref.lower_bound(queries[i]);
+        if (ref_lb == ref.end()) {
+          HWY_ASSERT(batch_lb[i] == tree.end());
+        } else {
+          HWY_ASSERT(batch_lb[i] != tree.end());
+          VerifyEqualElements(batch_lb[i], ref_lb);
+        }
+      }
+
+      std::vector<typename TreeT::const_iterator> batch_find(batch_sz);
+      tree.FindBatch(queries.data(), batch_sz, batch_find.data());
+      for (size_t i = 0; i < batch_sz; ++i) {
+        auto ref_find = ref.find(queries[i]);
+        if (ref_find == ref.end()) {
+          HWY_ASSERT(batch_find[i] == tree.end());
+        } else {
+          HWY_ASSERT(batch_find[i] != tree.end());
+          VerifyEqualElements(batch_find[i], ref_find);
+        }
+      }
+
+      if constexpr (kIsMap) {
+        using mapped_type = typename TreeT::mapped_type;
+        std::vector<mapped_type> out_values(batch_sz);
+        std::vector<uint8_t> out_found(batch_sz);
+        tree.LookupBatch(queries.data(), batch_sz, out_values.data(),
+                         reinterpret_cast<bool*>(out_found.data()));
+        for (size_t i = 0; i < batch_sz; ++i) {
+          auto ref_it_val = ref.find(queries[i]);
+          if (ref_it_val != ref.end()) {
+            HWY_ASSERT(out_found[i]);
+            HWY_ASSERT_EQ(out_values[i], ref_it_val->second);
+          } else {
+            HWY_ASSERT(!out_found[i]);
+          }
+        }
+      }
+    }
+  }
+}
+
+template <typename TreeT, typename StdRefT>
+void DoBoundarySizeSweep() {
+  using value_type = typename TreeT::value_type;
+  for (size_t n : {size_t{0}, size_t{1}, size_t{2}, size_t{3}, size_t{5},
+                   size_t{16}, size_t{31}, size_t{32}, size_t{63}, size_t{64},
+                   size_t{127}, size_t{128}, size_t{243}, size_t{244},
+                   size_t{245}, size_t{488}, size_t{489}, size_t{500}}) {
+    auto values = GenerateValuesWithSeed<value_type>(
+        n, std::max<uint64_t>(100, n * 20), /*seed=*/12345 + n);
+    DoFullContainerTest<TreeT, StdRefT>(values, /*seed=*/12345 + n);
+    DoBulkBuildAndBatchTest<TreeT, StdRefT>(n, /*seed=*/54321 + n);
+  }
+}
+
+template <typename TreeT>
+void DoDiverseBitModesTest() {
+  using key_type = typename TreeT::key_type;
+  using value_type = typename TreeT::value_type;
+
+  // Dense 8-bit mode
+  {
+    std::vector<value_type> dense_vals;
+    for (size_t i = 0; i < 500; ++i) {
+      if constexpr (TreeT::kIsMap) {
+        dense_vals.push_back({static_cast<key_type>(i * 2 + 10),
+                              static_cast<typename TreeT::mapped_type>(i)});
+      } else {
+        dense_vals.push_back(static_cast<key_type>(i * 2 + 10));
+      }
+    }
+    TreeT tree = BuildTreeFromValues<TreeT>(dense_vals);
+    for (const auto& v : dense_vals) {
+      HWY_ASSERT(tree.contains(ExtractKey(v)));
+    }
+  }
+
+  // Medium 16-bit mode
+  {
+    std::vector<value_type> med_vals;
+    for (size_t i = 0; i < 500; ++i) {
+      if constexpr (TreeT::kIsMap) {
+        med_vals.push_back({static_cast<key_type>(i * 100 + 10),
+                            static_cast<typename TreeT::mapped_type>(i)});
+      } else {
+        med_vals.push_back(static_cast<key_type>(i * 100 + 10));
+      }
+    }
+    TreeT tree = BuildTreeFromValues<TreeT>(med_vals);
+    for (const auto& v : med_vals) {
+      HWY_ASSERT(tree.contains(ExtractKey(v)));
+    }
+  }
+
+  // Sparse 32-bit / raw 64-bit mode
+  {
+    std::vector<value_type> sparse_vals;
+    for (size_t i = 0; i < 200; ++i) {
+      key_type k = (sizeof(key_type) == 4)
+                       ? static_cast<key_type>(i * 10000000U + 500)
+                       : static_cast<key_type>(
+                             static_cast<uint64_t>(i) * 10000000000ULL + 500);
+      if constexpr (TreeT::kIsMap) {
+        sparse_vals.push_back(
+            {k, static_cast<typename TreeT::mapped_type>(i * 3 + 1)});
+      } else {
+        sparse_vals.push_back(k);
+      }
+    }
+    TreeT tree = BuildTreeFromValues<TreeT>(sparse_vals);
+    for (const auto& v : sparse_vals) {
+      HWY_ASSERT(tree.contains(ExtractKey(v)));
+    }
+  }
+}
+
+template <typename TreeT, typename StdRefT>
+void RunFullTestSuite() {
+  DoBoundarySizeSweep<TreeT, StdRefT>();
+  DoDiverseBitModesTest<TreeT>();
+
+  // Multi-level scale (5,000 elements)
+  auto large_values = GenerateValuesWithSeed<typename TreeT::value_type>(
+      5000, 5000 * 50, /*seed=*/98765);
+  DoFullContainerTest<TreeT, StdRefT>(large_values, /*seed=*/98765);
+  DoBulkBuildAndBatchTest<TreeT, StdRefT>(5000, /*seed=*/56789);
 }
 
 void TestAll() {
   fprintf(stderr, "Running BTreeSet uint32_t tests...\n");
-  TestEmptyTree<uint32_t>();
-  TestSingleLeaf<uint32_t>();
-  TestRandomizedComparisonAgainstAbsl<uint32_t>(5000, 2000);
-  TestBatchQueries<uint32_t>(5000, 1000);
-  TestDiverseBitModes<uint32_t>();
-  TestDynamicInsertAndErase<uint32_t>(5000);
+  RunFullTestSuite<BTreeSet<uint32_t>, std::set<uint32_t> >();
 
   fprintf(stderr, "Running BTreeSet uint64_t tests...\n");
-  TestEmptyTree<uint64_t>();
-  TestSingleLeaf<uint64_t>();
-  TestRandomizedComparisonAgainstAbsl<uint64_t>(5000, 2000);
-  TestBatchQueries<uint64_t>(5000, 1000);
-  TestDiverseBitModes<uint64_t>();
-  TestDynamicInsertAndErase<uint64_t>(5000);
+  RunFullTestSuite<BTreeSet<uint64_t>, std::set<uint64_t> >();
+
+  fprintf(stderr, "Running BTreeSet int32_t signed tests...\n");
+  RunFullTestSuite<BTreeSet<int32_t>, std::set<int32_t> >();
+
+  fprintf(stderr, "Running BTreeSet int64_t signed tests...\n");
+  RunFullTestSuite<BTreeSet<int64_t>, std::set<int64_t> >();
 
   fprintf(stderr, "Running BTreeMap uint32_t -> uint64_t tests...\n");
-  TestMapEmpty<uint32_t, uint64_t>();
-  TestMapSingleLeaf<uint32_t, uint64_t>();
-  TestMapRandomizedComparisonAgainstAbsl<uint32_t, uint64_t>(5000, 2000);
-  TestMapBatchQueries<uint32_t, uint64_t>(5000, 1000);
-  TestMapDynamicInsertAndErase<uint32_t, uint64_t>(5000);
+  RunFullTestSuite<BTreeMap<uint32_t, uint64_t>,
+                   std::map<uint32_t, uint64_t> >();
 
   fprintf(stderr, "Running BTreeMap uint64_t -> uint64_t tests...\n");
-  TestMapEmpty<uint64_t, uint64_t>();
-  TestMapSingleLeaf<uint64_t, uint64_t>();
-  TestMapRandomizedComparisonAgainstAbsl<uint64_t, uint64_t>(5000, 2000);
-  TestMapBatchQueries<uint64_t, uint64_t>(5000, 1000);
-  TestMapDynamicInsertAndErase<uint64_t, uint64_t>(5000);
+  RunFullTestSuite<BTreeMap<uint64_t, uint64_t>,
+                   std::map<uint64_t, uint64_t> >();
 
-  fprintf(stderr, "All tests passed!\n");
+  fprintf(stderr, "Running BTreeMap uint64_t -> double tests...\n");
+  RunFullTestSuite<BTreeMap<uint64_t, double>, std::map<uint64_t, double> >();
+
+  fprintf(stderr, "Running BTreeMap uint32_t -> float tests...\n");
+  RunFullTestSuite<BTreeMap<uint32_t, float>, std::map<uint32_t, float> >();
+
+  fprintf(stderr, "All unified BTree tests passed successfully!\n");
 }
 
 #endif  // (HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128) && !HWY_IDE
