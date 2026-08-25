@@ -159,6 +159,8 @@ class MaskedWeakTwoMul {
   MaskedWeakTwoMul(AesCtrEngine& engine, uint64_t seed)
       : MaskedWeakTwoMul(static_cast<uint32_t>(RngStream(engine, seed)())) {}
 
+  uint32_t Key() const { return key_; }
+
   uint32_t operator()(uint32_t x) const {
     detail::MaybeCompare1<kBits>(x, kMask);
     x ^= key_;
@@ -313,6 +315,8 @@ class MaskedMoremur {
   MaskedMoremur(AesCtrEngine& engine, uint64_t seed)
       : MaskedMoremur(RngStream(engine, seed)()) {}
 
+  uint64_t Key() const { return key_; }
+
   uint64_t operator()(uint64_t x) const {
     detail::MaybeCompare1<kBits>(x, kMask);
     x ^= key_;
@@ -355,8 +359,6 @@ class MaskedMoremur {
     inout1 = OneVec(du64, inout1);
   }
 
-  uint64_t Key() const { return key_; }
-
  private:
   uint64_t key_ = 0;
 };
@@ -386,6 +388,8 @@ class MaskedWeakXMX {
       : key_(detail::MaybeMask1<kBits>(key, kMask)) {}
   MaskedWeakXMX(AesCtrEngine& engine, uint64_t seed)
       : MaskedWeakXMX(RngStream(engine, seed)()) {}
+
+  uint64_t Key() const { return key_; }
 
   uint64_t operator()(uint64_t x) const {
     detail::MaybeCompare1<kBits>(x, kMask);
@@ -422,8 +426,6 @@ class MaskedWeakXMX {
     inout0 = OneVec(du64, inout0);
     inout1 = OneVec(du64, inout1);
   }
-
-  uint64_t Key() const { return key_; }
 
  private:
   uint64_t key_ = 0;
