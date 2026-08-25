@@ -5,7 +5,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,7 +18,6 @@
 #define HWY_TARGET_INCLUDE "hwy/contrib/btree/btree_benchmark.cc"  // NOLINT
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/contrib/btree/btree-inl.h"
-#include "hwy/contrib/btree/compact_btree-inl.h"
 #include "hwy/nanobenchmark.h"
 #include "hwy/tests/test_util-inl.h"
 // clang-format on
@@ -32,7 +31,10 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include <algorithm>
+#include <limits>
 #include <map>
+#include <memory>
 #include <set>
 #include <utility>
 #include <vector>
@@ -106,45 +108,31 @@ void RunBenchmarkSuite(size_t num_keys) {
   const size_t hwy_bytes =
       GetAllocatedBytes(hwy_before, hwy_tree.AllocatedBytes());
 
-  const size_t compact_before = AllocatedBefore();
-  const double start_compact = hwy::platform::Now();
-  auto compact_tree = CompactBTreeSet<KeyT>::Build(keys.data(), keys.size());
-  const double end_compact = hwy::platform::Now();
-  const size_t compact_bytes =
-      GetAllocatedBytes(compact_before, compact_tree.AllocatedBytes());
-
   const double hwy_build_ms = (end_hwy - start_hwy) * 1000.0;
-  const double compact_build_ms = (end_compact - start_compact) * 1000.0;
   const double absl_build_ms = (end_absl - start_absl) * 1000.0;
   const double std_build_ms = (end_std - start_std) * 1000.0;
 
   printf("Build Time:\n");
-  printf("  std::set             : %8.2f ms\n", std_build_ms);
-  printf("  absl::btree_set      : %8.2f ms\n", absl_build_ms);
-  printf("  hwy::BTreeSet        : %8.2f ms (%.1fx faster than absl)\n",
+  printf("  std::set        : %8.2f ms\n", std_build_ms);
+  printf("  absl::btree_set : %8.2f ms\n", absl_build_ms);
+  printf("  hwy::BTreeSet   : %8.2f ms (%.1fx faster than absl)\n",
          hwy_build_ms, absl_build_ms / (hwy_build_ms + 1e-6));
-  printf("  hwy::CompactBTreeSet : %8.2f ms (%.1fx faster than absl)\n",
-         compact_build_ms, absl_build_ms / (compact_build_ms + 1e-6));
 
   // Memory Footprint (Measured directly via TCMalloc Heap Interception)
   printf(
       "\nMemory Footprint (100%% Fill Bulk-Loaded State, TCMalloc "
       "Measured):\n");
-  printf("  std::set             : %6.2f MB (%5.1f B/key)\n",
+  printf("  std::set        : %6.2f MB (%5.1f B/key)\n",
          std_bytes / (1024.0 * 1024.0),
          static_cast<double>(std_bytes) / num_keys);
-  printf("  absl::btree_set      : %6.2f MB (%5.1f B/key)\n",
+  printf("  absl::btree_set : %6.2f MB (%5.1f B/key)\n",
          absl_bytes / (1024.0 * 1024.0),
          static_cast<double>(absl_bytes) / num_keys);
-  printf("  hwy::BTreeSet        : %6.2f MB (%5.1f B/key)\n",
-         hwy_bytes / (1024.0 * 1024.0),
-         static_cast<double>(hwy_bytes) / num_keys);
   printf(
-      "  hwy::CompactBTreeSet : %6.2f MB (%5.1f B/key) -> %.1f%% smaller than "
+      "  hwy::BTreeSet   : %6.2f MB (%5.1f B/key) -> %.1f%% smaller than "
       "absl!\n",
-      compact_bytes / (1024.0 * 1024.0),
-      static_cast<double>(compact_bytes) / num_keys,
-      100.0 * (1.0 - static_cast<double>(compact_bytes) / absl_bytes));
+      hwy_bytes / (1024.0 * 1024.0), static_cast<double>(hwy_bytes) / num_keys,
+      100.0 * (1.0 - static_cast<double>(hwy_bytes) / absl_bytes));
 
   // 2. Generate Random Query Keys
   constexpr size_t kNumQueries = 1000000;
@@ -155,8 +143,8 @@ void RunBenchmarkSuite(size_t num_keys) {
         static_cast<KeyT>(absl::Uniform<KeyT>(bitgen, 0, (num_keys + 1) * 10)));
   }
 
-  // 3. Point Lookups (Contains / Find) via hwy::platform::Now()
-  uint64_t hwy_hits = 0, compact_hits = 0, absl_hits = 0, std_hits = 0;
+  // 3. Point Lookups (contains / find) via hwy::platform::Now()
+  uint64_t hwy_hits = 0, absl_hits = 0, std_hits = 0;
 
   const double t0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumQueries; ++i) {
@@ -172,37 +160,25 @@ void RunBenchmarkSuite(size_t num_keys) {
   const double t2 = hwy::platform::Now();
 
   for (size_t i = 0; i < kNumQueries; ++i) {
-    hwy_hits += hwy_tree.Contains(queries[i]);
+    hwy_hits += hwy_tree.contains(queries[i]);
   }
   hwy::PreventElision(hwy_hits);
   const double t3 = hwy::platform::Now();
 
-  for (size_t i = 0; i < kNumQueries; ++i) {
-    compact_hits += compact_tree.contains(queries[i]);
-  }
-  hwy::PreventElision(compact_hits);
-  const double t4 = hwy::platform::Now();
-
   const double std_lookup_ns = (t1 - t0) * 1e9 / kNumQueries;
   const double absl_lookup_ns = (t2 - t1) * 1e9 / kNumQueries;
   const double hwy_lookup_ns = (t3 - t2) * 1e9 / kNumQueries;
-  const double compact_lookup_ns = (t4 - t3) * 1e9 / kNumQueries;
 
   printf("\nPoint Lookup Latency (1M queries on 100%% Bulk-Loaded Tree):\n");
-  printf("  std::set             : %6.2f ns/op (%6.2f Mops/s)\n", std_lookup_ns,
+  printf("  std::set        : %6.2f ns/op (%6.2f Mops/s)\n", std_lookup_ns,
          1000.0 / std_lookup_ns);
-  printf("  absl::btree_set      : %6.2f ns/op (%6.2f Mops/s)\n",
-         absl_lookup_ns, 1000.0 / absl_lookup_ns);
-  printf(
-      "  hwy::BTreeSet        : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
-      hwy_lookup_ns, 1000.0 / hwy_lookup_ns, absl_lookup_ns / hwy_lookup_ns);
-  printf(
-      "  hwy::CompactBTreeSet : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
-      compact_lookup_ns, 1000.0 / compact_lookup_ns,
-      absl_lookup_ns / compact_lookup_ns);
+  printf("  absl::btree_set : %6.2f ns/op (%6.2f Mops/s)\n", absl_lookup_ns,
+         1000.0 / absl_lookup_ns);
+  printf("  hwy::BTreeSet   : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
+         hwy_lookup_ns, 1000.0 / hwy_lookup_ns, absl_lookup_ns / hwy_lookup_ns);
 
-  // 4. Ordered Range Queries (LowerBound)
-  uint64_t hwy_lb_sum = 0, compact_lb_sum = 0, absl_lb_sum = 0, std_lb_sum = 0;
+  // 4. Ordered Range Queries (lower_bound)
+  uint64_t hwy_lb_sum = 0, absl_lb_sum = 0, std_lb_sum = 0;
 
   const double r0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumQueries; ++i) {
@@ -220,40 +196,28 @@ void RunBenchmarkSuite(size_t num_keys) {
   const double r2 = hwy::platform::Now();
 
   for (size_t i = 0; i < kNumQueries; ++i) {
-    const KeyT* ptr = hwy_tree.LowerBound(queries[i]);
-    if (ptr != nullptr) hwy_lb_sum += *ptr;
+    auto it = hwy_tree.lower_bound(queries[i]);
+    if (it != hwy_tree.end()) hwy_lb_sum += *it;
   }
   hwy::PreventElision(hwy_lb_sum);
   const double r3 = hwy::platform::Now();
 
-  for (size_t i = 0; i < kNumQueries; ++i) {
-    auto it = compact_tree.lower_bound(queries[i]);
-    if (it != compact_tree.end()) compact_lb_sum += *it;
-  }
-  hwy::PreventElision(compact_lb_sum);
-  const double r4 = hwy::platform::Now();
-
   const double std_lb_ns = (r1 - r0) * 1e9 / kNumQueries;
   const double absl_lb_ns = (r2 - r1) * 1e9 / kNumQueries;
   const double hwy_lb_ns = (r3 - r2) * 1e9 / kNumQueries;
-  const double compact_lb_ns = (r4 - r3) * 1e9 / kNumQueries;
 
   printf(
       "\nLowerBound Range Query Latency (1M queries on 100%% Bulk-Loaded "
       "Tree):\n");
-  printf("  std::set             : %6.2f ns/op (%6.2f Mops/s)\n", std_lb_ns,
+  printf("  std::set        : %6.2f ns/op (%6.2f Mops/s)\n", std_lb_ns,
          1000.0 / std_lb_ns);
-  printf("  absl::btree_set      : %6.2f ns/op (%6.2f Mops/s)\n", absl_lb_ns,
+  printf("  absl::btree_set : %6.2f ns/op (%6.2f Mops/s)\n", absl_lb_ns,
          1000.0 / absl_lb_ns);
-  printf(
-      "  hwy::BTreeSet        : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
-      hwy_lb_ns, 1000.0 / hwy_lb_ns, absl_lb_ns / hwy_lb_ns);
-  printf(
-      "  hwy::CompactBTreeSet : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
-      compact_lb_ns, 1000.0 / compact_lb_ns, absl_lb_ns / compact_lb_ns);
+  printf("  hwy::BTreeSet   : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
+         hwy_lb_ns, 1000.0 / hwy_lb_ns, absl_lb_ns / hwy_lb_ns);
 
-  // 4b. Ordered Range Queries (UpperBound)
-  uint64_t hwy_ub_sum = 0, compact_ub_sum = 0, absl_ub_sum = 0, std_ub_sum = 0;
+  // 4b. Ordered Range Queries (upper_bound)
+  uint64_t hwy_ub_sum = 0, absl_ub_sum = 0, std_ub_sum = 0;
 
   const double u0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumQueries; ++i) {
@@ -277,31 +241,19 @@ void RunBenchmarkSuite(size_t num_keys) {
   hwy::PreventElision(hwy_ub_sum);
   const double u3 = hwy::platform::Now();
 
-  for (size_t i = 0; i < kNumQueries; ++i) {
-    auto it = compact_tree.upper_bound(queries[i]);
-    if (it != compact_tree.end()) compact_ub_sum += *it;
-  }
-  hwy::PreventElision(compact_ub_sum);
-  const double u4 = hwy::platform::Now();
-
   const double std_ub_ns = (u1 - u0) * 1e9 / kNumQueries;
   const double absl_ub_ns = (u2 - u1) * 1e9 / kNumQueries;
   const double hwy_ub_ns = (u3 - u2) * 1e9 / kNumQueries;
-  const double compact_ub_ns = (u4 - u3) * 1e9 / kNumQueries;
 
   printf(
       "\nUpperBound Range Query Latency (1M queries on 100%% Bulk-Loaded "
       "Tree):\n");
-  printf("  std::set             : %6.2f ns/op (%6.2f Mops/s)\n", std_ub_ns,
+  printf("  std::set        : %6.2f ns/op (%6.2f Mops/s)\n", std_ub_ns,
          1000.0 / std_ub_ns);
-  printf("  absl::btree_set      : %6.2f ns/op (%6.2f Mops/s)\n", absl_ub_ns,
+  printf("  absl::btree_set : %6.2f ns/op (%6.2f Mops/s)\n", absl_ub_ns,
          1000.0 / absl_ub_ns);
-  printf(
-      "  hwy::BTreeSet        : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
-      hwy_ub_ns, 1000.0 / hwy_ub_ns, absl_ub_ns / hwy_ub_ns);
-  printf(
-      "  hwy::CompactBTreeSet : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
-      compact_ub_ns, 1000.0 / compact_ub_ns, absl_ub_ns / compact_ub_ns);
+  printf("  hwy::BTreeSet   : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
+         hwy_ub_ns, 1000.0 / hwy_ub_ns, absl_ub_ns / hwy_ub_ns);
 
   // 5. Batch Point Lookups (ContainsBatch - 8-way pipelined prefetch)
   auto batch_found = std::make_unique<bool[]>(kNumQueries);
@@ -315,89 +267,47 @@ void RunBenchmarkSuite(size_t num_keys) {
   }
   hwy::PreventElision(batch_hits);
 
-  auto compact_batch_found = std::make_unique<bool[]>(kNumQueries);
-  const double cb0 = hwy::platform::Now();
-  compact_tree.ContainsBatch(queries.data(), kNumQueries,
-                             compact_batch_found.get());
-  const double cb1 = hwy::platform::Now();
-
-  uint64_t compact_batch_hits = 0;
-  for (size_t i = 0; i < kNumQueries; ++i) {
-    compact_batch_hits += compact_batch_found[i];
-  }
-  hwy::PreventElision(compact_batch_hits);
-
   const double hwy_batch_lookup_ns = (b1 - b0) * 1e9 / kNumQueries;
-  const double compact_batch_lookup_ns = (cb1 - cb0) * 1e9 / kNumQueries;
 
   printf(
       "\nBatch Point Lookup (1M queries on 100%% Bulk-Loaded Tree, 8-way "
       "pipelined prefetch):\n");
-  printf("  hwy::BTreeSet (Serial)        : %6.2f ns/op (%6.2f Mops/s)\n",
+  printf("  hwy::BTreeSet (Serial) : %6.2f ns/op (%6.2f Mops/s)\n",
          hwy_lookup_ns, 1000.0 / hwy_lookup_ns);
   printf(
-      "  hwy::BTreeSet (Batch)         : %6.2f ns/op (%6.2f Mops/s) -> "
+      "  hwy::BTreeSet (Batch)  : %6.2f ns/op (%6.2f Mops/s) -> "
       "%.2fx vs Serial (%.2fx vs absl)\n",
       hwy_batch_lookup_ns, 1000.0 / hwy_batch_lookup_ns,
       hwy_lookup_ns / hwy_batch_lookup_ns,
       absl_lookup_ns / hwy_batch_lookup_ns);
-  printf("  hwy::CompactBTreeSet (Serial) : %6.2f ns/op (%6.2f Mops/s)\n",
-         compact_lookup_ns, 1000.0 / compact_lookup_ns);
-  printf(
-      "  hwy::CompactBTreeSet (Batch)  : %6.2f ns/op (%6.2f Mops/s) -> "
-      "%.2fx vs Serial (%.2fx vs absl)\n",
-      compact_batch_lookup_ns, 1000.0 / compact_batch_lookup_ns,
-      compact_lookup_ns / compact_batch_lookup_ns,
-      absl_lookup_ns / compact_batch_lookup_ns);
 
   // 6. Batch LowerBound Queries (LowerBoundBatch - 8-way pipelined prefetch)
-  auto batch_lb_ptrs = std::make_unique<const KeyT*[]>(kNumQueries);
+  std::vector<typename BTreeSet<KeyT>::const_iterator> batch_lb_results(
+      kNumQueries);
   const double blb0 = hwy::platform::Now();
-  hwy_tree.LowerBoundBatch(queries.data(), kNumQueries, batch_lb_ptrs.get());
+  hwy_tree.LowerBoundBatch(queries.data(), kNumQueries,
+                           batch_lb_results.data());
   const double blb1 = hwy::platform::Now();
 
   uint64_t batch_lb_sum = 0;
   for (size_t i = 0; i < kNumQueries; ++i) {
-    if (batch_lb_ptrs[i] != nullptr) batch_lb_sum += *batch_lb_ptrs[i];
+    if (batch_lb_results[i] != hwy_tree.end()) {
+      batch_lb_sum += *batch_lb_results[i];
+    }
   }
   hwy::PreventElision(batch_lb_sum);
 
-  std::vector<typename CompactBTreeSet<KeyT>::const_iterator> compact_batch_lb(
-      kNumQueries);
-  const double cblb0 = hwy::platform::Now();
-  compact_tree.LowerBoundBatch(queries.data(), kNumQueries,
-                               compact_batch_lb.data());
-  const double cblb1 = hwy::platform::Now();
-
-  uint64_t compact_batch_lb_sum = 0;
-  for (size_t i = 0; i < kNumQueries; ++i) {
-    if (compact_batch_lb[i] != compact_tree.end()) {
-      compact_batch_lb_sum += *compact_batch_lb[i];
-    }
-  }
-  hwy::PreventElision(compact_batch_lb_sum);
-
   const double hwy_batch_lb_ns = (blb1 - blb0) * 1e9 / kNumQueries;
-  const double compact_batch_lb_ns = (cblb1 - cblb0) * 1e9 / kNumQueries;
   printf(
       "\nBatch LowerBound Query (1M queries on 100%% Bulk-Loaded Tree, 8-way "
       "pipelined prefetch):\n");
-  printf("  hwy::BTreeSet (Serial)        : %6.2f ns/op (%6.2f Mops/s)\n",
-         hwy_lb_ns, 1000.0 / hwy_lb_ns);
+  printf("  hwy::BTreeSet (Serial) : %6.2f ns/op (%6.2f Mops/s)\n", hwy_lb_ns,
+         1000.0 / hwy_lb_ns);
   printf(
-      "  hwy::BTreeSet (Batch)         : %6.2f ns/op (%6.2f Mops/s) -> %.2fx "
-      "vs "
-      "Serial (%.2fx vs absl)\n",
+      "  hwy::BTreeSet (Batch)  : %6.2f ns/op (%6.2f Mops/s) -> %.2fx "
+      "vs Serial (%.2fx vs absl)\n",
       hwy_batch_lb_ns, 1000.0 / hwy_batch_lb_ns, hwy_lb_ns / hwy_batch_lb_ns,
       absl_lb_ns / hwy_batch_lb_ns);
-  printf("  hwy::CompactBTreeSet (Serial) : %6.2f ns/op (%6.2f Mops/s)\n",
-         compact_lb_ns, 1000.0 / compact_lb_ns);
-  printf(
-      "  hwy::CompactBTreeSet (Batch)  : %6.2f ns/op (%6.2f Mops/s) -> %.2fx "
-      "vs "
-      "Serial (%.2fx vs absl)\n",
-      compact_batch_lb_ns, 1000.0 / compact_batch_lb_ns,
-      compact_lb_ns / compact_batch_lb_ns, absl_lb_ns / compact_batch_lb_ns);
 
   // 7. Dynamic Random Insertions & 8. Dynamic Deletions on Empty Tree
   const size_t kNumMutations = std::min(num_keys, static_cast<size_t>(100000));
@@ -462,100 +372,50 @@ void RunBenchmarkSuite(size_t num_keys) {
   const size_t hwy_del_bytes =
       GetAllocatedBytes(hwy_dyn_before, hwy_dyn_set.AllocatedBytes());
 
-  // --- hwy::CompactBTreeSet ---
-  const size_t compact_dyn_before = AllocatedBefore();
-  CompactBTreeSet<KeyT> compact_dyn_set;
-  const double mi_compact_0 = hwy::platform::Now();
-  for (size_t i = 0; i < kNumMutations; ++i) {
-    compact_dyn_set.insert(mutation_keys[i]);
-  }
-  const double mi_compact_1 = hwy::platform::Now();
-  const size_t compact_dyn_bytes =
-      GetAllocatedBytes(compact_dyn_before, compact_dyn_set.AllocatedBytes());
-
-  const double me_compact_0 = hwy::platform::Now();
-  for (size_t i = 0; i < kNumErases; ++i) {
-    compact_dyn_set.erase(mutation_keys[i]);
-  }
-  const double me_compact_1 = hwy::platform::Now();
-  const size_t compact_del_bytes =
-      GetAllocatedBytes(compact_dyn_before, compact_dyn_set.AllocatedBytes());
-
   const double std_ins_ns = (mi_std_1 - mi_std_0) * 1e9 / kNumMutations;
   const double absl_ins_ns = (mi_absl_1 - mi_absl_0) * 1e9 / kNumMutations;
   const double hwy_ins_ns = (mi_hwy_1 - mi_hwy_0) * 1e9 / kNumMutations;
-  const double compact_ins_ns =
-      (mi_compact_1 - mi_compact_0) * 1e9 / kNumMutations;
 
   printf(
       "\nDynamic Insertions into Empty Tree (%zu random keys -> Pure Dynamic "
       "Steady State):\n",
       kNumMutations);
-  printf("  std::set             : %6.2f ns/op (%5.1f B/key, %5.2f MB)\n",
+  printf("  std::set        : %6.2f ns/op (%5.1f B/key, %5.2f MB)\n",
          std_ins_ns,
          static_cast<double>(std_dyn_bytes) / (std_dyn_set.size() + kNumErases),
          std_dyn_bytes / (1024.0 * 1024.0));
   printf(
-      "  absl::btree_set      : %6.2f ns/op (%5.1f B/key, %5.2f MB)\n",
-      absl_ins_ns,
+      "  absl::btree_set : %6.2f ns/op (%5.1f B/key, %5.2f MB)\n", absl_ins_ns,
       static_cast<double>(absl_dyn_bytes) / (absl_dyn_set.size() + kNumErases),
       absl_dyn_bytes / (1024.0 * 1024.0));
   printf(
-      "  hwy::BTreeSet        : %6.2f ns/op (%5.1f B/key, %5.2f MB) -> "
-      "%.2fx speedup vs absl\n",
+      "  hwy::BTreeSet   : %6.2f ns/op (%5.1f B/key, %5.2f MB) -> "
+      "%.2fx vs absl (%.1f%% smaller!)\n",
       hwy_ins_ns,
       static_cast<double>(hwy_dyn_bytes) / (hwy_dyn_set.size() + kNumErases),
-      hwy_dyn_bytes / (1024.0 * 1024.0), absl_ins_ns / hwy_ins_ns);
-  printf(
-      "  hwy::CompactBTreeSet : %6.2f ns/op (%5.1f B/key, %5.2f MB) -> "
-      "%.2fx vs absl (%.1f%% smaller!)\n",
-      compact_ins_ns,
-      static_cast<double>(compact_dyn_bytes) /
-          (compact_dyn_set.size() + kNumErases),
-      compact_dyn_bytes / (1024.0 * 1024.0), absl_ins_ns / compact_ins_ns,
-      100.0 * (1.0 - static_cast<double>(compact_dyn_bytes) / absl_dyn_bytes));
+      hwy_dyn_bytes / (1024.0 * 1024.0), absl_ins_ns / hwy_ins_ns,
+      100.0 * (1.0 - static_cast<double>(hwy_dyn_bytes) / absl_dyn_bytes));
 
   const double std_erase_ns = (me_std_1 - me_std_0) * 1e9 / kNumErases;
   const double absl_erase_ns = (me_absl_1 - me_absl_0) * 1e9 / kNumErases;
   const double hwy_erase_ns = (me_hwy_1 - me_hwy_0) * 1e9 / kNumErases;
-  const double compact_erase_ns =
-      (me_compact_1 - me_compact_0) * 1e9 / kNumErases;
 
   printf(
       "\nDynamic Deletions Latency & Memory on Steady-State Tree (%zu random "
       "keys -> remaining keys: %zu after 50%% deletions):\n",
       kNumErases, std_dyn_set.size());
-  printf("  std::set             : %6.2f ns/op (%5.1f B/key, %5.2f MB)\n",
+  printf("  std::set        : %6.2f ns/op (%5.1f B/key, %5.2f MB)\n",
          std_erase_ns, static_cast<double>(std_del_bytes) / std_dyn_set.size(),
          std_del_bytes / (1024.0 * 1024.0));
-  printf("  absl::btree_set      : %6.2f ns/op (%5.1f B/key, %5.2f MB)\n",
+  printf("  absl::btree_set : %6.2f ns/op (%5.1f B/key, %5.2f MB)\n",
          absl_erase_ns,
          static_cast<double>(absl_del_bytes) / absl_dyn_set.size(),
          absl_del_bytes / (1024.0 * 1024.0));
   printf(
-      "  hwy::BTreeSet        : %6.2f ns/op (%5.1f B/key, %5.2f MB) -> "
-      "%.2fx speedup vs absl\n",
+      "  hwy::BTreeSet   : %6.2f ns/op (%5.1f B/key, %5.2f MB) -> "
+      "%.2fx vs absl\n",
       hwy_erase_ns, static_cast<double>(hwy_del_bytes) / hwy_dyn_set.size(),
       hwy_del_bytes / (1024.0 * 1024.0), absl_erase_ns / hwy_erase_ns);
-  if (compact_del_bytes <= absl_del_bytes) {
-    printf(
-        "  hwy::CompactBTreeSet : %6.2f ns/op (%5.1f B/key, %5.2f MB) -> "
-        "%.2fx vs absl (%.1f%% smaller!)\n",
-        compact_erase_ns,
-        static_cast<double>(compact_del_bytes) / compact_dyn_set.size(),
-        compact_del_bytes / (1024.0 * 1024.0), absl_erase_ns / compact_erase_ns,
-        100.0 *
-            (1.0 - static_cast<double>(compact_del_bytes) / absl_del_bytes));
-  } else {
-    printf(
-        "  hwy::CompactBTreeSet : %6.2f ns/op (%5.1f B/key, %5.2f MB) -> "
-        "%.2fx vs absl (%.1f%% larger)\n",
-        compact_erase_ns,
-        static_cast<double>(compact_del_bytes) / compact_dyn_set.size(),
-        compact_del_bytes / (1024.0 * 1024.0), absl_erase_ns / compact_erase_ns,
-        100.0 *
-            (static_cast<double>(compact_del_bytes) / absl_del_bytes - 1.0));
-  }
 
   // 9. Incremental Insertions & 10. Incremental Deletions on Pre-Built Tree
   const size_t kNumIncremental =
@@ -583,7 +443,6 @@ void RunBenchmarkSuite(size_t num_keys) {
       std_prebuilt.erase(inc_keys[i]);
     }
     const double dec_std_1 = hwy::platform::Now();
-    const size_t std_inc_del_bytes = GetAllocatedBytes(std_inc_before, 0);
 
     // --- absl::btree_set ---
     const size_t absl_inc_before = AllocatedBefore();
@@ -600,7 +459,6 @@ void RunBenchmarkSuite(size_t num_keys) {
       absl_prebuilt.erase(inc_keys[i]);
     }
     const double dec_absl_1 = hwy::platform::Now();
-    const size_t absl_inc_del_bytes = GetAllocatedBytes(absl_inc_before, 0);
 
     // --- hwy::BTreeSet ---
     const size_t hwy_inc_before = AllocatedBefore();
@@ -619,136 +477,56 @@ void RunBenchmarkSuite(size_t num_keys) {
       hwy_prebuilt.erase(inc_keys[i]);
     }
     const double dec_hwy_1 = hwy::platform::Now();
-    const size_t hwy_inc_del_bytes =
-        GetAllocatedBytes(hwy_inc_before, hwy_prebuilt.AllocatedBytes());
-
-    // --- hwy::CompactBTreeSet ---
-    const size_t compact_inc_before = AllocatedBefore();
-    auto compact_prebuilt = CompactBTreeSet<KeyT>::Build(
-        keys.data(), keys.size(), /*fill_ratio=*/0.75f);
-    const double inc_compact_0 = hwy::platform::Now();
-    for (size_t i = 0; i < kNumIncremental; ++i) {
-      compact_prebuilt.insert(inc_keys[i]);
-    }
-    const double inc_compact_1 = hwy::platform::Now();
-    const size_t compact_inc_bytes = GetAllocatedBytes(
-        compact_inc_before, compact_prebuilt.AllocatedBytes());
-
-    const double dec_compact_0 = hwy::platform::Now();
-    for (size_t i = 0; i < kNumIncremental; ++i) {
-      compact_prebuilt.erase(inc_keys[i]);
-    }
-    const double dec_compact_1 = hwy::platform::Now();
-    const size_t compact_inc_del_bytes = GetAllocatedBytes(
-        compact_inc_before, compact_prebuilt.AllocatedBytes());
 
     const double std_inc_ns = (inc_std_1 - inc_std_0) * 1e9 / kNumIncremental;
     const double absl_inc_ns =
         (inc_absl_1 - inc_absl_0) * 1e9 / kNumIncremental;
     const double hwy_inc_ns = (inc_hwy_1 - inc_hwy_0) * 1e9 / kNumIncremental;
-    const double compact_inc_ns =
-        (inc_compact_1 - inc_compact_0) * 1e9 / kNumIncremental;
 
     printf(
         "\nIncremental Insertions Latency & Memory (Pre-Built Tree N = %zu + "
         "%zu keys, 75%% initial fill):\n",
         num_keys, kNumIncremental);
-    printf("  std::set             : %6.2f ns/op (%5.1f B/key, %5.2f MB)\n",
+    printf("  std::set        : %6.2f ns/op (%5.1f B/key, %5.2f MB)\n",
            std_inc_ns,
            static_cast<double>(std_inc_bytes) /
                (std_prebuilt.size() + kNumIncremental),
            std_inc_bytes / (1024.0 * 1024.0));
-    printf("  absl::btree_set      : %6.2f ns/op (%5.1f B/key, %5.2f MB)\n",
+    printf("  absl::btree_set : %6.2f ns/op (%5.1f B/key, %5.2f MB)\n",
            absl_inc_ns,
            static_cast<double>(absl_inc_bytes) /
                (absl_prebuilt.size() + kNumIncremental),
            absl_inc_bytes / (1024.0 * 1024.0));
     printf(
-        "  hwy::BTreeSet        : %6.2f ns/op (%5.1f B/key, %5.2f MB) -> "
-        "%.2fx speedup vs absl\n",
+        "  hwy::BTreeSet   : %6.2f ns/op (%5.1f B/key, %5.2f MB) -> "
+        "%.2fx vs absl (%.1f%% smaller!)\n",
         hwy_inc_ns,
         static_cast<double>(hwy_inc_bytes) /
             (hwy_prebuilt.size() + kNumIncremental),
-        hwy_inc_bytes / (1024.0 * 1024.0), absl_inc_ns / hwy_inc_ns);
-    if (compact_inc_bytes <= absl_inc_bytes) {
-      printf(
-          "  hwy::CompactBTreeSet : %6.2f ns/op (%5.1f B/key, %5.2f MB) -> "
-          "%.2fx vs absl (%.1f%% smaller!)\n",
-          compact_inc_ns,
-          static_cast<double>(compact_inc_bytes) /
-              (compact_prebuilt.size() + kNumIncremental),
-          compact_inc_bytes / (1024.0 * 1024.0), absl_inc_ns / compact_inc_ns,
-          100.0 *
-              (1.0 - static_cast<double>(compact_inc_bytes) / absl_inc_bytes));
-    } else {
-      printf(
-          "  hwy::CompactBTreeSet : %6.2f ns/op (%5.1f B/key, %5.2f MB) -> "
-          "%.2fx vs absl (%.1f%% larger)\n",
-          compact_inc_ns,
-          static_cast<double>(compact_inc_bytes) /
-              (compact_prebuilt.size() + kNumIncremental),
-          compact_inc_bytes / (1024.0 * 1024.0), absl_inc_ns / compact_inc_ns,
-          100.0 *
-              (static_cast<double>(compact_inc_bytes) / absl_inc_bytes - 1.0));
-    }
+        hwy_inc_bytes / (1024.0 * 1024.0), absl_inc_ns / hwy_inc_ns,
+        100.0 * (1.0 - static_cast<double>(hwy_inc_bytes) / absl_inc_bytes));
 
     const double std_dec_ns = (dec_std_1 - dec_std_0) * 1e9 / kNumIncremental;
     const double absl_dec_ns =
         (dec_absl_1 - dec_absl_0) * 1e9 / kNumIncremental;
     const double hwy_dec_ns = (dec_hwy_1 - dec_hwy_0) * 1e9 / kNumIncremental;
-    const double compact_dec_ns =
-        (dec_compact_1 - dec_compact_0) * 1e9 / kNumIncremental;
 
     printf(
-        "\nIncremental Deletions Latency & Memory on Pre-Built Tree (%zu "
-        "random keys on %zu-key tree -> remaining keys: %zu):\n",
-        kNumIncremental, num_keys, std_prebuilt.size());
-    printf("  std::set             : %6.2f ns/op (%5.1f B/key, %5.2f MB)\n",
-           std_dec_ns,
-           static_cast<double>(std_inc_del_bytes) / std_prebuilt.size(),
-           std_inc_del_bytes / (1024.0 * 1024.0));
-    printf("  absl::btree_set      : %6.2f ns/op (%5.1f B/key, %5.2f MB)\n",
-           absl_dec_ns,
-           static_cast<double>(absl_inc_del_bytes) / absl_prebuilt.size(),
-           absl_inc_del_bytes / (1024.0 * 1024.0));
-    printf(
-        "  hwy::BTreeSet        : %6.2f ns/op (%5.1f B/key, %5.2f MB) -> "
-        "%.2fx speedup vs absl\n",
-        hwy_dec_ns,
-        static_cast<double>(hwy_inc_del_bytes) / hwy_prebuilt.size(),
-        hwy_inc_del_bytes / (1024.0 * 1024.0), absl_dec_ns / hwy_dec_ns);
-    if (compact_inc_del_bytes <= absl_inc_del_bytes) {
-      printf(
-          "  hwy::CompactBTreeSet : %6.2f ns/op (%5.1f B/key, %5.2f MB) -> "
-          "%.2fx vs absl (%.1f%% smaller!)\n",
-          compact_dec_ns,
-          static_cast<double>(compact_inc_del_bytes) / compact_prebuilt.size(),
-          compact_inc_del_bytes / (1024.0 * 1024.0),
-          absl_dec_ns / compact_dec_ns,
-          100.0 * (1.0 - static_cast<double>(compact_inc_del_bytes) /
-                             absl_inc_del_bytes));
-    } else {
-      printf(
-          "  hwy::CompactBTreeSet : %6.2f ns/op (%5.1f B/key, %5.2f MB) -> "
-          "%.2fx vs absl (%.1f%% larger)\n",
-          compact_dec_ns,
-          static_cast<double>(compact_inc_del_bytes) / compact_prebuilt.size(),
-          compact_inc_del_bytes / (1024.0 * 1024.0),
-          absl_dec_ns / compact_dec_ns,
-          100.0 *
-              (static_cast<double>(compact_inc_del_bytes) / absl_inc_del_bytes -
-               1.0));
-    }
+        "\nIncremental Deletions Latency (Pre-Built Tree N = %zu - %zu "
+        "keys):\n",
+        num_keys, kNumIncremental);
+    printf("  std::set        : %6.2f ns/op\n", std_dec_ns);
+    printf("  absl::btree_set : %6.2f ns/op\n", absl_dec_ns);
+    printf("  hwy::BTreeSet   : %6.2f ns/op -> %.2fx speedup vs absl\n",
+           hwy_dec_ns, absl_dec_ns / hwy_dec_ns);
   }
 
+  HWY_ASSERT(std_hits == absl_hits);
   HWY_ASSERT(hwy_hits == absl_hits);
-  HWY_ASSERT(compact_hits == absl_hits);
   HWY_ASSERT(batch_hits == absl_hits);
-  HWY_ASSERT(compact_batch_hits == absl_hits);
+  HWY_ASSERT(std_lb_sum == absl_lb_sum);
   HWY_ASSERT(hwy_lb_sum == absl_lb_sum);
-  HWY_ASSERT(compact_lb_sum == absl_lb_sum);
   HWY_ASSERT(batch_lb_sum == absl_lb_sum);
-  HWY_ASSERT(compact_batch_lb_sum == absl_lb_sum);
 }
 
 template <typename KeyT>
@@ -793,38 +571,23 @@ void RunWorstCaseBenchmarkSuite(size_t num_keys) {
   const size_t hwy_bytes =
       GetAllocatedBytes(hwy_before, hwy_tree.AllocatedBytes());
 
-  const size_t compact_before = AllocatedBefore();
-  const double start_compact = hwy::platform::Now();
-  auto compact_tree =
-      CompactBTreeSet<KeyT>::Build(keys.data(), keys.size(), 1.0f);
-  const double end_compact = hwy::platform::Now();
-  const size_t compact_bytes =
-      GetAllocatedBytes(compact_before, compact_tree.AllocatedBytes());
-
   printf("Worst-Case Build Time:\n");
-  printf("  std::set             : %8.2f ms\n", (end_std - start_std) * 1000.0);
-  printf("  absl::btree_set      : %8.2f ms\n",
-         (end_absl - start_absl) * 1000.0);
-  printf("  hwy::BTreeSet        : %8.2f ms (%.1fx faster than absl)\n",
+  printf("  std::set        : %8.2f ms\n", (end_std - start_std) * 1000.0);
+  printf("  absl::btree_set : %8.2f ms\n", (end_absl - start_absl) * 1000.0);
+  printf("  hwy::BTreeSet   : %8.2f ms (%.1fx faster than absl)\n",
          (end_hwy - start_hwy) * 1000.0,
-         (end_absl - start_absl) / (end_hwy - start_hwy));
-  printf("  hwy::CompactBTreeSet : %8.2f ms (%.1fx faster than absl)\n",
-         (end_compact - start_compact) * 1000.0,
-         (end_absl - start_absl) / (end_compact - start_compact));
+         (end_absl - start_absl) / (end_hwy - start_hwy + 1e-6));
 
   printf("\nWorst-Case Memory Footprint (Uncompressible Raw Mode):\n");
-  printf("  std::set             : %5.2f MB (%5.1f B/key)\n",
+  printf("  std::set        : %5.2f MB (%5.1f B/key)\n",
          std_bytes / (1024.0 * 1024.0),
          static_cast<double>(std_bytes) / num_keys);
-  printf("  absl::btree_set      : %5.2f MB (%5.1f B/key)\n",
+  printf("  absl::btree_set : %5.2f MB (%5.1f B/key)\n",
          absl_bytes / (1024.0 * 1024.0),
          static_cast<double>(absl_bytes) / num_keys);
-  printf("  hwy::BTreeSet        : %5.2f MB (%5.1f B/key)\n",
+  printf("  hwy::BTreeSet   : %5.2f MB (%5.1f B/key)\n",
          hwy_bytes / (1024.0 * 1024.0),
          static_cast<double>(hwy_bytes) / num_keys);
-  printf("  hwy::CompactBTreeSet : %5.2f MB (%5.1f B/key)\n",
-         compact_bytes / (1024.0 * 1024.0),
-         static_cast<double>(compact_bytes) / num_keys);
 
   // 2. Worst-case 100% Miss Point Lookups (Odd keys vs Even set)
   constexpr size_t kNumQueries = 1000000;
@@ -837,7 +600,7 @@ void RunWorstCaseBenchmarkSuite(size_t num_keys) {
         1));
   }
 
-  uint64_t std_hits = 0, absl_hits = 0, hwy_hits = 0, compact_hits = 0;
+  uint64_t std_hits = 0, absl_hits = 0, hwy_hits = 0;
   const double t0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumQueries; ++i) {
     std_hits += (std_tree.find(miss_queries[i]) != std_tree.end());
@@ -852,39 +615,26 @@ void RunWorstCaseBenchmarkSuite(size_t num_keys) {
   const double t2 = hwy::platform::Now();
 
   for (size_t i = 0; i < kNumQueries; ++i) {
-    hwy_hits += hwy_tree.Contains(miss_queries[i]);
+    hwy_hits += hwy_tree.contains(miss_queries[i]);
   }
   hwy::PreventElision(hwy_hits);
   const double t3 = hwy::platform::Now();
 
-  for (size_t i = 0; i < kNumQueries; ++i) {
-    compact_hits += compact_tree.contains(miss_queries[i]);
-  }
-  hwy::PreventElision(compact_hits);
-  const double t4 = hwy::platform::Now();
-
   const double std_miss_ns = (t1 - t0) * 1e9 / kNumQueries;
   const double absl_miss_ns = (t2 - t1) * 1e9 / kNumQueries;
   const double hwy_miss_ns = (t3 - t2) * 1e9 / kNumQueries;
-  const double compact_miss_ns = (t4 - t3) * 1e9 / kNumQueries;
 
   printf("\nWorst-Case Point Lookup Miss Latency (100%% Key Misses):\n");
-  printf("  std::set             : %6.2f ns/op (%6.2f Mops/s)\n", std_miss_ns,
+  printf("  std::set        : %6.2f ns/op (%6.2f Mops/s)\n", std_miss_ns,
          1000.0 / std_miss_ns);
-  printf("  absl::btree_set      : %6.2f ns/op (%6.2f Mops/s)\n", absl_miss_ns,
+  printf("  absl::btree_set : %6.2f ns/op (%6.2f Mops/s)\n", absl_miss_ns,
          1000.0 / absl_miss_ns);
-  printf(
-      "  hwy::BTreeSet        : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
-      hwy_miss_ns, 1000.0 / hwy_miss_ns, absl_miss_ns / hwy_miss_ns);
-  printf(
-      "  hwy::CompactBTreeSet : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
-      compact_miss_ns, 1000.0 / compact_miss_ns,
-      absl_miss_ns / compact_miss_ns);
+  printf("  hwy::BTreeSet   : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
+         hwy_miss_ns, 1000.0 / hwy_miss_ns, absl_miss_ns / hwy_miss_ns);
 
   HWY_ASSERT(std_hits == 0);
   HWY_ASSERT(absl_hits == 0);
   HWY_ASSERT(hwy_hits == 0);
-  HWY_ASSERT(compact_hits == 0);
 }
 
 template <typename KeyT, typename ValueT>
@@ -932,46 +682,31 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   const size_t hwy_bytes =
       GetAllocatedBytes(hwy_before, hwy_map.AllocatedBytes());
 
-  const size_t compact_before = AllocatedBefore();
-  const double start_compact = hwy::platform::Now();
-  auto compact_map = CompactBTreeMap<KeyT, ValueT>::Build(
-      keys.data(), vals.data(), keys.size());
-  const double end_compact = hwy::platform::Now();
-  const size_t compact_bytes =
-      GetAllocatedBytes(compact_before, compact_map.AllocatedBytes());
-
   const double hwy_build_ms = (end_hwy - start_hwy) * 1000.0;
-  const double compact_build_ms = (end_compact - start_compact) * 1000.0;
   const double absl_build_ms = (end_absl - start_absl) * 1000.0;
   const double std_build_ms = (end_std - start_std) * 1000.0;
 
   printf("Build Time:\n");
-  printf("  std::map             : %8.2f ms\n", std_build_ms);
-  printf("  absl::btree_map      : %8.2f ms\n", absl_build_ms);
-  printf("  hwy::BTreeMap        : %8.2f ms (%.1fx faster than absl)\n",
+  printf("  std::map        : %8.2f ms\n", std_build_ms);
+  printf("  absl::btree_map : %8.2f ms\n", absl_build_ms);
+  printf("  hwy::BTreeMap   : %8.2f ms (%.1fx faster than absl)\n",
          hwy_build_ms, absl_build_ms / (hwy_build_ms + 1e-6));
-  printf("  hwy::CompactBTreeMap : %8.2f ms (%.1fx faster than absl)\n",
-         compact_build_ms, absl_build_ms / (compact_build_ms + 1e-6));
 
   // Memory Footprint
   printf(
       "\nMemory Footprint (100%% Fill Bulk-Loaded State, TCMalloc "
       "Measured):\n");
-  printf("  std::map             : %6.2f MB (%5.1f B/pair)\n",
+  printf("  std::map        : %6.2f MB (%5.1f B/pair)\n",
          std_bytes / (1024.0 * 1024.0),
          static_cast<double>(std_bytes) / num_keys);
-  printf("  absl::btree_map      : %6.2f MB (%5.1f B/pair)\n",
+  printf("  absl::btree_map : %6.2f MB (%5.1f B/pair)\n",
          absl_bytes / (1024.0 * 1024.0),
          static_cast<double>(absl_bytes) / num_keys);
-  printf("  hwy::BTreeMap        : %6.2f MB (%5.1f B/pair)\n",
-         hwy_bytes / (1024.0 * 1024.0),
-         static_cast<double>(hwy_bytes) / num_keys);
   printf(
-      "  hwy::CompactBTreeMap : %6.2f MB (%5.1f B/pair) -> %.1f%% smaller than "
+      "  hwy::BTreeMap   : %6.2f MB (%5.1f B/pair) -> %.1f%% smaller than "
       "absl!\n",
-      compact_bytes / (1024.0 * 1024.0),
-      static_cast<double>(compact_bytes) / num_keys,
-      100.0 * (1.0 - static_cast<double>(compact_bytes) / absl_bytes));
+      hwy_bytes / (1024.0 * 1024.0), static_cast<double>(hwy_bytes) / num_keys,
+      100.0 * (1.0 - static_cast<double>(hwy_bytes) / absl_bytes));
 
   // 2. Generate Random Query Keys
   constexpr size_t kNumQueries = 1000000;
@@ -982,8 +717,8 @@ void RunMapBenchmarkSuite(size_t num_keys) {
         absl::Uniform<uint64_t>(bitgen, 0, (num_keys + 1) * 10)));
   }
 
-  // 3. Point Lookups (FindValue / Find)
-  uint64_t hwy_hits = 0, compact_hits = 0, absl_hits = 0, std_hits = 0;
+  // 3. Point Lookups (FindValue / find)
+  uint64_t hwy_hits = 0, absl_hits = 0, std_hits = 0;
 
   const double t0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumQueries; ++i) {
@@ -1007,33 +742,20 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   hwy::PreventElision(hwy_hits);
   const double t3 = hwy::platform::Now();
 
-  for (size_t i = 0; i < kNumQueries; ++i) {
-    const ValueT* ptr = compact_map.FindValue(queries[i]);
-    if (ptr != nullptr) compact_hits += static_cast<uint64_t>(*ptr);
-  }
-  hwy::PreventElision(compact_hits);
-  const double t4 = hwy::platform::Now();
-
   const double std_lookup_ns = (t1 - t0) * 1e9 / kNumQueries;
   const double absl_lookup_ns = (t2 - t1) * 1e9 / kNumQueries;
   const double hwy_lookup_ns = (t3 - t2) * 1e9 / kNumQueries;
-  const double compact_lookup_ns = (t4 - t3) * 1e9 / kNumQueries;
 
   printf("\nPoint Lookup Latency (1M queries on 100%% Bulk-Loaded Map):\n");
-  printf("  std::map             : %6.2f ns/op (%6.2f Mops/s)\n", std_lookup_ns,
+  printf("  std::map        : %6.2f ns/op (%6.2f Mops/s)\n", std_lookup_ns,
          1000.0 / std_lookup_ns);
-  printf("  absl::btree_map      : %6.2f ns/op (%6.2f Mops/s)\n",
-         absl_lookup_ns, 1000.0 / absl_lookup_ns);
-  printf(
-      "  hwy::BTreeMap        : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
-      hwy_lookup_ns, 1000.0 / hwy_lookup_ns, absl_lookup_ns / hwy_lookup_ns);
-  printf(
-      "  hwy::CompactBTreeMap : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
-      compact_lookup_ns, 1000.0 / compact_lookup_ns,
-      absl_lookup_ns / compact_lookup_ns);
+  printf("  absl::btree_map : %6.2f ns/op (%6.2f Mops/s)\n", absl_lookup_ns,
+         1000.0 / absl_lookup_ns);
+  printf("  hwy::BTreeMap   : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
+         hwy_lookup_ns, 1000.0 / hwy_lookup_ns, absl_lookup_ns / hwy_lookup_ns);
 
-  // 4. Ordered Range Queries (LowerBound)
-  uint64_t hwy_lb_sum = 0, compact_lb_sum = 0, absl_lb_sum = 0, std_lb_sum = 0;
+  // 4. Ordered Range Queries (lower_bound)
+  uint64_t hwy_lb_sum = 0, absl_lb_sum = 0, std_lb_sum = 0;
 
   const double r0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumQueries; ++i) {
@@ -1057,36 +779,22 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   hwy::PreventElision(hwy_lb_sum);
   const double r3 = hwy::platform::Now();
 
-  for (size_t i = 0; i < kNumQueries; ++i) {
-    auto it = compact_map.lower_bound(queries[i]);
-    if (it != compact_map.end()) {
-      compact_lb_sum += static_cast<uint64_t>(it->second);
-    }
-  }
-  hwy::PreventElision(compact_lb_sum);
-  const double r4 = hwy::platform::Now();
-
   const double std_lb_ns = (r1 - r0) * 1e9 / kNumQueries;
   const double absl_lb_ns = (r2 - r1) * 1e9 / kNumQueries;
   const double hwy_lb_ns = (r3 - r2) * 1e9 / kNumQueries;
-  const double compact_lb_ns = (r4 - r3) * 1e9 / kNumQueries;
 
   printf(
       "\nLowerBound Range Query Latency (1M queries on 100%% Bulk-Loaded "
       "Map):\n");
-  printf("  std::map             : %6.2f ns/op (%6.2f Mops/s)\n", std_lb_ns,
+  printf("  std::map        : %6.2f ns/op (%6.2f Mops/s)\n", std_lb_ns,
          1000.0 / std_lb_ns);
-  printf("  absl::btree_map      : %6.2f ns/op (%6.2f Mops/s)\n", absl_lb_ns,
+  printf("  absl::btree_map : %6.2f ns/op (%6.2f Mops/s)\n", absl_lb_ns,
          1000.0 / absl_lb_ns);
-  printf(
-      "  hwy::BTreeMap        : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
-      hwy_lb_ns, 1000.0 / hwy_lb_ns, absl_lb_ns / hwy_lb_ns);
-  printf(
-      "  hwy::CompactBTreeMap : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
-      compact_lb_ns, 1000.0 / compact_lb_ns, absl_lb_ns / compact_lb_ns);
+  printf("  hwy::BTreeMap   : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
+         hwy_lb_ns, 1000.0 / hwy_lb_ns, absl_lb_ns / hwy_lb_ns);
 
-  // 4b. Ordered Range Queries (UpperBound)
-  uint64_t hwy_ub_sum = 0, compact_ub_sum = 0, absl_ub_sum = 0, std_ub_sum = 0;
+  // 4b. Ordered Range Queries (upper_bound)
+  uint64_t hwy_ub_sum = 0, absl_ub_sum = 0, std_ub_sum = 0;
 
   const double u0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumQueries; ++i) {
@@ -1110,549 +818,331 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   hwy::PreventElision(hwy_ub_sum);
   const double u3 = hwy::platform::Now();
 
-  for (size_t i = 0; i < kNumQueries; ++i) {
-    auto it = compact_map.upper_bound(queries[i]);
-    if (it != compact_map.end()) {
-      compact_ub_sum += static_cast<uint64_t>(it->second);
-    }
-  }
-  hwy::PreventElision(compact_ub_sum);
-  const double u4 = hwy::platform::Now();
-
   const double std_ub_ns = (u1 - u0) * 1e9 / kNumQueries;
   const double absl_ub_ns = (u2 - u1) * 1e9 / kNumQueries;
   const double hwy_ub_ns = (u3 - u2) * 1e9 / kNumQueries;
-  const double compact_ub_ns = (u4 - u3) * 1e9 / kNumQueries;
 
   printf(
       "\nUpperBound Range Query Latency (1M queries on 100%% Bulk-Loaded "
       "Map):\n");
-  printf("  std::map             : %6.2f ns/op (%6.2f Mops/s)\n", std_ub_ns,
+  printf("  std::map        : %6.2f ns/op (%6.2f Mops/s)\n", std_ub_ns,
          1000.0 / std_ub_ns);
-  printf("  absl::btree_map      : %6.2f ns/op (%6.2f Mops/s)\n", absl_ub_ns,
+  printf("  absl::btree_map : %6.2f ns/op (%6.2f Mops/s)\n", absl_ub_ns,
          1000.0 / absl_ub_ns);
-  printf(
-      "  hwy::BTreeMap        : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
-      hwy_ub_ns, 1000.0 / hwy_ub_ns, absl_ub_ns / hwy_ub_ns);
-  printf(
-      "  hwy::CompactBTreeMap : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
-      compact_ub_ns, 1000.0 / compact_ub_ns, absl_ub_ns / compact_ub_ns);
+  printf("  hwy::BTreeMap   : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
+         hwy_ub_ns, 1000.0 / hwy_ub_ns, absl_ub_ns / hwy_ub_ns);
 
-  // 5. Batch Value Lookups (FindValueBatch - 8-way pipelined prefetch)
-  std::vector<const ValueT*> batch_vals(kNumQueries);
-  const double mb0 = hwy::platform::Now();
-  hwy_map.FindValueBatch(queries.data(), kNumQueries, batch_vals.data());
-  const double mb1 = hwy::platform::Now();
+  // 5. Batch Value Lookups (LookupBatch - 8-way pipelined prefetch)
+  auto batch_found = std::make_unique<bool[]>(kNumQueries);
+  std::vector<ValueT> batch_values(kNumQueries);
+  const double b0 = hwy::platform::Now();
+  hwy_map.LookupBatch(queries.data(), kNumQueries, batch_values.data(),
+                      batch_found.get());
+  const double b1 = hwy::platform::Now();
 
-  uint64_t batch_hits = 0;
+  uint64_t batch_val_sum = 0;
   for (size_t i = 0; i < kNumQueries; ++i) {
-    if (batch_vals[i] != nullptr) {
-      batch_hits += static_cast<uint64_t>(*batch_vals[i]);
-    }
+    if (batch_found[i]) batch_val_sum += static_cast<uint64_t>(batch_values[i]);
   }
-  hwy::PreventElision(batch_hits);
+  hwy::PreventElision(batch_val_sum);
 
-  std::vector<ValueT> compact_batch_vals(kNumQueries);
-  std::unique_ptr<bool[]> compact_batch_found(new bool[kNumQueries]);
-  const double cmb0 = hwy::platform::Now();
-  compact_map.LookupBatch(queries.data(), kNumQueries,
-                          compact_batch_vals.data(), compact_batch_found.get());
-  const double cmb1 = hwy::platform::Now();
+  const double hwy_batch_lookup_ns = (b1 - b0) * 1e9 / kNumQueries;
 
-  uint64_t compact_batch_hits = 0;
-  for (size_t i = 0; i < kNumQueries; ++i) {
-    if (compact_batch_found[i]) {
-      compact_batch_hits += static_cast<uint64_t>(compact_batch_vals[i]);
-    }
-  }
-  hwy::PreventElision(compact_batch_hits);
-
-  const double hwy_batch_lookup_ns = (mb1 - mb0) * 1e9 / kNumQueries;
-  const double compact_batch_lookup_ns = (cmb1 - cmb0) * 1e9 / kNumQueries;
   printf(
-      "\nBatch Value Lookup (1M queries on 100%% Bulk-Loaded Map, 8-way "
+      "\nBatch Map Value Lookup (1M queries on 100%% Bulk-Loaded Map, 8-way "
       "pipelined prefetch):\n");
-  printf("  hwy::BTreeMap (Serial)        : %6.2f ns/op (%6.2f Mops/s)\n",
+  printf("  hwy::BTreeMap (Serial) : %6.2f ns/op (%6.2f Mops/s)\n",
          hwy_lookup_ns, 1000.0 / hwy_lookup_ns);
   printf(
-      "  hwy::BTreeMap (Batch)         : %6.2f ns/op (%6.2f Mops/s) -> %.2fx "
-      "vs Serial (%.2fx vs absl)\n",
+      "  hwy::BTreeMap (Batch)  : %6.2f ns/op (%6.2f Mops/s) -> "
+      "%.2fx vs Serial (%.2fx vs absl)\n",
       hwy_batch_lookup_ns, 1000.0 / hwy_batch_lookup_ns,
       hwy_lookup_ns / hwy_batch_lookup_ns,
       absl_lookup_ns / hwy_batch_lookup_ns);
-  printf("  hwy::CompactBTreeMap (Serial) : %6.2f ns/op (%6.2f Mops/s)\n",
-         compact_lookup_ns, 1000.0 / compact_lookup_ns);
-  printf(
-      "  hwy::CompactBTreeMap (Batch)  : %6.2f ns/op (%6.2f Mops/s) -> %.2fx "
-      "vs Serial (%.2fx vs absl)\n",
-      compact_batch_lookup_ns, 1000.0 / compact_batch_lookup_ns,
-      compact_lookup_ns / compact_batch_lookup_ns,
-      absl_lookup_ns / compact_batch_lookup_ns);
 
   // 6. Batch LowerBound Queries (LowerBoundBatch - 8-way pipelined prefetch)
-  std::vector<typename BTreeMap<KeyT, ValueT>::const_iterator> batch_iters(
+  std::vector<typename BTreeMap<KeyT, ValueT>::const_iterator> batch_lb_results(
       kNumQueries);
-  const double mblb0 = hwy::platform::Now();
-  hwy_map.LowerBoundBatch(queries.data(), kNumQueries, batch_iters.data());
-  const double mblb1 = hwy::platform::Now();
+  const double blb0 = hwy::platform::Now();
+  hwy_map.LowerBoundBatch(queries.data(), kNumQueries, batch_lb_results.data());
+  const double blb1 = hwy::platform::Now();
 
   uint64_t batch_lb_sum = 0;
   for (size_t i = 0; i < kNumQueries; ++i) {
-    if (batch_iters[i] != hwy_map.end()) {
-      batch_lb_sum += static_cast<uint64_t>(batch_iters[i]->second);
+    if (batch_lb_results[i] != hwy_map.end()) {
+      batch_lb_sum += static_cast<uint64_t>(batch_lb_results[i]->second);
     }
   }
   hwy::PreventElision(batch_lb_sum);
 
-  std::vector<typename CompactBTreeMap<KeyT, ValueT>::const_iterator>
-      compact_batch_iters(kNumQueries);
-  const double cmblb0 = hwy::platform::Now();
-  compact_map.LowerBoundBatch(queries.data(), kNumQueries,
-                              compact_batch_iters.data());
-  const double cmblb1 = hwy::platform::Now();
-
-  uint64_t compact_batch_lb_sum = 0;
-  for (size_t i = 0; i < kNumQueries; ++i) {
-    if (compact_batch_iters[i] != compact_map.end()) {
-      compact_batch_lb_sum +=
-          static_cast<uint64_t>(compact_batch_iters[i]->second);
-    }
-  }
-  hwy::PreventElision(compact_batch_lb_sum);
-
-  const double hwy_batch_lb_ns = (mblb1 - mblb0) * 1e9 / kNumQueries;
-  const double compact_batch_lb_ns = (cmblb1 - cmblb0) * 1e9 / kNumQueries;
+  const double hwy_batch_lb_ns = (blb1 - blb0) * 1e9 / kNumQueries;
   printf(
       "\nBatch LowerBound Query (1M queries on 100%% Bulk-Loaded Map, 8-way "
       "pipelined prefetch):\n");
-  printf("  hwy::BTreeMap (Serial)        : %6.2f ns/op (%6.2f Mops/s)\n",
-         hwy_lb_ns, 1000.0 / hwy_lb_ns);
+  printf("  hwy::BTreeMap (Serial) : %6.2f ns/op (%6.2f Mops/s)\n", hwy_lb_ns,
+         1000.0 / hwy_lb_ns);
   printf(
-      "  hwy::BTreeMap (Batch)         : %6.2f ns/op (%6.2f Mops/s) -> %.2fx "
+      "  hwy::BTreeMap (Batch)  : %6.2f ns/op (%6.2f Mops/s) -> %.2fx "
       "vs Serial (%.2fx vs absl)\n",
       hwy_batch_lb_ns, 1000.0 / hwy_batch_lb_ns, hwy_lb_ns / hwy_batch_lb_ns,
       absl_lb_ns / hwy_batch_lb_ns);
-  printf("  hwy::CompactBTreeMap (Serial) : %6.2f ns/op (%6.2f Mops/s)\n",
-         compact_lb_ns, 1000.0 / compact_lb_ns);
-  printf(
-      "  hwy::CompactBTreeMap (Batch)  : %6.2f ns/op (%6.2f Mops/s) -> %.2fx "
-      "vs Serial (%.2fx vs absl)\n",
-      compact_batch_lb_ns, 1000.0 / compact_batch_lb_ns,
-      compact_lb_ns / compact_batch_lb_ns, absl_lb_ns / compact_batch_lb_ns);
 
   // 7. Dynamic Random Insertions & 8. Dynamic Deletions on Empty Map
   const size_t kNumMutations = std::min(num_keys, static_cast<size_t>(100000));
   const size_t kNumErases = kNumMutations / 2;
-  std::vector<KeyT> mut_keys;
-  std::vector<ValueT> mut_vals;
-  mut_keys.reserve(kNumMutations);
-  mut_vals.reserve(kNumMutations);
+  std::vector<std::pair<KeyT, ValueT>> mutation_pairs;
+  mutation_pairs.reserve(kNumMutations);
   for (size_t i = 0; i < kNumMutations; ++i) {
-    KeyT k = static_cast<KeyT>(
-        absl::Uniform<uint64_t>(bitgen, 0, (num_keys + 1) * 20));
-    ValueT v = static_cast<ValueT>(k * 3 + 7);
-    mut_keys.push_back(k);
-    mut_vals.push_back(v);
+    mutation_pairs.push_back({static_cast<KeyT>(absl::Uniform<uint64_t>(
+                                  bitgen, 0, (num_keys + 1) * 20)),
+                              static_cast<ValueT>(absl::Uniform<uint64_t>(
+                                  bitgen, 1, (num_keys + 1) * 200))});
   }
 
   // --- std::map ---
-  const size_t std_dyn_map_before = AllocatedBefore();
+  const size_t std_dyn_before = AllocatedBefore();
   std::map<KeyT, ValueT> std_dyn_map;
   const double mi_std_0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumMutations; ++i) {
-    std_dyn_map[mut_keys[i]] = mut_vals[i];
+    std_dyn_map.insert(mutation_pairs[i]);
   }
   const double mi_std_1 = hwy::platform::Now();
-  const size_t std_dyn_map_bytes = GetAllocatedBytes(std_dyn_map_before, 0);
+  const size_t std_dyn_bytes = GetAllocatedBytes(std_dyn_before, 0);
 
   const double me_std_0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumErases; ++i) {
-    std_dyn_map.erase(mut_keys[i]);
+    std_dyn_map.erase(mutation_pairs[i].first);
   }
   const double me_std_1 = hwy::platform::Now();
-  const size_t std_dyn_map_del_bytes = GetAllocatedBytes(std_dyn_map_before, 0);
+  const size_t std_del_bytes = GetAllocatedBytes(std_dyn_before, 0);
 
   // --- absl::btree_map ---
-  const size_t absl_dyn_map_before = AllocatedBefore();
+  const size_t absl_dyn_before = AllocatedBefore();
   absl::btree_map<KeyT, ValueT> absl_dyn_map;
   const double mi_absl_0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumMutations; ++i) {
-    absl_dyn_map[mut_keys[i]] = mut_vals[i];
+    absl_dyn_map.insert(mutation_pairs[i]);
   }
   const double mi_absl_1 = hwy::platform::Now();
-  const size_t absl_dyn_map_bytes = GetAllocatedBytes(absl_dyn_map_before, 0);
+  const size_t absl_dyn_bytes = GetAllocatedBytes(absl_dyn_before, 0);
 
   const double me_absl_0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumErases; ++i) {
-    absl_dyn_map.erase(mut_keys[i]);
+    absl_dyn_map.erase(mutation_pairs[i].first);
   }
   const double me_absl_1 = hwy::platform::Now();
-  const size_t absl_dyn_map_del_bytes =
-      GetAllocatedBytes(absl_dyn_map_before, 0);
+  const size_t absl_del_bytes = GetAllocatedBytes(absl_dyn_before, 0);
 
   // --- hwy::BTreeMap ---
-  const size_t hwy_dyn_map_before = AllocatedBefore();
+  const size_t hwy_dyn_before = AllocatedBefore();
   BTreeMap<KeyT, ValueT> hwy_dyn_map;
   const double mi_hwy_0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumMutations; ++i) {
-    hwy_dyn_map.insert(mut_keys[i], mut_vals[i]);
+    hwy_dyn_map.insert(mutation_pairs[i]);
   }
   const double mi_hwy_1 = hwy::platform::Now();
-  const size_t hwy_dyn_map_bytes =
-      GetAllocatedBytes(hwy_dyn_map_before, hwy_dyn_map.AllocatedBytes());
+  const size_t hwy_dyn_bytes =
+      GetAllocatedBytes(hwy_dyn_before, hwy_dyn_map.AllocatedBytes());
 
   const double me_hwy_0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumErases; ++i) {
-    hwy_dyn_map.erase(mut_keys[i]);
+    hwy_dyn_map.erase(mutation_pairs[i].first);
   }
   const double me_hwy_1 = hwy::platform::Now();
-  const size_t hwy_dyn_map_del_bytes =
-      GetAllocatedBytes(hwy_dyn_map_before, hwy_dyn_map.AllocatedBytes());
-
-  // --- hwy::CompactBTreeMap ---
-  const size_t compact_dyn_map_before = AllocatedBefore();
-  CompactBTreeMap<KeyT, ValueT> compact_dyn_map;
-  const double mi_compact_0 = hwy::platform::Now();
-  for (size_t i = 0; i < kNumMutations; ++i) {
-    compact_dyn_map.insert(mut_keys[i], mut_vals[i]);
-  }
-  const double mi_compact_1 = hwy::platform::Now();
-  const size_t compact_dyn_map_bytes = GetAllocatedBytes(
-      compact_dyn_map_before, compact_dyn_map.AllocatedBytes());
-
-  const double me_compact_0 = hwy::platform::Now();
-  for (size_t i = 0; i < kNumErases; ++i) {
-    compact_dyn_map.erase(mut_keys[i]);
-  }
-  const double me_compact_1 = hwy::platform::Now();
-  const size_t compact_dyn_map_del_bytes = GetAllocatedBytes(
-      compact_dyn_map_before, compact_dyn_map.AllocatedBytes());
+  const size_t hwy_del_bytes =
+      GetAllocatedBytes(hwy_dyn_before, hwy_dyn_map.AllocatedBytes());
 
   const double std_ins_ns = (mi_std_1 - mi_std_0) * 1e9 / kNumMutations;
   const double absl_ins_ns = (mi_absl_1 - mi_absl_0) * 1e9 / kNumMutations;
   const double hwy_ins_ns = (mi_hwy_1 - mi_hwy_0) * 1e9 / kNumMutations;
-  const double compact_ins_ns =
-      (mi_compact_1 - mi_compact_0) * 1e9 / kNumMutations;
 
   printf(
       "\nDynamic Insertions into Empty Map (%zu random pairs -> Pure Dynamic "
       "Steady State):\n",
       kNumMutations);
-  printf("  std::map             : %6.2f ns/op (%5.1f B/pair, %5.2f MB)\n",
+  printf("  std::map        : %6.2f ns/op (%5.1f B/pair, %5.2f MB)\n",
          std_ins_ns,
-         static_cast<double>(std_dyn_map_bytes) /
-             (std_dyn_map.size() + kNumErases),
-         std_dyn_map_bytes / (1024.0 * 1024.0));
-  printf("  absl::btree_map      : %6.2f ns/op (%5.1f B/pair, %5.2f MB)\n",
-         absl_ins_ns,
-         static_cast<double>(absl_dyn_map_bytes) /
-             (absl_dyn_map.size() + kNumErases),
-         absl_dyn_map_bytes / (1024.0 * 1024.0));
+         static_cast<double>(std_dyn_bytes) / (std_dyn_map.size() + kNumErases),
+         std_dyn_bytes / (1024.0 * 1024.0));
   printf(
-      "  hwy::BTreeMap        : %6.2f ns/op (%5.1f B/pair, %5.2f MB) -> %.2fx "
-      "speedup vs absl\n",
+      "  absl::btree_map : %6.2f ns/op (%5.1f B/pair, %5.2f MB)\n", absl_ins_ns,
+      static_cast<double>(absl_dyn_bytes) / (absl_dyn_map.size() + kNumErases),
+      absl_dyn_bytes / (1024.0 * 1024.0));
+  printf(
+      "  hwy::BTreeMap   : %6.2f ns/op (%5.1f B/pair, %5.2f MB) -> "
+      "%.2fx vs absl (%.1f%% smaller!)\n",
       hwy_ins_ns,
-      static_cast<double>(hwy_dyn_map_bytes) /
-          (hwy_dyn_map.size() + kNumErases),
-      hwy_dyn_map_bytes / (1024.0 * 1024.0), absl_ins_ns / hwy_ins_ns);
-  printf(
-      "  hwy::CompactBTreeMap : %6.2f ns/op (%5.1f B/pair, %5.2f MB) -> %.2fx "
-      "speedup vs absl\n",
-      compact_ins_ns,
-      static_cast<double>(compact_dyn_map_bytes) /
-          (compact_dyn_map.size() + kNumErases),
-      compact_dyn_map_bytes / (1024.0 * 1024.0), absl_ins_ns / compact_ins_ns);
+      static_cast<double>(hwy_dyn_bytes) / (hwy_dyn_map.size() + kNumErases),
+      hwy_dyn_bytes / (1024.0 * 1024.0), absl_ins_ns / hwy_ins_ns,
+      100.0 * (1.0 - static_cast<double>(hwy_dyn_bytes) / absl_dyn_bytes));
 
   const double std_erase_ns = (me_std_1 - me_std_0) * 1e9 / kNumErases;
   const double absl_erase_ns = (me_absl_1 - me_absl_0) * 1e9 / kNumErases;
   const double hwy_erase_ns = (me_hwy_1 - me_hwy_0) * 1e9 / kNumErases;
-  const double compact_erase_ns =
-      (me_compact_1 - me_compact_0) * 1e9 / kNumErases;
 
   printf(
       "\nDynamic Deletions Latency & Memory on Steady-State Map (%zu random "
-      "pairs -> remaining pairs: %zu after 50%% deletions):\n",
+      "keys -> remaining pairs: %zu after 50%% deletions):\n",
       kNumErases, std_dyn_map.size());
-  printf("  std::map             : %6.2f ns/op (%5.1f B/pair, %5.2f MB)\n",
-         std_erase_ns,
-         static_cast<double>(std_dyn_map_del_bytes) / std_dyn_map.size(),
-         std_dyn_map_del_bytes / (1024.0 * 1024.0));
-  printf("  absl::btree_map      : %6.2f ns/op (%5.1f B/pair, %5.2f MB)\n",
+  printf("  std::map        : %6.2f ns/op (%5.1f B/pair, %5.2f MB)\n",
+         std_erase_ns, static_cast<double>(std_del_bytes) / std_dyn_map.size(),
+         std_del_bytes / (1024.0 * 1024.0));
+  printf("  absl::btree_map : %6.2f ns/op (%5.1f B/pair, %5.2f MB)\n",
          absl_erase_ns,
-         static_cast<double>(absl_dyn_map_del_bytes) / absl_dyn_map.size(),
-         absl_dyn_map_del_bytes / (1024.0 * 1024.0));
+         static_cast<double>(absl_del_bytes) / absl_dyn_map.size(),
+         absl_del_bytes / (1024.0 * 1024.0));
   printf(
-      "  hwy::BTreeMap        : %6.2f ns/op (%5.1f B/pair, %5.2f MB) -> %.2fx "
-      "speedup vs absl\n",
-      hwy_erase_ns,
-      static_cast<double>(hwy_dyn_map_del_bytes) / hwy_dyn_map.size(),
-      hwy_dyn_map_del_bytes / (1024.0 * 1024.0), absl_erase_ns / hwy_erase_ns);
-  if (compact_dyn_map_del_bytes <= absl_dyn_map_del_bytes) {
-    printf(
-        "  hwy::CompactBTreeMap : %6.2f ns/op (%5.1f B/pair, %5.2f MB) -> "
-        "%.2fx vs absl (%.1f%% smaller!)\n",
-        compact_erase_ns,
-        static_cast<double>(compact_dyn_map_del_bytes) / compact_dyn_map.size(),
-        compact_dyn_map_del_bytes / (1024.0 * 1024.0),
-        absl_erase_ns / compact_erase_ns,
-        100.0 * (1.0 - static_cast<double>(compact_dyn_map_del_bytes) /
-                           absl_dyn_map_del_bytes));
-  } else {
-    printf(
-        "  hwy::CompactBTreeMap : %6.2f ns/op (%5.1f B/pair, %5.2f MB) -> "
-        "%.2fx vs absl (%.1f%% larger)\n",
-        compact_erase_ns,
-        static_cast<double>(compact_dyn_map_del_bytes) / compact_dyn_map.size(),
-        compact_dyn_map_del_bytes / (1024.0 * 1024.0),
-        absl_erase_ns / compact_erase_ns,
-        100.0 * (static_cast<double>(compact_dyn_map_del_bytes) /
-                     absl_dyn_map_del_bytes -
-                 1.0));
-  }
+      "  hwy::BTreeMap   : %6.2f ns/op (%5.1f B/pair, %5.2f MB) -> "
+      "%.2fx vs absl\n",
+      hwy_erase_ns, static_cast<double>(hwy_del_bytes) / hwy_dyn_map.size(),
+      hwy_del_bytes / (1024.0 * 1024.0), absl_erase_ns / hwy_erase_ns);
 
   // 9. Incremental Insertions & 10. Incremental Deletions on Pre-Built Map
   const size_t kNumIncremental =
       std::min(num_keys / 10, static_cast<size_t>(10000));
   if (kNumIncremental > 0) {
-    std::vector<KeyT> inc_keys;
-    std::vector<ValueT> inc_vals;
-    inc_keys.reserve(kNumIncremental);
-    inc_vals.reserve(kNumIncremental);
+    std::vector<std::pair<KeyT, ValueT>> inc_pairs;
+    inc_pairs.reserve(kNumIncremental);
     for (size_t i = 0; i < kNumIncremental; ++i) {
-      KeyT k = static_cast<KeyT>(
-          absl::Uniform<uint64_t>(bitgen, 0, (num_keys + 1) * 10));
-      ValueT v = static_cast<ValueT>(k * 5 + 13);
-      inc_keys.push_back(k);
-      inc_vals.push_back(v);
+      inc_pairs.push_back({static_cast<KeyT>(absl::Uniform<uint64_t>(
+                               bitgen, 0, (num_keys + 1) * 10)),
+                           static_cast<ValueT>(absl::Uniform<uint64_t>(
+                               bitgen, 1, (num_keys + 1) * 100))});
     }
 
     // --- std::map ---
-    const size_t std_inc_map_before = AllocatedBefore();
-    std::map<KeyT, ValueT> std_prebuilt_map(kv_pairs.begin(), kv_pairs.end());
+    const size_t std_inc_before = AllocatedBefore();
+    std::map<KeyT, ValueT> std_prebuilt(kv_pairs.begin(), kv_pairs.end());
     const double inc_std_0 = hwy::platform::Now();
     for (size_t i = 0; i < kNumIncremental; ++i) {
-      std_prebuilt_map[inc_keys[i]] = inc_vals[i];
+      std_prebuilt.insert(inc_pairs[i]);
     }
     const double inc_std_1 = hwy::platform::Now();
-    const size_t std_inc_map_bytes = GetAllocatedBytes(std_inc_map_before, 0);
+    const size_t std_inc_bytes = GetAllocatedBytes(std_inc_before, 0);
 
     const double dec_std_0 = hwy::platform::Now();
     for (size_t i = 0; i < kNumIncremental; ++i) {
-      std_prebuilt_map.erase(inc_keys[i]);
+      std_prebuilt.erase(inc_pairs[i].first);
     }
     const double dec_std_1 = hwy::platform::Now();
-    const size_t std_inc_map_del_bytes =
-        GetAllocatedBytes(std_inc_map_before, 0);
 
     // --- absl::btree_map ---
-    const size_t absl_inc_map_before = AllocatedBefore();
-    absl::btree_map<KeyT, ValueT> absl_prebuilt_map(kv_pairs.begin(),
-                                                    kv_pairs.end());
+    const size_t absl_inc_before = AllocatedBefore();
+    absl::btree_map<KeyT, ValueT> absl_prebuilt(kv_pairs.begin(),
+                                                kv_pairs.end());
     const double inc_absl_0 = hwy::platform::Now();
     for (size_t i = 0; i < kNumIncremental; ++i) {
-      absl_prebuilt_map[inc_keys[i]] = inc_vals[i];
+      absl_prebuilt.insert(inc_pairs[i]);
     }
     const double inc_absl_1 = hwy::platform::Now();
-    const size_t absl_inc_map_bytes = GetAllocatedBytes(absl_inc_map_before, 0);
+    const size_t absl_inc_bytes = GetAllocatedBytes(absl_inc_before, 0);
 
     const double dec_absl_0 = hwy::platform::Now();
     for (size_t i = 0; i < kNumIncremental; ++i) {
-      absl_prebuilt_map.erase(inc_keys[i]);
+      absl_prebuilt.erase(inc_pairs[i].first);
     }
     const double dec_absl_1 = hwy::platform::Now();
-    const size_t absl_inc_map_del_bytes =
-        GetAllocatedBytes(absl_inc_map_before, 0);
 
     // --- hwy::BTreeMap ---
-    const size_t hwy_inc_map_before = AllocatedBefore();
-    auto hwy_prebuilt_map = BTreeMap<KeyT, ValueT>::Build(
+    const size_t hwy_inc_before = AllocatedBefore();
+    auto hwy_prebuilt = BTreeMap<KeyT, ValueT>::Build(
         keys.data(), vals.data(), keys.size(), /*fill_ratio=*/0.75f);
     const double inc_hwy_0 = hwy::platform::Now();
     for (size_t i = 0; i < kNumIncremental; ++i) {
-      hwy_prebuilt_map.insert(inc_keys[i], inc_vals[i]);
+      hwy_prebuilt.insert(inc_pairs[i]);
     }
     const double inc_hwy_1 = hwy::platform::Now();
-    const size_t hwy_inc_map_bytes = GetAllocatedBytes(
-        hwy_inc_map_before, hwy_prebuilt_map.AllocatedBytes());
+    const size_t hwy_inc_bytes =
+        GetAllocatedBytes(hwy_inc_before, hwy_prebuilt.AllocatedBytes());
 
     const double dec_hwy_0 = hwy::platform::Now();
     for (size_t i = 0; i < kNumIncremental; ++i) {
-      hwy_prebuilt_map.erase(inc_keys[i]);
+      hwy_prebuilt.erase(inc_pairs[i].first);
     }
     const double dec_hwy_1 = hwy::platform::Now();
-    const size_t hwy_inc_map_del_bytes = GetAllocatedBytes(
-        hwy_inc_map_before, hwy_prebuilt_map.AllocatedBytes());
-
-    // --- hwy::CompactBTreeMap ---
-    const size_t compact_inc_map_before = AllocatedBefore();
-    auto compact_prebuilt_map = CompactBTreeMap<KeyT, ValueT>::Build(
-        keys.data(), vals.data(), keys.size(), /*fill_ratio=*/0.75);
-    const double inc_compact_0 = hwy::platform::Now();
-    for (size_t i = 0; i < kNumIncremental; ++i) {
-      compact_prebuilt_map.insert_or_assign(inc_keys[i], inc_vals[i]);
-    }
-    const double inc_compact_1 = hwy::platform::Now();
-    const size_t compact_inc_map_bytes = GetAllocatedBytes(
-        compact_inc_map_before, compact_prebuilt_map.AllocatedBytes());
-
-    const double dec_compact_0 = hwy::platform::Now();
-    for (size_t i = 0; i < kNumIncremental; ++i) {
-      compact_prebuilt_map.erase(inc_keys[i]);
-    }
-    const double dec_compact_1 = hwy::platform::Now();
-    const size_t compact_inc_map_del_bytes = GetAllocatedBytes(
-        compact_inc_map_before, compact_prebuilt_map.AllocatedBytes());
 
     const double std_inc_ns = (inc_std_1 - inc_std_0) * 1e9 / kNumIncremental;
     const double absl_inc_ns =
         (inc_absl_1 - inc_absl_0) * 1e9 / kNumIncremental;
     const double hwy_inc_ns = (inc_hwy_1 - inc_hwy_0) * 1e9 / kNumIncremental;
-    const double compact_inc_ns =
-        (inc_compact_1 - inc_compact_0) * 1e9 / kNumIncremental;
 
     printf(
         "\nIncremental Insertions Latency & Memory (Pre-Built Map N = %zu + "
-        "%zu pairs, 75%% initial fill):\n",
+        "%zu keys, 75%% initial fill):\n",
         num_keys, kNumIncremental);
-    printf("  std::map             : %6.2f ns/op (%5.1f B/pair, %5.2f MB)\n",
+    printf("  std::map        : %6.2f ns/op (%5.1f B/pair, %5.2f MB)\n",
            std_inc_ns,
-           static_cast<double>(std_inc_map_bytes) /
-               (std_prebuilt_map.size() + kNumIncremental),
-           std_inc_map_bytes / (1024.0 * 1024.0));
-    printf("  absl::btree_map      : %6.2f ns/op (%5.1f B/pair, %5.2f MB)\n",
+           static_cast<double>(std_inc_bytes) /
+               (std_prebuilt.size() + kNumIncremental),
+           std_inc_bytes / (1024.0 * 1024.0));
+    printf("  absl::btree_map : %6.2f ns/op (%5.1f B/pair, %5.2f MB)\n",
            absl_inc_ns,
-           static_cast<double>(absl_inc_map_bytes) /
-               (absl_prebuilt_map.size() + kNumIncremental),
-           absl_inc_map_bytes / (1024.0 * 1024.0));
+           static_cast<double>(absl_inc_bytes) /
+               (absl_prebuilt.size() + kNumIncremental),
+           absl_inc_bytes / (1024.0 * 1024.0));
     printf(
-        "  hwy::BTreeMap        : %6.2f ns/op (%5.1f B/pair, %5.2f MB) -> "
-        "%.2fx speedup vs absl\n",
+        "  hwy::BTreeMap   : %6.2f ns/op (%5.1f B/pair, %5.2f MB) -> "
+        "%.2fx vs absl (%.1f%% smaller!)\n",
         hwy_inc_ns,
-        static_cast<double>(hwy_inc_map_bytes) /
-            (hwy_prebuilt_map.size() + kNumIncremental),
-        hwy_inc_map_bytes / (1024.0 * 1024.0), absl_inc_ns / hwy_inc_ns);
-    if (compact_inc_map_bytes <= absl_inc_map_bytes) {
-      printf(
-          "  hwy::CompactBTreeMap : %6.2f ns/op (%5.1f B/pair, %5.2f MB) -> "
-          "%.2fx vs absl (%.1f%% smaller!)\n",
-          compact_inc_ns,
-          static_cast<double>(compact_inc_map_bytes) /
-              (compact_prebuilt_map.size() + kNumIncremental),
-          compact_inc_map_bytes / (1024.0 * 1024.0),
-          absl_inc_ns / compact_inc_ns,
-          100.0 * (1.0 - static_cast<double>(compact_inc_map_bytes) /
-                             absl_inc_map_bytes));
-    } else {
-      printf(
-          "  hwy::CompactBTreeMap : %6.2f ns/op (%5.1f B/pair, %5.2f MB) -> "
-          "%.2fx vs absl (%.1f%% larger)\n",
-          compact_inc_ns,
-          static_cast<double>(compact_inc_map_bytes) /
-              (compact_prebuilt_map.size() + kNumIncremental),
-          compact_inc_map_bytes / (1024.0 * 1024.0),
-          absl_inc_ns / compact_inc_ns,
-          100.0 *
-              (static_cast<double>(compact_inc_map_bytes) / absl_inc_map_bytes -
-               1.0));
-    }
+        static_cast<double>(hwy_inc_bytes) /
+            (hwy_prebuilt.size() + kNumIncremental),
+        hwy_inc_bytes / (1024.0 * 1024.0), absl_inc_ns / hwy_inc_ns,
+        100.0 * (1.0 - static_cast<double>(hwy_inc_bytes) / absl_inc_bytes));
 
     const double std_dec_ns = (dec_std_1 - dec_std_0) * 1e9 / kNumIncremental;
     const double absl_dec_ns =
         (dec_absl_1 - dec_absl_0) * 1e9 / kNumIncremental;
     const double hwy_dec_ns = (dec_hwy_1 - dec_hwy_0) * 1e9 / kNumIncremental;
-    const double compact_dec_ns =
-        (dec_compact_1 - dec_compact_0) * 1e9 / kNumIncremental;
 
     printf(
-        "\nIncremental Deletions Latency & Memory on Pre-Built Map (%zu "
-        "random pairs on %zu-pair map -> remaining pairs: %zu):\n",
-        kNumIncremental, num_keys, std_prebuilt_map.size());
-    printf("  std::map             : %6.2f ns/op (%5.1f B/pair, %5.2f MB)\n",
-           std_dec_ns,
-           static_cast<double>(std_inc_map_del_bytes) / std_prebuilt_map.size(),
-           std_inc_map_del_bytes / (1024.0 * 1024.0));
-    printf(
-        "  absl::btree_map      : %6.2f ns/op (%5.1f B/pair, %5.2f MB)\n",
-        absl_dec_ns,
-        static_cast<double>(absl_inc_map_del_bytes) / absl_prebuilt_map.size(),
-        absl_inc_map_del_bytes / (1024.0 * 1024.0));
-    printf(
-        "  hwy::BTreeMap        : %6.2f ns/op (%5.1f B/pair, %5.2f MB) -> "
-        "%.2fx speedup vs absl\n",
-        hwy_dec_ns,
-        static_cast<double>(hwy_inc_map_del_bytes) / hwy_prebuilt_map.size(),
-        hwy_inc_map_del_bytes / (1024.0 * 1024.0), absl_dec_ns / hwy_dec_ns);
-    if (compact_inc_map_del_bytes <= absl_inc_map_del_bytes) {
-      printf(
-          "  hwy::CompactBTreeMap : %6.2f ns/op (%5.1f B/pair, %5.2f MB) -> "
-          "%.2fx vs absl (%.1f%% smaller!)\n",
-          compact_dec_ns,
-          static_cast<double>(compact_inc_map_del_bytes) /
-              compact_prebuilt_map.size(),
-          compact_inc_map_del_bytes / (1024.0 * 1024.0),
-          absl_dec_ns / compact_dec_ns,
-          100.0 * (1.0 - static_cast<double>(compact_inc_map_del_bytes) /
-                             absl_inc_map_del_bytes));
-    } else {
-      printf(
-          "  hwy::CompactBTreeMap : %6.2f ns/op (%5.1f B/pair, %5.2f MB) -> "
-          "%.2fx vs absl (%.1f%% larger)\n",
-          compact_dec_ns,
-          static_cast<double>(compact_inc_map_del_bytes) /
-              compact_prebuilt_map.size(),
-          compact_inc_map_del_bytes / (1024.0 * 1024.0),
-          absl_dec_ns / compact_dec_ns,
-          100.0 * (static_cast<double>(compact_inc_map_del_bytes) /
-                       absl_inc_map_del_bytes -
-                   1.0));
-    }
+        "\nIncremental Deletions Latency (Pre-Built Map N = %zu - %zu "
+        "pairs):\n",
+        num_keys, kNumIncremental);
+    printf("  std::map        : %6.2f ns/op\n", std_dec_ns);
+    printf("  absl::btree_map : %6.2f ns/op\n", absl_dec_ns);
+    printf("  hwy::BTreeMap   : %6.2f ns/op -> %.2fx speedup vs absl\n",
+           hwy_dec_ns, absl_dec_ns / hwy_dec_ns);
   }
 
+  HWY_ASSERT(std_hits == absl_hits);
   HWY_ASSERT(hwy_hits == absl_hits);
-  HWY_ASSERT(compact_hits == absl_hits);
-  HWY_ASSERT(batch_hits == absl_hits);
-  HWY_ASSERT(compact_batch_hits == absl_hits);
+  HWY_ASSERT(std_lb_sum == absl_lb_sum);
   HWY_ASSERT(hwy_lb_sum == absl_lb_sum);
-  HWY_ASSERT(compact_lb_sum == absl_lb_sum);
   HWY_ASSERT(batch_lb_sum == absl_lb_sum);
-  HWY_ASSERT(compact_batch_lb_sum == absl_lb_sum);
-  HWY_ASSERT(hwy_dyn_map.size() == absl_dyn_map.size());
-  HWY_ASSERT(compact_dyn_map.size() == absl_dyn_map.size());
 }
 
 template <typename KeyT, typename ValueT>
 void RunWorstCaseMapBenchmarkSuite(size_t num_keys) {
   printf("\n===============================================================\n");
-  printf(
-      "  Worst-Case B-Tree Map Benchmark (%zu-bit Key, %zu-bit Value, N = %zu "
-      "pairs, %s)\n",
-      sizeof(KeyT) * 8, sizeof(ValueT) * 8, num_keys,
-      hwy::TargetName(HWY_TARGET));
+  printf("  Worst-Case B-Tree Map Benchmark (%zu-bit Key, N = %zu pairs, %s)\n",
+         sizeof(KeyT) * 8, num_keys, hwy::TargetName(HWY_TARGET));
   printf("  Key Distribution: Uncompressible Uniform %zu-bit Random Keys\n",
          sizeof(KeyT) * 8);
   printf("  Query Pattern   : 100%% Lookup Misses (Disjoint Range)\n");
   printf("===============================================================\n");
 
   absl::BitGen bitgen;
-  std::vector<KeyT> keys;
-  keys.reserve(num_keys);
-  for (size_t i = 0; i < num_keys; ++i) {
-    keys.push_back(static_cast<KeyT>(
+  std::map<KeyT, ValueT> ref_map;
+  while (ref_map.size() < num_keys) {
+    KeyT k = static_cast<KeyT>(
         absl::Uniform<KeyT>(bitgen, 0, std::numeric_limits<KeyT>::max() / 2) *
-        2));
+        2);
+    ValueT v =
+        static_cast<ValueT>(absl::Uniform<uint64_t>(bitgen, 1, 1000000000));
+    ref_map[k] = v;
   }
-  std::sort(keys.begin(), keys.end());
-  keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
-  num_keys = keys.size();
+  num_keys = ref_map.size();
 
+  std::vector<KeyT> keys;
   std::vector<ValueT> vals;
   std::vector<std::pair<KeyT, ValueT>> kv_pairs;
+  keys.reserve(num_keys);
   vals.reserve(num_keys);
   kv_pairs.reserve(num_keys);
-  for (size_t i = 0; i < num_keys; ++i) {
-    ValueT v = static_cast<ValueT>(keys[i] * 3 + 7);
+  for (const auto& [k, v] : ref_map) {
+    keys.push_back(k);
     vals.push_back(v);
-    kv_pairs.push_back({keys[i], v});
+    kv_pairs.push_back({k, v});
   }
 
   // 1. Build Containers
@@ -1676,52 +1166,25 @@ void RunWorstCaseMapBenchmarkSuite(size_t num_keys) {
   const size_t hwy_bytes =
       GetAllocatedBytes(hwy_before, hwy_map.AllocatedBytes());
 
-  const size_t compact_before = AllocatedBefore();
-  const double start_compact = hwy::platform::Now();
-  auto compact_map = CompactBTreeMap<KeyT, ValueT>::Build(
-      keys.data(), vals.data(), keys.size(), 1.0);
-  const double end_compact = hwy::platform::Now();
-  const size_t compact_bytes =
-      GetAllocatedBytes(compact_before, compact_map.AllocatedBytes());
-
   printf("Worst-Case Build Time:\n");
-  printf("  std::map             : %8.2f ms\n", (end_std - start_std) * 1000.0);
-  printf("  absl::btree_map      : %8.2f ms\n",
-         (end_absl - start_absl) * 1000.0);
-  printf("  hwy::BTreeMap        : %8.2f ms (%.1fx faster than absl)\n",
+  printf("  std::map        : %8.2f ms\n", (end_std - start_std) * 1000.0);
+  printf("  absl::btree_map : %8.2f ms\n", (end_absl - start_absl) * 1000.0);
+  printf("  hwy::BTreeMap   : %8.2f ms (%.1fx faster than absl)\n",
          (end_hwy - start_hwy) * 1000.0,
          (end_absl - start_absl) / (end_hwy - start_hwy + 1e-6));
-  printf("  hwy::CompactBTreeMap : %8.2f ms (%.1fx faster than absl)\n",
-         (end_compact - start_compact) * 1000.0,
-         (end_absl - start_absl) / (end_compact - start_compact + 1e-6));
 
   printf("\nWorst-Case Memory Footprint (Uncompressible Raw Mode):\n");
-  printf("  std::map             : %5.2f MB (%5.1f B/pair)\n",
+  printf("  std::map        : %5.2f MB (%5.1f B/pair)\n",
          std_bytes / (1024.0 * 1024.0),
          static_cast<double>(std_bytes) / num_keys);
-  printf("  absl::btree_map      : %5.2f MB (%5.1f B/pair)\n",
+  printf("  absl::btree_map : %5.2f MB (%5.1f B/pair)\n",
          absl_bytes / (1024.0 * 1024.0),
          static_cast<double>(absl_bytes) / num_keys);
-  printf("  hwy::BTreeMap        : %5.2f MB (%5.1f B/pair)\n",
+  printf("  hwy::BTreeMap   : %5.2f MB (%5.1f B/pair)\n",
          hwy_bytes / (1024.0 * 1024.0),
          static_cast<double>(hwy_bytes) / num_keys);
-  if (compact_bytes <= absl_bytes) {
-    printf(
-        "  hwy::CompactBTreeMap : %5.2f MB (%5.1f B/pair) -> %.1f%% smaller "
-        "than absl!\n",
-        compact_bytes / (1024.0 * 1024.0),
-        static_cast<double>(compact_bytes) / num_keys,
-        100.0 * (1.0 - static_cast<double>(compact_bytes) / absl_bytes));
-  } else {
-    printf(
-        "  hwy::CompactBTreeMap : %5.2f MB (%5.1f B/pair) -> %.1f%% larger "
-        "than absl\n",
-        compact_bytes / (1024.0 * 1024.0),
-        static_cast<double>(compact_bytes) / num_keys,
-        100.0 * (static_cast<double>(compact_bytes) / absl_bytes - 1.0));
-  }
 
-  // 2. Worst-case 100% Miss Point Lookups (Odd keys vs Even keys in map)
+  // 2. Worst-case 100% Miss Point Lookups (Odd keys vs Even set)
   constexpr size_t kNumQueries = 1000000;
   std::vector<KeyT> miss_queries;
   miss_queries.reserve(kNumQueries);
@@ -1732,7 +1195,7 @@ void RunWorstCaseMapBenchmarkSuite(size_t num_keys) {
         1));
   }
 
-  uint64_t std_hits = 0, absl_hits = 0, hwy_hits = 0, compact_hits = 0;
+  uint64_t std_hits = 0, absl_hits = 0, hwy_hits = 0;
   const double t0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumQueries; ++i) {
     auto it = std_map.find(miss_queries[i]);
@@ -1755,35 +1218,21 @@ void RunWorstCaseMapBenchmarkSuite(size_t num_keys) {
   hwy::PreventElision(hwy_hits);
   const double t3 = hwy::platform::Now();
 
-  for (size_t i = 0; i < kNumQueries; ++i) {
-    const ValueT* ptr = compact_map.FindValue(miss_queries[i]);
-    if (ptr != nullptr) compact_hits++;
-  }
-  hwy::PreventElision(compact_hits);
-  const double t4 = hwy::platform::Now();
-
   const double std_miss_ns = (t1 - t0) * 1e9 / kNumQueries;
   const double absl_miss_ns = (t2 - t1) * 1e9 / kNumQueries;
   const double hwy_miss_ns = (t3 - t2) * 1e9 / kNumQueries;
-  const double compact_miss_ns = (t4 - t3) * 1e9 / kNumQueries;
 
   printf("\nWorst-Case Point Lookup Miss Latency (100%% Key Misses):\n");
-  printf("  std::map             : %6.2f ns/op (%6.2f Mops/s)\n", std_miss_ns,
+  printf("  std::map        : %6.2f ns/op (%6.2f Mops/s)\n", std_miss_ns,
          1000.0 / std_miss_ns);
-  printf("  absl::btree_map      : %6.2f ns/op (%6.2f Mops/s)\n", absl_miss_ns,
+  printf("  absl::btree_map : %6.2f ns/op (%6.2f Mops/s)\n", absl_miss_ns,
          1000.0 / absl_miss_ns);
-  printf(
-      "  hwy::BTreeMap        : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
-      hwy_miss_ns, 1000.0 / hwy_miss_ns, absl_miss_ns / hwy_miss_ns);
-  printf(
-      "  hwy::CompactBTreeMap : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
-      compact_miss_ns, 1000.0 / compact_miss_ns,
-      absl_miss_ns / compact_miss_ns);
+  printf("  hwy::BTreeMap   : %6.2f ns/op (%6.2f Mops/s) -> %.2fx speedup!\n",
+         hwy_miss_ns, 1000.0 / hwy_miss_ns, absl_miss_ns / hwy_miss_ns);
 
   HWY_ASSERT(std_hits == 0);
   HWY_ASSERT(absl_hits == 0);
   HWY_ASSERT(hwy_hits == 0);
-  HWY_ASSERT(compact_hits == 0);
 }
 
 HWY_NOINLINE void BenchmarkAll() {
@@ -1797,7 +1246,6 @@ HWY_NOINLINE void BenchmarkAll() {
   printf("\n###############################################################\n");
   printf("  Worst-Case Uncompressible 32-bit Set Benchmarks\n");
   printf("###############################################################\n");
-  // 100K uncompressible 32-bit keys
   RunWorstCaseBenchmarkSuite<uint32_t>(100000);
 
   printf("\n###############################################################\n");
@@ -1810,7 +1258,6 @@ HWY_NOINLINE void BenchmarkAll() {
   printf("\n###############################################################\n");
   printf("  Worst-Case Uncompressible 64-bit Set Benchmarks\n");
   printf("###############################################################\n");
-  // 100K uncompressible 64-bit keys
   RunWorstCaseBenchmarkSuite<uint64_t>(100000);
 
   printf("\n###############################################################\n");
@@ -1823,7 +1270,6 @@ HWY_NOINLINE void BenchmarkAll() {
   printf("\n###############################################################\n");
   printf("  Worst-Case Uncompressible 32-bit Map Benchmarks\n");
   printf("###############################################################\n");
-  // 100K uncompressible 32-bit map pairs
   RunWorstCaseMapBenchmarkSuite<uint32_t, uint64_t>(100000);
 
   printf("\n###############################################################\n");
@@ -1836,7 +1282,6 @@ HWY_NOINLINE void BenchmarkAll() {
   printf("\n###############################################################\n");
   printf("  Worst-Case Uncompressible 64-bit Map Benchmarks\n");
   printf("###############################################################\n");
-  // 100K uncompressible 64-bit map pairs
   RunWorstCaseMapBenchmarkSuite<uint64_t, double>(100000);
 }
 
