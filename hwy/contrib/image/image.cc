@@ -46,11 +46,24 @@ size_t ImageBase::BytesPerRow(const size_t xsize, const size_t sizeof_t) {
   // Skip for the scalar case because no extra lanes will be loaded.
   if (vec_size != 1) {
     HWY_DASSERT(vec_size >= sizeof_t);
-    valid_bytes += vec_size - sizeof_t;
+    const size_t pad = vec_size - sizeof_t;
+    // The multiply guard above permits valid_bytes up to SIZE_MAX, so the
+    // padding add can wrap; guard it like the multiply.
+    if (valid_bytes > SIZE_MAX - pad) {
+      HWY_ABORT("ImageBase::BytesPerRow overflow: xsize=%zu, sizeof_t=%zu",
+                xsize, sizeof_t);
+    }
+    valid_bytes += pad;
   }
 
   // Round up to vector and cache line size.
   const size_t align = HWY_MAX(vec_size, HWY_ALIGNMENT);
+  // RoundUpTo rounds up by < align, and the Avoid2K adjustment below may add
+  // another `align`; reserve slack so neither multiply/add wraps size_t.
+  if (valid_bytes > SIZE_MAX - 2 * align) {
+    HWY_ABORT("ImageBase::BytesPerRow overflow: xsize=%zu, sizeof_t=%zu",
+              xsize, sizeof_t);
+  }
   size_t bytes_per_row = RoundUpTo(valid_bytes, align);
 
   // During the lengthy window before writes are committed to memory, CPUs
