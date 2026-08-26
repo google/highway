@@ -641,7 +641,135 @@ void DoDiverseBitModesTest() {
 }
 
 template <typename TreeT, typename StdRefT>
+void DoCopyAndSwapTest() {
+  using key_type = typename TreeT::key_type;
+  using value_type = typename TreeT::value_type;
+
+  // 1. Copy empty tree
+  {
+    TreeT empty_tree;
+    TreeT copy_empty(empty_tree);
+    HWY_ASSERT(copy_empty.empty());
+    HWY_ASSERT_EQ(copy_empty.size(), size_t{0});
+  }
+
+  // 2. Copy populated tree (Set and Map)
+  {
+    auto vals = GenerateValuesWithSeed<value_type>(200, 4000, 777);
+    TreeT orig;
+    for (const auto& v : vals) {
+      if constexpr (TreeT::kIsMap) {
+        orig.insert(v.first, v.second);
+      } else {
+        orig.insert(v);
+      }
+    }
+
+    // Copy Constructor
+    TreeT copied(orig);
+    HWY_ASSERT_EQ(copied.size(), orig.size());
+    for (const auto& v : vals) {
+      HWY_ASSERT(copied.contains(ExtractKey(v)));
+    }
+
+    // Element-by-element iterator equivalence check
+    auto it_orig = orig.cbegin();
+    auto it_copy = copied.cbegin();
+    for (; it_orig != orig.cend() && it_copy != copied.cend();
+         ++it_orig, ++it_copy) {
+      VerifyEqualElements(it_copy, it_orig);
+    }
+    HWY_ASSERT(it_orig == orig.cend() && it_copy == copied.cend());
+
+    // Mutating copy does not affect original
+    key_type non_exist = static_cast<key_type>(999999);
+    if constexpr (TreeT::kIsMap) {
+      copied.insert(non_exist, typename TreeT::mapped_type{1});
+    } else {
+      copied.insert(non_exist);
+    }
+    HWY_ASSERT_EQ(copied.size(), orig.size() + 1);
+    HWY_ASSERT(!orig.contains(non_exist));
+
+    // Copy Assignment Operator into empty tree
+    TreeT assigned;
+    assigned = orig;
+    HWY_ASSERT_EQ(assigned.size(), orig.size());
+    for (const auto& v : vals) {
+      HWY_ASSERT(assigned.contains(ExtractKey(v)));
+    }
+
+    // Copy Assignment Operator overwriting already-populated tree
+    TreeT overwriting_tree;
+    if constexpr (TreeT::kIsMap) {
+      overwriting_tree.insert(static_cast<key_type>(12345),
+                              typename TreeT::mapped_type{999});
+    } else {
+      overwriting_tree.insert(static_cast<key_type>(12345));
+    }
+    overwriting_tree = orig;
+    HWY_ASSERT_EQ(overwriting_tree.size(), orig.size());
+    for (const auto& v : vals) {
+      HWY_ASSERT(overwriting_tree.contains(ExtractKey(v)));
+    }
+
+    // Self-assignment (nothing changes)
+    assigned = assigned;
+    HWY_ASSERT_EQ(assigned.size(), orig.size());
+
+    // Member and ADL swap
+    TreeT a, b;
+    if constexpr (TreeT::kIsMap) {
+      a.insert(static_cast<key_type>(10), typename TreeT::mapped_type{100});
+      b.insert(static_cast<key_type>(20), typename TreeT::mapped_type{200});
+    } else {
+      a.insert(static_cast<key_type>(10));
+      b.insert(static_cast<key_type>(20));
+    }
+    a.swap(b);
+    HWY_ASSERT(a.contains(static_cast<key_type>(20)));
+    HWY_ASSERT(b.contains(static_cast<key_type>(10)));
+
+    using std::swap;
+    swap(a, b);
+    HWY_ASSERT(a.contains(static_cast<key_type>(10)));
+    HWY_ASSERT(b.contains(static_cast<key_type>(20)));
+
+    // Initializer list assignment
+    if constexpr (!TreeT::kIsMap) {
+      a = {static_cast<key_type>(1), static_cast<key_type>(2),
+           static_cast<key_type>(3)};
+      HWY_ASSERT_EQ(a.size(), size_t{3});
+      HWY_ASSERT(a.contains(static_cast<key_type>(1)));
+      HWY_ASSERT(a.contains(static_cast<key_type>(2)));
+      HWY_ASSERT(a.contains(static_cast<key_type>(3)));
+    }
+  }
+
+  // 3. Multi-level tree scale copy test (5,000 keys)
+  {
+    auto large_vals = GenerateValuesWithSeed<value_type>(5000, 100000, 888);
+    TreeT large_orig;
+    for (const auto& v : large_vals) {
+      if constexpr (TreeT::kIsMap) {
+        large_orig.insert(v.first, v.second);
+      } else {
+        large_orig.insert(v);
+      }
+    }
+
+    TreeT large_copy(large_orig);
+    HWY_ASSERT_EQ(large_copy.size(), large_orig.size());
+    HWY_ASSERT_EQ(large_copy.height(), large_orig.height());
+    for (const auto& v : large_vals) {
+      HWY_ASSERT(large_copy.contains(ExtractKey(v)));
+    }
+  }
+}
+
+template <typename TreeT, typename StdRefT>
 void RunFullTestSuite() {
+  DoCopyAndSwapTest<TreeT, StdRefT>();
   DoBoundarySizeSweep<TreeT, StdRefT>();
   DoDiverseBitModesTest<TreeT>();
 

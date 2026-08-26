@@ -1769,8 +1769,57 @@ class BTree {
     return *this;
   }
 
-  BTree(const BTree&) = delete;
-  BTree& operator=(const BTree&) = delete;
+  BTree(const BTree& other) {
+    if (other.empty()) return;
+    if constexpr (Traits::kIsMap) {
+      std::vector<KeyT> keys;
+      std::vector<mapped_type> values;
+      keys.reserve(other.size());
+      values.reserve(other.size());
+      for (auto it = other.begin(); it != other.end(); ++it) {
+        auto pair = *it;
+        keys.push_back(pair.first);
+        values.push_back(pair.second);
+      }
+      *this = Build(keys.data(), values.data(), keys.size());
+    } else {
+      std::vector<KeyT> keys;
+      keys.reserve(other.size());
+      for (auto it = other.begin(); it != other.end(); ++it) {
+        keys.push_back(*it);
+      }
+      *this = Build(keys.data(), keys.size());
+    }
+  }
+
+  BTree& operator=(const BTree& other) {
+    if (this != &other) {
+      BTree temp(other);
+      swap(temp);
+    }
+    return *this;
+  }
+
+  BTree& operator=(std::initializer_list<value_type> ilist) {
+    clear();
+    for (const auto& item : ilist) {
+      insert(item);
+    }
+    return *this;
+  }
+
+  void swap(BTree& other) noexcept {
+    using std::swap;
+    swap(root_, other.root_);
+    swap(first_leaf_, other.first_leaf_);
+    swap(last_leaf_, other.last_leaf_);
+    swap(tree_height_, other.tree_height_);
+    swap(num_elements_, other.num_elements_);
+    swap(num_leaves_, other.num_leaves_);
+    swap(num_internals_, other.num_internals_);
+  }
+
+  friend void swap(BTree& a, BTree& b) noexcept { a.swap(b); }
 
   // ---------------------------------------------------------------------------
   // Bulk Construction from Sorted Keys / Key-Value Pairs
