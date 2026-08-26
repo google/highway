@@ -910,8 +910,19 @@ HWY_INLINE bool TryFastInsertOffset(LeafNode<KeyT>* leaf, KeyT new_key,
       // length branching.
       std::memmove(offsets + 1, offsets, (kCapacity - 1) * sizeof(OffsetT));
       offsets[0] = 0;
-      for (size_t i = 1; i <= count; ++i) {
-        offsets[i] += shift;
+
+      const hn::ScalableTag<OffsetT> d;
+      const size_t N = hn::Lanes(d);
+      const auto v_shift = hn::Set(d, shift);
+      size_t i = 1;
+      for (; i + N <= count + 1; i += N) {
+        const auto v = hn::LoadU(d, offsets + i);
+        hn::StoreU(hn::Add(v, v_shift), d, offsets + i);
+      }
+      if (i <= count) {
+        const size_t remaining = count + 1 - i;
+        const auto v = hn::LoadN(d, offsets + i, remaining);
+        hn::StoreN(hn::Add(v, v_shift), d, offsets + i, remaining);
       }
       leaf->base_key = new_key;
       leaf->SetNumKeys(count + 1);
@@ -961,8 +972,19 @@ HWY_INLINE bool TryFastInsertOffset(MapLeafNode<KeyT, ValueT>* leaf,
       std::memmove(vals + 1, vals, count * sizeof(ValueT));
       offsets[0] = 0;
       vals[0] = new_value;
-      for (size_t i = 1; i <= count; ++i) {
-        offsets[i] += shift;
+
+      const hn::ScalableTag<OffsetT> d;
+      const size_t N = hn::Lanes(d);
+      const auto v_shift = hn::Set(d, shift);
+      size_t i = 1;
+      for (; i + N <= count + 1; i += N) {
+        const auto v = hn::LoadU(d, offsets + i);
+        hn::StoreU(hn::Add(v, v_shift), d, offsets + i);
+      }
+      if (i <= count) {
+        const size_t remaining = count + 1 - i;
+        const auto v = hn::LoadN(d, offsets + i, remaining);
+        hn::StoreN(hn::Add(v, v_shift), d, offsets + i, remaining);
       }
       leaf->base_key = new_key;
       leaf->SetNumKeys(count + 1);
