@@ -24,6 +24,7 @@
 #include <cstring>
 #include <iterator>
 #include <limits>
+#include <memory>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -1728,7 +1729,27 @@ class BTree {
     iterator current_;
   };
 
+  using key_compare = std::less<KeyT>;
+
+  class value_compare {
+   public:
+    bool operator()(const value_type& lhs, const value_type& rhs) const {
+      if constexpr (kIsMap) {
+        return key_compare()(lhs.first, rhs.first);
+      } else {
+        return key_compare()(lhs, rhs);
+      }
+    }
+  };
+
+  using reference = typename iterator::reference;
+  using const_reference = typename const_iterator::reference;
+  using pointer = typename iterator::pointer;
+  using const_pointer = typename const_iterator::pointer;
+  using allocator_type = std::allocator<value_type>;
+
   BTree() = default;
+  explicit BTree(const key_compare& /*comp*/) : BTree() {}
   ~BTree() { clear(); }
 
   BTree(BTree&& other) noexcept
@@ -2433,6 +2454,14 @@ class BTree {
   const_reverse_iterator crend() const {
     return const_reverse_iterator(cbegin());
   }
+
+  // ---------------------------------------------------------------------------
+  // Observers
+  // ---------------------------------------------------------------------------
+
+  key_compare key_comp() const noexcept { return key_compare(); }
+  value_compare value_comp() const noexcept { return value_compare(); }
+  allocator_type get_allocator() const noexcept { return allocator_type(); }
 
  private:
   std::pair<iterator, bool> InsertSetInternal(KeyT key) {

@@ -640,6 +640,53 @@ void DoDiverseBitModesTest() {
   }
 }
 
+template <typename TreeT>
+void DoTypedefsAndObserversTest() {
+  using key_type = typename TreeT::key_type;
+  using value_type = typename TreeT::value_type;
+
+  // 1. Static compile-time concept assertions
+  static_assert(requires { typename TreeT::key_compare; });
+  static_assert(requires { typename TreeT::value_compare; });
+  static_assert(requires { typename TreeT::reference; });
+  static_assert(requires { typename TreeT::const_reference; });
+  static_assert(requires { typename TreeT::pointer; });
+  static_assert(requires { typename TreeT::const_pointer; });
+  static_assert(requires { typename TreeT::allocator_type; });
+  static_assert(
+      std::is_same_v<typename TreeT::key_compare, std::less<key_type> >);
+
+  // 2. Runtime comparator observer verification (matching absl::btree tests)
+  TreeT tree;
+  auto comp = tree.key_comp();
+  HWY_ASSERT(comp(static_cast<key_type>(1), static_cast<key_type>(2)));
+  HWY_ASSERT(!comp(static_cast<key_type>(2), static_cast<key_type>(2)));
+  HWY_ASSERT(!comp(static_cast<key_type>(2), static_cast<key_type>(1)));
+
+  auto val_comp = tree.value_comp();
+  if constexpr (TreeT::kIsMap) {
+    using mapped_type = typename TreeT::mapped_type;
+    value_type v1{static_cast<key_type>(1), mapped_type{10}};
+    value_type v2{static_cast<key_type>(2), mapped_type{20}};
+    HWY_ASSERT(val_comp(v1, v2));
+    HWY_ASSERT(!val_comp(v2, v2));
+    HWY_ASSERT(!val_comp(v2, v1));
+  } else {
+    HWY_ASSERT(val_comp(static_cast<key_type>(1), static_cast<key_type>(2)));
+    HWY_ASSERT(!val_comp(static_cast<key_type>(2), static_cast<key_type>(2)));
+    HWY_ASSERT(!val_comp(static_cast<key_type>(2), static_cast<key_type>(1)));
+  }
+
+  // 3. Constructor with comparator argument
+  typename TreeT::key_compare kc;
+  TreeT tree_with_kc(kc);
+  HWY_ASSERT(tree_with_kc.empty());
+
+  // 4. Allocator getter
+  auto alloc = tree.get_allocator();
+  (void)alloc;
+}
+
 template <typename TreeT, typename StdRefT>
 void DoCopyAndSwapTest() {
   using key_type = typename TreeT::key_type;
@@ -769,6 +816,7 @@ void DoCopyAndSwapTest() {
 
 template <typename TreeT, typename StdRefT>
 void RunFullTestSuite() {
+  DoTypedefsAndObserversTest<TreeT>();
   DoCopyAndSwapTest<TreeT, StdRefT>();
   DoBoundarySizeSweep<TreeT, StdRefT>();
   DoDiverseBitModesTest<TreeT>();
