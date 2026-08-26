@@ -411,29 +411,80 @@ HWY_INLINE size_t ScanOffsets(const void* HWY_RESTRICT data,
   const hn::ScalableTag<OffsetT> d;
   const size_t N = hn::Lanes(d);
   const auto v_target = hn::Set(d, target_val);
-  size_t count = 0;
-  size_t i = 0;
-  for (; i + N <= kTotal; i += N) {
-    const auto v = hn::Load(d, offsets + i);
-    if constexpr (kBound == BoundMode::kLowerBound) {
-      count += hn::CountTrue(d, hn::Lt(v, v_target));
+  static_assert(kTotal <= 512 / sizeof(OffsetT));
+
+  if constexpr (HWY_NATIVE_MASK) {
+    // CountTrue is inexpensive with native mask registers and avoids a
+    // horizontal vector reduction.
+    size_t count = 0;
+    size_t i = 0;
+    for (; i + N <= kTotal; i += N) {
+      const auto v = hn::Load(d, offsets + i);
+      if constexpr (kBound == BoundMode::kLowerBound) {
+        count += hn::CountTrue(d, hn::Lt(v, v_target));
+      } else {
+        count += hn::CountTrue(d, hn::Le(v, v_target));
+      }
+    }
+
+    if (i < kTotal) {
+      const size_t remaining = kTotal - i;
+      const auto v = hn::LoadU(d, offsets + i);
+      const auto mask = hn::FirstN(d, remaining);
+      if constexpr (kBound == BoundMode::kLowerBound) {
+        count += hn::CountTrue(d, hn::MaskedLt(mask, v, v_target));
+      } else {
+        count += hn::CountTrue(d, hn::MaskedLe(mask, v, v_target));
+      }
+    }
+
+    return count;
+  } else {
+    const auto is_before = [&](const auto v) HWY_ATTR {
+      if constexpr (kBound == BoundMode::kLowerBound) {
+        return hn::Lt(v, v_target);
+      } else {
+        return hn::Le(v, v_target);
+      }
+    };
+
+    // Without native mask registers, accumulate comparison masks in vectors
+    // and reduce once to avoid repeated vector-to-scalar transfers. The loop
+    // is 2x unrolled to shorten the accumulator dependency chain.
+    auto counts0 = hn::Zero(d);
+    auto counts1 = hn::Zero(d);
+    size_t i = 0;
+    if (kTotal >= 2 * N) {
+      for (; i <= kTotal - 2 * N; i += 2 * N) {
+        counts0 = hn::Sub(
+            counts0, hn::VecFromMask(d, is_before(hn::Load(d, offsets + i))));
+        counts1 = hn::Sub(
+            counts1,
+            hn::VecFromMask(d, is_before(hn::Load(d, offsets + i + N))));
+      }
+    }
+
+    for (; i + N <= kTotal; i += N) {
+      counts0 = hn::Sub(
+          counts0, hn::VecFromMask(d, is_before(hn::Load(d, offsets + i))));
+    }
+
+    if (i < kTotal) {
+      const size_t remaining = kTotal - i;
+      const auto v = hn::LoadU(d, offsets + i);
+      const auto mask = hn::FirstN(d, remaining);
+      counts0 =
+          hn::Sub(counts0, hn::VecFromMask(d, hn::And(mask, is_before(v))));
+    }
+
+    const auto counts = hn::Add(counts0, counts1);
+    if constexpr (sizeof(OffsetT) == 1) {
+      const hn::Repartition<uint64_t, decltype(d)> d64;
+      return static_cast<size_t>(hn::ReduceSum(d64, hn::SumsOf8(counts)));
     } else {
-      count += hn::CountTrue(d, hn::Le(v, v_target));
+      return static_cast<size_t>(hn::ReduceSum(d, counts));
     }
   }
-
-  if (i < kTotal) {
-    const size_t remaining = kTotal - i;
-    const auto v = hn::LoadU(d, offsets + i);
-    const auto mask = hn::FirstN(d, remaining);
-    if constexpr (kBound == BoundMode::kLowerBound) {
-      count += hn::CountTrue(d, hn::MaskedLt(mask, v, v_target));
-    } else {
-      count += hn::CountTrue(d, hn::MaskedLe(mask, v, v_target));
-    }
-  }
-
-  return count;
 }
 
 // Returns true if target_val exists in the compressed offsets array using pure
