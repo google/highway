@@ -3832,6 +3832,24 @@ HWY_API VFromD<DU> ConvertTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
   return VFromD<DU>{__lasx_xvftintrz_lu_d(v.raw)};
 }
 
+// ------------------------------ CeilInt/FloorInt
+
+HWY_API Vec256<int32_t> CeilInt(const Vec256<float> v) {
+  return Vec256<int32_t>{__lasx_xvftintrp_w_s(v.raw)};
+}
+
+HWY_API Vec256<int64_t> CeilInt(const Vec256<double> v) {
+  return Vec256<int64_t>{__lasx_xvftintrp_l_d(v.raw)};
+}
+
+HWY_API Vec256<int32_t> FloorInt(const Vec256<float> v) {
+  return Vec256<int32_t>{__lasx_xvftintrm_w_s(v.raw)};
+}
+
+HWY_API Vec256<int64_t> FloorInt(const Vec256<double> v) {
+  return Vec256<int64_t>{__lasx_xvftintrm_l_d(v.raw)};
+}
+
 template <typename T, HWY_IF_FLOAT3264(T)>
 HWY_API Vec256<MakeSigned<T>> NearestInt(const Vec256<T> v) {
   return ConvertTo(Full256<MakeSigned<T>>(), Round(v));
