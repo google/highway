@@ -51,8 +51,6 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
-namespace hn = hwy::HWY_NAMESPACE;
-
 // -----------------------------------------------------------------------------
 // Enums
 // -----------------------------------------------------------------------------
@@ -409,9 +407,9 @@ template <BoundMode kBound = BoundMode::kLowerBound, typename OffsetT,
 HWY_INLINE size_t ScanOffsets(const void* HWY_RESTRICT data,
                               OffsetT target_val) {
   const auto* offsets = static_cast<const OffsetT*>(data);
-  const hn::ScalableTag<OffsetT> d;
-  const size_t N = hn::Lanes(d);
-  const auto v_target = hn::Set(d, target_val);
+  const ScalableTag<OffsetT> d;
+  const size_t N = Lanes(d);
+  const auto v_target = Set(d, target_val);
   static_assert(kTotal <= 512 / sizeof(OffsetT));
 
   if constexpr (HWY_NATIVE_MASK) {
@@ -420,22 +418,22 @@ HWY_INLINE size_t ScanOffsets(const void* HWY_RESTRICT data,
     size_t count = 0;
     size_t i = 0;
     for (; i + N <= kTotal; i += N) {
-      const auto v = hn::Load(d, offsets + i);
+      const auto v = Load(d, offsets + i);
       if constexpr (kBound == BoundMode::kLowerBound) {
-        count += hn::CountTrue(d, hn::Lt(v, v_target));
+        count += CountTrue(d, Lt(v, v_target));
       } else {
-        count += hn::CountTrue(d, hn::Le(v, v_target));
+        count += CountTrue(d, Le(v, v_target));
       }
     }
 
     if (i < kTotal) {
       const size_t remaining = kTotal - i;
-      const auto v = hn::LoadU(d, offsets + i);
-      const auto mask = hn::FirstN(d, remaining);
+      const auto v = LoadU(d, offsets + i);
+      const auto mask = FirstN(d, remaining);
       if constexpr (kBound == BoundMode::kLowerBound) {
-        count += hn::CountTrue(d, hn::MaskedLt(mask, v, v_target));
+        count += CountTrue(d, MaskedLt(mask, v, v_target));
       } else {
-        count += hn::CountTrue(d, hn::MaskedLe(mask, v, v_target));
+        count += CountTrue(d, MaskedLe(mask, v, v_target));
       }
     }
 
@@ -443,47 +441,43 @@ HWY_INLINE size_t ScanOffsets(const void* HWY_RESTRICT data,
   } else {
     const auto is_before = [&](const auto v) HWY_ATTR {
       if constexpr (kBound == BoundMode::kLowerBound) {
-        return hn::Lt(v, v_target);
+        return Lt(v, v_target);
       } else {
-        return hn::Le(v, v_target);
+        return Le(v, v_target);
       }
     };
 
     // Without native mask registers, accumulate comparison masks in vectors
     // and reduce once to avoid repeated vector-to-scalar transfers. The loop
     // is 2x unrolled to shorten the accumulator dependency chain.
-    auto counts0 = hn::Zero(d);
-    auto counts1 = hn::Zero(d);
+    auto counts0 = Zero(d);
+    auto counts1 = Zero(d);
     size_t i = 0;
     if (kTotal >= 2 * N) {
       for (; i <= kTotal - 2 * N; i += 2 * N) {
-        counts0 = hn::Sub(
-            counts0, hn::VecFromMask(d, is_before(hn::Load(d, offsets + i))));
-        counts1 = hn::Sub(
-            counts1,
-            hn::VecFromMask(d, is_before(hn::Load(d, offsets + i + N))));
+        counts0 = Sub(counts0, VecFromMask(d, is_before(Load(d, offsets + i))));
+        counts1 =
+            Sub(counts1, VecFromMask(d, is_before(Load(d, offsets + i + N))));
       }
     }
 
     for (; i + N <= kTotal; i += N) {
-      counts0 = hn::Sub(
-          counts0, hn::VecFromMask(d, is_before(hn::Load(d, offsets + i))));
+      counts0 = Sub(counts0, VecFromMask(d, is_before(Load(d, offsets + i))));
     }
 
     if (i < kTotal) {
       const size_t remaining = kTotal - i;
-      const auto v = hn::LoadU(d, offsets + i);
-      const auto mask = hn::FirstN(d, remaining);
-      counts0 =
-          hn::Sub(counts0, hn::VecFromMask(d, hn::And(mask, is_before(v))));
+      const auto v = LoadU(d, offsets + i);
+      const auto mask = FirstN(d, remaining);
+      counts0 = Sub(counts0, VecFromMask(d, And(mask, is_before(v))));
     }
 
-    const auto counts = hn::Add(counts0, counts1);
+    const auto counts = Add(counts0, counts1);
     if constexpr (sizeof(OffsetT) == 1) {
-      const hn::Repartition<uint64_t, decltype(d)> d64;
-      return static_cast<size_t>(hn::ReduceSum(d64, hn::SumsOf8(counts)));
+      const Repartition<uint64_t, decltype(d)> d64;
+      return static_cast<size_t>(ReduceSum(d64, SumsOf8(counts)));
     } else {
-      return static_cast<size_t>(hn::ReduceSum(d, counts));
+      return static_cast<size_t>(ReduceSum(d, counts));
     }
   }
 }
@@ -493,25 +487,25 @@ HWY_INLINE size_t ScanOffsets(const void* HWY_RESTRICT data,
 template <typename OffsetT, size_t kTotal>
 HWY_INLINE bool HasOffset(const void* HWY_RESTRICT data, OffsetT target_val) {
   const auto* offsets = static_cast<const OffsetT*>(data);
-  const hn::ScalableTag<OffsetT> d;
-  const size_t N = hn::Lanes(d);
-  const auto v_target = hn::Set(d, target_val);
-  auto any_match = hn::MaskFalse(d);
+  const ScalableTag<OffsetT> d;
+  const size_t N = Lanes(d);
+  const auto v_target = Set(d, target_val);
+  auto any_match = MaskFalse(d);
   size_t i = 0;
   for (; i + N <= kTotal; i += N) {
-    const auto v = hn::Load(d, offsets + i);
-    any_match = hn::Or(any_match, hn::Eq(v, v_target));
+    const auto v = Load(d, offsets + i);
+    any_match = Or(any_match, Eq(v, v_target));
   }
 
   if (i < kTotal) {
     const size_t remaining = kTotal - i;
-    const auto v = hn::LoadU(d, offsets + i);
-    const auto mask = hn::FirstN(d, remaining);
-    const auto tail_match = hn::MaskedEq(mask, v, v_target);
-    any_match = hn::Or(any_match, tail_match);
+    const auto v = LoadU(d, offsets + i);
+    const auto mask = FirstN(d, remaining);
+    const auto tail_match = MaskedEq(mask, v, v_target);
+    any_match = Or(any_match, tail_match);
   }
 
-  return !hn::AllFalse(d, any_match);
+  return !AllFalse(d, any_match);
 }
 
 // Finds the lower_bound or upper_bound slot index (0..num_keys) for target
@@ -620,14 +614,14 @@ template <typename KeyT>
 HWY_INLINE size_t FindChild(const InternalNode<KeyT>* HWY_RESTRICT internal,
                             KeyT target) {
   constexpr size_t kCapacity = InternalNode<KeyT>::kCapacity;
-  const hn::CappedTag<KeyT, kCapacity> d;
-  const size_t N = hn::Lanes(d);
-  const auto v_target = hn::Set(d, target);
+  const CappedTag<KeyT, kCapacity> d;
+  const size_t N = Lanes(d);
+  const auto v_target = Set(d, target);
 
   size_t count = 0;
   for (size_t i = 0; i < kCapacity; i += N) {
-    const auto v_keys = hn::Load(d, internal->keys + i);
-    count += hn::CountTrue(d, hn::Le(v_keys, v_target));
+    const auto v_keys = Load(d, internal->keys + i);
+    count += CountTrue(d, Le(v_keys, v_target));
   }
   return std::min<size_t>(count, internal->num_keys);
 }
@@ -912,18 +906,18 @@ HWY_INLINE bool TryFastInsertOffset(LeafNode<KeyT>* leaf, KeyT new_key,
       std::memmove(offsets + 1, offsets, (kCapacity - 1) * sizeof(OffsetT));
       offsets[0] = 0;
 
-      const hn::ScalableTag<OffsetT> d;
-      const size_t N = hn::Lanes(d);
-      const auto v_shift = hn::Set(d, shift);
+      const ScalableTag<OffsetT> d;
+      const size_t N = Lanes(d);
+      const auto v_shift = Set(d, shift);
       size_t i = 1;
       for (; i + N <= count + 1; i += N) {
-        const auto v = hn::LoadU(d, offsets + i);
-        hn::StoreU(hn::Add(v, v_shift), d, offsets + i);
+        const auto v = LoadU(d, offsets + i);
+        StoreU(Add(v, v_shift), d, offsets + i);
       }
       if (i <= count) {
         const size_t remaining = count + 1 - i;
-        const auto v = hn::LoadN(d, offsets + i, remaining);
-        hn::StoreN(hn::Add(v, v_shift), d, offsets + i, remaining);
+        const auto v = LoadN(d, offsets + i, remaining);
+        StoreN(Add(v, v_shift), d, offsets + i, remaining);
       }
       leaf->base_key = new_key;
       leaf->SetNumKeys(count + 1);
@@ -974,18 +968,18 @@ HWY_INLINE bool TryFastInsertOffset(MapLeafNode<KeyT, ValueT>* leaf,
       offsets[0] = 0;
       vals[0] = new_value;
 
-      const hn::ScalableTag<OffsetT> d;
-      const size_t N = hn::Lanes(d);
-      const auto v_shift = hn::Set(d, shift);
+      const ScalableTag<OffsetT> d;
+      const size_t N = Lanes(d);
+      const auto v_shift = Set(d, shift);
       size_t i = 1;
       for (; i + N <= count + 1; i += N) {
-        const auto v = hn::LoadU(d, offsets + i);
-        hn::StoreU(hn::Add(v, v_shift), d, offsets + i);
+        const auto v = LoadU(d, offsets + i);
+        StoreU(Add(v, v_shift), d, offsets + i);
       }
       if (i <= count) {
         const size_t remaining = count + 1 - i;
-        const auto v = hn::LoadN(d, offsets + i, remaining);
-        hn::StoreN(hn::Add(v, v_shift), d, offsets + i, remaining);
+        const auto v = LoadN(d, offsets + i, remaining);
+        StoreN(Add(v, v_shift), d, offsets + i, remaining);
       }
       leaf->base_key = new_key;
       leaf->SetNumKeys(count + 1);
@@ -3057,17 +3051,16 @@ using BTreeSet = BTree<SetTraits<KeyT>>;
 template <typename KeyT, typename ValueT>
 using BTreeMap = BTree<MapTraits<KeyT, ValueT>>;
 
+template <typename KeyT>
+using btree_set = BTree<SetTraits<KeyT>>;
+
+template <typename KeyT, typename ValueT>
+using btree_map = BTree<MapTraits<KeyT, ValueT>>;
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
-
-#if HWY_ONCE
-namespace hwy {
-using HWY_NAMESPACE::BTreeMap;
-using HWY_NAMESPACE::BTreeSet;
-}  // namespace hwy
-#endif
 
 #endif  // HWY_TARGET != HWY_SCALAR
 #endif  // HIGHWAY_HWY_CONTRIB_BTREE_BTREE_INL_H_

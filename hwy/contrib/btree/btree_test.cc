@@ -115,8 +115,8 @@ template <typename V>
 std::vector<V> GenerateValuesWithSeed(size_t n, uint64_t max_val,
                                       uint32_t seed) {
   if (n == 0) return {};
-  hn::AesCtrEngine engine(/*deterministic=*/true);
-  hn::RngStream rng(engine, seed);
+  AesCtrEngine engine(/*deterministic=*/true);
+  RngStream rng(engine, seed);
   std::set<uint64_t> unique_nums;
   std::vector<uint64_t> nums;
   nums.reserve(n);
@@ -401,8 +401,8 @@ void DoFullContainerTest(const std::vector<typename TreeT::value_type>& values,
   for (key_type k : inserted_keys) {
     checker.CheckLookup(k);
   }
-  hn::AesCtrEngine engine(/*deterministic=*/true);
-  hn::RngStream q_rng(engine, seed + 42);
+  AesCtrEngine engine(/*deterministic=*/true);
+  RngStream q_rng(engine, seed + 42);
   for (size_t i = 0; i < 500; ++i) {
     key_type q =
         static_cast<key_type>((q_rng() % (values.size() * 50 + 10)) + 1);
@@ -423,7 +423,7 @@ void DoFullContainerTest(const std::vector<typename TreeT::value_type>& values,
   }
 
   // 4. Deletions (Erase half the inserted elements)
-  hn::RngStream shuf_rng(engine, seed + 84);
+  RngStream shuf_rng(engine, seed + 84);
   std::shuffle(inserted_keys.begin(), inserted_keys.end(), shuf_rng);
   size_t to_delete = inserted_keys.size() / 2;
   for (size_t i = 0; i < to_delete; ++i) {
@@ -503,8 +503,8 @@ void DoBulkBuildAndBatchTest(size_t n, uint32_t seed) {
     }
 
     // 4. Batch query sweeps across multiple batch sizes
-    hn::AesCtrEngine engine(/*deterministic=*/true);
-    hn::RngStream q_rng(engine, seed + 100);
+    AesCtrEngine engine(/*deterministic=*/true);
+    RngStream q_rng(engine, seed + 100);
     for (size_t batch_sz :
          {size_t{0}, size_t{1}, size_t{7}, size_t{8}, size_t{9}, size_t{15},
           size_t{16}, size_t{17}, size_t{64}, size_t{256}}) {
