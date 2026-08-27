@@ -5016,6 +5016,37 @@ HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<Rebind<double, D>> v) {
   return VFromD<D>{__lsx_vftintrz_lu_d(v.raw)};
 }
 
+// ------------------------------ CeilInt/FloorInt
+
+// loongarch_lasx-inl.h includes this header and defines its own 256-bit
+// overloads, so leave the HWY_NATIVE_CEIL_FLOOR_INT toggle unguarded for LASX
+// to inherit.
+#ifdef HWY_NATIVE_CEIL_FLOOR_INT
+#undef HWY_NATIVE_CEIL_FLOOR_INT
+#else
+#define HWY_NATIVE_CEIL_FLOOR_INT
+#endif
+
+template <size_t N>
+HWY_API Vec128<int32_t, N> CeilInt(const Vec128<float, N> v) {
+  return Vec128<int32_t, N>{__lsx_vftintrp_w_s(v.raw)};
+}
+
+template <size_t N>
+HWY_API Vec128<int64_t, N> CeilInt(const Vec128<double, N> v) {
+  return Vec128<int64_t, N>{__lsx_vftintrp_l_d(v.raw)};
+}
+
+template <size_t N>
+HWY_API Vec128<int32_t, N> FloorInt(const Vec128<float, N> v) {
+  return Vec128<int32_t, N>{__lsx_vftintrm_w_s(v.raw)};
+}
+
+template <size_t N>
+HWY_API Vec128<int64_t, N> FloorInt(const Vec128<double, N> v) {
+  return Vec128<int64_t, N>{__lsx_vftintrm_l_d(v.raw)};
+}
+
 // ------------------------------ NearestInt (Round)
 
 template <size_t N>
