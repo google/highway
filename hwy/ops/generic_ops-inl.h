@@ -1322,6 +1322,27 @@ HWY_API TFromD<D> MaskedReduceMax(D d, M m, VFromD<D> v) {
 
 #endif  // HWY_NATIVE_MASKED_REDUCE_SCALAR
 
+// ------------------------------ ReduceMinOrNaN/ReduceMaxOrNaN
+
+// AArch64 Neon overrides this because vminv/vmaxv already propagate NaN.
+#if (defined(HWY_NATIVE_REDUCE_MINMAX_OR_NAN) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_REDUCE_MINMAX_OR_NAN
+#undef HWY_NATIVE_REDUCE_MINMAX_OR_NAN
+#else
+#define HWY_NATIVE_REDUCE_MINMAX_OR_NAN
+#endif
+
+template <class D, HWY_IF_FLOAT_D(D)>
+HWY_API TFromD<D> ReduceMinOrNaN(D d, VFromD<D> v) {
+  return AllFalse(d, IsNaN(v)) ? ReduceMin(d, v) : GetLane(NaN(d));
+}
+template <class D, HWY_IF_FLOAT_D(D)>
+HWY_API TFromD<D> ReduceMaxOrNaN(D d, VFromD<D> v) {
+  return AllFalse(d, IsNaN(v)) ? ReduceMax(d, v) : GetLane(NaN(d));
+}
+
+#endif  // HWY_NATIVE_REDUCE_MINMAX_OR_NAN
+
 // ------------------------------ IsEitherNaN
 #if (defined(HWY_NATIVE_IS_EITHER_NAN) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_IS_EITHER_NAN
