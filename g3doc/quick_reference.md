@@ -2841,6 +2841,15 @@ must first check `Lanes` before calling these ops:
 reductions are slower than normal SIMD operations and are typically used outside
 critical loops.
 
+**Note**: If any lane is NaN, min/max reduction corner cases are
+target-specific. SVE and RVV use dedicated IEEE minimumNumber/maximumNumber
+reductions, so a qNaN lane is ignored unless all lanes are NaN. AArch64 Neon
+instead propagates, so the result is NaN for `f32`, `f64`, and also for `f16`
+except in two-lane vectors, which ignore NaN. x86, PPC/Z, WASM, LoongArch and
+Armv7 Neon reduce using `Min`/`Max`, so they inherit that op's target-specific
+NaN behavior. `HWY_EMU128` compares using `<`, so a NaN is only returned if it
+is in the last lane.
+
 The following broadcast the result to all lanes. To obtain a scalar, you can
 call `GetLane` on the result, or instead use `Reduce*` below.
 
