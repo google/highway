@@ -69,8 +69,8 @@
 // create/get/set/dup, ld/st, sel, rev, trn, uzp, zip.
 // Consulted below, hence define here rather than in arm_sve-inl.h.
 #undef HWY_SVE_HAVE_BF16_FEATURE
-#if (HWY_ARM_HAVE_SCALAR_BF16_TYPE && defined(__ARM_FEATURE_SVE_BF16)) || \
-    HWY_TARGET == HWY_SVE2_128
+#if HWY_ARM_HAVE_SCALAR_BF16_TYPE && \
+    (defined(__ARM_FEATURE_SVE_BF16) || HWY_TARGET == HWY_SVE2_128)
 #define HWY_SVE_HAVE_BF16_FEATURE 1
 #else
 #define HWY_SVE_HAVE_BF16_FEATURE 0
@@ -897,6 +897,13 @@
 // using a built-in type for f16 scalars.
 #if HWY_HAVE_FLOAT16 && !HWY_HAVE_SCALAR_F16_TYPE
 #error "Logic error: f16 vectors but no scalars"
+#endif
+
+// Sanity check: if we have the SVE bf16 intrinsics, then base.h should also
+// be using a built-in type for bf16 scalars, because those intrinsics take
+// __bf16 pointers.
+#if HWY_SVE_HAVE_BF16_FEATURE && !HWY_HAVE_SCALAR_BF16_TYPE
+#error "Logic error: bf16 intrinsics but no scalar bf16 type"
 #endif
 
 // Override this to 1 in asan/msan builds, which will still fault.
