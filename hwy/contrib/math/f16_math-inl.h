@@ -38,13 +38,31 @@ namespace HWY_NAMESPACE {
 // namespace would also find math-inl.h's impl::Log and be ambiguous.
 namespace f16_impl {
 
-// Promotes lower/upper halves of the float16 vector `v` to float32,
-// evaluates `kernel` (a functor wrapping one float32 math function) twice,
-// then demotes and recombines. Never instantiated on HWY_SCALAR, so
-// PromoteUpperTo and Combine are safe to name here. There is no
-// OrderedDemote2To for f32->f16, hence DemoteTo + Combine.
-template <class D, class Kernel, class V = VFromD<D>>
-HWY_INLINE V F16ViaF32PerHalf(D d, V v, Kernel kernel) {
+// Promotes the lower and upper halves of the float16 vector `v` to float32,
+// evaluates `kernel` (a functor wrapping one float32 math function) on each,
+// then demotes and recombines. There is no OrderedDemote2To for f32->f16,
+// hence DemoteTo + Combine.
+//
+// This is used for every non-fractional vector with more than one lane. A
+// single promotion via Rebind<float, D> would be cheaper for small vectors,
+// but on scalable targets it is not always lane-exact: MaxLanes() is only an
+// upper bound, so a CappedTag whose cap does not bind is a full vector at run
+// time, and Rebind then runs into the cap (SVE additionally clamps kPow2 to
+// 0). For example, on SVE2 with 512-bit vectors, CappedTag<float16_t, 32> has
+// Lanes() == 32 but Rebind<float, decltype(d)> has Lanes() == 16, so a single
+// promotion would cover only the lower half. RepartitionToWide keeps kPow2
+// and therefore always has exactly Lanes(d) / 2 lanes.
+//
+// Fractional tags (kPow2 < 0) take the single-promotion overload below
+// instead. Their Rebind is lane-exact because the widening is absorbed by
+// kPow2, and per-half is not even instantiable at kPow2 == -3, where
+// RepartitionToWide<D> would need a float32 tag below the smallest supported
+// fraction. This is the same split as IotaForSpecial in test_util-inl.h.
+// Neither condition compares MaxLanes against a vector size, so both hold at
+// every vector length.
+template <class D, class Kernel, class V = VFromD<D>, HWY_IF_F16_D(D),
+          HWY_IF_LANES_GT_D(D, 1), HWY_IF_POW2_GT_D(D, -1)>
+HWY_INLINE V F16ViaF32(D d, V v, Kernel kernel) {
   const Half<D> dh;
   const RepartitionToWide<D> df32;
   HWY_DASSERT(Lanes(df32) == Lanes(d) / 2);
@@ -53,48 +71,52 @@ HWY_INLINE V F16ViaF32PerHalf(D d, V v, Kernel kernel) {
   return Combine(d, DemoteTo(dh, hi), DemoteTo(dh, lo));
 }
 
-// Whether `Rebind<float, D>` is guaranteed to have exactly `Lanes(d)` lanes,
-// i.e. one promotion covers every lane of `v`.
-//
-// Rebind raises kPow2 by one because float lanes are twice as large. On
-// fixed-size targets Lanes() == MaxLanes(), so comparing sizes is enough. On
-// scalable targets it is not: MaxLanes() is only an upper bound, so a
-// CappedTag whose cap does not bind is a full vector at run time. Rebind then
-// runs into the cap, and SVE additionally clamps kPow2 to 0, leaving the
-// float32 tag with half as many lanes as `d`. For example, on SVE2 with
-// 512-bit vectors, CappedTag<float16_t, 32> has Lanes() == 32, but
-// Rebind<float, decltype(d)> has Lanes() == 16: the kernel would see only
-// lanes 0..15, and DemoteTo, which duplicates its result into both halves of
-// the register, would store those same results again for lanes 16..31.
-//
-// Fractional tags absorb the widening in kPow2 and are safe, as is any tag
-// whose cap binds even for the smallest possible vector. Everything else uses
-// the per-half path, whose RepartitionToWide keeps kPow2 and therefore always
-// has exactly Lanes(d) / 2 lanes.
-template <class D>
-constexpr bool F16OnePromotionCoversAllLanes() {
-  return (HWY_POW2_D(D) + 1 <= HWY_MAX_POW2) &&
-         (HWY_HAVE_SCALABLE
-              ? (HWY_POW2_D(D) < 0 || HWY_V_SIZE_D(D) * 2 <= HWY_MIN_BYTES)
-              : (HWY_V_SIZE_D(D) <= HWY_MAX_BYTES / 2));
-}
-
-// Evaluates `kernel` on all lanes of `v` with a single promotion and one
-// kernel evaluation.
+// Single-lane vectors (including all of HWY_SCALAR, where PromoteUpperTo and
+// Combine do not exist) and fractional tags: one Rebind promotion is
+// lane-exact for both.
 template <class D, class Kernel, class V = VFromD<D>, HWY_IF_F16_D(D),
-          hwy::EnableIf<F16OnePromotionCoversAllLanes<D>()>* = nullptr>
+          hwy::EnableIf<(HWY_MAX_LANES_D(D) == 1) ||
+                        (HWY_POW2_D(D) < 0)>* = nullptr>
 HWY_INLINE V F16ViaF32(D d, V v, Kernel kernel) {
   const Rebind<float, D> df32;
   HWY_DASSERT(Lanes(df32) == Lanes(d));
   return DemoteTo(d, kernel(df32, PromoteTo(df32, v)));
 }
 
-// Everything else needs two promotions, one per half.
+// Two-output counterparts of F16ViaF32: `kernel` writes two float32 results,
+// each of which is demoted (and, per half, recombined) separately.
 template <class D, class Kernel, class V = VFromD<D>, HWY_IF_F16_D(D),
-          hwy::EnableIf<!F16OnePromotionCoversAllLanes<D>()>* = nullptr>
-HWY_INLINE V F16ViaF32(D d, V v, Kernel kernel) {
-  return F16ViaF32PerHalf(d, v, kernel);
+          HWY_IF_LANES_GT_D(D, 1), HWY_IF_POW2_GT_D(D, -1)>
+HWY_INLINE void F16ViaF32TwoOut(D d, V v, Kernel kernel, V& out0, V& out1) {
+  const Half<D> dh;
+  const RepartitionToWide<D> df32;
+  HWY_DASSERT(Lanes(df32) == Lanes(d) / 2);
+  using VF32 = VFromD<decltype(df32)>;
+  VF32 lo0, lo1, hi0, hi1;
+  kernel(df32, PromoteLowerTo(df32, v), lo0, lo1);
+  kernel(df32, PromoteUpperTo(df32, v), hi0, hi1);
+  out0 = Combine(d, DemoteTo(dh, hi0), DemoteTo(dh, lo0));
+  out1 = Combine(d, DemoteTo(dh, hi1), DemoteTo(dh, lo1));
 }
+
+template <class D, class Kernel, class V = VFromD<D>, HWY_IF_F16_D(D),
+          hwy::EnableIf<(HWY_MAX_LANES_D(D) == 1) ||
+                        (HWY_POW2_D(D) < 0)>* = nullptr>
+HWY_INLINE void F16ViaF32TwoOut(D d, V v, Kernel kernel, V& out0, V& out1) {
+  const Rebind<float, D> df32;
+  HWY_DASSERT(Lanes(df32) == Lanes(d));
+  VFromD<decltype(df32)> f0, f1;
+  kernel(df32, PromoteTo(df32, v), f0, f1);
+  out0 = DemoteTo(d, f0);
+  out1 = DemoteTo(d, f1);
+}
+
+struct CosKernel {
+  template <class DF, class VF>
+  HWY_INLINE VF operator()(DF df, VF x) const {
+    return Cos(df, x);
+  }
+};
 
 struct ExpKernel {
   template <class DF, class VF>
@@ -145,11 +167,47 @@ struct Log2Kernel {
   }
 };
 
+struct SinKernel {
+  template <class DF, class VF>
+  HWY_INLINE VF operator()(DF df, VF x) const {
+    return Sin(df, x);
+  }
+};
+
+struct SinCosKernel {
+  template <class DF, class VF>
+  HWY_INLINE void operator()(DF df, VF x, VF& s, VF& c) const {
+    SinCos(df, x, s, c);
+  }
+};
+
+// Calls the float32 Tan, which divides in float32; dividing the demoted
+// float16 sine and cosine would instead lose accuracy near the poles.
+struct TanKernel {
+  template <class DF, class VF>
+  HWY_INLINE VF operator()(DF df, VF x) const {
+    return Tan(df, x);
+  }
+};
+
 }  // namespace f16_impl
 
 // The generic templates in math-inl.h are constrained with
 // HWY_IF_NOT_SPECIAL_FLOAT_D, so these HWY_IF_F16_D overloads partition the
 // overload set rather than being ambiguous.
+
+/**
+ * Highway SIMD version of std::cos(x) for float16 lanes.
+ *
+ * Valid Lane Types: float16
+ *        Max Error: ULP = 1
+ *      Valid Range: float16[-39000, +39000]
+ * @return cosine of 'x'
+ */
+template <class D, class V, HWY_IF_F16_D(D)>
+HWY_INLINE V Cos(D d, V x) {
+  return f16_impl::F16ViaF32(d, x, f16_impl::CosKernel());
+}
 
 /**
  * Highway SIMD version of std::exp(x) for float16 lanes.
@@ -240,6 +298,46 @@ HWY_INLINE V Log1p(D d, V x) {
 template <class D, class V, HWY_IF_F16_D(D)>
 HWY_INLINE V Log2(D d, V x) {
   return f16_impl::F16ViaF32(d, x, f16_impl::Log2Kernel());
+}
+
+/**
+ * Highway SIMD version of std::sin(x) for float16 lanes.
+ *
+ * Valid Lane Types: float16
+ *        Max Error: ULP = 1
+ *      Valid Range: float16[-39000, +39000]
+ * @return sine of 'x'
+ */
+template <class D, class V, HWY_IF_F16_D(D)>
+HWY_INLINE V Sin(D d, V x) {
+  return f16_impl::F16ViaF32(d, x, f16_impl::SinKernel());
+}
+
+/**
+ * Highway SIMD version of SinCos for float16 lanes.
+ * Compute the sine and cosine at the same time
+ * The performance should be around the same as calling Sin.
+ *
+ * Valid Lane Types: float16
+ *        Max Error: ULP = 1
+ *      Valid Range: float16[-39000, +39000]
+ */
+template <class D, class V, HWY_IF_F16_D(D)>
+HWY_INLINE void SinCos(D d, V x, V& s, V& c) {
+  f16_impl::F16ViaF32TwoOut(d, x, f16_impl::SinCosKernel(), s, c);
+}
+
+/**
+ * Highway SIMD version of std::tan(x) for float16 lanes.
+ *
+ * Valid Lane Types: float16
+ *        Max Error: ULP = 1
+ *      Valid Range: float16[-39000, +39000]
+ * @return tangent of 'x'
+ */
+template <class D, class V, HWY_IF_F16_D(D)>
+HWY_INLINE V Tan(D d, V x) {
+  return f16_impl::F16ViaF32(d, x, f16_impl::TanKernel());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
