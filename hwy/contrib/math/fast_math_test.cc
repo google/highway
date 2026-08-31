@@ -44,7 +44,7 @@ namespace {
 struct TestFastLog {
   template <class T, class D>
   HWY_NOINLINE void operator()(T, D d) {
-    const double max_relative_error = 1.15E-5;
+    const double max_relative_error = 9.0E-6;
     const uint64_t kSamples = AdjustedReps(200'000);
     if (sizeof(T) == 4) {
       TestMathRelative<T, D>("FastLog", std::log, CallFastLog, d,
@@ -149,7 +149,7 @@ struct TestFastExpMinusOrZero {
 struct TestFastLog2 {
   template <class T, class D>
   HWY_NOINLINE void operator()(T, D d) {
-    const double max_relative_error = 1.15E-5;
+    const double max_relative_error = 9.0E-6;
     const uint64_t kSamples = AdjustedReps(200'000);
     if (sizeof(T) == 4) {
       TestMathRelative<T, D>("FastLog2", std::log2, CallFastLog2, d,
@@ -174,7 +174,7 @@ struct TestFastLog2 {
 struct TestFastLog10 {
   template <class T, class D>
   HWY_NOINLINE void operator()(T, D d) {
-    const double max_relative_error = 1.15E-5;
+    const double max_relative_error = 9.0E-6;
     const uint64_t kSamples = AdjustedReps(200'000);
     if (sizeof(T) == 4) {
       TestMathRelative<T, D>("FastLog10", std::log10, CallFastLog10, d,
@@ -199,7 +199,7 @@ struct TestFastLog10 {
 struct TestFastLog1p {
   template <class T, class D>
   HWY_NOINLINE void operator()(T, D d) {
-    const double max_relative_error = 1.15E-5;
+    const double max_relative_error = 9.0E-6;
     const uint64_t kSamples = AdjustedReps(200'000);
     if (sizeof(T) == 4) {
       TestMathRelative<T, D>("FastLog1p", std::log1p, CallFastLog1p, d,

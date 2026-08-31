@@ -1188,12 +1188,62 @@ HWY_INLINE void FallbackBlendChain4Coeff(
 
 }  // namespace impl
 
+namespace impl {
+
+enum class LogScale { kLn, kLog2, kLog10 };
+
+constexpr double GetLogScale(LogScale s) {
+  switch (s) {
+    case LogScale::kLn:
+      return 1.0;
+    case LogScale::kLog2:
+      return 1.4426950408889634;
+    case LogScale::kLog10:
+      return 0.4342944819032518;
+  }
+}
+
+template <LogScale S, class D, class V>
+HWY_INLINE V FastLogPoly(D d, V z) {
+  using T = TFromD<D>;
+
+  constexpr double scale = GetLogScale(S);
+
+  // Centering the approximation around z = y - 1 significantly improves
+  // accuracy for low-degree polynomials compared to approximating log(y)
+  // directly. This evaluates a degree-6 polynomial for log(1+z) on z in
+  // [-0.293, 0.415].
+  const auto c1 = Set(d, static_cast<T>(1.00000554887648 * scale));
+  const auto c2 = Set(d, static_cast<T>(-0.499913224389596 * scale));
+  const auto c3 = Set(d, static_cast<T>(0.332482347949672 * scale));
+  const auto c4 = Set(d, static_cast<T>(-0.253620465177317 * scale));
+  const auto c5 = Set(d, static_cast<T>(0.221685822570816 * scale));
+  const auto c6 = Set(d, static_cast<T>(-0.146434794822797 * scale));
+
+  const auto z2 = Mul(z, z);
+  const auto z4 = Mul(z2, z2);
+  // t0 = c1 * z
+  const auto t0 = Mul(c1, z);
+  // t1 = c3 * z + c2
+  const auto t1 = MulAdd(c3, z, c2);
+  // t2 = c5 * z + c4
+  const auto t2 = MulAdd(c5, z, c4);
+  // t01 = t1 * z^2 + t0 = c3*z^3 + c2*z^2 + c1*z
+  const auto t01 = MulAdd(z2, t1, t0);
+  // t23 = c6 * z^2 + t2 = c6*z^2 + c5*z + c4
+  const auto t23 = MulAdd(z2, c6, t2);
+  // result = t23 * z^4 + t01 = c6*z^6 + c5*z^5 + c4*z^4 + c3*z^3 + c2*z^2 +
+  // c1*z
+  return MulAdd(z4, t23, t01);
+}
+}  // namespace impl
+
 /**
  * Fast approximation of log(x).
  *
  * Valid Lane Types: float32, float64
- * Max Relative Error: 0.0012%
- * Average Relative Error: 3e-6% for float32, 1.8e-7% for float64
+ * Max Relative Error: 0.00089%
+ * Average Relative Error: 8.0e-6% for float32, 1.1e-6% for float64
  * Valid Range: float32: (0, +FLT_MAX]
  *              float64: (0, +DBL_MAX]
  *
@@ -1207,81 +1257,11 @@ HWY_INLINE V FastLog(D d, V x) {
   V y, exp;
   impl::FastLogRangeReduction<kHandleSubnormals>(d, x, y, exp);
 
-  V approx;
-
-  V a, b, c, d_val;
   // Centering the approximation around y=1.0 by using z = y - 1.0 significantly
   // improves accuracy for low-degree polynomials compared to approximating
   // log(y) directly.
   const V z = Sub(y, Set(d, static_cast<T>(1.0)));
-
-  HWY_ALIGN static constexpr T arr_a[8] = {
-      static_cast<T>(0.78766119873962426), static_cast<T>(0.56395605885234767),
-      static_cast<T>(0.41755823888409732), static_cast<T>(0.31775546220809975),
-      static_cast<T>(0.24738922014476947), static_cast<T>(0.19635862241628779),
-      static_cast<T>(0.15845269802741027), static_cast<T>(0.12974944454997622)};
-
-  HWY_ALIGN static constexpr T arr_b[8] = {
-      static_cast<T>(-0.29967724727628686),
-      static_cast<T>(-0.43890059639104201),
-      static_cast<T>(-0.49106265092580692),
-      static_cast<T>(-0.50008637171949),
-      static_cast<T>(-0.48774751153444412),
-      static_cast<T>(-0.46524164863536055),
-      static_cast<T>(-0.43845622820596808),
-      static_cast<T>(-0.41055729878598496)};
-
-  HWY_ALIGN static constexpr T arr_c[8] = {
-      static_cast<T>(1.0358118335702087),  static_cast<T>(1.0067153345685411),
-      static_cast<T>(1.000379283174812),   static_cast<T>(1.0000110351938951),
-      static_cast<T>(0.99922180103707492), static_cast<T>(0.99586383428901692),
-      static_cast<T>(0.98951797571207256), static_cast<T>(0.98045123777070986)};
-
-  HWY_ALIGN static constexpr T arr_d[8] = {
-      static_cast<T>(0.0023082932745966296),
-      static_cast<T>(0.00026712584767189665),
-      static_cast<T>(5.4447452042709148e-06),
-      static_cast<T>(0),
-      static_cast<T>(1.8158320065986679e-05),
-      static_cast<T>(0.00018763480353754217),
-      static_cast<T>(0.0006917031865196592),
-      static_cast<T>(0.0016769113228540019)};
-
-  if constexpr (CanLookup8(d)) {
-    // --- Table Lookup ---
-    const auto scale = Set(d, static_cast<T>(11.3137085));
-    // Input is always non-negative, so Floor() + ConvertTo()
-    // can be replaced by direct ConvertTo() (truncation), which is faster.
-    // We use MulAdd(y, scale, -8.0) instead of Mul(Sub(y, lower_bound), scale)
-    // to save instructions. 0.70710678 * 11.3137085 ~= 8.0.
-    auto idx_i = ConvertInRangeTo(
-        RebindToSigned<D>(), MulAdd(y, scale, Set(d, static_cast<T>(-8.0))));
-
-    // Clamp index to 7 to handle overshoots
-    idx_i = Min(idx_i, Set(RebindToSigned<D>(), 7));
-
-    a = Lookup8(d, arr_a, idx_i);
-    b = Lookup8(d, arr_b, idx_i);
-    c = Lookup8(d, arr_c, idx_i);
-    d_val = Lookup8(d, arr_d, idx_i);
-  } else {
-    HWY_ALIGN static constexpr T thresholds[7] = {
-        static_cast<T>(0.7954951287634819), static_cast<T>(0.8838834764038688),
-        static_cast<T>(0.9722718240442556), static_cast<T>(1.0606601716846424),
-        static_cast<T>(1.1490485193250295), static_cast<T>(1.2374368669654163),
-        static_cast<T>(1.3258252146058032)};
-    impl::FallbackBlendChain4Coeff(d, y, thresholds, arr_a, arr_b, arr_c, arr_d,
-                                   a, b, c, d_val);
-  }
-  // Math: approx = (a*z + b)*z^2 + (c*z + d_val)
-  // Using Estrin's scheme
-  const auto z2 = Mul(z, z);
-  // term0 = a*z + b
-  const auto term0 = MulAdd(a, z, b);
-  // term1 = c*z + d_val
-  const auto term1 = MulAdd(c, z, d_val);
-  // approx = term0 * z^2 + term1
-  approx = MulAdd(term0, z2, term1);
+  const V approx = impl::FastLogPoly<impl::LogScale::kLn>(d, z);
 
   return MulAdd(exp, kLn2, approx);
 }
@@ -1511,8 +1491,8 @@ HWY_INLINE V FastExpMinusOrZero(D d, V x) {
  * Fast approximation of log2(x).
  *
  * Valid Lane Types: float32, float64
- * Max Relative Error: 0.0012%
- * Average Relative Error: 1.2e-6% for float32, 1.8e-7% for float64
+ * Max Relative Error: 0.00089%
+ * Average Relative Error: 7.0e-6% for float32, 1.1e-6% for float64
  * Valid Range: float32: (0, +FLT_MAX]
  *              float64: (0, +DBL_MAX]
  *
@@ -1525,75 +1505,11 @@ HWY_INLINE V FastLog2(D d, V x) {
   V y, exp;
   impl::FastLogRangeReduction<kHandleSubnormals>(d, x, y, exp);
 
-  V approx;
-
-  V a, b, c, d_val;
   // Centering the approximation around y=1.0 by using z = y - 1.0 significantly
   // improves accuracy for low-degree polynomials compared to approximating
   // log(y) directly.
   const V z = Sub(y, Set(d, static_cast<T>(1.0)));
-
-  HWY_ALIGN static constexpr T arr_a[8] = {
-      static_cast<T>(1.136354905322312),   static_cast<T>(0.8136166093855663),
-      static_cast<T>(0.6024092005204164),  static_cast<T>(0.45842422954300593),
-      static_cast<T>(0.35690720107224694), static_cast<T>(0.28328561079576686),
-      static_cast<T>(0.22859892165962123), static_cast<T>(0.18718888021034824)};
-
-  HWY_ALIGN static constexpr T arr_b[8] = {static_cast<T>(-0.43234287851275466),
-                                           static_cast<T>(-0.6331997138565648),
-                                           static_cast<T>(-0.7084536512564498),
-                                           static_cast<T>(-0.721472128495863),
-                                           static_cast<T>(-0.703670916096675),
-                                           static_cast<T>(-0.6712018193012402),
-                                           static_cast<T>(-0.6325586260796298),
-                                           static_cast<T>(-0.5923089789593089)};
-
-  HWY_ALIGN static constexpr T arr_c[8] = {
-      static_cast<T>(1.4943605955858443), static_cast<T>(1.4523832207689078),
-      static_cast<T>(1.4432422308443573), static_cast<T>(1.4427109613084712),
-      static_cast<T>(1.4415723371043265), static_cast<T>(1.4367278151294332),
-      static_cast<T>(1.4275726764302927), static_cast<T>(1.4144921385652491)};
-
-  HWY_ALIGN static constexpr T arr_d[8] = {
-      static_cast<T>(0.0033301632601779037),
-      static_cast<T>(0.00038538113572950594),
-      static_cast<T>(7.855106905105614e-06),
-      static_cast<T>(0.0),
-      static_cast<T>(2.6196918310073536e-05),
-      static_cast<T>(0.000270699800561787),
-      static_cast<T>(0.000997916756959006),
-      static_cast<T>(0.00241927164949202)};
-
-  if constexpr (CanLookup8(d)) {
-    // --- Table Lookup ---
-    const auto scale = Set(d, static_cast<T>(11.3137085));
-    auto idx_i = ConvertInRangeTo(
-        RebindToSigned<D>(), MulAdd(y, scale, Set(d, static_cast<T>(-8.0))));
-
-    idx_i = Min(idx_i, Set(RebindToSigned<D>(), 7));
-
-    a = Lookup8(d, arr_a, idx_i);
-    b = Lookup8(d, arr_b, idx_i);
-    c = Lookup8(d, arr_c, idx_i);
-    d_val = Lookup8(d, arr_d, idx_i);
-  } else {
-    HWY_ALIGN static constexpr T thresholds[7] = {
-        static_cast<T>(0.7954951287634819), static_cast<T>(0.8838834764038688),
-        static_cast<T>(0.9722718240442556), static_cast<T>(1.0606601716846424),
-        static_cast<T>(1.1490485193250295), static_cast<T>(1.2374368669654163),
-        static_cast<T>(1.3258252146058032)};
-    impl::FallbackBlendChain4Coeff(d, y, thresholds, arr_a, arr_b, arr_c, arr_d,
-                                   a, b, c, d_val);
-  }
-  // Math: approx = (a*z + b)*z^2 + (c*z + d_val)
-  // Using Estrin's scheme
-  const auto z2 = Mul(z, z);
-  // term0 = a*z + b
-  const auto term0 = MulAdd(a, z, b);
-  // term1 = c*z + d_val
-  const auto term1 = MulAdd(c, z, d_val);
-  // approx = term0 * z^2 + term1
-  approx = MulAdd(term0, z2, term1);
+  const V approx = impl::FastLogPoly<impl::LogScale::kLog2>(d, z);  // 1 / ln(2)
 
   return Add(exp, approx);
 }
@@ -1602,8 +1518,8 @@ HWY_INLINE V FastLog2(D d, V x) {
  * Fast approximation of log10(x).
  *
  * Valid Lane Types: float32, float64
- * Max Relative Error: 0.0012%
- * Average Relative Error: 5.4e-6% for float32, 1.8e-7% for float64
+ * Max Relative Error: 0.00089%
+ * Average Relative Error: 9.8e-6% for float32, 1.1e-6% for float64
  * Valid Range: float32: (0, +FLT_MAX]
  *              float64: (0, +DBL_MAX]
  *
@@ -1616,76 +1532,12 @@ HWY_INLINE V FastLog10(D d, V x) {
   V y, exp;
   impl::FastLogRangeReduction<kHandleSubnormals>(d, x, y, exp);
 
-  V approx;
-
-  V a, b, c, d_val;
   // Centering the approximation around y=1.0 by using z = y - 1.0 significantly
   // improves accuracy for low-degree polynomials compared to approximating
   // log(y) directly.
   const V z = Sub(y, Set(d, static_cast<T>(1.0)));
-
-  HWY_ALIGN static constexpr T arr_a[8] = {
-      static_cast<T>(0.3420769122219194),  static_cast<T>(0.24492300439548012),
-      static_cast<T>(0.18134323902060331), static_cast<T>(0.137999443831595),
-      static_cast<T>(0.10743977319122217), static_cast<T>(0.08527746618951795),
-      static_cast<T>(0.06881513239598655), static_cast<T>(0.05634946779806663)};
-
-  HWY_ALIGN static constexpr T arr_b[8] = {
-      static_cast<T>(-0.1301481748440477),
-      static_cast<T>(-0.1906121071166758),
-      static_cast<T>(-0.21326579956586073),
-      static_cast<T>(-0.21718475171279292),
-      static_cast<T>(-0.21182605282145175),
-      static_cast<T>(-0.20205188075390862),
-      static_cast<T>(-0.19041912046596485),
-      static_cast<T>(-0.17830276936785788)};
-
-  HWY_ALIGN static constexpr T arr_c[8] = {
-      static_cast<T>(0.44984736360963107), static_cast<T>(0.4372109146505034),
-      static_cast<T>(0.4344592024931514),  static_cast<T>(0.4342992744270672),
-      static_cast<T>(0.4339565143878306),  static_cast<T>(0.4324981679587344),
-      static_cast<T>(0.4297421965958291),  static_cast<T>(0.4258045623390324)};
-
-  HWY_ALIGN static constexpr T arr_d[8] = {
-      static_cast<T>(0.0010024790317717039),
-      static_cast<T>(0.00011601128161763332),
-      static_cast<T>(2.364622797584052e-06),
-      static_cast<T>(0.0),
-      static_cast<T>(7.886058205291105e-06),
-      static_cast<T>(8.148875978935532e-05),
-      static_cast<T>(0.00030040287702038374),
-      static_cast<T>(0.0007282733341565754)};
-
-  if constexpr (CanLookup8(d)) {
-    // --- Table Lookup ---
-    const auto scale = Set(d, static_cast<T>(11.3137085));
-    auto idx_i = ConvertInRangeTo(
-        RebindToSigned<D>(), MulAdd(y, scale, Set(d, static_cast<T>(-8.0))));
-
-    idx_i = Min(idx_i, Set(RebindToSigned<D>(), 7));
-
-    a = Lookup8(d, arr_a, idx_i);
-    b = Lookup8(d, arr_b, idx_i);
-    c = Lookup8(d, arr_c, idx_i);
-    d_val = Lookup8(d, arr_d, idx_i);
-  } else {
-    HWY_ALIGN static constexpr T thresholds[7] = {
-        static_cast<T>(0.7954951287634819), static_cast<T>(0.8838834764038688),
-        static_cast<T>(0.9722718240442556), static_cast<T>(1.0606601716846424),
-        static_cast<T>(1.1490485193250295), static_cast<T>(1.2374368669654163),
-        static_cast<T>(1.3258252146058032)};
-    impl::FallbackBlendChain4Coeff(d, y, thresholds, arr_a, arr_b, arr_c, arr_d,
-                                   a, b, c, d_val);
-  }
-  // Math: approx = (a*z + b)*z^2 + (c*z + d_val)
-  // Using Estrin's scheme
-  const auto z2 = Mul(z, z);
-  // term0 = a*z + b
-  const auto term0 = MulAdd(a, z, b);
-  // term1 = c*z + d_val
-  const auto term1 = MulAdd(c, z, d_val);
-  // approx = term0 * z^2 + term1
-  approx = MulAdd(term0, z2, term1);
+  const V approx =
+      impl::FastLogPoly<impl::LogScale::kLog10>(d, z);  // 1 / ln(10)
 
   const auto kLog10_2 = Set(d, static_cast<T>(0.3010299956639812));  // log10(2)
   // Computes exp * log10(2) + approx. Since approx was scaled by 1/Ln(10)
@@ -1698,8 +1550,8 @@ HWY_INLINE V FastLog10(D d, V x) {
  * Fast approximation of log(1 + x).
  *
  * Valid Lane Types: float32, float64
- * Max Relative Error: 0.0012%
- * Average Relative Error: 0.00013% for float32, 0.000039% for float64
+ * Max Relative Error: 0.00089%
+ * Average Relative Error: 7.5e-5% for float32, 2.1e-5% for float64
  * Valid Range: float32: [-1 + epsilon, +FLT_MAX]
  *              float64: [-1 + epsilon, +DBL_MAX]
  *
