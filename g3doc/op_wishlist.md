@@ -25,10 +25,6 @@ LoadnPair: Gather with optimizations in particular for 2x64-bit, which use
 128-bit loads plus Combine.
 Also StorePair
 
-ReduceMin/MaxOrNaN
-
-Document Reduce/Min NaN behavior
-
 _mm512_getmant (f32/f64)
 
 ### Clear lowest mask bit
@@ -196,3 +192,5 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~Lookup32~~
 *   ~~tgamma~~
 *   ~~lgamma~~
+*   ~~ReduceMin/MaxOrNaN~~
+*   ~~Document Reduce/Min NaN behavior~~

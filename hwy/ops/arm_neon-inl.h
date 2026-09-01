@@ -9483,6 +9483,36 @@ HWY_API float16_t ReduceSum(D d, VFromD<D> v) {
 #undef HWY_NEON_DEF_REDUCTION_UI64
 #undef HWY_NEON_DEF_REDUCTION
 
+// ------------------------------ ReduceMinOrNaN/ReduceMaxOrNaN
+
+#ifdef HWY_NATIVE_REDUCE_MINMAX_OR_NAN
+#undef HWY_NATIVE_REDUCE_MINMAX_OR_NAN
+#else
+#define HWY_NATIVE_REDUCE_MINMAX_OR_NAN
+#endif
+
+// vminv/vmaxv already propagate NaN.
+template <class D, HWY_IF_FLOAT3264_D(D)>
+HWY_API TFromD<D> ReduceMinOrNaN(D d, VFromD<D> v) {
+  return ReduceMin(d, v);
+}
+template <class D, HWY_IF_FLOAT3264_D(D)>
+HWY_API TFromD<D> ReduceMaxOrNaN(D d, VFromD<D> v) {
+  return ReduceMax(d, v);
+}
+
+#if HWY_HAVE_FLOAT16
+// There is no vminv for two-lane f16, so check for NaN in all f16.
+template <class D, HWY_IF_F16_D(D)>
+HWY_API TFromD<D> ReduceMinOrNaN(D d, VFromD<D> v) {
+  return AllFalse(d, IsNaN(v)) ? ReduceMin(d, v) : GetLane(NaN(d));
+}
+template <class D, HWY_IF_F16_D(D)>
+HWY_API TFromD<D> ReduceMaxOrNaN(D d, VFromD<D> v) {
+  return AllFalse(d, IsNaN(v)) ? ReduceMax(d, v) : GetLane(NaN(d));
+}
+#endif  // HWY_HAVE_FLOAT16
+
 // ------------------------------ SumOfLanes
 
 template <class D, HWY_IF_LANES_GT_D(D, 1)>
