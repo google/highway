@@ -3405,6 +3405,12 @@ HWY_API HWY_BITCASTSCALAR_CONSTEXPR bool ScalarIsNaN(T val) {
 }
 
 template <typename T>
+HWY_API HWY_BITCASTSCALAR_CONSTEXPR T ScalarNaN() {
+  using TF = detail::NativeSpecialFloatToWrapper<RemoveCvRef<T>>;
+  return BitCastScalar<T>(LimitsMax<MakeSigned<TF>>());
+}
+
+template <typename T>
 HWY_API HWY_BITCASTSCALAR_CONSTEXPR bool ScalarIsInf(T val) {
   using TF = detail::NativeSpecialFloatToWrapper<RemoveCvRef<T>>;
   using TU = MakeUnsigned<TF>;
