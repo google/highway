@@ -101,22 +101,11 @@ HWY_INLINE V64 MulLoHi(V64 lo_src, V64 hi_src) {
   return MulEven(BitCast(d32, lo_src), BitCast(d32, ShiftRight<32>(hi_src)));
 }
 
+// Aggregate (no user constructor) so the target-specific Vec128 default ctor is
+// never called from an unattributed implicit constructor (breaks the GCC NEON
+// build). Instances are created via ResetState() below.
 struct State {
   V64 v0L, v0H, v1L, v1H, mul0L, mul0H, mul1L, mul1H;
-
-  HWY_INLINE void Reset(const uint64_t* HWY_RESTRICT key) {
-    const D64 d;
-    const V64 keyL = LoadU(d, key + 0);
-    const V64 keyH = LoadU(d, key + 2);
-    v0L = Xor(keyL, Init0L(d));
-    v0H = Xor(keyH, Init0H(d));
-    v1L = Xor(Rotate64By32(keyL), Init1L(d));
-    v1H = Xor(Rotate64By32(keyH), Init1H(d));
-    mul0L = Init0L(d);
-    mul0H = Init0H(d);
-    mul1L = Init1L(d);
-    mul1H = Init1H(d);
-  }
 
   // Core round. packetL/packetH are logical lanes {0,1}/{2,3}.
   HWY_INLINE void Update(V64 packetL, V64 packetH) {
@@ -243,6 +232,20 @@ struct State {
   }
 };
 
+HWY_INLINE State ResetState(const uint64_t* HWY_RESTRICT key) {
+  const D64 d;
+  const V64 keyL = LoadU(d, key + 0);
+  const V64 keyH = LoadU(d, key + 2);
+  return State{Xor(keyL, Init0L(d)),
+               Xor(keyH, Init0H(d)),
+               Xor(Rotate64By32(keyL), Init1L(d)),
+               Xor(Rotate64By32(keyH), Init1H(d)),
+               Init0L(d),
+               Init0H(d),
+               Init1L(d),
+               Init1H(d)};
+}
+
 // Absorb full packets then the remainder.
 HWY_INLINE void Absorb(State* HWY_RESTRICT state,
                        const uint8_t* HWY_RESTRICT bytes, size_t size) {
@@ -263,8 +266,7 @@ HWY_INLINE void Absorb(State* HWY_RESTRICT state,
 HWY_INLINE uint64_t HighwayHash64(const uint64_t key[4],
                                   const uint8_t* HWY_RESTRICT bytes,
                                   size_t size) {
-  detail::State state;
-  state.Reset(key);
+  detail::State state = detail::ResetState(key);
   detail::Absorb(&state, bytes, size);
   return state.Finalize64();
 }
@@ -272,8 +274,7 @@ HWY_INLINE uint64_t HighwayHash64(const uint64_t key[4],
 HWY_INLINE void HighwayHash128(const uint64_t key[4],
                                const uint8_t* HWY_RESTRICT bytes, size_t size,
                                uint64_t out[2]) {
-  detail::State state;
-  state.Reset(key);
+  detail::State state = detail::ResetState(key);
   detail::Absorb(&state, bytes, size);
   state.Finalize128(out);
 }
@@ -281,8 +282,7 @@ HWY_INLINE void HighwayHash128(const uint64_t key[4],
 HWY_INLINE void HighwayHash256(const uint64_t key[4],
                                const uint8_t* HWY_RESTRICT bytes, size_t size,
                                uint64_t out[4]) {
-  detail::State state;
-  state.Reset(key);
+  detail::State state = detail::ResetState(key);
   detail::Absorb(&state, bytes, size);
   state.Finalize256(out);
 }
