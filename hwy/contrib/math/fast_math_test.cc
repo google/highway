@@ -328,7 +328,7 @@ struct TestFastPow {
               max_error_base = static_cast<double>(base);
               max_error_exp = static_cast<double>(exp_val);
             }
-            if (rel > 0.0003) {
+            if (rel > 0.00015) {
               static int print_count = 0;
               if (print_count < 10) {
                 fprintf(stderr,
@@ -337,7 +337,7 @@ struct TestFastPow {
                         hwy::TypeName(T(), Lanes(d)).c_str(),
                         static_cast<double>(base), static_cast<double>(exp_val),
                         static_cast<double>(expected),
-                        static_cast<double>(actual), rel, 0.0003);
+                        static_cast<double>(actual), rel, 0.00015);
                 print_count++;
               }
             }
@@ -348,7 +348,7 @@ struct TestFastPow {
     fprintf(stderr, "%s: FastPow max_rel_error %E at base=%E exp=%E\n",
             hwy::TypeName(T(), Lanes(d)).c_str(), max_actual_rel_error,
             max_error_base, max_error_exp);
-    HWY_ASSERT(max_actual_rel_error <= 0.0003);
+    HWY_ASSERT(max_actual_rel_error <= 0.00015);
   }
 };
 
