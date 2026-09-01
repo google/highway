@@ -38,7 +38,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h>  // memcpy, memset
 
 #include "hwy/highway.h"
 
@@ -73,7 +72,10 @@ HWY_INLINE V64 Init1H(D64 d) {
 }
 
 // Swap the two 32-bit halves of each u64 lane (== rotate the u64 by 32).
-HWY_INLINE V64 Rotate64By32(V64 v) { return RotateRight<32>(v); }
+HWY_INLINE V64 Rotate64By32(V64 v) {
+  const D32 d32;
+  return BitCast(D64(), Reverse2(d32, BitCast(d32, v)));
+}
 
 // Fixed 16-byte permutation. See ZipperMerge in the reference: it scatters the
 // well-mixed low bytes of a 32x32 product across the lane and its neighbour,
@@ -134,8 +136,11 @@ struct State {
 
   HWY_INLINE void UpdatePacket(const uint8_t* HWY_RESTRICT packet) {
     const D64 d;
-    V64 lo = LoadU(d, reinterpret_cast<const uint64_t*>(packet) + 0);
-    V64 hi = LoadU(d, reinterpret_cast<const uint64_t*>(packet) + 2);
+    const D8 d8;
+    // Load as bytes (no aliasing/alignment assumptions on the caller's buffer),
+    // then reinterpret as u64 lanes.
+    V64 lo = BitCast(d, LoadU(d8, packet + 0));
+    V64 hi = BitCast(d, LoadU(d8, packet + 16));
 #if !HWY_IS_LITTLE_ENDIAN
     // HighwayHash is defined on little-endian lane values.
     lo = ReverseLaneBytes(lo);
@@ -163,14 +168,14 @@ struct State {
 
     // Build the padded 32-byte packet exactly as the reference does.
     HWY_ALIGN uint8_t packet[kPacketSize];
-    memset(packet, 0, sizeof(packet));
+    ZeroBytes(packet, kPacketSize);
     const size_t aligned = size_mod32 & ~size_t{3};
-    memcpy(packet, bytes, aligned);
+    CopyBytes(bytes, packet, aligned);
     const size_t mod4 = size_mod32 & 3;
 
     if (size_mod32 & 16) {
       // 16..31 bytes: place the last 4 bytes (all valid) at packet[28..31].
-      memcpy(packet + kPacketSize - 4, bytes + size_mod32 - 4, 4);
+      CopyBytes(bytes + size_mod32 - 4, packet + kPacketSize - 4, 4);
     } else if (mod4 != 0) {
       // <16 bytes: frozen "unordered" 3-byte pack at packet[16..18].
       const uint8_t* r = bytes + aligned;
