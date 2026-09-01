@@ -265,6 +265,13 @@ const uint64_t kExpected256[kMaxSize + 1][4] = {
 const uint64_t kKey[4] = {0x0706050403020100ull, 0x0F0E0D0C0B0A0908ull,
                           0x1716151413121110ull, 0x1F1E1D1C1B1A1918ull};
 
+#if HWY_TARGET == HWY_SCALAR  // HighwayHash needs a 128-bit vector.
+
+void TestGolden() {}
+void TestLongInputs() {}
+
+#else
+
 void TestGolden() {
   // in[n] = n, so the message of length n is bytes {0, 1, ..., n-1}.
   uint8_t in[kMaxSize + 1] = {0};
@@ -294,15 +301,18 @@ void TestLongInputs() {
   // Hashing the whole buffer must equal hashing it in two halves via one
   // shared state (both go through the same code path here, so this mainly
   // guards the whole-packet loop and remainder for various lengths).
-  for (size_t n : {33u, 64u, 65u, 96u, 127u, 128u, 129u, 255u, 512u, 999u}) {
+  const size_t kLens[] = {33, 64, 65, 96, 127, 128, 129, 255, 512, 999};
+  for (size_t n : kLens) {
     const uint64_t h = hh::HighwayHash64(kKey, data.data(), n);
     HWY_ASSERT(h != 0);  // sanity: extremely unlikely to be zero
     // Changing one byte must change the hash.
-    std::vector<uint8_t> data2(data.begin(), data.begin() + n);
-    data2[n / 2] ^= 0x80;
+    std::vector<uint8_t> data2(data.data(), data.data() + n);
+    data2[n / 2] = static_cast<uint8_t>(data2[n / 2] ^ 0x80);
     HWY_ASSERT(hh::HighwayHash64(kKey, data2.data(), n) != h);
   }
 }
+
+#endif  // HWY_TARGET == HWY_SCALAR
 
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)

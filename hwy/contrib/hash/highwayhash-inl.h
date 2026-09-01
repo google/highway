@@ -49,6 +49,10 @@ namespace highwayhash {
 // 32-byte packet; the hash absorbs the message in units of this size.
 static constexpr size_t kPacketSize = 32;
 
+// HighwayHash mixes its 256-bit state in 128-bit halves, so it needs a
+// fixed-size 128-bit vector, which the 1-lane HWY_SCALAR target lacks.
+#if HWY_TARGET != HWY_SCALAR
+
 namespace detail {
 
 using D64 = Full128<uint64_t>;
@@ -175,7 +179,7 @@ struct State {
 
     if (size_mod32 & 16) {
       // 16..31 bytes: place the last 4 bytes (all valid) at packet[28..31].
-      CopyBytes(bytes + size_mod32 - 4, packet + kPacketSize - 4, 4);
+      CopyBytes(bytes + size_mod32 - 4, packet + kPacketSize - 4, size_t{4});
     } else if (mod4 != 0) {
       // <16 bytes: frozen "unordered" 3-byte pack at packet[16..18].
       const uint8_t* r = bytes + aligned;
@@ -282,6 +286,25 @@ HWY_INLINE void HighwayHash256(const uint64_t key[4],
   detail::Absorb(&state, bytes, size);
   state.Finalize256(out);
 }
+
+#else  // HWY_TARGET == HWY_SCALAR: no 128-bit vector, not supported.
+
+HWY_INLINE uint64_t HighwayHash64(const uint64_t[4], const uint8_t*, size_t) {
+  HWY_DASSERT(0);
+  return 0;
+}
+HWY_INLINE void HighwayHash128(const uint64_t[4], const uint8_t*, size_t,
+                               uint64_t out[2]) {
+  HWY_DASSERT(0);
+  out[0] = out[1] = 0;
+}
+HWY_INLINE void HighwayHash256(const uint64_t[4], const uint8_t*, size_t,
+                               uint64_t out[4]) {
+  HWY_DASSERT(0);
+  out[0] = out[1] = out[2] = out[3] = 0;
+}
+
+#endif  // HWY_TARGET != HWY_SCALAR
 
 }  // namespace highwayhash
 }  // namespace HWY_NAMESPACE
