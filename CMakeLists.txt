@@ -229,6 +229,7 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/bit_pack/bit_pack-inl.h
     hwy/contrib/dot/dot-inl.h
     hwy/contrib/hash/hash-inl.h
+    hwy/contrib/hash/highwayhash-inl.h
     hwy/contrib/hash/phast.cc
     hwy/contrib/hash/phast.h
     hwy/contrib/hash/phast-inl.h
@@ -1038,6 +1039,7 @@ list(APPEND HWY_TEST_FILES
   hwy/contrib/dot/dot_test.cc
   hwy/contrib/hash/cuckoo2x2_test.cc
   hwy/contrib/hash/hash_test.cc
+  hwy/contrib/hash/highwayhash_test.cc
   hwy/contrib/hash/phast_test.cc
   hwy/contrib/hash/shardmul_test.cc
   hwy/contrib/image/image_test.cc
