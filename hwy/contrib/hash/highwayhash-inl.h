@@ -58,7 +58,10 @@ namespace detail {
 using D64 = Full128<uint64_t>;
 using D32 = Full128<uint32_t>;
 using D8 = Full128<uint8_t>;
-using V64 = Vec128<uint64_t>;
+// VFromD, not Vec128<>: scalable targets (RVV) have no Vec128 class, but a
+// Full128 tag still caps operations to a fixed 16-byte block there.
+using V64 = VFromD<D64>;
+using V8 = VFromD<D8>;
 
 // "Nothing up my sleeve" constants (fractional digits of pi), as 128-bit
 // halves: L = logical lanes {0,1}, H = logical lanes {2,3}.
@@ -88,8 +91,8 @@ HWY_INLINE V64 ZipperMerge(V64 v) {
   const D8 d8;
   // Reference masks lo=0x000F010E05020C03, hi=0x070806090D0A040B, applied by
   // pshufb; those are the little-endian index bytes below.
-  const Vec128<uint8_t> idx = Dup128VecFromValues(d8, 3, 12, 2, 5, 14, 1, 15, 0,
-                                                  11, 4, 10, 13, 9, 6, 8, 7);
+  const V8 idx = Dup128VecFromValues(d8, 3, 12, 2, 5, 14, 1, 15, 0, 11, 4, 10,
+                                     13, 9, 6, 8, 7);
   return BitCast(D64(), TableLookupBytes(BitCast(d8, v), idx));
 }
 
