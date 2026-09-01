@@ -34,6 +34,14 @@ namespace {
 
 namespace hh = hwy::HWY_NAMESPACE::highwayhash;
 
+// HighwayHash needs a fixed-size 128-bit vector (not HWY_SCALAR / RVV / SVE).
+#if HWY_TARGET == HWY_SCALAR || HWY_HAVE_SCALABLE || HWY_TARGET_IS_SVE
+
+void TestGolden() {}
+void TestLongInputs() {}
+
+#else
+
 // Frozen golden values from github.com/google/highwayhash, key {0x0706..0100,
 // 0x0F0E..0908, 0x1716..1110, 0x1F1E..1918}, input of length n = bytes 0..n-1.
 // WARNING: HighwayHash is frozen; these must never change.
@@ -265,14 +273,6 @@ const uint64_t kExpected256[kMaxSize + 1][4] = {
 const uint64_t kKey[4] = {0x0706050403020100ull, 0x0F0E0D0C0B0A0908ull,
                           0x1716151413121110ull, 0x1F1E1D1C1B1A1918ull};
 
-// HighwayHash needs a fixed-size 128-bit vector (not HWY_SCALAR / RVV / SVE).
-#if HWY_TARGET == HWY_SCALAR || HWY_HAVE_SCALABLE || HWY_TARGET_IS_SVE
-
-void TestGolden() {}
-void TestLongInputs() {}
-
-#else
-
 void TestGolden() {
   // in[n] = n, so the message of length n is bytes {0, 1, ..., n-1}.
   uint8_t in[kMaxSize + 1] = {0};
@@ -313,7 +313,7 @@ void TestLongInputs() {
   }
 }
 
-#endif  // HWY_TARGET == HWY_SCALAR
+#endif  // fixed-size 128-bit vector available
 
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
