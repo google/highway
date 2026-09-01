@@ -49,9 +49,11 @@ namespace highwayhash {
 // 32-byte packet; the hash absorbs the message in units of this size.
 static constexpr size_t kPacketSize = 32;
 
-// HighwayHash mixes its 256-bit state in 128-bit halves, so it needs a
-// fixed-size 128-bit vector, which the 1-lane HWY_SCALAR target lacks.
-#if HWY_TARGET != HWY_SCALAR
+// HighwayHash keeps its 256-bit state as vector struct members and mixes it in
+// 128-bit halves, so it needs a fixed-size (non-sizeless) 128-bit vector. That
+// rules out HWY_SCALAR (1 lane) and the scalable targets (RVV, SVE), whose
+// vector types cannot be struct members. Supporting those is a follow-up.
+#if HWY_TARGET != HWY_SCALAR && !HWY_HAVE_SCALABLE && !HWY_TARGET_IS_SVE
 
 namespace detail {
 
@@ -290,7 +292,7 @@ HWY_INLINE void HighwayHash256(const uint64_t key[4],
   state.Finalize256(out);
 }
 
-#else  // HWY_TARGET == HWY_SCALAR: no 128-bit vector, not supported.
+#else  // No fixed-size 128-bit vector (HWY_SCALAR / RVV / SVE): not supported.
 
 HWY_INLINE uint64_t HighwayHash64(const uint64_t[4], const uint8_t*, size_t) {
   HWY_DASSERT(0);
@@ -307,7 +309,7 @@ HWY_INLINE void HighwayHash256(const uint64_t[4], const uint8_t*, size_t,
   out[0] = out[1] = out[2] = out[3] = 0;
 }
 
-#endif  // HWY_TARGET != HWY_SCALAR
+#endif  // fixed-size 128-bit vector available
 
 }  // namespace highwayhash
 }  // namespace HWY_NAMESPACE

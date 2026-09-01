@@ -265,7 +265,8 @@ const uint64_t kExpected256[kMaxSize + 1][4] = {
 const uint64_t kKey[4] = {0x0706050403020100ull, 0x0F0E0D0C0B0A0908ull,
                           0x1716151413121110ull, 0x1F1E1D1C1B1A1918ull};
 
-#if HWY_TARGET == HWY_SCALAR  // HighwayHash needs a 128-bit vector.
+// HighwayHash needs a fixed-size 128-bit vector (not HWY_SCALAR / RVV / SVE).
+#if HWY_TARGET == HWY_SCALAR || HWY_HAVE_SCALABLE || HWY_TARGET_IS_SVE
 
 void TestGolden() {}
 void TestLongInputs() {}
