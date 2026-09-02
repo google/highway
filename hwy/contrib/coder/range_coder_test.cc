@@ -36,22 +36,14 @@ namespace {
 
 namespace rc = hwy::HWY_NAMESPACE::range_coder;
 
-// Small deterministic xorshift PRNG (test-only).
-uint64_t NextRandom(uint64_t& state) {
-  state ^= state << 13;
-  state ^= state >> 7;
-  state ^= state << 17;
-  return state;
-}
-
 // Skewed toward small byte values (sum of masked randoms), so it compresses.
 std::vector<uint8_t> MakeSkewed(size_t n, uint64_t seed) {
-  uint64_t state = seed | 1;
+  RandomState rng(seed);
   std::vector<uint8_t> v(n);
   for (size_t i = 0; i < n; ++i) {
     uint32_t x = 0;
     for (int k = 0; k < 3; ++k) {
-      x += static_cast<uint32_t>(NextRandom(state) & 0x3F);
+      x += static_cast<uint32_t>(Random64(&rng) & 0x3F);
     }
     v[i] = static_cast<uint8_t>(x);
   }
@@ -59,10 +51,10 @@ std::vector<uint8_t> MakeSkewed(size_t n, uint64_t seed) {
 }
 
 std::vector<uint8_t> MakeUniform(size_t n, uint64_t seed) {
-  uint64_t state = seed | 1;
+  RandomState rng(seed);
   std::vector<uint8_t> v(n);
   for (size_t i = 0; i < n; ++i) {
-    v[i] = static_cast<uint8_t>(NextRandom(state));
+    v[i] = static_cast<uint8_t>(Random64(&rng));
   }
   return v;
 }
@@ -101,23 +93,33 @@ void RoundTrip(const std::vector<uint8_t>& data, bool expect_shrink) {
 // Round-trips a range of sizes: below one 16-lane block, exactly one, several
 // whole blocks, and whole blocks + a scalar-tail remainder.
 void TestRoundTripSizes() {
-  const size_t kSizes[] = {1,  2,   3,   15,   16,   17,   31,    32,   33,
-                           64, 127, 256, 1023, 4096, 4097, 65535, 65536};
-  for (size_t idx = 0; idx < sizeof(kSizes) / sizeof(kSizes[0]); ++idx) {
-    const size_t n = kSizes[idx];
+  // Small sizes pin the block/tail boundaries exactly.
+  const size_t kExact[] = {1, 2, 3, 15, 16, 17, 31, 32, 33, 64, 127, 256};
+  for (size_t idx = 0; idx < sizeof(kExact) / sizeof(kExact[0]); ++idx) {
+    const size_t n = kExact[idx];
+    RoundTrip(MakeSkewed(n, n * 3 + 1), /*expect_shrink=*/false);
+    RoundTrip(MakeUniform(n, n * 7 + 5), /*expect_shrink=*/false);
+  }
+  // Larger sizes run many vector iterations; AdjustedReps scales them down on
+  // emulated targets (and is the identity on native builds).
+  const size_t kLarge[] = {1023, 4096, 4097, 65535, 65536};
+  for (size_t idx = 0; idx < sizeof(kLarge) / sizeof(kLarge[0]); ++idx) {
+    const size_t n = AdjustedReps(kLarge[idx]);
     RoundTrip(MakeSkewed(n, n * 3 + 1), /*expect_shrink=*/false);
     RoundTrip(MakeUniform(n, n * 7 + 5), /*expect_shrink=*/false);
   }
 }
 
 // A large skewed input must actually compress, and degenerate models
-// (one or two live symbols) must still round-trip.
+// (one or two live symbols) must still round-trip. Sizes are scaled by
+// AdjustedReps so the emulated targets do not run the full loops.
 void TestRoundTripModels() {
-  RoundTrip(MakeSkewed(200000, 0xABCDEF), /*expect_shrink=*/true);
+  RoundTrip(MakeSkewed(AdjustedReps(200000), 0xABCDEF), /*expect_shrink=*/true);
 
-  RoundTrip(std::vector<uint8_t>(5000, 0x42), /*expect_shrink=*/true);
+  RoundTrip(std::vector<uint8_t>(AdjustedReps(5000), 0x42),
+            /*expect_shrink=*/true);
 
-  std::vector<uint8_t> two_syms(4000);
+  std::vector<uint8_t> two_syms(AdjustedReps(4000));
   for (size_t i = 0; i < two_syms.size(); ++i) {
     two_syms[i] = static_cast<uint8_t>((i % 5) ? 0x10 : 0x20);
   }

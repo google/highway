@@ -17,9 +17,14 @@
 // target, decoding the bitstream produced by hwy::EncodeInterleaved (see
 // range_coder.h). Ported from Richard Geldreich's public-domain
 // "sserangecoding" (https://github.com/richgel999/sserangecoding); the SSE4.1
-// kernel worked on four u32 lanes at a time, and this keeps that shape
-// (CappedTag<uint32_t, 4>), so the 16 interleaved streams are decoded as four
-// groups of four lanes.
+// kernel worked on four u32 lanes at a time, and this keeps that shape: the 16
+// interleaved streams are four groups of four lanes, held in four vector
+// locals and driven from an unrolled loop. The 4-lane vector is FixedTag, so
+// the same kernel runs on RVV and SVE (masked to four lanes) as well as the
+// fixed-size targets; only HWY_SCALAR, which cannot form a 4-lane vector, uses
+// the scalar reference decoder. Widening the group to Lanes(d) would need the
+// renormalization step (below) to be reworked away from its 4-lane pshufb
+// tables; that is a possible follow-up.
 //
 // The float divide for value/range is exact because `value` is always <= 24
 // bits and `range` <= 12 bits; ConvertTo truncates toward zero, as suggested by
@@ -46,12 +51,10 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace range_coder {
 
-// The kernel keeps four u32 lanes in local variables and drives them from a
-// small loop, which needs a fixed-size (non-sizeless) 4-lane vector. That rules
-// out HWY_SCALAR (1 lane) and the scalable targets (RVV, SVE), whose vector
-// types cannot be array elements. Those get the scalar reference decoder, which
-// produces identical output; a scalable kernel is a possible follow-up.
-#if HWY_TARGET == HWY_SCALAR || HWY_HAVE_SCALABLE || HWY_TARGET_IS_SVE
+// HWY_SCALAR has a single lane and cannot form the 4-lane vector the kernel
+// needs, so it decodes with the scalar reference implementation, which produces
+// identical output.
+#if HWY_TARGET == HWY_SCALAR
 
 HWY_INLINE bool DecodeInterleaved(const uint8_t* HWY_RESTRICT src,
                                   size_t comp_size, uint8_t* HWY_RESTRICT dst,
@@ -64,23 +67,13 @@ HWY_INLINE bool DecodeInterleaved(const uint8_t* HWY_RESTRICT src,
 
 namespace detail {
 
-HWY_INLINE uint32_t ReadBE24(const uint8_t*& src) {
-  const uint32_t res = (static_cast<uint32_t>(src[0]) << 16) |
-                       (static_cast<uint32_t>(src[1]) << 8) |
-                       static_cast<uint32_t>(src[2]);
-  src += 3;
-  return res;
-}
-
 // Decodes one symbol per lane (4 total), writing the 4 symbol bytes to `out4`.
 template <class D>
 HWY_INLINE void Decode(D d, VFromD<D>& value, VFromD<D>& length,
                        const uint32_t* HWY_RESTRICT table,
-                       VFromD<Repartition<uint8_t, D> > pack_idx,
                        uint8_t* HWY_RESTRICT out4) {
   const RebindToSigned<D> di;
   const RebindToFloat<D> df;
-  const Repartition<uint8_t, D> d8;
 
   const VFromD<D> r = ShiftRight<kRangeProbBits>(length);
   const VFromD<D> q =
@@ -90,10 +83,8 @@ HWY_INLINE void Decode(D d, VFromD<D>& value, VFromD<D>& length,
 
   const VFromD<D> e = GatherIndex(d, table, BitCast(di, q));
 
-  // Byte 0 of each u32 lane -> low 4 bytes.
-  HWY_ALIGN uint8_t sym_bytes[16];
-  Store(TableLookupBytesOr0(BitCast(d8, e), pack_idx), d8, sym_bytes);
-  memcpy(out4, sym_bytes, 4);
+  // Byte 0 of each u32 lane is the symbol; keep the low byte of each lane.
+  TruncateStore(e, d, out4);
 
   const VFromD<D> low_prob = And(ShiftRight<8>(e), Set(d, kRangeProbScale - 1));
   const VFromD<D> prob_range = ShiftRight<20>(e);  // 8 + kRangeProbBits
@@ -137,39 +128,55 @@ HWY_INLINE bool DecodeInterleaved(const uint8_t* HWY_RESTRICT src_start,
                                   uint8_t* HWY_RESTRICT dst_start,
                                   size_t orig_size,
                                   const uint32_t* HWY_RESTRICT table) {
-  // CappedTag gives exactly 4 lanes on every fixed-size target.
-  const CappedTag<uint32_t, 4> d;
-  const Repartition<uint8_t, decltype(d)> d8;
+  // 16 big-endian 24-bit words = 48 header bytes precede the renorm stream.
+  if (comp_size < kRangeLanes * 3u) return false;
 
-  // Gathers byte 0 of each u32 lane into the low 4 bytes (rest zeroed).
-  const VFromD<decltype(d8)> pack_idx =
-      Dup128VecFromValues(d8, 0, 4, 8, 12, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
-                          0x80, 0x80, 0x80, 0x80, 0x80, 0x80);
+  // FixedTag: exactly 4 u32 lanes on every target, including RVV/SVE.
+  const FixedTag<uint32_t, 4> d;
+  const Repartition<uint8_t, decltype(d)> d8;
 
   const RangeShuffleTables& sh = GetRangeShuffleTables();
 
-  const uint8_t* src = src_start;
+  const uint8_t* src = src_start + kRangeLanes * 3u;
   const uint8_t* const src_end = src_start + comp_size;
 
-  VFromD<decltype(d)> value[4];
-  VFromD<decltype(d)> length[4];
-  for (int g = 0; g < 4; ++g) {
-    HWY_ALIGN uint32_t v4[4];
-    for (int l = 0; l < 4; ++l) v4[l] = detail::ReadBE24(src);
-    value[g] = Load(d, v4);
-    length[g] = Set(d, kRangeMaxLen);
-  }
+  // Load the four groups' initial `value` words from a zero-padded copy of the
+  // 48-byte header, one 16-byte load + shuffle per group (the last group's
+  // load would otherwise reach 4 bytes past the header). Each big-endian 24-bit
+  // word b0 b1 b2 becomes the u32 (b0 << 16) | (b1 << 8) | b2.
+  HWY_ALIGN uint8_t hdr[64];
+  memset(hdr, 0, sizeof(hdr));
+  memcpy(hdr, src_start, kRangeLanes * 3u);
+  const VFromD<decltype(d8)> be24 = Dup128VecFromValues(
+      d8, 2, 1, 0, 0x80, 5, 4, 3, 0x80, 8, 7, 6, 0x80, 11, 10, 9, 0x80);
+
+  VFromD<decltype(d)> value0 =
+      BitCast(d, TableLookupBytesOr0(LoadU(d8, hdr + 0), be24));
+  VFromD<decltype(d)> value1 =
+      BitCast(d, TableLookupBytesOr0(LoadU(d8, hdr + 12), be24));
+  VFromD<decltype(d)> value2 =
+      BitCast(d, TableLookupBytesOr0(LoadU(d8, hdr + 24), be24));
+  VFromD<decltype(d)> value3 =
+      BitCast(d, TableLookupBytesOr0(LoadU(d8, hdr + 36), be24));
+
+  const VFromD<decltype(d)> full = Set(d, kRangeMaxLen);
+  VFromD<decltype(d)> length0 = full;
+  VFromD<decltype(d)> length1 = full;
+  VFromD<decltype(d)> length2 = full;
+  VFromD<decltype(d)> length3 = full;
 
   size_t dst_ofs = 0;
   for (; dst_ofs + kRangeLanes <= orig_size && src + 32 <= src_end;
        dst_ofs += kRangeLanes) {
-    for (int g = 0; g < 4; ++g) {
-      detail::Decode(d, value[g], length[g], table, pack_idx,
-                     dst_start + dst_ofs + g * 4);
-    }
-    for (int g = 0; g < 4; ++g) {
-      detail::Normalize(d, value[g], length[g], src, sh);
-    }
+    uint8_t* const out = dst_start + dst_ofs;
+    detail::Decode(d, value0, length0, table, out + 0);
+    detail::Decode(d, value1, length1, table, out + 4);
+    detail::Decode(d, value2, length2, table, out + 8);
+    detail::Decode(d, value3, length3, table, out + 12);
+    detail::Normalize(d, value0, length0, src, sh);
+    detail::Normalize(d, value1, length1, src, sh);
+    detail::Normalize(d, value2, length2, src, sh);
+    detail::Normalize(d, value3, length3, src, sh);
   }
 
   // Scalar tail. The vector loop stopped within 32 bytes of the end (or ran out
@@ -184,10 +191,14 @@ HWY_INLINE bool DecodeInterleaved(const uint8_t* HWY_RESTRICT src_start,
 
   HWY_ALIGN uint32_t vals[kRangeLanes];
   HWY_ALIGN uint32_t lens[kRangeLanes];
-  for (int g = 0; g < 4; ++g) {
-    Store(value[g], d, vals + g * 4);
-    Store(length[g], d, lens + g * 4);
-  }
+  Store(value0, d, vals + 0);
+  Store(value1, d, vals + 4);
+  Store(value2, d, vals + 8);
+  Store(value3, d, vals + 12);
+  Store(length0, d, lens + 0);
+  Store(length1, d, lens + 4);
+  Store(length2, d, lens + 8);
+  Store(length3, d, lens + 12);
 
   RangeDecoder dec;
   for (; dst_ofs < orig_size; ++dst_ofs) {
@@ -203,7 +214,7 @@ HWY_INLINE bool DecodeInterleaved(const uint8_t* HWY_RESTRICT src_start,
   return static_cast<size_t>(tp - tail) <= tail_avail;
 }
 
-#endif  // scalar / scalable fallback
+#endif  // scalar fallback
 
 }  // namespace range_coder
 }  // namespace HWY_NAMESPACE
