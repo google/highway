@@ -1685,7 +1685,7 @@ class BTree {
         curr[b] = state_->root_;
       }
 
-      for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
+      for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
         for (size_t b = 0; b < kBatchSize; ++b) {
           auto* internal = static_cast<Internal*>(curr[b]);
           size_t child_idx = FindChild(internal, q[b]);
@@ -1729,7 +1729,7 @@ class BTree {
         curr[b] = state_->root_;
       }
 
-      for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
+      for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
         for (size_t b = 0; b < kBatchSize; ++b) {
           auto* internal = static_cast<Internal*>(curr[b]);
           size_t child_idx = FindChild(internal, q[b]);
@@ -1781,7 +1781,7 @@ class BTree {
         curr[b] = state_->root_;
       }
 
-      for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
+      for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
         for (size_t b = 0; b < kBatchSize; ++b) {
           auto* internal = static_cast<Internal*>(curr[b]);
           size_t child_idx = FindChild(internal, q[b]);
@@ -1826,7 +1826,7 @@ class BTree {
         curr[b] = state_->root_;
       }
 
-      for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
+      for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
         for (size_t b = 0; b < kBatchSize; ++b) {
           auto* internal = static_cast<Internal*>(curr[b]);
           size_t child_idx = FindChild(internal, q[b]);
@@ -2016,7 +2016,7 @@ class BTree {
   bool ContainsInternal(StorageKeyT key) const {
     if (HWY_UNLIKELY(state_->root_ == nullptr)) return false;
     void* curr = state_->root_;
-    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
+    for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
       auto* internal = static_cast<Internal*>(curr);
       size_t child_idx = FindChild(internal, key);
       curr = internal->children[child_idx];
@@ -2027,7 +2027,7 @@ class BTree {
   const_iterator FindInternal(StorageKeyT key) const {
     if (HWY_UNLIKELY(state_->root_ == nullptr)) return end();
     void* curr = state_->root_;
-    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
+    for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
       auto* internal = static_cast<Internal*>(curr);
       size_t child_idx = FindChild(internal, key);
       curr = internal->children[child_idx];
@@ -2043,7 +2043,7 @@ class BTree {
   iterator FindInternal(StorageKeyT key) {
     if (HWY_UNLIKELY(state_->root_ == nullptr)) return end();
     void* curr = state_->root_;
-    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
+    for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
       auto* internal = static_cast<Internal*>(curr);
       size_t child_idx = FindChild(internal, key);
       curr = internal->children[child_idx];
@@ -2059,7 +2059,7 @@ class BTree {
   const_iterator LowerBoundInternal(StorageKeyT target) const {
     if (HWY_UNLIKELY(state_->root_ == nullptr)) return end();
     void* curr = state_->root_;
-    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
+    for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
       auto* internal = static_cast<Internal*>(curr);
       size_t child_idx = FindChild(internal, target);
       curr = internal->children[child_idx];
@@ -2078,7 +2078,7 @@ class BTree {
   iterator LowerBoundInternal(StorageKeyT target) {
     if (HWY_UNLIKELY(state_->root_ == nullptr)) return end();
     void* curr = state_->root_;
-    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
+    for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
       auto* internal = static_cast<Internal*>(curr);
       size_t child_idx = FindChild(internal, target);
       curr = internal->children[child_idx];
@@ -2097,7 +2097,7 @@ class BTree {
   const_iterator UpperBoundInternal(StorageKeyT target) const {
     if (HWY_UNLIKELY(state_->root_ == nullptr)) return end();
     void* curr = state_->root_;
-    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
+    for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
       auto* internal = static_cast<Internal*>(curr);
       size_t child_idx = FindChild(internal, target);
       curr = internal->children[child_idx];
@@ -2116,7 +2116,7 @@ class BTree {
   iterator UpperBoundInternal(StorageKeyT target) {
     if (HWY_UNLIKELY(state_->root_ == nullptr)) return end();
     void* curr = state_->root_;
-    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
+    for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
       auto* internal = static_cast<Internal*>(curr);
       size_t child_idx = FindChild(internal, target);
       curr = internal->children[child_idx];
@@ -2137,7 +2137,7 @@ class BTree {
   const V* FindValueInternal(StorageKeyT key) const {
     if (HWY_UNLIKELY(state_->root_ == nullptr)) return nullptr;
     void* curr = state_->root_;
-    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
+    for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
       auto* internal = static_cast<Internal*>(curr);
       size_t child_idx = FindChild(internal, key);
       curr = internal->children[child_idx];
@@ -2155,7 +2155,7 @@ class BTree {
   V* FindValueInternal(StorageKeyT key) {
     if (HWY_UNLIKELY(state_->root_ == nullptr)) return nullptr;
     void* curr = state_->root_;
-    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
+    for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
       auto* internal = static_cast<Internal*>(curr);
       size_t child_idx = FindChild(internal, key);
       curr = internal->children[child_idx];
@@ -2199,7 +2199,7 @@ class BTree {
     Internal* path[kMaxTreeHeight];
     size_t child_indices[kMaxTreeHeight];
     void* curr = state_->root_;
-    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
+    for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
       auto* internal = static_cast<Internal*>(curr);
       path[lvl] = internal;
       size_t child_idx = FindChild(internal, key);
@@ -2332,7 +2332,7 @@ class BTree {
     Internal* path[kMaxTreeHeight];
     size_t child_indices[kMaxTreeHeight];
     void* curr = state_->root_;
-    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
+    for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
       auto* internal = static_cast<Internal*>(curr);
       path[lvl] = internal;
       size_t child_idx = FindChild(internal, key);
@@ -2380,7 +2380,7 @@ class BTree {
 
     // Propagate separator keys and splits up ancestor internal levels
     void* promo_child = new_leaf;
-    for (uint16_t lvl = 1; lvl <= state_->tree_height_; ++lvl) {
+    for (size_t lvl = 1; lvl <= state_->tree_height_; ++lvl) {
       Internal* parent = path[lvl];
       // Case A: Parent has room (num_keys < 16).
       // Shift keys and children right of c_idx to insert the new entry.
@@ -2527,7 +2527,7 @@ class BTree {
     Internal* path[kMaxTreeHeight];
     size_t child_indices[kMaxTreeHeight];
     void* curr = state_->root_;
-    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
+    for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
       auto* internal = static_cast<Internal*>(curr);
       path[lvl] = internal;
       size_t child_idx = FindChild(internal, key);
@@ -2578,7 +2578,7 @@ class BTree {
 
     // Propagate separator keys and splits up ancestor internal levels
     void* promo_child = new_leaf;
-    for (uint16_t lvl = 1; lvl <= state_->tree_height_; ++lvl) {
+    for (size_t lvl = 1; lvl <= state_->tree_height_; ++lvl) {
       Internal* parent = path[lvl];
       // Case A: Parent has room (num_keys < 16).
       // Shift keys and children right of c_idx to insert the new entry.

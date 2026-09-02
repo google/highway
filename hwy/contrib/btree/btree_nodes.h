@@ -44,7 +44,7 @@ enum class BoundMode : uint8_t {
 // For unsigned keys, this is a zero-cost compile-time identity.
 template <typename KeyT>
 struct KeyCodec {
-  static_assert(std::is_integral_v<KeyT>,
+  static_assert(IsInteger<KeyT>(),
                 "Highway BTree only supports integral keys.");
   static_assert(sizeof(KeyT) == 4 || sizeof(KeyT) == 8,
                 "Highway BTree only supports 32-bit and 64-bit keys.");
@@ -314,7 +314,7 @@ struct alignas(64) InternalNode {
 
   InternalNode() {
     // Unused key slots hold the maximum value so SIMD comparisons ignore them.
-    std::fill_n(keys, kCapacity, std::numeric_limits<StorageKeyT>::max());
+    std::fill_n(keys, kCapacity, LimitsMax<StorageKeyT>());
     std::fill_n(children, kMaxChildren, nullptr);
   }
 };
@@ -344,7 +344,7 @@ static constexpr size_t kMaxTreeHeight = 32;
 template <typename KeyT,
           typename LeafT = LeafNode<typename KeyCodec<KeyT>::StorageKey>>
 struct BTreeState {
-  static_assert(std::is_integral_v<KeyT>,
+  static_assert(IsInteger<KeyT>(),
                 "Highway BTree only supports integral keys.");
   static_assert(sizeof(KeyT) == 4 || sizeof(KeyT) == 8,
                 "Highway BTree only supports 32-bit and 64-bit keys.");
