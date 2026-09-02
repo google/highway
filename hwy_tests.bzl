@@ -106,6 +106,11 @@ HWY_CONTRIB_TESTS = (
     ),
     (
         "hwy/contrib/hash/",
+        "highwayhash_test",
+        [":highwayhash"],
+    ),
+    (
+        "hwy/contrib/hash/",
         "phast_test",
         [
             ":algo",

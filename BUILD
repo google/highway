@@ -470,6 +470,18 @@ cc_library(
 )
 
 cc_library(
+    name = "highwayhash",
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/hash/highwayhash-inl.h",
+    ],
+    deps = [
+        ":hwy",
+    ],
+)
+
+cc_library(
     name = "phast",
     srcs = [
         "hwy/contrib/hash/phast.cc",
