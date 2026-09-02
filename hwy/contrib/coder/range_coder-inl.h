@@ -19,7 +19,7 @@
 // "sserangecoding" (https://github.com/richgel999/sserangecoding); the SSE4.1
 // kernel worked on four u32 lanes at a time, and this keeps that shape: the 16
 // interleaved streams are four groups of four lanes, held in four vector
-// locals and driven from an unrolled loop. The 4-lane vector is FixedTag, so
+// locals and driven from an unrolled loop. The 4-lane vector is Full128, so
 // the same kernel runs on RVV and SVE (masked to four lanes) as well as the
 // fixed-size targets; only HWY_SCALAR, which cannot form a 4-lane vector, uses
 // the scalar reference decoder. Widening the group to Lanes(d) would need the
@@ -131,8 +131,8 @@ HWY_INLINE bool DecodeInterleaved(const uint8_t* HWY_RESTRICT src_start,
   // 16 big-endian 24-bit words = 48 header bytes precede the renorm stream.
   if (comp_size < kRangeLanes * 3u) return false;
 
-  // FixedTag: exactly 4 u32 lanes on every target, including RVV/SVE.
-  const FixedTag<uint32_t, 4> d;
+  // Exactly 128 bits / 4 u32 lanes on every target, including RVV/SVE.
+  const Full128<uint32_t> d;
   const Repartition<uint8_t, decltype(d)> d8;
 
   const RangeShuffleTables& sh = GetRangeShuffleTables();
