@@ -475,6 +475,25 @@ cc_library(
 )
 
 cc_library(
+    name = "iguana",
+    srcs = [
+        "hwy/contrib/iguana/iguana.cc",
+    ],
+    hdrs = [
+        "hwy/contrib/iguana/iguana.h",
+    ],
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/iguana/iguana-inl.h",
+    ],
+    deps = [
+        ":hwy",
+        ":iguana_ans",
+    ],
+)
+
+cc_library(
     name = "hash",
     compatible_with = [],
     copts = COPTS,
