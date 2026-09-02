@@ -131,6 +131,10 @@ hwy_contrib_headers = files(
     'hwy/contrib/base64/base64-inl.h',
     'hwy/contrib/bit_pack/bit_pack-inl.h',
     'hwy/contrib/dot/dot-inl.h',
+    'hwy/contrib/iguana/ans.h',
+    'hwy/contrib/iguana/ans-inl.h',
+    'hwy/contrib/iguana/iguana.h',
+    'hwy/contrib/iguana/iguana-inl.h',
     'hwy/contrib/hash/hash-inl.h',
     'hwy/contrib/hash/highwayhash-inl.h',
     'hwy/contrib/hash/phast.h',
@@ -168,6 +172,8 @@ hwy_contrib_headers = files(
 )
 
 hwy_contrib_sources = files(
+    'hwy/contrib/iguana/ans.cc',
+    'hwy/contrib/iguana/iguana.cc',
     'hwy/contrib/image/image.cc',
     'hwy/contrib/hash/cuckoo2x2.cc',
     'hwy/contrib/hash/phast.cc',
@@ -702,6 +708,8 @@ if tests_enabled
             'hwy/contrib/algo/transform_test.cc',
             'hwy/contrib/bit_pack/bit_pack_test.cc',
             'hwy/contrib/dot/dot_test.cc',
+            'hwy/contrib/iguana/ans_test.cc',
+            'hwy/contrib/iguana/iguana_test.cc',
             'hwy/contrib/hash/hash_test.cc',
             'hwy/contrib/hash/highwayhash_test.cc',
             'hwy/contrib/hash/cuckoo2x2_test.cc',
