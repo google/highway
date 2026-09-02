@@ -463,6 +463,7 @@ cc_library(
     ],
     hdrs = [
         "hwy/contrib/iguana/ans.h",
+        "hwy/contrib/iguana/ans_detail.h",
     ],
     compatible_with = [],
     copts = COPTS,

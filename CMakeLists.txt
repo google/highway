@@ -233,6 +233,7 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/dot/dot-inl.h
     hwy/contrib/iguana/ans.cc
     hwy/contrib/iguana/ans.h
+    hwy/contrib/iguana/ans_detail.h
     hwy/contrib/iguana/ans-inl.h
     hwy/contrib/hash/hash-inl.h
     hwy/contrib/hash/highwayhash-inl.h

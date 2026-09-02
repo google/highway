@@ -38,19 +38,14 @@ namespace hwy {
 namespace iguana {
 
 // ------------------------------ Constants (bitstream format)
+//
+// Only what AnsStatistics's inline methods below need is public here; the
+// rest (word/lane layout, serialized-table sizing) is an implementation
+// detail shared by ans.cc/ans-inl.h -- see ans_detail.h.
 
-constexpr uint32_t kAnsWordLBits = 16;
-constexpr uint32_t kAnsWordL = uint32_t{1} << kAnsWordLBits;  // 65536
 constexpr uint32_t kAnsWordMBits = 12;
 constexpr uint32_t kAnsWordM = uint32_t{1} << kAnsWordMBits;  // 4096
 constexpr uint32_t kAnsFreqMask = kAnsWordM - 1;
-
-// 32 interleaved rANS streams: 16 written/read forwards, 16 backwards.
-constexpr int kAnsLanes = 32;
-
-// Longest possible serialized frequency table.
-constexpr size_t kAnsCtrlBlockSize = 96;
-constexpr size_t kAnsDenseTableMaxLength = kAnsCtrlBlockSize + 384;
 
 // ------------------------------ Frequency model
 

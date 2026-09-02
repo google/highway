@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "hwy/base.h"  // HWY_DASSERT
+#include "hwy/contrib/iguana/ans_detail.h"
 
 namespace hwy {
 namespace iguana {

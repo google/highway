@@ -21,6 +21,16 @@
 // a gather into the dense table and one multiply-add, then renormalizes the
 // lanes whose state fell below 2^16 by pulling one 16-bit word each from the
 // forward / reverse halves of the payload - vectorized with Expand.
+//
+// State is held in up to 4 named vectors per half (fwd0..fwd3, rev0..rev3),
+// not an array: RVV/SVE vectors are sizeless types and cannot be array
+// elements. HWY_SCALAR is excluded at compile time (its 1-lane-only ops
+// can't instantiate RenormLane's multi-lane Repartition/LoadU at all, not
+// just uselessly -- confirmed by trying, not assumed). `Ans32DecodePayload`
+// additionally falls back to the scalar reference decoder at *runtime* for
+// a scalable (RVV/SVE) target whose hardware vector length is unusually
+// small -- everywhere else, including RVV/SVE with a typical vector length,
+// this vectorizes.
 
 #if defined(HIGHWAY_HWY_CONTRIB_IGUANA_ANS_INL_H_) == defined(HWY_TARGET_TOGGLE)
 #ifdef HIGHWAY_HWY_CONTRIB_IGUANA_ANS_INL_H_
@@ -34,20 +44,29 @@
 #include <string.h>  // memcpy
 
 #include "hwy/contrib/iguana/ans.h"
+#include "hwy/contrib/iguana/ans_detail.h"
 #include "hwy/highway.h"
 
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
-namespace HWY_NAMESPACE {
 namespace iguana_ans {
+namespace HWY_NAMESPACE {
 
 namespace hi = hwy::iguana;
+namespace hn = hwy::HWY_NAMESPACE;
 
-// The kernel keeps the 32 rANS states in fixed-size 4-lane-or-wider u32 vectors
-// held in local arrays, which rules out HWY_SCALAR and the scalable targets
-// (RVV/SVE, whose vectors cannot be array elements). Those use the scalar
-// reference decoder, which produces identical output.
-#if HWY_TARGET == HWY_SCALAR || HWY_HAVE_SCALABLE || HWY_TARGET_IS_SVE
+// HWY_SCALAR is fundamentally 1-lane and doesn't support the multi-lane
+// Repartition/LoadU that RenormLane needs (confirmed by trying to compile
+// it, not assumed: D::kPrivateLanes==1 is baked into HWY_SCALAR's LoadU
+// overload set, so instantiating RenormLane<HWY_SCALAR's D> is a hard
+// compile error, independent of whether that code path ever runs -- C++
+// instantiates called templates whether or not they're reachable at
+// runtime). Scalable targets (RVV/SVE) don't have this problem -- they're
+// genuine multi-lane SIMD, just with a width unknown until runtime -- so
+// only HWY_SCALAR needs a compile-time exclusion; the runtime nv check in
+// Ans32DecodePayload below (not a compile-time one) is what protects
+// scalable targets with an unusually small hardware vector length.
+#if HWY_TARGET == HWY_SCALAR
 
 HWY_INLINE bool Ans32Decode(const uint8_t* src, size_t src_size, uint8_t* dst,
                             size_t orig_size) {
@@ -59,44 +78,45 @@ HWY_INLINE bool Ans32Decode(const uint8_t* src, size_t src_size, uint8_t* dst,
 // Decodes one symbol per lane of `x`; returns the updated state and writes the
 // `Lanes(d)` symbol bytes to `out`.
 template <class D>
-HWY_INLINE VFromD<D> DecodeLane(D d, VFromD<D> x,
-                                const uint32_t* HWY_RESTRICT table,
-                                uint8_t* HWY_RESTRICT out) {
-  const RebindToSigned<D> di;
-  const VFromD<D> slot = And(x, Set(d, hi::kAnsFreqMask));
-  const VFromD<D> t = GatherIndex(d, table, BitCast(di, slot));
-  const VFromD<D> freq = And(t, Set(d, hi::kAnsFreqMask));
-  const VFromD<D> bias =
-      And(ShiftRight<hi::kAnsWordMBits>(t), Set(d, hi::kAnsFreqMask));
+HWY_INLINE hn::VFromD<D> DecodeLane(D d, hn::VFromD<D> x,
+                                    const uint32_t* HWY_RESTRICT table,
+                                    uint8_t* HWY_RESTRICT out) {
+  const hn::RebindToSigned<D> di;
+  const hn::VFromD<D> slot = hn::And(x, hn::Set(d, hi::kAnsFreqMask));
+  const hn::VFromD<D> t = hn::GatherIndex(d, table, hn::BitCast(di, slot));
+  const hn::VFromD<D> freq = hn::And(t, hn::Set(d, hi::kAnsFreqMask));
+  const hn::VFromD<D> bias = hn::And(hn::ShiftRight<hi::kAnsWordMBits>(t),
+                                     hn::Set(d, hi::kAnsFreqMask));
 
-  HWY_ALIGN uint32_t syms[16];
-  StoreU(ShiftRight<24>(t), d, syms);
-  for (size_t i = 0; i < Lanes(d); ++i) out[i] = static_cast<uint8_t>(syms[i]);
+  const hn::Rebind<uint8_t, D> d8;
+  hn::StoreU(hn::TruncateTo(d8, hn::ShiftRight<24>(t)), d8, out);
 
-  return Add(Mul(freq, ShiftRight<hi::kAnsWordMBits>(x)), bias);
+  return hn::MulAdd(freq, hn::ShiftRight<hi::kAnsWordMBits>(x), bias);
 }
 
 // Renormalizes the lanes of `x` whose state < 2^16, consuming 16-bit words from
 // `p` (advanced by the number consumed). `forward` selects the read direction.
 template <bool kForward, class D>
-HWY_INLINE VFromD<D> RenormLane(D d, VFromD<D> x, const uint8_t*& p) {
-  const Rebind<uint16_t, D> d16;
-  const Repartition<uint8_t, decltype(d16)> d16_bytes;
+HWY_INLINE hn::VFromD<D> RenormLane(D d, hn::VFromD<D> x, const uint8_t*& p) {
+  const hn::Rebind<uint16_t, D> d16;
+  const hn::Repartition<uint8_t, decltype(d16)> d16_bytes;
 
-  const MFromD<D> mask = Lt(x, Set(d, hi::kAnsWordL));
-  const size_t cnt = CountTrue(d, mask);
+  const hn::MFromD<D> mask = hn::Lt(x, hn::Set(d, hi::kAnsWordL));
+  const size_t cnt = hn::CountTrue(d, mask);
 
-  VFromD<decltype(d16)> words;
+  hn::VFromD<decltype(d16)> words;
   HWY_IF_CONSTEXPR(kForward) {
-    words = BitCast(d16, LoadU(d16_bytes, p));
+    words = hn::BitCast(d16, hn::LoadU(d16_bytes, p));
     p += 2 * cnt;
   }
   else {
-    words = Reverse(d16, BitCast(d16, LoadU(d16_bytes, p - 2 * Lanes(d))));
+    words = hn::Reverse(
+        d16, hn::BitCast(d16, hn::LoadU(d16_bytes, p - 2 * hn::Lanes(d))));
     p -= 2 * cnt;
   }
-  const VFromD<D> expanded = Expand(PromoteTo(d, words), mask);
-  return IfThenElse(mask, Or(ShiftLeft<hi::kAnsWordLBits>(x), expanded), x);
+  const hn::VFromD<D> expanded = hn::Expand(hn::PromoteTo(d, words), mask);
+  return hn::IfThenElse(
+      mask, hn::Or(hn::ShiftLeft<hi::kAnsWordLBits>(x), expanded), x);
 }
 
 // Decodes `payload` (the rANS data, without the frequency table) using an
@@ -109,12 +129,32 @@ HWY_INLINE bool Ans32DecodePayload(const uint8_t* HWY_RESTRICT payload,
   if (payload_size < 128) return false;
   const uint32_t* HWY_RESTRICT tab = table.data();
 
-  const CappedTag<uint32_t, 16> d;
-  const size_t n = Lanes(d);  // 4, 8 or 16
-  const size_t nv = 16 / n;
+  const hn::CappedTag<uint32_t, 16> d;
+  const size_t n = hn::Lanes(d);  // <= 16; typically 4, 8 or 16
+  const size_t nv = n == 0 ? 0 : 16 / n;
+  // Falls back to the scalar reference decoder for lane counts that don't
+  // divide 16 into at most 4 groups -- only reachable here on a scalable
+  // (RVV/SVE) target with an unusually narrow hardware vector length
+  // (HWY_SCALAR is excluded at compile time above, never reaches this).
+  // Produces identical output, just without vectorization for that rare case.
+  if (n == 0 || nv == 0 || nv > 4 || n * nv != 16) {
+    return hi::Ans32DecodePayloadScalar(payload, payload_size, table, dst,
+                                        orig_size);
+  }
 
-  VFromD<decltype(d)> fwd[4];
-  VFromD<decltype(d)> rev[4];
+  // Named variables, not an array: RVV/SVE vectors are sizeless types and
+  // cannot be array elements. A fixed array of POINTERS to them is fine
+  // (pointers are ordinary, fixed-size objects) and lets the loops below
+  // stay index-based like the original, unrolled-by-hand version -- only
+  // `nv` (<=4) of each are ever read.
+  using V = hn::VFromD<decltype(d)>;
+  V fwd0 = hn::Zero(d), fwd1 = hn::Zero(d), fwd2 = hn::Zero(d),
+    fwd3 = hn::Zero(d);
+  V rev0 = hn::Zero(d), rev1 = hn::Zero(d), rev2 = hn::Zero(d),
+    rev3 = hn::Zero(d);
+  V* const fwd[4] = {&fwd0, &fwd1, &fwd2, &fwd3};
+  V* const rev[4] = {&rev0, &rev1, &rev2, &rev3};
+
   {
     HWY_ALIGN uint32_t s[32];
     const size_t rev_off = payload_size - 64;
@@ -130,8 +170,8 @@ HWY_INLINE bool Ans32DecodePayload(const uint8_t* HWY_RESTRICT payload,
                      (static_cast<uint32_t>(payload[o + 3]) << 24);
     }
     for (size_t g = 0; g < nv; ++g) {
-      fwd[g] = LoadU(d, s + g * n);
-      rev[g] = LoadU(d, s + 16 + g * n);
+      *fwd[g] = hn::LoadU(d, s + g * n);
+      *rev[g] = hn::LoadU(d, s + 16 + g * n);
     }
   }
 
@@ -140,23 +180,26 @@ HWY_INLINE bool Ans32DecodePayload(const uint8_t* HWY_RESTRICT payload,
   size_t pos = 0;
 
   // Vectorized rounds, kept clear of the point where the two halves meet.
+  // fwd/rev decode fused into one loop (likewise for renorm below): the two
+  // halves are independent within a round, so interleaving them changes
+  // neither the result nor which bytes of `pf`/`pr` each touches.
   while (pos + 32 <= orig_size && pf + 64 <= pr - 64) {
     for (size_t g = 0; g < nv; ++g) {
-      fwd[g] = DecodeLane(d, fwd[g], tab, dst + pos + g * n);
-    }
-    for (size_t g = 0; g < nv; ++g) {
-      rev[g] = DecodeLane(d, rev[g], tab, dst + pos + 16 + g * n);
+      *fwd[g] = DecodeLane(d, *fwd[g], tab, dst + pos + g * n);
+      *rev[g] = DecodeLane(d, *rev[g], tab, dst + pos + 16 + g * n);
     }
     pos += 32;
-    for (size_t g = 0; g < nv; ++g) fwd[g] = RenormLane<true>(d, fwd[g], pf);
-    for (size_t g = 0; g < nv; ++g) rev[g] = RenormLane<false>(d, rev[g], pr);
+    for (size_t g = 0; g < nv; ++g) {
+      *fwd[g] = RenormLane<true>(d, *fwd[g], pf);
+      *rev[g] = RenormLane<false>(d, *rev[g], pr);
+    }
   }
 
   // Scalar tail: spill state and finish exactly like the reference.
   HWY_ALIGN uint32_t state[32];
   for (size_t g = 0; g < nv; ++g) {
-    StoreU(fwd[g], d, state + g * n);
-    StoreU(rev[g], d, state + 16 + g * n);
+    hn::StoreU(*fwd[g], d, state + g * n);
+    hn::StoreU(*rev[g], d, state + 16 + g * n);
   }
   size_t cursor_fwd = static_cast<size_t>(pf - payload);
   size_t cursor_rev = static_cast<size_t>(pr - payload);
@@ -208,10 +251,10 @@ HWY_INLINE bool Ans32Decode(const uint8_t* HWY_RESTRICT src, size_t src_size,
   return Ans32DecodePayload(src, payload, table, dst, orig_size);
 }
 
-#endif  // scalar / scalable fallback
+#endif  // HWY_TARGET == HWY_SCALAR
 
-}  // namespace iguana_ans
 }  // namespace HWY_NAMESPACE
+}  // namespace iguana_ans
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
