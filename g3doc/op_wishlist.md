@@ -44,10 +44,6 @@ fmod, ilogb, logb, modf, nextafter, nexttoward, scalbn
 *   ShuffleSpan
 *   Reduce
 
-### Range coder
-
-Port https://github.com/richgel999/sserangecoding to Highway (~50 instructions).
-
 ### Iguana (fast LZ + ANS)
 
 Port https://github.com/SnellerInc/sneller/tree/master/ion/zion/iguana
