@@ -34,8 +34,9 @@ namespace {
 
 namespace hh = hwy::HWY_NAMESPACE::highwayhash;
 
-// HighwayHash needs a fixed-size 128-bit vector (not HWY_SCALAR / RVV / SVE).
-#if HWY_TARGET == HWY_SCALAR || HWY_HAVE_SCALABLE || HWY_TARGET_IS_SVE
+// HighwayHash mixes in 128-bit halves, so it needs a 16-byte block; HWY_SCALAR
+// (1 lane) is the only target that cannot provide one.
+#if HWY_TARGET == HWY_SCALAR
 
 void TestGolden() {}
 void TestLongInputs() {}
@@ -313,7 +314,7 @@ void TestLongInputs() {
   }
 }
 
-#endif  // fixed-size 128-bit vector available
+#endif  // HWY_TARGET != HWY_SCALAR
 
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)

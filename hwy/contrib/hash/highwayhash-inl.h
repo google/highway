@@ -19,9 +19,17 @@
 // SVE, RVV, PPC, WASM, LoongArch, ...) and returns the frozen golden values.
 //
 // The 256-bit internal state is four u64 lanes {v0, v1, mul0, mul1}, mixed in
-// 128-bit halves (matching the reference SSE4.1 code), so this needs only
-// Vec128 and works even on 128-bit-only targets. It does not yet use wider
-// vectors when available; a 256-bit specialization is a possible follow-up.
+// 128-bit halves (matching the reference SSE4.1 code), so this needs only a
+// 16-byte block and works even on 128-bit-only targets. It does not yet use
+// wider vectors when available; a 256-bit specialization is a possible
+// follow-up.
+//
+// The state is stored as a plain uint64_t array; each round loads it into
+// vectors, mixes, and stores it back. On fixed-size targets the compiler keeps
+// it in registers (SROA), so the loads/stores fold away - see the objdump in
+// PR #3334. The scalable targets (SVE, RVV) cannot hold a vector in a struct
+// member or array, which is why the array form is used rather than vector
+// members. Only HWY_SCALAR (1 lane) is excluded.
 //
 // Reference: J. Alakuijala, B. Cox, J. Wassenberg, "Fast keyed hash/pseudo-
 // random function using SIMD multiply and permute",
@@ -49,18 +57,16 @@ namespace highwayhash {
 // 32-byte packet; the hash absorbs the message in units of this size.
 static constexpr size_t kPacketSize = 32;
 
-// HighwayHash keeps its 256-bit state as vector struct members and mixes it in
-// 128-bit halves, so it needs a fixed-size (non-sizeless) 128-bit vector. That
-// rules out HWY_SCALAR (1 lane) and the scalable targets (RVV, SVE), whose
-// vector types cannot be struct members. Supporting those is a follow-up.
-#if HWY_TARGET != HWY_SCALAR && !HWY_HAVE_SCALABLE && !HWY_TARGET_IS_SVE
+// HighwayHash mixes its 256-bit state in 128-bit halves, so it needs a
+// fixed-size 16-byte block. HWY_SCALAR is 1 lane and cannot provide that.
+#if HWY_TARGET != HWY_SCALAR
 
 namespace detail {
 
 using D64 = Full128<uint64_t>;
 using D32 = Full128<uint32_t>;
 using D8 = Full128<uint8_t>;
-// VFromD, not Vec128<>: scalable targets (RVV) have no Vec128 class, but a
+// VFromD, not Vec128<>: scalable targets (RVV/SVE) have no Vec128 class, but a
 // Full128 tag still caps operations to a fixed 16-byte block there.
 using V64 = VFromD<D64>;
 using V8 = VFromD<D8>;
@@ -106,14 +112,22 @@ HWY_INLINE V64 MulLoHi(V64 lo_src, V64 hi_src) {
   return MulEven(BitCast(d32, lo_src), BitCast(d32, ShiftRight<32>(hi_src)));
 }
 
-// Aggregate (no user constructor) so the target-specific Vec128 default ctor is
-// never called from an unattributed implicit constructor (breaks the GCC NEON
-// build). Instances are created via ResetState() below.
+// The 256-bit state, as eight 16-byte halves (v0/v1/mul0/mul1, each L and H).
+// A plain array so it is a value type on every target, including SVE/RVV where
+// a vector cannot be a struct member. Each round loads it into vectors and
+// stores it back; on fixed-size targets the compiler keeps it in registers.
 struct State {
-  V64 v0L, v0H, v1L, v1H, mul0L, mul0H, mul1L, mul1H;
+  // 0:v0L 1:v0H 2:v1L 3:v1H 4:mul0L 5:mul0H 6:mul1L 7:mul1H
+  HWY_ALIGN uint64_t half[8][2];
 
   // Core round. packetL/packetH are logical lanes {0,1}/{2,3}.
   HWY_INLINE void Update(V64 packetL, V64 packetH) {
+    const D64 d;
+    V64 v0L = Load(d, half[0]), v0H = Load(d, half[1]), v1L = Load(d, half[2]),
+        v1H = Load(d, half[3]), mul0L = Load(d, half[4]),
+        mul0H = Load(d, half[5]), mul1L = Load(d, half[6]),
+        mul1H = Load(d, half[7]);
+
     v1L = Add(Add(v1L, packetL), mul0L);
     v1H = Add(Add(v1H, packetH), mul0H);
 
@@ -130,6 +144,15 @@ struct State {
     v0H = Add(v0H, ZipperMerge(v1H));
     v1L = Add(v1L, ZipperMerge(v0L));
     v1H = Add(v1H, ZipperMerge(v0H));
+
+    Store(v0L, d, half[0]);
+    Store(v0H, d, half[1]);
+    Store(v1L, d, half[2]);
+    Store(v1H, d, half[3]);
+    Store(mul0L, d, half[4]);
+    Store(mul0H, d, half[5]);
+    Store(mul1L, d, half[6]);
+    Store(mul1H, d, half[7]);
   }
 
   HWY_INLINE void UpdatePacket(const uint8_t* HWY_RESTRICT packet) {
@@ -153,6 +176,9 @@ struct State {
     const D64 d;
     const D32 d32;
 
+    V64 v0L = Load(d, half[0]), v0H = Load(d, half[1]), v1L = Load(d, half[2]),
+        v1H = Load(d, half[3]);
+
     // Length padding: inject size_mod32 into every u64 lane as (s<<32)|s.
     const V64 mod32_pair =
         BitCast(d, Set(d32, static_cast<uint32_t>(size_mod32)));
@@ -163,6 +189,11 @@ struct State {
         d, RotateLeftSame(BitCast(d32, v1L), static_cast<int>(size_mod32)));
     v1H = BitCast(
         d, RotateLeftSame(BitCast(d32, v1H), static_cast<int>(size_mod32)));
+
+    Store(v0L, d, half[0]);
+    Store(v0H, d, half[1]);
+    Store(v1L, d, half[2]);
+    Store(v1H, d, half[3]);
 
     // Build the padded 32-byte packet exactly as the reference does.
     HWY_ALIGN uint8_t packet[kPacketSize];
@@ -187,6 +218,8 @@ struct State {
   HWY_INLINE void PermuteAndUpdate() {
     // The reference permutes v0 by lanes {2,3,0,1} and rotates each u64 by 32;
     // with explicit L/H halves that is: swap L<->H and Rotate64By32 each.
+    const D64 d;
+    const V64 v0L = Load(d, half[0]), v0H = Load(d, half[1]);
     Update(Rotate64By32(v0H), Rotate64By32(v0L));
   }
 
@@ -194,13 +227,17 @@ struct State {
 
   HWY_INLINE uint64_t Finalize64() {
     for (int i = 0; i < 4; ++i) PermuteAndUpdate();
-    return GetLane(Add(Add(v0L, mul0L), Add(v1L, mul1L)));
+    const D64 d;
+    return GetLane(Add(Add(Load(d, half[0]), Load(d, half[4])),
+                       Add(Load(d, half[2]), Load(d, half[6]))));
   }
 
   HWY_INLINE void Finalize128(uint64_t* HWY_RESTRICT out) {
     for (int i = 0; i < 6; ++i) PermuteAndUpdate();
-    const V64 hash = Add(Add(v0L, mul0L), Add(v1H, mul1H));
-    StoreU(hash, D64(), out);
+    const D64 d;
+    const V64 hash = Add(Add(Load(d, half[0]), Load(d, half[4])),
+                         Add(Load(d, half[3]), Load(d, half[7])));
+    StoreU(hash, d, out);
   }
 
   // Modular reduction by the irreducible polynomial x^128 + x^2 + x, over the
@@ -230,10 +267,13 @@ struct State {
 
   HWY_INLINE void Finalize256(uint64_t* HWY_RESTRICT out) {
     for (int i = 0; i < 10; ++i) PermuteAndUpdate();
-    const V64 hashL = ModularReduction(Add(v1L, mul1L), Add(v0L, mul0L));
-    const V64 hashH = ModularReduction(Add(v1H, mul1H), Add(v0H, mul0H));
-    StoreU(hashL, D64(), out + 0);
-    StoreU(hashH, D64(), out + 2);
+    const D64 d;
+    const V64 hashL = ModularReduction(Add(Load(d, half[2]), Load(d, half[6])),
+                                       Add(Load(d, half[0]), Load(d, half[4])));
+    const V64 hashH = ModularReduction(Add(Load(d, half[3]), Load(d, half[7])),
+                                       Add(Load(d, half[1]), Load(d, half[5])));
+    StoreU(hashL, d, out + 0);
+    StoreU(hashH, d, out + 2);
   }
 };
 
@@ -241,14 +281,16 @@ HWY_INLINE State ResetState(const uint64_t* HWY_RESTRICT key) {
   const D64 d;
   const V64 keyL = LoadU(d, key + 0);
   const V64 keyH = LoadU(d, key + 2);
-  return State{Xor(keyL, Init0L(d)),
-               Xor(keyH, Init0H(d)),
-               Xor(Rotate64By32(keyL), Init1L(d)),
-               Xor(Rotate64By32(keyH), Init1H(d)),
-               Init0L(d),
-               Init0H(d),
-               Init1L(d),
-               Init1H(d)};
+  State state;
+  Store(Xor(keyL, Init0L(d)), d, state.half[0]);
+  Store(Xor(keyH, Init0H(d)), d, state.half[1]);
+  Store(Xor(Rotate64By32(keyL), Init1L(d)), d, state.half[2]);
+  Store(Xor(Rotate64By32(keyH), Init1H(d)), d, state.half[3]);
+  Store(Init0L(d), d, state.half[4]);
+  Store(Init0H(d), d, state.half[5]);
+  Store(Init1L(d), d, state.half[6]);
+  Store(Init1H(d), d, state.half[7]);
+  return state;
 }
 
 // Absorb full packets then the remainder.
@@ -292,7 +334,7 @@ HWY_INLINE void HighwayHash256(const uint64_t key[4],
   state.Finalize256(out);
 }
 
-#else  // No fixed-size 128-bit vector (HWY_SCALAR / RVV / SVE): not supported.
+#else  // HWY_SCALAR: no 16-byte block, not supported.
 
 HWY_INLINE uint64_t HighwayHash64(const uint64_t[4], const uint8_t*, size_t) {
   HWY_DASSERT(0);
@@ -309,7 +351,7 @@ HWY_INLINE void HighwayHash256(const uint64_t[4], const uint8_t*, size_t,
   out[0] = out[1] = out[2] = out[3] = 0;
 }
 
-#endif  // fixed-size 128-bit vector available
+#endif  // HWY_TARGET != HWY_SCALAR
 
 }  // namespace highwayhash
 }  // namespace HWY_NAMESPACE
