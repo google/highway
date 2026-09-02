@@ -3404,7 +3404,7 @@ HWY_API HWY_BITCASTSCALAR_CONSTEXPR bool ScalarIsNaN(T val) {
   return (BitCastScalar<TU>(ScalarAbs(val)) > ExponentMask<TF>());
 }
 
-template <typename T>
+template <typename T, HWY_IF_FLOAT_OR_SPECIAL(RemoveCvRef<T>)>
 HWY_API HWY_BITCASTSCALAR_CONSTEXPR T ScalarNaN() {
   using TF = detail::NativeSpecialFloatToWrapper<RemoveCvRef<T>>;
   return BitCastScalar<T>(LimitsMax<MakeSigned<TF>>());
