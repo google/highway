@@ -48,6 +48,11 @@ HWY_CONTRIB_TESTS = (
         [":range_coder"],
     ),
     (
+        "hwy/contrib/crc/",
+        "crc_test",
+        [":crc"],
+    ),
+    (
         "hwy/contrib/dot/",
         "dot_test",
         [":dot"],
