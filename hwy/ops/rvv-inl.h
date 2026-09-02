@@ -7005,8 +7005,11 @@ HWY_RVV_FOREACH_I16(HWY_RVV_WIDEN_MACC, WidenMulAcc, wmacc_vv_, _EXT_VIRT)
 HWY_RVV_FOREACH_U16(HWY_RVV_WIDEN_MACC, WidenMulAcc, wmaccu_vv_, _EXT_VIRT)
 #undef HWY_RVV_WIDEN_MACC
 
-// If LMUL is not the max, we can WidenMul first (3 instructions).
-template <class D32, HWY_IF_POW2_LE_D(D32, 2), class V32 = VFromD<D32>,
+// If LMUL is the smallest, one below what is allowed by the riscv spec,
+// the tail of sum needs to hold the values of sum1. This is required by 
+// RearrangeOddPlusEven, because it does not have access to D.
+// Lanes(d32) != Lanes(DFromV<V32>)
+template <class D32, HWY_IF_POW2_LE_D(D32, -2), class V32 = VFromD<D32>,
           class D16 = RepartitionToNarrow<D32>>
 HWY_API VFromD<D32> ReorderWidenMulAccumulateI16(D32 d32, VFromD<D16> a,
                                                  VFromD<D16> b, const V32 sum0,
@@ -7019,24 +7022,21 @@ HWY_API VFromD<D32> ReorderWidenMulAccumulateI16(D32 d32, VFromD<D16> a,
   return LowerHalf(d32, sum);
 }
 
-// Max LMUL: must LowerHalf first (4 instructions).
-template <class D32, HWY_IF_POW2_GT_D(D32, 2), class V32 = VFromD<D32>,
+// LMUL not smallest 
+template <class D32, HWY_IF_POW2_GT_D(D32, -2), class V32 = VFromD<D32>,
           class D16 = RepartitionToNarrow<D32>>
 HWY_API VFromD<D32> ReorderWidenMulAccumulateI16(D32 d32, VFromD<D16> a,
                                                  VFromD<D16> b, const V32 sum0,
                                                  V32& sum1) {
-  const Half<D16> d16h;
-  using V16H = VFromD<decltype(d16h)>;
-  const V16H a0 = LowerHalf(d16h, a);
-  const V16H a1 = UpperHalf(d16h, a);
-  const V16H b0 = LowerHalf(d16h, b);
-  const V16H b1 = UpperHalf(d16h, b);
-  sum1 = detail::WidenMulAcc(d32, sum1, a1, b1);
-  return detail::WidenMulAcc(d32, sum0, a0, b0);
+  sum1 = MulAdd(PromoteUpperTo(d32, a), PromoteUpperTo(d32, b), sum1);
+  return MulAdd(PromoteLowerTo(d32, a), PromoteLowerTo(d32, b), sum0);
 }
 
-// If LMUL is not the max, we can WidenMul first (3 instructions).
-template <class D32, HWY_IF_POW2_LE_D(D32, 2), class V32 = VFromD<D32>,
+// If LMUL is the smallest, one below what is allowed by the riscv spec,
+// the tail of sum needs to hold the values of sum1. This is required by 
+// RearrangeOddPlusEven, because it does not have access to D.
+// Lanes(d32) != Lanes(DFromV<V32>)
+template <class D32, HWY_IF_POW2_LE_D(D32, -2), class V32 = VFromD<D32>,
           class D16 = RepartitionToNarrow<D32>>
 HWY_API VFromD<D32> ReorderWidenMulAccumulateU16(D32 d32, VFromD<D16> a,
                                                  VFromD<D16> b, const V32 sum0,
@@ -7049,20 +7049,14 @@ HWY_API VFromD<D32> ReorderWidenMulAccumulateU16(D32 d32, VFromD<D16> a,
   return LowerHalf(d32, sum);
 }
 
-// Max LMUL: must LowerHalf first (4 instructions).
-template <class D32, HWY_IF_POW2_GT_D(D32, 2), class V32 = VFromD<D32>,
+// LMUL not smallest 
+template <class D32, HWY_IF_POW2_GT_D(D32, -2), class V32 = VFromD<D32>,
           class D16 = RepartitionToNarrow<D32>>
 HWY_API VFromD<D32> ReorderWidenMulAccumulateU16(D32 d32, VFromD<D16> a,
                                                  VFromD<D16> b, const V32 sum0,
                                                  V32& sum1) {
-  const Half<D16> d16h;
-  using V16H = VFromD<decltype(d16h)>;
-  const V16H a0 = LowerHalf(d16h, a);
-  const V16H a1 = UpperHalf(d16h, a);
-  const V16H b0 = LowerHalf(d16h, b);
-  const V16H b1 = UpperHalf(d16h, b);
-  sum1 = detail::WidenMulAcc(d32, sum1, a1, b1);
-  return detail::WidenMulAcc(d32, sum0, a0, b0);
+  sum1 = MulAdd(PromoteUpperTo(d32, a), PromoteUpperTo(d32, b), sum1);
+  return MulAdd(PromoteLowerTo(d32, a), PromoteLowerTo(d32, b), sum0);
 }
 
 }  // namespace detail
