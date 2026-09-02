@@ -228,6 +228,9 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/base64/base64-inl.h
     hwy/contrib/bit_pack/bit_pack-inl.h
     hwy/contrib/dot/dot-inl.h
+    hwy/contrib/iguana/ans.cc
+    hwy/contrib/iguana/ans.h
+    hwy/contrib/iguana/ans-inl.h
     hwy/contrib/hash/hash-inl.h
     hwy/contrib/hash/phast.cc
     hwy/contrib/hash/phast.h
@@ -1036,6 +1039,7 @@ list(APPEND HWY_TEST_FILES
   hwy/contrib/algo/transform_test.cc
   hwy/contrib/bit_pack/bit_pack_test.cc
   hwy/contrib/dot/dot_test.cc
+  hwy/contrib/iguana/ans_test.cc
   hwy/contrib/hash/cuckoo2x2_test.cc
   hwy/contrib/hash/hash_test.cc
   hwy/contrib/hash/phast_test.cc
