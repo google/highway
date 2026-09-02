@@ -17,8 +17,11 @@
 //
 // The bulk of the message is reduced with carryless-multiply folding (Highway's
 // CLMulLower/CLMulUpper), which every target provides - natively via
-// PCLMULQDQ / PMULL / vpmsumd, or through the portable emulation. A single
-// source therefore runs everywhere and returns the standard check value.
+// PCLMULQDQ / PMULL / vpmsumd, or through the portable emulation. It uses only
+// a fixed 16-byte block held in named locals, so it works on fixed and scalable
+// SIMD alike; only HWY_SCALAR (1 lane, no 16-byte block) falls back to the
+// bit-at-a-time path. A single source runs everywhere and returns the standard
+// check value.
 //
 // Reference: V. Gopal et al., "Fast CRC Computation for Generic Polynomials
 // Using PCLMULQDQ Instruction" (Intel, 2009).
@@ -74,7 +77,7 @@ HWY_INLINE uint64_t Bitwise(uint64_t crc, const uint8_t* data, size_t size) {
   return crc;
 }
 
-#if HWY_TARGET != HWY_SCALAR && !HWY_HAVE_SCALABLE && !HWY_TARGET_IS_SVE
+#if HWY_TARGET != HWY_SCALAR
 
 // Folds >= 16 bytes with CLMUL, then finishes with Bitwise(). `state` is the
 // raw running CRC (prev ^ xorout); it is folded in at the position of data[0].
@@ -96,7 +99,7 @@ HWY_INLINE uint64_t Fold(uint64_t state, const uint8_t* data, size_t size) {
   size_t pos = 16;
   for (; pos + 16 <= size; pos += 16) {
     const V next = BitCast(d64, LoadU(d8, data + pos));
-    acc = Xor(Xor(CLMulLower(acc, k), CLMulUpper(acc, k)), next);
+    acc = Xor3(CLMulLower(acc, k), CLMulUpper(acc, k), next);
   }
 
   // acc (reflected, 128-bit) is now congruent to the processed prefix mod P.
@@ -107,7 +110,7 @@ HWY_INLINE uint64_t Fold(uint64_t state, const uint8_t* data, size_t size) {
   return Bitwise(crc, data + pos, size - pos);
 }
 
-#endif  // fold available
+#endif  // HWY_TARGET != HWY_SCALAR
 
 }  // namespace detail
 
@@ -117,7 +120,7 @@ HWY_INLINE uint64_t Crc64Xz(const uint8_t* data, size_t size,
                             uint64_t prev = 0) {
   uint64_t state = ~prev;  // undo xor-out (init == xor-out == ~0)
 
-#if HWY_TARGET != HWY_SCALAR && !HWY_HAVE_SCALABLE && !HWY_TARGET_IS_SVE
+#if HWY_TARGET != HWY_SCALAR
   if (size >= 16) {
     state = detail::Fold(state, data, size);
   } else {
