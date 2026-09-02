@@ -100,8 +100,13 @@ HWY_INLINE void Normalize(D d, VFromD<D>& value, VFromD<D>& length,
                           const uint8_t*& src, const RangeShuffleTables& sh) {
   const Repartition<uint8_t, D> d8;
 
-  const uint64_t b0 = BitsFromMask(d, Lt(length, Set(d, kRangeMinLen)));
-  const uint64_t b1 = BitsFromMask(d, Lt(length, Set(d, uint32_t{256})));
+  // StoreMaskBits (not BitsFromMask, which RVV lacks) writes the 4-lane mask
+  // into the low nibble of one byte.
+  uint8_t mb[8];
+  StoreMaskBits(d, Lt(length, Set(d, kRangeMinLen)), mb);
+  const unsigned b0 = mb[0];
+  StoreMaskBits(d, Lt(length, Set(d, uint32_t{256})), mb);
+  const unsigned b1 = mb[0];
   const size_t msk = static_cast<size_t>(b0 | (b1 << 4));
 
   HWY_ALIGN uint8_t sb[16];
