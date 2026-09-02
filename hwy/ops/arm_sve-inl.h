@@ -2062,7 +2062,7 @@ HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGPVV, Max, max)
 HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGPVV, Max, maxnm)
 
 // Workaround for incorrect results with `svmin`.
-#if HWY_COMPILER_CLANG
+#if HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 2000
 template <class V, HWY_IF_SIGNED_V(V)>
 HWY_API V Min(V a, V b) {
   return IfThenElse(Lt(a, b), a, b);
