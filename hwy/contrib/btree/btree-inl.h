@@ -59,11 +59,12 @@ namespace HWY_NAMESPACE {
 template <typename KeyT>
 struct SetTraits {
   using key_type = KeyT;
+  using storage_key_type = typename KeyCodec<KeyT>::StorageKey;
   using value_type = KeyT;
   using mapped_type = void;
   static constexpr bool kIsMap = false;
 
-  using Leaf = LeafNode<KeyT>;
+  using Leaf = LeafNode<storage_key_type>;
 
   template <typename OffsetT>
   static constexpr size_t MaxKeys() {
@@ -75,11 +76,12 @@ struct SetTraits {
 template <typename KeyT, typename ValueT>
 struct MapTraits {
   using key_type = KeyT;
+  using storage_key_type = typename KeyCodec<KeyT>::StorageKey;
   using value_type = std::pair<KeyT, ValueT>;
   using mapped_type = ValueT;
   static constexpr bool kIsMap = true;
 
-  using Leaf = MapLeafNode<KeyT, ValueT>;
+  using Leaf = MapLeafNode<storage_key_type, ValueT>;
 
   template <typename OffsetT>
   static constexpr size_t MaxKeys() {
@@ -304,9 +306,10 @@ HWY_INLINE bool LeafContains(const LeafNode* HWY_RESTRICT leaf, KeyT target,
 // to descend.
 template <typename KeyT>
 HWY_INLINE size_t FindChild(const InternalNode<KeyT>* HWY_RESTRICT internal,
-                            KeyT target) {
+                            typename InternalNode<KeyT>::StorageKeyT target) {
+  using StorageKeyT = typename InternalNode<KeyT>::StorageKeyT;
   constexpr size_t kCapacity = InternalNode<KeyT>::kCapacity;
-  const CappedTag<KeyT, kCapacity> d;
+  const CappedTag<StorageKeyT, kCapacity> d;
   const size_t N = Lanes(d);
   const auto v_target = Set(d, target);
 
@@ -1098,8 +1101,9 @@ template <typename Traits>
 class BTree {
  public:
   using KeyT = typename Traits::key_type;
+  using StorageKeyT = typename Traits::storage_key_type;
   using Leaf = typename Traits::Leaf;
-  using Internal = InternalNode<KeyT>;
+  using Internal = InternalNode<StorageKeyT>;
   using State = BTreeState<KeyT, Leaf>;
 
   State* state() { return state_; }
@@ -1159,9 +1163,11 @@ class BTree {
 
     auto operator*() const {
       if constexpr (Traits::kIsMap) {
-        return MapConstRef{GetLeafKey(leaf_, slot_), leaf_->Values()[slot_]};
+        return MapConstRef{
+            KeyCodec<KeyT>::FromStorage(GetLeafKey(leaf_, slot_)),
+            leaf_->Values()[slot_]};
       } else {
-        return GetLeafKey(leaf_, slot_);
+        return KeyCodec<KeyT>::FromStorage(GetLeafKey(leaf_, slot_));
       }
     }
 
@@ -1169,7 +1175,8 @@ class BTree {
       if constexpr (Traits::kIsMap) {
         return MapConstArrowProxy{operator*()};
       } else {
-        return SetConstRef{GetLeafKey(leaf_, slot_)};
+        return SetConstRef{
+            KeyCodec<KeyT>::FromStorage(GetLeafKey(leaf_, slot_))};
       }
     }
 
@@ -1247,10 +1254,12 @@ class BTree {
 
     auto operator*() const {
       if constexpr (Traits::kIsMap) {
-        return MapMutRef{GetLeafKey(this->leaf_, this->slot_),
-                         const_cast<Leaf*>(this->leaf_)->Values()[this->slot_]};
+        return MapMutRef{
+            KeyCodec<KeyT>::FromStorage(GetLeafKey(this->leaf_, this->slot_)),
+            const_cast<Leaf*>(this->leaf_)->Values()[this->slot_]};
       } else {
-        return GetLeafKey(this->leaf_, this->slot_);
+        return KeyCodec<KeyT>::FromStorage(
+            GetLeafKey(this->leaf_, this->slot_));
       }
     }
 
@@ -1258,7 +1267,8 @@ class BTree {
       if constexpr (Traits::kIsMap) {
         return MapMutArrowProxy{operator*()};
       } else {
-        return SetConstRef{GetLeafKey(this->leaf_, this->slot_)};
+        return SetConstRef{
+            KeyCodec<KeyT>::FromStorage(GetLeafKey(this->leaf_, this->slot_))};
       }
     }
 
@@ -1556,8 +1566,23 @@ class BTree {
   static BTree Build(const KeyT* sorted_keys, size_t num_keys,
                      float fill_ratio = 1.0f) {
     static_assert(!Traits::kIsMap, "Build with keys only is for Sets");
-    return BuildInternal(sorted_keys, static_cast<const mapped_type*>(nullptr),
-                         num_keys, fill_ratio);
+    if constexpr (IsSigned<KeyT>()) {
+      // Allocate temporary contiguous storage buffer to encode signed keys
+      // upfront. Although heap-allocated, this buffer is transient (freed
+      // immediately upon Build return), keeping the builder algorithm in
+      // BuildInternal uniform and simple.
+      std::vector<StorageKeyT> ukeys(num_keys);
+      for (size_t i = 0; i < num_keys; ++i) {
+        ukeys[i] = KeyCodec<KeyT>::ToStorage(sorted_keys[i]);
+      }
+      return BuildInternal(ukeys.data(),
+                           static_cast<const mapped_type*>(nullptr), num_keys,
+                           fill_ratio);
+    } else {
+      return BuildInternal(sorted_keys,
+                           static_cast<const mapped_type*>(nullptr), num_keys,
+                           fill_ratio);
+    }
   }
 
   // Constructs a BTreeMap from pre-sorted arrays of unique keys and
@@ -1579,7 +1604,19 @@ class BTree {
             typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
   static BTree Build(const KeyT* sorted_keys, const V* sorted_values,
                      size_t num_keys, float fill_ratio = 1.0f) {
-    return BuildInternal(sorted_keys, sorted_values, num_keys, fill_ratio);
+    if constexpr (IsSigned<KeyT>()) {
+      // Allocate temporary contiguous storage buffer to encode signed keys
+      // upfront. Although heap-allocated, this buffer is transient (freed
+      // immediately upon Build return), keeping the builder algorithm in
+      // BuildInternal uniform and simple.
+      std::vector<StorageKeyT> ukeys(num_keys);
+      for (size_t i = 0; i < num_keys; ++i) {
+        ukeys[i] = KeyCodec<KeyT>::ToStorage(sorted_keys[i]);
+      }
+      return BuildInternal(ukeys.data(), sorted_values, num_keys, fill_ratio);
+    } else {
+      return BuildInternal(sorted_keys, sorted_values, num_keys, fill_ratio);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -1588,129 +1625,38 @@ class BTree {
 
   // Returns true if key is present in the tree.
   bool contains(KeyT key) const {
-    if (HWY_UNLIKELY(state_->root_ == nullptr)) return false;
-    void* curr = state_->root_;
-    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
-      auto* internal = static_cast<Internal*>(curr);
-      size_t child_idx = FindChild(internal, key);
-      curr = internal->children[child_idx];
-    }
-    return LeafContains(static_cast<Leaf*>(curr), key);
+    return ContainsInternal(KeyCodec<KeyT>::ToStorage(key));
   }
 
   // Returns const_iterator to key if found, or end() otherwise.
   const_iterator find(KeyT key) const {
-    if (HWY_UNLIKELY(state_->root_ == nullptr)) return end();
-    void* curr = state_->root_;
-    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
-      auto* internal = static_cast<Internal*>(curr);
-      size_t child_idx = FindChild(internal, key);
-      curr = internal->children[child_idx];
-    }
-    auto* leaf = static_cast<Leaf*>(curr);
-    size_t slot = 0;
-    if (LeafContains(leaf, key, &slot)) {
-      return const_iterator(leaf, slot, state_->last_leaf_);
-    }
-    return end();
+    return FindInternal(KeyCodec<KeyT>::ToStorage(key));
   }
 
   // Returns iterator to key if found, or end() otherwise.
   iterator find(KeyT key) {
-    if (HWY_UNLIKELY(state_->root_ == nullptr)) return end();
-    void* curr = state_->root_;
-    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
-      auto* internal = static_cast<Internal*>(curr);
-      size_t child_idx = FindChild(internal, key);
-      curr = internal->children[child_idx];
-    }
-    auto* leaf = static_cast<Leaf*>(curr);
-    size_t slot = 0;
-    if (LeafContains(leaf, key, &slot)) {
-      return iterator(leaf, slot, state_->last_leaf_);
-    }
-    return end();
+    return FindInternal(KeyCodec<KeyT>::ToStorage(key));
   }
 
   // Returns const_iterator to the first key >= target, or end() if all keys <
   // target.
   const_iterator lower_bound(KeyT target) const {
-    if (HWY_UNLIKELY(state_->root_ == nullptr)) return end();
-    void* curr = state_->root_;
-    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
-      auto* internal = static_cast<Internal*>(curr);
-      size_t child_idx = FindChild(internal, target);
-      curr = internal->children[child_idx];
-    }
-    auto* leaf = static_cast<Leaf*>(curr);
-    size_t slot = FindLeafSlot(leaf, target);
-    if (HWY_LIKELY(slot < leaf->NumKeys())) {
-      return const_iterator(leaf, slot, state_->last_leaf_);
-    }
-    if (HWY_LIKELY(leaf->Next() != nullptr && leaf->Next()->NumKeys() > 0)) {
-      return const_iterator(leaf->Next(), 0, state_->last_leaf_);
-    }
-    return end();
+    return LowerBoundInternal(KeyCodec<KeyT>::ToStorage(target));
   }
 
   // Returns iterator to the first key >= target, or end() if all keys < target.
   iterator lower_bound(KeyT target) {
-    if (HWY_UNLIKELY(state_->root_ == nullptr)) return end();
-    void* curr = state_->root_;
-    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
-      auto* internal = static_cast<Internal*>(curr);
-      size_t child_idx = FindChild(internal, target);
-      curr = internal->children[child_idx];
-    }
-    auto* leaf = static_cast<Leaf*>(curr);
-    size_t slot = FindLeafSlot(leaf, target);
-    if (HWY_LIKELY(slot < leaf->NumKeys())) {
-      return iterator(leaf, slot, state_->last_leaf_);
-    }
-    if (HWY_LIKELY(leaf->Next() != nullptr && leaf->Next()->NumKeys() > 0)) {
-      return iterator(leaf->Next(), 0, state_->last_leaf_);
-    }
-    return end();
+    return LowerBoundInternal(KeyCodec<KeyT>::ToStorage(target));
   }
 
   // Returns an iterator to the first key that is > target, or end() if none.
   HWY_INLINE const_iterator upper_bound(KeyT target) const {
-    if (HWY_UNLIKELY(state_->root_ == nullptr)) return end();
-    void* curr = state_->root_;
-    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
-      auto* internal = static_cast<Internal*>(curr);
-      size_t child_idx = FindChild(internal, target);
-      curr = internal->children[child_idx];
-    }
-    auto* leaf = static_cast<Leaf*>(curr);
-    size_t slot = FindLeafSlot<BoundMode::kUpperBound>(leaf, target);
-    if (slot < leaf->NumKeys()) {
-      return const_iterator(leaf, slot, state_->last_leaf_);
-    }
-    if (leaf->Next() != nullptr && leaf->Next()->NumKeys() > 0) {
-      return const_iterator(leaf->Next(), 0, state_->last_leaf_);
-    }
-    return end();
+    return UpperBoundInternal(KeyCodec<KeyT>::ToStorage(target));
   }
 
   // Returns an iterator to the first key that is > target, or end() if none.
   HWY_INLINE iterator upper_bound(KeyT target) {
-    if (HWY_UNLIKELY(state_->root_ == nullptr)) return end();
-    void* curr = state_->root_;
-    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
-      auto* internal = static_cast<Internal*>(curr);
-      size_t child_idx = FindChild(internal, target);
-      curr = internal->children[child_idx];
-    }
-    auto* leaf = static_cast<Leaf*>(curr);
-    size_t slot = FindLeafSlot<BoundMode::kUpperBound>(leaf, target);
-    if (slot < leaf->NumKeys()) {
-      return iterator(leaf, slot, state_->last_leaf_);
-    }
-    if (leaf->Next() != nullptr && leaf->Next()->NumKeys() > 0) {
-      return iterator(leaf->Next(), 0, state_->last_leaf_);
-    }
-    return end();
+    return UpperBoundInternal(KeyCodec<KeyT>::ToStorage(target));
   }
 
   // ---------------------------------------------------------------------------
@@ -1730,15 +1676,19 @@ class BTree {
     constexpr size_t kBatchSize = 8;
     size_t i = 0;
     for (; i + kBatchSize <= count; i += kBatchSize) {
+      // Stack scratchpad holding pre-converted storage keys for this 8-way
+      // micro-batch.
+      StorageKeyT q[kBatchSize];
       void* curr[kBatchSize];
       for (size_t b = 0; b < kBatchSize; ++b) {
+        q[b] = KeyCodec<KeyT>::ToStorage(queries[i + b]);
         curr[b] = state_->root_;
       }
 
       for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
         for (size_t b = 0; b < kBatchSize; ++b) {
           auto* internal = static_cast<Internal*>(curr[b]);
-          size_t child_idx = FindChild(internal, queries[i + b]);
+          size_t child_idx = FindChild(internal, q[b]);
           curr[b] = internal->children[child_idx];
           hwy::Prefetch(curr[b]);
         }
@@ -1746,7 +1696,7 @@ class BTree {
 
       for (size_t b = 0; b < kBatchSize; ++b) {
         out_found[i + b] = static_cast<FoundT>(
-            LeafContains(static_cast<Leaf*>(curr[b]), queries[i + b]));
+            LeafContains(static_cast<Leaf*>(curr[b]), q[b]));
       }
     }
 
@@ -1770,15 +1720,19 @@ class BTree {
     constexpr size_t kBatchSize = 8;
     size_t i = 0;
     for (; i + kBatchSize <= count; i += kBatchSize) {
+      // Stack scratchpad holding pre-converted storage keys for this 8-way
+      // micro-batch.
+      StorageKeyT q[kBatchSize];
       void* curr[kBatchSize];
       for (size_t b = 0; b < kBatchSize; ++b) {
+        q[b] = KeyCodec<KeyT>::ToStorage(queries[i + b]);
         curr[b] = state_->root_;
       }
 
       for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
         for (size_t b = 0; b < kBatchSize; ++b) {
           auto* internal = static_cast<Internal*>(curr[b]);
-          size_t child_idx = FindChild(internal, queries[i + b]);
+          size_t child_idx = FindChild(internal, q[b]);
           curr[b] = internal->children[child_idx];
           hwy::Prefetch(curr[b]);
         }
@@ -1787,7 +1741,7 @@ class BTree {
       for (size_t b = 0; b < kBatchSize; ++b) {
         auto* leaf = static_cast<Leaf*>(curr[b]);
         size_t slot = 0;
-        if (LeafContains(leaf, queries[i + b], &slot)) {
+        if (LeafContains(leaf, q[b], &slot)) {
           out_found[i + b] = true;
           out_values[i + b] = leaf->Values()[slot];
         } else {
@@ -1818,15 +1772,19 @@ class BTree {
     constexpr size_t kBatchSize = 8;
     size_t i = 0;
     for (; i + kBatchSize <= num_queries; i += kBatchSize) {
+      // Stack scratchpad holding pre-converted storage keys for this 8-way
+      // micro-batch.
+      StorageKeyT q[kBatchSize];
       void* curr[kBatchSize];
       for (size_t b = 0; b < kBatchSize; ++b) {
+        q[b] = KeyCodec<KeyT>::ToStorage(targets[i + b]);
         curr[b] = state_->root_;
       }
 
       for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
         for (size_t b = 0; b < kBatchSize; ++b) {
           auto* internal = static_cast<Internal*>(curr[b]);
-          size_t child_idx = FindChild(internal, targets[i + b]);
+          size_t child_idx = FindChild(internal, q[b]);
           curr[b] = internal->children[child_idx];
           hwy::Prefetch(curr[b]);
         }
@@ -1835,7 +1793,7 @@ class BTree {
       for (size_t b = 0; b < kBatchSize; ++b) {
         auto* leaf = static_cast<Leaf*>(curr[b]);
         size_t slot = 0;
-        if (LeafContains(leaf, targets[i + b], &slot)) {
+        if (LeafContains(leaf, q[b], &slot)) {
           results[i + b] = const_iterator(leaf, slot, state_->last_leaf_);
         } else {
           results[i + b] = end();
@@ -1859,15 +1817,19 @@ class BTree {
     constexpr size_t kBatchSize = 8;
     size_t i = 0;
     for (; i + kBatchSize <= num_queries; i += kBatchSize) {
+      // Stack scratchpad holding pre-converted storage keys for this 8-way
+      // micro-batch.
+      StorageKeyT q[kBatchSize];
       void* curr[kBatchSize];
       for (size_t b = 0; b < kBatchSize; ++b) {
+        q[b] = KeyCodec<KeyT>::ToStorage(targets[i + b]);
         curr[b] = state_->root_;
       }
 
       for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
         for (size_t b = 0; b < kBatchSize; ++b) {
           auto* internal = static_cast<Internal*>(curr[b]);
-          size_t child_idx = FindChild(internal, targets[i + b]);
+          size_t child_idx = FindChild(internal, q[b]);
           curr[b] = internal->children[child_idx];
           hwy::Prefetch(curr[b]);
         }
@@ -1875,7 +1837,7 @@ class BTree {
 
       for (size_t b = 0; b < kBatchSize; ++b) {
         auto* leaf = static_cast<Leaf*>(curr[b]);
-        size_t slot = FindLeafSlot(leaf, targets[i + b]);
+        size_t slot = FindLeafSlot(leaf, q[b]);
         if (HWY_LIKELY(slot < leaf->NumKeys())) {
           results[i + b] = const_iterator(leaf, slot, state_->last_leaf_);
         } else if (HWY_LIKELY(leaf->Next() != nullptr &&
@@ -1899,7 +1861,7 @@ class BTree {
   // Inserts a key into the Set. Returns pair of (iterator, bool_inserted).
   template <bool IsMap = Traits::kIsMap, typename = std::enable_if_t<!IsMap>>
   std::pair<iterator, bool> insert(KeyT key) {
-    return InsertSetInternal(key);
+    return InsertSetInternal(KeyCodec<KeyT>::ToStorage(key));
   }
 
   // Inserts a key-value pair into the Map. Returns pair of (iterator,
@@ -1907,7 +1869,8 @@ class BTree {
   template <typename V = mapped_type,
             typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
   std::pair<iterator, bool> insert(const std::pair<KeyT, V>& kv) {
-    return InsertMapInternal(kv.first, kv.second, /*assign_if_exists=*/false);
+    return InsertMapInternal(KeyCodec<KeyT>::ToStorage(kv.first), kv.second,
+                             /*assign_if_exists=*/false);
   }
 
   // Inserts a key and value into the Map. Returns pair of (iterator,
@@ -1915,14 +1878,16 @@ class BTree {
   template <typename V = mapped_type,
             typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
   std::pair<iterator, bool> insert(KeyT key, const V& value) {
-    return InsertMapInternal(key, value, /*assign_if_exists=*/false);
+    return InsertMapInternal(KeyCodec<KeyT>::ToStorage(key), value,
+                             /*assign_if_exists=*/false);
   }
 
   // Inserts a key-value pair or updates existing key's value.
   template <typename V = mapped_type,
             typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
   std::pair<iterator, bool> insert_or_assign(KeyT key, const V& value) {
-    return InsertMapInternal(key, value, /*assign_if_exists=*/true);
+    return InsertMapInternal(KeyCodec<KeyT>::ToStorage(key), value,
+                             /*assign_if_exists=*/true);
   }
 
   // Emplaces a key-value pair into the Map.
@@ -1973,25 +1938,203 @@ class BTree {
   template <typename V = mapped_type,
             typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
   const V* FindValue(KeyT key) const {
-    if (HWY_UNLIKELY(state_->root_ == nullptr)) return nullptr;
-    void* curr = state_->root_;
-    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
-      auto* internal = static_cast<Internal*>(curr);
-      size_t child_idx = FindChild(internal, key);
-      curr = internal->children[child_idx];
-    }
-    auto* leaf = static_cast<Leaf*>(curr);
-    size_t slot = 0;
-    if (LeafContains(leaf, key, &slot)) {
-      return leaf->Values() + slot;
-    }
-    return nullptr;
+    return FindValueInternal(KeyCodec<KeyT>::ToStorage(key));
   }
 
   // Fast direct value pointer lookup without iterator construction (mutable).
   template <typename V = mapped_type,
             typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
   V* FindValue(KeyT key) {
+    return FindValueInternal(KeyCodec<KeyT>::ToStorage(key));
+  }
+
+  // Erases a key from the tree. Returns 1 if erased, 0 if not found.
+  size_t erase(KeyT key) {
+    return EraseInternal(KeyCodec<KeyT>::ToStorage(key));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Capacity & Iteration
+  // ---------------------------------------------------------------------------
+
+  void clear() {
+    DestroySubtree(state_->root_, state_->tree_height_);
+    state_->root_ = nullptr;
+    state_->first_leaf_ = nullptr;
+    state_->last_leaf_ = nullptr;
+    state_->tree_height_ = 0;
+    state_->num_elements_ = 0;
+    state_->num_leaves_ = 0;
+    state_->num_internals_ = 0;
+  }
+
+  size_t size() const { return state_->num_elements_; }
+  bool empty() const { return state_->num_elements_ == 0; }
+  size_t height() const { return state_->tree_height_; }
+  size_t AllocatedBytes() const {
+    return state_->num_leaves_ * sizeof(Leaf) +
+           state_->num_internals_ * sizeof(Internal);
+  }
+
+  iterator begin() {
+    return iterator(state_->first_leaf_, 0, state_->last_leaf_);
+  }
+  iterator end() { return iterator(nullptr, 0, state_->last_leaf_); }
+  const_iterator begin() const {
+    return const_iterator(state_->first_leaf_, 0, state_->last_leaf_);
+  }
+  const_iterator end() const {
+    return const_iterator(nullptr, 0, state_->last_leaf_);
+  }
+  const_iterator cbegin() const { return begin(); }
+  const_iterator cend() const { return end(); }
+
+  reverse_iterator rbegin() { return reverse_iterator(end()); }
+  reverse_iterator rend() { return reverse_iterator(begin()); }
+  const_reverse_iterator rbegin() const {
+    return const_reverse_iterator(end());
+  }
+  const_reverse_iterator rend() const {
+    return const_reverse_iterator(begin());
+  }
+  const_reverse_iterator crbegin() const {
+    return const_reverse_iterator(cend());
+  }
+  const_reverse_iterator crend() const {
+    return const_reverse_iterator(cbegin());
+  }
+
+  // ---------------------------------------------------------------------------
+  // Observers
+  // ---------------------------------------------------------------------------
+
+  key_compare key_comp() const noexcept { return key_compare(); }
+  value_compare value_comp() const noexcept { return value_compare(); }
+  allocator_type get_allocator() const noexcept { return allocator_type(); }
+
+ private:
+  bool ContainsInternal(StorageKeyT key) const {
+    if (HWY_UNLIKELY(state_->root_ == nullptr)) return false;
+    void* curr = state_->root_;
+    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
+      auto* internal = static_cast<Internal*>(curr);
+      size_t child_idx = FindChild(internal, key);
+      curr = internal->children[child_idx];
+    }
+    return LeafContains(static_cast<Leaf*>(curr), key);
+  }
+
+  const_iterator FindInternal(StorageKeyT key) const {
+    if (HWY_UNLIKELY(state_->root_ == nullptr)) return end();
+    void* curr = state_->root_;
+    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
+      auto* internal = static_cast<Internal*>(curr);
+      size_t child_idx = FindChild(internal, key);
+      curr = internal->children[child_idx];
+    }
+    auto* leaf = static_cast<Leaf*>(curr);
+    size_t slot = 0;
+    if (LeafContains(leaf, key, &slot)) {
+      return const_iterator(leaf, slot, state_->last_leaf_);
+    }
+    return end();
+  }
+
+  iterator FindInternal(StorageKeyT key) {
+    if (HWY_UNLIKELY(state_->root_ == nullptr)) return end();
+    void* curr = state_->root_;
+    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
+      auto* internal = static_cast<Internal*>(curr);
+      size_t child_idx = FindChild(internal, key);
+      curr = internal->children[child_idx];
+    }
+    auto* leaf = static_cast<Leaf*>(curr);
+    size_t slot = 0;
+    if (LeafContains(leaf, key, &slot)) {
+      return iterator(leaf, slot, state_->last_leaf_);
+    }
+    return end();
+  }
+
+  const_iterator LowerBoundInternal(StorageKeyT target) const {
+    if (HWY_UNLIKELY(state_->root_ == nullptr)) return end();
+    void* curr = state_->root_;
+    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
+      auto* internal = static_cast<Internal*>(curr);
+      size_t child_idx = FindChild(internal, target);
+      curr = internal->children[child_idx];
+    }
+    auto* leaf = static_cast<Leaf*>(curr);
+    size_t slot = FindLeafSlot(leaf, target);
+    if (HWY_LIKELY(slot < leaf->NumKeys())) {
+      return const_iterator(leaf, slot, state_->last_leaf_);
+    }
+    if (HWY_LIKELY(leaf->Next() != nullptr && leaf->Next()->NumKeys() > 0)) {
+      return const_iterator(leaf->Next(), 0, state_->last_leaf_);
+    }
+    return end();
+  }
+
+  iterator LowerBoundInternal(StorageKeyT target) {
+    if (HWY_UNLIKELY(state_->root_ == nullptr)) return end();
+    void* curr = state_->root_;
+    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
+      auto* internal = static_cast<Internal*>(curr);
+      size_t child_idx = FindChild(internal, target);
+      curr = internal->children[child_idx];
+    }
+    auto* leaf = static_cast<Leaf*>(curr);
+    size_t slot = FindLeafSlot(leaf, target);
+    if (HWY_LIKELY(slot < leaf->NumKeys())) {
+      return iterator(leaf, slot, state_->last_leaf_);
+    }
+    if (HWY_LIKELY(leaf->Next() != nullptr && leaf->Next()->NumKeys() > 0)) {
+      return iterator(leaf->Next(), 0, state_->last_leaf_);
+    }
+    return end();
+  }
+
+  const_iterator UpperBoundInternal(StorageKeyT target) const {
+    if (HWY_UNLIKELY(state_->root_ == nullptr)) return end();
+    void* curr = state_->root_;
+    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
+      auto* internal = static_cast<Internal*>(curr);
+      size_t child_idx = FindChild(internal, target);
+      curr = internal->children[child_idx];
+    }
+    auto* leaf = static_cast<Leaf*>(curr);
+    size_t slot = FindLeafSlot<BoundMode::kUpperBound>(leaf, target);
+    if (slot < leaf->NumKeys()) {
+      return const_iterator(leaf, slot, state_->last_leaf_);
+    }
+    if (leaf->Next() != nullptr && leaf->Next()->NumKeys() > 0) {
+      return const_iterator(leaf->Next(), 0, state_->last_leaf_);
+    }
+    return end();
+  }
+
+  iterator UpperBoundInternal(StorageKeyT target) {
+    if (HWY_UNLIKELY(state_->root_ == nullptr)) return end();
+    void* curr = state_->root_;
+    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
+      auto* internal = static_cast<Internal*>(curr);
+      size_t child_idx = FindChild(internal, target);
+      curr = internal->children[child_idx];
+    }
+    auto* leaf = static_cast<Leaf*>(curr);
+    size_t slot = FindLeafSlot<BoundMode::kUpperBound>(leaf, target);
+    if (slot < leaf->NumKeys()) {
+      return iterator(leaf, slot, state_->last_leaf_);
+    }
+    if (leaf->Next() != nullptr && leaf->Next()->NumKeys() > 0) {
+      return iterator(leaf->Next(), 0, state_->last_leaf_);
+    }
+    return end();
+  }
+
+  template <typename V = mapped_type,
+            typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
+  const V* FindValueInternal(StorageKeyT key) const {
     if (HWY_UNLIKELY(state_->root_ == nullptr)) return nullptr;
     void* curr = state_->root_;
     for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
@@ -2007,8 +2150,25 @@ class BTree {
     return nullptr;
   }
 
-  // Erases a key from the tree. Returns 1 if erased, 0 if not found.
-  size_t erase(KeyT key) {
+  template <typename V = mapped_type,
+            typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
+  V* FindValueInternal(StorageKeyT key) {
+    if (HWY_UNLIKELY(state_->root_ == nullptr)) return nullptr;
+    void* curr = state_->root_;
+    for (uint16_t lvl = state_->tree_height_; lvl > 0; --lvl) {
+      auto* internal = static_cast<Internal*>(curr);
+      size_t child_idx = FindChild(internal, key);
+      curr = internal->children[child_idx];
+    }
+    auto* leaf = static_cast<Leaf*>(curr);
+    size_t slot = 0;
+    if (LeafContains(leaf, key, &slot)) {
+      return leaf->Values() + slot;
+    }
+    return nullptr;
+  }
+
+  size_t EraseInternal(StorageKeyT key) {
     if (HWY_UNLIKELY(state_->root_ == nullptr || state_->num_elements_ == 0)) {
       return 0;
     }
@@ -2078,13 +2238,15 @@ class BTree {
           state_->num_leaves_--;
 
           // Remove separator key and child pointer from parent
-          std::memmove(parent->keys + merge_idx, parent->keys + merge_idx + 1,
-                       (parent->num_keys - 1 - merge_idx) * sizeof(KeyT));
+          std::memmove(
+              parent->keys + merge_idx, parent->keys + merge_idx + 1,
+              (parent->num_keys - 1 - merge_idx) * sizeof(StorageKeyT));
           std::memmove(parent->children + merge_idx + 1,
                        parent->children + merge_idx + 2,
                        (parent->num_keys - 1 - merge_idx) * sizeof(void*));
           parent->num_keys--;
-          parent->keys[parent->num_keys] = std::numeric_limits<KeyT>::max();
+          parent->keys[parent->num_keys] =
+              std::numeric_limits<StorageKeyT>::max();
           parent->children[parent->num_keys + 1] = nullptr;
 
           // If root internal node becomes empty, shrink tree height to 0
@@ -2101,68 +2263,7 @@ class BTree {
 
     return 1;
   }
-
-  // ---------------------------------------------------------------------------
-  // Capacity & Iteration
-  // ---------------------------------------------------------------------------
-
-  void clear() {
-    DestroySubtree(state_->root_, state_->tree_height_);
-    state_->root_ = nullptr;
-    state_->first_leaf_ = nullptr;
-    state_->last_leaf_ = nullptr;
-    state_->tree_height_ = 0;
-    state_->num_elements_ = 0;
-    state_->num_leaves_ = 0;
-    state_->num_internals_ = 0;
-  }
-
-  size_t size() const { return state_->num_elements_; }
-  bool empty() const { return state_->num_elements_ == 0; }
-  size_t height() const { return state_->tree_height_; }
-  size_t AllocatedBytes() const {
-    return state_->num_leaves_ * sizeof(Leaf) +
-           state_->num_internals_ * sizeof(Internal);
-  }
-
-  iterator begin() {
-    return iterator(state_->first_leaf_, 0, state_->last_leaf_);
-  }
-  iterator end() { return iterator(nullptr, 0, state_->last_leaf_); }
-  const_iterator begin() const {
-    return const_iterator(state_->first_leaf_, 0, state_->last_leaf_);
-  }
-  const_iterator end() const {
-    return const_iterator(nullptr, 0, state_->last_leaf_);
-  }
-  const_iterator cbegin() const { return begin(); }
-  const_iterator cend() const { return end(); }
-
-  reverse_iterator rbegin() { return reverse_iterator(end()); }
-  reverse_iterator rend() { return reverse_iterator(begin()); }
-  const_reverse_iterator rbegin() const {
-    return const_reverse_iterator(end());
-  }
-  const_reverse_iterator rend() const {
-    return const_reverse_iterator(begin());
-  }
-  const_reverse_iterator crbegin() const {
-    return const_reverse_iterator(cend());
-  }
-  const_reverse_iterator crend() const {
-    return const_reverse_iterator(cbegin());
-  }
-
-  // ---------------------------------------------------------------------------
-  // Observers
-  // ---------------------------------------------------------------------------
-
-  key_compare key_comp() const noexcept { return key_compare(); }
-  value_compare value_comp() const noexcept { return value_compare(); }
-  allocator_type get_allocator() const noexcept { return allocator_type(); }
-
- private:
-  std::pair<iterator, bool> InsertSetInternal(KeyT key) {
+  std::pair<iterator, bool> InsertSetInternal(StorageKeyT key) {
     // Handle empty tree initialization
     if (HWY_UNLIKELY(state_->root_ == nullptr)) {
       state_->first_leaf_ = state_->last_leaf_ = new Leaf();
@@ -2194,14 +2295,14 @@ class BTree {
       if (CanLeafFitInsert(leaf, key)) {
         InsertIntoLeaf(leaf, key);
         state_->num_elements_++;
-        return {find(key), true};
+        return {FindInternal(key), true};
       }
 
       // Tier 3: Root leaf split (allocates new leaf and creates root internal
       // node)
       auto* new_leaf = new Leaf();
       state_->num_leaves_++;
-      KeyT promo_key = 0;
+      StorageKeyT promo_key = 0;
       SplitLeafNode(leaf, new_leaf, key, &promo_key);
 
       new_leaf->SetNext(leaf->Next());
@@ -2222,7 +2323,7 @@ class BTree {
       state_->tree_height_ = 1;
       state_->num_elements_++;
 
-      return {find(key), true};
+      return {FindInternal(key), true};
     }
 
     // General case (height >= 1): Record descent path from root to target
@@ -2257,14 +2358,14 @@ class BTree {
     if (CanLeafFitInsert(leaf, key)) {
       InsertIntoLeaf(leaf, key);
       state_->num_elements_++;
-      return {find(key), true};
+      return {FindInternal(key), true};
     }
 
     // Tier 3: Leaf split (leaf is full; allocates new leaf and divides keys
     // 50/50)
     auto* new_leaf = new Leaf();
     state_->num_leaves_++;
-    KeyT promo_key = 0;
+    StorageKeyT promo_key = 0;
     SplitLeafNode(leaf, new_leaf, key, &promo_key);
 
     new_leaf->SetNext(leaf->Next());
@@ -2292,7 +2393,7 @@ class BTree {
         parent->keys[c_idx] = promo_key;
         parent->children[c_idx + 1] = promo_child;
         parent->num_keys++;
-        return {find(key), true};
+        return {FindInternal(key), true};
       }
 
       // Case B: Parent is full (16 keys, 17 children) -> Internal node split!
@@ -2301,7 +2402,7 @@ class BTree {
 
       // Assemble all 17 keys and 18 children in sorted order on the stack.
       constexpr size_t kTotalK = Internal::kCapacity + 1;
-      KeyT temp_keys[kTotalK];
+      StorageKeyT temp_keys[kTotalK];
       void* temp_children[kTotalK + 1];
       size_t c_idx = child_indices[lvl];
 
@@ -2327,7 +2428,7 @@ class BTree {
       std::copy_n(temp_children, kMid + 1, parent->children);
       parent->num_keys = static_cast<uint8_t>(kMid);
       std::fill_n(parent->keys + kMid, Internal::kCapacity - kMid,
-                  std::numeric_limits<KeyT>::max());
+                  std::numeric_limits<StorageKeyT>::max());
 
       // Right node (new_internal) gets 8 keys and 9 children.
       const size_t right_k = kTotalK - kMid - 1;
@@ -2336,7 +2437,7 @@ class BTree {
                   new_internal->children);
       new_internal->num_keys = static_cast<uint8_t>(right_k);
       std::fill_n(new_internal->keys + right_k, Internal::kCapacity - right_k,
-                  std::numeric_limits<KeyT>::max());
+                  std::numeric_limits<StorageKeyT>::max());
     }
 
     // Root split (grows tree height by 1)
@@ -2349,11 +2450,11 @@ class BTree {
     state_->root_ = new_root;
     state_->tree_height_++;
 
-    return {find(key), true};
+    return {FindInternal(key), true};
   }
 
   template <typename V>
-  std::pair<iterator, bool> InsertMapInternal(KeyT key, const V& value,
+  std::pair<iterator, bool> InsertMapInternal(StorageKeyT key, const V& value,
                                               bool assign_if_exists) {
     // Handle empty tree initialization
     if (HWY_UNLIKELY(state_->root_ == nullptr)) {
@@ -2389,14 +2490,14 @@ class BTree {
       if (CanLeafFitInsert(leaf, key)) {
         InsertIntoLeaf(leaf, key, value);
         state_->num_elements_++;
-        return {find(key), true};
+        return {FindInternal(key), true};
       }
 
       // Tier 3: Root leaf split (allocates new leaf and creates root internal
       // node)
       auto* new_leaf = new Leaf();
       state_->num_leaves_++;
-      KeyT promo_key = 0;
+      StorageKeyT promo_key = 0;
       SplitLeafNode(leaf, new_leaf, key, value, &promo_key);
 
       new_leaf->SetNext(leaf->Next());
@@ -2417,7 +2518,7 @@ class BTree {
       state_->tree_height_ = 1;
       state_->num_elements_++;
 
-      return {find(key), true};
+      return {FindInternal(key), true};
     }
 
     // General case (height >= 1): Record descent path from root to target
@@ -2455,14 +2556,14 @@ class BTree {
     if (CanLeafFitInsert(leaf, key)) {
       InsertIntoLeaf(leaf, key, value);
       state_->num_elements_++;
-      return {find(key), true};
+      return {FindInternal(key), true};
     }
 
     // Tier 3: Leaf split (leaf is full; allocates new leaf and divides
     // keys/values 50/50)
     auto* new_leaf = new Leaf();
     state_->num_leaves_++;
-    KeyT promo_key = 0;
+    StorageKeyT promo_key = 0;
     SplitLeafNode(leaf, new_leaf, key, value, &promo_key);
 
     new_leaf->SetNext(leaf->Next());
@@ -2490,7 +2591,7 @@ class BTree {
         parent->keys[c_idx] = promo_key;
         parent->children[c_idx + 1] = promo_child;
         parent->num_keys++;
-        return {find(key), true};
+        return {FindInternal(key), true};
       }
 
       // Case B: Parent is full (16 keys, 17 children) -> Internal node split!
@@ -2499,7 +2600,7 @@ class BTree {
 
       // Assemble all 17 keys and 18 children in sorted order on the stack.
       constexpr size_t kTotalK = Internal::kCapacity + 1;
-      KeyT temp_keys[kTotalK];
+      StorageKeyT temp_keys[kTotalK];
       void* temp_children[kTotalK + 1];
       size_t c_idx = child_indices[lvl];
 
@@ -2525,7 +2626,7 @@ class BTree {
       std::copy_n(temp_children, kMid + 1, parent->children);
       parent->num_keys = static_cast<uint8_t>(kMid);
       std::fill_n(parent->keys + kMid, Internal::kCapacity - kMid,
-                  std::numeric_limits<KeyT>::max());
+                  std::numeric_limits<StorageKeyT>::max());
 
       // Right node (new_internal) gets 8 keys and 9 children.
       const size_t right_k = kTotalK - kMid - 1;
@@ -2534,7 +2635,7 @@ class BTree {
                   new_internal->children);
       new_internal->num_keys = static_cast<uint8_t>(right_k);
       std::fill_n(new_internal->keys + right_k, Internal::kCapacity - right_k,
-                  std::numeric_limits<KeyT>::max());
+                  std::numeric_limits<StorageKeyT>::max());
     }
 
     // Root split (grows tree height by 1)
@@ -2547,12 +2648,13 @@ class BTree {
     state_->root_ = new_root;
     state_->tree_height_++;
 
-    return {find(key), true};
+    return {FindInternal(key), true};
   }
 
   template <typename V>
-  static BTree BuildInternal(const KeyT* sorted_keys, const V* sorted_values,
-                             size_t num_keys, float fill_ratio) {
+  static BTree BuildInternal(const StorageKeyT* sorted_keys,
+                             const V* sorted_values, size_t num_keys,
+                             float fill_ratio) {
     BTree tree;
     if (num_keys == 0) return tree;
 
@@ -2573,7 +2675,7 @@ class BTree {
     std::vector<void*> current_level_ptrs;
     // Separator keys between adjacent children, used to populate internal node
     // keys.
-    std::vector<KeyT> separators;
+    std::vector<StorageKeyT> separators;
     Leaf* prev_leaf = nullptr;
 
     // Build compressed leaf level
@@ -2620,12 +2722,12 @@ class BTree {
         std::fill_n(offsets + count, Leaf::kMax16 - count, 0xFFFF);
       } else if (const size_t try32 = std::min(remaining, max_keys_32);
                  try32 > 0 &&
-                 (sizeof(KeyT) == 4 ||
+                 (sizeof(StorageKeyT) == 4 ||
                   static_cast<uint64_t>(sorted_keys[key_idx + try32 - 1] -
                                         leaf->base_key) <= 0xFFFFFFFFULL)) {
         leaf->SetBitMode(kMode32Bit);
         count = try32;
-        if constexpr (sizeof(KeyT) == 4) {
+        if constexpr (sizeof(StorageKeyT) == 4) {
           auto* raw_keys = HWY_RCAST_ALIGNED(uint32_t*, leaf->KeyData());
           for (size_t k = 0; k < count; ++k) {
             raw_keys[k] = static_cast<uint32_t>(sorted_keys[key_idx + k]);
@@ -2683,7 +2785,7 @@ class BTree {
     while (current_level_ptrs.size() > 1) {
       current_height++;
       std::vector<void*> next_level_ptrs;
-      std::vector<KeyT> next_separators;
+      std::vector<StorageKeyT> next_separators;
 
       constexpr size_t kBranching = Internal::kMaxChildren;
       size_t num_nodes = current_level_ptrs.size();

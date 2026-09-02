@@ -62,6 +62,10 @@ struct ValueGenerator {
   ValueT operator()(uint64_t i) const {
     if constexpr (hwy::IsSameEither<ValueT, float, double>()) {
       return static_cast<ValueT>(i) * static_cast<ValueT>(0.5);
+    } else if constexpr (IsSigned<ValueT>()) {
+      // Shift range from [1, max_val] to [-max_val/2, +max_val/2] to test
+      // negative keys.
+      return static_cast<ValueT>(i) - static_cast<ValueT>(max_val / 2);
     } else {
       return static_cast<ValueT>(i);
     }
@@ -74,7 +78,14 @@ struct ValueGenerator<std::pair<K, V> > {
   explicit ValueGenerator(uint64_t m) : max_val(m) {}
 
   std::pair<K, V> operator()(uint64_t i) const {
-    K k = static_cast<K>(i);
+    K k;
+    if constexpr (IsSigned<K>()) {
+      // Shift range from [1, max_val] to [-max_val/2, +max_val/2] to test
+      // negative keys.
+      k = static_cast<K>(i) - static_cast<K>(max_val / 2);
+    } else {
+      k = static_cast<K>(i);
+    }
     V v;
     if constexpr (hwy::IsSameEither<V, float, double>()) {
       v = static_cast<V>(i) * static_cast<V>(1.5);
@@ -771,9 +782,11 @@ void DoCopyAndSwapTest() {
     }
   }
 
-  // 3. Multi-level tree scale copy test (5,000 keys)
+  // 3. Multi-level tree scale copy test
   {
-    auto large_vals = GenerateValuesWithSeed<value_type>(5000, 100000, 888);
+    const size_t kLargeScale = AdjustedReps(5000);
+    auto large_vals =
+        GenerateValuesWithSeed<value_type>(kLargeScale, 100000, 888);
     TreeT large_orig;
     for (const auto& v : large_vals) {
       if constexpr (TreeT::kIsMap) {
@@ -792,18 +805,70 @@ void DoCopyAndSwapTest() {
   }
 }
 
+// Tests boundary edge cases (min, min+1, -1, 0, 1, max-1, max) and exercises
+// multi-level tree splits to ensure internal node sentinel padding (0xFFFFFFFF)
+// and signed key traversals/queries behave correctly across all boundaries.
+template <typename TreeT, typename StdRefT>
+void DoExtremeBoundariesTest() {
+  using key_type = typename TreeT::key_type;
+  using value_type = typename TreeT::value_type;
+  static constexpr bool kIsMap = TreeT::kIsMap;
+
+  std::vector<key_type> special_keys = {
+      std::numeric_limits<key_type>::min(),
+      static_cast<key_type>(std::numeric_limits<key_type>::min() + 1),
+      static_cast<key_type>(-1),
+      static_cast<key_type>(0),
+      static_cast<key_type>(1),
+      static_cast<key_type>(std::numeric_limits<key_type>::max() - 1),
+      std::numeric_limits<key_type>::max(),
+  };
+
+  std::vector<value_type> vals;
+  std::set<key_type> seen;
+  for (key_type k : special_keys) {
+    if (seen.insert(k).second) {
+      if constexpr (kIsMap) {
+        vals.push_back({k, static_cast<typename TreeT::mapped_type>(
+                               static_cast<uint64_t>(k) & 0xFF)});
+      } else {
+        vals.push_back(k);
+      }
+    }
+  }
+
+  // Add 600 intermediate keys to ensure tree height >= 1 and internal node
+  // splits.
+  for (int64_t i = -300; i <= 300; ++i) {
+    key_type k = static_cast<key_type>(i * 1000);
+    if (seen.insert(k).second) {
+      if constexpr (kIsMap) {
+        vals.push_back({k, static_cast<typename TreeT::mapped_type>(
+                               static_cast<uint64_t>(k) & 0xFF)});
+      } else {
+        vals.push_back(k);
+      }
+    }
+  }
+
+  DoFullContainerTest<TreeT, StdRefT>(vals, /*seed=*/77777);
+}
+
 template <typename TreeT, typename StdRefT>
 void RunFullTestSuite() {
   DoTypedefsAndObserversTest<TreeT>();
   DoCopyAndSwapTest<TreeT, StdRefT>();
   DoBoundarySizeSweep<TreeT, StdRefT>();
   DoDiverseBitModesTest<TreeT>();
+  DoExtremeBoundariesTest<TreeT, StdRefT>();
 
-  // Multi-level scale (5,000 elements)
+  // Multi-level scale (AdjustedReps ensures ASan/MSan/QEMU builds don't
+  // timeout)
+  const size_t kLargeScale = AdjustedReps(5000);
   auto large_values = GenerateValuesWithSeed<typename TreeT::value_type>(
-      5000, 5000 * 50, /*seed=*/98765);
+      kLargeScale, kLargeScale * 50, /*seed=*/98765);
   DoFullContainerTest<TreeT, StdRefT>(large_values, /*seed=*/98765);
-  DoBulkBuildAndBatchTest<TreeT, StdRefT>(5000, /*seed=*/56789);
+  DoBulkBuildAndBatchTest<TreeT, StdRefT>(kLargeScale, /*seed=*/56789);
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

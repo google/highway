@@ -39,6 +39,9 @@ class BTreeSet {
   using key_compare = std::less<KeyT>;
   using allocator_type = std::allocator<KeyT>;
 
+  using StorageKeyT = typename KeyCodec<KeyT>::StorageKey;
+  using LeafT = LeafNode<StorageKeyT>;
+
   static constexpr bool kIsMap = false;
 
   BTreeSet() = default;
@@ -80,12 +83,14 @@ class BTreeSet {
     using pointer = SetConstRef;
 
     const_iterator() = default;
-    const_iterator(const LeafNode<KeyT>* leaf, size_t slot,
-                   const LeafNode<KeyT>* last_leaf = nullptr)
+    const_iterator(const LeafT* leaf, size_t slot,
+                   const LeafT* last_leaf = nullptr)
         : leaf_(leaf), slot_(slot), last_leaf_(last_leaf) {}
 
-    auto operator*() const { return GetLeafKey(leaf_, slot_); }
-    auto operator->() const { return SetConstRef{GetLeafKey(leaf_, slot_)}; }
+    auto operator*() const {
+      return KeyCodec<KeyT>::FromStorage(GetLeafKey(leaf_, slot_));
+    }
+    auto operator->() const { return SetConstRef{operator*()}; }
 
     const_iterator& operator++() {
       if (HWY_UNLIKELY(leaf_ == nullptr)) return *this;
@@ -137,13 +142,14 @@ class BTreeSet {
       return !(*this == other);
     }
 
-    const LeafNode<KeyT>* node() const { return leaf_; }
+    const LeafT* node() const { return leaf_; }
+    const LeafT* leaf() const { return leaf_; }
     size_t slot() const { return slot_; }
 
    protected:
-    const LeafNode<KeyT>* leaf_ = nullptr;
+    const LeafT* leaf_ = nullptr;
     size_t slot_ = 0;
-    const LeafNode<KeyT>* last_leaf_ = nullptr;
+    const LeafT* last_leaf_ = nullptr;
   };
 
   class iterator : public const_iterator {
@@ -155,14 +161,13 @@ class BTreeSet {
     using pointer = SetConstRef;
 
     iterator() = default;
-    iterator(LeafNode<KeyT>* leaf, size_t slot,
-             LeafNode<KeyT>* last_leaf = nullptr)
+    iterator(LeafT* leaf, size_t slot, LeafT* last_leaf = nullptr)
         : const_iterator(leaf, slot, last_leaf) {}
 
-    auto operator*() const { return GetLeafKey(this->leaf_, this->slot_); }
-    auto operator->() const {
-      return SetConstRef{GetLeafKey(this->leaf_, this->slot_)};
+    auto operator*() const {
+      return KeyCodec<KeyT>::FromStorage(GetLeafKey(this->leaf_, this->slot_));
     }
+    auto operator->() const { return SetConstRef{operator*()}; }
 
     iterator& operator++() {
       if (HWY_UNLIKELY(this->leaf_ == nullptr)) return *this;
@@ -210,9 +215,8 @@ class BTreeSet {
       return const_iterator(this->leaf_, this->slot_, this->last_leaf_);
     }
 
-    LeafNode<KeyT>* node() const {
-      return const_cast<LeafNode<KeyT>*>(this->leaf_);
-    }
+    LeafT* node() const { return const_cast<LeafT*>(this->leaf_); }
+    LeafT* leaf() const { return const_cast<LeafT*>(this->leaf_); }
   };
 
   class const_reverse_iterator {
@@ -386,25 +390,25 @@ class BTreeSet {
 
   iterator lower_bound(KeyT key) {
     auto it = static_cast<const BTreeSet*>(this)->lower_bound(key);
-    return iterator(const_cast<LeafNode<KeyT>*>(it.node()), it.slot(),
+    return iterator(const_cast<LeafT*>(it.node()), it.slot(),
                     state_.last_leaf_);
   }
   iterator upper_bound(KeyT key) {
     auto it = static_cast<const BTreeSet*>(this)->upper_bound(key);
-    return iterator(const_cast<LeafNode<KeyT>*>(it.node()), it.slot(),
+    return iterator(const_cast<LeafT*>(it.node()), it.slot(),
                     state_.last_leaf_);
   }
   iterator find(KeyT key) {
     auto it = static_cast<const BTreeSet*>(this)->find(key);
-    return iterator(const_cast<LeafNode<KeyT>*>(it.node()), it.slot(),
+    return iterator(const_cast<LeafT*>(it.node()), it.slot(),
                     state_.last_leaf_);
   }
 
   std::pair<iterator, bool> insert(KeyT key);
   size_t erase(KeyT key);
 
-  const LeafNode<KeyT>* last_leaf() const { return state_.last_leaf_; }
-  LeafNode<KeyT>* last_leaf() { return state_.last_leaf_; }
+  const LeafT* last_leaf() const { return state_.last_leaf_; }
+  LeafT* last_leaf() { return state_.last_leaf_; }
 
   // Batch Query (Amortizes dynamic dispatch overhead)
   bool contains(KeyT key) const { return Contains(key); }
@@ -415,7 +419,7 @@ class BTreeSet {
                        const_iterator* out) const;
 
  private:
-  BTreeState<KeyT> state_;
+  BTreeState<KeyT, LeafT> state_;
 };
 
 template <>

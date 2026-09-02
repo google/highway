@@ -36,6 +36,44 @@ enum class BoundMode : uint8_t {
 };
 
 // -----------------------------------------------------------------------------
+// Key Codec
+// -----------------------------------------------------------------------------
+
+// Maps signed integer keys (int32_t, int64_t) to/from unsigned integer storage
+// keys (uint32_t, uint64_t) via an order-preserving MSB inversion (XOR).
+// For unsigned keys, this is a zero-cost compile-time identity.
+template <typename KeyT>
+struct KeyCodec {
+  static_assert(std::is_integral_v<KeyT>,
+                "Highway BTree only supports integral keys.");
+  static_assert(sizeof(KeyT) == 4 || sizeof(KeyT) == 8,
+                "Highway BTree only supports 32-bit and 64-bit keys.");
+
+  using StorageKey = MakeUnsigned<KeyT>;
+  // Mask for the Most Significant Bit (sign bit: 0x80000000 for 32-bit,
+  // 0x8000000000000000 for 64-bit). Inverting this bit bijectively maps signed
+  // two's complement integers [kMinSigned, kMaxSigned] to unsigned integers
+  // [0, kMaxUnsigned] while strictly preserving relative order
+  static constexpr StorageKey kSignBit = SignMask<KeyT>();
+
+  static HWY_INLINE StorageKey ToStorage(KeyT key) {
+    if constexpr (IsSigned<KeyT>()) {
+      return static_cast<StorageKey>(key) ^ kSignBit;
+    } else {
+      return key;
+    }
+  }
+
+  static HWY_INLINE KeyT FromStorage(StorageKey key) {
+    if constexpr (IsSigned<KeyT>()) {
+      return static_cast<KeyT>(key ^ kSignBit);
+    } else {
+      return key;
+    }
+  }
+};
+
+// -----------------------------------------------------------------------------
 // Node Definitions
 // -----------------------------------------------------------------------------
 
@@ -48,12 +86,14 @@ enum class BoundMode : uint8_t {
 // in both next_tagged and prev_tagged pointers.
 template <typename KeyT>
 struct alignas(512) LeafNode {
+  using StorageKeyT = typename KeyCodec<KeyT>::StorageKey;
+
   static constexpr size_t kNodeBytes = 512;
   // Bitmask for tagged pointer low bits (e.g. 512 - 1 = 0x1FF, gives 9 bits
   // for storing num_keys up to 511 without separate metadata overhead).
   static constexpr uintptr_t kNumKeysMask = kNodeBytes - 1;
 
-  static constexpr size_t kDataBytes = (sizeof(KeyT) == 4) ? 492 : 488;
+  static constexpr size_t kDataBytes = (sizeof(StorageKeyT) == 4) ? 492 : 488;
   static constexpr size_t kMax8 = kDataBytes / sizeof(uint8_t);
   static constexpr size_t kMax16 = kDataBytes / sizeof(uint16_t);
   static constexpr size_t kMax32 = kDataBytes / sizeof(uint32_t);
@@ -63,7 +103,7 @@ struct alignas(512) LeafNode {
   uint8_t data[kDataBytes];
 
   // Metadata header placed at offset 492 (32-bit) / 488 (64-bit):
-  KeyT base_key = 0;
+  StorageKeyT base_key = 0;
   uintptr_t next_tagged = 0;  // Low 2 bits: bit_mode (0..3)
   uintptr_t prev_tagged = 0;  // Low bits: num_keys
 
@@ -117,9 +157,13 @@ struct alignas(512) LeafNode {
 };
 
 static_assert(sizeof(LeafNode<uint32_t>) == LeafNode<uint32_t>::kNodeBytes);
+static_assert(sizeof(LeafNode<int32_t>) == LeafNode<int32_t>::kNodeBytes);
 static_assert(sizeof(LeafNode<uint64_t>) == LeafNode<uint64_t>::kNodeBytes);
+static_assert(sizeof(LeafNode<int64_t>) == LeafNode<int64_t>::kNodeBytes);
 static_assert(alignof(LeafNode<uint32_t>) == LeafNode<uint32_t>::kNodeBytes);
+static_assert(alignof(LeafNode<int32_t>) == LeafNode<int32_t>::kNodeBytes);
 static_assert(alignof(LeafNode<uint64_t>) == LeafNode<uint64_t>::kNodeBytes);
+static_assert(alignof(LeafNode<int64_t>) == LeafNode<int64_t>::kNodeBytes);
 
 // Leaf node storing structure-of-arrays compressed keys and values (Map).
 // Aligned to 512 bytes: payload placed at offset 0.
@@ -128,6 +172,7 @@ static_assert(alignof(LeafNode<uint64_t>) == LeafNode<uint64_t>::kNodeBytes);
 // in both next_tagged and prev_tagged pointers.
 template <typename KeyT, typename ValueT>
 struct alignas(512) MapLeafNode {
+  using StorageKeyT = typename KeyCodec<KeyT>::StorageKey;
   using mapped_type = ValueT;
 
   static_assert(std::is_trivially_copyable_v<ValueT>,
@@ -137,7 +182,7 @@ struct alignas(512) MapLeafNode {
   // Bitmask for tagged pointer low bits (e.g. 512 - 1 = 0x1FF, gives 9 bits
   // for storing num_keys up to 511 without separate metadata overhead).
   static constexpr uintptr_t kNumKeysMask = kNodeBytes - 1;
-  static constexpr size_t kDataBytes = (sizeof(KeyT) == 4) ? 492 : 488;
+  static constexpr size_t kDataBytes = (sizeof(StorageKeyT) == 4) ? 492 : 488;
   static constexpr size_t kPayloadBytes = kDataBytes;
 
   template <typename OffsetT>
@@ -164,7 +209,7 @@ struct alignas(512) MapLeafNode {
 
   uint8_t payload[kPayloadBytes];
 
-  KeyT base_key = 0;
+  StorageKeyT base_key = 0;
   uintptr_t next_tagged = 0;  // Low 2 bits: bit_mode (0..3)
   uintptr_t prev_tagged = 0;  // Low 9 bits: num_keys (0..511)
 
@@ -233,12 +278,20 @@ struct alignas(512) MapLeafNode {
 
 static_assert(sizeof(MapLeafNode<uint32_t, uint32_t>) ==
               MapLeafNode<uint32_t, uint32_t>::kNodeBytes);
+static_assert(sizeof(MapLeafNode<int32_t, uint32_t>) ==
+              MapLeafNode<int32_t, uint32_t>::kNodeBytes);
 static_assert(sizeof(MapLeafNode<uint32_t, uint64_t>) ==
               MapLeafNode<uint32_t, uint64_t>::kNodeBytes);
+static_assert(sizeof(MapLeafNode<int32_t, uint64_t>) ==
+              MapLeafNode<int32_t, uint64_t>::kNodeBytes);
 static_assert(sizeof(MapLeafNode<uint64_t, uint64_t>) ==
               MapLeafNode<uint64_t, uint64_t>::kNodeBytes);
+static_assert(sizeof(MapLeafNode<int64_t, uint64_t>) ==
+              MapLeafNode<int64_t, uint64_t>::kNodeBytes);
 static_assert(sizeof(MapLeafNode<uint64_t, uint32_t>) ==
               MapLeafNode<uint64_t, uint32_t>::kNodeBytes);
+static_assert(sizeof(MapLeafNode<int64_t, uint32_t>) ==
+              MapLeafNode<int64_t, uint32_t>::kNodeBytes);
 
 // -----------------------------------------------------------------------------
 // Internal Node
@@ -249,26 +302,31 @@ static_assert(sizeof(MapLeafNode<uint64_t, uint32_t>) ==
 // classes.
 template <typename KeyT>
 struct alignas(64) InternalNode {
+  using StorageKeyT = typename KeyCodec<KeyT>::StorageKey;
   static constexpr size_t kCapacity = 16;
   static constexpr size_t kMaxChildren = 17;
 
-  KeyT keys[kCapacity];
+  StorageKeyT keys[kCapacity];
   void* children[kMaxChildren];
   uint8_t num_keys = 0;
   // Pad struct to 256 bytes (32-bit) / 320 bytes (64-bit).
-  uint8_t padding[sizeof(KeyT) == 8 ? 23 : 55] = {};
+  uint8_t padding[sizeof(StorageKeyT) == 8 ? 23 : 55] = {};
 
   InternalNode() {
     // Unused key slots hold the maximum value so SIMD comparisons ignore them.
-    std::fill_n(keys, kCapacity, std::numeric_limits<KeyT>::max());
+    std::fill_n(keys, kCapacity, std::numeric_limits<StorageKeyT>::max());
     std::fill_n(children, kMaxChildren, nullptr);
   }
 };
 
 static_assert(sizeof(InternalNode<uint32_t>) == 256,
               "InternalNode<uint32_t> must be exactly 256 bytes");
+static_assert(sizeof(InternalNode<int32_t>) == 256,
+              "InternalNode<int32_t> must be exactly 256 bytes");
 static_assert(sizeof(InternalNode<uint64_t>) == 320,
               "InternalNode<uint64_t> must be exactly 320 bytes");
+static_assert(sizeof(InternalNode<int64_t>) == 320,
+              "InternalNode<int64_t> must be exactly 320 bytes");
 
 // Maximum possible B-Tree height on 64-bit architectures.
 // Internal nodes have capacity for 16 keys (17 children) and split 50/50,
@@ -283,10 +341,11 @@ static constexpr size_t kMaxTreeHeight = 32;
 
 // -----------------------------------------------------------------------------
 // BTreeState: Shared layout for public container and internal SIMD engine.
-template <typename KeyT, typename LeafT = LeafNode<KeyT>>
+template <typename KeyT,
+          typename LeafT = LeafNode<typename KeyCodec<KeyT>::StorageKey>>
 struct BTreeState {
-  static_assert(std::is_unsigned_v<KeyT>,
-                "Highway BTree only supports unsigned integer keys.");
+  static_assert(std::is_integral_v<KeyT>,
+                "Highway BTree only supports integral keys.");
   static_assert(sizeof(KeyT) == 4 || sizeof(KeyT) == 8,
                 "Highway BTree only supports 32-bit and 64-bit keys.");
 

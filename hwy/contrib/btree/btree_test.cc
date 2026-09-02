@@ -48,12 +48,21 @@ void TestAll() {
   fprintf(stderr, "Running BTreeSet uint32_t tests...\n");
   RunFullTestSuite<BTreeSet<uint32_t>, std::set<uint32_t> >();
 
+  fprintf(stderr, "Running BTreeSet int32_t tests...\n");
+  RunFullTestSuite<BTreeSet<int32_t>, std::set<int32_t> >();
+
   fprintf(stderr, "Running BTreeSet uint64_t tests...\n");
   RunFullTestSuite<BTreeSet<uint64_t>, std::set<uint64_t> >();
+
+  fprintf(stderr, "Running BTreeSet int64_t tests...\n");
+  RunFullTestSuite<BTreeSet<int64_t>, std::set<int64_t> >();
 
   fprintf(stderr, "Running BTreeMap uint32_t -> uint64_t tests...\n");
   RunFullTestSuite<BTreeMap<uint32_t, uint64_t>,
                    std::map<uint32_t, uint64_t> >();
+
+  fprintf(stderr, "Running BTreeMap int32_t -> uint64_t tests...\n");
+  RunFullTestSuite<BTreeMap<int32_t, uint64_t>, std::map<int32_t, uint64_t> >();
 
   fprintf(stderr, "Running BTreeMap uint64_t -> uint64_t tests...\n");
   RunFullTestSuite<BTreeMap<uint64_t, uint64_t>,
@@ -61,6 +70,9 @@ void TestAll() {
 
   fprintf(stderr, "Running BTreeMap uint64_t -> double tests...\n");
   RunFullTestSuite<BTreeMap<uint64_t, double>, std::map<uint64_t, double> >();
+
+  fprintf(stderr, "Running BTreeMap int64_t -> double tests...\n");
+  RunFullTestSuite<BTreeMap<int64_t, double>, std::map<int64_t, double> >();
 
   fprintf(stderr, "Running BTreeMap uint32_t -> float tests...\n");
   RunFullTestSuite<BTreeMap<uint32_t, float>, std::map<uint32_t, float> >();
