@@ -9505,11 +9505,11 @@ HWY_API TFromD<D> ReduceMaxOrNaN(D d, VFromD<D> v) {
 // There is no vminv for two-lane f16, so check for NaN in all f16.
 template <class D, HWY_IF_F16_D(D)>
 HWY_API TFromD<D> ReduceMinOrNaN(D d, VFromD<D> v) {
-  return AllFalse(d, IsNaN(v)) ? ReduceMin(d, v) : GetLane(NaN(d));
+  return AllFalse(d, IsNaN(v)) ? ReduceMin(d, v) : ScalarNaN<TFromD<D>>();
 }
 template <class D, HWY_IF_F16_D(D)>
 HWY_API TFromD<D> ReduceMaxOrNaN(D d, VFromD<D> v) {
-  return AllFalse(d, IsNaN(v)) ? ReduceMax(d, v) : GetLane(NaN(d));
+  return AllFalse(d, IsNaN(v)) ? ReduceMax(d, v) : ScalarNaN<TFromD<D>>();
 }
 #endif  // HWY_HAVE_FLOAT16
 

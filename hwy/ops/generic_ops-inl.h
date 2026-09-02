@@ -1334,11 +1334,11 @@ HWY_API TFromD<D> MaskedReduceMax(D d, M m, VFromD<D> v) {
 
 template <class D, HWY_IF_FLOAT_D(D)>
 HWY_API TFromD<D> ReduceMinOrNaN(D d, VFromD<D> v) {
-  return AllFalse(d, IsNaN(v)) ? ReduceMin(d, v) : GetLane(NaN(d));
+  return AllFalse(d, IsNaN(v)) ? ReduceMin(d, v) : ScalarNaN<TFromD<D>>();
 }
 template <class D, HWY_IF_FLOAT_D(D)>
 HWY_API TFromD<D> ReduceMaxOrNaN(D d, VFromD<D> v) {
-  return AllFalse(d, IsNaN(v)) ? ReduceMax(d, v) : GetLane(NaN(d));
+  return AllFalse(d, IsNaN(v)) ? ReduceMax(d, v) : ScalarNaN<TFromD<D>>();
 }
 
 #endif  // HWY_NATIVE_REDUCE_MINMAX_OR_NAN
