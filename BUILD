@@ -428,6 +428,18 @@ cc_library(
 )
 
 cc_library(
+    name = "crc",
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/crc/crc-inl.h",
+    ],
+    deps = [
+        ":hwy",
+    ],
+)
+
+cc_library(
     name = "math",
     compatible_with = [],
     copts = COPTS,
