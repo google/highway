@@ -18,9 +18,9 @@
 // clang-format off
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE \
-  "hwy/contrib/btree/btreeset_u32.cc"  // NOLINT
+  "hwy/contrib/btree/btreeset_u64.cc"  // NOLINT
 // clang-format on
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 
-#define BTREE_KEY_T uint32_t
+#define BTREE_KEY_T uint64_t
 #include "hwy/contrib/btree/btreeset_impl-inl.h"

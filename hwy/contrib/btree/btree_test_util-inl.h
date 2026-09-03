@@ -388,7 +388,8 @@ void DoFullContainerTest(const std::vector<typename TreeT::value_type>& values,
   }
   AesCtrEngine engine2(/*deterministic=*/true);
   RngStream q_rng(engine2, seed + 42);
-  for (size_t i = 0; i < 500; ++i) {
+  const size_t kNumRandomQueries = AdjustedReps(500);
+  for (size_t i = 0; i < kNumRandomQueries; ++i) {
     key_type q =
         static_cast<key_type>((q_rng() % (values.size() * 50 + 10)) + 1);
     checker.CheckLookup(q);
@@ -572,9 +573,10 @@ void DoDiverseBitModesTest() {
 
   // Dense 8-bit mode
   {
+    const size_t kDenseCount = AdjustedReps(500);
     std::vector<value_type> dense_vals;
-    dense_vals.reserve(500);
-    for (size_t i = 0; i < 500; ++i) {
+    dense_vals.reserve(kDenseCount);
+    for (size_t i = 0; i < kDenseCount; ++i) {
       if constexpr (TreeT::kIsMap) {
         dense_vals.push_back({static_cast<key_type>(i * 2 + 10),
                               static_cast<typename TreeT::mapped_type>(i)});
@@ -590,9 +592,10 @@ void DoDiverseBitModesTest() {
 
   // Medium 16-bit mode
   {
+    const size_t kMedCount = AdjustedReps(500);
     std::vector<value_type> med_vals;
-    med_vals.reserve(500);
-    for (size_t i = 0; i < 500; ++i) {
+    med_vals.reserve(kMedCount);
+    for (size_t i = 0; i < kMedCount; ++i) {
       if constexpr (TreeT::kIsMap) {
         med_vals.push_back({static_cast<key_type>(i * 100 + 10),
                             static_cast<typename TreeT::mapped_type>(i)});
@@ -608,9 +611,10 @@ void DoDiverseBitModesTest() {
 
   // Sparse 32-bit / raw 64-bit mode
   {
+    const size_t kSparseCount = AdjustedReps(200);
     std::vector<value_type> sparse_vals;
-    sparse_vals.reserve(200);
-    for (size_t i = 0; i < 200; ++i) {
+    sparse_vals.reserve(kSparseCount);
+    for (size_t i = 0; i < kSparseCount; ++i) {
       key_type k = (sizeof(key_type) == 4)
                        ? static_cast<key_type>(i * 10000000U + 500)
                        : static_cast<key_type>(
@@ -691,7 +695,8 @@ void DoCopyAndSwapTest() {
 
   // 2. Copy populated tree (Set and Map)
   {
-    auto vals = GenerateValuesWithSeed<value_type>(200, 4000, 777);
+    const size_t kPopulatedCount = AdjustedReps(200);
+    auto vals = GenerateValuesWithSeed<value_type>(kPopulatedCount, 4000, 777);
     TreeT orig;
     for (const auto& v : vals) {
       if constexpr (TreeT::kIsMap) {

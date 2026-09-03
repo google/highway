@@ -24,11 +24,20 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
 
-void TestAllUint32() {
+void TestAll() {
   fprintf(stderr, "Running Public API BTreeSet uint32_t tests...\n");
-
   RunFullTestSuite<hwy::BTreeSet<uint32_t>, std::set<uint32_t>>();
-  fprintf(stderr, "Public API unified tests passed successfully!\n");
+
+  fprintf(stderr, "Running Public API BTreeSet int32_t tests...\n");
+  RunFullTestSuite<hwy::BTreeSet<int32_t>, std::set<int32_t>>();
+
+  fprintf(stderr, "Running Public API BTreeSet uint64_t tests...\n");
+  RunFullTestSuite<hwy::BTreeSet<uint64_t>, std::set<uint64_t>>();
+
+  fprintf(stderr, "Running Public API BTreeSet int64_t tests...\n");
+  RunFullTestSuite<hwy::BTreeSet<int64_t>, std::set<int64_t>>();
+
+  fprintf(stderr, "All Public API unified tests passed successfully!\n");
 }
 
 }  // namespace
@@ -41,7 +50,7 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 namespace {
 HWY_BEFORE_TEST(BTreeSetPublicTest);
-HWY_EXPORT_AND_TEST_P(BTreeSetPublicTest, TestAllUint32);
+HWY_EXPORT_AND_TEST_P(BTreeSetPublicTest, TestAll);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy

@@ -422,67 +422,59 @@ class BTreeSet {
   BTreeState<KeyT, LeafT> state_;
 };
 
-template <>
-HWY_CONTRIB_DLLEXPORT BTreeSet<uint32_t>::~BTreeSet();
+#define HWY_BTREE_SET_DECLARE(KeyT)                                          \
+  template <>                                                                \
+  HWY_CONTRIB_DLLEXPORT BTreeSet<KeyT>::~BTreeSet();                         \
+  template <>                                                                \
+  HWY_CONTRIB_DLLEXPORT BTreeSet<KeyT>::BTreeSet(const BTreeSet& other);     \
+  template <>                                                                \
+  HWY_CONTRIB_DLLEXPORT BTreeSet<KeyT>& BTreeSet<KeyT>::operator=(           \
+      const BTreeSet& other);                                                \
+  template <>                                                                \
+  HWY_CONTRIB_DLLEXPORT BTreeSet<KeyT>::BTreeSet(BTreeSet&& other) noexcept; \
+  template <>                                                                \
+  HWY_CONTRIB_DLLEXPORT BTreeSet<KeyT>& BTreeSet<KeyT>::operator=(           \
+      BTreeSet&& other) noexcept;                                            \
+  template <>                                                                \
+  HWY_CONTRIB_DLLEXPORT void BTreeSet<KeyT>::clear();                        \
+  template <>                                                                \
+  HWY_CONTRIB_DLLEXPORT BTreeSet<KeyT> BTreeSet<KeyT>::Build(                \
+      const KeyT* sorted_keys, size_t num_keys, float fill_ratio);           \
+  template <>                                                                \
+  HWY_CONTRIB_DLLEXPORT BTreeSet<KeyT>::const_iterator                       \
+  BTreeSet<KeyT>::lower_bound(KeyT key) const;                               \
+  template <>                                                                \
+  HWY_CONTRIB_DLLEXPORT BTreeSet<KeyT>::const_iterator                       \
+  BTreeSet<KeyT>::upper_bound(KeyT key) const;                               \
+  template <>                                                                \
+  HWY_CONTRIB_DLLEXPORT BTreeSet<KeyT>::const_iterator BTreeSet<KeyT>::find( \
+      KeyT key) const;                                                       \
+  template <>                                                                \
+  HWY_CONTRIB_DLLEXPORT std::pair<BTreeSet<KeyT>::iterator, bool>            \
+  BTreeSet<KeyT>::insert(KeyT key);                                          \
+  template <>                                                                \
+  HWY_CONTRIB_DLLEXPORT size_t BTreeSet<KeyT>::erase(KeyT key);              \
+  template <>                                                                \
+  HWY_CONTRIB_DLLEXPORT bool BTreeSet<KeyT>::Contains(KeyT key) const;       \
+  template <>                                                                \
+  HWY_CONTRIB_DLLEXPORT void BTreeSet<KeyT>::ContainsBatch(                  \
+      const KeyT* keys, size_t count, bool* out) const;                      \
+  template <>                                                                \
+  HWY_CONTRIB_DLLEXPORT void BTreeSet<KeyT>::FindBatch(                      \
+      const KeyT* keys, size_t count, const_iterator* out) const;            \
+  template <>                                                                \
+  HWY_CONTRIB_DLLEXPORT void BTreeSet<KeyT>::LowerBoundBatch(                \
+      const KeyT* keys, size_t count, const_iterator* out) const;            \
+  extern template class HWY_CONTRIB_DLLEXPORT BTreeSet<KeyT>;                \
+  static_assert(sizeof(BTreeSet<KeyT>) == sizeof(BTreeState<KeyT>),          \
+                "BTreeSet must have the exact same size as BTreeState")
 
-template <>
-HWY_CONTRIB_DLLEXPORT BTreeSet<uint32_t>::BTreeSet(const BTreeSet& other);
+HWY_BTREE_SET_DECLARE(uint32_t);
+HWY_BTREE_SET_DECLARE(int32_t);
+HWY_BTREE_SET_DECLARE(uint64_t);
+HWY_BTREE_SET_DECLARE(int64_t);
 
-template <>
-HWY_CONTRIB_DLLEXPORT BTreeSet<uint32_t>& BTreeSet<uint32_t>::operator=(
-    const BTreeSet& other);
-
-template <>
-HWY_CONTRIB_DLLEXPORT BTreeSet<uint32_t>::BTreeSet(BTreeSet&& other) noexcept;
-
-template <>
-HWY_CONTRIB_DLLEXPORT BTreeSet<uint32_t>& BTreeSet<uint32_t>::operator=(
-    BTreeSet&& other) noexcept;
-
-template <>
-HWY_CONTRIB_DLLEXPORT void BTreeSet<uint32_t>::clear();
-
-template <>
-HWY_CONTRIB_DLLEXPORT BTreeSet<uint32_t> BTreeSet<uint32_t>::Build(
-    const uint32_t* sorted_keys, size_t num_keys, float fill_ratio);
-
-template <>
-HWY_CONTRIB_DLLEXPORT BTreeSet<uint32_t>::const_iterator
-BTreeSet<uint32_t>::lower_bound(uint32_t key) const;
-
-template <>
-HWY_CONTRIB_DLLEXPORT BTreeSet<uint32_t>::const_iterator
-BTreeSet<uint32_t>::upper_bound(uint32_t key) const;
-
-template <>
-HWY_CONTRIB_DLLEXPORT BTreeSet<uint32_t>::const_iterator
-BTreeSet<uint32_t>::find(uint32_t key) const;
-
-template <>
-HWY_CONTRIB_DLLEXPORT std::pair<BTreeSet<uint32_t>::iterator, bool>
-BTreeSet<uint32_t>::insert(uint32_t key);
-
-template <>
-HWY_CONTRIB_DLLEXPORT size_t BTreeSet<uint32_t>::erase(uint32_t key);
-
-template <>
-HWY_CONTRIB_DLLEXPORT bool BTreeSet<uint32_t>::Contains(uint32_t key) const;
-
-template <>
-HWY_CONTRIB_DLLEXPORT void BTreeSet<uint32_t>::ContainsBatch(
-    const uint32_t* keys, size_t count, bool* out) const;
-
-template <>
-HWY_CONTRIB_DLLEXPORT void BTreeSet<uint32_t>::FindBatch(
-    const uint32_t* keys, size_t count, const_iterator* out) const;
-
-template <>
-HWY_CONTRIB_DLLEXPORT void BTreeSet<uint32_t>::LowerBoundBatch(
-    const uint32_t* keys, size_t count, const_iterator* out) const;
-
-extern template class HWY_CONTRIB_DLLEXPORT BTreeSet<uint32_t>;
-static_assert(sizeof(BTreeSet<uint32_t>) == sizeof(BTreeState<uint32_t>),
-              "BTreeSet must have the exact same size as BTreeState");
+#undef HWY_BTREE_SET_DECLARE
 
 template <typename KeyT>
 void swap(BTreeSet<KeyT>& a, BTreeSet<KeyT>& b) noexcept {
