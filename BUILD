@@ -875,6 +875,22 @@ cc_test(
 )
 
 cc_test(
+    name = "algo_bench",
+    size = "medium",
+    timeout = "long",
+    srcs = ["hwy/contrib/algo/algo_bench.cc"],
+    copts = COPTS + HWY_TEST_COPTS,
+    local_defines = ["HWY_IS_TEST"],
+    tags = [
+        "manual",
+        "notap",
+    ],
+    deps = HWY_TEST_DEPS + [
+        ":algo",
+    ],
+)
+
+cc_test(
     name = "hash_eval",
     size = "medium",
     timeout = "long",

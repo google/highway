@@ -1028,6 +1028,7 @@ list(APPEND HWY_TEST_LIBS hwy_contrib)
 list(APPEND HWY_TEST_FILES
   hwy/auto_tune_test.cc
   hwy/contrib/base64/base64_test.cc
+  hwy/contrib/algo/algo_bench.cc
   hwy/contrib/algo/copy_test.cc
   hwy/contrib/algo/count_value_test.cc
   hwy/contrib/algo/find_test.cc
