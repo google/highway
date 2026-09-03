@@ -253,6 +253,7 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/math/fast_math-inl.h
     hwy/contrib/intdiv/intdiv-inl.h
     hwy/contrib/math/fp_arith-inl.h
+    hwy/contrib/math/float_manip-inl.h
     hwy/contrib/math/math-inl.h
     hwy/contrib/matvec/matvec-inl.h
     hwy/contrib/random/random-inl.h
@@ -1057,6 +1058,7 @@ list(APPEND HWY_TEST_FILES
   hwy/contrib/intdiv/intdiv_test.cc
   hwy/contrib/math/f16_math_test.cc
   hwy/contrib/math/fast_math_test.cc
+  hwy/contrib/math/float_manip_test.cc
   hwy/contrib/math/math_hyper_test.cc
   hwy/contrib/math/math_tan_test.cc
   hwy/contrib/math/math_test.cc
