@@ -482,6 +482,24 @@ cc_library(
 )
 
 cc_library(
+    name = "range_coder",
+    srcs = [
+        "hwy/contrib/coder/range_coder.cc",
+    ],
+    hdrs = [
+        "hwy/contrib/coder/range_coder.h",
+    ],
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/coder/range_coder-inl.h",
+    ],
+    deps = [
+        ":hwy",
+    ],
+)
+
+cc_library(
     name = "phast",
     srcs = [
         "hwy/contrib/hash/phast.cc",

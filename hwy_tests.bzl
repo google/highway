@@ -43,6 +43,11 @@ HWY_CONTRIB_TESTS = (
         [":bit_pack"],
     ),
     (
+        "hwy/contrib/coder/",
+        "range_coder_test",
+        [":range_coder"],
+    ),
+    (
         "hwy/contrib/dot/",
         "dot_test",
         [":dot"],
