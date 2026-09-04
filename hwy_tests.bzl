@@ -79,6 +79,11 @@ HWY_CONTRIB_TESTS = (
     ),
     (
         "hwy/contrib/math/",
+        "float_manip_test",
+        [":math"],
+    ),
+    (
+        "hwy/contrib/math/",
         "fast_math_test",
         [":math"],
     ),

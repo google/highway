@@ -447,6 +447,7 @@ cc_library(
         "hwy/contrib/math/math-inl.h",
         "hwy/contrib/math/f16_math-inl.h",
         "hwy/contrib/math/fast_math-inl.h",
+        "hwy/contrib/math/float_manip-inl.h",
         "hwy/contrib/math/fp_arith-inl.h",
     ],
     deps = [
