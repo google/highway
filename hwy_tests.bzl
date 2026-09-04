@@ -58,6 +58,11 @@ HWY_CONTRIB_TESTS = (
         [":dot"],
     ),
     (
+        "hwy/contrib/iguana/",
+        "ans_test",
+        [":iguana_ans"],
+    ),
+    (
         "hwy/contrib/image/",
         "image_test",
         [":image"],

@@ -134,6 +134,9 @@ hwy_contrib_headers = files(
     'hwy/contrib/coder/range_coder-inl.h',
     'hwy/contrib/crc/crc-inl.h',
     'hwy/contrib/dot/dot-inl.h',
+    'hwy/contrib/iguana/ans.h',
+    'hwy/contrib/iguana/ans_detail.h',
+    'hwy/contrib/iguana/ans-inl.h',
     'hwy/contrib/hash/hash-inl.h',
     'hwy/contrib/hash/highwayhash-inl.h',
     'hwy/contrib/hash/phast.h',
@@ -172,6 +175,7 @@ hwy_contrib_headers = files(
 
 hwy_contrib_sources = files(
     'hwy/contrib/coder/range_coder.cc',
+    'hwy/contrib/iguana/ans.cc',
     'hwy/contrib/image/image.cc',
     'hwy/contrib/hash/cuckoo2x2.cc',
     'hwy/contrib/hash/phast.cc',
@@ -708,6 +712,7 @@ if tests_enabled
             'hwy/contrib/coder/range_coder_test.cc',
             'hwy/contrib/crc/crc_test.cc',
             'hwy/contrib/dot/dot_test.cc',
+            'hwy/contrib/iguana/ans_test.cc',
             'hwy/contrib/hash/hash_test.cc',
             'hwy/contrib/hash/highwayhash_test.cc',
             'hwy/contrib/hash/cuckoo2x2_test.cc',
