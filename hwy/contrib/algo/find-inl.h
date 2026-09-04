@@ -127,9 +127,36 @@ size_t Unique(D d, T* HWY_RESTRICT in, size_t count) {
   size_t i = 0;    // read position
   size_t num = 0;  // write position = number of unique elements written
 
-  // Main loop: process N elements at a time. CompressBlendedStore is used
-  // to avoid overwriting elements beyond the written count, which is
-  // necessary because the output overlaps the input (in-place).
+  // Main loop: process 4 * N elements at a time.
+  for (; i + 4 * N <= count; i += 4 * N) {
+    const Vec<D> v1 = LoadU(d, in + i);
+    const Vec<D> v2 = LoadU(d, in + i + N);
+    const Vec<D> v3 = LoadU(d, in + i + 2 * N);
+    const Vec<D> v4 = LoadU(d, in + i + 3 * N);
+
+    // Shift v up by 1 lane and insert prev_last. If v is [a, b, c, d], then
+    // prev is [prev_last, a, b, c].
+    const Vec<D> prev1 = SlideUpLanesOr(prev_last, d, v1, 1);
+    prev_last = SlideDownLanes(d, v1, N - 1);
+    const Vec<D> prev2 = SlideUpLanesOr(prev_last, d, v2, 1);
+    prev_last = SlideDownLanes(d, v2, N - 1);
+    const Vec<D> prev3 = SlideUpLanesOr(prev_last, d, v3, 1);
+    prev_last = SlideDownLanes(d, v3, N - 1);
+    const Vec<D> prev4 = SlideUpLanesOr(prev_last, d, v4, 1);
+    prev_last = SlideDownLanes(d, v4, N - 1);
+
+    // Lanes where v[lane] != prev[lane] are unique (not a consecutive dup).
+    const Mask<D> unique1 = Ne(v1, prev1);
+    const Mask<D> unique2 = Ne(v2, prev2);
+    const Mask<D> unique3 = Ne(v3, prev3);
+    const Mask<D> unique4 = Ne(v4, prev4);
+
+    num += CompressStore(v1, unique1, d, in + num);
+    num += CompressStore(v2, unique2, d, in + num);
+    num += CompressStore(v3, unique3, d, in + num);
+    num += CompressStore(v4, unique4, d, in + num);
+  }
+  // Remainder 1: process N elements at a time, fewer than 4 * N elements left.
   for (; i + N <= count; i += N) {
     const Vec<D> v = LoadU(d, in + i);
 
@@ -139,12 +166,12 @@ size_t Unique(D d, T* HWY_RESTRICT in, size_t count) {
 
     // Lanes where v[lane] != prev[lane] are unique (not a consecutive dup).
     const Mask<D> unique = Ne(v, prev);
-    num += CompressBlendedStore(v, unique, d, in + num);
+    num += CompressStore(v, unique, d, in + num);
 
     prev_last = SlideDownLanes(d, v, N - 1);
   }
 
-  // Remainder: fewer than N elements left.
+  // Remainder 2: fewer than N elements left.
   const size_t remaining = count - i;
   if (remaining != 0) {
     const Mask<D> mask = FirstN(d, remaining);
@@ -173,13 +200,32 @@ bool AllUnique(D d, const T* HWY_RESTRICT in, size_t count) {
 
   size_t i = 0;
 
-  for (; i + N <= count; i += N) {
-    const Vec<D> v = LoadU(d, in + i);
+  for (; i + 4 * N <= count; i += 4 * N) {
+    const Vec<D> v1 = LoadU(d, in + i);
+    const Vec<D> v2 = LoadU(d, in + i + N);
+    const Vec<D> v3 = LoadU(d, in + i + 2 * N);
+    const Vec<D> v4 = LoadU(d, in + i + 3 * N);
     // Shift v up by 1 lane and insert prev_last. If v is [a, b, c, d], then
     // prev is [prev_last, a, b, c].
-    const Vec<D> prev = SlideUpLanesOr(prev_last, d, v, 1);
+    const Vec<D> prev1 = SlideUpLanesOr(prev_last, d, v1, 1);
+    prev_last = SlideDownLanes(d, v1, N - 1);
+    const Vec<D> prev2 = SlideUpLanesOr(prev_last, d, v2, 1);
+    prev_last = SlideDownLanes(d, v2, N - 1);
+    const Vec<D> prev3 = SlideUpLanesOr(prev_last, d, v3, 1);
+    prev_last = SlideDownLanes(d, v3, N - 1);
+    const Vec<D> prev4 = SlideUpLanesOr(prev_last, d, v4, 1);
+    prev_last = SlideDownLanes(d, v4, N - 1);
     // Any lane where v == prev is a consecutive duplicate.
-    if (!AllFalse(d, Eq(v, prev))) return false;
+    const Mask<D> not_unique1 = Eq(v1, prev1);
+    const Mask<D> not_unique2 = Eq(v2, prev2);
+    const Mask<D> not_unique3 = Eq(v3, prev3);
+    const Mask<D> not_unique4 = Eq(v4, prev4);
+    if (HWY_UNLIKELY(!AllFalse(d, Or(Or(not_unique1, not_unique2), Or(not_unique3, not_unique4))))) return false;
+  }
+  for (; i + N <= count; i += N) {
+    const Vec<D> v = LoadU(d, in + i);
+    const Vec<D> prev = SlideUpLanesOr(prev_last, d, v, 1);
+    if (HWY_UNLIKELY(!AllFalse(d, Eq(v, prev)))) return false;
     prev_last = SlideDownLanes(d, v, N - 1);
   }
 
