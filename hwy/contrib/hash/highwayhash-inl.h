@@ -101,7 +101,14 @@ HWY_INLINE V64 ZipperMerge(V64 v) {
   // pshufb; those are the little-endian index bytes below.
   const V8 idx = Dup128VecFromValues(d8, 3, 12, 2, 5, 14, 1, 15, 0, 11, 4, 10,
                                      13, 9, 6, 8, 7);
-  return BitCast(D64(), TableLookupBytes(BitCast(d8, v), idx));
+#if HWY_IS_BIG_ENDIAN
+  v = ReverseLaneBytes(v);
+#endif
+  V64 r = BitCast(D64(), TableLookupBytes(BitCast(d8, v), idx));
+#if HWY_IS_BIG_ENDIAN
+  r = ReverseLaneBytes(r);
+#endif
+  return r;
 }
 
 // (u32)a[i] * (a2[i] >> 32) for each u64 lane, via the "even 32-bit lanes"
@@ -109,7 +116,11 @@ HWY_INLINE V64 ZipperMerge(V64 v) {
 // moves the high 32 bits into that position.
 HWY_INLINE V64 MulLoHi(V64 lo_src, V64 hi_src) {
   const D32 d32;
+#if HWY_IS_BIG_ENDIAN
+  return MulOdd(BitCast(d32, lo_src), BitCast(d32, ShiftRight<32>(hi_src)));
+#else
   return MulEven(BitCast(d32, lo_src), BitCast(d32, ShiftRight<32>(hi_src)));
+#endif
 }
 
 // The 256-bit state, as eight 16-byte halves (v0/v1/mul0/mul1, each L and H).
@@ -244,10 +255,7 @@ struct State {
   // 256-bit value (hi:lo) = (sum1 : sum0). See Lemire 1503.03465.
   HWY_INLINE V64 ModularReduction(V64 sum1, V64 sum0) {
     const D64 d;
-    const D32 d32;
-    // 0x80000000 in u32 lane 3 == bit 127.
-    const V64 sign_bit128 =
-        BitCast(d, Dup128VecFromValues(d32, 0u, 0u, 0u, 0x80000000u));
+    const V64 sign_bit128 = Dup128VecFromValues(d, 0ull, 0x8000000000000000ull);
 
     const V64 top_bits2 = ShiftRight<62>(sum1);
     const V64 top_bits1 = ShiftRight<63>(sum1);
