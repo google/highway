@@ -7237,8 +7237,11 @@ HWY_INLINE V SlideDownLanesOr(V hi, V lo, size_t amt) {
     31,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15,
      0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15,
   };
-  return BitCast(d, TwoTablesLookupLanes(BitCast(du8, hi), BitCast(du8, lo),
-    Indices128<uint8_t, 16>{LoadU(du8, table + 16 * amt * sizeof(TFromV<V>)).raw}));
+  return BitCast(
+      d, TwoTablesLookupLanes(
+             BitCast(du8, hi), BitCast(du8, lo),
+             Indices128<uint8_t, 16>{
+                 LoadU(du8, table + 16 * amt * sizeof(TFromV<V>)).raw}));
 }
 
 template <class V, HWY_IF_V_SIZE_V(V, 8)>
@@ -7256,8 +7259,11 @@ HWY_INLINE V SlideDownLanesOr(V hi, V lo, size_t amt) {
     15, 1,  2,  3,  4,  5,  6,  7,
     0,  1,  2,  3,  4,  5,  6,  7
   };
-  return BitCast(d, TwoTablesLookupLanes(BitCast(du8, hi), BitCast(du8, lo),
-    Indices128<uint8_t, 8>{LoadU(du8, table + 8 * amt * sizeof(TFromV<V>)).raw}));
+  return BitCast(d,
+                 TwoTablesLookupLanes(
+                     BitCast(du8, hi), BitCast(du8, lo),
+                     Indices128<uint8_t, 8>{
+                         LoadU(du8, table + 8 * amt * sizeof(TFromV<V>)).raw}));
 }
 
 template <class V, HWY_IF_V_SIZE_V(V, 4)>
@@ -7271,8 +7277,11 @@ HWY_INLINE V SlideDownLanesOr(V hi, V lo, size_t amt) {
     7, 1, 2, 3,
     0, 1, 2, 3,
   };
-  return BitCast(d, TwoTablesLookupLanes(BitCast(du8, hi), BitCast(du8, lo),
-    Indices128<uint8_t, 4>{LoadU(du8, table + 4 * amt * sizeof(TFromV<V>)).raw}));
+  return BitCast(d,
+                 TwoTablesLookupLanes(
+                     BitCast(du8, hi), BitCast(du8, lo),
+                     Indices128<uint8_t, 4>{
+                         LoadU(du8, table + 4 * amt * sizeof(TFromV<V>)).raw}));
 }
 
 template <class V, HWY_IF_V_SIZE_V(V, 2)>
@@ -7284,21 +7293,27 @@ HWY_INLINE V SlideDownLanesOr(V hi, V lo, size_t amt) {
     3, 1,
     0, 1
   };
-  return BitCast(d, TwoTablesLookupLanes(BitCast(du8, hi), BitCast(du8, lo),
-    Indices128<uint8_t, 2>{LoadU(du8, table + 2 * amt * sizeof(TFromV<V>)).raw}));
+  return BitCast(d,
+                 TwoTablesLookupLanes(
+                     BitCast(du8, hi), BitCast(du8, lo),
+                     Indices128<uint8_t, 2>{
+                         LoadU(du8, table + 2 * amt * sizeof(TFromV<V>)).raw}));
 }
 }  // namespace detail
 
 template <class D, HWY_IF_LANES_D(D, 1)>
-HWY_API VFromD<D> SlideDownLanesOr(VFromD<D> hi, D d, VFromD<D> lo, size_t amt) {
+HWY_API VFromD<D> SlideDownLanesOr(VFromD<D> hi, D d, VFromD<D> lo,
+                                   size_t amt) {
   return IfThenElse(FirstN(d, amt), hi, lo);
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_GT_D(D, 1)>
-HWY_API VFromD<D> SlideDownLanesOr(VFromD<D> hi, D d, VFromD<D> lo, size_t amt) {
+HWY_API VFromD<D> SlideDownLanesOr(VFromD<D> hi, D d, VFromD<D> lo,
+                                   size_t amt) {
 #if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
   if (__builtin_constant_p(amt)) {
-    return IfThenElse(FirstN(d, Lanes(d) - amt), SlideDownLanes(d, lo, amt), hi);
+    return IfThenElse(FirstN(d, Lanes(d) - amt), SlideDownLanes(d, lo, amt),
+                      hi);
   }
 #else
   (void)d;
@@ -10763,22 +10778,17 @@ HWY_INLINE Vec128<T, N> CompressNot(Vec128<T, N> v, uint64_t lo, uint64_t hi) {
       15, 7,  0,  1,  2,  3,  4,  5,  6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
   };
   alignas(16) static constexpr uint8_t kPopCountNotTable[256] = {
-      8, 7, 7, 6, 7, 6, 6, 5, 7, 6, 6, 5, 6, 5, 5, 4, 
-      7, 6, 6, 5, 6, 5, 5, 4, 6, 5, 5, 4, 5, 4, 4, 3, 
-      7, 6, 6, 5, 6, 5, 5, 4, 6, 5, 5, 4, 5, 4, 4, 3, 
-      6, 5, 5, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 3, 3, 2, 
-      7, 6, 6, 5, 6, 5, 5, 4, 6, 5, 5, 4, 5, 4, 4, 3, 
-      6, 5, 5, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 3, 3, 2, 
-      6, 5, 5, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 3, 3, 2, 
-      5, 4, 4, 3, 4, 3, 3, 2, 4, 3, 3, 2, 3, 2, 2, 1, 
-      7, 6, 6, 5, 6, 5, 5, 4, 6, 5, 5, 4, 5, 4, 4, 3, 
-      6, 5, 5, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 3, 3, 2, 
-      6, 5, 5, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 3, 3, 2, 
-      5, 4, 4, 3, 4, 3, 3, 2, 4, 3, 3, 2, 3, 2, 2, 1, 
-      6, 5, 5, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 3, 3, 2, 
-      5, 4, 4, 3, 4, 3, 3, 2, 4, 3, 3, 2, 3, 2, 2, 1, 
-      5, 4, 4, 3, 4, 3, 3, 2, 4, 3, 3, 2, 3, 2, 2, 1, 
-      4, 3, 3, 2, 3, 2, 2, 1, 3, 2, 2, 1, 2, 1, 1, 0, 
+      8, 7, 7, 6, 7, 6, 6, 5, 7, 6, 6, 5, 6, 5, 5, 4, 7, 6, 6, 5, 6, 5, 5, 4,
+      6, 5, 5, 4, 5, 4, 4, 3, 7, 6, 6, 5, 6, 5, 5, 4, 6, 5, 5, 4, 5, 4, 4, 3,
+      6, 5, 5, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 3, 3, 2, 7, 6, 6, 5, 6, 5, 5, 4,
+      6, 5, 5, 4, 5, 4, 4, 3, 6, 5, 5, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 3, 3, 2,
+      6, 5, 5, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 3, 3, 2, 5, 4, 4, 3, 4, 3, 3, 2,
+      4, 3, 3, 2, 3, 2, 2, 1, 7, 6, 6, 5, 6, 5, 5, 4, 6, 5, 5, 4, 5, 4, 4, 3,
+      6, 5, 5, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 3, 3, 2, 6, 5, 5, 4, 5, 4, 4, 3,
+      5, 4, 4, 3, 4, 3, 3, 2, 5, 4, 4, 3, 4, 3, 3, 2, 4, 3, 3, 2, 3, 2, 2, 1,
+      6, 5, 5, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 3, 3, 2, 5, 4, 4, 3, 4, 3, 3, 2,
+      4, 3, 3, 2, 3, 2, 2, 1, 5, 4, 4, 3, 4, 3, 3, 2, 4, 3, 3, 2, 3, 2, 2, 1,
+      4, 3, 3, 2, 3, 2, 2, 1, 3, 2, 2, 1, 2, 1, 1, 0,
   };
 
   const size_t lo_cnt = kPopCountNotTable[lo];
@@ -10912,7 +10922,8 @@ HWY_INLINE auto BitsAndCountFromMask(D, MFromD<D> m) {
   RebindToUnsigned<D> du;
   using TU = TFromD<decltype(du)>;
   alignas(16) static constexpr TU kWeights[1] = {1 + 2};
-  const TU s = ReduceSum(du, And(VecFromMask(du, RebindMask(du, m)), Load(du, kWeights)));
+  const TU s = ReduceSum(
+      du, And(VecFromMask(du, RebindMask(du, m)), Load(du, kWeights)));
   return BitsAndCount{static_cast<uint64_t>(s & 1), static_cast<size_t>(s >> 1)};
 }
 template <typename D, HWY_IF_LANES_D(D, 2)>
@@ -10920,14 +10931,16 @@ HWY_INLINE auto BitsAndCountFromMask(D, MFromD<D> m) {
   RebindToUnsigned<D> du;
   using TU = TFromD<decltype(du)>;
   alignas(16) static constexpr TU kWeights[2] = {1 + 4, 2 + 4};
-  const TU s = ReduceSum(du, And(VecFromMask(du, RebindMask(du, m)), Load(du, kWeights)));
+  const TU s = ReduceSum(
+      du, And(VecFromMask(du, RebindMask(du, m)), Load(du, kWeights)));
   return BitsAndCount{static_cast<uint64_t>(s & 3), static_cast<size_t>(s >> 2)};
 }
 template <typename D, HWY_IF_LANES_D(D, 4)>
 HWY_INLINE auto BitsAndCountFromMask(D, MFromD<D> m) {
   RebindToUnsigned<D> du;
   using TU = TFromD<decltype(du)>;
-  alignas(16) static constexpr TU kWeights[4] = {1 + 16, 2 + 16, 4 + 16, 8 + 16};
+  alignas(16) static constexpr TU kWeights[4] = {1 + 16, 2 + 16, 4 + 16,
+                                                 8 + 16};
   const TU s = ReduceSum(du, And(VecFromMask(du, RebindMask(du, m)), Load(du, kWeights)));
   return BitsAndCount{static_cast<uint64_t>(s & 15), static_cast<size_t>(s >> 4)};
 }
@@ -10935,8 +10948,11 @@ template <typename D, HWY_IF_NOT_T_SIZE_D(D, 1) /* because 256 > max value in u8
 HWY_INLINE auto BitsAndCountFromMask(D, MFromD<D> m) {
   RebindToUnsigned<D> du;
   using TU = TFromD<decltype(du)>;
-  alignas(16) static constexpr TU kWeights[8] = {1 + 256, 2 + 256, 4 + 256, 8 + 256, 16 + 256, 32 + 256, 64 + 256, 128 + 256};
-  const TU s = ReduceSum(du, And(VecFromMask(du, RebindMask(du, m)), Load(du, kWeights)));
+  alignas(16) static constexpr TU kWeights[8] = {1 + 256,  2 + 256,  4 + 256,
+                                                 8 + 256,  16 + 256, 32 + 256,
+                                                 64 + 256, 128 + 256};
+  const TU s = ReduceSum(
+      du, And(VecFromMask(du, RebindMask(du, m)), Load(du, kWeights)));
   return BitsAndCount{static_cast<uint64_t>(s & 255), static_cast<size_t>(s >> 8)};
 }
 template <typename D, HWY_IF_T_SIZE_D(D, 1), HWY_IF_LANES_D(D, 8)>
@@ -10944,8 +10960,8 @@ HWY_INLINE auto BitsAndCountFromMask(D, MFromD<D> m) {
   RebindToUnsigned<D> du;
   using TU = TFromD<decltype(du)>;
   alignas(16) static constexpr TU kWeights[8] = {1, 2, 4, 8, 16, 32, 64, 128};
-  const TU s =
-      ReduceSum(du, And(VecFromMask(du, RebindMask(du, m)), Load(du, kWeights)));
+  const TU s = ReduceSum(
+      du, And(VecFromMask(du, RebindMask(du, m)), Load(du, kWeights)));
   return BitsAndCount{static_cast<uint64_t>(s),
                       static_cast<size_t>(PopCountTable()[s])};
 }
@@ -10955,7 +10971,8 @@ HWY_INLINE auto BitsAndCountFromMask(D, MFromD<D> m) {
 template <class D, HWY_IF_LANES_LE_D(D, 8)>
 HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> mask, D d,
                              TFromD<D>* HWY_RESTRICT unaligned) {
-  const detail::BitsAndCount bits_and_count = detail::BitsAndCountFromMask(d, mask);
+  const detail::BitsAndCount bits_and_count =
+      detail::BitsAndCountFromMask(d, mask);
   StoreU(detail::Compress(v, bits_and_count.bits), d, unaligned);
   return bits_and_count.count;
 }
@@ -10968,7 +10985,8 @@ HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> mask, D d,
 
   const uint64_t lo = PopCount(bits & 255);
   StoreU(detail::Compress(LowerHalf(v), bits & 255), d_half, unaligned);
-  StoreU(detail::Compress(UpperHalf(d_half, v), bits >> 8), d_half, unaligned + lo);
+  StoreU(detail::Compress(UpperHalf(d_half, v), bits >> 8), d_half,
+         unaligned + lo);
   return static_cast<size_t>(lo + PopCount(bits >> 8));
 }
 
@@ -10978,7 +10996,8 @@ template <class D, EnableIf<!(HWY_MAX_LANES_D(D) == 16 &&
 HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> m, D d,
                                     TFromD<D>* HWY_RESTRICT unaligned) {
   const RebindToUnsigned<decltype(d)> du;  // so we can support fp16/bf16
-  const detail::BitsAndCount bits_and_count = detail::BitsAndCountFromMask(d, m);
+  const detail::BitsAndCount bits_and_count =
+      detail::BitsAndCountFromMask(d, m);
   const uint64_t mask_bits = bits_and_count.bits;
   const size_t count = bits_and_count.count;
   const MFromD<D> store_mask = RebindMask(d, FirstN(du, count));
