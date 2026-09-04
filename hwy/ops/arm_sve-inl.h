@@ -7235,6 +7235,15 @@ HWY_API svint32_t PerBlock2x2MatMul(
     svint32_t c) {
   return svmmla_s32(c, a, b);
 }
+
+template <size_t N, int kPow2>
+HWY_API svint32_t PerBlock2x2MatMul(
+    Simd<int32_t, N, kPow2> /* d */,
+    svuint8_t a,
+    svint8_t b,
+    svint32_t c) {
+  return svusmmla_s32(c, a, b);
+}
 #endif
 
 #if defined(__ARM_FEATURE_SVE_BF16) || HWY_TARGET == HWY_SVE2_128

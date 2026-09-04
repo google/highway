@@ -11738,6 +11738,14 @@ HWY_API VFromD<DI32> PerBlock2x2MatMul(DI32 /* d */,
                                        VFromD<DI32> c) {
   return VFromD<DI32>{vmmlaq_s32(c.raw, a.raw, b.raw)};
 }
+
+template <class DI32, HWY_IF_I32_D(DI32), HWY_IF_V_SIZE_D(DI32, 16)>
+HWY_API VFromD<DI32> PerBlock2x2MatMul(DI32 /* d */,
+                                       VFromD<Repartition<uint8_t, DI32>> a,
+                                       VFromD<Repartition<int8_t, DI32>> b,
+                                       VFromD<DI32> c) {
+  return VFromD<DI32>{vusmmlaq_s32(c.raw, a.raw, b.raw)};
+}
 #endif
 
 #if defined(__ARM_FEATURE_BF16_VECTOR_ARITHMETIC) || HWY_TARGET == HWY_NEON_BF16
