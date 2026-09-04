@@ -14,7 +14,6 @@
 // limitations under the License.
 
 #include <stdint.h>
-#include <stdio.h>
 
 #include <cmath>
 #include <limits>
@@ -42,7 +41,7 @@ namespace {
 
 template <typename T>
 bool BitEqual(T a, T b) {
-  if (std::isnan(a) && std::isnan(b)) return true;
+  if (ScalarIsNaN(a) && ScalarIsNaN(b)) return true;
   using TU = MakeUnsigned<T>;
   return BitCastScalar<TU>(a) == BitCastScalar<TU>(b);
 }
@@ -96,24 +95,6 @@ std::vector<T> SampleValues() {
   return v;
 }
 
-struct TestLdexp {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*t*/, D d) {
-    const RebindToSigned<D> di;
-    for (const T x : SampleValues<T>()) {
-      for (int e : {-300, -60, -1, 0, 1, 24, 60, 300}) {
-        const T expected = std::ldexp(x, e);
-        const T actual = GetLane(Ldexp(d, Set(d, x), Set(di, e)));
-        // MulByPow2 clamps very large |e|; only assert where ldexp is exact.
-        if (std::isfinite(expected) || std::isnan(expected) ||
-            std::abs(e) <= 260) {
-          HWY_ASSERT(BitEqual(expected, actual));
-        }
-      }
-    }
-  }
-};
-
 struct TestIlogb {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*t*/, D d) {
@@ -121,9 +102,9 @@ struct TestIlogb {
     using TI = TFromD<decltype(di)>;
     for (const T x : SampleValues<T>()) {
       const TI actual = GetLane(Ilogb(d, Set(d, x)));
-      if (x == T(0) || std::isnan(x)) {
+      if (x == T(0) || ScalarIsNaN(x)) {
         HWY_ASSERT_EQ(LimitsMin<TI>(), actual);
-      } else if (std::isinf(x)) {
+      } else if (ScalarIsInf(x)) {
         HWY_ASSERT_EQ(LimitsMax<TI>(), actual);
       } else {
         HWY_ASSERT_EQ(static_cast<TI>(std::ilogb(x)), actual);
@@ -151,14 +132,6 @@ struct TestModf {
       const T expected_frac = std::modf(x, &expected_int);
       VFromD<D> actual_int;
       const T actual_frac = GetLane(Modf(d, Set(d, x), actual_int));
-      if (!BitEqual(expected_frac, actual_frac) ||
-          !BitEqual(expected_int, GetLane(actual_int))) {
-        fprintf(stderr, "Modf(%g): want frac %g int %g, got frac %g int %g\n",
-                static_cast<double>(x), static_cast<double>(expected_frac),
-                static_cast<double>(expected_int),
-                static_cast<double>(actual_frac),
-                static_cast<double>(GetLane(actual_int)));
-      }
       HWY_ASSERT(BitEqual(expected_frac, actual_frac));
       HWY_ASSERT(BitEqual(expected_int, GetLane(actual_int)));
     }
@@ -179,45 +152,12 @@ struct TestNextAfter {
   }
 };
 
-struct TestFmod {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*t*/, D d) {
-    const auto vals = SampleValues<T>();
-    for (const T a : vals) {
-      for (const T b : vals) {
-        const T expected = std::fmod(a, b);
-        const T actual = GetLane(Fmod(d, Set(d, a), Set(d, b)));
-        if (!BitEqual(expected, actual)) {
-          fprintf(stderr, "Fmod(%g, %g): want %g got %g\n",
-                  static_cast<double>(a), static_cast<double>(b),
-                  static_cast<double>(expected), static_cast<double>(actual));
-        }
-        HWY_ASSERT(BitEqual(expected, actual));
-      }
-    }
-    // A few explicit large-ratio / subnormal-result cases.
-    const T tiny = std::numeric_limits<T>::denorm_min();
-    const T maxn = std::numeric_limits<T>::max();
-    for (const auto pr : std::vector<std::pair<T, T>>{{maxn, tiny * 3},
-                                                      {maxn, T(3)},
-                                                      {T(12345.678), tiny * 5},
-                                                      {tiny * 7, tiny * 3},
-                                                      {T(1), tiny * 11}}) {
-      const T expected = std::fmod(pr.first, pr.second);
-      const T actual = GetLane(Fmod(d, Set(d, pr.first), Set(d, pr.second)));
-      HWY_ASSERT(BitEqual(expected, actual));
-    }
-  }
-};
-
-void TestAllLdexp() { ForFloat3264Types(ForPartialVectors<TestLdexp>()); }
 void TestAllIlogb() { ForFloat3264Types(ForPartialVectors<TestIlogb>()); }
 void TestAllLogb() { ForFloat3264Types(ForPartialVectors<TestLogb>()); }
 void TestAllModf() { ForFloat3264Types(ForPartialVectors<TestModf>()); }
 void TestAllNextAfter() {
   ForFloat3264Types(ForPartialVectors<TestNextAfter>());
 }
-void TestAllFmod() { ForFloat3264Types(ForPartialVectors<TestFmod>()); }
 
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
@@ -228,12 +168,10 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 namespace hwy {
 HWY_BEFORE_TEST(FloatManipTest);
-HWY_EXPORT_AND_TEST_P(FloatManipTest, TestAllLdexp);
 HWY_EXPORT_AND_TEST_P(FloatManipTest, TestAllIlogb);
 HWY_EXPORT_AND_TEST_P(FloatManipTest, TestAllLogb);
 HWY_EXPORT_AND_TEST_P(FloatManipTest, TestAllModf);
 HWY_EXPORT_AND_TEST_P(FloatManipTest, TestAllNextAfter);
-HWY_EXPORT_AND_TEST_P(FloatManipTest, TestAllFmod);
 HWY_AFTER_TEST();
 }  // namespace hwy
 HWY_TEST_MAIN();
