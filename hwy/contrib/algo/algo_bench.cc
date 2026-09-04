@@ -17,6 +17,7 @@
 #include <stdio.h>
 
 #include <vector>
+#include <cmath>
 #include <algorithm>
 
 // clang-format off
@@ -133,7 +134,7 @@ struct Ctx {
 // Benchmarks are run via BenchAllTypes(Func{}, Gen{}, size)
 
 template <class T, class Func, class Gen>
-void Bench(Func func, Gen gen, size_t size) {
+void Bench(Func func, Gen gen, size_t size, double& L6_acc, size_t& L6_cnt) {
   RandomState rng(static_cast<uint64_t>(Unpredictable1() * 42));
 
   const size_t inner_reps = HWY_MIN(kInnerRepsMax, HWY_MAX(kElemsPerInnerRep / size, size_t{3}));
@@ -160,17 +161,19 @@ void Bench(Func func, Gen gen, size_t size) {
     printf("%s: %9s: %12s", TargetName(DispatchedTarget()), func.kName, gen.kName);
     Gen::PrintParam(p);
     printf(":%4s %7zu", hwy::TypeName(T(), 1).c_str(), size);
-    double time = SummarizeMeasurements(ns) / static_cast<double>(ctx.inner_reps);
+    const double time = SummarizeMeasurements(ns) / static_cast<double>(ctx.inner_reps);
     printf(" %10.1f ns, %10f GB/s\n", time, static_cast<double>(ctx.gen.ElemsProcessed(size, p)) * sizeof(T) / time);
+    L6_acc += std::pow(time / static_cast<double>(size), 6);
+    L6_cnt++;
   }
 }
 
 template <class Func, class Gen>
-HWY_NOINLINE void BenchAllTypes(Func func, Gen gen, size_t size) {
-  Bench<uint8_t>(func, gen, size);
-  Bench<int16_t>(func, gen, size);
-  Bench<int32_t>(func, gen, size);
-  Bench<int64_t>(func, gen, size);
+HWY_NOINLINE void BenchAllTypes(Func func, Gen gen, size_t size, double& L6_acc, size_t& L6_cnt) {
+  Bench<uint8_t>(func, gen, size, L6_acc, L6_cnt);
+  Bench<int16_t>(func, gen, size, L6_acc, L6_cnt);
+  Bench<int32_t>(func, gen, size, L6_acc, L6_cnt);
+  Bench<int64_t>(func, gen, size, L6_acc, L6_cnt);
 }
 
 // p = probability in % that two adjacent elements are equal
@@ -246,7 +249,7 @@ struct BenchUnique {
     const Timestamp t0;
     size_t total = 0;
     for (size_t i = 0; i < ctx.inner_reps; ++i) {
-      total += hwy::HWY_NAMESPACE::Unique(d, aligned[i], ctx.size);
+      total += Unique(d, aligned[i], ctx.size);
     }
     double res = SecondsSince(t0);
     PreventElision(total);
@@ -266,7 +269,7 @@ struct BenchAllUnique {
     const Timestamp t0;
     size_t total = 0;
     for (size_t i = 0; i < ctx.inner_reps; ++i) {
-      total += hwy::HWY_NAMESPACE::AllUnique(d, aligned[i], ctx.size);
+      total += AllUnique(d, aligned[i], ctx.size);
     }
     double res = SecondsSince(t0);
     PreventElision(total);
@@ -275,14 +278,24 @@ struct BenchAllUnique {
 };
 
 HWY_NOINLINE void BenchAll() {
+  double L6_acc_Unique = 0;
+  size_t L6_cnt_Unique = 0;
+  double L6_acc_AllUnique = 0;
+  size_t L6_cnt_AllUnique = 0;
   for (size_t size : SizesToBenchmark(BenchmarkModes::kSmallPow2)) {
     if (kBenchUnique) {
-      BenchAllTypes(BenchUnique{}, RandomRuns01{}, size);
-      BenchAllTypes(BenchUnique{}, FixedRuns01{}, size);
+      BenchAllTypes(BenchUnique{}, RandomRuns01{}, size, L6_acc_Unique, L6_cnt_Unique);
+      BenchAllTypes(BenchUnique{}, FixedRuns01{}, size, L6_acc_Unique, L6_cnt_Unique);
     }
     if (kBenchAllUnique) {
-      BenchAllTypes(BenchAllUnique{}, AltPrefixThenConstTail{}, size);
+      BenchAllTypes(BenchAllUnique{}, AltPrefixThenConstTail{}, size, L6_acc_AllUnique, L6_cnt_AllUnique);
     }
+  }
+  if (kBenchUnique) {
+    printf("Unique:    L6 norm (ns/elem): %f\n", std::pow(L6_acc_Unique / static_cast<double>(L6_cnt_Unique), 1.0 / 6));
+  }
+  if (kBenchAllUnique) {
+    printf("AllUnique: L6 norm (ns/elem): %f\n", std::pow(L6_acc_AllUnique / static_cast<double>(L6_cnt_AllUnique), 1.0 / 6));
   }
 }
 }  // namespace 
