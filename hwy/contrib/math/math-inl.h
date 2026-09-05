@@ -1373,6 +1373,18 @@ struct ExpImpl<float> {
     return Mul(Mul(x, Pow2I(d, y)), Pow2I(d, Sub(e, y)));
   }
 
+  template <class D, class V = VFromD<D>, HWY_IF_F32_D(D)>
+  HWY_INLINE V LoadExpShortRange(D d, V x, V e) {
+    const RebindToSigned<D> di;
+    const V kMagic = Set(d, 12582912.0f);    // 1.5 * (1 << 23)
+    const V kExpMagic = Set(d, 8388735.0f);  // 127.0f + (1 << 23)
+    const V y = Sub(MulAdd(e, Set(d, 0.5f), kMagic), kMagic);
+    const V ey = Sub(e, y);
+    const V pow2_y = BitCast(d, ShiftLeft<23>(BitCast(di, Add(y, kExpMagic))));
+    const V pow2_ey = BitCast(d, ShiftLeft<23>(BitCast(di, Add(ey, kExpMagic))));
+    return Mul(Mul(x, pow2_y), pow2_ey);
+  }
+
   template <class D, class V = VFromD<D>, class VI32 = Vec<Rebind<int32_t, D>>,
             HWY_IF_F32_D(D)>
   HWY_INLINE V ExpReduce(D d, V x, VI32 q) {
@@ -1384,6 +1396,18 @@ struct ExpImpl<float> {
     const V qf = ConvertTo(d, q);
     x = MulAdd(qf, kLn2Part0f, x);
     x = MulAdd(qf, kLn2Part1f, x);
+    return x;
+  }
+
+  template <class D, class V = VFromD<D>, HWY_IF_F32_D(D)>
+  HWY_INLINE V ExpReduce(D d, V x, V q) {
+    // kLn2Part0f + kLn2Part1f ~= -ln(2)
+    const V kLn2Part0f = Set(d, -0.693145751953125f);
+    const V kLn2Part1f = Set(d, -1.428606765330187045e-6f);
+
+    // Extended precision modular arithmetic.
+    x = MulAdd(q, kLn2Part0f, x);
+    x = MulAdd(q, kLn2Part1f, x);
     return x;
   }
 
@@ -1493,6 +1517,18 @@ struct ExpImpl<double> {
     return Mul(Mul(x, Pow2I(d, y)), Pow2I(d, Sub(e, y)));
   }
 
+  template <class D, class V = VFromD<D>, HWY_IF_F64_D(D)>
+  HWY_INLINE V LoadExpShortRange(D d, V x, V e) {
+    const RebindToSigned<D> di;
+    const V kMagic = Set(d, 6755399441055744.0);      // 1.5 * (1ull << 52)
+    const V kExpMagic = Set(d, 4503599627371519.0);   // 1023.0 + (1ull << 52)
+    const V y = Sub(MulAdd(e, Set(d, 0.5), kMagic), kMagic);
+    const V ey = Sub(e, y);
+    const V pow2_y = BitCast(d, ShiftLeft<52>(BitCast(di, Add(y, kExpMagic))));
+    const V pow2_ey = BitCast(d, ShiftLeft<52>(BitCast(di, Add(ey, kExpMagic))));
+    return Mul(Mul(x, pow2_y), pow2_ey);
+  }
+
   template <class D, class V = VFromD<D>, class VI32 = Vec<Rebind<int32_t, D>>,
             HWY_IF_F64_D(D)>
   HWY_INLINE V ExpReduce(D d, V x, VI32 q) {
@@ -1504,6 +1540,18 @@ struct ExpImpl<double> {
     const V qf = PromoteTo(d, q);
     x = MulAdd(qf, kLn2Part0d, x);
     x = MulAdd(qf, kLn2Part1d, x);
+    return x;
+  }
+
+  template <class D, class V = VFromD<D>, HWY_IF_F64_D(D)>
+  HWY_INLINE V ExpReduce(D d, V x, V q) {
+    // kLn2Part0d + kLn2Part1d ~= -ln(2)
+    const V kLn2Part0d = Set(d, -0.6931471805596629565116018);
+    const V kLn2Part1d = Set(d, -0.28235290563031577122588448175e-12);
+
+    // Extended precision modular arithmetic.
+    x = MulAdd(q, kLn2Part0d, x);
+    x = MulAdd(q, kLn2Part1d, x);
     return x;
   }
 
@@ -2607,18 +2655,19 @@ template <class D, class V,
 HWY_INLINE V Exp(const D d, V x) {
   using T = TFromD<D>;
 
-  const V kHalf = Set(d, static_cast<T>(+0.5));
   const V kLowerBound =
       Set(d, static_cast<T>((sizeof(T) == 4 ? -104.0 : -1000.0)));
-  const V kNegZero = Set(d, static_cast<T>(-0.0));
   const V kOne = Set(d, static_cast<T>(+1.0));
   const V kOneOverLog2 = Set(d, static_cast<T>(+1.442695040888963407359924681));
+  const V kMagic = Set(
+      d, static_cast<T>(sizeof(T) == 4 ? 12582912.0 : 6755399441055744.0));
 
   impl::ExpImpl<T> impl;
 
-  // q = static_cast<int32>((x / log(2)) + ((x < 0) ? -0.5 : +0.5))
-  const auto q =
-      impl.ToInt32(d, MulAdd(x, kOneOverLog2, Or(kHalf, And(x, kNegZero))));
+  // q = round(x / log(2)), by adding a large value such that x + kMagic has no
+  // fractional bits in the mantissa. This works here because x is small, or if
+  // it isn't, the result will be inf or 0 anwyays.
+  const V q = Sub(MulAdd(x, kOneOverLog2, kMagic), kMagic);
 
   // Reduce, approximate, and then reconstruct.
   const V y = impl.LoadExpShortRange(
