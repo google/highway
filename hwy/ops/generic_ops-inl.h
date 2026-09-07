@@ -8846,18 +8846,6 @@ HWY_API auto Le(V a, V b) -> decltype(a == b) {
 
 #undef HWY_GENERIC_IF_EMULATED_D
 
-// TODO: remove once callers are updated.
-// SVE and RVV do not support DFromM because their masks are loosely typed.
-#if HWY_MAX_BYTES <= 64 && !HWY_TARGET_IS_SVE && HWY_TARGET != HWY_RVV
-namespace detail {
-template <class M>
-uint64_t BitsFromMask(M m) {
-  const DFromM<M> d;
-  return ::hwy::HWY_NAMESPACE::BitsFromMask(d, m);
-}
-}  // namespace detail
-#endif  // !HWY_HAVE_SCALABLE && HWY_MAX_BYTES <= 64
-
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
