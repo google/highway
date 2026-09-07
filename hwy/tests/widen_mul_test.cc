@@ -402,7 +402,11 @@ struct TestRearrangeToOddPlusEven {
     VW sum0 = Zero(dw);
     VW sum1 = Zero(dw);
     sum0 = ReorderWidenMulAccumulate(dw, a, b, sum0, sum1);
-    const VW sum_odd_even = RearrangeToOddPlusEven(sum0, sum1);
+    const auto sum0_copy = AllocateAligned<TW>(NW);
+    HWY_ASSERT(sum0_copy);
+    Store(sum0, dw, sum0_copy.get());
+    const VW sum_odd_even =
+        RearrangeToOddPlusEven(Load(dw, sum0_copy.get()), sum1);
     HWY_ASSERT_VEC_EQ(dw, expected.get(), sum_odd_even);
   }
 };
