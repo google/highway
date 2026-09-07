@@ -1,0 +1,20 @@
+name: Validate CRC64 example
+
+on:
+  push:
+    branches:
+      - oss-agent/3250-crc64-example
+
+jobs:
+  build-and-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure Highway
+        run: cmake -S . -B build -DHWY_ENABLE_TESTS=OFF -DHWY_ENABLE_EXAMPLES=OFF
+      - name: Build Highway
+        run: cmake --build build --target hwy -j2
+      - name: Compile CRC64 example
+        run: c++ -std=c++17 -I. hwy/examples/crc64.cc build/libhwy.a -pthread -o build/crc64_example
+      - name: Run CRC64 example
+        run: ./build/crc64_example
