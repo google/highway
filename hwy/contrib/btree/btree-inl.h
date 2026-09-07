@@ -22,6 +22,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <initializer_list>
 #include <iterator>
 #include <limits>
 #include <memory>
@@ -1048,8 +1049,8 @@ HWY_INLINE bool TryFastEraseFromLeaf(MapLeafNode<KeyT, ValueT>* leaf,
 // Splits a full leaf plus a new key into two balanced leaves and returns the
 // separator key (Set).
 template <typename KeyT>
-HWY_INLINE void SplitLeafNode(LeafNode<KeyT>* leaf, LeafNode<KeyT>* new_leaf,
-                              KeyT new_key, KeyT* out_promo_key) {
+void SplitLeafNode(LeafNode<KeyT>* leaf, LeafNode<KeyT>* new_leaf, KeyT new_key,
+                   KeyT* out_promo_key) {
   // Stack storage to avoid heap allocation.
   KeyT temp[512];
 
@@ -1085,9 +1086,9 @@ HWY_INLINE void SplitLeafNode(LeafNode<KeyT>* leaf, LeafNode<KeyT>* new_leaf,
 // Splits a full leaf plus a new key/value pair into two balanced leaves and
 // returns the separator key (Map).
 template <typename KeyT, typename ValueT>
-HWY_INLINE void SplitLeafNode(MapLeafNode<KeyT, ValueT>* leaf,
-                              MapLeafNode<KeyT, ValueT>* new_leaf, KeyT new_key,
-                              const ValueT& new_value, KeyT* out_promo_key) {
+void SplitLeafNode(MapLeafNode<KeyT, ValueT>* leaf,
+                   MapLeafNode<KeyT, ValueT>* new_leaf, KeyT new_key,
+                   const ValueT& new_value, KeyT* out_promo_key) {
   // Stack storage to avoid heap allocation.
   KeyT temp_keys[512];
   ValueT temp_values[512];
@@ -1153,8 +1154,8 @@ HWY_INLINE bool CanMergeLeaves(const LeafNode* leaf,
 // Merges next_leaf into leaf, updates doubly linked pointers, and frees
 // next_leaf (Set).
 template <typename KeyT>
-HWY_INLINE void MergeLeaves(LeafNode<KeyT>* leaf, LeafNode<KeyT>* next_leaf,
-                            LeafNode<KeyT>*& last_leaf) {
+void MergeLeaves(LeafNode<KeyT>* leaf, LeafNode<KeyT>* next_leaf,
+                 LeafNode<KeyT>*& last_leaf) {
   const size_t leaf_keys = leaf->NumKeys();
   const size_t next_keys = next_leaf->NumKeys();
   if (next_keys > 0) {
@@ -1179,9 +1180,9 @@ HWY_INLINE void MergeLeaves(LeafNode<KeyT>* leaf, LeafNode<KeyT>* next_leaf,
 // Merges next_leaf into leaf, updates doubly linked pointers, and frees
 // next_leaf (Map).
 template <typename KeyT, typename ValueT>
-HWY_INLINE void MergeLeaves(MapLeafNode<KeyT, ValueT>* leaf,
-                            MapLeafNode<KeyT, ValueT>* next_leaf,
-                            MapLeafNode<KeyT, ValueT>*& last_leaf) {
+void MergeLeaves(MapLeafNode<KeyT, ValueT>* leaf,
+                 MapLeafNode<KeyT, ValueT>* next_leaf,
+                 MapLeafNode<KeyT, ValueT>*& last_leaf) {
   const size_t leaf_keys = leaf->NumKeys();
   const size_t next_keys = next_leaf->NumKeys();
   if (next_keys > 0) {
@@ -1390,13 +1391,7 @@ class BTree {
     }
 
     iterator& operator++() {
-      if (HWY_UNLIKELY(this->leaf_ == nullptr)) return *this;
-      this->slot_++;
-      if (HWY_UNLIKELY(this->slot_ >= this->leaf_->NumKeys())) {
-        this->last_leaf_ = this->leaf_;
-        this->leaf_ = this->leaf_->Next();
-        this->slot_ = 0;
-      }
+      const_iterator::operator++();
       return *this;
     }
 
@@ -1407,21 +1402,7 @@ class BTree {
     }
 
     iterator& operator--() {
-      if (HWY_UNLIKELY(this->leaf_ == nullptr)) {
-        this->leaf_ = this->last_leaf_;
-        this->slot_ = (this->leaf_ != nullptr && this->leaf_->NumKeys() > 0)
-                          ? this->leaf_->NumKeys() - 1
-                          : 0;
-        return *this;
-      }
-      if (HWY_UNLIKELY(this->slot_ == 0)) {
-        this->leaf_ = this->leaf_->Prev();
-        this->slot_ = (this->leaf_ != nullptr && this->leaf_->NumKeys() > 0)
-                          ? this->leaf_->NumKeys() - 1
-                          : 0;
-      } else {
-        --this->slot_;
-      }
+      const_iterator::operator--();
       return *this;
     }
 
@@ -1600,7 +1581,9 @@ class BTree {
 
   BTree& operator=(BTree&& other) noexcept {
     if (this != &other) {
-      clear();
+      if (state_ == &owned_state_) {
+        clear();
+      }
       if (other.state_ == &other.owned_state_) {
         owned_state_ = other.owned_state_;
         other.owned_state_ = State{};
@@ -1741,28 +1724,28 @@ class BTree {
   // ---------------------------------------------------------------------------
 
   // Returns true if key is present in the tree.
-  bool contains(KeyT key) const {
+  HWY_INLINE bool contains(KeyT key) const {
     return ContainsInternal(KeyCodec<KeyT>::ToStorage(key));
   }
 
   // Returns const_iterator to key if found, or end() otherwise.
-  const_iterator find(KeyT key) const {
+  HWY_INLINE const_iterator find(KeyT key) const {
     return FindInternal(KeyCodec<KeyT>::ToStorage(key));
   }
 
   // Returns iterator to key if found, or end() otherwise.
-  iterator find(KeyT key) {
+  HWY_INLINE iterator find(KeyT key) {
     return FindInternal(KeyCodec<KeyT>::ToStorage(key));
   }
 
   // Returns const_iterator to the first key >= target, or end() if all keys <
   // target.
-  const_iterator lower_bound(KeyT target) const {
+  HWY_INLINE const_iterator lower_bound(KeyT target) const {
     return LowerBoundInternal(KeyCodec<KeyT>::ToStorage(target));
   }
 
   // Returns iterator to the first key >= target, or end() if all keys < target.
-  iterator lower_bound(KeyT target) {
+  HWY_INLINE iterator lower_bound(KeyT target) {
     return LowerBoundInternal(KeyCodec<KeyT>::ToStorage(target));
   }
 
@@ -1779,8 +1762,34 @@ class BTree {
   // ---------------------------------------------------------------------------
   // Batch Lookups (8-Way Pipelined SIMD Prefetching)
   // ---------------------------------------------------------------------------
-
-  // Executes multiple contains queries with 8-way software pipelining.
+  // Point lookups suffer from serialized pointer-chasing latency: at each level
+  // of the tree, the CPU stalls waiting for outer caches or DRAM to load the
+  // child node into L1D before it can evaluate the next node. Prefetching
+  // cannot help point lookups because the very next instruction immediately
+  // demands that child node, leaving zero window for the prefetch to arrive.
+  //
+  // Batch lookups eliminate this bottleneck by traversing a micro-batch of 8
+  // queries concurrently level-by-level (software pipelining):
+  // 1. For query slot 0, we compute its child index using our SIMD search
+  //    primitives (FindChild / ScanOffsets) and issue an explicit software
+  //    prefetch (hwy::Prefetch) for that child node's cache line.
+  // 2. The core repeats Step 1 for the remaining queries in the batch (slots 1
+  //    through 7), issuing their prefetch requests one by one.
+  // 3. Finding the child indices across the other queries keeps the CPU busy,
+  //    creating a generous window for the background
+  //    memory transfer of slot 0's child node to fully complete.
+  // 4. By the time the outer loop advances to the next tree level, the child
+  //    nodes have already arrived in L1D, turning what was a serialized DRAM
+  //    stall in point queries into an immediate L1D cache hit.
+  //
+  // Why kBatchSize = 8:
+  // - Memory-Level Parallelism : Modern cores have 10-16 Line Fill Buffers
+  //   (LFBs). An 8-way batch maximizes concurrent memory requests without
+  //   exhausting the core's fill buffers.
+  // - Latency Hiding: Evaluating 7 other SIMD child searches provides enough
+  //   execution time to fully mask memory round-trip latency.
+  // - Register Pressure (GPR's): Holding 8 query keys and 8 node pointers is
+  //   doable on most CPU's without reigster spilling.
   template <typename FoundT>
   void ContainsBatch(const KeyT* HWY_RESTRICT queries, size_t count,
                      FoundT* HWY_RESTRICT out_found) const {
@@ -2130,7 +2139,7 @@ class BTree {
   allocator_type get_allocator() const noexcept { return allocator_type(); }
 
  private:
-  bool ContainsInternal(StorageKeyT key) const {
+  HWY_INLINE bool ContainsInternal(StorageKeyT key) const {
     if (HWY_UNLIKELY(state_->root_ == nullptr)) return false;
     void* curr = state_->root_;
     for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
@@ -2141,7 +2150,7 @@ class BTree {
     return LeafContains(static_cast<Leaf*>(curr), key);
   }
 
-  const_iterator FindInternal(StorageKeyT key) const {
+  HWY_INLINE const_iterator FindInternal(StorageKeyT key) const {
     if (HWY_UNLIKELY(state_->root_ == nullptr)) return end();
     void* curr = state_->root_;
     for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
@@ -2157,7 +2166,7 @@ class BTree {
     return end();
   }
 
-  iterator FindInternal(StorageKeyT key) {
+  HWY_INLINE iterator FindInternal(StorageKeyT key) {
     if (HWY_UNLIKELY(state_->root_ == nullptr)) return end();
     void* curr = state_->root_;
     for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
@@ -2173,7 +2182,7 @@ class BTree {
     return end();
   }
 
-  const_iterator LowerBoundInternal(StorageKeyT target) const {
+  HWY_INLINE const_iterator LowerBoundInternal(StorageKeyT target) const {
     if (HWY_UNLIKELY(state_->root_ == nullptr)) return end();
     void* curr = state_->root_;
     for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
@@ -2192,7 +2201,7 @@ class BTree {
     return end();
   }
 
-  iterator LowerBoundInternal(StorageKeyT target) {
+  HWY_INLINE iterator LowerBoundInternal(StorageKeyT target) {
     if (HWY_UNLIKELY(state_->root_ == nullptr)) return end();
     void* curr = state_->root_;
     for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
@@ -2211,7 +2220,7 @@ class BTree {
     return end();
   }
 
-  const_iterator UpperBoundInternal(StorageKeyT target) const {
+  HWY_INLINE const_iterator UpperBoundInternal(StorageKeyT target) const {
     if (HWY_UNLIKELY(state_->root_ == nullptr)) return end();
     void* curr = state_->root_;
     for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
@@ -2230,7 +2239,7 @@ class BTree {
     return end();
   }
 
-  iterator UpperBoundInternal(StorageKeyT target) {
+  HWY_INLINE iterator UpperBoundInternal(StorageKeyT target) {
     if (HWY_UNLIKELY(state_->root_ == nullptr)) return end();
     void* curr = state_->root_;
     for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
@@ -2251,7 +2260,7 @@ class BTree {
 
   template <typename V = mapped_type,
             typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
-  const V* FindValueInternal(StorageKeyT key) const {
+  HWY_INLINE const V* FindValueInternal(StorageKeyT key) const {
     if (HWY_UNLIKELY(state_->root_ == nullptr)) return nullptr;
     void* curr = state_->root_;
     for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
@@ -2269,7 +2278,7 @@ class BTree {
 
   template <typename V = mapped_type,
             typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
-  V* FindValueInternal(StorageKeyT key) {
+  HWY_INLINE V* FindValueInternal(StorageKeyT key) {
     if (HWY_UNLIKELY(state_->root_ == nullptr)) return nullptr;
     void* curr = state_->root_;
     for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {

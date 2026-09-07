@@ -170,13 +170,7 @@ class BTreeSet {
     auto operator->() const { return SetConstRef{operator*()}; }
 
     iterator& operator++() {
-      if (HWY_UNLIKELY(this->leaf_ == nullptr)) return *this;
-      this->slot_++;
-      if (HWY_UNLIKELY(this->slot_ >= this->leaf_->NumKeys())) {
-        this->last_leaf_ = this->leaf_;
-        this->leaf_ = this->leaf_->Next();
-        this->slot_ = 0;
-      }
+      const_iterator::operator++();
       return *this;
     }
 
@@ -187,21 +181,7 @@ class BTreeSet {
     }
 
     iterator& operator--() {
-      if (HWY_UNLIKELY(this->leaf_ == nullptr)) {
-        this->leaf_ = this->last_leaf_;
-        this->slot_ = (this->leaf_ != nullptr && this->leaf_->NumKeys() > 0)
-                          ? this->leaf_->NumKeys() - 1
-                          : 0;
-        return *this;
-      }
-      if (HWY_UNLIKELY(this->slot_ == 0)) {
-        this->leaf_ = this->leaf_->Prev();
-        this->slot_ = (this->leaf_ != nullptr && this->leaf_->NumKeys() > 0)
-                          ? this->leaf_->NumKeys() - 1
-                          : 0;
-      } else {
-        --this->slot_;
-      }
+      const_iterator::operator--();
       return *this;
     }
 

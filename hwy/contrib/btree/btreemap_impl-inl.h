@@ -37,7 +37,6 @@
 
 #include "hwy/base.h"
 #include "hwy/contrib/btree/btree_map.h"
-#include "hwy/contrib/btree/btree_nodes.h"
 
 #if defined(HIGHWAY_HWY_CONTRIB_BTREE_BTREEMAP_IMPL_INL_H_) == \
     defined(HWY_TARGET_TOGGLE)
