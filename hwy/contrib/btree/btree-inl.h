@@ -55,12 +55,13 @@ namespace HWY_NAMESPACE {
 // -----------------------------------------------------------------------------
 // Traits Definitions
 // -----------------------------------------------------------------------------
-
+// Traits specialization for BTreeSet.
 template <typename KeyT>
 struct SetTraits {
   using key_type = KeyT;
   using storage_key_type = typename KeyCodec<KeyT>::StorageKey;
-  using value_type = KeyT;
+  using value_type = KeyT;  // type of the element stored in the container and
+                            // returned when dereferencing an iterator
   using mapped_type = void;
   static constexpr bool kIsMap = false;
 
@@ -77,14 +78,18 @@ template <typename KeyT, typename ValueT>
 struct MapTraits {
   using key_type = KeyT;
   using storage_key_type = typename KeyCodec<KeyT>::StorageKey;
-  using value_type = std::pair<KeyT, ValueT>;
+  using value_type =
+      std::pair<KeyT, ValueT>;  // type of the element stored in the container
+                                // and returned when dereferencing an iterator
   using mapped_type = ValueT;
   static constexpr bool kIsMap = true;
 
   using Leaf = MapLeafNode<storage_key_type, ValueT>;
 
   template <typename OffsetT>
-  static constexpr size_t MaxKeys() {
+  static constexpr size_t
+  MaxKeys() {  // could be named MaxPairs as well, but MaxKeys for uniformity
+               // with SetTraits and easier duck-typing on common helpers
     return Leaf::template ComputeMaxPairs<OffsetT>();
   }
 };
@@ -100,8 +105,10 @@ template <BoundMode kBound = BoundMode::kLowerBound, typename OffsetT,
           size_t kTotal>
 HWY_INLINE size_t ScanOffsets(const void* HWY_RESTRICT data,
                               OffsetT target_val) {
+  // Starting at memory address data, interpret the contents as an array of
+  // OffsetT numbers.
   const auto* offsets = static_cast<const OffsetT*>(data);
-  const ScalableTag<OffsetT> d;
+  const CappedTag<OffsetT, 256 / sizeof(OffsetT)> d;
   const size_t N = Lanes(d);
   const auto v_target = Set(d, target_val);
   static_assert(kTotal <= 512 / sizeof(OffsetT));
@@ -122,6 +129,60 @@ HWY_INLINE size_t ScanOffsets(const void* HWY_RESTRICT data,
 
     if (i < kTotal) {
       const size_t remaining = kTotal - i;
+      // Safety justification for unmasked LoadU on tail elements:
+      //
+      // The Potential Problem (Page Boundary Faults):
+      // Because each 512-byte LeafNode is alignas(512), a 4096-byte virtual
+      // memory page holds exactly eight nodes. For the 8th node on a page
+      // (occupying bytes [3584..4095]), reading past the 512-byte struct
+      // boundary would cross into the next virtual memory page (byte 4096+). If
+      // that next page happens to be unmapped, an unmasked LoadU would trigger
+      // a SIGSEGV.
+      //
+      // Proof that LoadU Never Exceeds the 512-byte Struct (EndByte <= 512):
+      //
+      // 1. Element & Byte Boundaries:
+      //    Here, i is the loop counter after the preceding for-loop finishes.
+      //    Because i starts at 0 and advances by N lanes on every iteration,
+      //    i is always an exact multiple of N: i = x * N (for some integer x
+      //    >= 0). Loading N elements from offsets + i ends at element index:
+      //      (i + N) = (x + 1) * N
+      //    In memory bytes, the load ends at:
+      //      EndByte = (i + N) * sizeof(OffsetT)
+      //              = (x + 1) * [N * sizeof(OffsetT)]
+      //    Since [N * sizeof(OffsetT)] equals the vector register size in bytes
+      //    (VectorBytes), substituting gives:
+      //      EndByte = (x + 1) * VectorBytes
+      //    This proves EndByte is strictly an integer multiple of VectorBytes.
+      //    Specifically, it is the smallest multiple of VectorBytes that is
+      //    >= (kTotal * sizeof(OffsetT)).
+      //
+      // 2. Struct Boundary Proof (LeafNode):
+      //    Key payloads take at most kDataBytes (488B for 64-bit keys, 492B for
+      //    32-bit keys) within the 512-byte node. CappedTag<OffsetT,
+      //    256/sizeof(OffsetT)> guarantees that VectorBytes <= 256 across all
+      //    architectures (including RVV where HWY_MAX_BYTES can exceed 256).
+      //    All supported VectorBytes (16B, 32B, 64B, 128B, 256B) are powers of
+      //    2 that evenly divide 512:
+      //      - 16B vector:  next multiple of 16  after 488/492 is 496 <= 512
+      //      - 32B vector:  next multiple of 32  after 488/492 is 512 <= 512
+      //      - 64B vector:  next multiple of 64  after 488/492 is 512 <= 512
+      //      - 128B vector: next multiple of 128 after 488/492 is 512 <= 512
+      //      - 256B vector: next multiple of 256 after 488/492 is 512 <= 512
+      //    Therefore, EndByte <= 512 bytes across all architectures and bit
+      //    modes. On the 8th node, the load ends at <= 3584 + 512 = 4096 (the
+      //    exact last byte of the page) and never crosses into the next page.
+      //
+      // 3. Extension to MapLeafNode:
+      //    In MapLeafNode, keys and values share the 488B/492B payload, meaning
+      //    key offsets finish even earlier (at <= 244 bytes). The tail load on
+      //    keys ends at <= 256 bytes, staying well within the node.
+      //
+      // Any excess lanes loaded from padding or metadata are suppressed by the
+      // FirstN mask to ensure comparison correctness.
+      //
+      // Note: LoadN is much slower on architectures without native masked byte
+      // loads (e.g. AVX2, SSE4) compared to LoadU.
       const auto v = LoadU(d, offsets + i);
       const auto mask = FirstN(d, remaining);
       if constexpr (kBound == BoundMode::kLowerBound) {
@@ -161,6 +222,7 @@ HWY_INLINE size_t ScanOffsets(const void* HWY_RESTRICT data,
 
     if (i < kTotal) {
       const size_t remaining = kTotal - i;
+      // Safe unmasked tail load; see EndByte <= 512 proof in ScanOffsets above.
       const auto v = LoadU(d, offsets + i);
       const auto mask = FirstN(d, remaining);
       counts0 = Sub(counts0, VecFromMask(d, And(mask, is_before(v))));
@@ -168,6 +230,10 @@ HWY_INLINE size_t ScanOffsets(const void* HWY_RESTRICT data,
 
     const auto counts = Add(counts0, counts1);
     if constexpr (sizeof(OffsetT) == 1) {
+      // For 8-bit offsets, lanes can overflow if summed directly. SumsOf8 sums
+      // groups of 8 consecutive byte counters into 64-bit integers to prevent
+      // overflow. Repartition reinterprets the vector lanes as uint64_t before
+      // performing the horizontal ReduceSum across the vector register.
       const Repartition<uint64_t, decltype(d)> d64;
       return static_cast<size_t>(ReduceSum(d64, SumsOf8(counts)));
     } else {
@@ -181,7 +247,7 @@ HWY_INLINE size_t ScanOffsets(const void* HWY_RESTRICT data,
 template <typename OffsetT, size_t kTotal>
 HWY_INLINE bool HasOffset(const void* HWY_RESTRICT data, OffsetT target_val) {
   const auto* offsets = static_cast<const OffsetT*>(data);
-  const ScalableTag<OffsetT> d;
+  const CappedTag<OffsetT, 256 / sizeof(OffsetT)> d;
   const size_t N = Lanes(d);
   const auto v_target = Set(d, target_val);
   auto any_match = MaskFalse(d);
@@ -193,6 +259,7 @@ HWY_INLINE bool HasOffset(const void* HWY_RESTRICT data, OffsetT target_val) {
 
   if (i < kTotal) {
     const size_t remaining = kTotal - i;
+    // Safe unmasked tail load; see EndByte <= 512 proof in ScanOffsets above.
     const auto v = LoadU(d, offsets + i);
     const auto mask = FirstN(d, remaining);
     const auto tail_match = MaskedEq(mask, v, v_target);
@@ -313,6 +380,9 @@ HWY_INLINE size_t FindChild(const InternalNode<KeyT>* HWY_RESTRICT internal,
   const size_t N = Lanes(d);
   const auto v_target = Set(d, target);
 
+  // At kCapacity = 16, we don't need the horizontal sum reduction trick used
+  // in ScanOffsets for non-native mask architectures: with such a small element
+  // count, we cannot amortize that cost, making direct CountTrue faster here.
   size_t count = 0;
   for (size_t i = 0; i < kCapacity; i += N) {
     const auto v_keys = Load(d, internal->keys + i);
@@ -349,14 +419,15 @@ HWY_INLINE void DecompressLeaf(const MapLeafNode<KeyT, ValueT>* leaf,
 // Encodes sorted keys as delta offsets from base_key into the destination
 // buffer.
 template <typename OffsetT, OffsetT kSentinel, typename KeyT>
-HWY_INLINE void StoreCompressedOffsets(void* dst_data, const KeyT* keys,
+HWY_INLINE void StoreCompressedOffsets(void* dst_offsets, const KeyT* keys,
                                        size_t count, KeyT base_key,
                                        size_t capacity) {
-  auto* dst = HWY_RCAST_ALIGNED(OffsetT*, dst_data);
+  auto* offsets = HWY_RCAST_ALIGNED(OffsetT*, dst_offsets);
   for (size_t k = 0; k < count; ++k) {
-    dst[k] = static_cast<OffsetT>(keys[k] - base_key);
+    offsets[k] = static_cast<OffsetT>(keys[k] - base_key);
   }
-  std::fill_n(dst + count, capacity - count, kSentinel);
+  // Sets all remaining inactive slots to kSentinel.
+  std::fill_n(offsets + count, capacity - count, kSentinel);
 }
 
 // Encodes a sorted key array into a leaf node using the narrowest viable
@@ -392,22 +463,24 @@ HWY_INLINE void CompressIntoLeaf(LeafNode<KeyT>* leaf, const KeyT* keys,
              (sizeof(KeyT) == 4 || max_delta <= 0xFFFFFFFFULL)) {
     leaf->SetBitMode(kMode32Bit);
     if constexpr (sizeof(KeyT) == 4) {
-      auto* dst = HWY_RCAST_ALIGNED(uint32_t*, leaf->data);
+      auto* raw_keys = HWY_RCAST_ALIGNED(uint32_t*, leaf->data);
       for (size_t k = 0; k < count; ++k) {
-        dst[k] = static_cast<uint32_t>(keys[k]);
+        raw_keys[k] = static_cast<uint32_t>(keys[k]);
       }
-      std::fill_n(dst + count, kMax32 - count, 0xFFFFFFFF);
+      // Sets all remaining inactive slots to the sentinel value.
+      std::fill_n(raw_keys + count, kMax32 - count, 0xFFFFFFFF);
     } else {
       StoreCompressedOffsets<uint32_t, 0xFFFFFFFF>(leaf->data, keys, count,
                                                    leaf->base_key, kMax32);
     }
   } else {
     leaf->SetBitMode(kModeRaw64);
-    auto* dst = HWY_RCAST_ALIGNED(uint64_t*, leaf->data);
+    auto* raw_keys = HWY_RCAST_ALIGNED(uint64_t*, leaf->data);
     for (size_t k = 0; k < count; ++k) {
-      dst[k] = static_cast<uint64_t>(keys[k]);
+      raw_keys[k] = static_cast<uint64_t>(keys[k]);
     }
-    std::fill_n(dst + count, kMax64 - count, 0xFFFFFFFFFFFFFFFFULL);
+    // Sets all remaining inactive slots to the sentinel value.
+    std::fill_n(raw_keys + count, kMax64 - count, 0xFFFFFFFFFFFFFFFFULL);
   }
   leaf->SetNumKeys(static_cast<uint16_t>(count));
 }
@@ -446,22 +519,24 @@ HWY_INLINE void CompressIntoLeaf(MapLeafNode<KeyT, ValueT>* leaf,
              (sizeof(KeyT) == 4 || max_delta <= 0xFFFFFFFFULL)) {
     leaf->SetBitMode(kMode32Bit);
     if constexpr (sizeof(KeyT) == 4) {
-      auto* dst = HWY_RCAST_ALIGNED(uint32_t*, leaf->KeyData());
+      auto* raw_keys = HWY_RCAST_ALIGNED(uint32_t*, leaf->KeyData());
       for (size_t k = 0; k < count; ++k) {
-        dst[k] = static_cast<uint32_t>(keys[k]);
+        raw_keys[k] = static_cast<uint32_t>(keys[k]);
       }
-      std::fill_n(dst + count, kMax32 - count, 0xFFFFFFFF);
+      // Sets all remaining inactive slots to the sentinel value.
+      std::fill_n(raw_keys + count, kMax32 - count, 0xFFFFFFFF);
     } else {
       StoreCompressedOffsets<uint32_t, 0xFFFFFFFF>(leaf->KeyData(), keys, count,
                                                    leaf->base_key, kMax32);
     }
   } else {
     leaf->SetBitMode(kModeRaw64);
-    auto* dst = HWY_RCAST_ALIGNED(uint64_t*, leaf->KeyData());
+    auto* raw_keys = HWY_RCAST_ALIGNED(uint64_t*, leaf->KeyData());
     for (size_t k = 0; k < count; ++k) {
-      dst[k] = static_cast<uint64_t>(keys[k]);
+      raw_keys[k] = static_cast<uint64_t>(keys[k]);
     }
-    std::fill_n(dst + count, kMax64 - count, 0xFFFFFFFFFFFFFFFFULL);
+    // Sets all remaining inactive slots to the sentinel value.
+    std::fill_n(raw_keys + count, kMax64 - count, 0xFFFFFFFFFFFFFFFFULL);
   }
 
   ValueT* vals = leaf->Values();
@@ -473,14 +548,13 @@ HWY_INLINE void CompressIntoLeaf(MapLeafNode<KeyT, ValueT>* leaf,
 // compression mode).
 template <typename LeafNode, typename KeyT>
 HWY_INLINE bool CanLeafFitInsert(const LeafNode* leaf, KeyT new_key) {
-  const size_t cur_num = leaf->NumKeys();
-  if (HWY_UNLIKELY(cur_num == 0)) return true;
-  const size_t new_count = cur_num + 1;
-  const KeyT min_k = std::min(leaf->base_key, new_key);
-  const KeyT max_existing =
-      (cur_num > 0) ? GetLeafKey(leaf, cur_num - 1) : leaf->base_key;
-  const KeyT max_k = std::max(max_existing, new_key);
-  const uint64_t max_delta = static_cast<uint64_t>(max_k - min_k);
+  const size_t count = leaf->NumKeys();
+  if (HWY_UNLIKELY(count == 0)) return true;
+  const size_t new_count = count + 1;
+  const KeyT new_min_key = std::min(leaf->base_key, new_key);
+  const KeyT max_existing = GetLeafKey(leaf, count - 1);
+  const KeyT new_max_key = std::max(max_existing, new_key);
+  const uint64_t max_delta = static_cast<uint64_t>(new_max_key - new_min_key);
 
   constexpr size_t kMax8 = LeafNode::kMax8;
   constexpr size_t kMax16 = LeafNode::kMax16;
@@ -494,8 +568,9 @@ HWY_INLINE bool CanLeafFitInsert(const LeafNode* leaf, KeyT new_key) {
   return new_count <= kMax64;
 }
 
-// Decompresses leaf keys, inserts a new key in sorted order, and returns the
-// new count.
+// Decompresses all existing leaf keys into the caller-provided out_keys buffer,
+// inserts new_key into out_keys at its sorted position, and returns the new
+// key count.
 template <typename KeyT>
 HWY_INLINE size_t DecompressAndInsertKey(const LeafNode<KeyT>* leaf,
                                          KeyT new_key, KeyT* out_keys) {
@@ -506,6 +581,7 @@ HWY_INLINE size_t DecompressAndInsertKey(const LeafNode<KeyT>* leaf,
     slot++;
   }
   if (count > slot) {
+    // Shifts existing keys right to open up slot for new_key.
     std::memmove(out_keys + slot + 1, out_keys + slot,
                  (count - slot) * sizeof(KeyT));
   }
@@ -513,8 +589,9 @@ HWY_INLINE size_t DecompressAndInsertKey(const LeafNode<KeyT>* leaf,
   return count + 1;
 }
 
-// Decompresses all existing pairs from map leaf and inserts (new_key, new_val)
-// in sorted order.
+// Decompresses all existing pairs from a map leaf into caller-provided out_keys
+// and out_values buffers, inserts (new_key, new_value) in sorted order, and
+// returns the new count.
 template <typename KeyT, typename ValueT>
 HWY_INLINE size_t DecompressAndInsertMapPair(
     const MapLeafNode<KeyT, ValueT>* leaf, KeyT new_key,
@@ -525,6 +602,7 @@ HWY_INLINE size_t DecompressAndInsertMapPair(
   while (slot < count && out_keys[slot] < new_key) {
     slot++;
   }
+  // Shifts existing keys and values right to open up slot for the new pair.
   std::memmove(out_keys + slot + 1, out_keys + slot,
                (count - slot) * sizeof(KeyT));
   std::memmove(out_values + slot + 1, out_values + slot,
@@ -567,7 +645,9 @@ HWY_INLINE void InsertIntoLeaf(MapLeafNode<KeyT, ValueT>* leaf, KeyT new_key,
 }
 
 // In-place fast path for inserting a key into a compressed offset leaf without
-// recompression (Set).
+// recompression (Set). Returns true if inserted in-place, or false if the leaf
+// is full or the delta exceeds kMaxDelta (requiring recompression or
+// splitting).
 template <typename Traits, typename OffsetT, uint64_t kMaxDelta, typename KeyT>
 HWY_INLINE bool TryFastInsertOffset(LeafNode<KeyT>* leaf, KeyT new_key,
                                     size_t slot) {
@@ -582,6 +662,8 @@ HWY_INLINE bool TryFastInsertOffset(LeafNode<KeyT>* leaf, KeyT new_key,
   if (HWY_LIKELY(new_key >= leaf->base_key)) {
     const uint64_t delta = static_cast<uint64_t>(new_key - leaf->base_key);
     if (HWY_LIKELY(delta <= kMaxDelta)) {
+      // Moves up to capacity boundary; safe because destination stays within
+      // leaf->data and inactive trailing slots are simply shifted.
       std::memmove(offsets + slot + 1, offsets + slot,
                    (kCapacity - 1 - slot) * sizeof(OffsetT));
       offsets[slot] = static_cast<OffsetT>(delta);
@@ -601,7 +683,9 @@ HWY_INLINE bool TryFastInsertOffset(LeafNode<KeyT>* leaf, KeyT new_key,
       std::memmove(offsets + 1, offsets, (kCapacity - 1) * sizeof(OffsetT));
       offsets[0] = 0;
 
-      const ScalableTag<OffsetT> d;
+      // Vectorized offset adjustment: add (old_base_key - new_key) to each
+      // existing offset now that new_key has become the base_key.
+      const CappedTag<OffsetT, 256 / sizeof(OffsetT)> d;
       const size_t N = Lanes(d);
       const auto v_shift = Set(d, shift);
       size_t i = 1;
@@ -611,6 +695,14 @@ HWY_INLINE bool TryFastInsertOffset(LeafNode<KeyT>* leaf, KeyT new_key,
       }
       if (i <= count) {
         const size_t remaining = count + 1 - i;
+        // Note on LoadN: Unlike ScanOffsets where the loop starts at i = 0,
+        // here we start at i = 1 to skip slot 0. Because i = 1 + x * N, the
+        // multiple-of-N alignment is broken, so an unmasked LoadU on the tail
+        // could reach byte 513+ and cross into the next page on the 8th node.
+        // While we could start at i = 0 with LoadU and reset offsets[0] = 0
+        // after the loop, starting at 1 with LoadN is more intuitive and
+        // readable. This is anyways an unlikely branch within
+        // TryFastInsertOffset.
         const auto v = LoadN(d, offsets + i, remaining);
         StoreN(Add(v, v_shift), d, offsets + i, remaining);
       }
@@ -623,7 +715,8 @@ HWY_INLINE bool TryFastInsertOffset(LeafNode<KeyT>* leaf, KeyT new_key,
 }
 
 // In-place fast path for inserting a key-value pair into a compressed map leaf
-// without recompression (Map).
+// without recompression (Map). Returns true if inserted in-place, or false if
+// full or the delta exceeds kMaxDelta (requiring recompression or splitting).
 template <typename Traits, typename OffsetT, uint64_t kMaxDelta, typename KeyT,
           typename ValueT>
 HWY_INLINE bool TryFastInsertOffset(MapLeafNode<KeyT, ValueT>* leaf,
@@ -641,6 +734,10 @@ HWY_INLINE bool TryFastInsertOffset(MapLeafNode<KeyT, ValueT>* leaf,
   if (HWY_LIKELY(new_key >= leaf->base_key)) {
     const uint64_t delta = static_cast<uint64_t>(new_key - leaf->base_key);
     if (HWY_LIKELY(delta <= kMaxDelta)) {
+      // In MapLeafNode, keys and values share the payload buffer. We must bound
+      // moves by (count - slot) rather than capacity to prevent offsets from
+      // overwriting the values array, and values from overwriting tail
+      // metadata.
       std::memmove(offsets + slot + 1, offsets + slot,
                    (count - slot) * sizeof(OffsetT));
       std::memmove(vals + slot + 1, vals + slot,
@@ -658,12 +755,16 @@ HWY_INLINE bool TryFastInsertOffset(MapLeafNode<KeyT, ValueT>* leaf,
     const uint64_t new_span = static_cast<uint64_t>(max_existing - new_key);
     if (HWY_LIKELY(new_span <= kMaxDelta)) {
       const OffsetT shift = static_cast<OffsetT>(leaf->base_key - new_key);
+      // Moves must be bounded by count (not capacity) because offsets and
+      // values share the payload buffer.
       std::memmove(offsets + 1, offsets, count * sizeof(OffsetT));
       std::memmove(vals + 1, vals, count * sizeof(ValueT));
       offsets[0] = 0;
       vals[0] = new_value;
 
-      const ScalableTag<OffsetT> d;
+      // Vectorized offset adjustment: add (old_base_key - new_key) to each
+      // existing offset now that new_key has become the base_key.
+      const CappedTag<OffsetT, 256 / sizeof(OffsetT)> d;
       const size_t N = Lanes(d);
       const auto v_shift = Set(d, shift);
       size_t i = 1;
@@ -673,6 +774,7 @@ HWY_INLINE bool TryFastInsertOffset(MapLeafNode<KeyT, ValueT>* leaf,
       }
       if (i <= count) {
         const size_t remaining = count + 1 - i;
+        // Safe tail load; see LoadN note in TryFastInsertOffset above.
         const auto v = LoadN(d, offsets + i, remaining);
         StoreN(Add(v, v_shift), d, offsets + i, remaining);
       }
@@ -685,7 +787,8 @@ HWY_INLINE bool TryFastInsertOffset(MapLeafNode<KeyT, ValueT>* leaf,
 }
 
 // Fast-path dispatcher that attempts in-place insertion into a leaf without
-// full recompression (Set).
+// full recompression (Set). Returns true if inserted in-place, or false if
+// the leaf is full or recompression/splitting is required.
 template <typename Traits, typename KeyT>
 HWY_INLINE bool TryFastInsertIntoLeaf(LeafNode<KeyT>* leaf, KeyT new_key,
                                       size_t slot) {
@@ -702,9 +805,8 @@ HWY_INLINE bool TryFastInsertIntoLeaf(LeafNode<KeyT>* leaf, KeyT new_key,
   } else if (mode == kMode8Bit) {
     return TryFastInsertOffset<Traits, uint8_t, 255>(leaf, new_key, slot);
   } else if (mode == kMode32Bit) {
-    if (HWY_UNLIKELY(count >= Leaf::kMax32)) return false;
-
     if constexpr (sizeof(KeyT) == 4) {
+      if (HWY_UNLIKELY(count >= Leaf::kMax32)) return false;
       auto* raw_keys = HWY_RCAST_ALIGNED(uint32_t*, leaf->data);
       std::memmove(raw_keys + slot + 1, raw_keys + slot,
                    (Leaf::kMax32 - 1 - slot) * sizeof(uint32_t));
@@ -729,14 +831,15 @@ HWY_INLINE bool TryFastInsertIntoLeaf(LeafNode<KeyT>* leaf, KeyT new_key,
 }
 
 // Fast-path dispatcher that attempts in-place insertion into a map leaf across
-// all bit modes (Map).
+// all bit modes (Map). Returns true if inserted in-place, or false if the leaf
+// is full or recompression/splitting is required.
 template <typename Traits, typename KeyT, typename ValueT>
 HWY_INLINE bool TryFastInsertIntoLeaf(MapLeafNode<KeyT, ValueT>* leaf,
                                       KeyT new_key, const ValueT& value,
                                       size_t slot) {
   using Leaf = MapLeafNode<KeyT, ValueT>;
   const size_t count = leaf->NumKeys();
-  if (count == 0) {
+  if (HWY_UNLIKELY(count == 0)) {
     CompressIntoLeaf(leaf, &new_key, &value, 1);
     return true;
   }
@@ -749,10 +852,9 @@ HWY_INLINE bool TryFastInsertIntoLeaf(MapLeafNode<KeyT, ValueT>* leaf,
     return TryFastInsertOffset<Traits, uint8_t, 255>(leaf, new_key, value,
                                                      slot);
   } else if (mode == kMode32Bit) {
-    if (HWY_UNLIKELY(count >= Leaf::kMax32)) return false;
-    ValueT* vals = leaf->Values();
-
     if constexpr (sizeof(KeyT) == 4) {
+      if (HWY_UNLIKELY(count >= Leaf::kMax32)) return false;
+      ValueT* vals = leaf->Values();
       auto* raw_keys = HWY_RCAST_ALIGNED(uint32_t*, leaf->payload);
       std::memmove(raw_keys + slot + 1, raw_keys + slot,
                    (count - slot) * sizeof(uint32_t));
@@ -783,13 +885,16 @@ HWY_INLINE bool TryFastInsertIntoLeaf(MapLeafNode<KeyT, ValueT>* leaf,
 }
 
 // In-place fast path for erasing a key at slot from a compressed offset leaf
-// (Set).
+// (Set). Returns true after in-place erasure (always succeeds as key deletion
+// never increases delta or capacity).
 template <typename OffsetT, OffsetT kSentinel, typename KeyT>
 HWY_INLINE bool TryFastEraseOffset(LeafNode<KeyT>* leaf, size_t slot) {
   constexpr size_t kCapacity = LeafNode<KeyT>::kDataBytes / sizeof(OffsetT);
   const size_t count = leaf->NumKeys();
   auto* offsets = HWY_RCAST_ALIGNED(OffsetT*, leaf->data);
-  // If erasing slot 0 (the base_key), shift all offsets and advance base_key.
+  // If erasing slot 0 (the base_key), re-base remaining offsets by subtracting
+  // offsets[1] while shifting them left to overwrite slot 0, then advance
+  // base_key by offsets[1].
   if (HWY_UNLIKELY(slot == 0)) {
     const OffsetT shift = offsets[1];
     for (size_t i = 1; i < count; ++i) {
@@ -799,6 +904,7 @@ HWY_INLINE bool TryFastEraseOffset(LeafNode<KeyT>* leaf, size_t slot) {
     leaf->base_key += shift;
   } else {
     // If erasing slot > 0, shift subsequent offsets left.
+    // Constant-size move up to capacity boundary without libc length branching.
     std::memmove(offsets + slot, offsets + slot + 1,
                  (kCapacity - 1 - slot) * sizeof(OffsetT));
     offsets[count - 1] = kSentinel;
@@ -808,14 +914,17 @@ HWY_INLINE bool TryFastEraseOffset(LeafNode<KeyT>* leaf, size_t slot) {
 }
 
 // In-place fast path for erasing a key-value pair from a compressed map leaf
-// (Map).
+// (Map). Returns true after in-place erasure (always succeeds as key deletion
+// never increases delta or capacity).
 template <typename OffsetT, OffsetT kSentinel, typename KeyT, typename ValueT>
 HWY_INLINE bool TryFastEraseOffset(MapLeafNode<KeyT, ValueT>* leaf,
                                    size_t slot) {
   const size_t count = leaf->NumKeys();
   auto* offsets = HWY_RCAST_ALIGNED(OffsetT*, leaf->payload);
   ValueT* vals = leaf->Values();
-  // If erasing slot 0 (the base_key), shift all offsets and advance base_key.
+  // If erasing slot 0 (the base_key), re-base remaining offsets by subtracting
+  // offsets[1] while shifting them left to overwrite slot 0, shift values left,
+  // and advance base_key by offsets[1].
   if (HWY_UNLIKELY(slot == 0)) {
     const OffsetT shift = offsets[1];
     for (size_t i = 1; i < count; ++i) {
@@ -837,7 +946,7 @@ HWY_INLINE bool TryFastEraseOffset(MapLeafNode<KeyT, ValueT>* leaf,
 }
 
 // Fast-path dispatcher that erases a key from a leaf in-place across all bit
-// modes (Set).
+// modes (Set). Always returns true after in-place erasure.
 template <typename KeyT>
 HWY_INLINE bool TryFastEraseFromLeaf(LeafNode<KeyT>* leaf, size_t slot) {
   using Leaf = LeafNode<KeyT>;
@@ -857,10 +966,12 @@ HWY_INLINE bool TryFastEraseFromLeaf(LeafNode<KeyT>* leaf, size_t slot) {
   } else if (mode == kMode32Bit) {
     if constexpr (sizeof(KeyT) == 4) {
       auto* raw_keys = HWY_RCAST_ALIGNED(uint32_t*, leaf->data);
+      // Constant-size move up to capacity boundary without libc length
+      // branching.
       std::memmove(raw_keys + slot, raw_keys + slot + 1,
                    (Leaf::kMax32 - 1 - slot) * sizeof(uint32_t));
       raw_keys[count - 1] = 0xFFFFFFFF;
-      if (HWY_UNLIKELY(slot == 0 && count > 1)) {
+      if (HWY_UNLIKELY(slot == 0)) {
         leaf->base_key = static_cast<KeyT>(raw_keys[0]);
       }
       leaf->SetNumKeys(count - 1);
@@ -870,10 +981,11 @@ HWY_INLINE bool TryFastEraseFromLeaf(LeafNode<KeyT>* leaf, size_t slot) {
     }
   } else {
     auto* raw_keys = HWY_RCAST_ALIGNED(uint64_t*, leaf->data);
+    // Constant-size move up to capacity boundary without libc length branching.
     std::memmove(raw_keys + slot, raw_keys + slot + 1,
                  (Leaf::kMax64 - 1 - slot) * sizeof(uint64_t));
     raw_keys[count - 1] = 0xFFFFFFFFFFFFFFFFULL;
-    if (HWY_UNLIKELY(slot == 0 && count > 1)) {
+    if (HWY_UNLIKELY(slot == 0)) {
       leaf->base_key = static_cast<KeyT>(raw_keys[0]);
     }
     leaf->SetNumKeys(count - 1);
@@ -882,7 +994,7 @@ HWY_INLINE bool TryFastEraseFromLeaf(LeafNode<KeyT>* leaf, size_t slot) {
 }
 
 // Fast-path dispatcher that erases a key from a map leaf in-place across all
-// bit modes (Map).
+// bit modes (Map). Always returns true after in-place erasure.
 template <typename KeyT, typename ValueT>
 HWY_INLINE bool TryFastEraseFromLeaf(MapLeafNode<KeyT, ValueT>* leaf,
                                      size_t slot) {
@@ -901,15 +1013,15 @@ HWY_INLINE bool TryFastEraseFromLeaf(MapLeafNode<KeyT, ValueT>* leaf,
   } else if (mode == kMode8Bit) {
     return TryFastEraseOffset<uint8_t, 0xFF>(leaf, slot);
   } else if (mode == kMode32Bit) {
-    ValueT* vals = leaf->Values();
     if constexpr (sizeof(KeyT) == 4) {
+      ValueT* vals = leaf->Values();
       auto* raw_keys = HWY_RCAST_ALIGNED(uint32_t*, leaf->payload);
       std::memmove(raw_keys + slot, raw_keys + slot + 1,
                    (count - 1 - slot) * sizeof(uint32_t));
       std::memmove(vals + slot, vals + slot + 1,
                    (count - 1 - slot) * sizeof(ValueT));
       raw_keys[count - 1] = 0xFFFFFFFF;
-      if (HWY_UNLIKELY(slot == 0 && count > 1)) {
+      if (HWY_UNLIKELY(slot == 0)) {
         leaf->base_key = static_cast<KeyT>(raw_keys[0]);
       }
       leaf->SetNumKeys(count - 1);
@@ -925,7 +1037,7 @@ HWY_INLINE bool TryFastEraseFromLeaf(MapLeafNode<KeyT, ValueT>* leaf,
     std::memmove(vals + slot, vals + slot + 1,
                  (count - 1 - slot) * sizeof(ValueT));
     raw_keys[count - 1] = 0xFFFFFFFFFFFFFFFFULL;
-    if (HWY_UNLIKELY(slot == 0 && count > 1)) {
+    if (HWY_UNLIKELY(slot == 0)) {
       leaf->base_key = static_cast<KeyT>(raw_keys[0]);
     }
     leaf->SetNumKeys(count - 1);
@@ -945,9 +1057,10 @@ HWY_INLINE void SplitLeafNode(LeafNode<KeyT>* leaf, LeafNode<KeyT>* new_leaf,
   // order.
   const size_t total = DecompressAndInsertKey(leaf, new_key, temp);
 
-  // Position-biased split (similar to absl::btree):
-  // When appending at the end of the rightmost leaf (ascending sequence),
-  // bias the split so the left leaf stays full (100% fill factor).
+  // Position-biased split (inspired by absl::btree, but restricted to tree
+  // boundaries to avoid creating underfilled interior leaves on random
+  // inserts): When appending at the end of the rightmost leaf (ascending
+  // sequence), bias the split so the left leaf stays full (100% fill factor).
   // When prepending at the start of the leftmost leaf (descending sequence),
   // bias the split so the right leaf stays full.
   // Otherwise, split 50/50 for balanced tree depth under random workloads.
@@ -984,9 +1097,10 @@ HWY_INLINE void SplitLeafNode(MapLeafNode<KeyT, ValueT>* leaf,
   const size_t total = DecompressAndInsertMapPair(leaf, new_key, new_value,
                                                   temp_keys, temp_values);
 
-  // Position-biased split (similar to absl::btree):
-  // When appending at the end of the rightmost leaf (ascending sequence),
-  // bias the split so the left leaf stays full (100% fill factor).
+  // Position-biased split (inspired by absl::btree, but restricted to tree
+  // boundaries to avoid creating underfilled interior leaves on random
+  // inserts): When appending at the end of the rightmost leaf (ascending
+  // sequence), bias the split so the left leaf stays full (100% fill factor).
   // When prepending at the start of the leftmost leaf (descending sequence),
   // bias the split so the right leaf stays full.
   // Otherwise, split 50/50 for balanced tree depth under random workloads.
@@ -1016,6 +1130,9 @@ HWY_INLINE bool CanMergeLeaves(const LeafNode* leaf,
   using Node = LeafNode;
   using KeyT = decltype(leaf->base_key);
   const size_t total_keys = leaf->NumKeys() + next_leaf->NumKeys();
+  // kMax16 is the upper bound for 16-bit, 32-bit, and 64-bit modes. Capping
+  // merges at kMax16 avoids creating fragile, near-full 8-bit leaves that
+  // immediately split again on the next insert (preventing thrashing).
   if (total_keys > Node::kMax16) return false;
   if (leaf->NumKeys() == 0 || next_leaf->NumKeys() == 0) return true;
 

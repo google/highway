@@ -7,7 +7,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <limits>
 #include <type_traits>
 
 #include "hwy/base.h"
@@ -84,6 +83,19 @@ struct KeyCodec {
 // Metadata placed after payload (base_key, next_tagged, prev_tagged).
 // Aligned to kNodeBytes (512 bytes), guaranteeing 9 (log2(512)) low zero bits
 // in both next_tagged and prev_tagged pointers.
+//
+// Node Memory Layout (512 Bytes):
+// +-------------------------------------------+-----------------------+
+// | data[]: Key Offsets                       | Metadata Header       |
+// | 492 bytes (32-bit key) /                  | base_key: 4B / 8B     |
+// | 488 bytes (64-bit key)                    | next_tagged: 8B       |
+// |                                           | prev_tagged: 8B       |
+// +-------------------------------------------+-----------------------+
+// 0                                         492/488                 512
+//
+// Tagged pointer low-bit packing:
+//   next_tagged: bits [63..2] = Next ptr, bits [1..0] = bit_mode (0..3)
+//   prev_tagged: bits [63..9] = Prev ptr, bits [8..0] = num_keys (0..511)
 template <typename KeyT>
 struct alignas(512) LeafNode {
   using StorageKeyT = typename KeyCodec<KeyT>::StorageKey;
@@ -117,39 +129,45 @@ struct alignas(512) LeafNode {
   const uint8_t* KeyData() const { return data; }
   uint8_t* KeyData() { return data; }
 
-  // Bit 0..1 of next_tagged: bit_mode (2 bits, values 0..3)
+  // Extracts the 2-bit compression mode from bits [1..0] of next_tagged.
   HWY_INLINE uint8_t BitMode() const {
     return static_cast<uint8_t>(next_tagged & 0x03);
   }
 
+  // Updates the 2-bit compression mode in next_tagged while preserving the
+  // Next pointer.
   HWY_INLINE void SetBitMode(uint8_t mode) {
     next_tagged = (next_tagged & ~uintptr_t{0x03}) | (mode & 0x03);
   }
 
-  // num_keys stored in low bits of prev_tagged.
-  // Single load and mask without cross-word assembly.
+  // Extracts the key count from the low 9 bits (0..511) of prev_tagged.
   HWY_INLINE uint16_t NumKeys() const {
     return static_cast<uint16_t>(prev_tagged & kNumKeysMask);
   }
 
+  // Updates the key count in the low 9 bits of prev_tagged while preserving the
+  // Prev pointer.
   HWY_INLINE void SetNumKeys(uint16_t n) {
     prev_tagged = (prev_tagged & ~kNumKeysMask) | (n & kNumKeysMask);
   }
 
-  // Mask out low tag bits (kNumKeysMask) to extract aligned node pointer.
+  // Masks out the low 9 tag bits to return the aligned Next node pointer.
   HWY_INLINE LeafNode* Next() const {
     return reinterpret_cast<LeafNode*>(next_tagged & ~kNumKeysMask);
   }
 
+  // Updates the Next node pointer while preserving the existing bit_mode tag.
   HWY_INLINE void SetNext(LeafNode* ptr) {
     const uintptr_t tag = next_tagged & uintptr_t{0x03};
     next_tagged = (reinterpret_cast<uintptr_t>(ptr) & ~kNumKeysMask) | tag;
   }
 
+  // Masks out the low 9 tag bits to return the aligned Prev node pointer.
   HWY_INLINE LeafNode* Prev() const {
     return reinterpret_cast<LeafNode*>(prev_tagged & ~kNumKeysMask);
   }
 
+  // Updates the Prev node pointer while preserving the existing num_keys count.
   HWY_INLINE void SetPrev(LeafNode* ptr) {
     const uintptr_t tag = prev_tagged & kNumKeysMask;
     prev_tagged = (reinterpret_cast<uintptr_t>(ptr) & ~kNumKeysMask) | tag;
@@ -170,6 +188,26 @@ static_assert(alignof(LeafNode<int64_t>) == LeafNode<int64_t>::kNodeBytes);
 // Metadata placed at tail (base_key, next_tagged, prev_tagged).
 // Aligned to kNodeBytes (512 bytes), guaranteeing 9 (log2(512)) low zero bits
 // in both next_tagged and prev_tagged pointers.
+//
+// Node Memory Layout (512 Bytes):
+// +-------------------------------------------+-----------------------+
+// | payload[]: Structure-of-Arrays (SoA)      | Metadata Header       |
+// | 492 bytes (32-bit key) /                  | base_key: 4B / 8B     |
+// | 488 bytes (64-bit key)                    | next_tagged: 8B       |
+// |                                           | prev_tagged: 8B       |
+// +-------------------------------------------+-----------------------+
+// 0                                         492/488                 512
+//
+// Structure-of-Arrays (SoA) inside payload[]:
+// +--------------------+----------+--------------------+--------------+
+// | Key Offsets        | Align    | Values Array       | Unused Slack |
+// | OffsetT[max_pairs] | Padding  | ValueT[max_pairs]  |              |
+// +--------------------+----------+--------------------+--------------+
+// 0                    raw_offset ValuesOffset         492/488
+//
+// Tagged pointer low-bit packing:
+//   next_tagged: bits [63..2] = Next ptr, bits [1..0] = bit_mode (0..3)
+//   prev_tagged: bits [63..9] = Prev ptr, bits [8..0] = num_keys (0..511)
 template <typename KeyT, typename ValueT>
 struct alignas(512) MapLeafNode {
   using StorageKeyT = typename KeyCodec<KeyT>::StorageKey;
@@ -219,41 +257,53 @@ struct alignas(512) MapLeafNode {
   const uint8_t* KeyData() const { return payload; }
   uint8_t* KeyData() { return payload; }
 
+  // Extracts the 2-bit compression mode from bits [1..0] of next_tagged.
   HWY_INLINE uint8_t BitMode() const {
     return static_cast<uint8_t>(next_tagged & 0x03);
   }
 
+  // Updates the 2-bit compression mode in next_tagged while preserving the
+  // Next pointer.
   HWY_INLINE void SetBitMode(uint8_t mode) {
     next_tagged = (next_tagged & ~uintptr_t{0x03}) | (mode & 0x03);
   }
 
+  // Extracts the key count from the low 9 bits (0..511) of prev_tagged.
   HWY_INLINE uint16_t NumKeys() const {
     return static_cast<uint16_t>(prev_tagged & kNumKeysMask);
   }
 
+  // Updates the key count in the low 9 bits of prev_tagged while preserving the
+  // Prev pointer.
   HWY_INLINE void SetNumKeys(uint16_t count) {
     prev_tagged = (prev_tagged & ~kNumKeysMask) |
                   (static_cast<uintptr_t>(count) & kNumKeysMask);
   }
 
+  // Masks out the low 9 tag bits to return the aligned Next node pointer.
   HWY_INLINE MapLeafNode* Next() const {
     return reinterpret_cast<MapLeafNode*>(next_tagged & ~kNumKeysMask);
   }
 
+  // Updates the Next node pointer while preserving the existing bit_mode tag.
   HWY_INLINE void SetNext(MapLeafNode* ptr) {
     const uintptr_t tag = next_tagged & uintptr_t{0x03};
     next_tagged = (reinterpret_cast<uintptr_t>(ptr) & ~kNumKeysMask) | tag;
   }
 
+  // Masks out the low 9 tag bits to return the aligned Prev node pointer.
   HWY_INLINE MapLeafNode* Prev() const {
     return reinterpret_cast<MapLeafNode*>(prev_tagged & ~kNumKeysMask);
   }
 
+  // Updates the Prev node pointer while preserving the existing num_keys count.
   HWY_INLINE void SetPrev(MapLeafNode* ptr) {
     const uintptr_t tag = prev_tagged & kNumKeysMask;
     prev_tagged = (reinterpret_cast<uintptr_t>(ptr) & ~kNumKeysMask) | tag;
   }
 
+  // Computes the mode-dependent ValuesOffset and returns a pointer to the
+  // contiguous values array within payload.
   const ValueT* Values() const {
     const uint8_t mode = BitMode();
     if (HWY_LIKELY(mode == kMode16Bit)) {
