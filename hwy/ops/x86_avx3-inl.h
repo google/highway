@@ -407,6 +407,9 @@ HWY_API V CompressBits(V v, const uint8_t* HWY_RESTRICT bits) {
 template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2))>
 HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> mask, D d,
                              TFromD<D>* HWY_RESTRICT unaligned) {
+  HWY_IF_CONSTEXPR(HWY_MAX_LANES_D(D) < (16 / sizeof(TFromD<D>))) {
+    mask = And(mask, FirstN(d, HWY_MAX_LANES_D(D)));
+  }
 #if HWY_X86_SLOW_COMPRESS_STORE
   StoreU(Compress(v, mask), d, unaligned);
 #else
@@ -429,6 +432,9 @@ template <class D, HWY_IF_NOT_FLOAT_D(D),
           HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 4) | (1 << 8))>
 HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> mask, D d,
                              TFromD<D>* HWY_RESTRICT unaligned) {
+  HWY_IF_CONSTEXPR(HWY_MAX_LANES_D(D) < (16 / sizeof(TFromD<D>))) {
+    mask = And(mask, FirstN(d, HWY_MAX_LANES_D(D)));
+  }
 #if HWY_X86_SLOW_COMPRESS_STORE
   StoreU(Compress(v, mask), d, unaligned);
 #else
@@ -447,6 +453,9 @@ HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> mask, D d,
 template <class D, HWY_IF_FLOAT3264_D(D)>
 HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> mask, D d,
                              TFromD<D>* HWY_RESTRICT unaligned) {
+  HWY_IF_CONSTEXPR(HWY_MAX_LANES_D(D) < (16 / sizeof(TFromD<D>))) {
+    mask = And(mask, FirstN(d, HWY_MAX_LANES_D(D)));
+  }
 #if HWY_X86_SLOW_COMPRESS_STORE
   StoreU(Compress(v, mask), d, unaligned);
 #else

@@ -703,6 +703,7 @@ if tests_enabled
         hwy_contrib_test_files = files(
             'hwy/auto_tune_test.cc',
             'hwy/contrib/base64/base64_test.cc',
+            'hwy/contrib/algo/algo_bench.cc',
             'hwy/contrib/algo/copy_test.cc',
             'hwy/contrib/algo/count_value_test.cc',
             'hwy/contrib/algo/find_test.cc',
