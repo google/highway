@@ -949,6 +949,7 @@ cc_test(
     ],
     deps = HWY_TEST_DEPS + [
         ":algo",
+        ":stats",
     ],
 )
 
