@@ -75,17 +75,22 @@ class Cuckoo2x2 {
 
   const Cuckoo2x2Data& Data() const { return data_; }
 
-  // Scalar single-key lookup. 11 cycles on AMD Milan.
+  // Scalar single-key lookup. The four independent comparisons execute in
+  // parallel on modern CPUs; a SWAR HasZeroU16 approach was tried but is
+  // slower because its dependency chain is longer.
   HWY_INLINE bool Contains(uint32_t key) const {
     const uint32_t mask = data_.config.bucket_mask;
     const uint32_t h1 = hash1_(key);
-    // Golden ratio; mul by odd is a bijection.
-    const uint32_t h2 = key * 0x9E3779B9u;
+    // Most will land in the primary bucket because the builder prefers it, but
+    // an early-out does not help latency measurements.
     const uint32_t b1 = h1 & mask;
-    const uint32_t b2 = h2 & mask;
-    // 14-bit fp (h >> 18) + 2-bit tag: 01=hash1, 10=hash2.
-    const uint16_t fp1 = static_cast<uint16_t>((h1 >> 18) | 0x4000);
-    const uint16_t fp2 = static_cast<uint16_t>((h2 >> 18) | 0x8000);
+    const uint32_t fp = h1 >> 18;
+    // Secondary bucket always differs from b1 because (fp + 1) != 0. No
+    // masking required because b1 has M >= 18 bits, and (fp + 1) has at most
+    // 33 - M <= 15 bits.
+    const uint32_t b2 = b1 ^ (fp + 1);
+    const uint16_t fp1 = static_cast<uint16_t>(fp | 0x4000);
+    const uint16_t fp2 = static_cast<uint16_t>(fp | 0x8000);
     const uint32_t e1 = data_.entries[b1];
     const uint32_t e2 = data_.entries[b2];
     return fp1 == static_cast<uint16_t>(e1 & 0xFFFF) ||
@@ -104,35 +109,37 @@ class Cuckoo2x2 {
     using VU16 = Vec<decltype(du16)>;
     using VI32 = Vec<decltype(di32)>;
 
-    // Hash1 uses Triple32, Hash2 uses golden ratio.
     const VU32 h1 = hash1_.OneVec(du32, key);
-    const VU32 h2 = Mul(key, Set(du32, 0x9E3779B9u));
 
-    // Bucket indices via AND mask. This is critical for correctness, because
-    // our false-positive elimination method is to check all bits which do not
-    // influence/govern the choice of bucket. Lemire's modulo is a function of
-    // ALL hash bits, hence would not work here.
+    // Primary bucket via AND mask. TODO: could also use Lemire modulo, if we
+    // store the division result as the fingerprint.
     const VU32 bucket_mask = Set(du32, data_.config.bucket_mask);
-    const VI32 bucket_idx1 = BitCast(di32, And(h1, bucket_mask));
-    const VI32 bucket_idx2 = BitCast(di32, And(h2, bucket_mask));
+    const VU32 b1 = And(h1, bucket_mask);
+    const VI32 bucket_idx1 = BitCast(di32, b1);
 
-    // 14-bit fingerprint (bits 18-31 of hash) + 2-bit tag (bits 14-15):
-    //   01 = hash1, 10 = hash2. ShiftRight<2> extracts bits 18-31
-    //   into bits 0-13 with bits 14-15 = 0, then Or sets the tag.
-    //   Empty entries (tag=00) can never match (tag always 01 or 10).
+    // Secondary bucket: b2 = b1 XOR (fp + 1).
+    // S(fp) = fp + 1 >= 1 ensures b1 != b2. S depends only on fp (the upper
+    // 14 bits of h1), which is critical for the zero-false-positive proof.
+    // No masking needed: b1 has M bits, (fp + 1) has at most 33 - M < M bits
+    // (since M >= 18), so the XOR fits in M bits.
+    const VU32 secondary = Add(ShiftRight<18>(h1), Set(du32, 1u));
+    const VI32 bucket_idx2 = BitCast(di32, Xor(b1, secondary));
+
+    // 14-bit fingerprint (bits 18-31 of h1) + 2-bit tag (bits 14-15):
+    //   01 = primary, 10 = secondary, 00 = empty. ShiftRight<2> extracts bits
+    //   18-31 into bits 0-13 with bits 14-15 = 0, then Or sets the tag.
+    //   Tags prevent cross-bucket false positives.
     // Note that we have >= 256K buckets, hence bits 0-17 govern the choice of
     // bucket and do not have to be verified.
 #if HWY_IS_BIG_ENDIAN
     const VU16 fp1 =
         Or(ShiftRight<2>(DupEven(BitCast(du16, h1))), Set(du16, 0x4000));
-    const VU16 fp2 =
-        Or(ShiftRight<2>(DupEven(BitCast(du16, h2))), Set(du16, 0x8000));
 #else
     const VU16 fp1 =
         Or(ShiftRight<2>(DupOdd(BitCast(du16, h1))), Set(du16, 0x4000));
-    const VU16 fp2 =
-        Or(ShiftRight<2>(DupOdd(BitCast(du16, h2))), Set(du16, 0x8000));
 #endif
+    // Flip tag from 01 to 10: XOR 0xC000 clears bit 14, sets bit 15.
+    const VU16 fp2 = Xor(fp1, Set(du16, 0xC000));
 
     const uint32_t* base = data_.entries.data();
 
@@ -158,7 +165,7 @@ class Cuckoo2x2 {
   }
 
  private:
-  Triple32 hash1_;
+  WeakTwoMul hash1_;
   Cuckoo2x2Data data_;
 };
 

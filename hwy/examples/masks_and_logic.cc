@@ -82,13 +82,15 @@ void RenderLineSIMD(size_t y, size_t width, int32_t* HWY_RESTRICT line_buf) {
   const hn::ScalableTag<float> df;
   const hn::RebindToSigned<decltype(df)> di;  // int32_t tag
 
+  using MF = hn::Mask<decltype(df)>;
+  using MI = hn::Mask<decltype(di)>;
   using VF = hn::Vec<decltype(df)>;
   using VI = hn::Vec<decltype(di)>;
 
   HWY_LANES_CONSTEXPR size_t N = hn::Lanes(df);
 
   // Lambda for box mask
-  auto make_box_mask = [&](VF v_x, float y_val, Box b) HWY_ATTR {
+  auto make_box_mask = [&](VF v_x, float y_val, Box b) HWY_ATTR -> MF {
     // Use AbsDiff to compute absolute difference.
     VF v_bdx = hn::AbsDiff(v_x, hn::Set(df, b.cx));
     VF v_bdy = hn::Set(df, std::abs(y_val - b.cy));
@@ -105,20 +107,20 @@ void RenderLineSIMD(size_t y, size_t width, int32_t* HWY_RESTRICT line_buf) {
     // We can pass the start value directly to Iota.
     VF v_x = hn::Iota(df, static_cast<float>(x));
 
-    auto mask1 = make_box_mask(v_x, static_cast<float>(y), kBox1);
-    auto mask2 = make_box_mask(v_x, static_cast<float>(y), kBox2);
+    MF mask1 = make_box_mask(v_x, static_cast<float>(y), kBox1);
+    MF mask2 = make_box_mask(v_x, static_cast<float>(y), kBox2);
 
     // Combine masks using boolean operations.
     // AndNot(a, b) means 'b AND NOT a'.
-    auto mask_both = hn::And(mask1, mask2);
-    auto mask1_only = hn::AndNot(mask2, mask1);
-    auto mask2_only = hn::AndNot(mask1, mask2);
+    MF mask_both = hn::And(mask1, mask2);
+    MF mask1_only = hn::AndNot(mask2, mask1);
+    MF mask2_only = hn::AndNot(mask1, mask2);
 
     // Masks generated from floats cannot be directly used to select integers.
     // RebindMask converts the mask representation to match the integer tag di.
-    auto imask_both = hn::RebindMask(di, mask_both);
-    auto imask1_only = hn::RebindMask(di, mask1_only);
-    auto imask2_only = hn::RebindMask(di, mask2_only);
+    MI imask_both = hn::RebindMask(di, mask_both);
+    MI imask1_only = hn::RebindMask(di, mask1_only);
+    MI imask2_only = hn::RebindMask(di, mask2_only);
 
     // Chaining IfThenElse allows simulating nested if-else logic.
     // The execution order is effectively reverse of chain order, or we can
@@ -158,7 +160,7 @@ static void CallRenderArtSIMD(size_t width, size_t height,
 
 static void RenderArtScalar(size_t width, size_t height,
                             int32_t* HWY_RESTRICT buf) {
-  auto check_box = [](float x_val, float y_val, Box b) {
+  auto check_box = [](float x_val, float y_val, Box b) -> bool {
     return std::abs(x_val - b.cx) < b.w && std::abs(y_val - b.cy) < b.h;
   };
 

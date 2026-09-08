@@ -210,6 +210,40 @@ HWY_NOINLINE void TestAllSlideUpLanesOr() {
   ForAllTypes(ForPartialVectors<TestSlideUpLanesOr>());
 }
 
+struct TestSlideDownLanesOr {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    auto expected = AllocateAligned<T>(N);
+    auto a_lanes = AllocateAligned<T>(N);
+    auto b_lanes = AllocateAligned<T>(N);
+
+    HWY_ASSERT(expected);
+    HWY_ASSERT(a_lanes);
+    HWY_ASSERT(b_lanes);
+
+    const Rebind<If<IsSigned<T>(), T, MakeSigned<T>>, decltype(d)> d_neg;
+
+    const auto a = BitCast(d, PositiveIota(d_neg, 1));
+    const auto b = BitCast(d, Neg(BitCast(d_neg, a)));
+
+    Store(a, d, a_lanes.get());
+    Store(b, d, b_lanes.get());
+
+    for (size_t i = 0; i < N; i++) {
+      for (size_t j = 0; j < N; j++) {
+        expected[j] = (j < N - i) ? a_lanes[j + i] : b_lanes[j];
+      }
+
+      HWY_ASSERT_VEC_EQ(d, expected.get(), SlideDownLanesOr(b, d, a, i));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllSlideDownLanesOr() {
+  ForAllTypes(ForPartialVectors<TestSlideDownLanesOr>());
+}
+
 #if !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 && !HWY_TARGET_IS_SVE
 // DoTestSlideDownLanes needs to be inlined on targets where
 // DoTestSlideDownLanesWithConstAmt_0_7, DoTestSlideDownLanesWithConstAmt_8_15,
@@ -407,6 +441,44 @@ HWY_NOINLINE void TestAllSlide1() {
   ForAllTypes(ForPartialVectors<TestSlide1>());
 }
 
+struct TestSlide1Or {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto iota0 = Iota(d, 0);
+    const T no = ConvertScalarTo<T>(99);
+
+    const size_t N = Lanes(d);
+    auto expected_up = AllocateAligned<T>(N);
+    auto expected_down = AllocateAligned<T>(N);
+    auto v_lanes = AllocateAligned<T>(N);
+
+    HWY_ASSERT(expected_up);
+    HWY_ASSERT(expected_down);
+    HWY_ASSERT(v_lanes);
+
+    Store(iota0, d, v_lanes.get());
+
+    expected_up[0] = no;
+    for (size_t j = 1; j < N; j++) {
+      expected_up[j] = v_lanes[j - 1];
+    }
+
+    if (N > 0) {
+      for (size_t j = 0; j < N - 1; j++) {
+        expected_down[j] = v_lanes[j + 1];
+      }
+      expected_down[N - 1] = no;
+    }
+
+    HWY_ASSERT_VEC_EQ(d, expected_up.get(), Slide1UpOr(no, d, iota0));
+    HWY_ASSERT_VEC_EQ(d, expected_down.get(), Slide1DownOr(no, d, iota0));
+  }
+};
+
+HWY_NOINLINE void TestAllSlide1Or() {
+  ForAllTypes(ForPartialVectors<TestSlide1Or>());
+}
+
 class TestSlideBlocks {
  private:
   template <int kBlocks, class D>
@@ -490,8 +562,11 @@ HWY_BEFORE_TEST(HwySlideUpDownTest);
 HWY_EXPORT_AND_TEST_P(HwySlideUpDownTest, TestAllSlideUpLanes);
 HWY_EXPORT_AND_TEST_P(HwySlideUpDownTest, TestAllSlideUpLanesOr);
 HWY_EXPORT_AND_TEST_P(HwySlideUpDownTest, TestAllSlideDownLanes);
+HWY_EXPORT_AND_TEST_P(HwySlideUpDownTest, TestAllSlideDownLanesOr);
 HWY_EXPORT_AND_TEST_P(HwySlideUpDownTest, TestAllSlide1);
+HWY_EXPORT_AND_TEST_P(HwySlideUpDownTest, TestAllSlide1Or);
 HWY_EXPORT_AND_TEST_P(HwySlideUpDownTest, TestAllSlideBlocks);
+
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy

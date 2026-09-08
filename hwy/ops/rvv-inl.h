@@ -2276,6 +2276,20 @@ HWY_API MFromD<DTo> DemoteMaskTo(DTo /*d_to*/, DFrom /*d_from*/,
   return m;
 }
 
+// ------------------------------ Additional mask logical operations
+
+HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGM, SetOnlyFirst, sof)
+HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGM, SetBeforeFirst, sbf)
+HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGM, SetAtOrBeforeFirst, sif)
+
+#define HWY_RVV_SET_AT_OR_AFTER_FIRST(SEW, SHIFT, MLEN, NAME, OP) \
+  HWY_API HWY_RVV_M(MLEN) SetAtOrAfterFirst(HWY_RVV_M(MLEN) m) {  \
+    return Not(SetBeforeFirst(m));                                \
+  }
+
+HWY_RVV_FOREACH_B(HWY_RVV_SET_AT_OR_AFTER_FIRST, _, _)
+#undef HWY_RVV_SET_AT_OR_AFTER_FIRST
+
 // ================================================== MEMORY
 
 // ------------------------------ Load
@@ -2630,13 +2644,12 @@ HWY_RVV_FOREACH_F16_UNCONDITIONAL(HWY_RVV_PROMOTE, PromoteTo, fwcvt_f_f_v_,
 #elif HWY_RVV_HAVE_F16C
 // VFromD for float16 is vuint16 when !HWY_HAVE_FLOAT16. Reinterpret to
 // vfloat16 for the widening conversion intrinsic.
-#define HWY_RVV_PROMOTE_F16(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+#define HWY_RVV_PROMOTE_F16(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,   \
                             SHIFT, MLEN, NAME, OP)                             \
   template <size_t N>                                                          \
   HWY_API HWY_RVV_V(BASE, SEWD, LMULD) NAME(                                   \
-      HWY_RVV_D(BASE, SEWD, N, SHIFT + 1) d,                                   \
-      HWY_RVV_V(uint, SEW, LMUL) v) {                                          \
-    return __riscv_v##OP##CHAR##SEWD##LMULD(                                    \
+      HWY_RVV_D(BASE, SEWD, N, SHIFT + 1) d, HWY_RVV_V(uint, SEW, LMUL) v) {   \
+    return __riscv_v##OP##CHAR##SEWD##LMULD(                                   \
         __riscv_vreinterpret_v_u##SEW##LMUL##_##CHAR##SEW##LMUL(v), Lanes(d)); \
   }
 HWY_RVV_FOREACH_F16_UNCONDITIONAL(HWY_RVV_PROMOTE_F16, PromoteTo,
@@ -3385,13 +3398,12 @@ HWY_RVV_FOREACH_F32(HWY_RVV_DEMOTE_F, DemoteTo, fncvt_f_f_w_f, _DEMOTE_VIRT)
 // VFromD for float16 is vuint16 when !HWY_HAVE_FLOAT16. Reinterpret from
 // vfloat16 result of the narrowing conversion intrinsic.
 #define HWY_RVV_DEMOTE_F16(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,  \
-                           SHIFT, MLEN, NAME, OP)                              \
-  template <size_t N>                                                          \
-  HWY_API vuint##SEWH##LMULH##_t NAME(                                         \
-      HWY_RVV_D(BASE, SEWH, N, SHIFT - 1) d,                                   \
-      HWY_RVV_V(BASE, SEW, LMUL) v) {                                          \
-    return __riscv_vreinterpret_v_##CHAR##SEWH##LMULH##_u##SEWH##LMULH(         \
-        __riscv_v##OP##SEWH##LMULH(v, Lanes(d)));                              \
+                           SHIFT, MLEN, NAME, OP)                            \
+  template <size_t N>                                                        \
+  HWY_API vuint##SEWH##LMULH##_t NAME(HWY_RVV_D(BASE, SEWH, N, SHIFT - 1) d, \
+                                      HWY_RVV_V(BASE, SEW, LMUL) v) {        \
+    return __riscv_vreinterpret_v_##CHAR##SEWH##LMULH##_u##SEWH##LMULH(      \
+        __riscv_v##OP##SEWH##LMULH(v, Lanes(d)));                            \
   }
 HWY_RVV_FOREACH_F32(HWY_RVV_DEMOTE_F16, DemoteTo, fncvt_f_f_w_f,
                      _DEMOTE_VIRT)
@@ -3861,6 +3873,19 @@ HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
   return v;
 }
 
+#ifdef HWY_NATIVE_SLIDE_DOWN_LANES_OR
+#undef HWY_NATIVE_SLIDE_DOWN_LANES_OR
+#else
+#define HWY_NATIVE_SLIDE_DOWN_LANES_OR
+#endif
+
+template <class D>
+HWY_API VFromD<D> SlideDownLanesOr(VFromD<D> hi, D d, VFromD<D> lo,
+                                   size_t amt) {
+  auto v = detail::SlideDown(lo, amt);
+  return IfThenElse(FirstN(d, Lanes(d) - amt), v, hi);
+}
+
 // ------------------------------ ConcatUpperLower
 template <class D, class V>
 HWY_API V ConcatUpperLower(D d, const V hi, const V lo) {
@@ -3955,14 +3980,51 @@ namespace detail {
     return __riscv_v##OP##_##CHAR##SEW##LMUL(v, 0, HWY_RVV_AVL(SEW, SHIFT));   \
   }
 
+#define HWY_RVV_SLIDE1_OR(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,    \
+                          SHIFT, MLEN, NAME, OP)                              \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                          \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_T(BASE, SEW) no) {           \
+    return __riscv_v##OP##_##CHAR##SEW##LMUL(v, no, HWY_RVV_AVL(SEW, SHIFT)); \
+  }
+
 HWY_RVV_FOREACH_UI(HWY_RVV_SLIDE1, Slide1Up, slide1up_vx, _ALL)
 HWY_RVV_FOREACH_F(HWY_RVV_SLIDE1, Slide1Up, fslide1up_vf, _ALL)
 HWY_RVV_FOREACH_UI(HWY_RVV_SLIDE1, Slide1Down, slide1down_vx, _ALL)
 HWY_RVV_FOREACH_F(HWY_RVV_SLIDE1, Slide1Down, fslide1down_vf, _ALL)
+
+HWY_RVV_FOREACH_UI(HWY_RVV_SLIDE1_OR, Slide1UpOr, slide1up_vx, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_SLIDE1_OR, Slide1UpOr, fslide1up_vf, _ALL)
+HWY_RVV_FOREACH_UI(HWY_RVV_SLIDE1_OR, Slide1DownOr, slide1down_vx, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_SLIDE1_OR, Slide1DownOr, fslide1down_vf, _ALL)
+
 #undef HWY_RVV_SLIDE1
+#undef HWY_RVV_SLIDE1_OR
 }  // namespace detail
 
-// ------------------------------ Slide1Up and Slide1Down
+// ------------------------------ InsertLane (detail::SlideUp, SetOnlyFirst)
+
+// T template arg because TFromV<V> might not match the hwy::float16_t argument.
+template <class V, typename T, HWY_IF_NOT_T_SIZE_V(V, 1)>
+HWY_API V InsertLane(const V v, size_t i, T t) {
+  const Rebind<T, DFromV<V>> d;
+  const RebindToUnsigned<decltype(d)> du;  // Iota0 is unsigned only
+  using TU = TFromD<decltype(du)>;
+  const auto is_i = detail::EqS(detail::Iota0(du), static_cast<TU>(i));
+  return IfThenElse(RebindMask(d, is_i), Set(d, t), v);
+}
+
+// For 8-bit lanes, Iota0 might overflow.
+template <class V, typename T, HWY_IF_T_SIZE_V(V, 1)>
+HWY_API V InsertLane(const V v, size_t i, T t) {
+  const Rebind<T, DFromV<V>> d;
+  const auto zero = Zero(d);
+  const auto one = Set(d, 1);
+  const auto ge_i = Eq(detail::SlideUp(zero, one, i), one);
+  const auto is_i = SetOnlyFirst(ge_i);
+  return IfThenElse(RebindMask(d, is_i), Set(d, t), v);
+}
+
+// ------------------------------ Slide1Up and Slide1Down (InsertLane)
 #ifdef HWY_NATIVE_SLIDE1_UP_DOWN
 #undef HWY_NATIVE_SLIDE1_UP_DOWN
 #else
@@ -3984,6 +4046,31 @@ HWY_API VFromD<D> Slide1Down(D d, VFromD<D> v) {
   return v;
 }
 
+#ifdef HWY_NATIVE_SLIDE1_UP_DOWN_OR
+#undef HWY_NATIVE_SLIDE1_UP_DOWN_OR
+#else
+#define HWY_NATIVE_SLIDE1_UP_DOWN_OR
+#endif
+
+template <class D>
+HWY_API VFromD<D> Slide1UpOr(TFromD<D> no, D d, VFromD<D> v) {
+  v = detail::Slide1UpOr(v, no);
+  if (MaxLanes(d) < MaxLanes(DFromV<decltype(v)>())) {
+    v = detail::SlideUp(v, Zero(d), Lanes(d));
+  }
+  return v;
+}
+
+template <class D>
+HWY_API VFromD<D> Slide1DownOr(TFromD<D> no, D d, VFromD<D> v) {
+  if (MaxLanes(d) < MaxLanes(DFromV<decltype(v)>())) {
+    const auto v_no = InsertLane(Zero(d), /*i=*/0, no);
+    return detail::SlideUp(detail::Slide1Down(v), v_no, Lanes(d) - 1);
+  } else {
+    return detail::Slide1DownOr(v, no);
+  }
+}
+
 // ------------------------------ GetLane
 
 #define HWY_RVV_GET_LANE(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,     \
@@ -4000,43 +4087,6 @@ HWY_RVV_FOREACH_F(HWY_RVV_GET_LANE, GetLane, fmv_f, _ALL)
 template <class V>
 HWY_API TFromV<V> ExtractLane(const V v, size_t i) {
   return GetLane(detail::SlideDown(v, i));
-}
-
-// ------------------------------ Additional mask logical operations
-
-HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGM, SetOnlyFirst, sof)
-HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGM, SetBeforeFirst, sbf)
-HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGM, SetAtOrBeforeFirst, sif)
-
-#define HWY_RVV_SET_AT_OR_AFTER_FIRST(SEW, SHIFT, MLEN, NAME, OP) \
-  HWY_API HWY_RVV_M(MLEN) SetAtOrAfterFirst(HWY_RVV_M(MLEN) m) {  \
-    return Not(SetBeforeFirst(m));                                \
-  }
-
-HWY_RVV_FOREACH_B(HWY_RVV_SET_AT_OR_AFTER_FIRST, _, _)
-#undef HWY_RVV_SET_AT_OR_AFTER_FIRST
-
-// ------------------------------ InsertLane
-
-// T template arg because TFromV<V> might not match the hwy::float16_t argument.
-template <class V, typename T, HWY_IF_NOT_T_SIZE_V(V, 1)>
-HWY_API V InsertLane(const V v, size_t i, T t) {
-  const Rebind<T, DFromV<V>> d;
-  const RebindToUnsigned<decltype(d)> du;  // Iota0 is unsigned only
-  using TU = TFromD<decltype(du)>;
-  const auto is_i = detail::EqS(detail::Iota0(du), static_cast<TU>(i));
-  return IfThenElse(RebindMask(d, is_i), Set(d, t), v);
-}
-
-// For 8-bit lanes, Iota0 might overflow.
-template <class V, typename T, HWY_IF_T_SIZE_V(V, 1)>
-HWY_API V InsertLane(const V v, size_t i, T t) {
-  const Rebind<T, DFromV<V>> d;
-  const auto zero = Zero(d);
-  const auto one = Set(d, 1);
-  const auto ge_i = Eq(detail::SlideUp(zero, one, i), one);
-  const auto is_i = SetOnlyFirst(ge_i);
-  return IfThenElse(RebindMask(d, is_i), Set(d, t), v);
 }
 
 // ------------------------------ OddEven
@@ -5448,7 +5498,7 @@ HWY_RVV_FOREACH_F(HWY_RVV_REDUCE, RedMin, fredmin, _ALL_VIRT)
 template <class D, typename T = TFromD<D>, HWY_IF_REDUCE_D(D)>
 HWY_API T ReduceMin(D d, const VFromD<D> v) {
   const ScalableTag<T> d1;  // always m1
-  return detail::RedMin(d, v, Set(d1, HighestValue<T>()));
+  return detail::RedMin(d, v, Set(d1, PositiveInfOrHighestValue<T>()));
 }
 
 // ------------------------------ ReduceMax
@@ -5461,7 +5511,7 @@ HWY_RVV_FOREACH_F(HWY_RVV_REDUCE, RedMax, fredmax, _ALL_VIRT)
 template <class D, typename T = TFromD<D>, HWY_IF_REDUCE_D(D)>
 HWY_API T ReduceMax(D d, const VFromD<D> v) {
   const ScalableTag<T> d1;  // always m1
-  return detail::RedMax(d, v, Set(d1, LowestValue<T>()));
+  return detail::RedMax(d, v, Set(d1, NegativeInfOrLowestValue<T>()));
 }
 
 #undef HWY_RVV_REDUCE
@@ -6812,16 +6862,16 @@ HWY_API VFromD<DN> OrderedDemote2To(DN dn, V a, V b) {
   return ReorderDemote2To(dn, a, b);
 }
 
-// ------------------------------ ReorderShiftRightAndDemote2To (ReorderDemote2To)
-// ------------------------------ OrderedShiftRightAndDemote2To (OrderedDemote2To)
+// ---------------------------- ReorderShiftRightAndDemote2To (ReorderDemote2To)
+// ---------------------------- OrderedShiftRightAndDemote2To (OrderedDemote2To)
 
 // These reuse the fused [Rounding]ShiftRightAndDemoteTo above, exactly as
 // ReorderDemote2To reuses DemoteTo: at LMUL <= 2 we Combine the two inputs and
 // do one fused narrow; at the max LMUL we fused-narrow each half and Combine.
 // Multi-step narrowing falls back to the generic
 // ReorderDemote2To(dn, [Rounding]ShiftRight<k>(...)) path. The same
-// HWY_RVV_AVOID_VXRM reasoning as the single-vector op applies, so this block is
-// also omitted under that flag, leaving the generic path in place.
+// HWY_RVV_AVOID_VXRM reasoning as the single-vector op applies, so this block
+// is also omitted under that flag, leaving the generic path in place.
 #ifndef HWY_RVV_AVOID_VXRM
 
 #ifdef HWY_NATIVE_SHIFT_RIGHT_AND_REORDER_DEMOTE2
@@ -6971,8 +7021,11 @@ HWY_RVV_FOREACH_I16(HWY_RVV_WIDEN_MACC, WidenMulAcc, wmacc_vv_, _EXT_VIRT)
 HWY_RVV_FOREACH_U16(HWY_RVV_WIDEN_MACC, WidenMulAcc, wmaccu_vv_, _EXT_VIRT)
 #undef HWY_RVV_WIDEN_MACC
 
-// If LMUL is not the max, we can WidenMul first (3 instructions).
-template <class D32, HWY_IF_POW2_LE_D(D32, 2), class V32 = VFromD<D32>,
+// If LMUL is the smallest, one below what is allowed by the riscv spec,
+// the tail of sum needs to hold the values of sum1. This is required by 
+// RearrangeOddPlusEven, because it does not have access to D.
+// Lanes(d32) != Lanes(DFromV<V32>)
+template <class D32, HWY_IF_POW2_LE_D(D32, -2), class V32 = VFromD<D32>,
           class D16 = RepartitionToNarrow<D32>>
 HWY_API VFromD<D32> ReorderWidenMulAccumulateI16(D32 d32, VFromD<D16> a,
                                                  VFromD<D16> b, const V32 sum0,
@@ -6985,24 +7038,21 @@ HWY_API VFromD<D32> ReorderWidenMulAccumulateI16(D32 d32, VFromD<D16> a,
   return LowerHalf(d32, sum);
 }
 
-// Max LMUL: must LowerHalf first (4 instructions).
-template <class D32, HWY_IF_POW2_GT_D(D32, 2), class V32 = VFromD<D32>,
+// LMUL not smallest 
+template <class D32, HWY_IF_POW2_GT_D(D32, -2), class V32 = VFromD<D32>,
           class D16 = RepartitionToNarrow<D32>>
 HWY_API VFromD<D32> ReorderWidenMulAccumulateI16(D32 d32, VFromD<D16> a,
                                                  VFromD<D16> b, const V32 sum0,
                                                  V32& sum1) {
-  const Half<D16> d16h;
-  using V16H = VFromD<decltype(d16h)>;
-  const V16H a0 = LowerHalf(d16h, a);
-  const V16H a1 = UpperHalf(d16h, a);
-  const V16H b0 = LowerHalf(d16h, b);
-  const V16H b1 = UpperHalf(d16h, b);
-  sum1 = detail::WidenMulAcc(d32, sum1, a1, b1);
-  return detail::WidenMulAcc(d32, sum0, a0, b0);
+  sum1 = MulAdd(PromoteUpperTo(d32, a), PromoteUpperTo(d32, b), sum1);
+  return MulAdd(PromoteLowerTo(d32, a), PromoteLowerTo(d32, b), sum0);
 }
 
-// If LMUL is not the max, we can WidenMul first (3 instructions).
-template <class D32, HWY_IF_POW2_LE_D(D32, 2), class V32 = VFromD<D32>,
+// If LMUL is the smallest, one below what is allowed by the riscv spec,
+// the tail of sum needs to hold the values of sum1. This is required by 
+// RearrangeOddPlusEven, because it does not have access to D.
+// Lanes(d32) != Lanes(DFromV<V32>)
+template <class D32, HWY_IF_POW2_LE_D(D32, -2), class V32 = VFromD<D32>,
           class D16 = RepartitionToNarrow<D32>>
 HWY_API VFromD<D32> ReorderWidenMulAccumulateU16(D32 d32, VFromD<D16> a,
                                                  VFromD<D16> b, const V32 sum0,
@@ -7015,20 +7065,14 @@ HWY_API VFromD<D32> ReorderWidenMulAccumulateU16(D32 d32, VFromD<D16> a,
   return LowerHalf(d32, sum);
 }
 
-// Max LMUL: must LowerHalf first (4 instructions).
-template <class D32, HWY_IF_POW2_GT_D(D32, 2), class V32 = VFromD<D32>,
+// LMUL not smallest 
+template <class D32, HWY_IF_POW2_GT_D(D32, -2), class V32 = VFromD<D32>,
           class D16 = RepartitionToNarrow<D32>>
 HWY_API VFromD<D32> ReorderWidenMulAccumulateU16(D32 d32, VFromD<D16> a,
                                                  VFromD<D16> b, const V32 sum0,
                                                  V32& sum1) {
-  const Half<D16> d16h;
-  using V16H = VFromD<decltype(d16h)>;
-  const V16H a0 = LowerHalf(d16h, a);
-  const V16H a1 = UpperHalf(d16h, a);
-  const V16H b0 = LowerHalf(d16h, b);
-  const V16H b1 = UpperHalf(d16h, b);
-  sum1 = detail::WidenMulAcc(d32, sum1, a1, b1);
-  return detail::WidenMulAcc(d32, sum0, a0, b0);
+  sum1 = MulAdd(PromoteUpperTo(d32, a), PromoteUpperTo(d32, b), sum1);
+  return MulAdd(PromoteLowerTo(d32, a), PromoteLowerTo(d32, b), sum0);
 }
 
 }  // namespace detail

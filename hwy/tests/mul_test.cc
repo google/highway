@@ -359,7 +359,7 @@ struct TestMulOdd {
 #endif
   }
   template <typename T, class D, HWY_IF_LANES_LE_D(D, 1)>
-  HWY_INLINE void operator()(T /*unused*/, D /*d*/) {}
+  HWY_INLINE HWY_MAYBE_UNUSED void operator()(T /*unused*/, D /*d*/) {}
 };
 
 #if HWY_HAVE_INTEGER64 && HWY_TARGET != HWY_SCALAR

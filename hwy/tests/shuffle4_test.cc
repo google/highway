@@ -29,21 +29,20 @@ namespace {
 class TestPer4LaneBlockShuffle {
  private:
   template <class D, HWY_IF_LANES_LE_D(D, 1)>
-  static HWY_INLINE VFromD<D> InterleaveMaskVectors(D /*d*/, VFromD<D> a,
-                                                    VFromD<D> /*b*/) {
+  static HWY_INLINE HWY_MAYBE_UNUSED VFromD<D> InterleaveMaskVectors(
+      D /*d*/, VFromD<D> a, VFromD<D> /*b*/) {
     return a;
   }
 #if HWY_TARGET != HWY_SCALAR
   template <class D, HWY_IF_LANES_GT_D(D, 1)>
-  static HWY_INLINE VFromD<D> InterleaveMaskVectors(D d, VFromD<D> a,
-                                                    VFromD<D> b) {
+  static HWY_INLINE HWY_MAYBE_UNUSED
+      VFromD<D> InterleaveMaskVectors(D d, VFromD<D> a, VFromD<D> b) {
     return InterleaveLower(d, a, b);
   }
 #endif
   template <class D>
-  static HWY_INLINE Mask<D> Per4LaneBlockShufValidMask(D d, const size_t N,
-                                                       const size_t idx1,
-                                                       const size_t idx0) {
+  static HWY_INLINE HWY_MAYBE_UNUSED Mask<D> Per4LaneBlockShufValidMask(
+      D d, const size_t N, const size_t idx1, const size_t idx0) {
     if (N < 4) {
       const RebindToSigned<decltype(d)> di;
       using TI = TFromD<decltype(di)>;

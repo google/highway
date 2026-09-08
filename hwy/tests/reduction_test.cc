@@ -467,6 +467,63 @@ HWY_NOINLINE void TestAllMaskedReduceMax() {
   ForAllTypes(ForPartialVectors<TestMaskedReduceMax>());
 }
 
+struct TestReduceMinOrNaN {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    auto in_lanes = AllocateAligned<T>(N);
+    HWY_ASSERT(in_lanes);
+
+    for (size_t i = 0; i < N; ++i) {
+      in_lanes[i] = ConvertScalarTo<T>(i + 1);
+    }
+
+    const Vec<D> v = Load(d, in_lanes.get());
+    HWY_ASSERT_EQ(ReduceMin(d, v), ReduceMinOrNaN(d, v));
+
+    const T nan = GetLane(NaN(d));
+    for (size_t pos = 0; pos < N; ++pos) {
+      in_lanes[pos] = nan;
+      const Vec<D> v_nan = Load(d, in_lanes.get());
+      HWY_ASSERT(ScalarIsNaN(ReduceMinOrNaN(d, v_nan)));
+      in_lanes[pos] = ConvertScalarTo<T>(pos + 1);
+    }
+
+    HWY_ASSERT(ScalarIsNaN(ReduceMinOrNaN(d, NaN(d))));
+  }
+};
+
+struct TestReduceMaxOrNaN {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    auto in_lanes = AllocateAligned<T>(N);
+    HWY_ASSERT(in_lanes);
+
+    for (size_t i = 0; i < N; ++i) {
+      in_lanes[i] = ConvertScalarTo<T>(i + 1);
+    }
+
+    const Vec<D> v = Load(d, in_lanes.get());
+    HWY_ASSERT_EQ(ReduceMax(d, v), ReduceMaxOrNaN(d, v));
+
+    const T nan = GetLane(NaN(d));
+    for (size_t pos = 0; pos < N; ++pos) {
+      in_lanes[pos] = nan;
+      const Vec<D> v_nan = Load(d, in_lanes.get());
+      HWY_ASSERT(ScalarIsNaN(ReduceMaxOrNaN(d, v_nan)));
+      in_lanes[pos] = ConvertScalarTo<T>(pos + 1);
+    }
+
+    HWY_ASSERT(ScalarIsNaN(ReduceMaxOrNaN(d, NaN(d))));
+  }
+};
+
+HWY_NOINLINE void TestAllReduceMinMaxOrNaN() {
+  ForFloatTypes(ForPartialVectors<TestReduceMinOrNaN>());
+  ForFloatTypes(ForPartialVectors<TestReduceMaxOrNaN>());
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -486,6 +543,7 @@ HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllSumsOf8);
 HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllMaskedReduceSum);
 HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllMaskedReduceMin);
 HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllMaskedReduceMax);
+HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllReduceMinMaxOrNaN);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy

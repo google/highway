@@ -188,7 +188,7 @@ struct TestUnique {
     if (count == 0) return;  // Unique requires count > 0.
     const size_t N = Lanes(d);
 
-    // Allocate with extra space for CompressBlendedStore overflow.
+    // Allocate with extra space for CompressStore overflow.
     AlignedFreeUniquePtr<T[]> storage =
         AllocateAligned<T>(HWY_MAX(1, misalign + count + N));
     HWY_ASSERT(storage);

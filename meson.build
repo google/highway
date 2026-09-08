@@ -128,9 +128,17 @@ hwy_sources = files(
 )
 
 hwy_contrib_headers = files(
+    'hwy/contrib/base64/base64-inl.h',
     'hwy/contrib/bit_pack/bit_pack-inl.h',
+    'hwy/contrib/coder/range_coder.h',
+    'hwy/contrib/coder/range_coder-inl.h',
+    'hwy/contrib/crc/crc-inl.h',
     'hwy/contrib/dot/dot-inl.h',
+    'hwy/contrib/iguana/ans.h',
+    'hwy/contrib/iguana/ans_detail.h',
+    'hwy/contrib/iguana/ans-inl.h',
     'hwy/contrib/hash/hash-inl.h',
+    'hwy/contrib/hash/highwayhash-inl.h',
     'hwy/contrib/hash/phast.h',
     'hwy/contrib/hash/phast-inl.h',
     'hwy/contrib/hash/shardmul.h',
@@ -138,8 +146,10 @@ hwy_contrib_headers = files(
     'hwy/contrib/hash/cuckoo2x2.h',
     'hwy/contrib/hash/cuckoo2x2-inl.h',
     'hwy/contrib/image/image.h',
+    'hwy/contrib/math/f16_math-inl.h',
     'hwy/contrib/math/fast_math-inl.h',
     'hwy/contrib/math/fp_arith-inl.h',
+    'hwy/contrib/math/float_manip-inl.h',
     'hwy/contrib/intdiv/intdiv-inl.h',
     'hwy/contrib/math/math-inl.h',
     'hwy/contrib/matvec/matvec-inl.h',
@@ -165,6 +175,8 @@ hwy_contrib_headers = files(
 )
 
 hwy_contrib_sources = files(
+    'hwy/contrib/coder/range_coder.cc',
+    'hwy/contrib/iguana/ans.cc',
     'hwy/contrib/image/image.cc',
     'hwy/contrib/hash/cuckoo2x2.cc',
     'hwy/contrib/hash/phast.cc',
@@ -335,10 +347,14 @@ have_asm_hwcap_h = cpp.has_header('asm/hwcap.h')
 if not have_sys_auxv_h
     hwy_cpp_args += '-DTOOLCHAIN_MISS_SYS_AUXV_H'
 endif
-if  not have_asm_hwcap_h
+if not have_asm_hwcap_h
     hwy_cpp_args += '-DTOOLCHAIN_MISS_ASM_HWCAP_H'
 endif
 
+have_elf_aux_info = cpp.has_function('elf_aux_info', prefix : '#include <sys/auxv.h>')
+if have_elf_aux_info
+    hwy_cpp_args += '-DHWY_HAVE_ELF_AUX_INFO'
+endif
 
 add_project_arguments(hwy_cpp_args, language: 'cpp')
 add_project_arguments(hwy_nowarn_args, language: 'cpp')
@@ -686,6 +702,8 @@ if tests_enabled
     if contrib_enabled
         hwy_contrib_test_files = files(
             'hwy/auto_tune_test.cc',
+            'hwy/contrib/base64/base64_test.cc',
+            'hwy/contrib/algo/algo_bench.cc',
             'hwy/contrib/algo/copy_test.cc',
             'hwy/contrib/algo/count_value_test.cc',
             'hwy/contrib/algo/find_test.cc',
@@ -693,14 +711,20 @@ if tests_enabled
             'hwy/contrib/algo/minmax_value_test.cc',
             'hwy/contrib/algo/transform_test.cc',
             'hwy/contrib/bit_pack/bit_pack_test.cc',
+            'hwy/contrib/coder/range_coder_test.cc',
+            'hwy/contrib/crc/crc_test.cc',
             'hwy/contrib/dot/dot_test.cc',
+            'hwy/contrib/iguana/ans_test.cc',
             'hwy/contrib/hash/hash_test.cc',
+            'hwy/contrib/hash/highwayhash_test.cc',
             'hwy/contrib/hash/cuckoo2x2_test.cc',
             'hwy/contrib/hash/phast_test.cc',
             'hwy/contrib/hash/shardmul_test.cc',
             'hwy/contrib/image/image_test.cc',
             'hwy/contrib/intdiv/intdiv_test.cc',
+            'hwy/contrib/math/f16_math_test.cc',
             'hwy/contrib/math/fast_math_test.cc',
+            'hwy/contrib/math/float_manip_test.cc',
             'hwy/contrib/math/math_hyper_test.cc',
             'hwy/contrib/math/math_tan_test.cc',
             'hwy/contrib/math/math_test.cc',

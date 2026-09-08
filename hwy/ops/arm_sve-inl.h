@@ -1374,7 +1374,7 @@ HWY_API V BroadcastSignBit(const V v) {
 // ------------------------------ Abs (ShiftRight, Add, Xor, AndN)
 
 // Workaround for incorrect results with `svabs`.
-#if HWY_COMPILER_CLANG
+#if HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 2000
 template <class V, HWY_IF_SIGNED_V(V)>
 HWY_API V Abs(V v) {
   const V sign = BroadcastSignBit(v);
@@ -2062,7 +2062,7 @@ HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGPVV, Max, max)
 HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGPVV, Max, maxnm)
 
 // Workaround for incorrect results with `svmin`.
-#if HWY_COMPILER_CLANG
+#if HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 2000
 template <class V, HWY_IF_SIGNED_V(V)>
 HWY_API V Min(V a, V b) {
   return IfThenElse(Lt(a, b), a, b);
@@ -4129,10 +4129,41 @@ HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
   return IfThenElseZero(FirstN(d, Lanes(d) - amt), TableLookupLanes(v, idx));
 }
 
+#ifdef HWY_NATIVE_SLIDE_DOWN_LANES_OR
+#undef HWY_NATIVE_SLIDE_DOWN_LANES_OR
+#else
+#define HWY_NATIVE_SLIDE_DOWN_LANES_OR
+#endif
+
+template <class D>
+HWY_API VFromD<D> SlideDownLanesOr(VFromD<D> hi, D d, VFromD<D> lo,
+                                   size_t amt) {
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  const auto idx = Iota(du, static_cast<TU>(amt));
+  return IfThenElse(FirstN(d, Lanes(d) - amt), TableLookupLanes(lo, idx), hi);
+}
+
 // ------------------------------ Slide1Down
 template <class D>
 HWY_API VFromD<D> Slide1Down(D d, VFromD<D> v) {
   return SlideDownLanes(d, v, 1);
+}
+
+#ifdef HWY_NATIVE_SLIDE1_UP_DOWN_OR
+#undef HWY_NATIVE_SLIDE1_UP_DOWN_OR
+#else
+#define HWY_NATIVE_SLIDE1_UP_DOWN_OR
+#endif
+
+template <class D>
+HWY_API VFromD<D> Slide1UpOr(TFromD<D> no, D d, VFromD<D> v) {
+  return detail::Splice(v, Set(d, no), FirstN(d, 1));
+}
+
+template <class D>
+HWY_API VFromD<D> Slide1DownOr(TFromD<D> no, D d, VFromD<D> v) {
+  return SlideDownLanesOr(Set(d, no), d, v, 1);
 }
 
 // ------------------------------ SwapAdjacentBlocks (TableLookupLanes)
@@ -7272,6 +7303,15 @@ HWY_API svint32_t PerBlock2x2MatMul(
     svint8_t b,
     svint32_t c) {
   return svmmla_s32(c, a, b);
+}
+
+template <size_t N, int kPow2>
+HWY_API svint32_t PerBlock2x2MatMul(
+    Simd<int32_t, N, kPow2> /* d */,
+    svuint8_t a,
+    svint8_t b,
+    svint32_t c) {
+  return svusmmla_s32(c, a, b);
 }
 #endif
 

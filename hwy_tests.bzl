@@ -3,6 +3,11 @@
 # path, name, deps
 HWY_CONTRIB_TESTS = (
     (
+        "hwy/contrib/base64/",
+        "base64_test",
+        [":base64"],
+    ),
+    (
         "hwy/contrib/algo/",
         "copy_test",
         [":algo"],
@@ -38,9 +43,24 @@ HWY_CONTRIB_TESTS = (
         [":bit_pack"],
     ),
     (
+        "hwy/contrib/coder/",
+        "range_coder_test",
+        [":range_coder"],
+    ),
+    (
+        "hwy/contrib/crc/",
+        "crc_test",
+        [":crc"],
+    ),
+    (
         "hwy/contrib/dot/",
         "dot_test",
         [":dot"],
+    ),
+    (
+        "hwy/contrib/iguana/",
+        "ans_test",
+        [":iguana_ans"],
     ),
     (
         "hwy/contrib/image/",
@@ -59,7 +79,17 @@ HWY_CONTRIB_TESTS = (
     ),
     (
         "hwy/contrib/math/",
+        "float_manip_test",
+        [":math"],
+    ),
+    (
+        "hwy/contrib/math/",
         "fast_math_test",
+        [":math"],
+    ),
+    (
+        "hwy/contrib/math/",
+        "f16_math_test",
         [":math"],
     ),
     (
@@ -96,10 +126,16 @@ HWY_CONTRIB_TESTS = (
     ),
     (
         "hwy/contrib/hash/",
+        "highwayhash_test",
+        [":highwayhash"],
+    ),
+    (
+        "hwy/contrib/hash/",
         "phast_test",
         [
             ":algo",
             ":hash",
+            ":phast",
             ":profiler",
             ":random",
             ":thread_pool",
@@ -112,6 +148,7 @@ HWY_CONTRIB_TESTS = (
         "cuckoo2x2_test",
         [
             ":hash",
+            ":cuckoo",
             ":profiler",
             ":random",
             ":thread_pool",
@@ -123,6 +160,7 @@ HWY_CONTRIB_TESTS = (
         "cuckoo_test",
         [
             ":algo",
+            ":cuckoo",
             ":hash",
             ":random",
             "//hwy/contrib/sort:vqsort",

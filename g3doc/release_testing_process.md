@@ -2,6 +2,22 @@
 
 We run the following before a release:
 
+### Full CI matrix
+
+Pull requests build only the oldest and newest compilers. Before a release,
+trigger the full matrix for the `Build / test` workflow:
+
+*   Actions tab -> `Build / test` -> *Run workflow* -> branch `master`.
+
+Or with the `gh` CLI:
+
+    gh workflow run "Build / test" --ref master
+
+It also runs automatically every Saturday at 03:00 UTC.
+
+The `Meson build / test` and `Foreign architectures` workflows still run their
+full matrix on every push, so they need no manual trigger.
+
 ### Windows x86 host
 
 ```

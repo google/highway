@@ -25,10 +25,6 @@ LoadnPair: Gather with optimizations in particular for 2x64-bit, which use
 128-bit loads plus Combine.
 Also StorePair
 
-ReduceMin/MaxOrNaN
-
-Document Reduce/Min NaN behavior
-
 _mm512_getmant (f32/f64)
 
 ### Clear lowest mask bit
@@ -37,7 +33,7 @@ _mm512_getmant (f32/f64)
 
 High-precision! Consider copying from SLEEF. See #1650.
 
-fmod, ilogb, lgamma, logb, modf, nextafter, nexttoward, scalbn
+fmod, ilogb, logb, modf, nextafter, nexttoward, scalbn
 
 ### Remaining STL functions for hwy/contrib/algo
 
@@ -47,10 +43,6 @@ fmod, ilogb, lgamma, logb, modf, nextafter, nexttoward, scalbn
 *   ReverseSpan
 *   ShuffleSpan
 *   Reduce
-
-### Range coder
-
-Port https://github.com/richgel999/sserangecoding to Highway (~50 instructions).
 
 ### Iguana (fast LZ + ANS)
 
@@ -195,3 +187,6 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~pow~~
 *   ~~Lookup32~~
 *   ~~tgamma~~
+*   ~~lgamma~~
+*   ~~ReduceMin/MaxOrNaN~~
+*   ~~Document Reduce/Min NaN behavior~~

@@ -596,6 +596,14 @@ HWY_API constexpr bool CanLookup32(D d) {
          (HWY_HAVE_SCALABLE && detail::IsFull(d) && (sizeof(T) == 1));
 }
 
+// Returns whether `Lookup64` can definitely be used for vectors created from
+// tag `d`. May return a false negative for large scalable vectors.
+template <class D, typename T = TFromD<D>>
+HWY_API constexpr bool CanLookup64(D d) {
+  return (!HWY_HAVE_SCALABLE && MaxLanes(d) >= 32) ||
+         (HWY_ARCH_ARM_A64 && HWY_TARGET_IS_NEON && (sizeof(T) == 1));
+}
+
 // ------------------------------ Choosing overloads (SFINAE)
 
 // Same as base.h macros but with a Simd<T, N, kPow2> argument instead of T.

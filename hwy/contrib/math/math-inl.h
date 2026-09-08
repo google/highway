@@ -165,7 +165,7 @@ HWY_NOINLINE V CallCbrt(const D d, VecArg<V> x) {
  *      Valid Range: [-39000, +39000]
  * @return cosine of 'x'
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Cos(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallCos(const D d, VecArg<V> x) {
@@ -182,7 +182,7 @@ HWY_NOINLINE V CallCos(const D d, VecArg<V> x) {
  * ~300 ULP. Valid Range: [-39000, +39000]
  * @return tangent of 'x'
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Tan(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallTan(const D d, VecArg<V> x) {
@@ -212,7 +212,7 @@ HWY_NOINLINE V CallErf(const D d, VecArg<V> x) {
  *      Valid Range: float32[-FLT_MAX, +104], float64[-DBL_MAX, +706]
  * @return e^x
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Exp(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallExp(const D d, VecArg<V> x) {
@@ -227,7 +227,7 @@ HWY_NOINLINE V CallExp(const D d, VecArg<V> x) {
  *      Valid Range: float32[-FLT_MAX, +128], float64[-DBL_MAX, +1024]
  * @return 2^x
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Exp2(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallExp2(const D d, VecArg<V> x) {
@@ -242,7 +242,7 @@ HWY_NOINLINE V CallExp2(const D d, VecArg<V> x) {
  *      Valid Range: float32[-FLT_MAX, +104], float64[-DBL_MAX, +706]
  * @return e^x - 1
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Expm1(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallExpm1(const D d, VecArg<V> x) {
@@ -257,7 +257,7 @@ HWY_NOINLINE V CallExpm1(const D d, VecArg<V> x) {
  *      Valid Range: float32(0, +FLT_MAX], float64(0, +DBL_MAX]
  * @return natural logarithm of 'x'
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Log(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallLog(const D d, VecArg<V> x) {
@@ -272,7 +272,7 @@ HWY_NOINLINE V CallLog(const D d, VecArg<V> x) {
  *      Valid Range: float32(0, +FLT_MAX], float64(0, +DBL_MAX]
  * @return base 10 logarithm of 'x'
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Log10(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallLog10(const D d, VecArg<V> x) {
@@ -287,7 +287,7 @@ HWY_NOINLINE V CallLog10(const D d, VecArg<V> x) {
  *      Valid Range: float32[0, +FLT_MAX], float64[0, +DBL_MAX]
  * @return log(1 + x)
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Log1p(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallLog1p(const D d, VecArg<V> x) {
@@ -302,7 +302,7 @@ HWY_NOINLINE V CallLog1p(const D d, VecArg<V> x) {
  *      Valid Range: float32(0, +FLT_MAX], float64(0, +DBL_MAX]
  * @return base 2 logarithm of 'x'
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Log2(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallLog2(const D d, VecArg<V> x) {
@@ -317,7 +317,7 @@ HWY_NOINLINE V CallLog2(const D d, VecArg<V> x) {
  *      Valid Range: [-39000, +39000]
  * @return sine of 'x'
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Sin(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallSin(const D d, VecArg<V> x) {
@@ -385,6 +385,21 @@ HWY_NOINLINE V CallTgamma(const D d, VecArg<V> x) {
 }
 
 /**
+ * Highway SIMD version of std::lgamma(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 6 (float32), 10 (float64)
+ *      Valid Range: float32(0, +FLT_MAX], float64(0, +DBL_MAX]
+ * @return natural log of the absolute value of the gamma function of 'x'
+ */
+template <class D, class V>
+HWY_INLINE V LogGamma(D d, V x);
+template <class D, class V>
+HWY_NOINLINE V CallLogGamma(const D d, VecArg<V> x) {
+  return LogGamma(d, x);
+}
+
+/**
  * Highway SIMD version of SinCos.
  * Compute the sine and cosine at the same time
  * The performance should be around the same as calling Sin.
@@ -393,7 +408,7 @@ HWY_NOINLINE V CallTgamma(const D d, VecArg<V> x) {
  *        Max Error: ULP = 1
  *      Valid Range: [-39000, +39000]
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE void SinCos(D d, V x, V& s, V& c);
 template <class D, class V>
 HWY_NOINLINE void CallSinCos(const D d, VecArg<V> x, V& s, V& c) {
@@ -734,6 +749,8 @@ struct ExpImpl {};
 template <class FloatOrDouble>
 struct GammaImpl {};
 template <class FloatOrDouble>
+struct LgammaImpl {};
+template <class FloatOrDouble>
 struct LogImpl {};
 template <class FloatOrDouble>
 struct ExtPrecLog2ForPowImpl;
@@ -1007,6 +1024,47 @@ struct GammaImpl<float> {
   }
 };
 
+template <>
+struct LgammaImpl<float> {
+  // Use the Stirling asymptotic path for w >= StirlingLimit().
+  template <class D, class V = VFromD<D>, HWY_IF_F32_D(D)>
+  HWY_INLINE V StirlingLimit(D d) {
+    return Set(d, +4.0f);
+  }
+  // Recurrence steps to reduce w into [1, 2): ceil(StirlingLimit - 2).
+  static constexpr int kReduceSteps = 2;
+
+  // logGamma(x) = (x-1)*(x-2)*MidPoly(t) on [1, 2], argument t = x - 1.5.
+  template <class D, class V = VFromD<D>, HWY_IF_F32_D(D)>
+  HWY_INLINE V MidPoly(D d, V t) {
+    const V c0 = Set(d, +0.00238831134f);
+    const V c1 = Set(d, -0.00397213376f);
+    const V c2 = Set(d, +0.00535511656f);
+    const V c3 = Set(d, -0.00927653644f);
+    const V c4 = Set(d, +0.016803567f);
+    const V c5 = Set(d, -0.0313190425f);
+    const V c6 = Set(d, +0.0629112789f);
+    const V c7 = Set(d, -0.145959697f);
+    const V c8 = Set(d, +0.483128951f);
+    return Estrin(t, c8, c7, c6, c5, c4, c3, c2, c1, c0);
+  }
+
+  // logGamma(x) = (x-1)*LowPoly(t) on [0.5, 1), argument t = x - 0.75.
+  template <class D, class V = VFromD<D>, HWY_IF_F32_D(D)>
+  HWY_INLINE V LowPoly(D d, V t) {
+    const V c0 = Set(d, -1.40863339f);
+    const V c1 = Set(d, +1.18704979f);
+    const V c2 = Set(d, -0.81872104f);
+    const V c3 = Set(d, +0.723862927f);
+    const V c4 = Set(d, -0.673221395f);
+    const V c5 = Set(d, +0.655416733f);
+    const V c6 = Set(d, -0.719965008f);
+    const V c7 = Set(d, +1.09094739f);
+    const V c8 = Set(d, -0.813123806f);
+    return Estrin(t, c8, c7, c6, c5, c4, c3, c2, c1, c0);
+  }
+};
+
 #if HWY_HAVE_FLOAT64 && HWY_HAVE_INTEGER64
 
 template <>
@@ -1053,6 +1111,70 @@ struct GammaImpl<double> {
     const V c16 = Set(d, +1.329340388179137);
     return Estrin(t, c16, c15, c14, c13, c12, c11, c10, c9, c8, c7, c6, c5, c4,
                   c3, c2, c1, c0);
+  }
+};
+
+template <>
+struct LgammaImpl<double> {
+  // Use the Stirling asymptotic path for w >= StirlingLimit().
+  template <class D, class V = VFromD<D>, HWY_IF_F64_D(D)>
+  HWY_INLINE V StirlingLimit(D d) {
+    return Set(d, +12.0);
+  }
+
+  // Recurrence steps to reduce w into [1, 2): ceil(StirlingLimit - 2).
+  static constexpr int kReduceSteps = 10;
+
+  // logGamma(x) = (x-1)*(x-2)*MidPoly(t) on [1, 2], argument t = x - 1.5.
+  template <class D, class V = VFromD<D>, HWY_IF_F64_D(D)>
+  HWY_INLINE V MidPoly(D d, V t) {
+    const V c0 = Set(d, +2.7601736760716535e-05);
+    const V c1 = Set(d, -4.3458333543198137e-05);
+    const V c2 = Set(d, +3.581888030972756e-05);
+    const V c3 = Set(d, -5.6969476167985029e-05);
+    const V c4 = Set(d, +0.0001073270909194498);
+    const V c5 = Set(d, -0.0001715654244759322);
+    const V c6 = Set(d, +0.00027099300921864671);
+    const V c7 = Set(d, -0.00043754969398502409);
+    const V c8 = Set(d, +0.00071155062268775133);
+    const V c9 = Set(d, -0.0011644589445235255);
+    const V c10 = Set(d, +0.0019229144861301855);
+    const V c11 = Set(d, -0.0032120714838724603);
+    const V c12 = Set(d, +0.0054464578966048312);
+    const V c13 = Set(d, -0.0094256225300762171);
+    const V c14 = Set(d, +0.016797098630444426);
+    const V c15 = Set(d, -0.031308487499847056);
+    const V c16 = Set(d, +0.062911401074568038);
+    const V c17 = Set(d, -0.14595989591431094);
+    const V c18 = Set(d, +0.48312895054098087);
+    return Estrin(t, c18, c17, c16, c15, c14, c13, c12, c11, c10, c9, c8, c7,
+                  c6, c5, c4, c3, c2, c1, c0);
+  }
+
+  // logGamma(x) = (x-1)*LowPoly(t) on [0.5, 1), argument t = x - 0.75.
+  template <class D, class V = VFromD<D>, HWY_IF_F64_D(D)>
+  HWY_INLINE V LowPoly(D d, V t) {
+    const V c0 = Set(d, -15.548294260608042);
+    const V c1 = Set(d, +12.284843340929337);
+    const V c2 = Set(d, -5.118578439889296);
+    const V c3 = Set(d, +4.0915134400148023);
+    const V c4 = Set(d, -3.8614319065200999);
+    const V c5 = Set(d, +3.1052563349956928);
+    const V c6 = Set(d, -2.4708509229390843);
+    const V c7 = Set(d, +2.0105874995065292);
+    const V c8 = Set(d, -1.6495725282916478);
+    const V c9 = Set(d, +1.3638192653661416);
+    const V c10 = Set(d, -1.1396020445425534);
+    const V c11 = Set(d, +0.96515178838859494);
+    const V c12 = Set(d, -0.83191158526198028);
+    const V c13 = Set(d, +0.73473508727089576);
+    const V c14 = Set(d, -0.6729879446836875);
+    const V c15 = Set(d, +0.65522436942156825);
+    const V c16 = Set(d, -0.71996611036258851);
+    const V c17 = Set(d, +1.0909482962451835);
+    const V c18 = Set(d, -0.8131238057251815);
+    return Estrin(t, c18, c17, c16, c15, c14, c13, c12, c11, c10, c9, c8, c7,
+                  c6, c5, c4, c3, c2, c1, c0);
   }
 };
 
@@ -1798,10 +1920,77 @@ HWY_INLINE V Gamma(D d, V a) {
   const RebindToSigned<decltype(d)> di;
   const M odd =
       RebindMask(d, Ne(And(ConvertTo(di, ra), Set(di, 1)), Zero(di)));
-  const V s_signed = IfThenElse(odd, Neg(s_mag), s_mag);
+  const V s_signed = MaskedXorOr(s_mag, odd, s_mag, SignBit(d));
   const V refl = Div(kPi, Mul(s_signed, gamma_w));
 
   return IfThenElse(neg, refl, gamma_w);
+}
+
+template <class D, class V = VFromD<D>, class M = MFromD<D>>
+HWY_INLINE V Lgamma(D d, V a) {
+  using T = TFromD<D>;
+  static_assert(IsFloat<T>(), "Only makes sense for floating-point");
+  LgammaImpl<T> impl;
+
+  const V kHalf = Set(d, static_cast<T>(0.5));
+  const V kOne = Set(d, static_cast<T>(1.0));
+  const V kTwo = Set(d, static_cast<T>(2.0));
+  const V kZero = Zero(d);
+  const V kPi = Set(d, static_cast<T>(+3.14159265358979323846264));
+  const V kLogPi = Set(d, static_cast<T>(+1.1447298858494001741434));
+  const V kLowCenter = Set(d, static_cast<T>(0.75));
+  const V kMidCenter = Set(d, static_cast<T>(1.5));
+  const V kStirlingLimit = impl.StirlingLimit(d);
+
+  // Reduce to w >= 0.5: w = 1 - a when a < 0.5.
+  const M neg = Lt(a, kHalf);
+  const V w = MaskedSubOr(a, neg, kOne, a);
+
+  // [0.5, 1): logGamma = (w-1)*LowPoly(w - 0.75).
+  const V low_poly = impl.LowPoly(d, Sub(w, kLowCenter));
+  V low;
+  if constexpr (HWY_NATIVE_FMA) {
+    low = MulSub(w, low_poly, low_poly);
+  } else {
+    low = Mul(Sub(w, kOne), low_poly);
+  }
+
+  // Shift w into [1, 2) via logGamma(y) = logGamma(y-1) + log(y-1).
+  V y = w;
+  V acc = kZero;
+  for (int i = 0; i < LgammaImpl<T>::kReduceSteps; ++i) {
+    const M down = Ge(y, kTwo);
+    y = MaskedSubOr(y, down, y, kOne);
+    acc = MaskedAddOr(acc, down, acc, impl::Log(d, y));
+  }
+
+  // [1, 2): logGamma = (y-1)*(y-2)*MidPoly(y - 1.5) + acc.
+  const V t = Sub(y, kMidCenter);
+  V zero_factors;
+  if constexpr (HWY_NATIVE_FMA) {
+    const V q = Sub(kTwo, y);
+    zero_factors = NegMulAdd(y, q, q);
+  } else {
+    zero_factors = Mul(Sub(y, kOne), Sub(y, kTwo));
+  }
+  const V mid = MulAdd(zero_factors, impl.MidPoly(d, t), acc);
+
+  // w >= StirlingLimit: Stirling series in double-double.
+  V stir_lo;
+  const V stir_hi = StirlingLogGamma(d, w, stir_lo);
+  const V stir = Add(stir_hi, stir_lo);
+
+  const M is_low = Lt(w, kOne);
+  const M is_stir = Ge(w, kStirlingLimit);
+  V loggamma_w = IfThenElse(is_low, low, mid);
+  loggamma_w = IfThenElse(is_stir, stir, loggamma_w);
+
+  // For a < 0.5: logGamma(a) = log(pi) - log|sin(pi*a)| - logGamma(1 - a).
+  const V frac = Sub(a, Round(a));
+  const V s_mag = Abs(Sin(d, Mul(kPi, frac)));
+  const V refl = Sub(Sub(kLogPi, impl::Log(d, s_mag)), loggamma_w);
+
+  return IfThenElse(neg, refl, loggamma_w);
 }
 
 // SinCos
@@ -2193,7 +2382,9 @@ HWY_INLINE V Atan2(const D d, V y, V x) {
   const M ay_gt_ax = Gt(ay, ax);
   V angle = MaskedSubOr(poly, ay_gt_ax, kPiOverTwo, poly);
 
-  const M x_neg = Lt(x, k0);
+  // Test the sign bit (not Lt) so a negative-zero x reflects into the
+  // negative-x half-plane, giving atan2(+/-0, -0) = +/-pi.
+  const M x_neg = IsNegative(x);
   angle = MaskedSubOr(angle, x_neg, kPi, angle);
 
   const M is_nan = IsEitherNaN(y, x);
@@ -2358,7 +2549,9 @@ HWY_INLINE V Cbrt(const D d, V x) {
   return y;
 }
 
-template <class D, class V>
+template <class D, class V,
+          hwy::EnableIf<
+              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
 HWY_INLINE V Cos(const D d, V x) {
   using T = TFromD<D>;
   impl::CosSinImpl<T> impl;
@@ -2408,7 +2601,9 @@ HWY_INLINE V Erf(const D d, V x) {
   return Or(result, sign);
 }
 
-template <class D, class V>
+template <class D, class V,
+          hwy::EnableIf<
+              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
 HWY_INLINE V Exp(const D d, V x) {
   using T = TFromD<D>;
 
@@ -2431,7 +2626,9 @@ HWY_INLINE V Exp(const D d, V x) {
   return IfThenElseZero(Ge(x, kLowerBound), y);
 }
 
-template <class D, class V>
+template <class D, class V,
+          hwy::EnableIf<
+              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
 HWY_INLINE V Exp2(const D d, V x) {
   using T = TFromD<D>;
 
@@ -2450,7 +2647,9 @@ HWY_INLINE V Exp2(const D d, V x) {
   return IfThenElseZero(Ge(x, kLowerBound), y);
 }
 
-template <class D, class V>
+template <class D, class V,
+          hwy::EnableIf<
+              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
 HWY_INLINE V Expm1(const D d, V x) {
   using T = TFromD<D>;
 
@@ -2471,23 +2670,32 @@ HWY_INLINE V Expm1(const D d, V x) {
 
   // Reduce, approximate, and then reconstruct.
   const V y = impl.ExpPoly(d, impl.ExpReduce(d, x, q));
-  const V z = IfThenElse(Lt(Abs(x), kLn2Over2), y,
+  // Reapply the sign of x on the polynomial path so a negative-zero input is
+  // preserved: expm1(-0) = -0 (C11 F.10.3.3), which the polynomial drops when
+  // it forms 0.5 * (+0) + (-0) = +0.
+  const V z = IfThenElse(Lt(Abs(x), kLn2Over2), CopySign(y, x),
                          Sub(impl.LoadExpShortRange(d, Add(y, kOne), q), kOne));
   return IfThenElse(Lt(x, kLowerBound), kNegOne, z);
 }
 
-template <class D, class V>
+template <class D, class V,
+          hwy::EnableIf<
+              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
 HWY_INLINE V Log(const D d, V x) {
   return impl::Log<D, V, /*kAllowSubnormals=*/true>(d, x);
 }
 
-template <class D, class V>
+template <class D, class V,
+          hwy::EnableIf<
+              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
 HWY_INLINE V Log10(const D d, V x) {
   using T = TFromD<D>;
   return Mul(Log(d, x), Set(d, static_cast<T>(0.4342944819032518276511)));
 }
 
-template <class D, class V>
+template <class D, class V,
+          hwy::EnableIf<
+              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
 HWY_INLINE V Log1p(const D d, V x) {
   using T = TFromD<D>;
   const V kOne = Set(d, static_cast<T>(+1.0));
@@ -2506,7 +2714,9 @@ HWY_INLINE V Log1p(const D d, V x) {
   return IfThenElse(not_pole, non_pole, x);
 }
 
-template <class D, class V>
+template <class D, class V,
+          hwy::EnableIf<
+              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
 HWY_INLINE V Log2(const D d, V x) {
   using T = TFromD<D>;
   return Mul(Log(d, x), Set(d, static_cast<T>(1.44269504088896340735992)));
@@ -2632,7 +2842,9 @@ HWY_INLINE V Pow(D d, V a, V b) {
   return result;
 }
 
-template <class D, class V>
+template <class D, class V,
+          hwy::EnableIf<
+              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
 HWY_INLINE V Sin(const D d, V x) {
   using T = TFromD<D>;
   impl::CosSinImpl<T> impl;
@@ -2652,8 +2864,11 @@ HWY_INLINE V Sin(const D d, V x) {
   const VI32 q = impl.ToInt32(d, MulAdd(abs_x, kOneOverPi, kHalf));
 
   // Reduce range, apply sign, and approximate.
-  return impl.Poly(d, Xor(impl.SinReduce(d, abs_x, q),
-                          Xor(impl.SinSignFromQuadrant(d, q), sign_x)));
+  const V s = impl.Poly(d, Xor(impl.SinReduce(d, abs_x, q),
+                               Xor(impl.SinSignFromQuadrant(d, q), sign_x)));
+  // sin is odd, so sin(-0) must be -0; the polynomial yields +0 for a zero
+  // reduced argument, so reapply x's sign when the result is zero.
+  return IfThenElse(Eq(s, Zero(d)), CopySign(s, x), s);
 }
 
 template <class D, class V>
@@ -2698,14 +2913,18 @@ HWY_INLINE V Tanh(const D d, V x) {
   return Xor(z, sign);  // Reapply the sign bit
 }
 
-template <class D, class V>
+template <class D, class V,
+          hwy::EnableIf<
+              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
 HWY_INLINE void SinCos(const D d, V x, V& s, V& c) {
   using T = TFromD<D>;
   impl::SinCosImpl<T> impl;
   impl.SinCos(d, x, s, c);
 }
 
-template <class D, class V>
+template <class D, class V,
+          hwy::EnableIf<
+              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
 HWY_INLINE V Tan(const D d, V x) {
   V s, c;
   SinCos(d, x, s, c);
@@ -2849,6 +3068,18 @@ HWY_INLINE V Tgamma(const D d, V x) {
   const MFromD<D> is_neg_int = And(Eq(x, Round(x)), Lt(x, kZero));
   result = IfThenElse(is_neg_int, NaN(d), result);
   result = IfThenElse(Eq(x, kZero), CopySign(Inf(d), x), result);
+  result = IfThenElse(IsNaN(x), x, result);
+  return result;
+}
+
+template <class D, class V>
+HWY_INLINE V LogGamma(const D d, V x) {
+  const V kZero = Zero(d);
+  V result = impl::Lgamma(d, x);
+
+  const MFromD<D> is_pole = And(Eq(x, Round(x)), Le(x, kZero));
+  result = IfThenElse(is_pole, Inf(d), result);
+  result = IfThenElse(IsInf(x), Inf(d), result);
   result = IfThenElse(IsNaN(x), x, result);
   return result;
 }

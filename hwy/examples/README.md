@@ -33,6 +33,24 @@ Similar to array simple but uses type promotion to allow for
 a greater range in resulting integer sum values before an
 overflow occurs.
 
+### `mandelbrot.cc`
+
+Demonstrates:
+-   interleaved stores
+-   masks
+-   loop unrolling
+-   fused multiply add
+
+### `baker_mix.cc`
+
+Permutting entries in an integer array showing:
+
+-   Generating an ordered list of integers in an array using `Iota`
+-   Selecting top and bottom halves of a vector using 
+-   Printing vector type and contents to stderr using `Print`
+-   Vector shifts `SlideUpLanes` and `SlideDownLanesOr`
+-   Interleaving two vectors `StoreInterleaved2`
+
 ### `matrix_transpose_scatter_gather.cc`
 
 Matrix transposition via Gather and Scatter, showing:
@@ -42,6 +60,18 @@ Matrix transposition via Gather and Scatter, showing:
 -   Remainder processing using `LoadN`/`StoreN` and
     `GatherIndexN`/`ScatterIndexN`
 -   Precomputing strided offsets in registers using `Iota` and `Mul`.
+
+### `stream_triad.cc`
+
+Addition of a vector to a scaled copy of another vector, showing:
+
+-  Multithreading.
+### `game_of_life.cc`
+
+Example stencil computation showing:
+
+- Vector shifts `Slide1UpOr`/`Slide1DownOr`
+- Boolean masks
 
 ## Infrastructure
 

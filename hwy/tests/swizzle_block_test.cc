@@ -34,7 +34,7 @@ namespace {
 
 struct TestOddEvenBlocks {
   template <class T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+  HWY_NOINLINE HWY_MAYBE_UNUSED void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
     const auto even = Iota(d, 1);
     const auto odd = Iota(d, 1 + N);
@@ -54,7 +54,7 @@ HWY_NOINLINE void TestAllOddEvenBlocks() {
 
 struct TestSwapAdjacentBlocks {
   template <class T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+  HWY_NOINLINE HWY_MAYBE_UNUSED void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
     constexpr size_t kLanesPerBlock = 16 / sizeof(T);
     if (N < 2 * kLanesPerBlock) return;
@@ -77,7 +77,7 @@ HWY_NOINLINE void TestAllSwapAdjacentBlocks() {
 
 struct TestInterleaveBlocksEO {
   template <class T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+  HWY_NOINLINE HWY_MAYBE_UNUSED void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
     constexpr size_t kLanesPerBlock = 16 / sizeof(T);
     if (N < 2 * kLanesPerBlock) return;
@@ -110,7 +110,7 @@ HWY_NOINLINE void TestAllInterleaveBlocksEO() {
 
 struct TestInterleaveBlocksLU {
   template <class T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+  HWY_NOINLINE HWY_MAYBE_UNUSED void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
     constexpr size_t kLanesPerBlock = 16 / sizeof(T);
     if (N < 2 * kLanesPerBlock) return;
@@ -159,8 +159,8 @@ class TestInsertBlock {
  private:
   template <int kBlock, class D,
             HWY_IF_V_SIZE_GT_D(D, static_cast<size_t>(kBlock) * 16)>
-  static HWY_INLINE void DoTestInsertBlock(D d, const size_t N,
-                                           TFromD<D>* HWY_RESTRICT expected) {
+  static HWY_INLINE HWY_MAYBE_UNUSED void DoTestInsertBlock(
+      D d, const size_t N, TFromD<D>* HWY_RESTRICT expected) {
     // kBlock * 16 < D.MaxBytes() is true
     using T = TFromD<D>;
     using TI = MakeSigned<T>;
@@ -206,14 +206,14 @@ class TestInsertBlock {
   }
   template <int kBlock, class D,
             HWY_IF_V_SIZE_LE_D(D, static_cast<size_t>(kBlock) * 16)>
-  static HWY_INLINE void DoTestInsertBlock(
+  static HWY_INLINE HWY_MAYBE_UNUSED void DoTestInsertBlock(
       D /*d*/, const size_t /*N*/, TFromD<D>* HWY_RESTRICT /*expected*/) {
     // If kBlock * 16 >= D.MaxBytes() is true, do nothing
   }
 
  public:
   template <class T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+  HWY_NOINLINE HWY_MAYBE_UNUSED void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
     HWY_ASSERT(expected);
@@ -233,8 +233,8 @@ class TestExtractBlock {
  private:
   template <int kBlock, class D,
             HWY_IF_V_SIZE_GT_D(D, static_cast<size_t>(kBlock) * 16)>
-  static HWY_INLINE void DoTestExtractBlock(D d, const size_t N,
-                                            TFromD<D>* HWY_RESTRICT expected) {
+  static HWY_INLINE HWY_MAYBE_UNUSED void DoTestExtractBlock(
+      D d, const size_t N, TFromD<D>* HWY_RESTRICT expected) {
     // kBlock * 16 < D.MaxBytes() is true
     using T = TFromD<D>;
 
@@ -257,14 +257,14 @@ class TestExtractBlock {
   }
   template <int kBlock, class D,
             HWY_IF_V_SIZE_LE_D(D, static_cast<size_t>(kBlock) * 16)>
-  static HWY_INLINE void DoTestExtractBlock(
+  static HWY_INLINE HWY_MAYBE_UNUSED void DoTestExtractBlock(
       D /*d*/, const size_t /*N*/, TFromD<D>* HWY_RESTRICT /*expected*/) {
     // If kBlock * 16 >= D.MaxBytes() is true, do nothing
   }
 
  public:
   template <class T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+  HWY_NOINLINE HWY_MAYBE_UNUSED void operator()(T /*unused*/, D d) {
     constexpr size_t kLanesPer16ByteBlk = 16 / sizeof(T);
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(kLanesPer16ByteBlk);
@@ -285,7 +285,7 @@ class TestBroadcastBlock {
  private:
   template <int kBlock, class D,
             HWY_IF_V_SIZE_GT_D(D, static_cast<size_t>(kBlock) * 16)>
-  static HWY_INLINE void DoTestBroadcastBlock(
+  static HWY_INLINE HWY_MAYBE_UNUSED void DoTestBroadcastBlock(
       D d, const size_t N, TFromD<D>* HWY_RESTRICT expected) {
     // kBlock * 16 < D.MaxBytes() is true
     using T = TFromD<D>;
@@ -307,14 +307,14 @@ class TestBroadcastBlock {
   }
   template <int kBlock, class D,
             HWY_IF_V_SIZE_LE_D(D, static_cast<size_t>(kBlock) * 16)>
-  static HWY_INLINE void DoTestBroadcastBlock(
+  static HWY_INLINE HWY_MAYBE_UNUSED void DoTestBroadcastBlock(
       D /*d*/, const size_t /*N*/, TFromD<D>* HWY_RESTRICT /*expected*/) {
     // If kBlock * 16 >= D.MaxBytes() is true, do nothing
   }
 
  public:
   template <class T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+  HWY_NOINLINE HWY_MAYBE_UNUSED void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
     HWY_ASSERT(expected);

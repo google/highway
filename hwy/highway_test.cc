@@ -144,7 +144,7 @@ class TestFracNLanes {
     DoTestFracNLanes(d, DWithPow2<3, decltype(d)>());
   }
   template <class T, HWY_IF_LANES_GT(4, HWY_LANES(T))>
-  static HWY_INLINE void DoTest4LanesWithPow3(T /*unused*/) {
+  static HWY_INLINE HWY_MAYBE_UNUSED void DoTest4LanesWithPow3(T /*unused*/) {
     // If HWY_LANES(T) < 4, do nothing
   }
 #endif

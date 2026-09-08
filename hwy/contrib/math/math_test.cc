@@ -72,6 +72,9 @@ DEFINE_MATH_TEST(Cbrt,
 DEFINE_MATH_TEST(Tgamma,
   std::tgamma, CallTgamma, +0.5f, +35.0f,  6,
   std::tgamma, CallTgamma, +0.5,  +171.6,  8)
+DEFINE_MATH_TEST(LogGamma,
+  std::lgamma, CallLogGamma, +0.5f, +1000.0f,  6,
+  std::lgamma, CallLogGamma, +0.5,  +1000.0,   10)
 // clang-format on
 
 struct TestPow {
@@ -188,6 +191,58 @@ HWY_NOINLINE void TestAllPow() {
   ForFloat3264Types(ForPartialVectors<TestPow>());
 }
 
+// expm1(+/-0) must preserve the sign of zero (C11 F.10.3.3). The ULP comparator
+// used by the other math tests treats +0 == -0, so check the bit pattern.
+struct TestExpm1SignedZero {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T, D d) {
+    using TU = MakeUnsigned<T>;
+    const T pos0 = ConvertScalarTo<T>(0.0);
+    const T neg0 = ConvertScalarTo<T>(-0.0);
+    const T got_pos = GetLane(CallExpm1(d, Set(d, pos0)));
+    const T got_neg = GetLane(CallExpm1(d, Set(d, neg0)));
+    HWY_ASSERT_EQ(BitCastScalar<TU>(pos0), BitCastScalar<TU>(got_pos));
+    HWY_ASSERT_EQ(BitCastScalar<TU>(neg0), BitCastScalar<TU>(got_neg));
+  }
+};
+
+HWY_NOINLINE void TestAllExpm1SignedZero() {
+  ForFloat3264Types(ForPartialVectors<TestExpm1SignedZero>());
+}
+
+// Odd functions (and log1p) must preserve the sign of zero: fn(+/-0) = +/-0
+// (C11 Annex F). The ULP comparator used by the other tests treats +0 == -0,
+// so this is checked bit-exactly.
+struct TestSignedZero {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T, D d) {
+    using TU = MakeUnsigned<T>;
+    const T p0 = ConvertScalarTo<T>(0.0);
+    const T n0 = ConvertScalarTo<T>(-0.0);
+    const TU p0b = BitCastScalar<TU>(p0);
+    const TU n0b = BitCastScalar<TU>(n0);
+#define HWY_ASSERT_SIGNED_ZERO(fn)                                   \
+  HWY_ASSERT_EQ(p0b, BitCastScalar<TU>(GetLane(fn(d, Set(d, p0))))); \
+  HWY_ASSERT_EQ(n0b, BitCastScalar<TU>(GetLane(fn(d, Set(d, n0)))))
+    HWY_ASSERT_SIGNED_ZERO(CallSin);
+    HWY_ASSERT_SIGNED_ZERO(CallTan);
+    HWY_ASSERT_SIGNED_ZERO(CallAsin);
+    HWY_ASSERT_SIGNED_ZERO(CallAtan);
+    HWY_ASSERT_SIGNED_ZERO(CallAsinh);
+    HWY_ASSERT_SIGNED_ZERO(CallAtanh);
+    HWY_ASSERT_SIGNED_ZERO(CallCbrt);
+    HWY_ASSERT_SIGNED_ZERO(CallErf);
+    HWY_ASSERT_SIGNED_ZERO(CallLog1p);
+    HWY_ASSERT_SIGNED_ZERO(CallSinh);
+    HWY_ASSERT_SIGNED_ZERO(CallTanh);
+#undef HWY_ASSERT_SIGNED_ZERO
+  }
+};
+
+HWY_NOINLINE void TestAllSignedZero() {
+  ForFloat3264Types(ForPartialVectors<TestSignedZero>());
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -208,7 +263,10 @@ HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog1p);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog2);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllCbrt);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllTgamma);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLogGamma);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllPow);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExpm1SignedZero);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSignedZero);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy

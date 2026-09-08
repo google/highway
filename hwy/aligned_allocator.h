@@ -18,7 +18,6 @@
 
 // Memory allocator with support for alignment and offsets.
 
-#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstdint>
@@ -207,7 +206,7 @@ using AlignedVector = std::vector<T, AlignedAllocator<T>>;
 namespace detail {
 
 // Returns x such that 1u << x == n (if n is a power of two).
-static inline constexpr size_t ShiftCount(size_t n) {
+static constexpr size_t ShiftCount(size_t n) {
   return (n <= 1) ? 0 : 1 + ShiftCount(n / 2);
 }
 
@@ -297,61 +296,214 @@ AlignedFreeUniquePtr<T[]> AllocateAligned(const size_t items) {
   return AllocateAligned<T>(items, nullptr, nullptr, nullptr);
 }
 
+template <typename T>
+class Span;
+
+namespace detail {
+
+template <typename T>
+struct IsSpanT {
+  enum { value = 0 };
+};
+
+template <typename T>
+struct IsSpanT<Span<T>> {
+  enum { value = 1 };
+};
+
+template <typename T>
+static constexpr bool IsSpan() {
+  return IsSpanT<RemoveCvRef<T>>::value;
+}
+
+template <typename T, typename Ptr, typename = void>
+struct HasDataT {
+  enum { value = 0 };
+};
+template <typename T, typename Ptr>
+struct HasDataT<
+    T, Ptr, EnableIf<IsConvertible<decltype(DeclVal<T&>().data()), Ptr>()>> {
+  enum { value = 1 };
+};
+template <typename T, typename = void>
+struct HasSizeT {
+  enum { value = 0 };
+};
+template <typename T>
+struct HasSizeT<
+    T, EnableIf<IsConvertible<decltype(DeclVal<T&>().size()), size_t>()>> {
+  enum { value = 1 };
+};
+
+template <typename T, typename C>
+static constexpr bool IsCompatibleContainer() {
+  // Exclude Span because those are always safe to copy (view types).
+  return !IsSpan<C>() && HasDataT<C, T*>::value && HasSizeT<C>::value;
+}
+
+}  // namespace detail
+
 // A simple span containing data and size of data.
+
 template <typename T>
 class Span {
  public:
-  Span() = default;
-  Span(T* data, size_t size) : size_(size), data_(data) {}
-  template <typename U>
-  Span(U& u) : Span(u.data(), u.size()) {}
-  template <typename U>
-  Span(U&& u) : Span(u.data(), u.size()) {}
-  Span(std::initializer_list<const T> v) : Span(v.begin(), v.size()) {}
+  using value_type = T;
 
-  // Copies the contents of the initializer list to the span.
-  Span<T>& operator=(std::initializer_list<const T> v) {
+  constexpr Span() noexcept = default;
+  constexpr Span(T* data, size_t size) noexcept : size_(size), data_(data) {}
+
+  // Construct from pointers.
+  template <typename Begin, typename End,
+            EnableIf<!IsInteger<Begin>() && !IsInteger<End>() &&
+                     IsConvertible<Begin, T*>() && IsConvertible<End, T*>()>* =
+                nullptr>
+  constexpr Span(Begin begin, End end) noexcept
+      : size_(
+            static_cast<size_t>(static_cast<T*>(end) - static_cast<T*>(begin))),
+        data_(static_cast<T*>(begin)) {
+    HWY_DASSERT(static_cast<T*>(end) >= static_cast<T*>(begin));
+  }
+
+  // Construct from C-style fixed-size array.
+  template <typename U, size_t N, EnableIf<IsConvertible<U*, T*>()>* = nullptr>
+  constexpr Span(U (&arr)[N]) noexcept : size_(N), data_(arr) {}
+
+  // Construct from compatible Span (e.g. Span<T> to Span<const T>).
+  template <typename U, EnableIf<IsConvertible<U*, T*>()>* = nullptr>
+  constexpr Span(const Span<U>& other) noexcept
+      : size_(other.size()), data_(other.data()) {}
+
+  // Construct from mutable lvalue container.
+  template <typename C,
+            EnableIf<detail::IsCompatibleContainer<T, C&>()>* = nullptr>
+  constexpr Span(C& c) : size_(c.size()), data_(c.data()) {}
+
+  // Construct from const lvalue container.
+  template <typename C,
+            EnableIf<detail::IsCompatibleContainer<T, const C&>()>* = nullptr>
+  constexpr Span(const C& c) : size_(c.size()), data_(c.data()) {}
+
+  // Delete rvalue container construction to prevent dangling pointers.
+  template <typename C,
+            EnableIf<detail::IsCompatibleContainer<T, const C&>()>* = nullptr>
+  Span(const C&&) = delete;
+
+  // Copies the contents of the non-const initializer lists to the span.
+  template <typename T2 = T, EnableIf<!IsConst<T2>()>* = nullptr>
+  Span<T>& operator=(std::initializer_list<const T2> v) {
     HWY_DASSERT(size_ == v.size());
-    CopyBytes(v.begin(), data_, sizeof(T) * std::min(size_, v.size()));
+    CopyBytes(v.begin(), data_, HWY_MIN(size_, v.size()) * sizeof(T));
     return *this;
   }
 
-  // Returns the size of the contained data.
-  size_t size() const { return size_; }
+  // Returns the number of elements in the span.
+  constexpr size_t size() const noexcept { return size_; }
+
+  // Returns the size of the contained data in bytes.
+  constexpr size_t size_bytes() const noexcept { return size_ * sizeof(T); }
+
+  constexpr bool empty() const noexcept { return size_ == 0; }
 
   // Returns a pointer to the contained data.
-  T* data() { return data_; }
-  T* data() const { return data_; }
+  constexpr T* data() const noexcept { return data_; }
 
   // Returns the element at index.
-  T& operator[](size_t index) const { return data_[index]; }
+  constexpr T& operator[](size_t index) const {
+    HWY_DASSERT(index < size_);
+    return data_[index];
+  }
+
+  // Returns reference to the first element.
+  constexpr T& front() const {
+    HWY_DASSERT(!empty());
+    return data_[0];
+  }
+
+  // Returns reference to the last element.
+  constexpr T& back() const {
+    HWY_DASSERT(!empty());
+    return data_[size_ - 1];
+  }
 
   // Returns an iterator pointing to the first element of this span.
-  T* begin() { return data_; }
+  constexpr T* begin() const noexcept { return data_; }
 
   // Returns a const iterator pointing to the first element of this span.
-  constexpr const T* cbegin() const { return data_; }
+  constexpr const T* cbegin() const noexcept { return data_; }
 
   // Returns an iterator pointing just beyond the last element at the
   // end of this span.
-  T* end() { return data_ + size_; }
+  constexpr T* end() const noexcept { return data_ + size_; }
 
   // Returns a const iterator pointing just beyond the last element at the
   // end of this span.
-  constexpr const T* cend() const { return data_ + size_; }
+  constexpr const T* cend() const noexcept { return data_ + size_; }
+
+  // Returns a subspan starting at offset with count elements.
+  constexpr Span<T> subspan(size_t offset, size_t count = ~size_t{0}) const {
+    HWY_DASSERT(offset <= size_);
+    HWY_DASSERT(count == ~size_t{0} || count <= size_ - offset);
+    return Span<T>(data_ + offset,
+                   count == ~size_t{0} ? size_ - offset : count);
+  }
+
+  // Returns a subspan of the first count elements.
+  constexpr Span<T> first(size_t count) const {
+    HWY_DASSERT(count <= size_);
+    return Span<T>(data_, count);
+  }
+
+  // Returns a subspan of the last count elements.
+  constexpr Span<T> last(size_t count) const {
+    HWY_DASSERT(count <= size_);
+    return Span<T>(data_ + (size_ - count), count);
+  }
+
+  // Shrinks the span by removing the first count elements.
+  void remove_prefix(size_t count) {
+    HWY_DASSERT(count <= size_);
+    data_ += count;
+    size_ -= count;
+  }
+
+  // Shrinks the span by removing the last count elements.
+  void remove_suffix(size_t count) {
+    HWY_DASSERT(count <= size_);
+    size_ -= count;
+  }
 
  private:
   size_t size_ = 0;
   T* data_ = nullptr;
 };
 
+// Returns a read-only view of the bytes in the span.
+template <typename T>
+Span<const uint8_t> as_bytes(Span<T> s) noexcept {
+  return Span<const uint8_t>(reinterpret_cast<const uint8_t*>(s.data()),
+                             s.size_bytes());
+}
+
+// Returns a writable view of the bytes in the span.
+template <typename T, EnableIf<!IsConst<T>()>* = nullptr>
+Span<uint8_t> as_writable_bytes(Span<T> s) noexcept {
+  return Span<uint8_t>(reinterpret_cast<uint8_t*>(s.data()), s.size_bytes());
+}
+
 // Deduction guides to infer the constness of T from the constness of U
 // (requires C++17)
 #if HWY_CXX_LANG >= 201703L
+template <typename T>
+Span(T*, size_t) -> Span<T>;
+template <typename T>
+Span(T*, T*) -> Span<T>;
+template <typename T, size_t N>
+Span(T (&)[N]) -> Span<T>;
 template <typename U>
-Span(U&) -> Span<typename U::value_type>;
+Span(U&) -> Span<RemoveRef<decltype(*DeclVal<U&>().data())>>;
 template <typename U>
-Span(const U&) -> Span<const typename U::value_type>;
+Span(const U&) -> Span<const RemoveRef<decltype(*DeclVal<const U&>().data())>>;
 #endif  // HWY_CXX_LANG >= 201703L
 
 // A multi dimensional array containing an aligned buffer.

@@ -57,12 +57,10 @@ struct SortConstants {
   // networks (for which only loose upper bounds on size are known).
   static constexpr size_t kMaxRows = 16;
 
-  // Template argument ensures there is no actual division instruction.
-  template <size_t kLPK>
   static constexpr HWY_INLINE size_t BaseCaseNumLanes(size_t N) {
-    // We use 8, 8x2, 8x4, and 16x{4..} networks, in units of keys. For N/kLPK
-    // < 4, we cannot use the 16-row networks.
-    return (((N / kLPK) >= 4) ? kMaxRows : 8) * HWY_MIN(N, kMaxCols);
+    // We use 8, 8x2, 8x4, and 16 networks, in units of keys.
+    // For any N/kLPK the largest network is 16 rows.
+    return kMaxRows * HWY_MIN(N, kMaxCols);
   }
 
   // Unrolling is important (pipelining and amortizing branch mispredictions);
@@ -94,28 +92,28 @@ struct SortConstants {
   }
 
   // Max across the three buffer usages.
-  template <typename T, size_t kLPK>
+  template <typename T>
   static constexpr HWY_INLINE size_t BufNum(size_t N) {
     // BaseCase may write one padding vector, and SortSamples uses the space
     // after samples as the buffer.
-    return HWY_MAX(SampleLanes<T>() + BaseCaseNumLanes<kLPK>(N) + N,
+    return HWY_MAX(SampleLanes<T>() + BaseCaseNumLanes(N) + N,
                    PartitionBufNum(N));
   }
 
   // Translates vector_size to lanes and returns size in bytes.
-  template <typename T, size_t kLPK>
+  template <typename T>
   static constexpr HWY_INLINE size_t BufBytes(size_t vector_size) {
-    return BufNum<T, kLPK>(vector_size / sizeof(T)) * sizeof(T);
+    return BufNum<T>(vector_size / sizeof(T)) * sizeof(T);
   }
 
   // Returns max for any type.
   template <size_t kLPK>
   static constexpr HWY_INLINE size_t MaxBufBytes(size_t vector_size) {
     // If 2 lanes per key, it's a 128-bit key with u64 lanes.
-    return kLPK == 2 ? BufBytes<uint64_t, 2>(vector_size)
-                     : HWY_MAX((BufBytes<uint16_t, 1>(vector_size)),
-                               HWY_MAX((BufBytes<uint32_t, 1>(vector_size)),
-                                       (BufBytes<uint64_t, 1>(vector_size))));
+    return kLPK == 2 ? BufBytes<uint64_t>(vector_size)
+                     : HWY_MAX((BufBytes<uint16_t>(vector_size)),
+                               HWY_MAX((BufBytes<uint32_t>(vector_size)),
+                                       (BufBytes<uint64_t>(vector_size))));
   }
 };
 

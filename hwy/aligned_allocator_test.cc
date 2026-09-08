@@ -20,8 +20,10 @@
 #include <stdlib.h>  // malloc
 
 #include <array>
+#include <initializer_list>
 #include <random>
 #include <set>
+#include <type_traits>
 #include <vector>
 
 #include "hwy/base.h"
@@ -330,11 +332,8 @@ TEST(AlignedAllocatorTest, TestAlignedNDArray) {
   AlignedNDArray<float, 2> a2({2, 3});
   CheckEqual(a2, {{0, 0, 0}, {0, 0, 0}});
   a2[{1}][1] = 5.1f;
-  CheckEqual(a2, {{0, 0, 0}, {0, 5.1f, 0}});
-  float f0[] = {1.0f, 2.0f, 3.0f};
-  float f1[] = {4.0f, 5.0f, 6.0f};
-  hwy::CopyBytes(f0, a2[{0}].data(), 3 * sizeof(float));
-  hwy::CopyBytes(f1, a2[{1}].data(), 3 * sizeof(float));
+  a2[{0}] = {1.0f, 2.0f, 3.0f};
+  a2[{1}] = {4.0f, 5.0f, 6.0f};
   CheckEqual(a2, {{1.0f, 2.0f, 3.0f}, {4.0f, 5.0f, 6.0f}});
 }
 
@@ -447,6 +446,175 @@ TEST(AlignedAllocatorTest, TestAlignedVector) {
 
   vec.clear();
   HWY_ASSERT(vec.empty());
+}
+
+TEST(AlignedAllocatorTest, TestSpanBasicAndConstructors) {
+  // Default constructor
+  Span<int> empty_span;
+  HWY_ASSERT(empty_span.empty());
+  HWY_ASSERT_EQ(empty_span.size(), 0);
+  HWY_ASSERT_EQ(empty_span.size_bytes(), 0);
+  HWY_ASSERT(empty_span.data() == nullptr);
+
+  // Pointer and size constructor
+  int raw[] = {10, 20, 30, 40, 50};
+  Span<int> s1(raw, 5);
+  HWY_ASSERT(!s1.empty());
+  HWY_ASSERT_EQ(s1.size(), 5);
+  HWY_ASSERT_EQ(s1.size_bytes(), 5 * sizeof(int));
+  HWY_ASSERT_EQ(s1[0], 10);
+  HWY_ASSERT_EQ(s1.front(), 10);
+  HWY_ASSERT_EQ(s1.back(), 50);
+
+  // Pointer pair constructor
+  Span<int> s2(raw + 1, raw + 4);
+  HWY_ASSERT_EQ(s2.size(), 3);
+  HWY_ASSERT_EQ(s2.front(), 20);
+  HWY_ASSERT_EQ(s2.back(), 40);
+
+  // Fixed C-style array constructor
+  Span<int> s3(raw);
+  HWY_ASSERT_EQ(s3.size(), 5);
+  HWY_ASSERT_EQ(s3[2], 30);
+
+  const int const_raw[] = {1, 2, 3};
+  Span<const int> s_const_arr(const_raw);
+  HWY_ASSERT_EQ(s_const_arr.size(), 3);
+  HWY_ASSERT_EQ(s_const_arr[1], 2);
+
+  // Non-const array to Span<const T>
+  Span<const int> s_const_from_mut(raw);
+  HWY_ASSERT_EQ(s_const_from_mut.size(), 5);
+
+  // Converting constructor Span<T> -> Span<const T>
+  Span<const int> s_converted = s1;
+  HWY_ASSERT_EQ(s_converted.size(), 5);
+  HWY_ASSERT(s_converted.data() == s1.data());
+
+  // std::vector constructor
+  std::vector<int> vec = {100, 200, 300};
+  Span<int> s_vec(vec);
+  HWY_ASSERT_EQ(s_vec.size(), 3);
+  HWY_ASSERT_EQ(s_vec[0], 100);
+
+  const std::vector<int> const_vec = {400, 500};
+  Span<const int> s_cvec(const_vec);
+  HWY_ASSERT_EQ(s_cvec.size(), 2);
+  HWY_ASSERT_EQ(s_cvec[1], 500);
+
+  // std::array constructor
+  std::array<int, 3> std_arr = {{7, 8, 9}};
+  Span<int> s_std_arr(std_arr);
+  HWY_ASSERT_EQ(s_std_arr.size(), 3);
+  HWY_ASSERT_EQ(s_std_arr[0], 7);
+
+  // Verify dangling pointer prevention via static_asserts
+  static_assert(
+      !std::is_constructible<Span<const int>, std::vector<int>>::value,
+      "Rvalue std::vector must not construct Span");
+  static_assert(!std::is_constructible<Span<const int>, std::string>::value,
+                "Rvalue std::string must not construct Span");
+  static_assert(!std::is_constructible<Span<const int>,
+                                       std::initializer_list<int>>::value,
+                "initializer_list must not construct Span");
+  static_assert(
+      std::is_constructible<Span<const int>, std::vector<int>&>::value,
+      "Lvalue std::vector must construct Span");
+  static_assert(
+      std::is_constructible<Span<const int>, const std::vector<int>&>::value,
+      "Const lvalue std::vector must construct Span");
+  static_assert(std::is_constructible<Span<const int>, Span<int>>::value,
+                "Rvalue Span must construct Span");
+}
+
+TEST(AlignedAllocatorTest, TestSpanConstIteration) {
+  const int raw[] = {1, 2, 3, 4};
+  const Span<const int> s(raw);
+
+  int sum = 0;
+  for (int x : s) {
+    sum += x;
+  }
+  HWY_ASSERT_EQ(sum, 10);
+
+  int sum_c = 0;
+  for (auto it = s.cbegin(); it != s.cend(); ++it) {
+    sum_c += *it;
+  }
+  HWY_ASSERT_EQ(sum_c, 10);
+
+  // Verify that const Span<int>& can also be iterated over (shallow const)
+  int mut_raw[] = {10, 20};
+  const Span<int> mut_s(mut_raw);
+  for (int& x : mut_s) {
+    x += 1;
+  }
+  HWY_ASSERT_EQ(mut_raw[0], 11);
+  HWY_ASSERT_EQ(mut_raw[1], 21);
+}
+
+TEST(AlignedAllocatorTest, TestSpanSubspanAndSlicing) {
+  int raw[] = {0, 1, 2, 3, 4, 5, 6, 7};
+  Span<int> s(raw);
+
+  Span<int> sub1 = s.subspan(2, 4);
+  HWY_ASSERT_EQ(sub1.size(), 4);
+  HWY_ASSERT_EQ(sub1[0], 2);
+  HWY_ASSERT_EQ(sub1.back(), 5);
+
+  Span<int> sub_to_end = s.subspan(5);
+  HWY_ASSERT_EQ(sub_to_end.size(), 3);
+  HWY_ASSERT_EQ(sub_to_end[0], 5);
+  HWY_ASSERT_EQ(sub_to_end.back(), 7);
+
+  Span<int> head = s.first(3);
+  HWY_ASSERT_EQ(head.size(), 3);
+  HWY_ASSERT_EQ(head[0], 0);
+  HWY_ASSERT_EQ(head.back(), 2);
+
+  Span<int> tail = s.last(3);
+  HWY_ASSERT_EQ(tail.size(), 3);
+  HWY_ASSERT_EQ(tail[0], 5);
+  HWY_ASSERT_EQ(tail.back(), 7);
+
+  Span<int> mut_view = s;
+  mut_view.remove_prefix(2);
+  HWY_ASSERT_EQ(mut_view.size(), 6);
+  HWY_ASSERT_EQ(mut_view.front(), 2);
+
+  mut_view.remove_suffix(3);
+  HWY_ASSERT_EQ(mut_view.size(), 3);
+  HWY_ASSERT_EQ(mut_view.back(), 4);
+
+  // Test zero-length subspan and boundary subspan
+  Span<int> empty_s;
+  Span<int> empty_sub = empty_s.subspan(0, 0);
+  HWY_ASSERT(empty_sub.empty());
+  HWY_ASSERT_EQ(empty_sub.size(), 0);
+  HWY_ASSERT_EQ(empty_s.first(0).size(), 0);
+  HWY_ASSERT_EQ(empty_s.last(0).size(), 0);
+
+  Span<int> boundary_sub = s.subspan(s.size(), 0);
+  HWY_ASSERT(boundary_sub.empty());
+  HWY_ASSERT_EQ(boundary_sub.size(), 0);
+  HWY_ASSERT_EQ(s.first(0).size(), 0);
+  HWY_ASSERT_EQ(s.last(0).size(), 0);
+}
+
+TEST(AlignedAllocatorTest, TestSpanByteViews) {
+  uint32_t values[] = {0x12345678, 0x9ABCDEF0};
+  Span<uint32_t> s(values);
+
+  HWY_ASSERT_EQ(s.size_bytes(), 2 * sizeof(uint32_t));
+
+  Span<const uint8_t> byte_view = as_bytes(s);
+  HWY_ASSERT_EQ(byte_view.size(), 8);
+  HWY_ASSERT(byte_view.data() == reinterpret_cast<const uint8_t*>(values));
+
+  Span<uint8_t> writable_byte_view = as_writable_bytes(s);
+  HWY_ASSERT_EQ(writable_byte_view.size(), 8);
+  writable_byte_view[0] = 0x55;
+  HWY_ASSERT_EQ(reinterpret_cast<uint8_t*>(values)[0], 0x55);
 }
 
 }  // namespace

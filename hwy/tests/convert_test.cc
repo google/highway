@@ -351,12 +351,12 @@ HWY_NOINLINE void TestAllPromoteOddEvenTo() {
 }
 
 template <typename T, HWY_IF_FLOAT(T)>
-bool IsFinite(T t) {
+HWY_MAYBE_UNUSED bool IsFinite(T t) {
   return std::isfinite(t);
 }
 // Wrapper avoids calling std::isfinite for integer types (ambiguous).
 template <typename T, HWY_IF_NOT_FLOAT(T)>
-bool IsFinite(T /*unused*/) {
+HWY_MAYBE_UNUSED bool IsFinite(T /*unused*/) {
   return true;
 }
 

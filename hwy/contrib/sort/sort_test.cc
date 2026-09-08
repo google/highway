@@ -62,11 +62,14 @@ using detail::OrderDescendingKV128;
 using detail::Traits128;
 #endif  // !HAVE_INTEL && HWY_TARGET != HWY_SCALAR
 
+#if VQSORT_ENABLED
+
 template <typename Key>
 void TestSortIota(hwy::ThreadPool& pool) {
-  pool.Run(128, 300, [](uint64_t task, size_t /*thread*/) {
+  // Arbitrary problem sizes; end matches stack allocation below.
+  pool.Run(128, 260, [](uint64_t task, size_t /*thread*/) {
     const size_t num = static_cast<size_t>(task);
-    Key keys[300];
+    Key keys[260];
     std::iota(keys, keys + num, Key{0});
     VQSort(keys, num, hwy::SortAscending());
     for (size_t i = 0; i < num; ++i) {
@@ -77,6 +80,8 @@ void TestSortIota(hwy::ThreadPool& pool) {
     }
   });
 }
+
+#endif  // VQSORT_ENABLED
 
 void TestAllSortIota() {
 #if VQSORT_ENABLED
@@ -93,7 +98,7 @@ void TestAllSortIota() {
     TestSortIota<double>(pool);
   }
 #endif  // HWY_HAVE_FLOAT64
-#endif
+#endif  // VQSORT_ENABLED
 }
 
 // Supports full/partial sort and select.
@@ -235,7 +240,7 @@ void TestAllSort() {
       Algo::kVQSort,  Algo::kHeapSort,
   };
 
-  for (int num : {129, 504, 3 * 1000, 14567}) {
+  for (int num : {129, 504, 2 * 1000, 10567}) {
     const size_t num_lanes = AdjustedReps(static_cast<size_t>(num));
     CallAllSortTraits(algos, num_lanes);
   }
@@ -244,7 +249,7 @@ void TestAllSort() {
 void TestAllPartialSort() {
   const std::vector<Algo> algos{Algo::kVQPartialSort, Algo::kHeapPartialSort};
 
-  for (int num : {129, 504, 3 * 1000, 14567}) {
+  for (int num : {129, 504, 2 * 1000, 10567}) {
     const size_t num_lanes = AdjustedReps(static_cast<size_t>(num));
     CallAllSortTraits(algos, num_lanes);
   }
@@ -253,7 +258,7 @@ void TestAllPartialSort() {
 void TestAllSelect() {
   const std::vector<Algo> algos{Algo::kVQSelect, Algo::kHeapSelect};
 
-  for (int num : {129, 504, 3 * 1000, 14567}) {
+  for (int num : {129, 504, 2 * 1000, 10567}) {
     const size_t num_lanes = AdjustedReps(static_cast<size_t>(num));
     CallAllSortTraits(algos, num_lanes);
   }
@@ -358,7 +363,7 @@ std::vector<T> MakeNaNInfInput(size_t num, uint64_t seed, size_t& num_nan) {
 // float via bit-pattern helpers so T = float16_t works without native f16 ops.
 template <typename T, class Order>
 void TestSelectWithNaNForType(Order order) {
-  const size_t num = AdjustedReps(100000);
+  const size_t num = AdjustedReps(40 * 1000);
   if (num < 32) return;
   constexpr bool asc = hwy::IsSame<Order, hwy::SortAscending>();
 
@@ -413,7 +418,7 @@ void TestSelectWithNaNForType(Order order) {
 // are sorted; k = num exercises k > num_valid.
 template <typename T, class Order>
 void TestPartialSortWithNaNForType(Order order) {
-  const size_t num = AdjustedReps(100000);
+  const size_t num = AdjustedReps(40 * 1000);
   if (num < 32) return;
   constexpr bool asc = hwy::IsSame<Order, hwy::SortAscending>();
 

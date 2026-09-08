@@ -271,7 +271,7 @@ struct TestPairwiseAdd128 {
   }
 
   template <typename T, class D, HWY_IF_LANES_D(D, 1)>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+  HWY_NOINLINE HWY_MAYBE_UNUSED void operator()(T /*unused*/, D d) {
     (void)d;
   }
 };
@@ -312,7 +312,7 @@ struct TestPairwiseSub128 {
   }
 
   template <typename T, class D, HWY_IF_LANES_D(D, 1)>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+  HWY_NOINLINE HWY_MAYBE_UNUSED void operator()(T /*unused*/, D d) {
     (void)d;
   }
 };

@@ -624,7 +624,7 @@ struct TestInsertIntoUpper {
     HWY_ASSERT_VEC_EQ(d, expected_output_lanes, InsertIntoUpper(d, pointer, a));
   }
   template <typename T, class D, HWY_IF_LANES_D(D, 1)>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+  HWY_NOINLINE HWY_MAYBE_UNUSED void operator()(T /*unused*/, D d) {
     (void)d;
   }
 };

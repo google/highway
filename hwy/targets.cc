@@ -39,6 +39,12 @@
 #include <sys/auxv.h>
 #endif
 
+#elif (HWY_ARCH_ARM || HWY_ARCH_PPC || HWY_ARCH_RISCV) &&                  \
+       (HWY_OS_FREEBSD || HWY_OS_OPENBSD)
+#if HWY_HAVE_ELF_AUX_INFO
+#include <sys/auxv.h>
+#endif
+
 #endif  // HWY_ARCH_*
 
 #if HWY_OS_APPLE
@@ -47,6 +53,23 @@
 #endif  // HWY_OS_APPLE
 
 namespace hwy {
+
+#if (HWY_ARCH_ARM || HWY_ARCH_PPC || HWY_ARCH_RISCV) &&                  \
+       (HWY_OS_FREEBSD || HWY_OS_OPENBSD)
+#if HWY_HAVE_ELF_AUX_INFO
+static HWY_INLINE HWY_MAYBE_UNUSED unsigned long getauxval(unsigned long type) {
+  unsigned long hwcap = 0;
+  switch (type) {
+  case AT_HWCAP:
+  case AT_HWCAP2:
+    elf_aux_info((int)type, &hwcap, sizeof(hwcap));
+    return hwcap;
+  default:
+    return 0;
+  }
+}
+#endif // HWY_HAVE_ELF_AUX_INFO
+#endif // HWY_ARCH_*
 
 #if HWY_OS_APPLE
 static HWY_INLINE HWY_MAYBE_UNUSED bool HasCpuFeature(

@@ -90,6 +90,66 @@ HWY_NOINLINE void TestAllInt8PerBlock2x2MatMul() {
   ForGEVectors<128, TestInt8PerBlock2x2MatMul>()(int32_t());
 }
 
+struct TestUint8Int8PerBlock2x2MatMul {
+  template <typename TN, class DN>
+  HWY_NOINLINE void operator()(TN /*unused*/, DN dn) {
+#if HWY_NATIVE_PER_BLOCK_2X2_MATMUL_INT8
+    static_assert(IsSame<TN, int32_t>(), "TN should be int32_t");
+    const Repartition<uint8_t, DN> du8;
+    const Repartition<int8_t, DN> di8;
+    using VU8 = Vec<decltype(du8)>;
+    using VI8 = Vec<decltype(di8)>;
+    using V32 = Vec<decltype(dn)>;
+    HWY_LANES_CONSTEXPR size_t N = Lanes(dn);
+
+    // Allocate aligned buffers for scalar verification
+    auto in_a = AllocateAligned<uint8_t>(N * 4);
+    auto in_b = AllocateAligned<int8_t>(N * 4);
+    auto in_c = AllocateAligned<int32_t>(N);
+    auto expected = AllocateAligned<int32_t>(N);
+    HWY_ASSERT(in_a && in_b && in_c && expected);
+
+    // Populate buffers
+    for (size_t i = 0; i < N * 4; ++i) {
+      in_a[i] = static_cast<uint8_t>((i % 250) + 1);
+      in_b[i] = static_cast<int8_t>((i % 19) - 9);
+    }
+    for (size_t i = 0; i < N; ++i) {
+      in_c[i] = static_cast<int32_t>((i % 7) + 10);
+      expected[i] = in_c[i];
+    }
+
+    // Scalar emulation loop (matching hardware svusmmla interleaving)
+    for (size_t block = 0; block < N; block += 4) {
+      const size_t block_u8 = block * 4;
+      for (size_t i = 0; i < 2; ++i) {
+        for (size_t j = 0; j < 2; ++j) {
+          int32_t sum = 0;
+          for (size_t k = 0; k < 8; ++k) {
+            sum += static_cast<int32_t>(in_a[block_u8 + i * 8 + k]) *
+                   static_cast<int32_t>(in_b[block_u8 + j * 8 + k]);
+          }
+          expected[block + i * 2 + j] += sum;
+        }
+      }
+    }
+
+    const VU8 va = Load(du8, in_a.get());
+    const VI8 vb = Load(di8, in_b.get());
+    const V32 vc = Load(dn, in_c.get());
+
+    const V32 actual = PerBlock2x2MatMul(dn, va, vb, vc);
+    HWY_ASSERT_VEC_EQ(dn, expected.get(), actual);
+#else
+    (void)dn;
+#endif
+  }
+};
+
+HWY_NOINLINE void TestAllUint8Int8PerBlock2x2MatMul() {
+  ForGEVectors<128, TestUint8Int8PerBlock2x2MatMul>()(int32_t());
+}
+
 struct TestBf16PerBlock2x2MatMul {
   template <typename TN, class DN>
   HWY_NOINLINE void operator()(TN /*unused*/, DN dn) {
@@ -156,6 +216,7 @@ namespace hwy {
 namespace {
 HWY_BEFORE_TEST(HwyMatmulOpTest);
 HWY_EXPORT_AND_TEST_P(HwyMatmulOpTest, TestAllInt8PerBlock2x2MatMul);
+HWY_EXPORT_AND_TEST_P(HwyMatmulOpTest, TestAllUint8Int8PerBlock2x2MatMul);
 HWY_EXPORT_AND_TEST_P(HwyMatmulOpTest, TestAllBf16PerBlock2x2MatMul);
 HWY_AFTER_TEST();
 }  // namespace

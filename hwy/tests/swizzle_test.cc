@@ -241,9 +241,8 @@ struct TestInsertLane {
     Store(Zero(d), d, lanes);
   }
   template <class D, HWY_IF_V_SIZE_GT_D(D, 16)>
-  static HWY_INLINE void DoTestInsertLaneWithConstAmt(D,
-                                                      TFromD<D>* HWY_RESTRICT) {
-  }
+  static HWY_INLINE HWY_MAYBE_UNUSED void DoTestInsertLaneWithConstAmt(
+      D, TFromD<D>* HWY_RESTRICT) {}
 #endif  // !HWY_HAVE_SCALABLE
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {

@@ -27,7 +27,9 @@
 // we'll get an "always_inline function requires lasx but would be inlined
 // into a function that is compiled without suport for lasx" error.
 HWY_PUSH_ATTRIBUTES("lsx")
+#ifndef __loongarch_sx
 #define __loongarch_sx
+#endif
 #include <lsxintrin.h>
 #undef __loongarch_sx
 // Prevent "unused push_attribute" warning from Clang.
@@ -2464,10 +2466,28 @@ HWY_API Vec128<double, N> MulAdd(Vec128<double, N> mul, Vec128<double, N> x,
 }
 
 // Unsigned
-template <typename T, size_t N, HWY_IF_UNSIGNED(T)>
-HWY_API Vec128<T, N> MulAdd(Vec128<T, N> mul, Vec128<T, N> x,
-                            Vec128<T, N> add) {
-  return mul * x + add;
+template <size_t N>
+HWY_API Vec128<uint8_t, N> MulAdd(Vec128<uint8_t, N> mul, Vec128<uint8_t, N> x,
+                                  Vec128<uint8_t, N> add) {
+  return Vec128<uint8_t, N>{__lsx_vmadd_b(add.raw, mul.raw, x.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint16_t, N> MulAdd(Vec128<uint16_t, N> mul,
+                                   Vec128<uint16_t, N> x,
+                                   Vec128<uint16_t, N> add) {
+  return Vec128<uint16_t, N>{__lsx_vmadd_h(add.raw, mul.raw, x.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint32_t, N> MulAdd(Vec128<uint32_t, N> mul,
+                                   Vec128<uint32_t, N> x,
+                                   Vec128<uint32_t, N> add) {
+  return Vec128<uint32_t, N>{__lsx_vmadd_w(add.raw, mul.raw, x.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint64_t, N> MulAdd(Vec128<uint64_t, N> mul,
+                                   Vec128<uint64_t, N> x,
+                                   Vec128<uint64_t, N> add) {
+  return Vec128<uint64_t, N>{__lsx_vmadd_d(add.raw, mul.raw, x.raw)};
 }
 
 template <size_t N>
@@ -2507,10 +2527,29 @@ HWY_API Vec128<double, N> NegMulAdd(Vec128<double, N> mul, Vec128<double, N> x,
 }
 
 // unsigned
-template <typename T, size_t N, HWY_IF_NOT_SPECIAL_FLOAT(T)>
-HWY_API Vec128<T, N> NegMulAdd(Vec128<T, N> mul, Vec128<T, N> x,
-                               Vec128<T, N> add) {
-  return add - mul * x;
+template <size_t N>
+HWY_API Vec128<uint8_t, N> NegMulAdd(Vec128<uint8_t, N> mul,
+                                     Vec128<uint8_t, N> x,
+                                     Vec128<uint8_t, N> add) {
+  return Vec128<uint8_t, N>{__lsx_vmsub_b(add.raw, mul.raw, x.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint16_t, N> NegMulAdd(Vec128<uint16_t, N> mul,
+                                      Vec128<uint16_t, N> x,
+                                      Vec128<uint16_t, N> add) {
+  return Vec128<uint16_t, N>{__lsx_vmsub_h(add.raw, mul.raw, x.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint32_t, N> NegMulAdd(Vec128<uint32_t, N> mul,
+                                      Vec128<uint32_t, N> x,
+                                      Vec128<uint32_t, N> add) {
+  return Vec128<uint32_t, N>{__lsx_vmsub_w(add.raw, mul.raw, x.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint64_t, N> NegMulAdd(Vec128<uint64_t, N> mul,
+                                      Vec128<uint64_t, N> x,
+                                      Vec128<uint64_t, N> add) {
+  return Vec128<uint64_t, N>{__lsx_vmsub_d(add.raw, mul.raw, x.raw)};
 }
 
 // ------------------------------ Float MulSub
@@ -2536,7 +2575,19 @@ HWY_API Vec128<T, N> MulSub(Vec128<T, N> mul, Vec128<T, N> x,
 
 // ------------------------------ Float NegMulSub
 
-// float/unsigned
+// float
+template <size_t N>
+HWY_API Vec128<float, N> NegMulSub(Vec128<float, N> mul, Vec128<float, N> x,
+                                   Vec128<float, N> sub) {
+  return Vec128<float, N>{__lsx_vfnmadd_s(mul.raw, x.raw, sub.raw)};
+}
+template <size_t N>
+HWY_API Vec128<double, N> NegMulSub(Vec128<double, N> mul, Vec128<double, N> x,
+                                    Vec128<double, N> sub) {
+  return Vec128<double, N>{__lsx_vfnmadd_d(mul.raw, x.raw, sub.raw)};
+}
+
+// unsigned
 template <typename T, size_t N, HWY_IF_NOT_SPECIAL_FLOAT(T)>
 HWY_API Vec128<T, N> NegMulSub(Vec128<T, N> mul, Vec128<T, N> x,
                                Vec128<T, N> sub) {
@@ -4963,6 +5014,37 @@ HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<Rebind<double, D>> v) {
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U64_D(D)>
 HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<Rebind<double, D>> v) {
   return VFromD<D>{__lsx_vftintrz_lu_d(v.raw)};
+}
+
+// ------------------------------ CeilInt/FloorInt
+
+// loongarch_lasx-inl.h includes this header and defines its own 256-bit
+// overloads, so leave the HWY_NATIVE_CEIL_FLOOR_INT toggle unguarded for LASX
+// to inherit.
+#ifdef HWY_NATIVE_CEIL_FLOOR_INT
+#undef HWY_NATIVE_CEIL_FLOOR_INT
+#else
+#define HWY_NATIVE_CEIL_FLOOR_INT
+#endif
+
+template <size_t N>
+HWY_API Vec128<int32_t, N> CeilInt(const Vec128<float, N> v) {
+  return Vec128<int32_t, N>{__lsx_vftintrp_w_s(v.raw)};
+}
+
+template <size_t N>
+HWY_API Vec128<int64_t, N> CeilInt(const Vec128<double, N> v) {
+  return Vec128<int64_t, N>{__lsx_vftintrp_l_d(v.raw)};
+}
+
+template <size_t N>
+HWY_API Vec128<int32_t, N> FloorInt(const Vec128<float, N> v) {
+  return Vec128<int32_t, N>{__lsx_vftintrm_w_s(v.raw)};
+}
+
+template <size_t N>
+HWY_API Vec128<int64_t, N> FloorInt(const Vec128<double, N> v) {
+  return Vec128<int64_t, N>{__lsx_vftintrm_l_d(v.raw)};
 }
 
 // ------------------------------ NearestInt (Round)

@@ -327,6 +327,18 @@ cc_library(
 )
 
 cc_library(
+    name = "base64",
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/base64/base64-inl.h",
+    ],
+    deps = [
+        ":hwy",
+    ],
+)
+
+cc_library(
     name = "bit_pack",
     compatible_with = [],
     copts = COPTS,
@@ -416,12 +428,26 @@ cc_library(
 )
 
 cc_library(
+    name = "crc",
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/crc/crc-inl.h",
+    ],
+    deps = [
+        ":hwy",
+    ],
+)
+
+cc_library(
     name = "math",
     compatible_with = [],
     copts = COPTS,
     textual_hdrs = [
         "hwy/contrib/math/math-inl.h",
+        "hwy/contrib/math/f16_math-inl.h",
         "hwy/contrib/math/fast_math-inl.h",
+        "hwy/contrib/math/float_manip-inl.h",
         "hwy/contrib/math/fp_arith-inl.h",
     ],
     deps = [
@@ -444,30 +470,114 @@ cc_library(
 )
 
 cc_library(
-    name = "hash",
+    name = "iguana_ans",
     srcs = [
-        "hwy/contrib/hash/cuckoo2x2.cc",
+        "hwy/contrib/iguana/ans.cc",
+    ],
+    hdrs = [
+        "hwy/contrib/iguana/ans.h",
+        "hwy/contrib/iguana/ans_detail.h",
+    ],
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/iguana/ans-inl.h",
+    ],
+    deps = [
+        ":hwy",
+    ],
+)
+
+cc_library(
+    name = "hash",
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/hash/hash-inl.h",
+    ],
+    deps = [
+        ":hwy",
+        ":random",
+    ],
+)
+
+cc_library(
+    name = "highwayhash",
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/hash/highwayhash-inl.h",
+    ],
+    deps = [
+        ":hwy",
+    ],
+)
+
+cc_library(
+    name = "range_coder",
+    srcs = [
+        "hwy/contrib/coder/range_coder.cc",
+    ],
+    hdrs = [
+        "hwy/contrib/coder/range_coder.h",
+    ],
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/coder/range_coder-inl.h",
+    ],
+    deps = [
+        ":hwy",
+    ],
+)
+
+cc_library(
+    name = "phast",
+    srcs = [
         "hwy/contrib/hash/phast.cc",
     ],
     hdrs = [
-        "hwy/contrib/hash/cuckoo2x2.h",
         "hwy/contrib/hash/phast.h",
     ],
     compatible_with = [],
     copts = COPTS,
     textual_hdrs = [
-        "hwy/contrib/hash/cuckoo-inl.h",
-        "hwy/contrib/hash/hash-inl.h",
         "hwy/contrib/hash/phast-inl.h",
+    ],
+    deps = [
+        ":algo",
+        ":hash",
+        ":hwy",
+        ":profiler",
+        ":random",
+        ":thread_pool",
+        ":timer",
+        "//hwy/contrib/sort:vqsort",
+    ],
+)
+
+cc_library(
+    name = "cuckoo",
+    srcs = [
+        "hwy/contrib/hash/cuckoo2x2.cc",
+    ],
+    hdrs = [
+        "hwy/contrib/hash/cuckoo2x2.h",
+    ],
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/hash/cuckoo-inl.h",
         "hwy/contrib/hash/cuckoo2x2-inl.h",
     ],
     deps = [
         ":algo",
+        ":hash",
         ":hwy",
         ":profiler",
         ":random",
-        ":stats",
         ":thread_pool",
+        ":timer",
         "//hwy/contrib/sort:vqsort",
     ],
 )
@@ -571,6 +681,17 @@ cc_test(
 )
 
 cc_test(
+    name = "stream_triad",
+    srcs = ["hwy/examples/stream_triad.cc"],
+    copts = COPTS,
+    deps = [
+        ":hwy",
+        ":thread_pool",
+        ":timer",
+    ],
+)
+
+cc_test(
     name = "sum_hex",
     srcs = ["hwy/examples/sum_hex.cc"],
     copts = COPTS,
@@ -593,8 +714,27 @@ cc_test(
 )
 
 cc_test(
+    name = "mandelbrot",
+    srcs = ["hwy/examples/mandelbrot.cc"],
+    copts = COPTS,
+    deps = [
+        ":hwy",
+        ":timer",
+    ],
+)
+
+cc_test(
     name = "masks_and_logic",
     srcs = ["hwy/examples/masks_and_logic.cc"],
+    copts = COPTS,
+    deps = [
+        ":hwy",
+    ],
+)
+
+cc_test(
+    name = "baker_mix",
+    srcs = ["hwy/examples/baker_mix.cc"],
     copts = COPTS,
     deps = [
         ":hwy",
@@ -628,6 +768,17 @@ cc_test(
         ":hwy",
         ":hwy_test_util",
         ":nanobenchmark",
+        ":timer",
+    ],
+)
+
+cc_test(
+    name = "game_of_life",
+    srcs = ["hwy/examples/game_of_life.cc"],
+    copts = COPTS,
+    deps = [
+        ":hwy",
+        ":random",
         ":timer",
     ],
 )
@@ -786,6 +937,22 @@ cc_test(
 )
 
 cc_test(
+    name = "algo_bench",
+    size = "medium",
+    timeout = "long",
+    srcs = ["hwy/contrib/algo/algo_bench.cc"],
+    copts = COPTS + HWY_TEST_COPTS,
+    local_defines = ["HWY_IS_TEST"],
+    tags = [
+        "manual",
+        "notap",
+    ],
+    deps = HWY_TEST_DEPS + [
+        ":algo",
+    ],
+)
+
+cc_test(
     name = "hash_eval",
     size = "medium",
     timeout = "long",
@@ -855,7 +1022,9 @@ cc_test(
         "notap",
     ],
     deps = HWY_TEST_DEPS + [
+        ":cuckoo",
         ":hash",
+        ":phast",
         ":profiler",
         ":random",
         ":robust_statistics",
@@ -864,6 +1033,21 @@ cc_test(
         ":topology",
         # Placeholder for flat_hash_set, do not remove
         # Placeholder2 for flat_hash_set, do not remove
+    ],
+)
+
+cc_test(
+    name = "cuckoo_load_factor_sweep",
+    srcs = ["hwy/contrib/hash/cuckoo_load_factor_sweep.cc"],
+    copts = COPTS,
+    deps = [
+        ":cuckoo",
+        ":hash",
+        ":hwy",
+        ":random",
+        ":thread_pool",
+        ":timer",
+        ":topology",
     ],
 )
 

@@ -225,9 +225,19 @@ if (HWY_ENABLE_CONTRIB)
 # additional special cases.
 file(GLOB HWY_CONTRIB_SOURCES "hwy/contrib/sort/vqsort_*.cc")
 list(APPEND HWY_CONTRIB_SOURCES
+    hwy/contrib/base64/base64-inl.h
     hwy/contrib/bit_pack/bit_pack-inl.h
+    hwy/contrib/coder/range_coder.cc
+    hwy/contrib/coder/range_coder.h
+    hwy/contrib/coder/range_coder-inl.h
+    hwy/contrib/crc/crc-inl.h
     hwy/contrib/dot/dot-inl.h
+    hwy/contrib/iguana/ans.cc
+    hwy/contrib/iguana/ans.h
+    hwy/contrib/iguana/ans_detail.h
+    hwy/contrib/iguana/ans-inl.h
     hwy/contrib/hash/hash-inl.h
+    hwy/contrib/hash/highwayhash-inl.h
     hwy/contrib/hash/phast.cc
     hwy/contrib/hash/phast.h
     hwy/contrib/hash/phast-inl.h
@@ -239,9 +249,11 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/hash/cuckoo2x2-inl.h
     hwy/contrib/image/image.cc
     hwy/contrib/image/image.h
+    hwy/contrib/math/f16_math-inl.h
     hwy/contrib/math/fast_math-inl.h
     hwy/contrib/intdiv/intdiv-inl.h
     hwy/contrib/math/fp_arith-inl.h
+    hwy/contrib/math/float_manip-inl.h
     hwy/contrib/math/math-inl.h
     hwy/contrib/matvec/matvec-inl.h
     hwy/contrib/random/random-inl.h
@@ -535,6 +547,9 @@ include(CheckIncludeFile)
 check_include_file(sys/auxv.h  HAVE_SYS_AUXV_H)
 check_include_file(asm/hwcap.h HAVE_ASM_HWCAP_H)
 
+include(CheckSymbolExists)
+check_symbol_exists(elf_aux_info sys/auxv.h HAVE_ELF_AUX_INFO)
+
 # By default prefer STATIC build (legacy behavior)
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
 option(HWY_FORCE_STATIC_LIBS "Ignore BUILD_SHARED_LIBS" OFF)
@@ -564,6 +579,9 @@ if(NOT HAVE_SYS_AUXV_H)
 endif()
 if(NOT HAVE_ASM_HWCAP_H)
   target_compile_definitions(hwy PUBLIC TOOLCHAIN_MISS_ASM_HWCAP_H)
+endif()
+if(HAVE_ELF_AUX_INFO)
+  target_compile_definitions(hwy PUBLIC HWY_HAVE_ELF_AUX_INFO)
 endif()
 target_compile_definitions(hwy PUBLIC "${DLLEXPORT_TO_DEFINE}")
 target_compile_options(hwy PRIVATE ${HWY_FLAGS})
@@ -820,6 +838,27 @@ target_link_libraries(dot_product_mixed_precision PRIVATE ${ATOMICS_LIBRARIES})
 set_target_properties(dot_product_mixed_precision
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
 
+# Stream triad example
+if (HWY_ENABLE_CONTRIB)
+add_executable(stream_triad hwy/examples/stream_triad.cc)
+target_compile_options(stream_triad PRIVATE ${HWY_FLAGS} ${HWY_THREAD_FLAGS})
+target_compile_features(stream_triad PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
+target_link_libraries(stream_triad PRIVATE hwy hwy_contrib)
+target_link_libraries(stream_triad PRIVATE ${ATOMICS_LIBRARIES})
+target_link_libraries(stream_triad PRIVATE ${HWY_THREAD_LIBS})
+set_target_properties(stream_triad
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
+endif() # HWY_ENABLE_CONTRIB
+
+# Mandelbrot
+add_executable(mandelbrot hwy/examples/mandelbrot.cc)
+target_compile_options(mandelbrot PRIVATE ${HWY_FLAGS})
+target_compile_features(mandelbrot PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
+target_link_libraries(mandelbrot PRIVATE hwy)
+target_link_libraries(mandelbrot PRIVATE ${ATOMICS_LIBRARIES})
+set_target_properties(mandelbrot
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
+
 # AES capture the flag example
 add_executable(ctf_aes hwy/examples/ctf_aes.cc)
 target_compile_options(ctf_aes PRIVATE ${HWY_FLAGS})
@@ -836,6 +875,15 @@ target_compile_features(masks_and_logic PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATUR
 target_link_libraries(masks_and_logic PRIVATE hwy)
 target_link_libraries(masks_and_logic PRIVATE ${ATOMICS_LIBRARIES})
 set_target_properties(masks_and_logic
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
+
+# Baker mix permutation example
+add_executable(baker_mix hwy/examples/baker_mix.cc)
+target_compile_options(baker_mix PRIVATE ${HWY_FLAGS})
+target_compile_features(baker_mix PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
+target_link_libraries(baker_mix PRIVATE hwy)
+target_link_libraries(baker_mix PRIVATE ${ATOMICS_LIBRARIES})
+set_target_properties(baker_mix
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
 
 # Matrix transpose using scatter/gather example
@@ -856,6 +904,14 @@ target_link_libraries(float_distribution PRIVATE ${ATOMICS_LIBRARIES})
 set_target_properties(float_distribution
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
 
+# Game of life example
+add_executable(game_of_life hwy/examples/game_of_life.cc)
+target_compile_options(game_of_life PRIVATE ${HWY_FLAGS})
+target_compile_features(game_of_life PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
+target_link_libraries(game_of_life PRIVATE hwy)
+target_link_libraries(game_of_life PRIVATE ${ATOMICS_LIBRARIES})
+set_target_properties(game_of_life
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
 endif()  # HWY_ENABLE_EXAMPLES
 
 # -------------------------------------------------------- Tests
@@ -981,6 +1037,8 @@ list(APPEND HWY_TEST_LIBS hwy_contrib)
 
 list(APPEND HWY_TEST_FILES
   hwy/auto_tune_test.cc
+  hwy/contrib/base64/base64_test.cc
+  hwy/contrib/algo/algo_bench.cc
   hwy/contrib/algo/copy_test.cc
   hwy/contrib/algo/count_value_test.cc
   hwy/contrib/algo/find_test.cc
@@ -988,14 +1046,20 @@ list(APPEND HWY_TEST_FILES
   hwy/contrib/algo/minmax_value_test.cc
   hwy/contrib/algo/transform_test.cc
   hwy/contrib/bit_pack/bit_pack_test.cc
+  hwy/contrib/coder/range_coder_test.cc
+  hwy/contrib/crc/crc_test.cc
   hwy/contrib/dot/dot_test.cc
+  hwy/contrib/iguana/ans_test.cc
   hwy/contrib/hash/cuckoo2x2_test.cc
   hwy/contrib/hash/hash_test.cc
+  hwy/contrib/hash/highwayhash_test.cc
   hwy/contrib/hash/phast_test.cc
   hwy/contrib/hash/shardmul_test.cc
   hwy/contrib/image/image_test.cc
   hwy/contrib/intdiv/intdiv_test.cc
+  hwy/contrib/math/f16_math_test.cc
   hwy/contrib/math/fast_math_test.cc
+  hwy/contrib/math/float_manip_test.cc
   hwy/contrib/math/math_hyper_test.cc
   hwy/contrib/math/math_tan_test.cc
   hwy/contrib/math/math_test.cc

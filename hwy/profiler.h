@@ -843,6 +843,8 @@ struct Zone {
 
 }  // namespace hwy
 
+#if PROFILER_ENABLED
+
 // Creates a `Zone` lvalue with a line-dependent name, which records the elapsed
 // time from here until the end of the current scope. `p` is from
 // `Profiler::Get()` or a cached reference. `global_idx < kMaxWorkers`. `zone`
@@ -859,6 +861,21 @@ struct Zone {
   static const hwy::profiler::ZoneHandle HWY_CONCAT(zone, __LINE__) = \
       hwy::Profiler::Get().AddZone(name);                             \
   PROFILER_ZONE3(hwy::Profiler::Get(), global_idx, HWY_CONCAT(zone, __LINE__))
+
+#else
+
+// `HWY_FENCE` and `hwy::Profiler::Get()` can have non-negligible cost, hence
+// entirely remove.
+#define PROFILER_ZONE3(p, global_idx, zone) \
+  (void)p;                                  \
+  (void)global_idx;                         \
+  (void)zone
+#define PROFILER_ZONE2(global_idx, name) \
+  (void)global_idx;                      \
+  (void)name
+
+#endif  // PROFILER_ENABLED
+
 #define PROFILER_FUNC2(global_idx) PROFILER_ZONE2(global_idx, __func__)
 
 // OBSOLETE: it is more efficient to pass `global_idx` from `ThreadPool` to

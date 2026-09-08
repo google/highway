@@ -1069,31 +1069,24 @@ ib)(c + id)`.
 
 Take `j` to be the even values of `i`.
 
-*   `V`: `{f}` \
+*   `V`: `{i,f}` \
     <code>V **ComplexConj**(V v)</code>: returns the complex conjugate of the
     vector, this negates the imaginary lanes. This is equivalent to
     `OddEven(Neg(a), a)`.
-*   `V`: `{f}` \
-    <code>V **MulComplex**(V a, V b)</code>: returns `(a[j] + i.a[j + 1])(b[j] +
+*   <code>V **MulComplex**(V a, V b)</code>: returns `(a[j] + i.a[j + 1])(b[j] +
     i.b[j + 1])`
-*   `V`: `{f}` \
-    <code>V **MulComplexConj**(V a, V b)</code>: returns `(a[j] + i.a[j +
+*   <code>V **MulComplexConj**(V a, V b)</code>: returns `(a[j] + i.a[j +
     1])(b[j] - i.b[j + 1])`
-*   `V`: `{f}` \
-    <code>V **MulComplexAdd**(V a, V b, V c)</code>: returns `(a[j] + i.a[j +
+*   <code>V **MulComplexAdd**(V a, V b, V c)</code>: returns `(a[j] + i.a[j +
     1])(b[j] + i.b[j + 1]) + (c[j] + i.c[j + 1])`
-*   `V`: `{f}` \
-    <code>V **MulComplexConjAdd**(V a, V b, V c)</code>: returns `(a[j] +
+*   <code>V **MulComplexConjAdd**(V a, V b, V c)</code>: returns `(a[j] +
     i.a[j + 1])(b[j] - i.b[j + 1]) + (c[j] + i.c[j + 1])`
-*   `V`: `{f}` \
-    <code>V **MaskedMulComplexConjAdd**(M mask, V a, V b, V c)</code>: returns
+*   <code>V **MaskedMulComplexConjAdd**(M mask, V a, V b, V c)</code>: returns
     `(a[j] + i.a[j + 1])(b[j] - i.b[j + 1]) + (c[j] + i.c[j + 1])` or `0` if
     `mask[i]` is false.
-*   `V`: `{f}` \
-    <code>V **MaskedMulComplexConj**(M mask, V a, V b)</code>: returns `(a[j] +
+*   <code>V **MaskedMulComplexConj**(M mask, V a, V b)</code>: returns `(a[j] +
     i.a[j + 1])(b[j] - i.b[j + 1])` or `0` if `mask[i]` is false.
-*   `V`: `{f}` \
-    <code>V **MaskedMulComplexOr**(V no, M mask, V a, V b)</code>: returns
+*   <code>V **MaskedMulComplexOr**(V no, M mask, V a, V b)</code>: returns
     `(a[j] + i.a[j + 1])(b[j] + i.b[j + 1])` or `no[i]` if `mask[i]` is false.
 
 #### Shifts
@@ -2124,8 +2117,9 @@ obtain the `D` that describes the return type.
     <code>Vec&lt;D&gt; **TruncateTo**(D, V v)</code>: returns `v[i]` truncated
     to the smaller type indicated by `T = TFromD<D>`, with the same result as if
     the more-significant input bits that do not fit in `T` had been zero.
-    Example: `ScalableTag<uint32_t> du32; Rebind<uint8_t> du8; TruncateTo(du8,
-    Set(du32, 0xF08F))` is the same as `Set(du8, 0x8F)`.
+    Example:
+    `ScalableTag<uint32_t> du32; Rebind<uint8_t, decltype(du32)> du8q;
+    TruncateTo(du8q, Set(du32, 0xF08F))` is the same as `Set(du8q, 0x8F)`.
 
 *   `V`,`D`: (`i16,i8`), (`i32,i8`), (`i64,i8`), (`i32,i16`), (`i64,i16`),
     (`i64,i32`), (`u16,i8`), (`u32,i8`), (`u64,i8`), (`u32,i16`), (`u64,i16`),
@@ -2654,15 +2648,17 @@ The following `ReverseN` must not be called if `Lanes(D()) < N`:
     `TwoTablesLookupLanes(a, b, indices)` on RVV/SVE if `Lanes(d) <
     Lanes(DFromV<V>())`.
 
-Each of the `Lookup8`, `Lookup16`, `Lookup32` (let $X denote the 8/16/32) ops
-below return `GatherIndex(D(), tbl, indices)`, but are much more efficient, and
-are limited to $X elements. Results are undefined if any indices are >= $X. They
-are implemented using `TableLookupLanes` or `TwoTablesLookupLanes`. Let `T`
-denote `TFromD<D>`. These ops are guaranteed to work if `D` is a full vector,
-`HWY_TARGET != HWY_SCALAR` and `HWY_MIN_BYTES / sizeof(T) >= $X/2`. Use the
-constexpr function `CanLookup$X(D())` to verify this. Even if it returns false,
-the ops are still safe to call if `Lanes(D())` >= $X/2. Note that `tbl` must be
-$X-element aligned!
+Each of the `Lookup8`, `Lookup16`, `Lookup32`, `Lookup64` (let $X denote the
+8/16/32/64) ops below return `GatherIndex(D(), tbl, indices)`, but are much more
+efficient, and are limited to $X elements. Results are undefined if any indices
+are >= $X. They are implemented using `TableLookupLanes` or
+`TwoTablesLookupLanes`. Let `T` denote `TFromD<D>`. These ops are guaranteed to
+work if `D` is a full vector, `HWY_TARGET != HWY_SCALAR` and
+`HWY_MIN_BYTES / sizeof(T) >= $X/2`. `Lookup64` is also guaranteed for 128-bit
+AArch64 NEON vectors if `T` is byte-sized. Use the constexpr function
+`CanLookup$X(D())` to verify this. Even if it returns false, the ops are still
+safe to call if `Lanes(D()) >= $X/2`. Note that `tbl` must be $X-element
+aligned!
 
 *   `D`: {u,i,f}{16,32,64} \
     <code>Vec&lt;D&gt; **Lookup8**(D, const TFromD&lt;D&gt;* tbl, VI
@@ -2675,6 +2671,10 @@ $X-element aligned!
 *   `D`: {u,i}{8} \
     <code>Vec&lt;D&gt; **Lookup32**(D, const TFromD&lt;D&gt;* tbl, VI
     indices)</code>: as above, with $X = 32.
+
+*   `D`: {u,i}{8} \
+    <code>Vec&lt;D&gt; **Lookup64**(D, const TFromD&lt;D&gt;* tbl, VI
+    indices)</code>: as above, with $X = 64.
 
 *   <code>unspecified **IndicesFromVec**(D d, V idx)</code> prepares for
     `TableLookupLanes` or `TwoTablesLookupLanes` with integer indices in `idx`,
@@ -2746,6 +2746,12 @@ $X-element aligned!
 
     The results of SlideDownLanes is implementation-defined if `N >= Lanes(d)`.
 
+*   <code>V **SlideDownLanesOr**(V hi, D d, V lo, size_t N)</code>: slides down
+    `lo` by `N` lanes and returns `hi[i]` in the upper `N` lanes.
+
+    `SlideDownLanesOr(hi, d, lo, N)` is equivalent to `IfThenElse(FirstN(d,
+    Lanes(d) - N), SlideDownLanes(d, lo, N), hi)`, but potentially faster.
+
 *   <code>V **Slide1Up**(D d, V v)</code>: slides up `v` by 1 lane
 
     If `Lanes(d) == 1` is true, returns `Zero(d)`.
@@ -2754,6 +2760,11 @@ $X-element aligned!
     `SlideUpLanes(d, v, 1)`, but `Slide1Up(d, v)` is more efficient than
     `SlideUpLanes(d, v, 1)` on some platforms.
 
+*   <code>V **Slide1UpOr**(T no, D d, V v)</code>: slides up `v` by 1 lane, and
+    fills the bottom lane with `no`.
+
+    Equivalent to `InsertLane(Slide1Up(d, v), 0, no)`, but potentially faster.
+
 *   <code>V **Slide1Down**(D d, V v)</code>: slides down `v` by 1 lane
 
     If `Lanes(d) == 1` is true, returns `Zero(d)`.
@@ -2761,6 +2772,12 @@ $X-element aligned!
     If `Lanes(d) > 1` is true, `Slide1Down(d, v)` is equivalent to
     `SlideDownLanes(d, v, 1)`, but `Slide1Down(d, v)` is more efficient than
     `SlideDownLanes(d, v, 1)` on some platforms.
+
+*   <code>V **Slide1DownOr**(T no, D d, V v)</code>: slides down `v` by 1 lane,
+    and fills the top lane with `no`.
+
+    Equivalent to `InsertLane(Slide1Down(d, v), Lanes(d) - 1, no)`, but
+    potentially faster.
 
 *   <code>V **SlideUpBlocks**&lt;int kBlocks&gt;(D d, V v)</code> slides up `v`
     by `kBlocks` blocks.
@@ -2834,6 +2851,15 @@ must first check `Lanes` before calling these ops:
 reductions are slower than normal SIMD operations and are typically used outside
 critical loops.
 
+**Note**: Min/max reduction corner cases are target-specific. If any lane is
+NaN, SVE and RVV use dedicated IEEE minimumNumber/maximumNumber reductions, so a
+qNaN lane is ignored unless all lanes are NaN. AArch64 Neon instead propagates,
+so the result is NaN for `f32` and `f64`, and for `f16` except in two-lane
+vectors, which ignore NaN. x86, PPC/Z, WASM, LoongArch and Armv7 Neon reduce
+using `Min`/`Max`, so they inherit that op's target-specific NaN behavior.
+`HWY_EMU128` compares using `<`, so a NaN is only returned if it is in the last
+lane.
+
 The following broadcast the result to all lanes. To obtain a scalar, you can
 call `GetLane` on the result, or instead use `Reduce*` below.
 
@@ -2850,6 +2876,12 @@ more efficient on some targets.
 *   <code>T **ReduceSum**(D, V v)</code>: returns the sum of all lanes.
 *   <code>T **ReduceMin**(D, V v)</code>: returns the minimum of all lanes.
 *   <code>T **ReduceMax**(D, V v)</code>: returns the maximum of all lanes.
+
+The following are float-only. Unlike `ReduceMin`/`ReduceMax`, they return NaN
+if any lane is NaN, on every target.
+
+*   <code>T **ReduceMinOrNaN**(D, V v)</code>: returns the minimum of all lanes.
+*   <code>T **ReduceMaxOrNaN**(D, V v)</code>: returns the maximum of all lanes.
 
 ### Masked reductions
 

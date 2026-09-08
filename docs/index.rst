@@ -10,4 +10,5 @@ Highway, a C++ library that provides portable SIMD/vector intrinsics
    design_philosophy
    faq
    impl_details
+   instruction_matrix
    release_testing_process
