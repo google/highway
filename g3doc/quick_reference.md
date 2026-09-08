@@ -812,6 +812,16 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     <code>V **MulHigh**(V a, V b)</code>: returns the upper half of `a[i] *
     b[i]` in each lane.
 
+*   `V`: `u64` \
+    <code>V **MulAdd52Lo**(V c, V a, V b)</code>: adds the low 52 bits of
+    `a[i] * b[i]` to the low 52 bits of `c[i]`. The upper 12 bits of `c[i]`
+    are preserved; inputs are interpreted modulo `2^52`.
+
+*   `V`: `u64` \
+    <code>V **MulAdd52Hi**(V c, V a, V b)</code>: adds bits 52 through 103 of
+    `a[i] * b[i]` to the low 52 bits of `c[i]`. The upper 12 bits of `c[i]`
+    are preserved; inputs are interpreted modulo `2^52`.
+
 *   `V`: `i16` \
     <code>V **MulFixedPoint15**(V a, V b)</code>: returns the result of
     multiplying two Q1.15 fixed-point numbers. This corresponds to doubling the

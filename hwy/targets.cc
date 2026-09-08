@@ -182,6 +182,7 @@ enum class FeatureIndex : uint32_t {
   kAVX512BW,
   kAVX512FP16,
   kAVX512BF16,
+  kAVX512IFMA,
 
   kVNNI,
   kVPCLMULQDQ,
@@ -241,6 +242,7 @@ static uint64_t FlagsFromCPUID() {
     flags |= IsBitSet(abcd[1], 28) ? Bit(FeatureIndex::kAVX512CD) : 0;
     flags |= IsBitSet(abcd[1], 30) ? Bit(FeatureIndex::kAVX512BW) : 0;
     flags |= IsBitSet(abcd[1], 31) ? Bit(FeatureIndex::kAVX512VL) : 0;
+    flags |= IsBitSet(abcd[1], 21) ? Bit(FeatureIndex::kAVX512IFMA) : 0;
 
     flags |= IsBitSet(abcd[2], 1) ? Bit(FeatureIndex::kVBMI) : 0;
     flags |= IsBitSet(abcd[2], 6) ? Bit(FeatureIndex::kVBMI2) : 0;
@@ -309,7 +311,8 @@ static constexpr uint64_t kGroupAVX3_DL =
     Bit(FeatureIndex::kVNNI) | Bit(FeatureIndex::kVPCLMULQDQ) |
     Bit(FeatureIndex::kVBMI) | Bit(FeatureIndex::kVBMI2) |
     Bit(FeatureIndex::kVAES) | Bit(FeatureIndex::kPOPCNTDQ) |
-    Bit(FeatureIndex::kBITALG) | Bit(FeatureIndex::kGFNI) | kGroupAVX3;
+    Bit(FeatureIndex::kBITALG) | Bit(FeatureIndex::kGFNI) |
+    Bit(FeatureIndex::kAVX512IFMA) | kGroupAVX3;
 
 static constexpr uint64_t kGroupAVX3_ZEN4 =
     Bit(FeatureIndex::kAVX512BF16) | kGroupAVX3_DL;

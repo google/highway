@@ -112,6 +112,44 @@ struct TestMulOverflow {
   }
 };
 
+struct TestMulAdd52 {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    static_assert(std::is_same<T, uint64_t>::value, "requires uint64_t");
+    const size_t N = Lanes(d);
+    auto a = AllocateAligned<uint64_t>(N);
+    auto b = AllocateAligned<uint64_t>(N);
+    auto c = AllocateAligned<uint64_t>(N);
+    auto expected_lo = AllocateAligned<uint64_t>(N);
+    auto expected_hi = AllocateAligned<uint64_t>(N);
+    HWY_ASSERT(a && b && c && expected_lo && expected_hi);
+
+    constexpr uint64_t kMask52 = 0x000FFFFFFFFFFFFFULL;
+    constexpr uint64_t kHighBits = 0xFFF0000000000000ULL;
+    for (size_t i = 0; i < N; ++i) {
+      a[i] = (i == 0 ? 0 : (i == 1 ? kMask52 : (i + 1) * 0x12345)) |
+             kHighBits;
+      b[i] = (i == 0 ? 0 : (i == 1 ? kMask52 : (i + 3) * 0x54321)) |
+             kHighBits;
+      c[i] = kHighBits | (kMask52 - static_cast<uint64_t>(i));
+
+      uint64_t product_hi;
+      const uint64_t product_lo = Mul128(a[i] & kMask52, b[i] & kMask52,
+                                         &product_hi);
+      const uint64_t product_low52 = product_lo & kMask52;
+      const uint64_t product_high52 = (product_lo >> 52) | (product_hi << 12);
+      expected_lo[i] = kHighBits | ((c[i] + product_low52) & kMask52);
+      expected_hi[i] = kHighBits | ((c[i] + product_high52) & kMask52);
+    }
+
+    const auto va = Load(d, a.get());
+    const auto vb = Load(d, b.get());
+    const auto vc = Load(d, c.get());
+    HWY_ASSERT_VEC_EQ(d, expected_lo.get(), MulAdd52Lo(vc, va, vb));
+    HWY_ASSERT_VEC_EQ(d, expected_hi.get(), MulAdd52Hi(vc, va, vb));
+  }
+};
+
 struct TestDivOverflow {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -128,6 +166,10 @@ HWY_NOINLINE void TestAllMul() {
   ForSignedTypes(ForPartialVectors<TestMulOverflow>());
 
   ForFloatTypes(ForPartialVectors<TestDivOverflow>());
+}
+
+HWY_NOINLINE void TestAllMulAdd52() {
+  ForPartialVectors<TestMulAdd52>()(uint64_t());
 }
 
 struct TestMulHigh {
@@ -462,6 +504,7 @@ namespace hwy {
 namespace {
 HWY_BEFORE_TEST(HwyMulTest);
 HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMul);
+HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMulAdd52);
 HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMulHigh);
 HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMulFixedPoint15);
 HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMulEven);

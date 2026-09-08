@@ -201,7 +201,7 @@
 #define HWY_TARGET_STR_AVX3_DL                                       \
   HWY_TARGET_STR_AVX3                                                \
   ",vpclmulqdq,avx512vbmi,avx512vbmi2,vaes,avx512vnni,avx512bitalg," \
-  "avx512vpopcntdq,gfni"
+  "avx512vpopcntdq,gfni,avx512ifma"
 
 // Opt-out for compilers that do not properly support avx512bf16.
 #ifndef HWY_AVX3_ENABLE_AVX512BF16  // allow override
