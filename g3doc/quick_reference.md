@@ -822,6 +822,9 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     `a[i] * b[i]` to the low 52 bits of `c[i]`. The upper 12 bits of `c[i]`
     are preserved; inputs are interpreted modulo `2^52`.
 
+    `HWY_HAVE_MULADD52` is 1 when the current compilation target has native
+    support for these operations, and 0 when they use the generic fallback.
+
 *   `V`: `i16` \
     <code>V **MulFixedPoint15**(V a, V b)</code>: returns the result of
     multiplying two Q1.15 fixed-point numbers. This corresponds to doubling the

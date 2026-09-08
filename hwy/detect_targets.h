@@ -21,6 +21,17 @@
 
 #include "hwy/detect_compiler_arch.h"
 
+// Whether the current compilation target has native 52-bit multiply-add
+// instructions. MulAdd52Lo/Hi are still available through the generic
+// fallback when this is zero.
+#ifndef HWY_HAVE_MULADD52
+#if HWY_ARCH_X86 && (defined(__AVX512IFMA__) || defined(__AVX10_2__))
+#define HWY_HAVE_MULADD52 1
+#else
+#define HWY_HAVE_MULADD52 0
+#endif
+#endif
+
 //------------------------------------------------------------------------------
 // Optional configuration
 
