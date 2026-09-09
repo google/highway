@@ -317,7 +317,6 @@
 #define HWY_NATIVE_FMA 0
 #define HWY_NATIVE_DOT_BF16 0
 #define HWY_NATIVE_MASK 0  // a few actually are
-#define HWY_NATIVE_MULADD52 0
 
 #define HWY_TARGET_STR HWY_TARGET_STR_SSSE3
 
@@ -338,7 +337,6 @@
 #define HWY_NATIVE_FMA 0
 #define HWY_NATIVE_DOT_BF16 0
 #define HWY_NATIVE_MASK 0  // a few actually are
-#define HWY_NATIVE_MULADD52 0
 
 #define HWY_TARGET_STR HWY_TARGET_STR_SSE4
 
@@ -364,7 +362,6 @@
 #endif
 #define HWY_NATIVE_DOT_BF16 0
 #define HWY_NATIVE_MASK 0  // a few actually are
-#define HWY_NATIVE_MULADD52 0
 
 #define HWY_TARGET_STR HWY_TARGET_STR_AVX2
 
@@ -394,7 +391,6 @@
 #define HWY_NATIVE_DOT_BF16 0
 #endif
 #define HWY_NATIVE_MASK 1
-#define HWY_NATIVE_MULADD52 0
 
 #if HWY_TARGET == HWY_AVX3
 
