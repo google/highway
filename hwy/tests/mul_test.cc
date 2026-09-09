@@ -145,8 +145,8 @@ struct TestMulAdd52 {
     const auto va = Load(d, a.get());
     const auto vb = Load(d, b.get());
     const auto vc = Load(d, c.get());
-    HWY_ASSERT_VEC_EQ(d, expected_lo.get(), MulAdd52Lo(vc, va, vb));
-    HWY_ASSERT_VEC_EQ(d, expected_hi.get(), MulAdd52Hi(vc, va, vb));
+    HWY_ASSERT_VEC_EQ(d, expected_lo.get(), MulAdd52Lo(va, vb, vc));
+    HWY_ASSERT_VEC_EQ(d, expected_hi.get(), MulAdd52Hi(va, vb, vc));
   }
 };
 

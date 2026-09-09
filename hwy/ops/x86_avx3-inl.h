@@ -39,40 +39,40 @@ namespace HWY_NAMESPACE {
 
 // ------------------------------ MulAdd52
 
-#ifdef HWY_NATIVE_MUL_ADD_52
-#undef HWY_NATIVE_MUL_ADD_52
+#ifdef HWY_NATIVE_MULADD52
+#undef HWY_NATIVE_MULADD52
 #else
-#define HWY_NATIVE_MUL_ADD_52
+#define HWY_NATIVE_MULADD52
 #endif
 
 template <size_t N>
-HWY_API Vec128<uint64_t, N> MulAdd52Lo(Vec128<uint64_t, N> c,
-                                       Vec128<uint64_t, N> a,
-                                       Vec128<uint64_t, N> b) {
-  return Vec128<uint64_t, N>{_mm_madd52lo_epu64(c.raw, a.raw, b.raw)};
+HWY_API Vec128<uint64_t, N> MulAdd52Lo(Vec128<uint64_t, N> a,
+                                       Vec128<uint64_t, N> b,
+                                       Vec128<uint64_t, N> c) {
+  return Vec128<uint64_t, N>{_mm_madd52lo_epu64(a.raw, b.raw, c.raw)};
 }
-HWY_API Vec256<uint64_t> MulAdd52Lo(Vec256<uint64_t> c, Vec256<uint64_t> a,
-                                    Vec256<uint64_t> b) {
-  return Vec256<uint64_t>{_mm256_madd52lo_epu64(c.raw, a.raw, b.raw)};
+HWY_API Vec256<uint64_t> MulAdd52Lo(Vec256<uint64_t> a, Vec256<uint64_t> b,
+                                    Vec256<uint64_t> c) {
+  return Vec256<uint64_t>{_mm256_madd52lo_epu64(a.raw, b.raw, c.raw)};
 }
-HWY_API Vec512<uint64_t> MulAdd52Lo(Vec512<uint64_t> c, Vec512<uint64_t> a,
-                                    Vec512<uint64_t> b) {
-  return Vec512<uint64_t>{_mm512_madd52lo_epu64(c.raw, a.raw, b.raw)};
+HWY_API Vec512<uint64_t> MulAdd52Lo(Vec512<uint64_t> a, Vec512<uint64_t> b,
+                                    Vec512<uint64_t> c) {
+  return Vec512<uint64_t>{_mm512_madd52lo_epu64(a.raw, b.raw, c.raw)};
 }
 
 template <size_t N>
-HWY_API Vec128<uint64_t, N> MulAdd52Hi(Vec128<uint64_t, N> c,
-                                       Vec128<uint64_t, N> a,
-                                       Vec128<uint64_t, N> b) {
-  return Vec128<uint64_t, N>{_mm_madd52hi_epu64(c.raw, a.raw, b.raw)};
+HWY_API Vec128<uint64_t, N> MulAdd52Hi(Vec128<uint64_t, N> a,
+                                       Vec128<uint64_t, N> b,
+                                       Vec128<uint64_t, N> c) {
+  return Vec128<uint64_t, N>{_mm_madd52hi_epu64(a.raw, b.raw, c.raw)};
 }
-HWY_API Vec256<uint64_t> MulAdd52Hi(Vec256<uint64_t> c, Vec256<uint64_t> a,
-                                    Vec256<uint64_t> b) {
-  return Vec256<uint64_t>{_mm256_madd52hi_epu64(c.raw, a.raw, b.raw)};
+HWY_API Vec256<uint64_t> MulAdd52Hi(Vec256<uint64_t> a, Vec256<uint64_t> b,
+                                    Vec256<uint64_t> c) {
+  return Vec256<uint64_t>{_mm256_madd52hi_epu64(a.raw, b.raw, c.raw)};
 }
-HWY_API Vec512<uint64_t> MulAdd52Hi(Vec512<uint64_t> c, Vec512<uint64_t> a,
-                                    Vec512<uint64_t> b) {
-  return Vec512<uint64_t>{_mm512_madd52hi_epu64(c.raw, a.raw, b.raw)};
+HWY_API Vec512<uint64_t> MulAdd52Hi(Vec512<uint64_t> a, Vec512<uint64_t> b,
+                                    Vec512<uint64_t> c) {
+  return Vec512<uint64_t>{_mm512_madd52hi_epu64(a.raw, b.raw, c.raw)};
 }
 
 // ------------------------------ ShiftLeft

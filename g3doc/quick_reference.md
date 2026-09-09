@@ -813,16 +813,17 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     b[i]` in each lane.
 
 *   `V`: `u64` \
-    <code>V **MulAdd52Lo**(V c, V a, V b)</code>: adds the low 52 bits of
-    `a[i] * b[i]` to the low 52 bits of `c[i]`. The upper 12 bits of `c[i]`
-    are preserved; inputs are interpreted modulo `2^52`.
+    <code>V **MulAdd52Lo**(V a, V b, V c)</code>: computes `a[i] * b[i]` in
+    52-bit arithmetic and adds the low 52 bits to `c[i]`. The upper 12 bits
+    of `c[i]` are preserved; inputs are interpreted modulo `2^52`.
 
 *   `V`: `u64` \
-    <code>V **MulAdd52Hi**(V c, V a, V b)</code>: adds bits 52 through 103 of
-    `a[i] * b[i]` to the low 52 bits of `c[i]`. The upper 12 bits of `c[i]`
-    are preserved; inputs are interpreted modulo `2^52`.
+    <code>V **MulAdd52Hi**(V a, V b, V c)</code>: computes bits 52 through
+    103 of `a[i] * b[i]` and adds them to the low 52 bits of `c[i]`. The
+    upper 12 bits of `c[i]` are preserved; inputs are interpreted modulo
+    `2^52`.
 
-    `HWY_HAVE_MULADD52` is 1 when the current compilation target has native
+    `HWY_NATIVE_MULADD52` is 1 when the current compilation target has native
     support for these operations, and 0 when they use the generic fallback.
 
 *   `V`: `i16` \

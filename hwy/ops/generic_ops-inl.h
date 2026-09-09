@@ -38,15 +38,15 @@ namespace HWY_NAMESPACE {
 
 // ------------------------------ MulAdd52
 
-#if (defined(HWY_NATIVE_MUL_ADD_52) == defined(HWY_TARGET_TOGGLE))
-#ifdef HWY_NATIVE_MUL_ADD_52
-#undef HWY_NATIVE_MUL_ADD_52
+#if (defined(HWY_NATIVE_MULADD52) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MULADD52
+#undef HWY_NATIVE_MULADD52
 #else
-#define HWY_NATIVE_MUL_ADD_52
+#define HWY_NATIVE_MULADD52
 #endif
 
 template <class V, HWY_IF_U64_D(DFromV<V>)>
-HWY_API V MulAdd52Lo(V c, V a, V b) {
+HWY_API V MulAdd52Lo(V a, V b, V c) {
   const auto d = DFromV<V>();
   const auto mask52 = Set(d, 0x000FFFFFFFFFFFFFULL);
   const auto mask26 = Set(d, 0x0000000003FFFFFFULL);
@@ -63,7 +63,7 @@ HWY_API V MulAdd52Lo(V c, V a, V b) {
 }
 
 template <class V, HWY_IF_U64_D(DFromV<V>)>
-HWY_API V MulAdd52Hi(V c, V a, V b) {
+HWY_API V MulAdd52Hi(V a, V b, V c) {
   const auto d = DFromV<V>();
   const auto mask52 = Set(d, 0x000FFFFFFFFFFFFFULL);
   const auto mask26 = Set(d, 0x0000000003FFFFFFULL);
@@ -81,7 +81,7 @@ HWY_API V MulAdd52Hi(V c, V a, V b) {
   return Or(And(c, Not(mask52)), And(Add(high, c), mask52));
 }
 
-#endif  // HWY_NATIVE_MUL_ADD_52
+#endif  // HWY_NATIVE_MULADD52
 
 // The lane type of a vector type, e.g. float for Vec<ScalableTag<float>>.
 template <class V>
