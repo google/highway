@@ -82,20 +82,13 @@ HWY_API Vec<D> SignBit(D d) {
 // Returns quiet NaN.
 template <class D>
 HWY_API Vec<D> NaN(D d) {
-  const RebindToSigned<D> di;
-  // LimitsMax sets all exponent and mantissa bits to 1. The exponent plus
-  // mantissa MSB (to indicate quiet) would be sufficient.
-  return BitCast(d, Set(di, LimitsMax<TFromD<decltype(di)>>()));
+  return Set(d, ScalarNaN<TFromD<D>>());
 }
 
 // Returns positive infinity.
 template <class D>
 HWY_API Vec<D> Inf(D d) {
-  const RebindToUnsigned<D> du;
-  using T = TFromD<D>;
-  using TU = TFromD<decltype(du)>;
-  const TU max_x2 = static_cast<TU>(MaxExponentTimes2<T>());
-  return BitCast(d, Set(du, max_x2 >> 1));
+  return Set(d, ScalarInf<TFromD<D>>());
 }
 
 // ------------------------------ MaskedSetOr/MaskedSet

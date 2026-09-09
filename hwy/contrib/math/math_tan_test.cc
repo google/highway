@@ -72,8 +72,8 @@ void Atan2TestCases(T /*unused*/, D d, size_t& padded,
   const T n1 = ConvertScalarTo<T>(-1);
   const T p2 = ConvertScalarTo<T>(2);
   const T n2 = ConvertScalarTo<T>(-2);
-  const T inf = GetLane(Inf(d));
-  const T nan = GetLane(NaN(d));
+  const T inf = ScalarInf<T>();
+  const T nan = ScalarNaN<T>();
 
   const T pi = ConvertScalarTo<T>(3.141592653589793238);
   const YX test_cases[] = {                        // 45 degree steps:

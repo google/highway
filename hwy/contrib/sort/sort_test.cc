@@ -346,9 +346,8 @@ std::vector<T> MakeNaNInfInput(size_t num, uint64_t seed, size_t& num_nan) {
   std::vector<T> keys(num);
   for (size_t i = 0; i < num; ++i) keys[i] = ConvertScalarTo<T>(vals[i]);
 
-  const ScalableTag<T> d;
-  const T kNaN = GetLane(NaN(d));
-  const T kInf = GetLane(Inf(d));
+  const T kNaN = ScalarNaN<T>();
+  const T kInf = ScalarInf<T>();
   const size_t kNumNaN = 8, kNumInf = 6, kTotal = kNumNaN + kNumInf;
   for (size_t m = 0; m < kTotal; ++m) {
     const size_t pos = (m + 1) * num / (kTotal + 1);

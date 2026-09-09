@@ -33,8 +33,6 @@ namespace HWY_NAMESPACE {
 namespace {
 
 HWY_NOINLINE void TestAllF16FromF32() {
-  const FixedTag<float, 1> d1;
-
   // +/- 0
   HWY_ASSERT_EQ(0, BitCastScalar<uint16_t>(hwy::F16FromF32(0.0f)));
   HWY_ASSERT_EQ(0x8000, BitCastScalar<uint16_t>(hwy::F16FromF32(-0.0f)));
@@ -66,19 +64,17 @@ HWY_NOINLINE void TestAllF16FromF32() {
   HWY_ASSERT_EQ(0xFC00, BitCastScalar<uint16_t>(hwy::F16FromF32(-7E4f)));
   // infinity
   HWY_ASSERT_EQ(0x7C00,
-                BitCastScalar<uint16_t>(hwy::F16FromF32(GetLane(Inf(d1)))));
+                BitCastScalar<uint16_t>(hwy::F16FromF32(ScalarInf<float>())));
   HWY_ASSERT_EQ(0xFC00,
-                BitCastScalar<uint16_t>(hwy::F16FromF32(-GetLane(Inf(d1)))));
+                BitCastScalar<uint16_t>(hwy::F16FromF32(-ScalarInf<float>())));
   // NaN
   HWY_ASSERT_EQ(0x7FFF,
-                BitCastScalar<uint16_t>(hwy::F16FromF32(GetLane(NaN(d1)))));
+                BitCastScalar<uint16_t>(hwy::F16FromF32(ScalarNaN<float>())));
   HWY_ASSERT_EQ(0xFFFF,
-                BitCastScalar<uint16_t>(hwy::F16FromF32(-GetLane(NaN(d1)))));
+                BitCastScalar<uint16_t>(hwy::F16FromF32(-ScalarNaN<float>())));
 }
 
 HWY_NOINLINE void TestAllF32FromF16() {
-  const FixedTag<float, 1> d1;
-
   // +/- 0
   HWY_ASSERT_EQ(0.0f, hwy::F32FromF16(BitCastScalar<float16_t>(uint16_t{0})));
   HWY_ASSERT_EQ(-0.0f,
@@ -94,14 +90,14 @@ HWY_NOINLINE void TestAllF32FromF16() {
   HWY_ASSERT_EQ(-6.103515625E-5f,
                 hwy::F32FromF16(BitCastScalar<float16_t>(uint16_t{0x8400})));
   // infinity
-  HWY_ASSERT_EQ(GetLane(Inf(d1)),
+  HWY_ASSERT_EQ(ScalarInf<float>(),
                 hwy::F32FromF16(BitCastScalar<float16_t>(uint16_t{0x7C00})));
-  HWY_ASSERT_EQ(-GetLane(Inf(d1)),
+  HWY_ASSERT_EQ(-ScalarInf<float>(),
                 hwy::F32FromF16(BitCastScalar<float16_t>(uint16_t{0xFC00})));
   // NaN
-  HWY_ASSERT_EQ(GetLane(NaN(d1)),
+  HWY_ASSERT_EQ(ScalarNaN<float>(),
                 hwy::F32FromF16(BitCastScalar<float16_t>(uint16_t{0x7FFF})));
-  HWY_ASSERT_EQ(-GetLane(NaN(d1)),
+  HWY_ASSERT_EQ(-ScalarNaN<float>(),
                 hwy::F32FromF16(BitCastScalar<float16_t>(uint16_t{0xFFFF})));
 }
 
@@ -431,6 +427,7 @@ HWY_NOINLINE void TestAllNearestInt() {
   ForFloatTypes(ForPartialVectors<TestNearestInt>());
 }
 
+#if HWY_HAVE_FLOAT64
 struct TestDemoteToNearestInt {
   template <typename TF, class DF>
   HWY_NOINLINE void operator()(TF tf, const DF df) {
@@ -463,6 +460,7 @@ struct TestDemoteToNearestInt {
     }
   }
 };
+#endif  // HWY_HAVE_FLOAT64
 
 HWY_NOINLINE void TestAllDemoteToNearestInt() {
 #if HWY_HAVE_FLOAT64

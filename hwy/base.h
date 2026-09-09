@@ -3397,17 +3397,30 @@ HWY_API HWY_BITCASTSCALAR_CONSTEXPR RemoveCvRef<T> ScalarAbs(T val) {
   return detail::ScalarAbs(hwy::TypeTag<TVal>(), static_cast<TVal>(val));
 }
 
+// Returns quiet NaN.
+template <typename T, HWY_IF_FLOAT_OR_SPECIAL(T)>
+HWY_API HWY_BITCASTSCALAR_CONSTEXPR T ScalarNaN() {
+  // LimitsMax sets all exponent and mantissa bits to 1. The exponent plus
+  // mantissa MSB (to indicate quiet) would be sufficient.
+  return BitCastScalar<T>(LimitsMax<MakeSigned<T>>());
+}
+
+// Returns positive infinity.
+template <typename T, HWY_IF_FLOAT_OR_SPECIAL(T)>
+HWY_API HWY_BITCASTSCALAR_CONSTEXPR T ScalarInf() {
+  using TF = detail::NativeSpecialFloatToWrapper<RemoveCvRef<T>>;
+  using TU = MakeUnsigned<T>;
+  // Second cast required because f16 (u16) promotes to int, and cannot
+  // BitCast that to f16.
+  return BitCastScalar<T>(
+      static_cast<TU>(static_cast<TU>(MaxExponentTimes2<TF>()) >> 1));
+}
+
 template <typename T>
 HWY_API HWY_BITCASTSCALAR_CONSTEXPR bool ScalarIsNaN(T val) {
   using TF = detail::NativeSpecialFloatToWrapper<RemoveCvRef<T>>;
   using TU = MakeUnsigned<TF>;
   return (BitCastScalar<TU>(ScalarAbs(val)) > ExponentMask<TF>());
-}
-
-template <typename T, HWY_IF_FLOAT_OR_SPECIAL(RemoveCvRef<T>)>
-HWY_API HWY_BITCASTSCALAR_CONSTEXPR T ScalarNaN() {
-  using TF = detail::NativeSpecialFloatToWrapper<RemoveCvRef<T>>;
-  return BitCastScalar<T>(LimitsMax<MakeSigned<TF>>());
 }
 
 template <typename T>
