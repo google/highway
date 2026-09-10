@@ -376,7 +376,7 @@ void TestSelectWithNaNForType(Order order) {
     if (!ScalarIsNaN(x)) nonnan_in.push_back(x);
   }
   std::sort(nonnan_in.begin(), nonnan_in.end());
-  std::sort(ref.begin(), ref.end(), [](float a, float b) {
+  std::sort(ref.begin(), ref.end(), [asc](float a, float b) {
     if (ScalarIsNaN(a)) return false;  // NaN sorts to the back
     if (ScalarIsNaN(b)) return true;
     return asc ? (a < b) : (a > b);
