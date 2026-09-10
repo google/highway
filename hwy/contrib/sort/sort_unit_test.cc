@@ -114,6 +114,16 @@ HWY_NOINLINE void TestAllFloatLargerSmaller() {
 struct TestFloatInf {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T, D d) {
+#if HWY_HAVE_FLOAT64
+    if (hwy::IsSame<T, double>() && !hwy::VQSortHaveFloat64()) {
+      return;
+    }
+#endif
+#if HWY_HAVE_FLOAT16
+    if (hwy::IsSame<T, float16_t>() && !hwy::VQSortHaveFloat16()) {
+      return;
+    }
+#endif
     const size_t N = Lanes(d);
     const size_t num = N * 3;
     auto in = hwy::AllocateAligned<T>(num);
