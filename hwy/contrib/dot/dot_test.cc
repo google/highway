@@ -191,9 +191,8 @@ class TestDotF32BF16 {
     }
     // Fill padding with NaN - the values are not used, but avoids MSAN errors.
     for (; i < padded; ++i) {
-      ScalableTag<float> df1;
-      a[i] = ConvertScalarTo<T>(GetLane(NaN(df1)));
-      b[i] = ConvertScalarTo<T2>(GetLane(NaN(df1)));
+      a[i] = ConvertScalarTo<T>(ScalarNaN<float>());
+      b[i] = ConvertScalarTo<T2>(ScalarNaN<float>());
     }
 
     double expected = SimpleDot(a, b, num);

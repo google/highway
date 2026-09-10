@@ -860,6 +860,7 @@ HWY_NOINLINE void TestAllShiftRightAndDemote2To() {
   ForUI163264(ForShrinkableVectors<TestShiftRightAndDemote2To>());
 }
 
+#if HWY_HAVE_FLOAT64
 struct TestI32F64 {
   template <typename TF, class DF>
   HWY_NOINLINE void operator()(TF /*unused*/, const DF df) {
@@ -900,6 +901,7 @@ struct TestI32F64 {
                       DemoteTo(di, Set(df, TF(-1E12))));
   }
 };
+#endif  // HWY_HAVE_FLOAT64
 
 HWY_NOINLINE void TestAllI32F64() {
 #if HWY_HAVE_FLOAT64

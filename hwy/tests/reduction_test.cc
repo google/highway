@@ -481,7 +481,7 @@ struct TestReduceMinOrNaN {
     const Vec<D> v = Load(d, in_lanes.get());
     HWY_ASSERT_EQ(ReduceMin(d, v), ReduceMinOrNaN(d, v));
 
-    const T nan = GetLane(NaN(d));
+    const T nan = ScalarNaN<T>();
     for (size_t pos = 0; pos < N; ++pos) {
       in_lanes[pos] = nan;
       const Vec<D> v_nan = Load(d, in_lanes.get());
@@ -507,7 +507,7 @@ struct TestReduceMaxOrNaN {
     const Vec<D> v = Load(d, in_lanes.get());
     HWY_ASSERT_EQ(ReduceMax(d, v), ReduceMaxOrNaN(d, v));
 
-    const T nan = GetLane(NaN(d));
+    const T nan = ScalarNaN<T>();
     for (size_t pos = 0; pos < N; ++pos) {
       in_lanes[pos] = nan;
       const Vec<D> v_nan = Load(d, in_lanes.get());

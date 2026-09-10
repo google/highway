@@ -1985,7 +1985,7 @@ HWY_INLINE size_t PartitionNaNToBack(D d, Traits, T* HWY_RESTRICT keys,
     StoreN(Compress(v, keep), d, keys + w, count);
     w += count;
   }
-  Fill(d, GetLane(NaN(d)), num - w, keys + w);
+  Fill(d, ScalarNaN<T>(), num - w, keys + w);
   return num - w;
 }
 
@@ -2035,8 +2035,10 @@ void Sort(D d, Traits st, T* HWY_RESTRICT keys, const size_t num,
   detail::HeapSort(st, keys, num);
 #endif  // VQSORT_ENABLED
 
-  if (num_nan != 0) {
-    Fill(d, GetLane(NaN(d)), num_nan, keys + num - num_nan);
+  if constexpr (IsFloat<T>()) {
+    if (num_nan != 0) {
+      Fill(d, ScalarNaN<T>(), num_nan, keys + num - num_nan);
+    }
   }
 }
 
