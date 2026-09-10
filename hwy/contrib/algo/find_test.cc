@@ -15,7 +15,7 @@
 
 #include <stdio.h>
 
-#include <algorithm>  // std::find_if, std::unique
+#include <algorithm>  // std::find_if, std::any_of, std::unique
 #include <vector>
 
 #include "hwy/aligned_allocator.h"
@@ -181,6 +181,71 @@ void TestAllFindIf() {
   ForAllTypes(ForPartialVectors<ForeachCountAndMisalign<TestFindIf>>());
 }
 
+struct TestAnyAllNone {
+  template <class D>
+  void operator()(D d, size_t count, size_t misalign, RandomState& rng) {
+    using T = TFromD<D>;
+    // Must allocate at least one even if count is zero.
+    AlignedFreeUniquePtr<T[]> storage =
+        AllocateAligned<T>(HWY_MAX(1, misalign + count));
+    HWY_ASSERT(storage);
+    T* in = storage.get() + misalign;
+    for (size_t i = 0; i < count; ++i) {
+      in[i] = Random<T>(rng);
+    }
+
+    // Same sweep as TestFindIf: unsigned T must not be compared against a
+    // negative value, and 9 is out of range so the predicate is never true.
+    const int min_val = IsSigned<T>() ? -9 : 0;
+    for (int val = min_val; val <= 9; ++val) {
+      const auto greater = [val](const auto d2, const auto v) HWY_ATTR {
+        return Gt(v, Set(d2, ConvertScalarTo<T>(val)));
+      };
+      const auto scalar = [val](T x) { return x > ConvertScalarTo<T>(val); };
+
+      const bool any = AnyOf(d, in, count, greater);
+      const bool all = AllOf(d, in, count, greater);
+      const bool none = NoneOf(d, in, count, greater);
+
+      const bool expected_any = std::any_of(in, in + count, scalar);
+      const bool expected_all = std::all_of(in, in + count, scalar);
+      const bool expected_none = std::none_of(in, in + count, scalar);
+
+      if (any != expected_any || all != expected_all || none != expected_none) {
+        fprintf(stderr,
+                "%s count %d val %d: any %d want %d, all %d want %d, none %d "
+                "want %d\n",
+                hwy::TypeName(T(), Lanes(d)).c_str(), static_cast<int>(count),
+                val, any, expected_any, all, expected_all, none, expected_none);
+        hwy::detail::PrintArray(hwy::detail::MakeTypeInfo<T>(), "in", in, count,
+                                0, count);
+        HWY_ASSERT(false);
+      }
+    }
+
+    // The sweep above never satisfies the predicate for every element of an
+    // unsigned array, because zero is not greater than zero. Pin both extremes
+    // explicitly: a predicate that holds everywhere, and one that holds
+    // nowhere.
+    const auto always = [](const auto d2, const auto v) HWY_ATTR {
+      return Ge(v, Set(d2, LowestValue<TFromD<decltype(d2)>>()));
+    };
+    const auto never = [](const auto d2, const auto v) HWY_ATTR {
+      return Lt(v, Set(d2, LowestValue<TFromD<decltype(d2)>>()));
+    };
+    HWY_ASSERT(AllOf(d, in, count, always));
+    HWY_ASSERT(NoneOf(d, in, count, never));
+    HWY_ASSERT(!AnyOf(d, in, count, never));
+    // Empty input has nothing to find, but vacuously satisfies AllOf.
+    HWY_ASSERT_EQ(count != 0, AnyOf(d, in, count, always));
+    HWY_ASSERT(AllOf(d, in, 0, never));
+  }
+};
+
+void TestAllAnyAllNone() {
+  ForAllTypes(ForPartialVectors<ForeachCountAndMisalign<TestAnyAllNone>>());
+}
+
 struct TestUnique {
   template <class D>
   void operator()(D d, size_t count, size_t misalign, RandomState& rng) {
@@ -302,6 +367,7 @@ namespace {
 HWY_BEFORE_TEST(FindTest);
 HWY_EXPORT_AND_TEST_P(FindTest, TestAllFind);
 HWY_EXPORT_AND_TEST_P(FindTest, TestAllFindIf);
+HWY_EXPORT_AND_TEST_P(FindTest, TestAllAnyAllNone);
 HWY_EXPORT_AND_TEST_P(FindTest, TestAllUnique);
 HWY_AFTER_TEST();
 }  // namespace
