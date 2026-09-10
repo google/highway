@@ -130,9 +130,20 @@ struct TestCompress {
         CheckStored(d, di, "Compress", expected_pos, expected_pos, num_to_check,
                     in_lanes, mask_lanes, expected, actual_u, __LINE__);
 
+        ZeroBytes(actual_u, N * sizeof(T));
+        StoreU(Compress(d, in, mask), d, actual_u);
+        CheckStored(d, di, "Compress", expected_pos, expected_pos, num_to_check,
+                    in_lanes, mask_lanes, expected, actual_u, __LINE__);
+
         // CompressNot
         ZeroBytes(actual_u, N * sizeof(T));
         StoreU(CompressNot(in, Not(mask)), d, actual_u);
+        CheckStored(d, di, "CompressNot", expected_pos, expected_pos,
+                    num_to_check, in_lanes, mask_lanes, expected, actual_u,
+                    __LINE__);
+
+        ZeroBytes(actual_u, N * sizeof(T));
+        StoreU(CompressNot(d, in, Not(mask)), d, actual_u);
         CheckStored(d, di, "CompressNot", expected_pos, expected_pos,
                     num_to_check, in_lanes, mask_lanes, expected, actual_u,
                     __LINE__);
@@ -165,6 +176,12 @@ struct TestCompress {
         // CompressBits
         ZeroBytes(actual_u, N * sizeof(T));
         StoreU(CompressBits(in, bits.get()), d, actual_u);
+        CheckStored(d, di, "CompressBits", expected_pos, expected_pos,
+                    num_to_check, in_lanes, mask_lanes, expected, actual_u,
+                    __LINE__);
+
+        ZeroBytes(actual_u, N * sizeof(T));
+        StoreU(CompressBits(d, in, bits.get()), d, actual_u);
         CheckStored(d, di, "CompressBits", expected_pos, expected_pos,
                     num_to_check, in_lanes, mask_lanes, expected, actual_u,
                     __LINE__);
