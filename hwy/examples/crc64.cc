@@ -15,13 +15,13 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/examples/crc64.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
 #include "hwy/contrib/crc/crc-inl.h"
+#include "hwy/tests/test_util-inl.h"  // HWY_ASSERT_EQ
 
 // Highway SIMD Tutorial: CRC-64/XZ
 //
@@ -59,16 +59,7 @@ int RunCrc64Example() {
   const uint64_t actual = ComputeCrc64(
       reinterpret_cast<const uint8_t*>(kMessage), sizeof(kMessage) - 1);
 
-  printf("CRC-64/XZ(\"%s\") = 0x%016llX\n", kMessage,
-         static_cast<unsigned long long>(actual));
-
-  if (actual != kExpected) {
-    fprintf(stderr, "Expected 0x%016llX\n",
-            static_cast<unsigned long long>(kExpected));
-    return 1;
-  }
-
-  printf("Validation PASSED.\n");
+  HWY_ASSERT_EQ(kExpected, actual);
   return 0;
 }
 
