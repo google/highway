@@ -151,7 +151,7 @@ class MaskedWeakTwoMul {
   }
 
   static constexpr uint32_t kMask =
-      kBits == 32 ? ~uint32_t{0} : (uint32_t{1} << kBits) - 1;
+      kBits == 32 ? ~uint32_t{0} : (uint32_t{1} << (kBits & 31)) - 1;
 
   MaskedWeakTwoMul() = default;
   explicit MaskedWeakTwoMul(uint32_t key)
@@ -222,7 +222,7 @@ class MaskedTriple32 {
   }
 
   static constexpr uint32_t kMask =
-      kBits == 32 ? ~uint32_t{0} : (uint32_t{1} << kBits) - 1;
+      kBits == 32 ? ~uint32_t{0} : (uint32_t{1} << (kBits & 31)) - 1;
 
   MaskedTriple32() = default;
   explicit MaskedTriple32(uint32_t key)
@@ -307,7 +307,7 @@ class MaskedMoremur {
   }
 
   static constexpr uint64_t kMask =
-      kBits == 64 ? ~uint64_t{0} : (uint64_t{1} << kBits) - 1;
+      kBits == 64 ? ~uint64_t{0} : (uint64_t{1} << (kBits & 63)) - 1;
 
   MaskedMoremur() = default;
   explicit MaskedMoremur(uint64_t key)
@@ -381,7 +381,7 @@ class MaskedWeakXMX {
   }
 
   static constexpr uint64_t kMask =
-      kBits == 64 ? ~uint64_t{0} : (uint64_t{1} << kBits) - 1;
+      kBits == 64 ? ~uint64_t{0} : (uint64_t{1} << (kBits & 63)) - 1;
 
   MaskedWeakXMX() = default;
   explicit MaskedWeakXMX(uint64_t key)
