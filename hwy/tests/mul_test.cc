@@ -115,7 +115,7 @@ struct TestMulOverflow {
 struct TestMulAdd52 {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    static_assert(std::is_same<T, uint64_t>::value, "requires uint64_t");
+    static_assert(IsSame<T, uint64_t>(), "requires uint64_t");
     const size_t N = Lanes(d);
     auto a = AllocateAligned<uint64_t>(N);
     auto b = AllocateAligned<uint64_t>(N);
@@ -127,19 +127,19 @@ struct TestMulAdd52 {
     constexpr uint64_t kMask52 = 0x000FFFFFFFFFFFFFULL;
     constexpr uint64_t kHighBits = 0xFFF0000000000000ULL;
     for (size_t i = 0; i < N; ++i) {
-      a[i] = (i == 0 ? 0 : (i == 1 ? kMask52 : (i + 1) * 0x12345)) |
-             kHighBits;
-      b[i] = (i == 0 ? 0 : (i == 1 ? kMask52 : (i + 3) * 0x54321)) |
-             kHighBits;
+      // Inputs must be < 2^52; kMask52 is the maximum allowed value.
+      a[i] = i == 0 ? 0 : (i == 1 ? kMask52 : (i + 1) * 0x12345);
+      b[i] = i == 0 ? 0 : (i == 1 ? kMask52 : (i + 3) * 0x54321);
+      // c has bits above 52 set to verify that the 52-bit product is
+      // zero-extended before being added to the full 64-bit lane.
       c[i] = kHighBits | (kMask52 - static_cast<uint64_t>(i));
 
       uint64_t product_hi;
-      const uint64_t product_lo = Mul128(a[i] & kMask52, b[i] & kMask52,
-                                         &product_hi);
+      const uint64_t product_lo = Mul128(a[i], b[i], &product_hi);
       const uint64_t product_low52 = product_lo & kMask52;
       const uint64_t product_high52 = (product_lo >> 52) | (product_hi << 12);
-      expected_lo[i] = kHighBits | ((c[i] + product_low52) & kMask52);
-      expected_hi[i] = kHighBits | ((c[i] + product_high52) & kMask52);
+      expected_lo[i] = c[i] + product_low52;
+      expected_hi[i] = c[i] + product_high52;
     }
 
     const auto va = Load(d, a.get());

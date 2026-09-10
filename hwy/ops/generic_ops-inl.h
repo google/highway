@@ -57,9 +57,9 @@ HWY_API V MulAdd52Lo(V a, V b, V c) {
   const auto a1 = ShiftRight<26>(a);
   const auto b1 = ShiftRight<26>(b);
   const auto p0 = Mul(a0, b0);
-  const auto p1 = Add(Mul(a1, b0), Mul(a0, b1));
+  const auto p1 = MulAdd(a1, b0, Mul(a0, b1));
   const auto low = Add(p0, ShiftLeft<26>(And(p1, mask26)));
-  return Or(And(c, Not(mask52)), And(Add(low, c), mask52));
+  return Add(And(low, mask52), c);
 }
 
 template <class V, HWY_IF_U64_D(DFromV<V>)>
@@ -74,11 +74,11 @@ HWY_API V MulAdd52Hi(V a, V b, V c) {
   const auto a1 = ShiftRight<26>(a);
   const auto b1 = ShiftRight<26>(b);
   const auto p0 = Mul(a0, b0);
-  const auto p1 = Add(Mul(a1, b0), Mul(a0, b1));
+  const auto p1 = MulAdd(a1, b0, Mul(a0, b1));
   const auto low = Add(p0, ShiftLeft<26>(And(p1, mask26)));
   const auto high = Add(Add(Mul(a1, b1), ShiftRight<26>(p1)),
                         ShiftRight<52>(low));
-  return Or(And(c, Not(mask52)), And(Add(high, c), mask52));
+  return Add(high, c);
 }
 
 #endif  // HWY_NATIVE_MULADD52
