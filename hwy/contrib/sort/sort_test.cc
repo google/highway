@@ -364,6 +364,8 @@ template <typename T, class Order>
 void TestSelectWithNaNForType(Order order) {
   const size_t num = AdjustedReps(40 * 1000);
   if (num < 32) return;
+  constexpr bool asc = hwy::IsSame<Order, hwy::SortAscending>();
+
   size_t num_nan;
   const std::vector<T> input = MakeNaNInfInput<T>(num, 123456789, num_nan);
 
