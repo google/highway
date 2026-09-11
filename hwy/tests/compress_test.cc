@@ -272,6 +272,52 @@ HWY_NOINLINE void TestAllCompressBlocks() {
   ForGE128Vectors<TestCompressBlocks>()(uint64_t());
 }
 
+struct TestPartition {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    RandomState rng;
+
+    using TI = MakeSigned<T>;  // For mask > 0 comparison
+    const Rebind<TI, D> di;
+    const size_t N = Lanes(d);
+
+    auto in_lanes = AllocateAligned<T>(N);
+    auto mask_lanes = AllocateAligned<TI>(N);
+    auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(in_lanes && mask_lanes && expected);
+
+    // Each lane should have a chance of having mask=true.
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        in_lanes[i] = RandomFiniteValue<T>(&rng);
+        mask_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
+      }
+
+      size_t expected_pos = 0;
+      for (size_t i = 0; i < N; ++i) {
+        if (mask_lanes[i] != 0) {
+          expected[expected_pos++] = in_lanes[i];
+        }
+      }
+
+      for (size_t i = 0; i < N && expected_pos < N; ++i) {
+        if (mask_lanes[i] == 0) {
+          expected[expected_pos++] = in_lanes[i];
+        }
+      }
+
+      const auto in = Load(d, in_lanes.get());
+      const auto mask = RebindMask(d, Gt(Load(di, mask_lanes.get()), Zero(di)));
+
+      HWY_ASSERT_VEC_EQ(d, expected.get(), Partition(d, in, mask));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllPartition() {
+  ForAllTypes(ForPartialVectors<TestPartition>());
+}
+
 #endif  // !HWY_PRINT_TABLES
 
 #if HWY_PRINT_TABLES || HWY_IDE
@@ -843,6 +889,7 @@ HWY_EXPORT_AND_TEST_P(HwyCompressTest, PrintTables);
 #else
 HWY_EXPORT_AND_TEST_P(HwyCompressTest, TestAllCompress);
 HWY_EXPORT_AND_TEST_P(HwyCompressTest, TestAllCompressBlocks);
+HWY_EXPORT_AND_TEST_P(HwyCompressTest, TestAllPartition);
 #endif
 HWY_AFTER_TEST();
 }  // namespace

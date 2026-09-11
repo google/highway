@@ -1707,6 +1707,12 @@ false is zero, true has all bits set:
     d, T* p)</code>: combination of `CompressStore` and `CompressBits`, see
     remarks there.
 
+*   <code>V **Partition**(D d, V v, M mask)</code>:
+    Equivalent to `SlideUpLanesOr(Compress(d, v, mask), d, CompressNot(d, v, mask),
+    CountTrue(d, mask))`, but `Partition(d, v, mask)` is usually more efficient in
+    the cases where `MaxLanes(d) == 1` or `CompressIsPartition<TFromD<D>>::value`
+    are true.
+
 #### Expand
 
 *   <code>V **Expand**(V v, M m)</code>: returns `r` such that `r[i]` is zero
