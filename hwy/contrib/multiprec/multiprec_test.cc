@@ -181,6 +181,9 @@ HWY_NOINLINE void TestAllWideMul() {
   ForPartialVectors<TestWideMul<2>>()(uint64_t());
   ForPartialVectors<TestWideMul<3>>()(uint64_t());
   ForPartialVectors<TestWideMul<4>>()(uint64_t());
+  // Exercise the Karatsuba path (even sizes above the threshold).
+  ForPartialVectors<TestWideMul<8>>()(uint64_t());
+  ForPartialVectors<TestWideMul<16>>()(uint64_t());
 #endif
 }
 
