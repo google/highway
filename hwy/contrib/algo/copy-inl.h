@@ -137,6 +137,49 @@ T* CopyIf(D d, const T* HWY_RESTRICT from, size_t count, T* HWY_RESTRICT to,
   return to;
 }
 
+// Reverses `inout[0, count)` in place, like std::reverse. `count` may be zero.
+template <class D, typename T = TFromD<D>>
+void ReverseSpan(D d, T* HWY_RESTRICT inout, size_t count) {
+  const size_t N = Lanes(d);
+
+  // [lo, hi) is the region not yet reversed. Each iteration takes one vector
+  // from each end, reverses it, and stores it at the opposite end.
+  size_t lo = 0;
+  size_t hi = count;
+  while (lo + 2 * N <= hi) {
+    const Vec<D> v_lo = LoadU(d, inout + lo);
+    const Vec<D> v_hi = LoadU(d, inout + hi - N);
+    StoreU(Reverse(d, v_hi), d, inout + lo);
+    StoreU(Reverse(d, v_lo), d, inout + hi - N);
+    lo += N;
+    hi -= N;
+  }
+
+  const size_t remaining = hi - lo;
+  HWY_DASSERT(remaining < 2 * N);
+
+  if (remaining >= N) {
+    // The two vectors overlap when `remaining` < 2 * N, which is why both are
+    // loaded before either is stored. The overlapping lanes are written twice
+    // and the second write is the correct one, because the halves are swapped.
+    const Vec<D> v_lo = LoadU(d, inout + lo);
+    const Vec<D> v_hi = LoadU(d, inout + hi - N);
+    StoreU(Reverse(d, v_hi), d, inout + lo);
+    StoreU(Reverse(d, v_lo), d, inout + hi - N);
+    return;
+  }
+
+  // Fewer than N elements left, and a single element is already reversed.
+  if (remaining > 1) {
+    // LoadN zero-fills the lanes past `remaining`, so Reverse leaves the real
+    // elements in the top `remaining` lanes; slide them back down to lane 0.
+    // LoadN/StoreN are used rather than LoadU/StoreU because there may be no
+    // readable memory past `hi`.
+    const Vec<D> rev = Reverse(d, LoadN(d, inout + lo, remaining));
+    StoreN(SlideDownLanes(d, rev, N - remaining), d, inout + lo, remaining);
+  }
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy

@@ -161,6 +161,71 @@ struct TestCopyIf {
   }
 };
 
+// ReverseSpan needs its own sweep: ForeachCountAndMisalign above stops below
+// 2 * N, so the main loop would never run.
+struct TestReverseSpan {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) const {
+    RandomState rng;
+    const size_t N = Lanes(d);
+    const size_t misalignments[3] = {0, N / 4, 3 * N / 5};
+
+    // Exhaustive to 4 * N: covers every tail length, the count == 2 * N point
+    // where the main loop first runs, and the N <= remaining < 2 * N overlap.
+    for (size_t count = 0; count <= 4 * N; ++count) {
+      for (size_t misalign : misalignments) {
+        Check(d, count, misalign, rng);
+      }
+    }
+  }
+
+  template <class D, typename T = TFromD<D>>
+  static void Check(D d, size_t count, size_t misalign, RandomState& rng) {
+    // One extra element holds a sentinel, so a store past the end is caught.
+    AlignedFreeUniquePtr<T[]> storage =
+        AllocateAligned<T>(misalign + count + 1);
+    // Built by hand rather than with std::reverse over a std::vector: GCC 16
+    // cannot bound `count` through that inlining and emits a spurious
+    // -Wstringop-overflow for every instantiation.
+    AlignedFreeUniquePtr<T[]> orig =
+        AllocateAligned<T>(HWY_MAX(size_t{1}, count));
+    AlignedFreeUniquePtr<T[]> rev =
+        AllocateAligned<T>(HWY_MAX(size_t{1}, count));
+    HWY_ASSERT(storage && orig && rev);
+
+    T* inout = storage.get() + misalign;
+    for (size_t i = 0; i < count; ++i) {
+      const T v = Random7Bit<T>(rng);
+      inout[i] = v;
+      orig[i] = v;
+      rev[count - 1 - i] = v;
+    }
+    const T sentinel = ConvertScalarTo<T>(99);
+    inout[count] = sentinel;
+
+    const auto info = hwy::detail::MakeTypeInfo<T>();
+    const char* target_name = hwy::TargetName(HWY_TARGET);
+
+    ReverseSpan(d, inout, count);
+    if (count != 0) {
+      hwy::detail::AssertArrayEqual(info, rev.get(), inout, count, target_name,
+                                    __FILE__, __LINE__);
+    }
+    // Nothing may be written at or past `count`.
+    HWY_ASSERT(ConvertScalarTo<double>(inout[count]) ==
+               ConvertScalarTo<double>(sentinel));
+
+    // Reversing twice restores the input.
+    ReverseSpan(d, inout, count);
+    if (count != 0) {
+      hwy::detail::AssertArrayEqual(info, orig.get(), inout, count, target_name,
+                                    __FILE__, __LINE__);
+    }
+  }
+};
+
+void TestAllReverseSpan() { ForAllTypes(ForPartialVectors<TestReverseSpan>()); }
+
 void TestAllCopyIf() {
   ForUI163264(ForPartialVectors<ForeachCountAndMisalign<TestCopyIf>>());
 }
@@ -178,6 +243,7 @@ HWY_BEFORE_TEST(CopyTest);
 HWY_EXPORT_AND_TEST_P(CopyTest, TestAllFill);
 HWY_EXPORT_AND_TEST_P(CopyTest, TestAllCopy);
 HWY_EXPORT_AND_TEST_P(CopyTest, TestAllCopyIf);
+HWY_EXPORT_AND_TEST_P(CopyTest, TestAllReverseSpan);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy

@@ -326,6 +326,50 @@ bool AllUnique(D d, const T* HWY_RESTRICT in, size_t count) {
   return true;
 }
 
+// Returns true if `a[0, count)` and `b[0, count)` are equal element-wise, like
+// std::equal. Returns true if `count` is 0, and stops reading as soon as a
+// mismatch is found. As with std::equal and `operator==`, a NaN is not equal to
+// itself, so spans holding a NaN at the same index are reported as unequal.
+// Argument order follows Dot::Compute(d, pa, pb, num) in contrib/dot, the other
+// function here that reads two spans of the same length.
+template <class D, typename T = TFromD<D>>
+bool EqualSpan(D d, const T* HWY_RESTRICT a, const T* HWY_RESTRICT b,
+               size_t count) {
+  HWY_LANES_CONSTEXPR size_t N = Lanes(d);
+
+  // Unrolls 4x like AnyOf above, for the same reason: the position of the
+  // mismatch is never needed, so an iteration is the loads, the compares and a
+  // single mask test.
+  size_t i = 0;
+  if (HWY_LIKELY(count >= 4 * N)) {
+    for (; i <= count - 4 * N; i += 4 * N) {
+      const Mask<D> m0 = Ne(LoadU(d, a + i + 0 * N), LoadU(d, b + i + 0 * N));
+      const Mask<D> m1 = Ne(LoadU(d, a + i + 1 * N), LoadU(d, b + i + 1 * N));
+      const Mask<D> m2 = Ne(LoadU(d, a + i + 2 * N), LoadU(d, b + i + 2 * N));
+      const Mask<D> m3 = Ne(LoadU(d, a + i + 3 * N), LoadU(d, b + i + 3 * N));
+      if (HWY_UNLIKELY(!AllFalse(d, Or(Or(m0, m1), Or(m2, m3))))) return false;
+    }
+  }
+
+  for (; i + N <= count; i += N) {
+    const Mask<D> ne = Ne(LoadU(d, a + i), LoadU(d, b + i));
+    if (HWY_UNLIKELY(!AllFalse(d, ne))) return false;
+  }
+
+  const size_t remaining = count - i;
+  HWY_DASSERT(remaining < N);
+  if (remaining != 0) {
+    // No FirstN mask here, unlike AnyOf: LoadN zero-fills the lanes past
+    // `remaining` on both sides, so those lanes hold the same value and cannot
+    // produce a spurious mismatch.
+    const Mask<D> ne =
+        Ne(LoadN(d, a + i, remaining), LoadN(d, b + i, remaining));
+    if (!AllFalse(d, ne)) return false;
+  }
+
+  return true;
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
