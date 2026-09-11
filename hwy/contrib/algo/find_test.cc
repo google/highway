@@ -350,6 +350,87 @@ struct TestUniqueBoundary {
   }
 };
 
+struct TestEqualSpan {
+  template <class D>
+  void operator()(D d, size_t count, size_t misalign, RandomState& rng) {
+    using T = TFromD<D>;
+    // Two separate allocations: EqualSpan takes HWY_RESTRICT pointers, so the
+    // spans must not overlap. Must allocate at least one even if count is zero.
+    AlignedFreeUniquePtr<T[]> storage_a =
+        AllocateAligned<T>(HWY_MAX(1, misalign + count));
+    AlignedFreeUniquePtr<T[]> storage_b =
+        AllocateAligned<T>(HWY_MAX(1, misalign + count));
+    HWY_ASSERT(storage_a && storage_b);
+    T* a = storage_a.get() + misalign;
+    T* b = storage_b.get() + misalign;
+    for (size_t i = 0; i < count; ++i) {
+      a[i] = Random<T>(rng);
+      b[i] = a[i];
+    }
+
+    // HWY_ATTR because the lambda calls EqualSpan: clang does not propagate
+    // the enclosing function's target attribute into a lambda body.
+    const auto check = [&](bool expected, size_t pos) HWY_ATTR {
+      const bool actual = EqualSpan(d, a, b, count);
+      // std::equal is the reference; `expected` additionally pins down what the
+      // caller believes, so a bug in either one is visible.
+      const bool reference = std::equal(a, a + count, b);
+      if (actual != expected || reference != expected) {
+        fprintf(stderr,
+                "%s count %d misalign %d differing pos %d: got %d, std %d, "
+                "want %d\n",
+                hwy::TypeName(T(), Lanes(d)).c_str(), static_cast<int>(count),
+                static_cast<int>(misalign), static_cast<int>(pos), actual,
+                reference, expected);
+        HWY_ASSERT(false);
+      }
+    };
+
+    // Identical contents, including count == 0.
+    check(true, count);
+
+    // Random<T> returns values in [-8, 8], so 9 never occurs and is guaranteed
+    // to differ from whatever is already there.
+    const T differs = ConvertScalarTo<T>(9);
+
+    // A single differing element must be found wherever it is. Sweeping the
+    // final N indices is what catches a tail that is skipped, over-read, or
+    // masked off: those are the lanes LoadN zero-fills.
+    const size_t N = Lanes(d);
+    const size_t tail_begin = count > N ? count - N : 0;
+    for (size_t pos = tail_begin; pos < count; ++pos) {
+      const T old = b[pos];
+      b[pos] = differs;
+      check(false, pos);
+      b[pos] = old;
+    }
+
+    // Plus the first and middle elements, which land in the unrolled loop.
+    for (size_t pos : {size_t{0}, count / 2}) {
+      if (pos >= count) continue;
+      const T old = b[pos];
+      b[pos] = differs;
+      check(false, pos);
+      b[pos] = old;
+    }
+
+    // Restored: equal again.
+    check(true, count);
+
+    // A shorter count must ignore a difference beyond it.
+    if (count != 0) {
+      const T old = b[count - 1];
+      b[count - 1] = differs;
+      HWY_ASSERT(EqualSpan(d, a, b, count - 1));
+      b[count - 1] = old;
+    }
+  }
+};
+
+void TestAllEqualSpan() {
+  ForAllTypes(ForPartialVectors<ForeachCountAndMisalign<TestEqualSpan>>());
+}
+
 void TestAllUnique() {
   ForUI(ForPartialVectors<ForeachCountAndMisalign<TestUnique>>());
   ForUI(ForGEVectors<64, TestUniqueBoundary>());
@@ -368,6 +449,7 @@ HWY_BEFORE_TEST(FindTest);
 HWY_EXPORT_AND_TEST_P(FindTest, TestAllFind);
 HWY_EXPORT_AND_TEST_P(FindTest, TestAllFindIf);
 HWY_EXPORT_AND_TEST_P(FindTest, TestAllAnyAllNone);
+HWY_EXPORT_AND_TEST_P(FindTest, TestAllEqualSpan);
 HWY_EXPORT_AND_TEST_P(FindTest, TestAllUnique);
 HWY_AFTER_TEST();
 }  // namespace
