@@ -54,22 +54,23 @@
 //
 // Ternary ops take three vector operands; unary ops are in the second list and
 // ignore the operands they do not use, so one runner serves both.
-#define HWY_DIFF_TERNARY_OPS(X)            \
-  X(Add, OpAdd, kAnyDomain)                \
-  X(Sub, OpSub, kAnyDomain)                \
-  X(Mul, OpMul, kAnyDomain)                \
-  X(Min, OpMin, kAnyDomain)                \
-  X(Max, OpMax, kAnyDomain)                \
-  X(And, OpAnd, kAnyDomain)                \
-  X(Or, OpOr, kAnyDomain)                  \
-  X(Xor, OpXor, kAnyDomain)                \
-  X(AndNot, OpAndNot, kAnyDomain)          \
-  X(MulHigh, OpMulHigh, kAnyDomain)        \
-  X(SaturatedAdd, OpSaturatedAdd, kAnyDomain) \
-  X(SaturatedSub, OpSaturatedSub, kAnyDomain) \
-  X(AverageRound, OpAverageRound, kAnyDomain) \
-  X(MulAdd52Lo, OpMulAdd52Lo, kLt52Domain) \
-  X(MulAdd52Hi, OpMulAdd52Hi, kLt52Domain)
+//
+// MulAdd52Lo/Hi are not listed yet because they are only in a dependent PR;
+// they use kLt52Domain, which is why the input domain is configurable here.
+#define HWY_DIFF_TERNARY_OPS(X)                \
+  X(Add, OpAdd, kAnyDomain)                    \
+  X(Sub, OpSub, kAnyDomain)                    \
+  X(Mul, OpMul, kAnyDomain)                    \
+  X(Min, OpMin, kAnyDomain)                    \
+  X(Max, OpMax, kAnyDomain)                    \
+  X(And, OpAnd, kAnyDomain)                    \
+  X(Or, OpOr, kAnyDomain)                      \
+  X(Xor, OpXor, kAnyDomain)                    \
+  X(AndNot, OpAndNot, kAnyDomain)              \
+  X(MulHigh, OpMulHigh, kAnyDomain)            \
+  X(SaturatedAdd, OpSaturatedAdd, kAnyDomain)  \
+  X(SaturatedSub, OpSaturatedSub, kAnyDomain)  \
+  X(AverageRound, OpAverageRound, kAnyDomain)
 
 #define HWY_DIFF_UNARY_OPS(X) \
   X(Neg, OpNeg, kAnyDomain)   \
@@ -234,20 +235,6 @@ struct OpAverageRound {
   template <class D, HWY_IF_UNSIGNED_D(D)>
   static HWY_INLINE Vec<D> Run(D /*d*/, Vec<D> a, Vec<D> b, Vec<D> /*c*/) {
     return AverageRound(a, b);
-  }
-};
-
-struct OpMulAdd52Lo {
-  template <class D, HWY_IF_U64_D(D)>
-  static HWY_INLINE Vec<D> Run(D /*d*/, Vec<D> a, Vec<D> b, Vec<D> c) {
-    return MulAdd52Lo(a, b, c);
-  }
-};
-
-struct OpMulAdd52Hi {
-  template <class D, HWY_IF_U64_D(D)>
-  static HWY_INLINE Vec<D> Run(D /*d*/, Vec<D> a, Vec<D> b, Vec<D> c) {
-    return MulAdd52Hi(a, b, c);
   }
 };
 
@@ -697,7 +684,9 @@ bool RefCase(size_t op_index, size_t num_lanes, const void* in_a,
   using U = typename UIntOfSize<sizeof(T)>::type;
   const T* a = static_cast<const T*>(in_a);
   const T* b = static_cast<const T*>(in_b);
-  const T* c = static_cast<const T*>(in_c);
+  // Only ternary ops use the addend. None of the currently registered ops do,
+  // but keeping it in the interface makes adding e.g. MulAdd52* a one-liner.
+  HWY_MAYBE_UNUSED const T* c = static_cast<const T*>(in_c);
   T* o = static_cast<T*>(out);
   constexpr bool kFloat = IsFloat<T>();
   constexpr bool kSigned = IsSigned<T>();
@@ -746,22 +735,6 @@ bool RefCase(size_t op_index, size_t num_lanes, const void* in_a,
       case kOpAverageRound:
         o[i] = RefAverageRound(a[i], b[i]);
         break;
-      case kOpMulAdd52Lo: {
-        const uint64_t mask52 = (uint64_t{1} << 52) - 1;
-        o[i] = static_cast<T>(static_cast<uint64_t>(c[i]) +
-                              ((static_cast<uint64_t>(a[i]) *
-                                static_cast<uint64_t>(b[i])) &
-                               mask52));
-        break;
-      }
-      case kOpMulAdd52Hi: {
-        uint64_t hi;
-        const uint64_t lo = Mul128(static_cast<uint64_t>(a[i]),
-                                   static_cast<uint64_t>(b[i]), &hi);
-        o[i] = static_cast<T>(static_cast<uint64_t>(c[i]) +
-                              ((lo >> 52) | (hi << 12)));
-        break;
-      }
       case kOpNeg:
         o[i] = RefNeg(a[i], std::integral_constant<bool, kFloat>());
         break;
