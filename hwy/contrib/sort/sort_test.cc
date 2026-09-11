@@ -364,8 +364,6 @@ template <typename T, class Order>
 void TestSelectWithNaNForType(Order order) {
   const size_t num = AdjustedReps(40 * 1000);
   if (num < 32) return;
-  constexpr bool asc = hwy::IsSame<Order, hwy::SortAscending>();
-
   size_t num_nan;
   const std::vector<T> input = MakeNaNInfInput<T>(num, 123456789, num_nan);
 
@@ -376,10 +374,10 @@ void TestSelectWithNaNForType(Order order) {
     if (!ScalarIsNaN(x)) nonnan_in.push_back(x);
   }
   std::sort(nonnan_in.begin(), nonnan_in.end());
-  std::sort(ref.begin(), ref.end(), [asc](float a, float b) {
+  std::sort(ref.begin(), ref.end(), [](float a, float b) {
     if (ScalarIsNaN(a)) return false;  // NaN sorts to the back
     if (ScalarIsNaN(b)) return true;
-    return asc ? (a < b) : (a > b);
+    return hwy::IsSame<Order, hwy::SortAscending>() ? (a < b) : (a > b);
   });
 
   // A finite-region k and a NaN-region k; the latter catches the +inf/NaN
