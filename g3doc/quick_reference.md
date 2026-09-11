@@ -3088,6 +3088,12 @@ supported for the `HWY_SCALAR` target.
 *   `HWY_NATIVE_INTERLEAVE_WHOLE` expands to 1 if `InterleaveWholeLower/Upper`
     are at least as efficient as `InterleaveLower/Upper`.
 
+*   `HWY_NATIVE_STORE_N` expands to 1 if `StoreN` is efficiently implemented
+    (typically using masks), rather than branches.
+
+*   `HWY_NATIVE_MUL64` expands to 1 if u64 `Mul` and `MulHigh` use native
+    instructions.
+
 *   `HWY_IS_LITTLE_ENDIAN` expands to 1 on little-endian targets and to 0 on
     big-endian targets.
 
