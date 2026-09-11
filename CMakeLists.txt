@@ -982,6 +982,7 @@ set(HWY_TEST_FILES
   hwy/tests/count_test.cc
   hwy/tests/crypto_test.cc
   hwy/tests/demote_test.cc
+  hwy/tests/differential_test.cc
   hwy/tests/div_test.cc
   hwy/tests/dup128_vec_test.cc
   hwy/tests/expand_test.cc
