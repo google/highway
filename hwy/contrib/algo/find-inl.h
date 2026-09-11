@@ -108,6 +108,92 @@ size_t FindIf(D d, const T* HWY_RESTRICT in, size_t count, const Func& func) {
   return count;  // not found
 }
 
+// AnyOf/AllOf/NoneOf unroll 4x, matching AllUnique below rather than the 2x in
+// Find/FindIf: none of them needs the position of a match, so an iteration is
+// just the loads, the predicate and one mask test, with no loop-carried state.
+
+// Returns true if `func(d, vec)` is true for at least one element of
+// `in[0, count)`, like std::any_of. Returns false if `count` is 0. Stops
+// reading as soon as the answer is known.
+template <class D, class Func, typename T = TFromD<D>>
+bool AnyOf(D d, const T* HWY_RESTRICT in, size_t count, const Func& func) {
+  HWY_LANES_CONSTEXPR size_t N = Lanes(d);
+
+  size_t i = 0;
+  if (HWY_LIKELY(count >= 4 * N)) {
+    for (; i <= count - 4 * N; i += 4 * N) {
+      const Mask<D> m0 = func(d, LoadU(d, in + i + 0 * N));
+      const Mask<D> m1 = func(d, LoadU(d, in + i + 1 * N));
+      const Mask<D> m2 = func(d, LoadU(d, in + i + 2 * N));
+      const Mask<D> m3 = func(d, LoadU(d, in + i + 3 * N));
+      if (HWY_UNLIKELY(!AllFalse(d, Or(Or(m0, m1), Or(m2, m3))))) return true;
+    }
+  }
+
+  for (; i + N <= count; i += N) {
+    if (HWY_UNLIKELY(!AllFalse(d, func(d, LoadU(d, in + i))))) return true;
+  }
+
+  const size_t remaining = count - i;
+  HWY_DASSERT(remaining < N);
+  if (remaining != 0) {
+    // LoadN zeros the lanes past `remaining` and `func` may well return true
+    // for a zero, so restrict the result to lanes holding a real element.
+    const Mask<D> mask = FirstN(d, remaining);
+    if (!AllFalse(d, And(mask, func(d, LoadN(d, in + i, remaining))))) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// Returns true if `func(d, vec)` is true for every element of `in[0, count)`,
+// like std::all_of. Returns true if `count` is 0. Stops reading as soon as the
+// answer is known.
+template <class D, class Func, typename T = TFromD<D>>
+bool AllOf(D d, const T* HWY_RESTRICT in, size_t count, const Func& func) {
+  HWY_LANES_CONSTEXPR size_t N = Lanes(d);
+
+  size_t i = 0;
+  if (HWY_LIKELY(count >= 4 * N)) {
+    for (; i <= count - 4 * N; i += 4 * N) {
+      const Mask<D> m0 = func(d, LoadU(d, in + i + 0 * N));
+      const Mask<D> m1 = func(d, LoadU(d, in + i + 1 * N));
+      const Mask<D> m2 = func(d, LoadU(d, in + i + 2 * N));
+      const Mask<D> m3 = func(d, LoadU(d, in + i + 3 * N));
+      if (HWY_UNLIKELY(!AllTrue(d, And(And(m0, m1), And(m2, m3))))) {
+        return false;
+      }
+    }
+  }
+
+  for (; i + N <= count; i += N) {
+    if (HWY_UNLIKELY(!AllTrue(d, func(d, LoadU(d, in + i))))) return false;
+  }
+
+  const size_t remaining = count - i;
+  HWY_DASSERT(remaining < N);
+  if (remaining != 0) {
+    // AndNot(a, b) is "a is false and b is true", so this is the set of lanes
+    // that hold a real element and failed the predicate. Asking whether that
+    // is empty is cheaper than forcing the padding lanes true.
+    const Mask<D> mask = FirstN(d, remaining);
+    if (!AllFalse(d, AndNot(func(d, LoadN(d, in + i, remaining)), mask))) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+// Returns true if `func(d, vec)` is false for every element of `in[0, count)`,
+// like std::none_of. Returns true if `count` is 0.
+template <class D, class Func, typename T = TFromD<D>>
+bool NoneOf(D d, const T* HWY_RESTRICT in, size_t count, const Func& func) {
+  return !AnyOf(d, in, count, func);
+}
+
 // Like std::unique: removes consecutive duplicates in [in, in + count) and
 // returns the number of unique elements. Requires sorted/grouped input.
 // Operates in-place: the unique elements are packed to the front of `in`.

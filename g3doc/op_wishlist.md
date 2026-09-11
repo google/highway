@@ -37,8 +37,6 @@ fmod, ilogb, logb, modf, nextafter, nexttoward, scalbn
 
 ### Remaining STL functions for hwy/contrib/algo
 
-*   IndexOfMin/Max
-*   AllOf / AnyOf / NoneOf
 *   EqualSpan
 *   ReverseSpan
 *   ShuffleSpan
@@ -190,3 +188,5 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~lgamma~~
 *   ~~ReduceMin/MaxOrNaN~~
 *   ~~Document Reduce/Min NaN behavior~~
+*   ~~IndexOfMin/Max~~ (algo)
+*   ~~AllOf / AnyOf / NoneOf~~ (algo)
