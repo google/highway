@@ -229,8 +229,8 @@ Highway supports 27 targets, listed in alphabetical order of platform:
     -   `SSE4` (~Nehalem, also includes AES + CLMUL).
     -   `AVX2` (~Haswell, also includes BMI2 + F16 + FMA)
     -   `AVX3` (~Skylake, AVX-512F/BW/CD/DQ/VL)
-    -   `AVX3_DL` (~Icelake, includes `BitAlg` + `CLMUL` + `GFNI` + `VAES` +
-        `VBMI` + `VBMI2` + `VNNI` + `VPOPCNT`),
+    -   `AVX3_DL` (~Icelake, includes `BitAlg` + `CLMUL` + `GFNI` + `IFMA` +
+        `VAES` + `VBMI` + `VBMI2` + `VNNI` + `VPOPCNT`),
     -   `AVX3_ZEN4` (AVX3_DL plus BF16, optimized for AMD Zen4; requires opt-in
         by defining `HWY_WANT_AVX3_ZEN4` if compiling for static dispatch, but
         enabled by default for runtime dispatch),
