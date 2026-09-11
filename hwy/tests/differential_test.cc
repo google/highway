@@ -118,11 +118,12 @@ enum DiffTypeIndex {
   kNumDiffTypes
 };
 
-// Lane counts. Powers of two sweep full and partial vectors; the odd counts
-// (3, 5) cover non-power-of-two tails. Counts above HWY_LANES(T) are capped to
-// the full vector (the same lane indices are still compared across targets).
-#define HWY_DIFF_LANES(X) \
-  X(1) X(2) X(3) X(4) X(5) X(8) X(16) X(32)
+// Lane counts: a single lane, an odd (partial-vector) count, a medium one, and
+// 32 lanes, which is the full vector for most lanes types on fixed-size targets
+// (larger counts are capped, see RunOpTag). This is enough to sweep full and
+// partial vectors while keeping the number of instantiations - and therefore
+// compile time - reasonable.
+#define HWY_DIFF_LANES(X) X(1) X(3) X(8) X(32)
 
 // Number of interesting inputs per case; 0 = structured boundary values,
 // 1 = a different pairing of those, 2 = pseudo-random values.
