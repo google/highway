@@ -310,13 +310,42 @@ HWY_NOINLINE size_t RunOpImpl(std::false_type /*unsupported*/, const T*,
   return 0;
 }
 
+// Some targets have no vector type for a lane type: 32-bit Arm has no f64
+// vectors, so Vec<CappedTag<double, ...>> cannot even be instantiated there.
+// Such combinations are reported as not implemented, exactly like ops that a
+// target lacks. The macro is per-target, so the bodies below differ per target
+// while the case indices in the driver remain the same.
+template <class T>
+constexpr bool HaveVectorType() {
+#if HWY_HAVE_FLOAT64
+  return true;
+#else
+  return !IsSame<T, double>();
+#endif
+}
+
 template <class Op, class T, size_t kLanes>
-HWY_NOINLINE size_t RunOp(const T* in_a, const T* in_b, const T* in_c, T* out) {
+HWY_NOINLINE size_t RunOpTag(std::true_type /*have vector type*/,
+                             const T* in_a, const T* in_b, const T* in_c,
+                             T* out) {
   constexpr size_t kMax = kLanes < HWY_LANES(T) ? kLanes : HWY_LANES(T);
   using D = CappedTag<T, kMax>;
   using V = Vec<D>;
   return RunOpImpl<Op, T, kLanes>(
       std::integral_constant<bool, HasRun<Op, D, V>::value>(), in_a, in_b, in_c,
+      out);
+}
+
+template <class Op, class T, size_t kLanes>
+HWY_NOINLINE size_t RunOpTag(std::false_type /*no vector type*/, const T*,
+                             const T*, const T*, T*) {
+  return 0;
+}
+
+template <class Op, class T, size_t kLanes>
+HWY_NOINLINE size_t RunOp(const T* in_a, const T* in_b, const T* in_c, T* out) {
+  return RunOpTag<Op, T, kLanes>(
+      std::integral_constant<bool, HaveVectorType<T>()>(), in_a, in_b, in_c,
       out);
 }
 
@@ -460,11 +489,14 @@ size_t BoundaryValues(T* HWY_RESTRICT out) {
   out[n++] = lowest;
   out[n++] = static_cast<T>(max - one);
   out[n++] = static_cast<T>(lowest + one);
-  // Highest bit only, and alternating bits.
+  // Highest bit only; then alternating bits, and values straddling 2^52, where
+  // MulAdd52* changes behavior. All are built with uint64_t arithmetic to avoid
+  // ULL literals and the conversions they imply for narrow lane types.
+  const uint64_t k55 = ~uint64_t{0} / 3;       // 0101...
+  const uint64_t kAA = ~uint64_t{0} - k55;     // 1010...
   out[n++] = static_cast<T>(uint64_t{1} << (sizeof(T) * 8 - 1));
-  out[n++] = static_cast<T>(0x5555555555555555ULL);
-  out[n++] = static_cast<T>(0xAAAAAAAAAAAAAAAAULL);
-  // Straddling 2^52, where MulAdd52* changes behavior.
+  out[n++] = static_cast<T>(k55);
+  out[n++] = static_cast<T>(kAA);
   out[n++] = static_cast<T>(uint64_t{1} << 51);
   out[n++] = static_cast<T>((uint64_t{1} << 52) - 1);
   out[n++] = static_cast<T>(uint64_t{1} << 52);
@@ -513,10 +545,12 @@ void MakeInput(size_t num_lanes, size_t pass, size_t operand, DiffDomain domain,
   }
   if (domain == kLt52Domain && operand != 2) {
     // MulAdd52*: the multiplicands must be < 2^52. The addend is not
-    // constrained by the contract, so it is left untouched.
+    // constrained by the contract, so it is left untouched. The mask is typed
+    // uint64_t rather than written as an ULL literal, which avoids conversions
+    // that -Wsign-conversion/-Wconversion reject on some targets (e.g. s390x).
+    const uint64_t mask52 = (uint64_t{1} << 52) - 1;
     for (size_t i = 0; i < num_lanes; ++i) {
-      v[i] = static_cast<T>(static_cast<uint64_t>(v[i]) &
-                            0x000FFFFFFFFFFFFFULL);
+      v[i] = static_cast<T>(static_cast<uint64_t>(v[i]) & mask52);
     }
   }
 }
@@ -712,12 +746,14 @@ bool RefCase(size_t op_index, size_t num_lanes, const void* in_a,
       case kOpAverageRound:
         o[i] = RefAverageRound(a[i], b[i]);
         break;
-      case kOpMulAdd52Lo:
+      case kOpMulAdd52Lo: {
+        const uint64_t mask52 = (uint64_t{1} << 52) - 1;
         o[i] = static_cast<T>(static_cast<uint64_t>(c[i]) +
                               ((static_cast<uint64_t>(a[i]) *
                                 static_cast<uint64_t>(b[i])) &
-                               0x000FFFFFFFFFFFFFULL));
+                               mask52));
         break;
+      }
       case kOpMulAdd52Hi: {
         uint64_t hi;
         const uint64_t lo = Mul128(static_cast<uint64_t>(a[i]),
