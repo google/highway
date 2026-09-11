@@ -7386,6 +7386,27 @@ HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
 
 #endif  // HWY_NATIVE_COMPRESS16_32_64
 
+// ------------------------------ Partition
+
+template <class D>
+HWY_API VFromD<D> Partition(D d, VFromD<D> v, MFromD<D> mask) {
+  (void)d;
+  (void)mask;
+
+  VFromD<D> result = v;
+#if HWY_TARGET != HWY_SCALAR
+  HWY_IF_CONSTEXPR(HWY_MAX_LANES_D(D) > 1) {
+    result = Compress(d, result, mask);
+    HWY_IF_CONSTEXPR(!CompressIsPartition<TFromD<D>>::value) {
+      result = SlideUpLanesOr(result, d, CompressNot(d, v, mask),
+                              CountTrue(d, mask));
+    }
+  }
+#endif
+
+  return result;
+}
+
 // ------------------------------ CompressBlocksNot
 
 #if (defined(HWY_NATIVE_COMPRESS_BLOCKS_NOT) == defined(HWY_TARGET_TOGGLE))
