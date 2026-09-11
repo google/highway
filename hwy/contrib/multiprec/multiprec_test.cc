@@ -103,6 +103,78 @@ struct TestWideMul {
 
 #endif  // HWY_TARGET != HWY_SCALAR
 
+// Independent reference: schoolbook with 128-bit partial products added
+// limb-by-limb with ripple carry (different structure from the digit-based
+// implementation, so agreement is meaningful).
+template <size_t kLimbs>
+void RefWideMul(const uint64_t* HWY_RESTRICT a,
+                const uint64_t* HWY_RESTRICT b,
+                uint64_t* HWY_RESTRICT out) {
+  for (size_t k = 0; k < 2 * kLimbs; ++k) out[k] = 0;
+  for (size_t i = 0; i < kLimbs; ++i) {
+    for (size_t j = 0; j < kLimbs; ++j) {
+      uint64_t hi;
+      const uint64_t lo = Mul128(a[i], b[j], &hi);
+      const size_t k = i + j;
+      // Add lo at limb k.
+      const uint64_t t0 = out[k] + lo;
+      uint64_t carry = (t0 < lo) ? 1 : 0;
+      out[k] = t0;
+      // Add hi plus that carry at limb k+1.
+      const uint64_t t1 = out[k + 1] + hi;
+      uint64_t c = (t1 < hi) ? 1 : 0;
+      const uint64_t t2 = t1 + carry;
+      c += (t2 < carry) ? 1 : 0;
+      out[k + 1] = t2;
+      carry = c;
+      // Ripple the remaining carry.
+      for (size_t m = k + 2; carry != 0 && m < 2 * kLimbs; ++m) {
+        const uint64_t t = out[m] + carry;
+        carry = (t < carry) ? 1 : 0;
+        out[m] = t;
+      }
+    }
+  }
+}
+
+template <size_t kBits>
+struct TestWideMulLimbs {
+  HWY_NOINLINE void operator()() {
+    constexpr size_t kLimbs = kBits / 64;
+    uint64_t a[kLimbs];
+    uint64_t b[kLimbs];
+    uint64_t actual[2 * kLimbs];
+    uint64_t expected[2 * kLimbs];
+
+    RandomState rng(6789);
+    for (int trial = 0; trial < 20; ++trial) {
+      for (size_t i = 0; i < kLimbs; ++i) {
+        a[i] = Random64(&rng);
+        b[i] = Random64(&rng);
+      }
+      WideMulLimbs<kBits>(a, b, actual);
+      RefWideMul<kLimbs>(a, b, expected);
+      for (size_t k = 0; k < 2 * kLimbs; ++k) {
+        HWY_ASSERT_EQ(expected[k], actual[k]);
+      }
+    }
+
+    // Maximum inputs: (2^kBits - 1)^2.
+    for (size_t i = 0; i < kLimbs; ++i) a[i] = ~uint64_t{0};
+    WideMulLimbs<kBits>(a, a, actual);
+    RefWideMul<kLimbs>(a, a, expected);
+    for (size_t k = 0; k < 2 * kLimbs; ++k) {
+      HWY_ASSERT_EQ(expected[k], actual[k]);
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllWideMulLimbs() {
+  TestWideMulLimbs<128>()();
+  TestWideMulLimbs<192>()();
+  TestWideMulLimbs<256>()();
+}
+
 HWY_NOINLINE void TestAllWideMul() {
 #if HWY_TARGET != HWY_SCALAR
   ForPartialVectors<TestWideMul<1>>()(uint64_t());
@@ -124,6 +196,7 @@ namespace {
 
 HWY_BEFORE_TEST(MultiprecTest);
 HWY_EXPORT_AND_TEST_P(MultiprecTest, TestAllWideMul);
+HWY_EXPORT_AND_TEST_P(MultiprecTest, TestAllWideMulLimbs);
 HWY_AFTER_TEST();
 
 }  // namespace
