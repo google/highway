@@ -34,7 +34,7 @@
 
 #include <vector>
 
-#include "hwy/base.h"  // HWY_DASSERT
+#include "hwy/base.h"  // HWY_DASSERT, HWY_CONTRIB_DLLEXPORT
 
 namespace hwy {
 
@@ -193,30 +193,34 @@ class RangeDecoder {
 // probability table `scaled_cum_prob` of size freq.size() + 1, summing to
 // kRangeProbScale. `freq` may be modified if only one symbol was used. Returns
 // false if the model is degenerate.
-bool CreateCumulativeProbs(std::vector<uint32_t>& scaled_cum_prob,
-                           std::vector<uint32_t>& freq);
+HWY_CONTRIB_DLLEXPORT bool CreateCumulativeProbs(
+    std::vector<uint32_t>& scaled_cum_prob,
+    std::vector<uint32_t>& freq);
 
 // Builds the 4096-entry decode lookup table from `scaled_cum_prob` (as produced
 // by CreateCumulativeProbs for `num_syms` symbols). Each entry packs
 // sym | (cum_prob << 8) | (prob_range << 20).
-void BuildDecodeTable(uint32_t num_syms,
-                      const std::vector<uint32_t>& scaled_cum_prob,
-                      std::vector<uint32_t>& table);
+HWY_CONTRIB_DLLEXPORT void BuildDecodeTable(
+    uint32_t num_syms,
+    const std::vector<uint32_t>& scaled_cum_prob,
+    std::vector<uint32_t>& table);
 
 // ------------------------------ Interleaved codec
 
 // Encodes `data` into 16 interleaved range-coded streams, appending the result
 // to `enc_buf` layout expected by DecodeInterleaved (48 header bytes, then the
 // renormalization bytes in stream-round-robin order, then 2 zero pad bytes).
-void EncodeInterleaved(const std::vector<uint8_t>& data,
-                       std::vector<uint8_t>& enc_buf,
-                       const std::vector<uint32_t>& scaled_cum_prob);
+HWY_CONTRIB_DLLEXPORT void EncodeInterleaved(
+    const std::vector<uint8_t>& data,
+    std::vector<uint8_t>& enc_buf,
+    const std::vector<uint32_t>& scaled_cum_prob);
 
 // Scalar reference decoder for data produced by EncodeInterleaved. `table` is
 // from BuildDecodeTable. Returns false if the input is truncated. The SIMD
 // version (range_coder-inl.h) produces identical output.
-bool DecodeInterleavedScalar(const uint8_t* src, size_t comp_size, uint8_t* dst,
-                             size_t orig_size, const uint32_t* table);
+HWY_CONTRIB_DLLEXPORT bool DecodeInterleavedScalar(
+    const uint8_t* src, size_t comp_size, uint8_t* dst,
+    size_t orig_size, const uint32_t* table);
 
 // ------------------------------ SIMD decoder shuffle tables
 
@@ -230,7 +234,7 @@ struct RangeShuffleTables {
 };
 
 // Returns a lazily-built, immutable instance (thread-safe since C++11).
-const RangeShuffleTables& GetRangeShuffleTables();
+HWY_CONTRIB_DLLEXPORT const RangeShuffleTables& GetRangeShuffleTables();
 
 }  // namespace hwy
 

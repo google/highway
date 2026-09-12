@@ -34,6 +34,8 @@
 
 #include <vector>
 
+#include "hwy/base.h"  // HWY_CONTRIB_DLLEXPORT
+
 namespace hwy {
 namespace iguana {
 
@@ -51,7 +53,7 @@ constexpr uint32_t kAnsFreqMask = kAnsWordM - 1;
 
 // Normalized per-symbol frequencies, summing to kAnsWordM. `packed[i]` is
 // (cumulative_freq[i] << 12) | freq[i]; `Freq()` / `CumFreq()` unpack it.
-struct AnsStatistics {
+struct HWY_CONTRIB_DLLEXPORT AnsStatistics {
   uint32_t packed[256] = {};
 
   uint32_t Freq(size_t sym) const { return packed[sym] & kAnsFreqMask; }
@@ -73,26 +75,31 @@ using AnsDenseTable = std::vector<uint32_t>;
 // Parses a table serialized by AnsStatistics::Serialize from the END of
 // `src[0, size)`. Returns the length of the data that precedes it (the rANS
 // payload), or SIZE_MAX on malformed input.
-size_t DeserializeAnsTable(AnsDenseTable& table, const uint8_t* src,
-                           size_t size);
+HWY_CONTRIB_DLLEXPORT size_t DeserializeAnsTable(AnsDenseTable& table,
+                                                 const uint8_t* src,
+                                                 size_t size);
 
 // ------------------------------ ANS32 codec
 
 // Encodes `data` into the 32-way interleaved rANS payload followed by the
 // serialized frequency table (i.e. a complete ANS32 block).
-std::vector<uint8_t> Ans32Encode(const uint8_t* data, size_t size);
+HWY_CONTRIB_DLLEXPORT std::vector<uint8_t> Ans32Encode(const uint8_t* data,
+                                                       size_t size);
 
 // Scalar reference decoder for a block produced by Ans32Encode. `orig_size` is
 // the decompressed length. Returns false on malformed input. The SIMD decoder
 // (ans-inl.h) produces identical output.
-bool Ans32DecodeScalar(const uint8_t* src, size_t src_size, uint8_t* dst,
-                       size_t orig_size);
+HWY_CONTRIB_DLLEXPORT bool Ans32DecodeScalar(const uint8_t* src,
+                                             size_t src_size, uint8_t* dst,
+                                             size_t orig_size);
 
 // Same, but the frequency table has already been parsed: `payload` is the rANS
 // data only (DeserializeAnsTable's prefix length), `table` its dense table.
-bool Ans32DecodePayloadScalar(const uint8_t* payload, size_t payload_size,
-                              const AnsDenseTable& table, uint8_t* dst,
-                              size_t orig_size);
+HWY_CONTRIB_DLLEXPORT bool Ans32DecodePayloadScalar(const uint8_t* payload,
+                                                    size_t payload_size,
+                                                    const AnsDenseTable& table,
+                                                    uint8_t* dst,
+                                                    size_t orig_size);
 
 }  // namespace iguana
 }  // namespace hwy
