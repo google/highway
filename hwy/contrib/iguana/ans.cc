@@ -21,7 +21,7 @@
 
 #include <vector>
 
-#include "hwy/base.h"  // HWY_DASSERT
+#include "hwy/base.h"  // HWY_DASSERT, HWY_CONTRIB_DLLEXPORT
 #include "hwy/contrib/iguana/ans_detail.h"
 
 namespace hwy {
@@ -170,7 +170,8 @@ void BuildDenseTable(AnsDenseTable& table, const uint32_t freqs[256]) {
 
 }  // namespace
 
-AnsStatistics AnsStatistics::FromData(const uint8_t* data, size_t size) {
+HWY_CONTRIB_DLLEXPORT AnsStatistics AnsStatistics::FromData(
+    const uint8_t* data, size_t size) {
   RawStats s;
   if (size == 0) {
     s.freqs[254] = kAnsWordM / 2;
@@ -196,7 +197,8 @@ AnsStatistics AnsStatistics::FromData(const uint8_t* data, size_t size) {
   return out;
 }
 
-void AnsStatistics::Serialize(std::vector<uint8_t>& out) const {
+HWY_CONTRIB_DLLEXPORT void AnsStatistics::Serialize(
+    std::vector<uint8_t>& out) const {
   BitWriter ctrl, data;
   for (int i = 0; i < 256; ++i) {
     const uint32_t f = Freq(static_cast<size_t>(i));
@@ -227,8 +229,9 @@ void AnsStatistics::Serialize(std::vector<uint8_t>& out) const {
   out.push_back(0);  // "full table" compression level
 }
 
-size_t DeserializeAnsTable(AnsDenseTable& table, const uint8_t* src,
-                           size_t size) {
+HWY_CONTRIB_DLLEXPORT size_t DeserializeAnsTable(AnsDenseTable& table,
+                                                 const uint8_t* src,
+                                                 size_t size) {
   if (size < 1 + kAnsCtrlBlockSize) return SIZE_MAX;
   const uint8_t level = src[size - 1];
   if (level != 0) return SIZE_MAX;  // only the full table is supported here
@@ -276,7 +279,8 @@ size_t DeserializeAnsTable(AnsDenseTable& table, const uint8_t* src,
 
 // ------------------------------ ANS32 encoder (scalar; unchanged from Iguana)
 
-std::vector<uint8_t> Ans32Encode(const uint8_t* data, size_t size) {
+HWY_CONTRIB_DLLEXPORT std::vector<uint8_t> Ans32Encode(const uint8_t* data,
+                                                       size_t size) {
   const AnsStatistics stats = AnsStatistics::FromData(data, size);
 
   uint32_t state[kAnsLanes];
@@ -327,9 +331,9 @@ std::vector<uint8_t> Ans32Encode(const uint8_t* data, size_t size) {
 
 // ------------------------------ ANS32 scalar reference decoder
 
-bool Ans32DecodePayloadScalar(const uint8_t* src, size_t src_size,
-                              const AnsDenseTable& table, uint8_t* dst,
-                              size_t orig_size) {
+HWY_CONTRIB_DLLEXPORT bool Ans32DecodePayloadScalar(
+    const uint8_t* src, size_t src_size, const AnsDenseTable& table,
+    uint8_t* dst, size_t orig_size) {
   if (src_size < 128) return false;
 
   uint32_t state[kAnsLanes];
@@ -379,8 +383,9 @@ bool Ans32DecodePayloadScalar(const uint8_t* src, size_t src_size,
   return true;
 }
 
-bool Ans32DecodeScalar(const uint8_t* src, size_t src_size, uint8_t* dst,
-                       size_t orig_size) {
+HWY_CONTRIB_DLLEXPORT bool Ans32DecodeScalar(const uint8_t* src,
+                                             size_t src_size, uint8_t* dst,
+                                             size_t orig_size) {
   AnsDenseTable table;
   const size_t payload = DeserializeAnsTable(table, src, src_size);
   if (payload == SIZE_MAX) return false;
