@@ -70,6 +70,8 @@ HWY_DIAGNOSTICS_OFF(disable : 4701 4703 6001 26494,
 #include <vaesintrin.h>
 #include <vpclmulqdqintrin.h>
 #include <gfniintrin.h>
+#include <avx512ifmaintrin.h>
+#include <avx512vlifmaintrin.h>
 #endif  // HWY_TARGET <= HWY_AVX3_DL
 
 #if HWY_TARGET <= HWY_AVX3_SPR

@@ -36,6 +36,53 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
+// ------------------------------ MulAdd52
+
+#if (defined(HWY_NATIVE_MULADD52_IMPL) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MULADD52_IMPL
+#undef HWY_NATIVE_MULADD52_IMPL
+#else
+#define HWY_NATIVE_MULADD52_IMPL
+#endif
+
+template <class V, HWY_IF_U64_D(DFromV<V>)>
+HWY_API V MulAdd52Lo(V a, V b, V c) {
+  const auto d = DFromV<V>();
+  const auto mask52 = Set(d, 0x000FFFFFFFFFFFFFULL);
+  const auto mask26 = Set(d, 0x0000000003FFFFFFULL);
+  a = And(a, mask52);
+  b = And(b, mask52);
+  const auto a0 = And(a, mask26);
+  const auto b0 = And(b, mask26);
+  const auto a1 = ShiftRight<26>(a);
+  const auto b1 = ShiftRight<26>(b);
+  const auto p0 = Mul(a0, b0);
+  const auto p1 = MulAdd(a1, b0, Mul(a0, b1));
+  const auto low = Add(p0, ShiftLeft<26>(And(p1, mask26)));
+  return Add(And(low, mask52), c);
+}
+
+template <class V, HWY_IF_U64_D(DFromV<V>)>
+HWY_API V MulAdd52Hi(V a, V b, V c) {
+  const auto d = DFromV<V>();
+  const auto mask52 = Set(d, 0x000FFFFFFFFFFFFFULL);
+  const auto mask26 = Set(d, 0x0000000003FFFFFFULL);
+  a = And(a, mask52);
+  b = And(b, mask52);
+  const auto a0 = And(a, mask26);
+  const auto b0 = And(b, mask26);
+  const auto a1 = ShiftRight<26>(a);
+  const auto b1 = ShiftRight<26>(b);
+  const auto p0 = Mul(a0, b0);
+  const auto p1 = MulAdd(a1, b0, Mul(a0, b1));
+  const auto low = Add(p0, ShiftLeft<26>(And(p1, mask26)));
+  const auto high = Add(Add(Mul(a1, b1), ShiftRight<26>(p1)),
+                        ShiftRight<52>(low));
+  return Add(high, c);
+}
+
+#endif  // HWY_NATIVE_MULADD52_IMPL
+
 // The lane type of a vector type, e.g. float for Vec<ScalableTag<float>>.
 template <class V>
 using LaneType = decltype(GetLane(V()));
