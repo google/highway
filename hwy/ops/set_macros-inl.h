@@ -48,6 +48,7 @@
 #undef HWY_NATIVE_DOT_BF16
 #undef HWY_NATIVE_MASK
 #undef HWY_NATIVE_INTERLEAVE_WHOLE
+#undef HWY_NATIVE_MULADD52
 #undef HWY_NATIVE_STORE_N
 #undef HWY_NATIVE_MUL64
 
@@ -203,7 +204,7 @@
 #define HWY_TARGET_STR_AVX3_DL                                       \
   HWY_TARGET_STR_AVX3                                                \
   ",vpclmulqdq,avx512vbmi,avx512vbmi2,vaes,avx512vnni,avx512bitalg," \
-  "avx512vpopcntdq,gfni"
+  "avx512vpopcntdq,gfni,avx512ifma"
 
 // Opt-out for compilers that do not properly support avx512bf16.
 #ifndef HWY_AVX3_ENABLE_AVX512BF16  // allow override
@@ -410,21 +411,25 @@
 
 #elif HWY_TARGET == HWY_AVX3_DL
 
+#define HWY_NATIVE_MULADD52 1
 #define HWY_NAMESPACE N_AVX3_DL
 #define HWY_TARGET_STR HWY_TARGET_STR_AVX3_DL
 
 #elif HWY_TARGET == HWY_AVX3_ZEN4
 
+#define HWY_NATIVE_MULADD52 1
 #define HWY_NAMESPACE N_AVX3_ZEN4
 #define HWY_TARGET_STR HWY_TARGET_STR_AVX3_ZEN4
 
 #elif HWY_TARGET == HWY_AVX3_SPR
 
+#define HWY_NATIVE_MULADD52 1
 #define HWY_NAMESPACE N_AVX3_SPR
 #define HWY_TARGET_STR HWY_TARGET_STR_AVX3_SPR
 
 #elif HWY_TARGET == HWY_AVX10_2
 
+#define HWY_NATIVE_MULADD52 1
 #define HWY_NAMESPACE N_AVX10_2
 #define HWY_TARGET_STR HWY_TARGET_STR_AVX10_2
 
