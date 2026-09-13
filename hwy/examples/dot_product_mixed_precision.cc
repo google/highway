@@ -41,6 +41,14 @@ namespace hn = hwy::HWY_NAMESPACE;
 
 uint32_t DotProductSIMD(const uint8_t* HWY_RESTRICT a,
                         const uint8_t* HWY_RESTRICT b, size_t count) {
+#if HWY_TARGET == HWY_SCALAR
+  // SumOfMulQuadAccumulate requires at least four input lanes.
+  uint32_t total = 0;
+  for (size_t i = 0; i < count; ++i) {
+    total += static_cast<uint32_t>(a[i]) * static_cast<uint32_t>(b[i]);
+  }
+  return total;
+#else
   using DU8 = hn::ScalableTag<uint8_t>;
   const DU8 du8;
   using DU32 = hn::ScalableTag<uint32_t>;
@@ -67,6 +75,7 @@ uint32_t DotProductSIMD(const uint8_t* HWY_RESTRICT a,
   uint32_t total = hn::ReduceSum(du32, sum);
 
   return total;
+#endif
 }
 
 }  // namespace HWY_NAMESPACE
