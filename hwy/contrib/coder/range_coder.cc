@@ -21,7 +21,7 @@
 
 #include <vector>
 
-#include "hwy/base.h"  // HWY_DASSERT
+#include "hwy/base.h"  // HWY_DASSERT, HWY_CONTRIB_DLLEXPORT
 
 namespace hwy {
 
@@ -41,8 +41,9 @@ uint32_t ReadBE24(const uint8_t*& src) {
 
 }  // namespace
 
-bool CreateCumulativeProbs(std::vector<uint32_t>& scaled_cum_prob,
-                           std::vector<uint32_t>& freq) {
+HWY_CONTRIB_DLLEXPORT bool CreateCumulativeProbs(
+    std::vector<uint32_t>& scaled_cum_prob,
+    std::vector<uint32_t>& freq) {
   const uint32_t num_syms = static_cast<uint32_t>(freq.size());
   if (num_syms < kRangeMinSyms || num_syms > kRangeMaxSyms) return false;
 
@@ -124,9 +125,10 @@ bool CreateCumulativeProbs(std::vector<uint32_t>& scaled_cum_prob,
   return true;
 }
 
-void BuildDecodeTable(uint32_t num_syms,
-                      const std::vector<uint32_t>& scaled_cum_prob,
-                      std::vector<uint32_t>& table) {
+HWY_CONTRIB_DLLEXPORT void BuildDecodeTable(
+    uint32_t num_syms,
+    const std::vector<uint32_t>& scaled_cum_prob,
+    std::vector<uint32_t>& table) {
   HWY_DASSERT(scaled_cum_prob.size() == num_syms + 1);
   table.assign(kRangeProbScale, 0);
 
@@ -142,9 +144,10 @@ void BuildDecodeTable(uint32_t num_syms,
   }
 }
 
-void EncodeInterleaved(const std::vector<uint8_t>& data,
-                       std::vector<uint8_t>& enc_buf,
-                       const std::vector<uint32_t>& scaled_cum_prob) {
+HWY_CONTRIB_DLLEXPORT void EncodeInterleaved(
+    const std::vector<uint8_t>& data,
+    std::vector<uint8_t>& enc_buf,
+    const std::vector<uint32_t>& scaled_cum_prob) {
   const size_t file_size = data.size();
   HWY_DASSERT(file_size != 0);
 
@@ -196,8 +199,9 @@ void EncodeInterleaved(const std::vector<uint8_t>& data,
   HWY_DASSERT(static_cast<size_t>(dst - enc_buf.data()) == enc_buf.size());
 }
 
-bool DecodeInterleavedScalar(const uint8_t* src, size_t comp_size, uint8_t* dst,
-                             size_t orig_size, const uint32_t* table) {
+HWY_CONTRIB_DLLEXPORT bool DecodeInterleavedScalar(
+    const uint8_t* src, size_t comp_size, uint8_t* dst,
+    size_t orig_size, const uint32_t* table) {
   // Decode from a zero-padded copy so a truncated/corrupt stream can never read
   // out of bounds; a valid stream never reads past `comp_size`.
   std::vector<uint8_t> buf;
@@ -228,7 +232,7 @@ bool DecodeInterleavedScalar(const uint8_t* src, size_t comp_size, uint8_t* dst,
   return static_cast<size_t>(p - p_start) <= comp_size;
 }
 
-const RangeShuffleTables& GetRangeShuffleTables() {
+HWY_CONTRIB_DLLEXPORT const RangeShuffleTables& GetRangeShuffleTables() {
   static const RangeShuffleTables tables = [] {
     RangeShuffleTables t;
     memset(&t, 0, sizeof(t));
