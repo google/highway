@@ -658,7 +658,7 @@
     ((defined(__AVX512VNNI__) && defined(__VAES__) &&             \
       defined(__VPCLMULQDQ__) && defined(__AVX512VBMI__) &&       \
       defined(__AVX512VBMI2__) && defined(__AVX512VPOPCNTDQ__) && \
-      defined(__AVX512BITALG__)) ||                               \
+    defined(__AVX512BITALG__) && defined(__AVX512IFMA__)) ||    \
      defined(__AVX10_2__))
 #define HWY_BASELINE_AVX3_DL HWY_AVX3_DL
 #else

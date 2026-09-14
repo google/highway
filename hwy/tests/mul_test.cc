@@ -112,6 +112,44 @@ struct TestMulOverflow {
   }
 };
 
+struct TestMulAdd52 {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    static_assert(IsSame<T, uint64_t>(), "requires uint64_t");
+    const size_t N = Lanes(d);
+    auto a = AllocateAligned<uint64_t>(N);
+    auto b = AllocateAligned<uint64_t>(N);
+    auto c = AllocateAligned<uint64_t>(N);
+    auto expected_lo = AllocateAligned<uint64_t>(N);
+    auto expected_hi = AllocateAligned<uint64_t>(N);
+    HWY_ASSERT(a && b && c && expected_lo && expected_hi);
+
+    constexpr uint64_t kMask52 = 0x000FFFFFFFFFFFFFULL;
+    constexpr uint64_t kHighBits = 0xFFF0000000000000ULL;
+    for (size_t i = 0; i < N; ++i) {
+      // Inputs must be < 2^52; kMask52 is the maximum allowed value.
+      a[i] = i == 0 ? 0 : (i == 1 ? kMask52 : (i + 1) * 0x12345);
+      b[i] = i == 0 ? 0 : (i == 1 ? kMask52 : (i + 3) * 0x54321);
+      // c has bits above 52 set to verify that the 52-bit product is
+      // zero-extended before being added to the full 64-bit lane.
+      c[i] = kHighBits | (kMask52 - static_cast<uint64_t>(i));
+
+      uint64_t product_hi;
+      const uint64_t product_lo = Mul128(a[i], b[i], &product_hi);
+      const uint64_t product_low52 = product_lo & kMask52;
+      const uint64_t product_high52 = (product_lo >> 52) | (product_hi << 12);
+      expected_lo[i] = c[i] + product_low52;
+      expected_hi[i] = c[i] + product_high52;
+    }
+
+    const auto va = Load(d, a.get());
+    const auto vb = Load(d, b.get());
+    const auto vc = Load(d, c.get());
+    HWY_ASSERT_VEC_EQ(d, expected_lo.get(), MulAdd52Lo(va, vb, vc));
+    HWY_ASSERT_VEC_EQ(d, expected_hi.get(), MulAdd52Hi(va, vb, vc));
+  }
+};
+
 struct TestDivOverflow {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -128,6 +166,10 @@ HWY_NOINLINE void TestAllMul() {
   ForSignedTypes(ForPartialVectors<TestMulOverflow>());
 
   ForFloatTypes(ForPartialVectors<TestDivOverflow>());
+}
+
+HWY_NOINLINE void TestAllMulAdd52() {
+  ForPartialVectors<TestMulAdd52>()(uint64_t());
 }
 
 struct TestMulHigh {
@@ -462,6 +504,7 @@ namespace hwy {
 namespace {
 HWY_BEFORE_TEST(HwyMulTest);
 HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMul);
+HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMulAdd52);
 HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMulHigh);
 HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMulFixedPoint15);
 HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMulEven);

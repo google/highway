@@ -37,6 +37,44 @@ namespace HWY_NAMESPACE {
 
 #if HWY_TARGET <= HWY_AVX3_DL
 
+// ------------------------------ MulAdd52
+
+#ifdef HWY_NATIVE_MULADD52_IMPL
+#undef HWY_NATIVE_MULADD52_IMPL
+#else
+#define HWY_NATIVE_MULADD52_IMPL
+#endif
+
+template <size_t N>
+HWY_API Vec128<uint64_t, N> MulAdd52Lo(Vec128<uint64_t, N> a,
+                                       Vec128<uint64_t, N> b,
+                                       Vec128<uint64_t, N> c) {
+  return Vec128<uint64_t, N>{_mm_madd52lo_epu64(c.raw, a.raw, b.raw)};
+}
+HWY_API Vec256<uint64_t> MulAdd52Lo(Vec256<uint64_t> a, Vec256<uint64_t> b,
+                                    Vec256<uint64_t> c) {
+  return Vec256<uint64_t>{_mm256_madd52lo_epu64(c.raw, a.raw, b.raw)};
+}
+HWY_API Vec512<uint64_t> MulAdd52Lo(Vec512<uint64_t> a, Vec512<uint64_t> b,
+                                    Vec512<uint64_t> c) {
+  return Vec512<uint64_t>{_mm512_madd52lo_epu64(c.raw, a.raw, b.raw)};
+}
+
+template <size_t N>
+HWY_API Vec128<uint64_t, N> MulAdd52Hi(Vec128<uint64_t, N> a,
+                                       Vec128<uint64_t, N> b,
+                                       Vec128<uint64_t, N> c) {
+  return Vec128<uint64_t, N>{_mm_madd52hi_epu64(c.raw, a.raw, b.raw)};
+}
+HWY_API Vec256<uint64_t> MulAdd52Hi(Vec256<uint64_t> a, Vec256<uint64_t> b,
+                                    Vec256<uint64_t> c) {
+  return Vec256<uint64_t>{_mm256_madd52hi_epu64(c.raw, a.raw, b.raw)};
+}
+HWY_API Vec512<uint64_t> MulAdd52Hi(Vec512<uint64_t> a, Vec512<uint64_t> b,
+                                    Vec512<uint64_t> c) {
+  return Vec512<uint64_t>{_mm512_madd52hi_epu64(c.raw, a.raw, b.raw)};
+}
+
 // ------------------------------ ShiftLeft
 
 // Generic for all vector lengths. Must be defined after all GaloisAffine.

@@ -36,6 +36,54 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
+// ------------------------------ MulAdd52
+
+#if (defined(HWY_NATIVE_MULADD52_IMPL) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MULADD52_IMPL
+#undef HWY_NATIVE_MULADD52_IMPL
+#else
+#define HWY_NATIVE_MULADD52_IMPL
+#endif
+
+// Inputs must be < 2^52 (see quick_reference), so no masking is needed and
+// Mul()'s low 64 bits already contain the low 52 bits of the product.
+template <class V, HWY_IF_U64_D(DFromV<V>)>
+HWY_API V MulAdd52Lo(V a, V b, V c) {
+  const auto d = DFromV<V>();
+  const auto mask52 = Set(d, 0x000FFFFFFFFFFFFFULL);
+  return Add(And(Mul(a, b), mask52), c);
+}
+
+// Bits 52..103 of the product. On targets with native 64-bit Mul and MulHigh
+// (SVE, RVV, PPC10, LSX) these are just the high bits of Mul combined with the
+// low bits of MulHigh; HWY_NATIVE_MUL64 is defined there.
+template <class V, HWY_IF_U64_D(DFromV<V>)>
+HWY_API V MulAdd52Hi(V a, V b, V c) {
+#if defined(HWY_NATIVE_MUL64) && HWY_NATIVE_MUL64
+  const auto lo = ShiftRight<52>(Mul(a, b));
+  const auto hi = ShiftLeft<12>(MulHigh(a, b));
+  return Add(Or(lo, hi), c);
+#else
+  // Otherwise split into 32-bit halves; since a, b < 2^52, a1 and b1 are
+  // < 2^20 so every partial product is exact in 64 bits. Adding the low half
+  // of p1 can carry into bit 64, hence the explicit carry.
+  const auto d = DFromV<V>();
+  const auto mask32 = Set(d, 0xFFFFFFFFULL);
+  const auto a0 = And(a, mask32);
+  const auto b0 = And(b, mask32);
+  const auto a1 = ShiftRight<32>(a);
+  const auto b1 = ShiftRight<32>(b);
+  const auto p0 = Mul(a0, b0);
+  const auto p1 = MulAdd(a1, b0, Mul(a0, b1));
+  const auto low = Add(p0, ShiftLeft<32>(And(p1, mask32)));
+  const auto carry = IfThenElse(Lt(low, p0), Set(d, 1), Zero(d));
+  const auto high = Add(Add(Mul(a1, b1), ShiftRight<32>(p1)), carry);
+  return Add(Or(ShiftRight<52>(low), ShiftLeft<12>(high)), c);
+#endif
+}
+
+#endif  // HWY_NATIVE_MULADD52_IMPL
+
 // The lane type of a vector type, e.g. float for Vec<ScalableTag<float>>.
 template <class V>
 using LaneType = decltype(GetLane(V()));
