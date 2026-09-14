@@ -53,8 +53,11 @@ namespace range_coder {
 
 // HWY_SCALAR has a single lane and cannot form the 4-lane vector the kernel
 // needs, so it decodes with the scalar reference implementation, which produces
-// identical output.
-#if HWY_TARGET == HWY_SCALAR
+// identical output. On ARMv7 NEON, float division is approximate (implemented
+// with Newton-Raphson reciprocal iterations without hardware vdiv.f32), so
+// integer division truncation is not exact; use the scalar reference
+// implementation there as well.
+#if HWY_TARGET == HWY_SCALAR || (HWY_TARGET <= HWY_NEON_WITHOUT_AES && HWY_ARCH_ARM_V7)
 
 HWY_INLINE bool DecodeInterleaved(const uint8_t* HWY_RESTRICT src,
                                   size_t comp_size, uint8_t* HWY_RESTRICT dst,
