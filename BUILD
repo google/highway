@@ -494,6 +494,7 @@ cc_library(
         "hwy/contrib/iguana/iguana.cc",
     ],
     hdrs = [
+        "hwy/contrib/iguana/detail.h",
         "hwy/contrib/iguana/iguana.h",
     ],
     compatible_with = [],

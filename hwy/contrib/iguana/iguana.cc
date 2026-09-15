@@ -243,7 +243,7 @@ struct Encoder {
     if (*tp + *len >
         static_cast<int64_t>(src_len) - static_cast<int64_t>(kMinOffset)) {
       if (*tp - *mp >= static_cast<int64_t>(kMinOffset)) {
-        constexpr int64_t lomask = kMinOffset - 1;
+        constexpr int64_t lomask = static_cast<int64_t>(kMinOffset) - 1;
         if (*tp + ((*len + lomask) & ~lomask) > static_cast<int64_t>(src_len)) {
           *len &= ~lomask;
         }
@@ -252,7 +252,7 @@ struct Encoder {
         const int64_t tailpos = movsize ? *len - (*len % movsize) : *len;
         const int64_t end = static_cast<int64_t>(src_len);
         if (*tp + tailpos + static_cast<int64_t>(kMinOffset) > end) {
-          const int64_t safedist = (end - kMinOffset) - *tp;
+          const int64_t safedist = (end - static_cast<int64_t>(kMinOffset)) - *tp;
           *len = movsize ? (safedist / movsize) * movsize : 0;
         }
       }
@@ -333,7 +333,8 @@ struct Encoder {
 
   void CompressSrc() {
     constexpr int64_t kSkipStep = 2;
-    const int64_t last = static_cast<int64_t>(src_len) - kMinOffset;
+    const int64_t last =
+        static_cast<int64_t>(src_len) - static_cast<int64_t>(kMinOffset);
     last_encoded_offset = 0;
     int64_t pos = 5;
     int64_t litpos = 0;
