@@ -111,6 +111,7 @@ COPTS = select({
     "//conditions:default": CLANG_ONLY_COPTS,
 }) + select({
     "@platforms//cpu:riscv64": [
+        # cpu extensions.
         "-march=rv64gcv1p0",
         "-menable-experimental-extensions",
     ],
