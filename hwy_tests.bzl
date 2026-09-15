@@ -253,6 +253,7 @@ HWY_TESTS = HWY_CONTRIB_TESTS + (
     ("hwy/tests/", "count_test", []),
     ("hwy/tests/", "crypto_test", []),
     ("hwy/tests/", "demote_test", []),
+    ("hwy/tests/", "differential_test", []),
     ("hwy/tests/", "div_test", []),
     ("hwy/tests/", "dup128_vec_test", []),
     ("hwy/tests/", "expand_test", []),
