@@ -160,8 +160,9 @@ size_t Count(D d, T value, const T* HWY_RESTRICT in, size_t count) {
       }
     }
     total += static_cast<size_t>(ReduceSum(di32, wide_sum));
-  } else {
-    // Lane type wide enough to accumulate directly
+  } else if constexpr (sizeof(T) >= 4) {
+    // Lane type wide enough to accumulate directly. Narrower lanes on tags too
+    // small to widen would overflow here, so they use the CountTrue loop below.
     if (count >= 4 * N) {
       VI acc0 = Zero(di);
       VI acc1 = Zero(di);
@@ -339,8 +340,9 @@ size_t CountIf(D d, const T* HWY_RESTRICT in, size_t count, const Func& func) {
       }
     }
     total += static_cast<size_t>(ReduceSum(di32, wide_sum));
-  } else {
-    // Lane type wide enough to accumulate directly
+  } else if constexpr (sizeof(T) >= 4) {
+    // Lane type wide enough to accumulate directly. Narrower lanes on tags too
+    // small to widen would overflow here, so they use the CountTrue loop below.
     if (count >= 4 * N) {
       VI acc0 = Zero(di);
       VI acc1 = Zero(di);

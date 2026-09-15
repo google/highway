@@ -101,9 +101,7 @@ struct TestCount {
 };
 
 void TestAllCount() {
-  // Widens to i32, hence require at least 4 i8 or 2 i16. We have an adapter for
-  // 128-bit and above which is stricter than required.
-  ForAllTypes(ForGE128Vectors<ForeachCountAndMisalign<TestCount>>());
+  ForAllTypes(ForPartialVectors<ForeachCountAndMisalign<TestCount>>());
 }
 
 struct TestCountIf {
@@ -141,9 +139,7 @@ struct TestCountIf {
 };
 
 void TestAllCountIf() {
-  // Widens to i32, hence require at least 4 i8 or 2 i16. We have an adapter for
-  // 128-bit and above which is stricter than required.
-  ForAllTypes(ForGE128Vectors<ForeachCountAndMisalign<TestCountIf>>());
+  ForAllTypes(ForPartialVectors<ForeachCountAndMisalign<TestCountIf>>());
 }
 
 // Regression test for a 16-bit accumulator overflow: the inner-loop cap was
@@ -172,6 +168,43 @@ void TestAllLargeMatchingCount() {
   ForAllTypes(ForGE128Vectors<TestLargeMatchingCount>());
 }
 
+// Tags with fewer than 4 i8 or 2 i16 lanes cannot widen, and used to overflow
+// by accumulating matches in their own lane type.
+size_t narrow_failures = 0;
+
+struct TestNarrowMatchingCount {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) const {
+    if (sizeof(T) > 2) return;
+    const size_t N = Lanes(d);
+    // More matches per lane than an int8 or int16 accumulator can hold.
+    const size_t per_lane = sizeof(T) == 1 ? 300 : 40000;
+    const size_t count = per_lane * 4 * N;
+    AlignedFreeUniquePtr<T[]> storage = AllocateAligned<T>(count);
+    HWY_ASSERT(storage);
+    T* in = storage.get();
+    const T value = ConvertScalarTo<T>(7);
+    for (size_t i = 0; i < count; ++i) in[i] = value;
+
+    const auto eq = [value](const auto d2, const auto v)
+                        HWY_ATTR { return Eq(v, Set(d2, value)); };
+    const size_t actual = Count(d, value, in, count);
+    const size_t actual_if = CountIf(d, in, count, eq);
+    if (actual != count || actual_if != count) {
+      fprintf(stderr, "%s count %d: Count %d CountIf %d\n",
+              hwy::TypeName(T(), N).c_str(), static_cast<int>(count),
+              static_cast<int>(actual), static_cast<int>(actual_if));
+      ++narrow_failures;
+    }
+  }
+};
+
+void TestAllNarrowMatchingCount() {
+  narrow_failures = 0;
+  ForIntegerTypes(ForPartialVectors<TestNarrowMatchingCount>());
+  HWY_ASSERT_EQ(size_t{0}, narrow_failures);
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -185,6 +218,7 @@ HWY_BEFORE_TEST(CountTest);
 HWY_EXPORT_AND_TEST_P(CountTest, TestAllCount);
 HWY_EXPORT_AND_TEST_P(CountTest, TestAllCountIf);
 HWY_EXPORT_AND_TEST_P(CountTest, TestAllLargeMatchingCount);
+HWY_EXPORT_AND_TEST_P(CountTest, TestAllNarrowMatchingCount);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy
