@@ -330,7 +330,6 @@ struct Encoder {
 
   void CompressSrc() {
     constexpr int64_t kSkipStep = 2;
-    for (auto& e : chains) e = {};
     const int64_t last = static_cast<int64_t>(src_len) - kMinOffset;
     last_encoded_offset = 0;
     int64_t pos = 5;
