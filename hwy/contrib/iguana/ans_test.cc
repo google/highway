@@ -116,4 +116,5 @@ HWY_EXPORT_AND_TEST_P(IguanaAnsTest, TestRoundTripSizes);
 HWY_EXPORT_AND_TEST_P(IguanaAnsTest, TestRoundTripModels);
 HWY_AFTER_TEST();
 }  // namespace hwy
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

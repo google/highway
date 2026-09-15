@@ -106,4 +106,5 @@ HWY_EXPORT_AND_TEST_P(CrcTest, TestAgainstReference);
 HWY_EXPORT_AND_TEST_P(CrcTest, TestStreaming);
 HWY_AFTER_TEST();
 }  // namespace hwy
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE
