@@ -14,19 +14,21 @@
 // limitations under the License.
 //
 #include <stddef.h>
+#include <stdint.h>
 
-#include <bitset>
+#include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <iostream>
-#include <set>
 #include <string>
+#include <vector>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/examples/mandelbrot.cc"
 #include "hwy/aligned_allocator.h"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
+#include "hwy/per_target.h"
 #include "hwy/timer.h"
 
 /*
@@ -80,6 +82,7 @@ References:
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+#if HWY_TARGET != HWY_SCALAR  // for OrderedTruncate2To
 namespace hn = hwy::HWY_NAMESPACE;
 
 using DU8 = hn::ScalableTag<uint8_t>;
@@ -98,26 +101,6 @@ using DF = hn::ScalableTag<float>;
 const DF df;
 using MF = hn::Mask<decltype(df)>;
 using VF = hn::Vec<DF>;
-
-void MandelbrotScalarSetup(uint8_t* HWY_RESTRICT r, uint8_t* HWY_RESTRICT g,
-                           uint8_t* HWY_RESTRICT b, float* HWY_RESTRICT x,
-                           float* HWY_RESTRICT y, const size_t x_points,
-                           const size_t y_points) {
-  float x_max = static_cast<float>(x_points / 2);
-  float y_max = static_cast<float>(y_points / 2);
-  for (size_t ij = 0; ij < x_points * y_points; ij++) {
-    float itemp = static_cast<float>(ij % y_points);
-    float i = itemp - x_max;
-    float j =
-        ((static_cast<float>(ij) - i) / static_cast<float>(y_points)) - y_max;
-    // Domain size [-3,3]x[-3,3]
-    x[ij] = 3.0f * i / x_max;
-    y[ij] = 3.0f * j / y_max;
-    r[ij] = 0;
-    g[ij] = 0;
-    b[ij] = 0;
-  }
-}
 
 void MandelbrotSimdSetup(uint8_t* HWY_RESTRICT r, uint8_t* HWY_RESTRICT g,
                          uint8_t* HWY_RESTRICT b, float* HWY_RESTRICT x,
@@ -152,111 +135,6 @@ void MandelbrotSimdSetup(uint8_t* HWY_RESTRICT r, uint8_t* HWY_RESTRICT g,
     hn::Store(hn::Zero(du8), du8, r + ij);
     hn::Store(hn::Zero(du8), du8, g + ij);
     hn::Store(hn::Zero(du8), du8, b + ij);
-  }
-}
-
-uint8_t CalculateNextScalar(float* x, float* y, const size_t ij) {
-  const float sx = x[ij];
-  const float sy = y[ij];
-  const float sxx = sx * sx;
-  const float syy = sy * sy;
-  const float sxy = sx * sy;
-  const float sxxx = sxx * sx;
-  const float syyy = syy * sy;
-  const float sxxpyy = sxx + syy;
-  const float sxxmyy = sxx - syy;
-  /*
-  x_(n+1) = ((x_n^2-y_n^2)*(1-2*(x_n^3-3*x_n*y_n^2))
-             -4*x_n*y_n*(3*x_n^2*y_n-y_n^3))
-           /(3*(y_n^2+x_n^2)^2)
-
-  y_(n+1) = -2*((x_n^2-y_n^2)*(3*x_n^2*y_n-y_n^3)
-                +x_n*y_n*(1-2*(x_n^3-3*x_n*y_n^2)))
-          /(3*(y_n^2+x_n^2)^2)
-  numer1 = (x_n^2-y_n^2)
-  numer2 = (1-2*(x_n^3-3*x_n*y_n^2)
-  numer3 = (3*x_n^2*y_n-y_n^3)
-  denom = (3*(y_n^2+x_n^2)^2)
-  */
-  const float numer1 = sxxmyy;
-  const float numer2 = (1.0f - 2.0f * (sxxx - 3.0f * sx * syy));
-  const float numer3 = (3.0f * sxx * sy - syyy);
-  const float denom = 3.0f * (sxxpyy * sxxpyy);
-  x[ij] = (numer1 * numer2 - 4.0f * sxy * numer3) / denom;
-  y[ij] = -2.0f * (numer1 * numer3 + sxy * numer2) / denom;
-  // To minimize recomputation, use previous iterates values
-  // for determining whether escaped or not
-  return static_cast<uint8_t>(std::min(std::floor(10.0f * sxxpyy), 255.0f));
-}
-
-void MandelbrotScalarCompute(uint8_t* HWY_RESTRICT r, uint8_t* HWY_RESTRICT g,
-                             uint8_t* HWY_RESTRICT b, float* HWY_RESTRICT x,
-                             float* HWY_RESTRICT y, const size_t x_points,
-                             const size_t y_points, const size_t iter_max_r,
-                             const size_t iter_max_g, const size_t iter_max_b,
-                             const float escape_value) {
-  float iter_max_r_f = static_cast<float>(iter_max_r);
-  float iter_max_g_f = static_cast<float>(iter_max_g);
-  float iter_max_b_f = static_cast<float>(iter_max_b);
-
-  size_t n = 0;
-  std::vector<bool> not_escaped(x_points * y_points);
-  for (size_t ij = 0; ij < x_points * y_points; ij++) {
-    not_escaped[ij] = 1;
-  }
-
-  for (; n < iter_max_r; n++) {
-    uint8_t r_new = static_cast<uint8_t>(std::ceil(
-        255.0f * (iter_max_r_f - static_cast<float>(n)) / iter_max_r_f));
-    uint8_t g_new = static_cast<uint8_t>(std::ceil(
-        255.0f * (iter_max_g_f - static_cast<float>(n)) / iter_max_g_f));
-    uint8_t b_new = static_cast<uint8_t>(std::ceil(
-        255.0f * (iter_max_b_f - static_cast<float>(n)) / iter_max_b_f));
-    for (size_t ij = 0; ij < x_points * y_points; ij++) {
-      if (not_escaped[ij]) {
-        uint8_t norm = CalculateNextScalar(x, y, ij);
-        if (norm > static_cast<uint8_t>(
-                       std::floor(10.0f * escape_value * escape_value))) {
-          r[ij] = r_new;
-          g[ij] = g_new;
-          b[ij] = b_new;
-          not_escaped[ij] = 0;
-        }
-      }
-    }
-  }
-
-  for (; n < iter_max_g; n++) {
-    uint8_t g_new = static_cast<uint8_t>(std::ceil(
-        255.0f * (iter_max_g_f - static_cast<float>(n)) / iter_max_g_f));
-    uint8_t b_new = static_cast<uint8_t>(std::ceil(
-        255.0f * (iter_max_b_f - static_cast<float>(n)) / iter_max_b_f));
-    for (size_t ij = 0; ij < x_points * y_points; ij++) {
-      if (not_escaped[ij]) {
-        uint8_t norm = CalculateNextScalar(x, y, ij);
-        if (norm > static_cast<uint8_t>(
-                       std::floor(10.0f * escape_value * escape_value))) {
-          g[ij] = g_new;
-          b[ij] = b_new;
-          not_escaped[ij] = 0;
-        }
-      }
-    }
-  }
-
-  for (; n < iter_max_b; n++) {
-    uint8_t b_new = static_cast<uint8_t>(std::ceil(
-        255.0f * (iter_max_b_f - static_cast<float>(n)) / iter_max_b_f));
-    for (size_t ij = 0; ij < x_points * y_points; ij++) {
-      if (not_escaped[ij]) {
-        uint8_t norm = CalculateNextScalar(x, y, ij);
-        if (norm > static_cast<uint8_t>(
-                       std::floor(10.0f * escape_value * escape_value))) {
-          b[ij] = b_new;
-          not_escaped[ij] = 0;
-        }
-      }
-    }
   }
 }
 
@@ -436,18 +314,6 @@ void MandelbrotSimdCompute(uint8_t* HWY_RESTRICT r, uint8_t* HWY_RESTRICT g,
   }
 }
 
-void CreatePPMScalar(const uint8_t* HWY_RESTRICT r,
-                     const uint8_t* HWY_RESTRICT g,
-                     const uint8_t* HWY_RESTRICT b, uint8_t* HWY_RESTRICT ppm,
-                     const size_t x_points, const size_t y_points) {
-  for (size_t n = 0; n < x_points * y_points; ++n) {
-    ppm[3 * n] = r[n];
-    ppm[3 * n + 1] = g[n];
-    ppm[3 * n + 2] = b[n];
-  }
-  return;
-}
-
 void CreatePPMSimd(const uint8_t* HWY_RESTRICT r, const uint8_t* HWY_RESTRICT g,
                    const uint8_t* HWY_RESTRICT b, uint8_t* HWY_RESTRICT ppm,
                    const size_t x_points, const size_t y_points) {
@@ -459,18 +325,164 @@ void CreatePPMSimd(const uint8_t* HWY_RESTRICT r, const uint8_t* HWY_RESTRICT g,
   }
 }
 
+#else   // HWY_TARGET == HWY_SCALAR
+void MandelbrotSimdSetup(uint8_t* HWY_RESTRICT, uint8_t* HWY_RESTRICT,
+                         uint8_t* HWY_RESTRICT, float* HWY_RESTRICT,
+                         float* HWY_RESTRICT, size_t, size_t) {}
+void MandelbrotSimdCompute(uint8_t* HWY_RESTRICT, uint8_t* HWY_RESTRICT,
+                           uint8_t* HWY_RESTRICT, float* HWY_RESTRICT,
+                           float* HWY_RESTRICT, size_t, size_t, size_t, size_t,
+                           size_t, const float) {}
+void CreatePPMSimd(const uint8_t* HWY_RESTRICT, const uint8_t* HWY_RESTRICT,
+                   const uint8_t* HWY_RESTRICT, uint8_t* HWY_RESTRICT, size_t,
+                   size_t) {}
+#endif  // HWY_TARGET != HWY_SCALAR
+
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
 namespace hwy {
-HWY_EXPORT(MandelbrotScalarSetup);
 HWY_EXPORT(MandelbrotSimdSetup);
-HWY_EXPORT(MandelbrotScalarCompute);
 HWY_EXPORT(MandelbrotSimdCompute);
-HWY_EXPORT(CreatePPMScalar);
 HWY_EXPORT(CreatePPMSimd);
+
+void MandelbrotScalarSetup(uint8_t* HWY_RESTRICT r, uint8_t* HWY_RESTRICT g,
+                           uint8_t* HWY_RESTRICT b, float* HWY_RESTRICT x,
+                           float* HWY_RESTRICT y, const size_t x_points,
+                           const size_t y_points) {
+  float x_max = static_cast<float>(x_points / 2);
+  float y_max = static_cast<float>(y_points / 2);
+  for (size_t ij = 0; ij < x_points * y_points; ij++) {
+    float itemp = static_cast<float>(ij % y_points);
+    float i = itemp - x_max;
+    float j =
+        ((static_cast<float>(ij) - i) / static_cast<float>(y_points)) - y_max;
+    // Domain size [-3,3]x[-3,3]
+    x[ij] = 3.0f * i / x_max;
+    y[ij] = 3.0f * j / y_max;
+    r[ij] = 0;
+    g[ij] = 0;
+    b[ij] = 0;
+  }
+}
+
+uint8_t CalculateNextScalar(float* x, float* y, const size_t ij) {
+  const float sx = x[ij];
+  const float sy = y[ij];
+  const float sxx = sx * sx;
+  const float syy = sy * sy;
+  const float sxy = sx * sy;
+  const float sxxx = sxx * sx;
+  const float syyy = syy * sy;
+  const float sxxpyy = sxx + syy;
+  const float sxxmyy = sxx - syy;
+  /*
+  x_(n+1) = ((x_n^2-y_n^2)*(1-2*(x_n^3-3*x_n*y_n^2))
+             -4*x_n*y_n*(3*x_n^2*y_n-y_n^3))
+           /(3*(y_n^2+x_n^2)^2)
+
+  y_(n+1) = -2*((x_n^2-y_n^2)*(3*x_n^2*y_n-y_n^3)
+                +x_n*y_n*(1-2*(x_n^3-3*x_n*y_n^2)))
+          /(3*(y_n^2+x_n^2)^2)
+  numer1 = (x_n^2-y_n^2)
+  numer2 = (1-2*(x_n^3-3*x_n*y_n^2)
+  numer3 = (3*x_n^2*y_n-y_n^3)
+  denom = (3*(y_n^2+x_n^2)^2)
+  */
+  const float numer1 = sxxmyy;
+  const float numer2 = (1.0f - 2.0f * (sxxx - 3.0f * sx * syy));
+  const float numer3 = (3.0f * sxx * sy - syyy);
+  const float denom = 3.0f * (sxxpyy * sxxpyy);
+  x[ij] = (numer1 * numer2 - 4.0f * sxy * numer3) / denom;
+  y[ij] = -2.0f * (numer1 * numer3 + sxy * numer2) / denom;
+  // To minimize recomputation, use previous iterates values
+  // for determining whether escaped or not
+  return static_cast<uint8_t>(std::min(std::floor(10.0f * sxxpyy), 255.0f));
+}
+
+void MandelbrotScalarCompute(uint8_t* HWY_RESTRICT r, uint8_t* HWY_RESTRICT g,
+                             uint8_t* HWY_RESTRICT b, float* HWY_RESTRICT x,
+                             float* HWY_RESTRICT y, const size_t x_points,
+                             const size_t y_points, const size_t iter_max_r,
+                             const size_t iter_max_g, const size_t iter_max_b,
+                             const float escape_value) {
+  float iter_max_r_f = static_cast<float>(iter_max_r);
+  float iter_max_g_f = static_cast<float>(iter_max_g);
+  float iter_max_b_f = static_cast<float>(iter_max_b);
+
+  size_t n = 0;
+  std::vector<bool> not_escaped(x_points * y_points);
+  for (size_t ij = 0; ij < x_points * y_points; ij++) {
+    not_escaped[ij] = 1;
+  }
+
+  for (; n < iter_max_r; n++) {
+    uint8_t r_new = static_cast<uint8_t>(std::ceil(
+        255.0f * (iter_max_r_f - static_cast<float>(n)) / iter_max_r_f));
+    uint8_t g_new = static_cast<uint8_t>(std::ceil(
+        255.0f * (iter_max_g_f - static_cast<float>(n)) / iter_max_g_f));
+    uint8_t b_new = static_cast<uint8_t>(std::ceil(
+        255.0f * (iter_max_b_f - static_cast<float>(n)) / iter_max_b_f));
+    for (size_t ij = 0; ij < x_points * y_points; ij++) {
+      if (not_escaped[ij]) {
+        uint8_t norm = CalculateNextScalar(x, y, ij);
+        if (norm > static_cast<uint8_t>(
+                       std::floor(10.0f * escape_value * escape_value))) {
+          r[ij] = r_new;
+          g[ij] = g_new;
+          b[ij] = b_new;
+          not_escaped[ij] = 0;
+        }
+      }
+    }
+  }
+
+  for (; n < iter_max_g; n++) {
+    uint8_t g_new = static_cast<uint8_t>(std::ceil(
+        255.0f * (iter_max_g_f - static_cast<float>(n)) / iter_max_g_f));
+    uint8_t b_new = static_cast<uint8_t>(std::ceil(
+        255.0f * (iter_max_b_f - static_cast<float>(n)) / iter_max_b_f));
+    for (size_t ij = 0; ij < x_points * y_points; ij++) {
+      if (not_escaped[ij]) {
+        uint8_t norm = CalculateNextScalar(x, y, ij);
+        if (norm > static_cast<uint8_t>(
+                       std::floor(10.0f * escape_value * escape_value))) {
+          g[ij] = g_new;
+          b[ij] = b_new;
+          not_escaped[ij] = 0;
+        }
+      }
+    }
+  }
+
+  for (; n < iter_max_b; n++) {
+    uint8_t b_new = static_cast<uint8_t>(std::ceil(
+        255.0f * (iter_max_b_f - static_cast<float>(n)) / iter_max_b_f));
+    for (size_t ij = 0; ij < x_points * y_points; ij++) {
+      if (not_escaped[ij]) {
+        uint8_t norm = CalculateNextScalar(x, y, ij);
+        if (norm > static_cast<uint8_t>(
+                       std::floor(10.0f * escape_value * escape_value))) {
+          b[ij] = b_new;
+          not_escaped[ij] = 0;
+        }
+      }
+    }
+  }
+}
+
+void CreatePPMScalar(const uint8_t* HWY_RESTRICT r,
+                     const uint8_t* HWY_RESTRICT g,
+                     const uint8_t* HWY_RESTRICT b, uint8_t* HWY_RESTRICT ppm,
+                     const size_t x_points, const size_t y_points) {
+  for (size_t n = 0; n < x_points * y_points; ++n) {
+    ppm[3 * n] = r[n];
+    ppm[3 * n + 1] = g[n];
+    ppm[3 * n + 2] = b[n];
+  }
+}
 
 static bool Validate(const uint8_t* ppm_scalar, const uint8_t* ppm_simd,
                      const size_t x_points, const size_t y_points) {
@@ -502,17 +514,16 @@ static void WritePPM(std::string filename, const uint8_t* ppm,
             << std::to_string(ppm[3 * n + 2]) << "\n";
   }
   ppmfile.close();
-  return;
 }
 
 static void PrintTimeMeasurement(const double t0, const double t1,
                                  const std::string measurement) {
   std::cout << measurement << " time: " << 1000.0 * (t1 - t0) << " ms"
             << std::endl;
-  return;
 }
 
 static void Run() {
+  if (DispatchedTarget() == HWY_SCALAR) return;
   const size_t x_points =
       512;  // Grid points in x direction, needs to be multiple of 512
   const size_t y_points =
@@ -524,7 +535,7 @@ static void Run() {
   const size_t iter_max_b =
       100;  // Iterations to perform for blue, needs iter_max_b >= iter_max_g
   const float escape_value =
-      2.0f;  // Value for which point is considered no longer iteratable
+      2.0f;  // Value for which point is considered no longer iterable
   AlignedVector<uint8_t> r_scalar(y_points * x_points);
   AlignedVector<uint8_t> g_scalar(y_points * x_points);
   AlignedVector<uint8_t> b_scalar(y_points * x_points);
@@ -539,9 +550,8 @@ static void Run() {
   AlignedVector<float> y_simd(y_points * x_points);
   // start timer
   const double t_scalar_setup_0 = hwy::platform::Now();
-  HWY_DYNAMIC_DISPATCH(MandelbrotScalarSetup)(
-      r_scalar.data(), g_scalar.data(), b_scalar.data(), x_scalar.data(),
-      y_scalar.data(), x_points, y_points);
+  MandelbrotScalarSetup(r_scalar.data(), g_scalar.data(), b_scalar.data(),
+                        x_scalar.data(), y_scalar.data(), x_points, y_points);
   // stop timing and print execution time
   const double t_scalar_setup_1 = hwy::platform::Now();
   PrintTimeMeasurement(t_scalar_setup_0, t_scalar_setup_1, "Scalar setup");
@@ -555,10 +565,9 @@ static void Run() {
   PrintTimeMeasurement(t_simd_setup_0, t_simd_setup_1, "SIMD setup");
   // start timer
   const double t_scalar_compute_0 = hwy::platform::Now();
-  HWY_DYNAMIC_DISPATCH(MandelbrotScalarCompute)(
-      r_scalar.data(), g_scalar.data(), b_scalar.data(), x_scalar.data(),
-      y_scalar.data(), x_points, y_points, iter_max_r, iter_max_g, iter_max_b,
-      escape_value);
+  MandelbrotScalarCompute(r_scalar.data(), g_scalar.data(), b_scalar.data(),
+                          x_scalar.data(), y_scalar.data(), x_points, y_points,
+                          iter_max_r, iter_max_g, iter_max_b, escape_value);
   // stop timing and print execution time
   const double t_scalar_compute_1 = hwy::platform::Now();
   PrintTimeMeasurement(t_scalar_compute_0, t_scalar_compute_1,
@@ -573,9 +582,8 @@ static void Run() {
   PrintTimeMeasurement(t_simd_compute_0, t_simd_compute_1, "SIMD computation");
   // start timing
   const double t_scalar_convert_0 = hwy::platform::Now();
-  HWY_DYNAMIC_DISPATCH(CreatePPMScalar)(r_scalar.data(), g_scalar.data(),
-                                        b_scalar.data(), ppm_scalar.data(),
-                                        x_points, y_points);
+  CreatePPMScalar(r_scalar.data(), g_scalar.data(), b_scalar.data(),
+                  ppm_scalar.data(), x_points, y_points);
   // stop timing and print execution time
   const double t_scalar_convert_1 = hwy::platform::Now();
   PrintTimeMeasurement(t_scalar_convert_0, t_scalar_convert_1,

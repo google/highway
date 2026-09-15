@@ -25,6 +25,7 @@
 // Put after foreach_target.h to avoid redefinition errors
 #include "hwy/aligned_allocator.h"
 #include "hwy/highway.h"
+#include "hwy/per_target.h"
 #include "hwy/print-inl.h"
 
 /*
@@ -60,6 +61,8 @@ void Setup(uint32_t* HWY_RESTRICT data, const size_t points) {
   }
 }
 
+#if HWY_TARGET != HWY_SCALAR  // For UpperHalf
+
 void LocalMix(uint32_t* HWY_RESTRICT data, const size_t points) {
   // mix within a vector
   uint32_t NU32 = static_cast<uint32_t>(hn::Lanes(du32));
@@ -69,7 +72,6 @@ void LocalMix(uint32_t* HWY_RESTRICT data, const size_t points) {
     VU32h upper = hn::UpperHalf(du32h, vec);
     hn::StoreInterleaved2(upper, lower, du32h, data + i);
   }
-  return;
 }
 
 void Diffuse(uint32_t* HWY_RESTRICT data, const size_t points,
@@ -90,9 +92,12 @@ void Diffuse(uint32_t* HWY_RESTRICT data, const size_t points,
   hn::StoreU(vec, du32, data + points - NU32);
   // Demonstrate how to print vector contents for debugging
   hn::Print(du32, "\nLast diffused vector\n", vec);
-  return;
 }
 
+#else   // HWY_TARGET == HWY_SCALAR
+void LocalMix(uint32_t* HWY_RESTRICT, size_t) {}
+void Diffuse(uint32_t* HWY_RESTRICT, size_t, size_t) {}
+#endif  // HWY_TARGET != HWY_SCALAR
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
@@ -104,6 +109,7 @@ HWY_EXPORT(LocalMix);
 HWY_EXPORT(Setup);
 
 int Run() {
+  if (hwy::DispatchedTarget() == HWY_SCALAR) return 0;
   const size_t points = 512;  // Needs to be less than 2^32 ~ 4*10^9, should
                               // be a multiple of 64 for vector alignment
   const size_t diffuse_length = 3;  // Needs to be positive but less than NU32

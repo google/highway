@@ -21,9 +21,11 @@
 #include <vector>
 
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "hwy/examples/dot_product_mixed_precision.cc"
+#define HWY_TARGET_INCLUDE \
+  "hwy/examples/dot_product_mixed_precision.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
+#include "hwy/per_target.h"
 #include "hwy/timer.h"
 
 /*
@@ -31,12 +33,13 @@ Highway SIMD Tutorial: Mixed precision dot product
 
 This example demonstrates how to perform a dot product where the inputs are
 uint8_t and are promoted uint32_t to prevent overflow.
-
 */
 
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+#if HWY_TARGET != HWY_SCALAR  // for SumOfMulQuadAccumulate
+
 namespace hn = hwy::HWY_NAMESPACE;
 
 uint32_t DotProductSIMD(const uint8_t* HWY_RESTRICT a,
@@ -69,6 +72,13 @@ uint32_t DotProductSIMD(const uint8_t* HWY_RESTRICT a,
   return total;
 }
 
+#else   // HWY_TARGET == HWY_SCALAR
+uint32_t DotProductSIMD(const uint8_t* HWY_RESTRICT,
+                        const uint8_t* HWY_RESTRICT, size_t) {
+  return 0;
+}
+#endif  // HWY_TARGET == HWY_SCALAR
+
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
@@ -89,6 +99,7 @@ uint32_t DotProductScalar(const uint8_t* HWY_RESTRICT a,
 }
 
 int Run() {
+  if (DispatchedTarget() == HWY_SCALAR) return 0;
   const size_t count = 10000025;
   std::vector<uint8_t> a(count);
   std::vector<uint8_t> b(count);
@@ -96,7 +107,8 @@ int Run() {
   std::iota(b.begin(), b.end(), 1);
   // Record start time
   const double t_scalar_0 = hwy::platform::Now();
-  uint32_t scalar_dot_product = hwy::DotProductScalar(a.data(), b.data(), count);
+  uint32_t scalar_dot_product =
+      hwy::DotProductScalar(a.data(), b.data(), count);
   // Record end time and print execution time and dot product
   const double t_scalar_1 = hwy::platform::Now();
   const double dt_scalar = 1000.0 * (t_scalar_1 - t_scalar_0);
