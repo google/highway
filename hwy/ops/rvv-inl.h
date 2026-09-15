@@ -7021,10 +7021,24 @@ HWY_RVV_FOREACH_I16(HWY_RVV_WIDEN_MACC, WidenMulAcc, wmacc_vv_, _EXT_VIRT)
 HWY_RVV_FOREACH_U16(HWY_RVV_WIDEN_MACC, WidenMulAcc, wmaccu_vv_, _EXT_VIRT)
 #undef HWY_RVV_WIDEN_MACC
 
-// If LMUL is the smallest, one below what is allowed by the riscv spec,
-// the tail of sum needs to hold the values of sum1. This is required by 
-// RearrangeOddPlusEven, because it does not have access to D.
-// Lanes(d32) != Lanes(DFromV<V32>)
+#define HWY_RVV_WIDEN_MUL(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                          SHIFT, MLEN, NAME, OP)                            \
+  template <size_t N>                                                       \
+  HWY_API HWY_RVV_V(BASE, SEWD, LMULD) NAME(                                \
+      HWY_RVV_D(BASE, SEWD, N, SHIFT + 1) d, HWY_RVV_V(BASE, SEW, LMUL) a, \
+      HWY_RVV_V(BASE, SEW, LMUL) b) {                                       \
+    return __riscv_v##OP##CHAR##SEWD##LMULD(a, b, Lanes(d));               \
+  }
+
+HWY_RVV_FOREACH_I16(HWY_RVV_WIDEN_MUL, WidenMul, wmul_vv_, _EXT_VIRT)
+HWY_RVV_FOREACH_U16(HWY_RVV_WIDEN_MUL, WidenMul, wmulu_vv_, _EXT_VIRT)
+#undef HWY_RVV_WIDEN_MUL
+
+// For the virtual e32,mf4 descriptor, VFromD<D32> is the same native
+// e32,mf2 vector type as for a real e32,mf2 descriptor. Only the first
+// Lanes(d32) lanes are active. Keep all state required by
+// RearrangeToOddPlusEven in the active lanes of sum0/sum1; do not rely on
+// the tail surviving a Store/Load.
 template <class D32, HWY_IF_POW2_LE_D(D32, -2), class V32 = VFromD<D32>,
           class D16 = RepartitionToNarrow<D32>>
 HWY_API VFromD<D32> ReorderWidenMulAccumulateI16(D32 d32, VFromD<D16> a,
@@ -7038,20 +7052,45 @@ HWY_API VFromD<D32> ReorderWidenMulAccumulateI16(D32 d32, VFromD<D16> a,
   return LowerHalf(d32, sum);
 }
 
-// LMUL not smallest 
+// For real e32,mf2, use a block-transposed persistent representation that is
+// also decodable when the same native vector type represents virtual e32,mf4:
+//   natural products: [P0 | P1 | P2 | P3]
+//   sum0:             [P0 | P2]
+//   sum1:             [P1 | P3]
+// Each P block has Lanes(Half<D32>()) lanes. For LMUL >= 1, retain the
+// existing lower/upper-half representation and fast path.
 template <class D32, HWY_IF_POW2_GT_D(D32, -2), class V32 = VFromD<D32>,
           class D16 = RepartitionToNarrow<D32>>
 HWY_API VFromD<D32> ReorderWidenMulAccumulateI16(D32 d32, VFromD<D16> a,
                                                  VFromD<D16> b, const V32 sum0,
                                                  V32& sum1) {
-  sum1 = MulAdd(PromoteUpperTo(d32, a), PromoteUpperTo(d32, b), sum1);
-  return MulAdd(PromoteLowerTo(d32, a), PromoteLowerTo(d32, b), sum0);
+  HWY_IF_CONSTEXPR(D32().Pow2() == -1) {
+    const Twice<decltype(d32)> d32t;
+    using V32T = VFromD<decltype(d32t)>;
+
+    const V32T products = detail::WidenMul(d32t, a, b);
+
+    const Half<decltype(d32)> dh;
+    const RebindToUnsigned<decltype(d32t)> du32t;
+    using TU = TFromD<decltype(du32t)>;
+    const TU half_n = static_cast<TU>(Lanes(dh));
+    const auto even_blocks = detail::EqS(
+        detail::AndS(detail::Iota0(du32t), half_n), TU{0});
+
+    const V32 add0 = LowerHalf(d32, Compress(products, even_blocks));
+    const V32 add1 = LowerHalf(d32, CompressNot(products, even_blocks));
+
+    sum1 = Add(sum1, add1);   // [P1 | P3]
+    return Add(sum0, add0);  // [P0 | P2]
+  }
+
+  HWY_IF_CONSTEXPR(D32().Pow2() != -1) {
+    sum1 = MulAdd(PromoteUpperTo(d32, a), PromoteUpperTo(d32, b), sum1);
+    return MulAdd(PromoteLowerTo(d32, a), PromoteLowerTo(d32, b), sum0);
+  }
 }
 
-// If LMUL is the smallest, one below what is allowed by the riscv spec,
-// the tail of sum needs to hold the values of sum1. This is required by 
-// RearrangeOddPlusEven, because it does not have access to D.
-// Lanes(d32) != Lanes(DFromV<V32>)
+// Same representation as the signed path.
 template <class D32, HWY_IF_POW2_LE_D(D32, -2), class V32 = VFromD<D32>,
           class D16 = RepartitionToNarrow<D32>>
 HWY_API VFromD<D32> ReorderWidenMulAccumulateU16(D32 d32, VFromD<D16> a,
@@ -7065,14 +7104,35 @@ HWY_API VFromD<D32> ReorderWidenMulAccumulateU16(D32 d32, VFromD<D16> a,
   return LowerHalf(d32, sum);
 }
 
-// LMUL not smallest 
 template <class D32, HWY_IF_POW2_GT_D(D32, -2), class V32 = VFromD<D32>,
           class D16 = RepartitionToNarrow<D32>>
 HWY_API VFromD<D32> ReorderWidenMulAccumulateU16(D32 d32, VFromD<D16> a,
                                                  VFromD<D16> b, const V32 sum0,
                                                  V32& sum1) {
-  sum1 = MulAdd(PromoteUpperTo(d32, a), PromoteUpperTo(d32, b), sum1);
-  return MulAdd(PromoteLowerTo(d32, a), PromoteLowerTo(d32, b), sum0);
+  HWY_IF_CONSTEXPR(D32().Pow2() == -1) {
+    const Twice<decltype(d32)> d32t;
+    using V32T = VFromD<decltype(d32t)>;
+
+    const V32T products = detail::WidenMul(d32t, a, b);
+
+    const Half<decltype(d32)> dh;
+    const RebindToUnsigned<decltype(d32t)> du32t;
+    using TU = TFromD<decltype(du32t)>;
+    const TU half_n = static_cast<TU>(Lanes(dh));
+    const auto even_blocks = detail::EqS(
+        detail::AndS(detail::Iota0(du32t), half_n), TU{0});
+
+    const V32 add0 = LowerHalf(d32, Compress(products, even_blocks));
+    const V32 add1 = LowerHalf(d32, CompressNot(products, even_blocks));
+
+    sum1 = Add(sum1, add1);   // [P1 | P3]
+    return Add(sum0, add0);  // [P0 | P2]
+  }
+
+  HWY_IF_CONSTEXPR(D32().Pow2() != -1) {
+    sum1 = MulAdd(PromoteUpperTo(d32, a), PromoteUpperTo(d32, b), sum1);
+    return MulAdd(PromoteLowerTo(d32, a), PromoteLowerTo(d32, b), sum0);
+  }
 }
 
 }  // namespace detail
@@ -7090,6 +7150,36 @@ HWY_API VW ReorderWidenMulAccumulate(D d32, VN a, VN b, const VW sum0,
 }
 
 // ------------------------------ RearrangeToOddPlusEven
+
+// Native e32,mf2 is also the storage type for virtual e32,mf4. The producer
+// uses a block-transposed representation:
+//   sum0 = [B0 | B2]
+//   sum1 = [B1 | B3]
+// For virtual e32,mf4 only B0/B1 are active. Reconstructing B0/B1 first
+// ensures the active output never depends on tail contents.
+HWY_API vint32mf2_t RearrangeToOddPlusEven(const vint32mf2_t sum0,
+                                           const vint32mf2_t sum1) {
+  const DFromV<vint32mf2_t> di32;
+  const Half<decltype(di32)> dh;
+  const Twice<decltype(di32)> di32x2;
+  const RebindToUnsigned<decltype(di32)> du32;
+  const RepartitionToWide<decltype(di32x2)> di64x2;
+  const RebindToUnsigned<decltype(di64x2)> du64x2;
+
+  const auto b0 = LowerHalf(dh, sum0);
+  const auto b2 = UpperHalf(dh, sum0);
+  const auto b1 = LowerHalf(dh, sum1);
+  const auto b3 = UpperHalf(dh, sum1);
+
+  const auto lo = Combine(di32, b1, b0);  // [B0 | B1]
+  const auto hi = Combine(di32, b3, b2);  // [B2 | B3]
+  const auto combined =
+      BitCast(di64x2, Combine(di32x2, hi, lo));  // [B0 | B1 | B2 | B3]
+
+  const auto even = ShiftRight<32>(ShiftLeft<32>(combined));  // sign extend
+  const auto odd = ShiftRight<32>(combined);
+  return BitCast(di32, TruncateTo(du32, BitCast(du64x2, Add(even, odd))));
+}
 
 template <class VW, HWY_IF_SIGNED_V(VW)>  // vint32_t*
 HWY_API VW RearrangeToOddPlusEven(const VW sum0, const VW sum1) {
@@ -7118,6 +7208,28 @@ HWY_API vint32m8_t RearrangeToOddPlusEven(vint32m8_t sum0, vint32m8_t sum1) {
   const vint32m4_t hi =
       RearrangeToOddPlusEven(LowerHalf(sum1), UpperHalf(dh, sum1));
   return Combine(d, hi, lo);
+}
+
+HWY_API vuint32mf2_t RearrangeToOddPlusEven(const vuint32mf2_t sum0,
+                                            const vuint32mf2_t sum1) {
+  const DFromV<vuint32mf2_t> du32;
+  const Half<decltype(du32)> dh;
+  const Twice<decltype(du32)> du32x2;
+  const RepartitionToWide<decltype(du32x2)> du64x2;
+
+  const auto b0 = LowerHalf(dh, sum0);
+  const auto b2 = UpperHalf(dh, sum0);
+  const auto b1 = LowerHalf(dh, sum1);
+  const auto b3 = UpperHalf(dh, sum1);
+
+  const auto lo = Combine(du32, b1, b0);  // [B0 | B1]
+  const auto hi = Combine(du32, b3, b2);  // [B2 | B3]
+  const auto combined =
+      BitCast(du64x2, Combine(du32x2, hi, lo));  // [B0 | B1 | B2 | B3]
+
+  const auto even = detail::AndS(combined, uint64_t{0xFFFFFFFFu});
+  const auto odd = ShiftRight<32>(combined);
+  return TruncateTo(du32, Add(even, odd));
 }
 
 template <class VW, HWY_IF_UNSIGNED_V(VW)>  // vuint32_t*
