@@ -148,8 +148,7 @@ struct StreamReader {
 // the consumed bytes. The first byte read is the most significant one. Sets
 // *ok=false on underflow, or if the value would not fit in 64 bits.
 HWY_CONTRIB_DLLEXPORT uint64_t ReadControlVarUint(const uint8_t* src,
-                                                  int64_t* cursor,
-                                                  bool* ok);
+                                                  int64_t* cursor, bool* ok);
 
 // ------------------------------ LZ77 stage (decoder)
 
@@ -158,7 +157,6 @@ struct IguanaStream {
   const uint8_t* data = nullptr;
   size_t size = 0;
 };
-
 
 // The LZ77 stage: expands the six streams into `dst` (appended). The token
 // loop is inherently serial, so this stays scalar on the SIMD path too.
@@ -243,8 +241,8 @@ bool DecompressBlock(const uint8_t* src, size_t src_size,
             ent_bufs.emplace_back();
             std::vector<uint8_t>& buf = ent_bufs.back();
             buf.resize(static_cast<size_t>(ulens[i]));
-            if (!decode(src + data_cursor, static_cast<size_t>(clen), buf.data(),
-                        static_cast<size_t>(ulens[i]))) {
+            if (!decode(src + data_cursor, static_cast<size_t>(clen),
+                        buf.data(), static_cast<size_t>(ulens[i]))) {
               return false;
             }
             streams[i].data = buf.data();
@@ -269,6 +267,3 @@ bool DecompressBlock(const uint8_t* src, size_t src_size,
 }  // namespace hwy
 
 #endif  // HIGHWAY_HWY_CONTRIB_IGUANA_DETAIL_H_
-
-
-

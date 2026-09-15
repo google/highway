@@ -172,7 +172,8 @@ void MatchExtend(const uint8_t* HWY_RESTRICT src, size_t src_len,
   *out_match_pos = match_pos;
   *out_chain_pos = chain_pos;
   *out_len = Lcp(src, src_len, *out_chain_pos, *out_match_pos);
-  while (*out_chain_pos > 0 && src[*out_chain_pos - 1] == src[*out_match_pos - 1] &&
+  while (*out_chain_pos > 0 &&
+         src[*out_chain_pos - 1] == src[*out_match_pos - 1] &&
          *out_match_pos > min_match_pos) {
     --*out_chain_pos;
     --*out_match_pos;
@@ -239,7 +240,8 @@ struct Encoder {
     }
 
     // Keep the decoder's final 32-byte match write inside the output buffer.
-    if (*tp + *len > static_cast<int64_t>(src_len) - static_cast<int64_t>(kMinOffset)) {
+    if (*tp + *len >
+        static_cast<int64_t>(src_len) - static_cast<int64_t>(kMinOffset)) {
       if (*tp - *mp >= static_cast<int64_t>(kMinOffset)) {
         constexpr int64_t lomask = kMinOffset - 1;
         if (*tp + ((*len + lomask) & ~lomask) > static_cast<int64_t>(src_len)) {
@@ -261,7 +263,8 @@ struct Encoder {
   // previous offset", and a zero match length means the decoder copies none.
   void EmitLiteralsOnly(size_t lit_len) {
     tokens.push_back(static_cast<uint8_t>(0x80 | kMaxShortLitLen));
-    AppendVarUint(var_lit_len, static_cast<uint32_t>(lit_len - kMaxShortLitLen));
+    AppendVarUint(var_lit_len,
+                  static_cast<uint32_t>(lit_len - kMaxShortLitLen));
   }
 
   void Emit(const uint8_t* lit, size_t lit_len, uint32_t offs,
@@ -464,8 +467,8 @@ HWY_CONTRIB_DLLEXPORT bool DecompressIguanaLZ(
         if (!ok) return false;
       }
     } else if (token < kLastLongOffset) {
-      match_len = static_cast<int64_t>(token) +
-                  static_cast<int64_t>(kMMLongOffsets);
+      match_len =
+          static_cast<int64_t>(token) + static_cast<int64_t>(kMMLongOffsets);
       last_offs = -static_cast<int64_t>(off24_stream.U24(&ok));
       if (!ok) return false;
     } else {
@@ -550,7 +553,8 @@ HWY_CONTRIB_DLLEXPORT std::vector<uint8_t> Compress(const uint8_t* data,
       }
     }
 
-    if (total + static_cast<int64_t>(kStreamCount) + 1 >= static_cast<int64_t>(size)) {
+    if (total + static_cast<int64_t>(kStreamCount) + 1 >=
+        static_cast<int64_t>(size)) {
       cw.Command(kCmdCopyRaw);
       cw.VarUint(size);
       dst.assign(data, data + size);

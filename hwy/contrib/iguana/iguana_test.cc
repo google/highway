@@ -27,6 +27,7 @@
 #include "hwy/highway.h"
 #include "hwy/contrib/iguana/iguana.h"
 #include "hwy/contrib/iguana/iguana-inl.h"
+#include "hwy/contrib/iguana/detail.h"
 #include "hwy/tests/test_util-inl.h"
 // clang-format on
 
@@ -105,7 +106,6 @@ void TestRoundTripStructure() {
   }
 }
 
-
 // Malformed or truncated inputs must be rejected: no crash, and no allocation
 // driven by an attacker-controlled length.
 void TestRejectsMalformed() {
@@ -122,16 +122,21 @@ void TestRejectsMalformed() {
   // control bytes read backwards from the end.
   {
     const uint8_t first_match_reuse[] = {
-        0xA0,                                            // token: reuse offs, len 4
-        0x80, 0x80, 0x80, 0x80, 0x80, 0x81,              // ulens: 0,0,0,0,0,1 (tokens)
-        0x80,                                            // hdr: all streams raw
-        0x80 | hwy::iguana::kCmdDecodeIguana,            // command (last)
-        0x84,                                            // uncompressed_len = 4
+        0xA0,  // token: reuse offs, len 4
+        0x80,
+        0x80,
+        0x80,
+        0x80,
+        0x80,
+        0x81,                                  // ulens: 0,0,0,0,0,1 (tokens)
+        0x80,                                  // hdr: all streams raw
+        0x80 | hwy::iguana::kCmdDecodeIguana,  // command (last)
+        0x84,                                  // uncompressed_len = 4
     };
     HWY_ASSERT(!hwy::iguana::DecompressScalar(first_match_reuse,
                                               sizeof(first_match_reuse), out));
-    HWY_ASSERT(!ig::Decompress(first_match_reuse,
-                               sizeof(first_match_reuse), out));
+    HWY_ASSERT(
+        !ig::Decompress(first_match_reuse, sizeof(first_match_reuse), out));
   }
 
   // Every truncation of a valid block is rejected or decodes a shorter output.
@@ -142,7 +147,8 @@ void TestRejectsMalformed() {
   for (size_t n = 0; n < comp.size(); ++n) {
     std::vector<uint8_t> scalar;
     std::vector<uint8_t> simd;
-    const bool ok_scalar = hwy::iguana::DecompressScalar(comp.data(), n, scalar);
+    const bool ok_scalar =
+        hwy::iguana::DecompressScalar(comp.data(), n, scalar);
     const bool ok_simd = ig::Decompress(comp.data(), n, simd);
     HWY_ASSERT(ok_scalar == ok_simd);
     if (ok_scalar) {
@@ -163,6 +169,206 @@ void TestRejectsMalformed() {
   }
 }
 
+// ------------------------------ Security
+
+// The decoder parses untrusted input: every length, offset and command byte in
+// a block comes from the attacker. These tests pin what must hold regardless of
+// the bytes: malformed input is rejected (never decoded "best effort"), no
+// allocation is driven by an attacker-controlled length, and the scalar and
+// SIMD paths agree on what they accept, what they reject, and what they
+// produce.
+
+// Appends a control varint the way the encoder does: 7 bits per byte, most
+// significant group first, with a stop bit (0x80) on the last byte.
+void AppendCtrlVarUint(std::vector<uint8_t>& ctrl, uint64_t v) {
+  int groups = 0;
+  for (uint64_t t = v; t != 0; t >>= 7) ++groups;
+  for (int i = groups; i >= 0; --i) {
+    uint32_t x = static_cast<uint32_t>(v >> (i * 7)) & 0x7F;
+    if (i == 0) x |= 0x80;
+    ctrl.push_back(static_cast<uint8_t>(x));
+  }
+}
+
+// Builds a DecodeIguana block around the six (raw) streams, so a test can state
+// the exact malformed shape it means instead of guessing at encoder output. The
+// control section is written last and read backwards by the decoder.
+std::vector<uint8_t> MakeIguanaBlock(const std::vector<uint8_t> streams[6],
+                                     const uint64_t ulens[6],
+                                     uint64_t uncompressed_len,
+                                     int ansi_mode_stream = -1) {
+  std::vector<uint8_t> out;
+  for (int i = 0; i < 6; ++i) {
+    out.insert(out.end(), streams[i].begin(), streams[i].end());
+  }
+  uint64_t hdr = 0;
+  if (ansi_mode_stream >= 0) {
+    hdr |= uint64_t{2} << (ansi_mode_stream * 4);  // ANS1: not implemented
+  }
+
+  std::vector<uint8_t> ctrl;
+  // Push in the order the decoder consumes (it reads the block backwards), so
+  // that the reversed copy below matches what Compress() writes.
+  AppendCtrlVarUint(ctrl, uncompressed_len);
+  ctrl.push_back(static_cast<uint8_t>(0x80 | hwy::iguana::kCmdDecodeIguana));
+  AppendCtrlVarUint(ctrl, hdr);
+  for (int i = 0; i < 6; ++i) AppendCtrlVarUint(ctrl, ulens[i]);
+  // The decoder reads the control bytes backwards, so reverse them here.
+  for (size_t i = ctrl.size(); i-- > 0;) out.push_back(ctrl[i]);
+  return out;
+}
+
+// A block that declares more output than kMaxUncompressedSize must be rejected
+// before anything is allocated: a ~30-byte input asking for more than 1 GiB.
+void TestSecurityZipBomb() {
+  std::vector<uint8_t> streams[6];
+  uint64_t ulens[6] = {1, 0, 0, 0, 0, 0};
+  streams[0].push_back(0xA0);  // one literal-only token
+  const uint64_t huge = (uint64_t{1} << 30) + 1;
+  const std::vector<uint8_t> bomb = MakeIguanaBlock(streams, ulens, huge);
+
+  std::vector<uint8_t> out;
+  HWY_ASSERT(!hwy::iguana::DecompressScalar(bomb.data(), bomb.size(), out));
+  HWY_ASSERT(out.empty());
+  HWY_ASSERT(!ig::Decompress(bomb.data(), bomb.size(), out));
+
+  // The cap is part of the contract, so keep it visible here.
+  HWY_ASSERT(hwy::iguana::kMaxUncompressedSize == (size_t{1} << 30));
+}
+
+// Malformed containers: unknown commands, unimplemented stream modes, a control
+// varint longer than 64 bits, and auxiliary streams left with leftover bytes.
+void TestSecurityMalformedContainer() {
+  std::vector<uint8_t> out;
+
+  // Unknown command byte: only CopyRaw / DecodeIguana / DecodeANS32 exist.
+  {
+    std::vector<uint8_t> ctrl;
+    ctrl.push_back(static_cast<uint8_t>(0x80 | 0x7F));
+    AppendCtrlVarUint(ctrl, 1);
+    std::vector<uint8_t> block(ctrl.rbegin(), ctrl.rend());
+    HWY_ASSERT(!hwy::iguana::DecompressScalar(block.data(), block.size(), out));
+    HWY_ASSERT(!ig::Decompress(block.data(), block.size(), out));
+  }
+
+  // Stream mode 2 (ANS1) is declared but not implemented: must be rejected.
+  {
+    std::vector<uint8_t> streams[6];
+    uint64_t ulens[6] = {0, 0, 0, 0, 0, 0};
+    ulens[2] = 4;
+    streams[2].assign(4, 0);
+    const std::vector<uint8_t> block =
+        MakeIguanaBlock(streams, ulens, 64, /*ansi_mode_stream=*/2);
+    HWY_ASSERT(!hwy::iguana::DecompressScalar(block.data(), block.size(), out));
+    HWY_ASSERT(!ig::Decompress(block.data(), block.size(), out));
+  }
+
+  // A control varint of 11 bytes: more bits than fit in 64.
+  {
+    std::vector<uint8_t> block;
+    for (int i = 0; i < 11; ++i) block.push_back(0xFF);
+    HWY_ASSERT(!hwy::iguana::DecompressScalar(block.data(), block.size(), out));
+    HWY_ASSERT(!ig::Decompress(block.data(), block.size(), out));
+  }
+
+  // Leftover bytes in an auxiliary stream: the token stream is empty, but the
+  // 16-bit offset stream still holds two bytes, so the block is inconsistent.
+  {
+    std::vector<uint8_t> streams[6];
+    uint64_t ulens[6] = {0, 2, 0, 0, 0, 0};
+    streams[1].assign(2, 0);
+    const std::vector<uint8_t> block = MakeIguanaBlock(streams, ulens, 64);
+    HWY_ASSERT(!hwy::iguana::DecompressScalar(block.data(), block.size(), out));
+    HWY_ASSERT(!ig::Decompress(block.data(), block.size(), out));
+  }
+}
+
+// LZ77-level malformed input: a match whose offset points before the output.
+void TestSecurityMalformedLZ() {
+  std::vector<uint8_t> out;
+
+  // tokens = {0x28}: short form, literal length 0, the repeat-offset bit is
+  // clear so a new 16-bit offset is read, and it says 65535 while the output is
+  // still empty - the match would read before its start.
+  std::vector<uint8_t> streams[6];
+  streams[0].push_back(0x28);
+  streams[1].push_back(0xFF);
+  streams[1].push_back(0xFF);
+  const uint64_t ulens[6] = {1, 2, 0, 0, 0, 0};
+  const std::vector<uint8_t> block = MakeIguanaBlock(streams, ulens, 100);
+  HWY_ASSERT(!hwy::iguana::DecompressScalar(block.data(), block.size(), out));
+  HWY_ASSERT(out.empty());
+  HWY_ASSERT(!ig::Decompress(block.data(), block.size(), out));
+}
+
+// Deterministic mutations of valid blocks: the same seeds every run, so any
+// failure reproduces. This is the property that has to survive adversarial
+// input - never crash, never allocate beyond the cap, and reject exactly what
+// the SIMD path rejects.
+void TestSecurityMutationSweep() {
+  RandomState rng(0x5EC0DEULL);
+  for (int round = 0; round < 64; ++round) {
+    const size_t n = 1 + static_cast<size_t>(Random64(&rng) % 4000);
+    const std::vector<uint8_t> data =
+        MakeData(n, Random64(&rng) & 0xFFFF, round % 3);
+    const std::vector<uint8_t> comp =
+        hwy::iguana::Compress(data.data(), data.size());
+    if (comp.empty()) continue;
+
+    std::vector<uint8_t> mutated = comp;
+    const int mutations = 1 + static_cast<int>(Random64(&rng) % 4);
+    for (int m = 0; m < mutations; ++m) {
+      const size_t pos = static_cast<size_t>(Random64(&rng) % mutated.size());
+      switch (Random64(&rng) % 3) {
+        case 0:
+          mutated[pos] =
+              static_cast<uint8_t>(mutated[pos] ^ (1u << (Random64(&rng) & 7)));
+          break;
+        case 1:
+          mutated[pos] = static_cast<uint8_t>(Random64(&rng));
+          break;
+        default:
+          mutated.resize(pos);  // truncate
+          break;
+      }
+    }
+
+    std::vector<uint8_t> scalar;
+    std::vector<uint8_t> simd;
+    const bool ok_scalar =
+        hwy::iguana::DecompressScalar(mutated.data(), mutated.size(), scalar);
+    const bool ok_simd = ig::Decompress(mutated.data(), mutated.size(), simd);
+    HWY_ASSERT(ok_scalar == ok_simd);
+    if (ok_scalar) {
+      HWY_ASSERT(scalar == simd);
+      HWY_ASSERT(scalar.size() <= hwy::iguana::kMaxUncompressedSize);
+    }
+  }
+}
+
+// Garbage that the encoder would never produce. Random bytes almost always
+// declare a header far above the cap, so this also covers "reject cheaply".
+void TestSecurityRandomInput() {
+  RandomState rng(0xC0FFEEULL);
+  std::vector<uint8_t> bytes(1024);
+  for (int round = 0; round < 256; ++round) {
+    const size_t n = static_cast<size_t>(Random64(&rng) % bytes.size());
+    for (size_t i = 0; i < n; ++i) {
+      bytes[i] = static_cast<uint8_t>(Random64(&rng));
+    }
+    std::vector<uint8_t> scalar;
+    std::vector<uint8_t> simd;
+    const bool ok_scalar =
+        hwy::iguana::DecompressScalar(bytes.data(), n, scalar);
+    const bool ok_simd = ig::Decompress(bytes.data(), n, simd);
+    HWY_ASSERT(ok_scalar == ok_simd);
+    if (ok_scalar) {
+      HWY_ASSERT(scalar == simd);
+      HWY_ASSERT(scalar.size() <= hwy::iguana::kMaxUncompressedSize);
+    }
+  }
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -175,6 +381,11 @@ HWY_BEFORE_TEST(IguanaTest);
 HWY_EXPORT_AND_TEST_P(IguanaTest, TestRoundTripSizes);
 HWY_EXPORT_AND_TEST_P(IguanaTest, TestRoundTripStructure);
 HWY_EXPORT_AND_TEST_P(IguanaTest, TestRejectsMalformed);
+HWY_EXPORT_AND_TEST_P(IguanaTest, TestSecurityZipBomb);
+HWY_EXPORT_AND_TEST_P(IguanaTest, TestSecurityMalformedContainer);
+HWY_EXPORT_AND_TEST_P(IguanaTest, TestSecurityMalformedLZ);
+HWY_EXPORT_AND_TEST_P(IguanaTest, TestSecurityMutationSweep);
+HWY_EXPORT_AND_TEST_P(IguanaTest, TestSecurityRandomInput);
 HWY_AFTER_TEST();
 }  // namespace hwy
 #endif
