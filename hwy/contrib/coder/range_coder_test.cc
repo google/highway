@@ -139,4 +139,5 @@ HWY_EXPORT_AND_TEST_P(RangeCoderTest, TestRoundTripSizes);
 HWY_EXPORT_AND_TEST_P(RangeCoderTest, TestRoundTripModels);
 HWY_AFTER_TEST();
 }  // namespace hwy
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

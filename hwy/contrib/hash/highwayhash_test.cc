@@ -329,4 +329,5 @@ HWY_EXPORT_AND_TEST_P(HighwayHashTest, TestGolden);
 HWY_EXPORT_AND_TEST_P(HighwayHashTest, TestLongInputs);
 HWY_AFTER_TEST();
 }  // namespace hwy
-#endif
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE
