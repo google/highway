@@ -235,7 +235,7 @@ Highway supports 27 targets, listed in alphabetical order of platform:
     -   `AVX3_ZEN4` (AVX3_DL plus BF16, optimized for AMD Zen4; requires opt-in
         by defining `HWY_WANT_AVX3_ZEN4` if compiling for static dispatch, but
         enabled by default for runtime dispatch),
-    -   `AVX3_SPR` (~Sapphire Rapids, includes AVX-512FP16)
+    -   `AVX3_SPR` (~Sapphire Rapids, includes AVX-512FP16 + AMX-TILE + AMX-BF16)
     -   `AVX10_2` (~Diamond Rapids)
 
 Our policy is that unless otherwise specified, targets will remain supported as
@@ -467,7 +467,7 @@ flags must match the predefined macro checks for `HWY_BASELINE_*` in
 -   `HWY_AVX3`: `-march=x86-64-v4`, or `-march=skx`
 -   `HWY_AVX3_DL`: `-march=icelake-server`
 -   `HWY_ZEN4`: `-march=znver4`
--   `HWY_AVX3_SPR`: `-march=icelake-server -mavx512fp16 -mavx512bf16`
+-   `HWY_AVX3_SPR`: `-march=icelake-server -mavx512fp16 -mavx512bf16 -mamx-tile -mamx-bf16`, or `-march=sapphirerapids`
 -   `HWY_AVX10_2`: `-march=novalake` (requires GCC 16 or Clang 22)
 
 See also the godbolt examples above mentioning -m targets.

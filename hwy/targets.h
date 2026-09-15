@@ -383,6 +383,11 @@ struct ChosenTarget {
 // For internal use (e.g. by FunctionCache and DisableTargets).
 HWY_DLLEXPORT ChosenTarget& GetChosenTarget();
 
+// Returns true if the CPU and OS support AMX-TILE and AMX-BF16 instructions
+// (used by Tile64BMatMul). On Linux x86-64, this also requests OS permission
+// for dynamic tile state (XFEATURE_XTILEDATA) via arch_prctl.
+HWY_DLLEXPORT bool HaveTile64BMatMulBF16();
+
 }  // namespace hwy
 
 #endif  // HIGHWAY_HWY_TARGETS_H_

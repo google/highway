@@ -26,6 +26,10 @@
 
 #if HWY_ARCH_X86
 #include <xmmintrin.h>
+#if HWY_ARCH_X86_64 && HWY_OS_LINUX
+#include <sys/syscall.h>
+#include <unistd.h>
+#endif
 
 #elif (HWY_ARCH_ARM || HWY_ARCH_PPC || HWY_ARCH_S390X || HWY_ARCH_RISCV || \
        HWY_ARCH_LOONGARCH) &&                                              \
@@ -183,6 +187,8 @@ enum class FeatureIndex : uint32_t {
   kAVX512FP16,
   kAVX512BF16,
   kAVX512IFMA,
+  kAMX_TILE,
+  kAMX_BF16,
 
   kVNNI,
   kVPCLMULQDQ,
@@ -254,6 +260,8 @@ static uint64_t FlagsFromCPUID() {
     flags |= IsBitSet(abcd[2], 14) ? Bit(FeatureIndex::kPOPCNTDQ) : 0;
 
     flags |= IsBitSet(abcd[3], 23) ? Bit(FeatureIndex::kAVX512FP16) : 0;
+    flags |= IsBitSet(abcd[3], 24) ? Bit(FeatureIndex::kAMX_TILE) : 0;
+    flags |= IsBitSet(abcd[3], 22) ? Bit(FeatureIndex::kAMX_BF16) : 0;
 
     Cpuid(7, 1, abcd);
     flags |= IsBitSet(abcd[0], 5) ? Bit(FeatureIndex::kAVX512BF16) : 0;
@@ -856,6 +864,59 @@ HWY_DLLEXPORT int64_t SupportedTargets() {
 HWY_DLLEXPORT ChosenTarget& GetChosenTarget() {
   static ChosenTarget chosen_target;
   return chosen_target;
+}
+
+HWY_DLLEXPORT bool HaveTile64BMatMulBF16() {
+#if HWY_ARCH_X86_64 && HWY_HAVE_RUNTIME_DISPATCH
+  static const bool has_amx_bf16 = []() -> bool {
+    const uint64_t flags = x86::FlagsFromCPUID();
+    constexpr uint64_t kAmxBF16Flags =
+        x86::Bit(x86::FeatureIndex::kAMX_TILE) |
+        x86::Bit(x86::FeatureIndex::kAMX_BF16);
+    if ((flags & kAmxBF16Flags) != kAmxBF16Flags) {
+      return false;
+    }
+
+    uint32_t abcd[4];
+    x86::Cpuid(1, 0, abcd);
+    const bool has_xsave = x86::IsBitSet(abcd[2], 26);
+    const bool has_osxsave = x86::IsBitSet(abcd[2], 27);
+    if (!has_xsave || !has_osxsave) {
+      return false;
+    }
+
+#if HWY_OS_LINUX
+    // On Linux, request OS permission for dynamic XSAVE tile state
+    // (XFEATURE_XTILEDATA) first, before checking XCR0 bits 17 and 18.
+#ifndef ARCH_REQ_XCOMP_PERM
+#define ARCH_REQ_XCOMP_PERM 0x1023
+#endif
+#ifndef XFEATURE_XTILEDATA
+#define XFEATURE_XTILEDATA 18
+#endif
+    const int64_t status =
+        syscall(SYS_arch_prctl, ARCH_REQ_XCOMP_PERM, XFEATURE_XTILEDATA);
+    if (status != 0) {
+      return false;
+    }
+#endif  // HWY_OS_LINUX
+
+    // Require XCR0 bits for XMM (1), YMM (2), AVX-512 (5, 6, 7),
+    // TILECFG (17), and TILEDATA (18).
+    const uint32_t xcr0 = x86::ReadXCR0();
+    constexpr uint32_t kAmxXcr0Mask =
+        (1u << 1) | (1u << 2) | (1u << 5) | (1u << 6) | (1u << 7) |
+        (1u << 17) | (1u << 18);
+    if ((xcr0 & kAmxXcr0Mask) != kAmxXcr0Mask) {
+      return false;
+    }
+
+    return true;
+  }();
+  return has_amx_bf16;
+#else
+  return false;
+#endif
 }
 
 }  // namespace hwy
