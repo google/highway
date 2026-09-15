@@ -134,9 +134,10 @@ int64_t Lcp(const uint8_t* src, size_t src_len, int64_t lo, int64_t hi) {
   int64_t m = 0;
   const int64_t n = static_cast<int64_t>(src_len);
   while (n - (hi + m) >= 8) {
-    uint64_t a, b;
-    memcpy(&a, src + lo + m, 8);
-    memcpy(&b, src + hi + m, 8);
+    // Little-endian loads: Num0BitsBelowLS1Bit_Nonzero64 below counts from
+    // the least significant *bit*, which must be the first byte.
+    const uint64_t a = Load64LE(src + lo + m);
+    const uint64_t b = Load64LE(src + hi + m);
     const uint64_t d = a ^ b;
     if (d == 0) {
       m += 8;
