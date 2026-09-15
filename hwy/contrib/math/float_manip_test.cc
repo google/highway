@@ -101,6 +101,12 @@ struct TestIlogb {
     const RebindToSigned<D> di;
     using TI = TFromD<decltype(di)>;
     for (const T x : SampleValues<T>()) {
+#if HWY_TARGET <= HWY_NEON_WITHOUT_AES && HWY_ARCH_ARM_V7
+      // ARMv7 NEON flushes subnormals to zero in hardware.
+      if (x != T(0) && std::abs(x) < 1e-37f) {
+        continue;
+      }
+#endif
       const TI actual = GetLane(Ilogb(d, Set(d, x)));
       if (x == T(0) || ScalarIsNaN(x)) {
         HWY_ASSERT_EQ(LimitsMin<TI>(), actual);
@@ -117,6 +123,12 @@ struct TestLogb {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*t*/, D d) {
     for (const T x : SampleValues<T>()) {
+#if HWY_TARGET <= HWY_NEON_WITHOUT_AES && HWY_ARCH_ARM_V7
+      // ARMv7 NEON flushes subnormals to zero in hardware.
+      if (x != T(0) && std::abs(x) < 1e-37f) {
+        continue;
+      }
+#endif
       const T actual = GetLane(Logb(d, Set(d, x)));
       const T expected = std::logb(x);
       HWY_ASSERT(BitEqual(expected, actual));
@@ -128,6 +140,12 @@ struct TestModf {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*t*/, D d) {
     for (const T x : SampleValues<T>()) {
+#if HWY_TARGET <= HWY_NEON_WITHOUT_AES && HWY_ARCH_ARM_V7
+      // ARMv7 NEON flushes subnormals to zero in hardware.
+      if (x != T(0) && std::abs(x) < 1e-37f) {
+        continue;
+      }
+#endif
       T expected_int;
       const T expected_frac = std::modf(x, &expected_int);
       VFromD<D> actual_int;
@@ -145,6 +163,14 @@ struct TestNextAfter {
     for (const T a : vals) {
       for (const T b : vals) {
         const T expected = std::nextafter(a, b);
+#if HWY_TARGET <= HWY_NEON_WITHOUT_AES && HWY_ARCH_ARM_V7
+        // ARMv7 NEON flushes subnormals to zero in hardware.
+        if ((a != T(0) && std::abs(a) < 1e-37f) ||
+            (b != T(0) && std::abs(b) < 1e-37f) ||
+            (expected != T(0) && std::abs(expected) < 1e-37f)) {
+          continue;
+        }
+#endif
         const T actual = GetLane(NextAfter(d, Set(d, a), Set(d, b)));
         HWY_ASSERT(BitEqual(expected, actual));
       }
