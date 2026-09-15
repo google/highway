@@ -205,55 +205,74 @@ struct Encoder {
     h[0] = static_cast<int32_t>(pos);
   }
 
-  void BestChainMatch(int64_t litmin, int64_t pos, int64_t* t, int64_t* p,
-                      int64_t* len) {
+  void BestChainMatch(int64_t litmin, int64_t pos,
+                      int64_t* HWY_RESTRICT out_match_pos,
+                      int64_t* HWY_RESTRICT out_chain_pos,
+                      int64_t* HWY_RESTRICT out_len) {
     const auto& h = chains[HashSeq(src + pos)];
-    MatchExtend(src, src_len, litmin, h[0], pos, t, p, len);
+    MatchExtend(src, src_len, litmin, h[0], pos, out_match_pos, out_chain_pos,
+                out_len);
     for (size_t i = 1; i < static_cast<size_t>(kHistSize); ++i) {
       if (h[i] == 0) break;
-      int64_t at, ap, al;
-      MatchExtend(src, src_len, litmin, h[i], pos, &at, &ap, &al);
-      if (al > *len) {
-        *t = at;
-        *p = ap;
-        *len = al;
+      int64_t cand_match_pos, cand_chain_pos, cand_len;
+      MatchExtend(src, src_len, litmin, h[i], pos, &cand_match_pos,
+                  &cand_chain_pos, &cand_len);
+      if (cand_len > *out_len) {
+        *out_match_pos = cand_match_pos;
+        *out_chain_pos = cand_chain_pos;
+        *out_len = cand_len;
       }
     }
   }
 
-  void BestMatchAt(int64_t litpos, int64_t pos, int64_t* tp, int64_t* mp,
-                   int64_t* len) {
-    *tp = pos;
-    *mp = 0;
-    *len = 0;
-    const int64_t rep = pos - static_cast<int64_t>(last_encoded_offset);
-    if (rep >= 0 && rep < pos) {
-      *mp = rep;
-      *len = Lcp(src, src_len, rep, pos);
+  void BestMatchAt(int64_t litpos, int64_t pos,
+                   int64_t* HWY_RESTRICT out_match_pos,
+                   int64_t* HWY_RESTRICT out_chain_pos,
+                   int64_t* HWY_RESTRICT out_len) {
+    *out_match_pos = pos;
+    *out_chain_pos = 0;
+    *out_len = 0;
+    const int64_t repeat_ofs = pos - static_cast<int64_t>(last_encoded_offset);
+    if (repeat_ofs >= 0 && repeat_ofs < pos) {
+      // Unlike the chain path this does not go through MatchExtend, so the
+      // format limits have to be applied here as well: a single token carries
+      // at most kMaxEncodableMatchLen, and the offset must still fit the
+      // 24-bit stream.
+      int64_t repeat_len = Lcp(src, src_len, repeat_ofs, pos);
+      if (repeat_len > kMaxEncodableMatchLen) {
+        repeat_len = kMaxEncodableMatchLen;
+      }
+      if (IsLegal(repeat_ofs, repeat_len)) {
+        *out_chain_pos = repeat_ofs;
+        *out_len = repeat_len;
+      }
     }
-    int64_t ht, hp, hl;
-    BestChainMatch(litpos, pos, &ht, &hp, &hl);
-    if (hl - *len > 1) {
-      *tp = ht;
-      *mp = hp;
-      *len = hl;
+    int64_t chain_match_pos, chain_chain_pos, chain_len;
+    BestChainMatch(litpos, pos, &chain_match_pos, &chain_chain_pos, &chain_len);
+    if (chain_len - *out_len > 1) {
+      *out_match_pos = chain_match_pos;
+      *out_chain_pos = chain_chain_pos;
+      *out_len = chain_len;
     }
 
     // Keep the decoder's final 32-byte match write inside the output buffer.
-    if (*tp + *len >
+    if (*out_match_pos + *out_len >
         static_cast<int64_t>(src_len) - static_cast<int64_t>(kMinOffset)) {
-      if (*tp - *mp >= static_cast<int64_t>(kMinOffset)) {
+      if (*out_match_pos - *out_chain_pos >= static_cast<int64_t>(kMinOffset)) {
         constexpr int64_t lomask = static_cast<int64_t>(kMinOffset) - 1;
-        if (*tp + ((*len + lomask) & ~lomask) > static_cast<int64_t>(src_len)) {
-          *len &= ~lomask;
+        if (*out_match_pos + ((*out_len + lomask) & ~lomask) >
+            static_cast<int64_t>(src_len)) {
+          *out_len &= ~lomask;
         }
       } else {
-        const int64_t movsize = *tp - *mp;
-        const int64_t tailpos = movsize ? *len - (*len % movsize) : *len;
+        const int64_t movsize = *out_match_pos - *out_chain_pos;
+        const int64_t tailpos =
+            movsize ? *out_len - (*out_len % movsize) : *out_len;
         const int64_t end = static_cast<int64_t>(src_len);
-        if (*tp + tailpos + static_cast<int64_t>(kMinOffset) > end) {
-          const int64_t safedist = (end - static_cast<int64_t>(kMinOffset)) - *tp;
-          *len = movsize ? (safedist / movsize) * movsize : 0;
+        if (*out_match_pos + tailpos + static_cast<int64_t>(kMinOffset) > end) {
+          const int64_t safedist =
+              (end - static_cast<int64_t>(kMinOffset)) - *out_match_pos;
+          *out_len = movsize ? (safedist / movsize) * movsize : 0;
         }
       }
     }
@@ -368,149 +387,7 @@ struct Encoder {
   }
 };
 
-// Appends match_len bytes copied from dst[match_pos..). Overlapping runs
-// (where the source reaches into the bytes being produced) are the common
-// case, so we resize first - which keeps the destination pointers valid,
-// and is what makes the copy below well-defined - and then copy forward,
-// where every byte read has already been written.
-bool CopyMatch(Bytes& dst, size_t match_pos, size_t match_len) {
-  if (match_len > kMaxUncompressedSize - dst.size()) return false;
-  const size_t old_size = dst.size();
-  dst.resize(old_size + match_len);
-  uint8_t* const HWY_RESTRICT out = dst.data();
-  for (size_t i = 0; i < match_len; ++i) {
-    out[old_size + i] = out[match_pos + i];
-  }
-  return true;
-}
-
 }  // namespace
-
-// Reads a base-128 varint backwards from src[*cursor], moving *cursor before
-// the consumed bytes. The first byte read is the most significant one. Sets
-// *ok=false on underflow, or if the value would not fit in 64 bits.
-HWY_CONTRIB_DLLEXPORT uint64_t ReadControlVarUint(const uint8_t* src,
-                                                  int64_t* cursor, bool* ok) {
-  uint64_t r = 0;
-  int groups = 0;  // number of bytes consumed so far
-  while (*cursor >= 0) {
-    const uint8_t v = src[*cursor];
-    --*cursor;
-    if (groups == 9) {
-      // 10th byte is the most significant: it may contribute a single bit,
-      // otherwise the shift below would silently drop bits.
-      if ((v & 0x7F) > 1) {
-        *ok = false;
-        return 0;
-      }
-    } else if (groups >= 10) {
-      *ok = false;
-      return 0;
-    }
-    r = (r << 7) | (v & 0x7F);
-    ++groups;
-    if (v & 0x80) return r;
-  }
-  *ok = false;
-  return 0;
-}
-
-// The LZ77 stage: expands the six streams into `dst` (appended). The token
-// loop is inherently serial, so this stays scalar on the SIMD path too.
-// Returns false on malformed input.
-HWY_CONTRIB_DLLEXPORT bool DecompressIguanaLZ(
-    Bytes& dst, const IguanaStream streams_in[kStreamCount]) {
-  StreamReader reader[kStreamCount];
-  for (size_t i = 0; i < kStreamCount; ++i) {
-    reader[i].data = streams_in[i].data;
-    reader[i].size = streams_in[i].size;
-  }
-  StreamReader& token_stream = reader[0];
-  StreamReader& off16_stream = reader[1];
-  StreamReader& off24_stream = reader[2];
-  StreamReader& var_lit_len_stream = reader[3];
-  StreamReader& var_match_len_stream = reader[4];
-  StreamReader& literal_stream = reader[5];
-
-  bool ok = true;
-  // Offset of the previous match, negated: the streams encode the distance
-  // back from the current output position. Zero means "no match seen yet", and
-  // a match that refers to it is malformed.
-  int64_t last_offs = 0;
-  while (!token_stream.IsEmpty()) {
-    int64_t match_len = 0;
-    const uint8_t token = token_stream.U8(&ok);
-    if (!ok) return false;
-
-    if (token >= 32) {
-      int64_t lit_len = static_cast<int64_t>(token & kMaxShortLitLen);
-      if (lit_len == static_cast<int64_t>(kMaxShortLitLen)) {
-        lit_len = var_lit_len_stream.VarUint(&ok) +
-                  static_cast<int64_t>(kMaxShortLitLen);
-        if (!ok) return false;
-      }
-      if (lit_len > 0) {
-        const size_t n = static_cast<size_t>(lit_len);
-        if (n > kMaxUncompressedSize - dst.size()) return false;
-        const uint8_t* const p = literal_stream.Sequence(n, &ok);
-        if (!ok) return false;
-        dst.insert(dst.end(), p, p + n);
-      }
-      if ((token & 0x80) == 0) {
-        last_offs = -static_cast<int64_t>(off16_stream.U16(&ok));
-        if (!ok) return false;
-      }
-      match_len =
-          static_cast<int64_t>((token >> kLiteralLenBits) & kMaxShortMatchLen);
-      if (match_len == static_cast<int64_t>(kMaxShortMatchLen)) {
-        match_len = var_match_len_stream.VarUint(&ok) +
-                    static_cast<int64_t>(kMaxShortMatchLen);
-        if (!ok) return false;
-      }
-    } else if (token < kLastLongOffset) {
-      match_len =
-          static_cast<int64_t>(token) + static_cast<int64_t>(kMMLongOffsets);
-      last_offs = -static_cast<int64_t>(off24_stream.U24(&ok));
-      if (!ok) return false;
-    } else {
-      match_len = var_match_len_stream.VarUint(&ok) +
-                  static_cast<int64_t>(kLastLongOffset + kMMLongOffsets);
-      if (!ok) return false;
-      last_offs = -static_cast<int64_t>(off24_stream.U24(&ok));
-      if (!ok) return false;
-    }
-
-    if (match_len > 0) {
-      // A match must refer to an offset already emitted, otherwise it would
-      // read before the start of the output.
-      if (last_offs == 0) return false;
-      const int64_t match_pos = static_cast<int64_t>(dst.size()) + last_offs;
-      if (match_pos < 0 || match_pos > static_cast<int64_t>(dst.size())) {
-        return false;
-      }
-      if (!CopyMatch(dst, static_cast<size_t>(match_pos),
-                     static_cast<size_t>(match_len))) {
-        return false;
-      }
-    }
-  }
-
-  // The offset/length streams have to be fully consumed: leftover bytes mean
-  // the block is inconsistent even if the token stream ended cleanly.
-  if (!off16_stream.IsEmpty() || !off24_stream.IsEmpty() ||
-      !var_lit_len_stream.IsEmpty() || !var_match_len_stream.IsEmpty()) {
-    return false;
-  }
-
-  const size_t remaining = literal_stream.RemainingBytes();
-  if (remaining > 0) {
-    if (remaining > kMaxUncompressedSize - dst.size()) return false;
-    const uint8_t* const p = literal_stream.Sequence(remaining, &ok);
-    if (!ok) return false;
-    dst.insert(dst.end(), p, p + remaining);
-  }
-  return true;
-}
 
 // ------------------------------ container
 

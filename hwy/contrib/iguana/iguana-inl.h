@@ -35,6 +35,7 @@
 #include "hwy/contrib/iguana/ans-inl.h"
 #include "hwy/contrib/iguana/ans.h"
 #include "hwy/contrib/iguana/detail.h"
+#include "hwy/contrib/iguana/iguana.h"  // Decompress (the public wrapper)
 #include "hwy/highway.h"
 
 HWY_BEFORE_NAMESPACE();
@@ -52,16 +53,48 @@ namespace ha = hwy::iguana_ans::HWY_NAMESPACE;
 // Returns false on malformed input; output matches hi::DecompressScalar.
 HWY_INLINE bool Decompress(const uint8_t* HWY_RESTRICT src, size_t src_size,
                            std::vector<uint8_t>& out) {
+  // HWY_ATTR is required here: the lambda is a separate function that calls
+  // SIMD code, so it must be compiled for this target too.
   const auto decode = [](const uint8_t* payload, size_t payload_size,
-                         uint8_t* dst, size_t dst_size) {
+                         uint8_t* dst, size_t dst_size) HWY_ATTR {
     return ha::Ans32Decode(payload, payload_size, dst, dst_size);
   };
   return hi::DecompressBlock(src, src_size, out, decode);
 }
 
 }  // namespace iguana_full
+
+// Entry point that the dispatched Decompress below calls: it forwards to the
+// implementation above for whichever target was selected at run time.
+HWY_INLINE bool Decompress(const uint8_t* HWY_RESTRICT src, size_t src_size,
+                           std::vector<uint8_t>& out) {
+  return iguana_full::Decompress(src, src_size, out);
+}
+
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
+
+#if HWY_ONCE
+namespace hwy {
+
+// Registered after every target has been declared: this block is compiled once,
+// inside the last target pass, and lives in namespace hwy because that is where
+// the N_* target namespaces are.
+HWY_EXPORT(Decompress);
+
+namespace iguana {
+
+// Dispatches to the best target available at run time. Inline, so that one
+// definition satisfies every translation unit that includes this header; the
+// declaration in iguana.h documents it.
+HWY_INLINE bool Decompress(const uint8_t* HWY_RESTRICT src, size_t src_size,
+                           std::vector<uint8_t>& out) {
+  return HWY_DYNAMIC_DISPATCH(Decompress)(src, src_size, out);
+}
+
+}  // namespace iguana
+}  // namespace hwy
+#endif  // HWY_ONCE
 
 #endif  // include guard

@@ -147,8 +147,33 @@ struct StreamReader {
 // Reads a base-128 varint backwards from src[*cursor], moving *cursor before
 // the consumed bytes. The first byte read is the most significant one. Sets
 // *ok=false on underflow, or if the value would not fit in 64 bits.
-HWY_CONTRIB_DLLEXPORT uint64_t ReadControlVarUint(const uint8_t* src,
-                                                  int64_t* cursor, bool* ok);
+// Nothing in this header is exported; only iguana.h is public API. Kept inline
+// because it is tiny and stays target-independent.
+HWY_INLINE uint64_t ReadControlVarUint(const uint8_t* src, int64_t* cursor,
+                                       bool* ok) {
+  uint64_t r = 0;
+  int groups = 0;  // number of bytes consumed so far
+  while (*cursor >= 0) {
+    const uint8_t v = src[*cursor];
+    --*cursor;
+    if (groups == 9) {
+      // 10th byte is the most significant: it may contribute a single bit,
+      // otherwise the shift below would silently drop bits.
+      if ((v & 0x7F) > 1) {
+        *ok = false;
+        return 0;
+      }
+    } else if (groups >= 10) {
+      *ok = false;
+      return 0;
+    }
+    r = (r << 7) | (v & 0x7F);
+    ++groups;
+    if (v & 0x80) return r;
+  }
+  *ok = false;
+  return 0;
+}
 
 // ------------------------------ LZ77 stage (decoder)
 
@@ -158,11 +183,124 @@ struct IguanaStream {
   size_t size = 0;
 };
 
+// Appends match_len bytes copied from dst[match_pos..). Overlapping runs
+// (where the source reaches into the bytes being produced) are the common
+// case, so we resize first - which keeps the destination pointers valid,
+// and is what makes the copy below well-defined - and then copy forward,
+// where every byte read has already been written.
+HWY_INLINE bool CopyMatch(std::vector<uint8_t>& dst, size_t match_pos,
+                          size_t match_len, uint64_t uncompressed_len) {
+  if (match_len > uncompressed_len - dst.size()) return false;
+  const size_t old_size = dst.size();
+  dst.resize(old_size + match_len);
+  uint8_t* const HWY_RESTRICT out = dst.data();
+  for (size_t i = 0; i < match_len; ++i) {
+    out[old_size + i] = out[match_pos + i];
+  }
+  return true;
+}
+
+// Reads a base-128 varint backwards from src[*cursor], moving *cursor before
+// the consumed bytes. The first byte read is the most significant one. Sets
+// *ok=false on underflow, or if the value would not fit in 64 bits.
+
 // The LZ77 stage: expands the six streams into `dst` (appended). The token
 // loop is inherently serial, so this stays scalar on the SIMD path too.
-// Returns false on malformed input. Defined in iguana.cc.
-HWY_CONTRIB_DLLEXPORT bool DecompressIguanaLZ(
-    std::vector<uint8_t>& dst, const IguanaStream streams[kStreamCount]);
+// Returns false on malformed input.
+HWY_INLINE bool DecompressIguanaLZ(std::vector<uint8_t>& dst,
+                                   const IguanaStream streams_in[kStreamCount],
+                                   uint64_t uncompressed_len) {
+  StreamReader reader[kStreamCount];
+  for (size_t i = 0; i < kStreamCount; ++i) {
+    reader[i].data = streams_in[i].data;
+    reader[i].size = streams_in[i].size;
+  }
+  StreamReader& token_stream = reader[0];
+  StreamReader& off16_stream = reader[1];
+  StreamReader& off24_stream = reader[2];
+  StreamReader& var_lit_len_stream = reader[3];
+  StreamReader& var_match_len_stream = reader[4];
+  StreamReader& literal_stream = reader[5];
+
+  bool ok = true;
+  // Offset of the previous match, negated: the streams encode the distance
+  // back from the current output position. Zero means "no match seen yet", and
+  // a match that refers to it is malformed.
+  int64_t last_offs = 0;
+  while (!token_stream.IsEmpty()) {
+    int64_t match_len = 0;
+    const uint8_t token = token_stream.U8(&ok);
+    if (!ok) return false;
+
+    if (token >= 32) {
+      int64_t lit_len = static_cast<int64_t>(token & kMaxShortLitLen);
+      if (lit_len == static_cast<int64_t>(kMaxShortLitLen)) {
+        lit_len = var_lit_len_stream.VarUint(&ok) +
+                  static_cast<int64_t>(kMaxShortLitLen);
+        if (!ok) return false;
+      }
+      if (lit_len > 0) {
+        const size_t n = static_cast<size_t>(lit_len);
+        if (n > uncompressed_len - dst.size()) return false;
+        const uint8_t* const p = literal_stream.Sequence(n, &ok);
+        if (!ok) return false;
+        dst.insert(dst.end(), p, p + n);
+      }
+      if ((token & 0x80) == 0) {
+        last_offs = -static_cast<int64_t>(off16_stream.U16(&ok));
+        if (!ok) return false;
+      }
+      match_len =
+          static_cast<int64_t>((token >> kLiteralLenBits) & kMaxShortMatchLen);
+      if (match_len == static_cast<int64_t>(kMaxShortMatchLen)) {
+        match_len = var_match_len_stream.VarUint(&ok) +
+                    static_cast<int64_t>(kMaxShortMatchLen);
+        if (!ok) return false;
+      }
+    } else if (token < kLastLongOffset) {
+      match_len =
+          static_cast<int64_t>(token) + static_cast<int64_t>(kMMLongOffsets);
+      last_offs = -static_cast<int64_t>(off24_stream.U24(&ok));
+      if (!ok) return false;
+    } else {
+      match_len = var_match_len_stream.VarUint(&ok) +
+                  static_cast<int64_t>(kLastLongOffset + kMMLongOffsets);
+      if (!ok) return false;
+      last_offs = -static_cast<int64_t>(off24_stream.U24(&ok));
+      if (!ok) return false;
+    }
+
+    if (match_len > 0) {
+      // A match must refer to an offset already emitted, otherwise it would
+      // read before the start of the output.
+      if (last_offs == 0) return false;
+      const int64_t match_pos = static_cast<int64_t>(dst.size()) + last_offs;
+      if (match_pos < 0 || match_pos > static_cast<int64_t>(dst.size())) {
+        return false;
+      }
+      if (!CopyMatch(dst, static_cast<size_t>(match_pos),
+                     static_cast<size_t>(match_len), uncompressed_len)) {
+        return false;
+      }
+    }
+  }
+
+  // The offset/length streams have to be fully consumed: leftover bytes mean
+  // the block is inconsistent even if the token stream ended cleanly.
+  if (!off16_stream.IsEmpty() || !off24_stream.IsEmpty() ||
+      !var_lit_len_stream.IsEmpty() || !var_match_len_stream.IsEmpty()) {
+    return false;
+  }
+
+  const size_t remaining = literal_stream.RemainingBytes();
+  if (remaining > 0) {
+    if (remaining > uncompressed_len - dst.size()) return false;
+    const uint8_t* const p = literal_stream.Sequence(remaining, &ok);
+    if (!ok) return false;
+    dst.insert(dst.end(), p, p + remaining);
+  }
+  return true;
+}
 
 // ------------------------------ Container loop (shared by both paths)
 
@@ -172,8 +310,9 @@ HWY_CONTRIB_DLLEXPORT bool DecompressIguanaLZ(
 //
 // This parses untrusted input, so every length is validated before any
 // allocation: offsets are checked by subtraction (addition can wrap around),
-// and the declared uncompressed length, each stream length and each command
-// length are capped at kMaxUncompressedSize, which bounds "zip bombs".
+// each command may only consume payload bytes that are still in front of the
+// control section, and no command may produce more than the declared total,
+// which (together with kMaxUncompressedSize) bounds "zip bombs".
 // Returns false on malformed input.
 template <class DecodeFn>
 bool DecompressBlock(const uint8_t* src, size_t src_size,
@@ -188,6 +327,14 @@ bool DecompressBlock(const uint8_t* src, size_t src_size,
   if (uncompressed_len > kMaxUncompressedSize) return false;
 
   size_t data_cursor = 0;
+  // The payload is read forwards from the start and the control bytes backwards
+  // from the end: they must not overlap, so a command may only use bytes that
+  // are still in front of the control section. `ctrl` is the last unconsumed
+  // control byte, hence the +1.
+  const auto have_payload = [&](uint64_t len) {
+    if (len > src_size - data_cursor) return false;
+    return data_cursor + len <= static_cast<uint64_t>(ctrl) + 1;
+  };
   std::vector<std::vector<uint8_t>> ent_bufs;
 
   for (;;) {
@@ -198,8 +345,8 @@ bool DecompressBlock(const uint8_t* src, size_t src_size,
     switch (cmd & kCommandMask) {
       case kCmdCopyRaw: {
         const uint64_t n = ReadControlVarUint(src, &ctrl, &ok);
-        if (!ok || n > src_size - data_cursor) return false;
-        if (n > kMaxUncompressedSize - out.size()) return false;
+        if (!ok || !have_payload(n)) return false;
+        if (n > uncompressed_len - out.size()) return false;
         out.insert(out.end(), src + data_cursor,
                    src + data_cursor + static_cast<size_t>(n));
         data_cursor += static_cast<size_t>(n);
@@ -208,8 +355,8 @@ bool DecompressBlock(const uint8_t* src, size_t src_size,
       case kCmdDecodeANS32: {
         const uint64_t lu = ReadControlVarUint(src, &ctrl, &ok);
         const uint64_t lc = ReadControlVarUint(src, &ctrl, &ok);
-        if (!ok || lc > src_size - data_cursor) return false;
-        if (lu > kMaxUncompressedSize - out.size()) return false;
+        if (!ok || !have_payload(lc)) return false;
+        if (lu > uncompressed_len - out.size()) return false;
         const size_t out_pos = out.size();
         out.resize(out_pos + static_cast<size_t>(lu));
         if (!decode(src + data_cursor, static_cast<size_t>(lc),
@@ -231,13 +378,13 @@ bool DecompressBlock(const uint8_t* src, size_t src_size,
         for (size_t i = 0; i < kStreamCount; ++i) {
           const size_t mode = static_cast<size_t>((hdr >> (i * 4)) & 0xF);
           if (mode == 0) {
-            if (ulens[i] > src_size - data_cursor) return false;
+            if (!have_payload(ulens[i])) return false;
             streams[i].data = src + data_cursor;
             streams[i].size = static_cast<size_t>(ulens[i]);
             data_cursor += static_cast<size_t>(ulens[i]);
           } else if (mode == 1) {  // EntropyANS32
             const uint64_t clen = ReadControlVarUint(src, &ctrl, &ok);
-            if (!ok || clen > src_size - data_cursor) return false;
+            if (!ok || !have_payload(clen)) return false;
             ent_bufs.emplace_back();
             std::vector<uint8_t>& buf = ent_bufs.back();
             buf.resize(static_cast<size_t>(ulens[i]));
@@ -252,14 +399,23 @@ bool DecompressBlock(const uint8_t* src, size_t src_size,
             return false;  // ANS1 / ANS_nibble not implemented
           }
         }
-        if (!DecompressIguanaLZ(out, streams)) return false;
+        if (!DecompressIguanaLZ(out, streams, uncompressed_len)) return false;
+        // The streams pointed into ent_bufs and the LZ stage is done with them;
+        // dropping them keeps memory bounded across commands.
+        ent_bufs.clear();
         break;
       }
       default:
         return false;
     }
 
-    if (cmd & kLastCommandMarker) return true;
+    if (cmd & kLastCommandMarker) {
+      // A complete block must produce exactly the declared number of bytes and
+      // consume every payload byte in front of the control section.
+      if (out.size() != uncompressed_len) return false;
+      if (data_cursor != static_cast<size_t>(ctrl + 1)) return false;
+      return true;
+    }
   }
 }
 

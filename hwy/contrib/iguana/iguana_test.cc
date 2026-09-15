@@ -73,6 +73,11 @@ void RoundTrip(const std::vector<uint8_t>& data) {
   std::vector<uint8_t> dec2;
   HWY_ASSERT(hwy::iguana::DecompressScalar(comp.data(), comp.size(), dec2));
   HWY_ASSERT(dec2 == dec);
+
+  // The public wrapper dispatches to the best target at runtime.
+  std::vector<uint8_t> dec3;
+  HWY_ASSERT(hwy::iguana::Decompress(comp.data(), comp.size(), dec3));
+  HWY_ASSERT(dec3 == dec);
 }
 
 void TestRoundTripSizes() {
@@ -369,6 +374,52 @@ void TestSecurityRandomInput() {
   }
 }
 
+// One token can carry at most kMaxEncodableLitLen literals, so longer literal
+// runs have to be split across several literal-only tokens. The trigger is a
+// maximal-length LFSR sequence of degree 24 rendered as bytes over a
+// two-symbol alphabet: every 24-bit window is unique, so the matcher cannot
+// find any match and the entire input becomes one literal run, while the
+// skewed alphabet still lets the entropy stage win - which is what selects
+// the LZ path in the first place. Decoding only round-trips if the split is
+// correct, so this is the only coverage of that path.
+void TestLongLiteralRunSplit() {
+  // Compressing 16 MB is too slow to repeat for every target, and the code it
+  // covers (the encoder's token splitting) is target-independent, so run it
+  // for the static target only.
+  if (HWY_TARGET != HWY_STATIC_TARGET) return;
+
+  // 254^3 - 1: the most literals a single token can carry. This mirrors
+  // kMaxEncodableLitLen in iguana.cc, which is internal to that file.
+  constexpr size_t kMaxTokenLiterals = 254 * 254 * 254 - 1;
+  // x^24 + x^4 + x^3 + x + 1 is primitive, so the period is 2^24 - 1, which is
+  // longer than one token can carry.
+  uint32_t lfsr = 1;
+  const size_t num_bytes = (size_t{1} << 24) + 4096;
+  HWY_ASSERT(num_bytes > kMaxTokenLiterals);
+  std::vector<uint8_t> data;
+  data.reserve(num_bytes);
+  for (size_t i = 0; i < num_bytes; ++i) {
+    data.push_back(static_cast<uint8_t>('0' + (lfsr & 1)));
+    lfsr = (lfsr >> 1) |
+           (((lfsr ^ (lfsr >> 1) ^ (lfsr >> 3) ^ (lfsr >> 4)) & 1) << 23);
+  }
+
+  const std::vector<uint8_t> comp =
+      hwy::iguana::Compress(data.data(), data.size());
+  HWY_ASSERT(!comp.empty());
+  // If the raw path had won, the LZ path (and the splitting inside it) would
+  // never have run, so the test would prove nothing.
+  HWY_ASSERT(comp.size() * 4 < data.size());
+
+  std::vector<uint8_t> dec;
+  HWY_ASSERT(ig::Decompress(comp.data(), comp.size(), dec));
+  HWY_ASSERT(dec == data);
+  std::vector<uint8_t> dec_scalar;
+  HWY_ASSERT(
+      hwy::iguana::DecompressScalar(comp.data(), comp.size(), dec_scalar));
+  HWY_ASSERT(dec_scalar == data);
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -386,6 +437,7 @@ HWY_EXPORT_AND_TEST_P(IguanaTest, TestSecurityMalformedContainer);
 HWY_EXPORT_AND_TEST_P(IguanaTest, TestSecurityMalformedLZ);
 HWY_EXPORT_AND_TEST_P(IguanaTest, TestSecurityMutationSweep);
 HWY_EXPORT_AND_TEST_P(IguanaTest, TestSecurityRandomInput);
+HWY_EXPORT_AND_TEST_P(IguanaTest, TestLongLiteralRunSplit);
 HWY_AFTER_TEST();
 }  // namespace hwy
 #endif
