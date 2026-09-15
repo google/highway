@@ -44,8 +44,10 @@ size_t Count(D d, T value, const T* HWY_RESTRICT in, size_t count) {
   size_t total = 0;
   size_t i = 0;
 
-  // Min 4 lanes needed for two pairwise widenings, 8->16->32
-  if constexpr (sizeof(T) == 1 && HWY_MAX_LANES_D(D) >= 4) {
+  // Min 4 lanes needed for two pairwise widenings, 8->16->32. Partial scalable
+  // tags may have no vector type for the wider lanes (e.g. RVV).
+  if constexpr (sizeof(T) == 1 && HWY_MAX_LANES_D(D) >= 4 &&
+                (!HWY_HAVE_SCALABLE || detail::IsFull(d))) {
     const VI k1 = Set(di, TI{1});
     const RebindToUnsigned<decltype(di)> du;
     const RepartitionToWide<decltype(di)> di16;
@@ -105,7 +107,8 @@ size_t Count(D d, T value, const T* HWY_RESTRICT in, size_t count) {
       }
     }
     total += static_cast<size_t>(ReduceSum(di32, wide_sum));
-  } else if constexpr (sizeof(T) == 2 && HWY_MAX_LANES_D(D) >= 2) {
+  } else if constexpr (sizeof(T) == 2 && HWY_MAX_LANES_D(D) >= 2 &&
+                       (!HWY_HAVE_SCALABLE || detail::IsFull(d))) {
     // Min 2 lanes needed for pairwise widening, 16->32
     const Repartition<int32_t, D> di32;
     auto wide_sum = Zero(di32);
@@ -233,8 +236,10 @@ size_t CountIf(D d, const T* HWY_RESTRICT in, size_t count, const Func& func) {
   size_t total = 0;
   size_t i = 0;
 
-  // Min 4 lanes needed for two pairwise widenings, 8->16->32
-  if constexpr (sizeof(T) == 1 && HWY_MAX_LANES_D(D) >= 4) {
+  // Min 4 lanes needed for two pairwise widenings, 8->16->32. Partial scalable
+  // tags may have no vector type for the wider lanes (e.g. RVV).
+  if constexpr (sizeof(T) == 1 && HWY_MAX_LANES_D(D) >= 4 &&
+                (!HWY_HAVE_SCALABLE || detail::IsFull(d))) {
     const VI k1 = Set(di, TI{1});
     const RebindToUnsigned<decltype(di)> du;
     const RepartitionToWide<decltype(di)> di16;
@@ -290,7 +295,8 @@ size_t CountIf(D d, const T* HWY_RESTRICT in, size_t count, const Func& func) {
       }
     }
     total += static_cast<size_t>(ReduceSum(di32, wide_sum));
-  } else if constexpr (sizeof(T) == 2 && HWY_MAX_LANES_D(D) >= 2) {
+  } else if constexpr (sizeof(T) == 2 && HWY_MAX_LANES_D(D) >= 2 &&
+                       (!HWY_HAVE_SCALABLE || detail::IsFull(d))) {
     // Min 2 lanes needed for pairwise widening, 16->32
     const Repartition<int32_t, D> di32;
     using VI32 = Vec<decltype(di32)>;
