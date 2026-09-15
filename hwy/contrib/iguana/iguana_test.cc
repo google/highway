@@ -37,30 +37,23 @@ namespace {
 
 namespace ig = hwy::HWY_NAMESPACE::iguana_full;
 
-uint64_t NextRandom(uint64_t& state) {
-  state ^= state << 13;
-  state ^= state >> 7;
-  state ^= state << 17;
-  return state;
-}
-
 std::vector<uint8_t> MakeData(size_t n, uint64_t seed, int mode) {
-  uint64_t state = seed | 1;
+  RandomState rng(seed | 1);
   std::vector<uint8_t> v(n);
   if (mode == 0) {
-    for (auto& x : v) x = static_cast<uint8_t>(NextRandom(state));
+    for (auto& x : v) x = static_cast<uint8_t>(Random64(&rng));
   } else if (mode == 1) {  // skewed
     for (auto& x : v) {
       uint32_t a = 0;
       for (int k = 0; k < 3; ++k)
-        a += static_cast<uint32_t>(NextRandom(state) & 0x3F);
+        a += static_cast<uint32_t>(Random64(&rng) & 0x3F);
       x = static_cast<uint8_t>(a);
     }
   } else {  // repetitive words (compresses well)
     static const char* const w[] = {"the ",   "quick ", "brown ", "fox ",
                                     "jumps ", "over ",  "lazy ",  "dog "};
     std::string s;
-    while (s.size() < n) s += w[NextRandom(state) & 7];
+    while (s.size() < n) s += w[Random64(&rng) & 7];
     for (size_t i = 0; i < n; ++i) v[i] = static_cast<uint8_t>(s[i]);
   }
   return v;
@@ -112,6 +105,64 @@ void TestRoundTripStructure() {
   }
 }
 
+
+// Malformed or truncated inputs must be rejected: no crash, and no allocation
+// driven by an attacker-controlled length.
+void TestRejectsMalformed() {
+  std::vector<uint8_t> out;
+
+  // No header at all.
+  HWY_ASSERT(!hwy::iguana::DecompressScalar(nullptr, 0, out));
+  HWY_ASSERT(!ig::Decompress(nullptr, 0, out));
+
+  // A hand-built block whose very first LZ token is a match that reuses the
+  // "previous offset" (bit 0x80) when there has not been one yet - the offset
+  // would be zero, i.e. read from before the start of the output.
+  // Layout: [tokens payload][ulen 5..0][hdr][cmd][uncompressed_len], the
+  // control bytes read backwards from the end.
+  {
+    const uint8_t first_match_reuse[] = {
+        0xA0,                                            // token: reuse offs, len 4
+        0x80, 0x80, 0x80, 0x80, 0x80, 0x81,              // ulens: 0,0,0,0,0,1 (tokens)
+        0x80,                                            // hdr: all streams raw
+        0x80 | hwy::iguana::kCmdDecodeIguana,            // command (last)
+        0x84,                                            // uncompressed_len = 4
+    };
+    HWY_ASSERT(!hwy::iguana::DecompressScalar(first_match_reuse,
+                                              sizeof(first_match_reuse), out));
+    HWY_ASSERT(!ig::Decompress(first_match_reuse,
+                               sizeof(first_match_reuse), out));
+  }
+
+  // Every truncation of a valid block is rejected or decodes a shorter output.
+  const std::vector<uint8_t> data = MakeData(5000, 777, 2);
+  const std::vector<uint8_t> comp =
+      hwy::iguana::Compress(data.data(), data.size());
+  HWY_ASSERT(!comp.empty());
+  for (size_t n = 0; n < comp.size(); ++n) {
+    std::vector<uint8_t> scalar;
+    std::vector<uint8_t> simd;
+    const bool ok_scalar = hwy::iguana::DecompressScalar(comp.data(), n, scalar);
+    const bool ok_simd = ig::Decompress(comp.data(), n, simd);
+    HWY_ASSERT(ok_scalar == ok_simd);
+    if (ok_scalar) {
+      // A truncated block may decode, but never to more than the original.
+      HWY_ASSERT(simd == scalar);
+      HWY_ASSERT(scalar.size() <= data.size());
+    }
+  }
+
+  // Single-byte mutations: accepted output is still bounded by the cap.
+  for (size_t i = 0; i < comp.size(); i += 5) {
+    std::vector<uint8_t> mutated = comp;
+    mutated[i] ^= 0xFF;
+    std::vector<uint8_t> dec;
+    if (hwy::iguana::DecompressScalar(mutated.data(), mutated.size(), dec)) {
+      HWY_ASSERT(dec.size() <= (size_t{1} << 30));
+    }
+  }
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -123,6 +174,7 @@ namespace hwy {
 HWY_BEFORE_TEST(IguanaTest);
 HWY_EXPORT_AND_TEST_P(IguanaTest, TestRoundTripSizes);
 HWY_EXPORT_AND_TEST_P(IguanaTest, TestRoundTripStructure);
+HWY_EXPORT_AND_TEST_P(IguanaTest, TestRejectsMalformed);
 HWY_AFTER_TEST();
 }  // namespace hwy
 #endif

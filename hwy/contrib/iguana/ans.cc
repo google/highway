@@ -266,9 +266,16 @@ size_t DeserializeAnsTable(AnsDenseTable& table, const uint8_t* src,
 
   // The normalized frequencies sum to kAnsWordM, except for the single-symbol
   // edge case where they sum to kAnsWordM - 1 (see AnsStatistics::FromData).
+  // Anything else is malformed: a smaller total would leave the dense table
+  // with unassigned slots, a larger one would alias symbols.
   uint64_t total = 0;
   for (uint32_t f : freqs) total += f;
-  if (total > kAnsWordM) return SIZE_MAX;
+  if (total != kAnsWordM && total != kAnsWordM - 1) return SIZE_MAX;
+  // A single symbol must not claim the whole table (or more): the cumulative
+  // sums below would then overflow their 12 bits and the table would be bogus.
+  for (uint32_t f : freqs) {
+    if (f >= kAnsWordM) return SIZE_MAX;
+  }
 
   BuildDenseTable(table, freqs);
   return static_cast<size_t>((nibidx + 1) >> 1);
