@@ -363,6 +363,18 @@ cc_library(
 )
 
 cc_library(
+    name = "multiprec",
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/multiprec/multiprec-inl.h",
+    ],
+    deps = [
+        ":hwy",
+    ],
+)
+
+cc_library(
     name = "topology",
     srcs = ["hwy/contrib/thread_pool/topology.cc"],
     hdrs = ["hwy/contrib/thread_pool/topology.h"],
@@ -861,6 +873,16 @@ HWY_TEST_DEPS = [
     ":compiler_msvc": [],
     "//conditions:default": ["@com_google_googletest//:gtest_main"],
 })
+
+cc_test(
+    name = "multiprec_test",
+    srcs = ["hwy/contrib/multiprec/multiprec_test.cc"],
+    compatible_with = [],
+    copts = HWY_TEST_COPTS,
+    deps = HWY_TEST_DEPS + [
+        ":multiprec",
+    ],
+)
 
 config_setting(
     name = "linux_x64",

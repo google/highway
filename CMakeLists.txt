@@ -256,6 +256,7 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/math/float_manip-inl.h
     hwy/contrib/math/math-inl.h
     hwy/contrib/matvec/matvec-inl.h
+    hwy/contrib/multiprec/multiprec-inl.h
     hwy/contrib/random/random-inl.h
     hwy/contrib/sort/order.h
     hwy/contrib/sort/shared-inl.h
@@ -1065,6 +1066,7 @@ list(APPEND HWY_TEST_FILES
   hwy/contrib/math/math_test.cc
   hwy/contrib/math/math_trig_test.cc
   hwy/contrib/matvec/matvec_test.cc
+  hwy/contrib/multiprec/multiprec_test.cc
   hwy/contrib/random/random_test.cc
   hwy/contrib/sort/bench_sort.cc
   hwy/contrib/sort/sort_test.cc
