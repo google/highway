@@ -232,18 +232,20 @@ struct Encoder {
     *out_match_pos = pos;
     *out_chain_pos = 0;
     *out_len = 0;
-    const int64_t repeat_ofs = pos - static_cast<int64_t>(last_encoded_offset);
-    if (repeat_ofs >= 0 && repeat_ofs < pos) {
+    const int64_t repeat_pos = pos - static_cast<int64_t>(last_encoded_offset);
+    if (repeat_pos >= 0 && repeat_pos < pos) {
       // Unlike the chain path this does not go through MatchExtend, so the
       // format limits have to be applied here as well: a single token carries
       // at most kMaxEncodableMatchLen, and the offset must still fit the
       // 24-bit stream.
-      int64_t repeat_len = Lcp(src, src_len, repeat_ofs, pos);
+      int64_t repeat_len = Lcp(src, src_len, repeat_pos, pos);
       if (repeat_len > kMaxEncodableMatchLen) {
         repeat_len = kMaxEncodableMatchLen;
       }
-      if (IsLegal(repeat_ofs, repeat_len)) {
-        *out_chain_pos = repeat_ofs;
+      // IsLegal takes the distance back from `pos`, which is the repeat
+      // distance itself, not the source position we copy from.
+      if (IsLegal(static_cast<int64_t>(last_encoded_offset), repeat_len)) {
+        *out_chain_pos = repeat_pos;
         *out_len = repeat_len;
       }
     }
@@ -391,8 +393,16 @@ struct Encoder {
 
 // ------------------------------ container
 
+// The decoder rejects blocks that declare more than kMaxUncompressedSize, so
+// producing one would break the round-trip guarantee. Staying below it also
+// keeps every stream below the 4 GiB limit of the ANS coder (asserted below)
+// and every position below the 2 GiB that the match finder's int32_t needs.
+static_assert(kMaxUncompressedSize < (uint64_t{1} << 31),
+              "the match finder stores positions as int32_t");
 HWY_CONTRIB_DLLEXPORT std::vector<uint8_t> Compress(const uint8_t* data,
                                                     size_t size) {
+  if (size > kMaxUncompressedSize) return {};
+
   ControlWriter cw;
   cw.VarUint(size);  // total uncompressed length
   Bytes dst;
@@ -418,6 +428,8 @@ HWY_CONTRIB_DLLEXPORT std::vector<uint8_t> Compress(const uint8_t* data,
     for (const auto& u : ustreams) total += static_cast<int64_t>(u.size());
 
     for (size_t i = 0; i < kStreamCount; ++i) {
+      // The ANS coder would wrap around (and divide by zero) at 4 GiB.
+      HWY_DASSERT(ustreams[i].size() < (size_t{1} << 32));
       Bytes cs = Ans32Encode(ustreams[i].data(), ustreams[i].size());
       const double ratio = ustreams[i].empty()
                                ? 1e9

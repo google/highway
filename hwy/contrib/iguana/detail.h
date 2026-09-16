@@ -200,10 +200,6 @@ HWY_INLINE bool CopyMatch(std::vector<uint8_t>& dst, size_t match_pos,
   return true;
 }
 
-// Reads a base-128 varint backwards from src[*cursor], moving *cursor before
-// the consumed bytes. The first byte read is the most significant one. Sets
-// *ok=false on underflow, or if the value would not fit in 64 bits.
-
 // The LZ77 stage: expands the six streams into `dst` (appended). The token
 // loop is inherently serial, so this stays scalar on the SIMD path too.
 // Returns false on malformed input.
@@ -335,12 +331,15 @@ bool DecompressBlock(const uint8_t* src, size_t src_size,
     if (len > src_size - data_cursor) return false;
     return data_cursor + len <= static_cast<uint64_t>(ctrl) + 1;
   };
-  std::vector<std::vector<uint8_t>> ent_bufs;
+  // One per stream, as a fixed array: a vector of vectors would reallocate as
+  // entries are appended, and the streams below point into these buffers.
+  std::vector<uint8_t> ent_bufs[kStreamCount];
 
   for (;;) {
     if (ctrl < 0) return false;
     const uint8_t cmd = src[static_cast<size_t>(ctrl)];
     --ctrl;
+    const size_t prev_out_size = out.size();
 
     switch (cmd & kCommandMask) {
       case kCmdCopyRaw: {
@@ -373,7 +372,9 @@ bool DecompressBlock(const uint8_t* src, size_t src_size,
         uint64_t ulens[kStreamCount];
         for (size_t i = 0; i < kStreamCount; ++i) {
           ulens[i] = ReadControlVarUint(src, &ctrl, &ok);
-          if (!ok || ulens[i] > kMaxUncompressedSize) return false;
+          // Each stream is part of the output, so the declared total bounds
+          // it; the cap alone would still permit full-size allocations.
+          if (!ok || ulens[i] > uncompressed_len) return false;
         }
         for (size_t i = 0; i < kStreamCount; ++i) {
           const size_t mode = static_cast<size_t>((hdr >> (i * 4)) & 0xF);
@@ -385,8 +386,7 @@ bool DecompressBlock(const uint8_t* src, size_t src_size,
           } else if (mode == 1) {  // EntropyANS32
             const uint64_t clen = ReadControlVarUint(src, &ctrl, &ok);
             if (!ok || !have_payload(clen)) return false;
-            ent_bufs.emplace_back();
-            std::vector<uint8_t>& buf = ent_bufs.back();
+            std::vector<uint8_t>& buf = ent_bufs[i];
             buf.resize(static_cast<size_t>(ulens[i]));
             if (!decode(src + data_cursor, static_cast<size_t>(clen),
                         buf.data(), static_cast<size_t>(ulens[i]))) {
@@ -401,13 +401,19 @@ bool DecompressBlock(const uint8_t* src, size_t src_size,
         }
         if (!DecompressIguanaLZ(out, streams, uncompressed_len)) return false;
         // The streams pointed into ent_bufs and the LZ stage is done with them;
-        // dropping them keeps memory bounded across commands.
-        ent_bufs.clear();
+        // releasing them keeps memory bounded across commands.
+        for (auto& buf : ent_bufs) buf.clear();
         break;
       }
       default:
         return false;
     }
+
+    // Every command has to make progress. A token that carries neither a
+    // literal nor a match (0x80, or a zero-length command) would otherwise
+    // decode nothing while consuming control bytes, letting a small block ask
+    // for unbounded work.
+    if (out.size() == prev_out_size) return false;
 
     if (cmd & kLastCommandMarker) {
       // A complete block must produce exactly the declared number of bytes and
