@@ -8136,12 +8136,46 @@ HWY_API Vec128<T, 1> Expand(Vec128<T, 1> v, Mask128<T, 1> mask) {
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
                              const TFromD<D>* HWY_RESTRICT unaligned) {
-  return Expand(LoadU(d, unaligned), mask);
+  return Expand(LoadN(d, unaligned, CountTrue(d, mask)), mask);
 }
 
 #endif  // !(HWY_TARGET <= HWY_AVX3 || HWY_IDE)
 
 #endif  // HWY_NATIVE_EXPAND
+
+// ------------------------------ BlendedLoadExpand
+
+#if !(HWY_ARCH_X86 && HWY_TARGET <= HWY_AVX3)
+template <class D>
+HWY_API VFromD<D> BlendedLoadExpand(VFromD<D> no, MFromD<D> mask, D d,
+                                    const TFromD<D>* HWY_RESTRICT unaligned) {
+  return IfThenElse(mask, LoadExpand(mask, d, unaligned), no);
+}
+#endif
+
+// ------------------------------ MultishiftBytes
+
+#if !(HWY_ARCH_X86 && HWY_TARGET <= HWY_AVX3_DL)
+template <class V, HWY_IF_T_SIZE_V(V, 1)>
+HWY_API V MultishiftBytes(V indices, V values) {
+  const DFromV<V> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const size_t N = Lanes(d);
+  alignas(64) uint8_t idx_lanes[HWY_MAX_BYTES] = {0};
+  alignas(64) uint8_t val_bytes[HWY_MAX_BYTES] = {0};
+  alignas(64) uint8_t out_lanes[HWY_MAX_BYTES] = {0};
+  StoreU(BitCast(du, indices), du, idx_lanes);
+  StoreU(BitCast(du, values), du, val_bytes);
+  for (size_t i = 0; i < N; ++i) {
+    uint64_t qword = 0;
+    CopyBytes<8>(val_bytes + (i & ~size_t{7}), &qword);
+    const unsigned shift = idx_lanes[i] & 63;
+    out_lanes[i] = static_cast<uint8_t>(
+        (qword >> shift) | (shift == 0 ? 0 : (qword << (64 - shift))));
+  }
+  return BitCast(d, LoadU(du, out_lanes));
+}
+#endif
 
 // ------------------------------ TwoTablesLookupLanes
 
