@@ -39,11 +39,18 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
-constexpr bool kPrintOnlySummary = false;
+constexpr bool kPrintOnlySummary = true;
 
-constexpr bool kBenchUnique = true;
-constexpr bool kBenchAllUnique = true;
-constexpr bool kBenchCopyIf = true;
+// disabled for faster CI runs
+constexpr bool kBenchUnique = false;
+constexpr bool kBenchAllUnique = false;
+constexpr bool kBenchCopyIf = false;
+
+// in a single benchmark run, take the mean of inner_reps = min(kInnerRepsMax, max(kElemsPerInnerRep / size, 3))
+// and such runs: kOuterReps
+constexpr size_t kElemsPerInnerRep = 5000000;
+constexpr size_t kInnerRepsMax = 1000;
+constexpr size_t kOuterReps = 100;
 
 // copied from sort
 enum class BenchmarkModes {
@@ -111,13 +118,6 @@ double SummarizeMeasurements(std::vector<double>& ns) {
   return sum / count;
 }
 
-constexpr size_t kElemsPerInnerRep = 5000000;
-constexpr size_t kInnerRepsMax = 1000;
-constexpr size_t kOuterReps = 50;
-
-// in a single benchmark run, take the mean of inner_reps = min(kInnerRepsMax, max(kElemsPerInnerRep / size, 3))
-// and such runs: kOuterReps
-
 template <class Gen>
 struct Ctx {
   Gen gen;
@@ -140,6 +140,7 @@ struct BenchSummary {
     return n == 0 ? 0.0 : std::pow(l6_sum / static_cast<double>(n), 1.0 / 6);
   }
   void Print() const {
+    printf("%s:\n", TargetName(DispatchedTarget()));
     printf("%-10s:    L6 norm (ns/elem): %f\n", name_, L6());
     printf("%-10s:    GeoMean (ns/elem): %f\n", name_, stats.GeometricMean());
   }
@@ -341,7 +342,7 @@ void RunAllSizes(Func func, Gen gen, const std::vector<size_t>& sizes, BenchSumm
   }
 }
 HWY_NOINLINE void BenchAll() {
-  std::vector<size_t> sizes = SizesToBenchmark(BenchmarkModes::kSmallPow2);
+  std::vector<size_t> sizes = SizesToBenchmark(BenchmarkModes::k10K);
   if (kBenchUnique) {
     BenchSummary summary;
     RunAllSizes(BenchUnique{}, RandomRuns01{}, sizes, summary);

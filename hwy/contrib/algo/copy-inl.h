@@ -79,9 +79,16 @@ void Copy(D d, const T* HWY_RESTRICT from, size_t count, T* HWY_RESTRICT to) {
   SafeCopyN(remaining, d, from + idx, to + idx);
 }
 
+namespace detail {
+constexpr size_t kCopyIfBlockBytes = 2048;
+}
+
 // For idx in [0, count) in ascending order, appends `from[idx]` to `to` if the
 // corresponding mask element of `func(d, v)` is true. Returns the STL-style end
 // of the newly written elements in `to`.
+//
+// There will be no overflow even when `to` is allocated for the exact number of
+// written elements.
 //
 // `func` is either a functor with a templated operator()(d, v) returning a
 // mask, or a generic lambda if using C++14. Due to apparent limitations of
@@ -97,33 +104,53 @@ T* CopyIf(D d, const T* HWY_RESTRICT from, size_t count, T* HWY_RESTRICT to,
   const size_t N = Lanes(d);
 
   size_t idx = 0;
-  if (count >= N) {
-    for (; idx <= count - N; idx += N) {
-      const Vec<D> v = LoadU(d, from + idx);
-      to += CompressBlendedStore(v, func(d, v), d, to);
+#if HWY_MEM_OPS_MIGHT_FAULT
+  constexpr size_t kBlock = detail::kCopyIfBlockBytes / sizeof(T);
+  HWY_ALIGN T buf[kBlock];
+  for (; idx + N <= count;) {
+    const size_t block = HWY_MIN(kBlock, (count - idx) & ~(N - 1));
+    size_t cnt = 0;
+    size_t inner = 0;
+    for (; inner + 4 * N <= block; inner += 4 * N) {
+      const Vec<D> v1 = LoadU(d, from + idx + inner);
+      const Vec<D> v2 = LoadU(d, from + idx + inner + N);
+      const Vec<D> v3 = LoadU(d, from + idx + inner + 2 * N);
+      const Vec<D> v4 = LoadU(d, from + idx + inner + 3 * N);
+      const Mask<D> m1 = func(d, v1);
+      const Mask<D> m2 = func(d, v2);
+      const Mask<D> m3 = func(d, v3);
+      const Mask<D> m4 = func(d, v4);
+      cnt += CompressStore(v1, m1, d, buf + cnt);
+      cnt += CompressStore(v2, m2, d, buf + cnt);
+      cnt += CompressStore(v3, m3, d, buf + cnt);
+      cnt += CompressStore(v4, m4, d, buf + cnt);
     }
+    for (; inner + N <= block; inner += N) {
+      const Vec<D> v = LoadU(d, from + idx + inner);
+      const Mask<D> m = func(d, v);
+      cnt += CompressStore(v, m, d, buf + cnt);
+    }
+    Copy(d, buf, cnt, to);
+    to += cnt;
+    idx += inner;
   }
+#else
+  for (; idx + N <= count; idx += N) {
+    const Vec<D> v = LoadU(d, from + idx);
+    to += CompressBlendedStore(v, func(d, v), d, to);
+  }
+#endif
 
   // `count` was a multiple of the vector length `N`: already done.
   if (HWY_UNLIKELY(idx == count)) return to;
 
 #if HWY_MEM_OPS_MIGHT_FAULT
-  // Proceed one by one.
-  const CappedTag<T, 1> d1;
-  for (; idx < count; ++idx) {
-    using V1 = Vec<decltype(d1)>;
-    // Workaround for -Waggressive-loop-optimizations on GCC 8
-    // (iteration 2305843009213693951 invokes undefined behavior for T=i64)
-    const uintptr_t addr = reinterpret_cast<uintptr_t>(from);
-    const T* HWY_RESTRICT from_idx =
-        reinterpret_cast<const T * HWY_RESTRICT>(addr + (idx * sizeof(T)));
-    const V1 v = LoadU(d1, from_idx);
-    // Avoid storing to `to` unless we know it should be kept - otherwise, we
-    // might overrun the end if it was allocated for the exact count.
-    if (CountTrue(d1, func(d1, v)) == 0) continue;
-    StoreU(v, d1, to);
-    to += 1;
-  }
+  const size_t remain = count - idx;
+  const Vec<D> v = LoadN(d, from + idx, remain);
+  const Mask<D> m = And(func(d, v), FirstN(d, remain));
+  const size_t cnt = CountTrue(d, m);
+  StoreN(Compress(v, m), d, to, cnt);
+  to += cnt;
 #else
   // Start index of the last unaligned whole vector, ending at the array end.
   const size_t last = count - N;

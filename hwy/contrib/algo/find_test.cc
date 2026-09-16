@@ -251,11 +251,9 @@ struct TestUnique {
   void operator()(D d, size_t count, size_t misalign, RandomState& rng) {
     using T = TFromD<D>;
     if (count == 0) return;  // Unique requires count > 0.
-    const size_t N = Lanes(d);
 
-    // Allocate with extra space for CompressStore overflow.
     AlignedFreeUniquePtr<T[]> storage =
-        AllocateAligned<T>(HWY_MAX(1, misalign + count + N));
+        AllocateAligned<T>(HWY_MAX(1, misalign + count));
     HWY_ASSERT(storage);
     T* in = storage.get() + misalign;
 
@@ -305,7 +303,7 @@ struct TestUniqueBoundary {
     for (size_t extra = 1; extra <= HWY_MIN(N, size_t{4}); ++extra) {
       const size_t count = N + extra;  // crosses at least one boundary
 
-      AlignedFreeUniquePtr<T[]> storage = AllocateAligned<T>(count + N);
+      AlignedFreeUniquePtr<T[]> storage = AllocateAligned<T>(count);
       HWY_ASSERT(storage);
       T* in = storage.get();
 
