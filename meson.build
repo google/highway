@@ -175,6 +175,7 @@ hwy_contrib_headers = files(
     'hwy/contrib/algo/find-inl.h',
     'hwy/contrib/algo/is_sorted-inl.h',
     'hwy/contrib/algo/minmax-inl.h',
+    'hwy/contrib/algo/shuffle-inl.h',
     'hwy/contrib/algo/transform-inl.h',
     'hwy/contrib/unroller/unroller-inl.h',
 )
@@ -715,6 +716,7 @@ if tests_enabled
             'hwy/contrib/algo/find_test.cc',
             'hwy/contrib/algo/is_sorted_test.cc',
             'hwy/contrib/algo/minmax_value_test.cc',
+            'hwy/contrib/algo/shuffle_test.cc',
             'hwy/contrib/algo/transform_test.cc',
             'hwy/contrib/bit_pack/bit_pack_test.cc',
             'hwy/contrib/coder/range_coder_test.cc',
