@@ -429,7 +429,8 @@ HWY_CONTRIB_DLLEXPORT std::vector<uint8_t> Compress(const uint8_t* data,
 
     for (size_t i = 0; i < kStreamCount; ++i) {
       // The ANS coder would wrap around (and divide by zero) at 4 GiB.
-      HWY_DASSERT(ustreams[i].size() < (size_t{1} << 32));
+      HWY_DASSERT(static_cast<uint64_t>(ustreams[i].size()) <
+                  (uint64_t{1} << 32));
       Bytes cs = Ans32Encode(ustreams[i].data(), ustreams[i].size());
       const double ratio = ustreams[i].empty()
                                ? 1e9

@@ -304,6 +304,41 @@ void TestSecurityMalformedLZ() {
   HWY_ASSERT(!hwy::iguana::DecompressScalar(block.data(), block.size(), out));
   HWY_ASSERT(out.empty());
   HWY_ASSERT(!ig::Decompress(block.data(), block.size(), out));
+
+  // A NOP token (0x80) carries neither literals nor a match. A block can be
+  // padded with them: it still produces its declared output, so without an
+  // explicit rejection we would walk the whole padded token stream for nothing.
+  // The control below is the same block with the NOPs removed.
+  std::vector<uint8_t> ok_streams[6];
+  ok_streams[0].push_back(
+      0x87);                    // literal-only token: 7 + var_lit_len literals
+  ok_streams[3].push_back(93);  // var_lit_len: 7 + 93 = 100
+  ok_streams[5].assign(100, 'A');
+  const uint64_t ok_ulens[6] = {1, 0, 0, 1, 0, 100};
+  const std::vector<uint8_t> ok_block =
+      MakeIguanaBlock(ok_streams, ok_ulens, 100);
+  const bool ok_res =
+      hwy::iguana::DecompressScalar(ok_block.data(), ok_block.size(), out);
+  HWY_ASSERT(ok_res);
+  HWY_ASSERT(out.size() == 100 && out[0] == 'A');
+
+  std::vector<uint8_t> nop_streams[6];
+  nop_streams[0].push_back(
+      0x87);  // literal-only token: 7 + var_lit_len literals
+  nop_streams[0].push_back(0x80);  // NOP
+  nop_streams[0].push_back(0x80);  // NOP
+  nop_streams[3].push_back(93);    // var_lit_len: 7 + 93 = 100
+  nop_streams[5].assign(100, 'A');
+  const uint64_t nop_ulens[6] = {3, 0, 0, 1, 0, 100};
+  const std::vector<uint8_t> nop_block =
+      MakeIguanaBlock(nop_streams, nop_ulens, 100);
+  // Both paths must reject it, and the scalar path still leaves the bytes it
+  // did produce, so only the result is checked here.
+  const bool nop_res =
+      hwy::iguana::DecompressScalar(nop_block.data(), nop_block.size(), out);
+  HWY_ASSERT(!nop_res);
+  HWY_ASSERT(!ig::Decompress(nop_block.data(), nop_block.size(), out));
+  HWY_ASSERT(!ig::Decompress(nop_block.data(), nop_block.size(), out));
 }
 
 // Deterministic mutations of valid blocks: the same seeds every run, so any

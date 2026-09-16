@@ -226,7 +226,9 @@ HWY_INLINE bool DecompressIguanaLZ(std::vector<uint8_t>& dst,
   while (!token_stream.IsEmpty()) {
     int64_t match_len = 0;
     const uint8_t token = token_stream.U8(&ok);
-    if (!ok) return false;
+    // 0x80 is a NOP: it carries neither literals nor a match, so a block could
+    // pad itself with them and make us walk the token stream for no output.
+    if (!ok || token == 0x80) return false;
 
     if (token >= 32) {
       int64_t lit_len = static_cast<int64_t>(token & kMaxShortLitLen);
