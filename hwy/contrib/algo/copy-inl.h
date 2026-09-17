@@ -135,6 +135,20 @@ T* CopyIf(D d, const T* HWY_RESTRICT from, size_t count, T* HWY_RESTRICT to,
     idx += inner;
   }
 #else
+  for (; idx + 4 * N <= count; idx += 4 * N) {
+    const Vec<D> v1 = LoadU(d, from + idx);
+    const Vec<D> v2 = LoadU(d, from + idx + N);
+    const Vec<D> v3 = LoadU(d, from + idx + 2 * N);
+    const Vec<D> v4 = LoadU(d, from + idx + 3 * N);
+    const Mask<D> m1 = func(d, v1);
+    const Mask<D> m2 = func(d, v2);
+    const Mask<D> m3 = func(d, v3);
+    const Mask<D> m4 = func(d, v4);
+    to += CompressBlendedStore(v1, m1, d, to);
+    to += CompressBlendedStore(v2, m2, d, to);
+    to += CompressBlendedStore(v3, m3, d, to);
+    to += CompressBlendedStore(v4, m4, d, to);
+  }
   for (; idx + N <= count; idx += N) {
     const Vec<D> v = LoadU(d, from + idx);
     to += CompressBlendedStore(v, func(d, v), d, to);
