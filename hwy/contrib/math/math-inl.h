@@ -1694,9 +1694,14 @@ HWY_INLINE V Log(const D d, V x) {
   const V ym1 = Sub(y, kOne);
   const V z = Div(ym1, Add(y, kOne));
 
-  return MulSub(
+  const V raw_res = MulSub(
       exp, kLn2Hi,
       Sub(MulSub(z, Sub(ym1, impl.LogPoly(d, z)), Mul(exp, kLn2Lo)), ym1));
+  V result = IfThenElse(Lt(x, Zero(d)), NaN(d), raw_res);
+  result = IfThenElse(Eq(x, Zero(d)), Neg(Inf(d)), result);
+  result = IfThenElse(Eq(x, Inf(d)), Inf(d), result);
+  result = IfThenElse(IsNaN(x), x, result);
+  return result;
 }
 
 template <class D, class V = VFromD<D>, HWY_IF_FLOAT3264_D(D)>
@@ -2687,7 +2692,12 @@ HWY_INLINE V Exp(const D d, V x) {
   // Reduce, approximate, and then reconstruct.
   const V y = impl.LoadExpShortRange(
       d, Add(impl.ExpPoly(d, impl.ExpReduce(d, x, q)), kOne), q);
-  return IfThenElseZero(Ge(x, kLowerBound), y);
+  const V kUpperBound = Set(
+      d, static_cast<T>((sizeof(T) == 4 ? 88.722839f : 709.78271289338399)));
+  V result = IfThenElseZero(Ge(x, kLowerBound), y);
+  result = IfThenElse(Gt(x, kUpperBound), Inf(d), result);
+  result = IfThenElse(IsNaN(x), x, result);
+  return result;
 }
 
 template <class D, class V,
@@ -2698,6 +2708,8 @@ HWY_INLINE V Exp2(const D d, V x) {
 
   const V kLowerBound =
       Set(d, static_cast<T>((sizeof(T) == 4 ? -150.0 : -1075.0)));
+  const V kUpperBound =
+      Set(d, static_cast<T>((sizeof(T) == 4 ? 128.0f : 1024.0)));
   const V kOne = Set(d, static_cast<T>(+1.0));
 
   impl::ExpImpl<T> impl;
@@ -2708,7 +2720,10 @@ HWY_INLINE V Exp2(const D d, V x) {
   // Reduce, approximate, and then reconstruct.
   const V y = impl.LoadExpShortRange(
       d, Add(impl.ExpPoly(d, impl.Exp2Reduce(d, x, q)), kOne), q);
-  return IfThenElseZero(Ge(x, kLowerBound), y);
+  V result = IfThenElseZero(Ge(x, kLowerBound), y);
+  result = IfThenElse(Gt(x, kUpperBound), Inf(d), result);
+  result = IfThenElse(IsNaN(x), x, result);
+  return result;
 }
 
 template <class D, class V,

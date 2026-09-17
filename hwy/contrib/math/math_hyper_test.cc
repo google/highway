@@ -100,6 +100,32 @@ HWY_NOINLINE void TestAllFastTanh() {
   ForFloat3264Types(ForPartialVectors<TestFastTanh>());
 }
 
+struct TestTanhSpecialValues {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T, D d) {
+    const T pinf = GetLane(Inf(d));
+    const T ninf = GetLane(Neg(Inf(d)));
+    const T pnan = GetLane(NaN(d));
+    const T nnan = GetLane(Neg(NaN(d)));
+
+    const T pos1 = ConvertScalarTo<T>(1.0);
+    const T neg1 = ConvertScalarTo<T>(-1.0);
+
+    const T got_pinf = GetLane(CallTanh(d, Set(d, pinf)));
+    const T got_ninf = GetLane(CallTanh(d, Set(d, ninf)));
+    const T got_pnan = GetLane(CallTanh(d, Set(d, pnan)));
+    const T got_nnan = GetLane(CallTanh(d, Set(d, nnan)));
+    HWY_ASSERT_EQ(pos1, got_pinf);
+    HWY_ASSERT_EQ(neg1, got_ninf);
+    HWY_ASSERT(ScalarIsNaN(got_pnan));
+    HWY_ASSERT(ScalarIsNaN(got_nnan));
+  }
+};
+
+HWY_NOINLINE void TestAllTanhSpecialValues() {
+  ForFloat3264Types(ForPartialVectors<TestTanhSpecialValues>());
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -117,6 +143,7 @@ HWY_EXPORT_AND_TEST_P(HwyMathHyperTest, TestAllSinh);
 HWY_EXPORT_AND_TEST_P(HwyMathHyperTest, TestAllCosh);
 HWY_EXPORT_AND_TEST_P(HwyMathHyperTest, TestAllTanh);
 HWY_EXPORT_AND_TEST_P(HwyMathHyperTest, TestAllFastTanh);
+HWY_EXPORT_AND_TEST_P(HwyMathHyperTest, TestAllTanhSpecialValues);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy
