@@ -264,7 +264,9 @@ size_t Unique(D d, T* HWY_RESTRICT in, size_t count) {
     const Vec<D> v = LoadN(d, in + i, remaining);
     const Vec<D> prev = SlideUpLanesOr(prev_last, d, v, 1);
     const Mask<D> unique = MaskedNe(mask, v, prev);
-    num += CompressBlendedStore(v, unique, d, in + num);
+    const size_t cnt = CountTrue(d, unique);
+    StoreN(Compress(v, unique), d, in + num, cnt);
+    num += cnt;
   }
 
   return num;

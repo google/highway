@@ -56,6 +56,23 @@ struct ForeachCountAndMisalign {
     }
   }
 };
+template <class Test>
+struct ForeachLargeCountAndMisalign {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) const {
+    RandomState rng;
+    const size_t N = Lanes(d);
+    const size_t misalignments[3] = {0, N / 4, 3 * N / 5};
+
+    for (size_t count = detail::kCopyIfBlockBytes / sizeof(T); count < 3 * detail::kCopyIfBlockBytes / sizeof(T); count *= 11, count /= 10, ++count) {
+      for (size_t ma : misalignments) {
+        for (size_t mb : misalignments) {
+          Test()(d, count, ma, mb, rng);
+        }
+      }
+    }
+  }
+};
 
 struct TestFill {
   template <class D>
@@ -119,33 +136,35 @@ void TestAllCopy() {
   ForAllTypes(ForPartialVectors<ForeachCountAndMisalign<TestCopy>>());
 }
 
+template<typename Gen>
 struct TestCopyIf {
   template <class D>
   void operator()(D d, size_t count, size_t misalign_a, size_t misalign_b,
                   RandomState& rng) {
     using T = TFromD<D>;
-    const size_t padding = Lanes(ScalableTag<T>());
 
     // Prevents error if size to allocate is zero.
     AlignedFreeUniquePtr<T[]> pa =
         AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
-    AlignedFreeUniquePtr<T[]> pb =
-        AllocateAligned<T>(HWY_MAX(1, misalign_b + count + padding));
     AlignedFreeUniquePtr<T[]> expected = AllocateAligned<T>(HWY_MAX(1, count));
-    HWY_ASSERT(pa && pb && expected);
+    HWY_ASSERT(pa && expected);
 
     T* a = pa.get() + misalign_a;
     for (size_t i = 0; i < count; ++i) {
-      a[i] = Random7Bit<T>(rng);
+      a[i] = Gen{}.template operator()<T>(rng);
     }
-    T* b = pb.get() + misalign_b;
-
     size_t num_odd = 0;
     for (size_t i = 0; i < count; ++i) {
       if (a[i] & 1) {
         expected[num_odd++] = a[i];
       }
     }
+
+    AlignedFreeUniquePtr<T[]> pb =
+        AllocateAligned<T>(HWY_MAX(1, misalign_b + num_odd));
+    HWY_ASSERT(pb);
+
+    T* b = pb.get() + misalign_b;
 
     const auto is_odd = [](const auto d2, const auto v) HWY_ATTR {
       return TestBit(v, Set(d2, TFromD<decltype(d2)>{1}));
@@ -226,8 +245,25 @@ struct TestReverseSpan {
 
 void TestAllReverseSpan() { ForAllTypes(ForPartialVectors<TestReverseSpan>()); }
 
+struct DefaultGen {
+  template<typename T>
+  T operator()(RandomState& rng) {
+    return Random7Bit<T>(rng);
+  }
+};
+struct AllOddGen {
+  template<typename T>
+  T operator()(RandomState& rng) {
+    return static_cast<T>(Random7Bit<T>(rng) | 1);
+  }
+};
 void TestAllCopyIf() {
-  ForUI163264(ForPartialVectors<ForeachCountAndMisalign<TestCopyIf>>());
+  ForUI163264(ForPartialVectors<ForeachLargeCountAndMisalign<
+    TestCopyIf<AllOddGen>>>());
+  ForUI163264(ForPartialVectors<ForeachLargeCountAndMisalign<
+    TestCopyIf<DefaultGen>>>());
+  ForUI163264(ForPartialVectors<ForeachCountAndMisalign<
+    TestCopyIf<DefaultGen>>>());
 }
 
 }  // namespace
