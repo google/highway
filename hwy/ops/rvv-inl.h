@@ -4608,7 +4608,7 @@ HWY_API V Expand(V v, const M mask) {
 template <class D>
 HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
                              const TFromD<D>* HWY_RESTRICT unaligned) {
-  return Expand(LoadU(d, unaligned), mask);
+  return Expand(LoadN(d, unaligned, CountTrue(d, mask)), mask);
 }
 
 // ------------------------------ CompressNot

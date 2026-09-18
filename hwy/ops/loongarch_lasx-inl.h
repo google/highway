@@ -4162,14 +4162,14 @@ template <class D, HWY_IF_V_SIZE_D(D, 32),
           HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2))>
 HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
                              const TFromD<D>* HWY_RESTRICT unaligned) {
-  return Expand(LoadU(d, unaligned), mask);
+  return Expand(LoadN(d, unaligned, CountTrue(d, mask)), mask);
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32),
           HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 4) | (1 << 8))>
 HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
                              const TFromD<D>* HWY_RESTRICT unaligned) {
-  return Expand(LoadU(d, unaligned), mask);
+  return Expand(LoadN(d, unaligned, CountTrue(d, mask)), mask);
 }
 
 // ------------------------------ LoadInterleaved3/4
