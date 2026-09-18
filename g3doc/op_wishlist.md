@@ -11,8 +11,6 @@ freshness: { owner: 'janwas' reviewed: '2026-06-08' }
 
 ### F32RoundToNearestEven
 
-### NEON dot product
-
 ### F16 WidenMulAccumulate on non-NEON
 
 ### numpy
@@ -33,25 +31,26 @@ _mm512_getmant (f32/f64)
 
 High-precision! Consider copying from SLEEF. See #1650.
 
-fmod, ilogb, logb, modf, nextafter, nexttoward, scalbn
+fmod, nexttoward
 
 ### Remaining STL functions for hwy/contrib/algo
 
 *   ShuffleSpan
-*   Reduce
+*   Reduce (see #3374)
 
-### Iguana (fast LZ + ANS)
+*   In-place Remove / RemoveIf, like CopyIf, but in-place.
 
-Port https://github.com/SnellerInc/sneller/tree/master/ion/zion/iguana
-(Go+assembly) to Highway.
+*   MinMaxValue, IndexOfMinMax (in minmax-inl.h) - straightforward fuse of the
+    existing functions which just compute Min or Max.
+
+*   FindLast / FindLastIf (in find-inl.h) - can use FindLastTrue.
+
+*   index-returning Mismatch(d, a, b, count) (in find-inl.h) - like EqualSpan,
+    but returns the first mismatched index.
 
 ### AfterN
 
 = Not(FirstN()), replaces several instances. WHILEGE on SVE.
-
-### 52x52=104-bit multiply
-
-For crypto. Native on Icelake+.
 
 ### RVV codegen
 
@@ -76,8 +75,11 @@ For crypto. Native on Icelake+.
 
 * `#pragma unroll(1)` in all loops to enable autovectorization
 
-### Add emu256 target
-Reuse same wasm256 file, `#if` for wasm-specific parts. Use reserved avx slot.
+### Guaranteed 256-bit support
+
+For non-scalable, can be similar to wasm256. Unclear how best to support
+scalable vectors: would require a pair of vectors because not allowed to wrap
+vectors in a struct.
 
 ### Conflict detection
 For hash tables. Use VPCONFLICT on ZEN4.
@@ -190,3 +192,7 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~AllOf / AnyOf / NoneOf~~ (algo)
 *   ~~EqualSpan~~ (algo)
 *   ~~ReverseSpan~~ (algo)
+*   ~~NEON dot product~~
+*   ~~ilogb, logb, modf, nextafter~~
+*   ~~Iguana~~
+*   ~~Mul52~~
