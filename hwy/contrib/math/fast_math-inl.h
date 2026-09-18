@@ -523,6 +523,9 @@ HWY_INLINE Vec<RebindToSigned<D>> ComputeIndices8Intervals(
  * float64 Average Relative Error for [-0.01, 0.01] : 1.9e-7% for
  * float32, 1.6e-11% for float64 Valid Range: float32: [-1e35, +1e35] float64:
  * [-1e305, +1e305]
+ * Note: FastSigmoid in third_party/gemma_cpp/ops/fast_ops-inl.h is derived
+ * from FastTanh. If any changes are made to FastTanh (coefficients, clamping
+ * range etc.), check if FastSigmoid also needs to be updated.
  *
  * @return hyperbolic tangent of 'x'
  */
