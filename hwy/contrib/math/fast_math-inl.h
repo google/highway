@@ -799,9 +799,10 @@ HWY_INLINE V FastTanh(D d, V val) {
   const auto q3_u = MulAdd(q_term1, u2, q_term0);
   const auto num = Mul(y, p3_u);
 
-  // At kMax = 6.65, y * P3(u) / Q3(u) evaluates to 1.0, so clamping y to kMax
-  // bounds the output to [0, 1] without needing a final Min(result, 1.0).
-  const auto result = Div(num, q3_u);
+  // Although y * P3(u) / Q3(u) at kMax = 6.65 is designed to evaluate to 1.0
+  //, we clamp with Min(..., kOne) for safety in case of FMA differences on some
+  // architectures which could hypothetically cause a slight overshoot over 1.0
+  const auto result = Min(Div(num, q3_u), kOne);
   return CopySign(result, val);
 }
 
