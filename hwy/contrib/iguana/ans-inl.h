@@ -34,7 +34,8 @@
 // scalable target with an unusually small hardware vector length falls back to
 // the scalar reference decoder at runtime.
 
-#if defined(HIGHWAY_HWY_CONTRIB_IGUANA_ANS_INL_H_) == defined(HWY_TARGET_TOGGLE)
+#if defined(HIGHWAY_HWY_CONTRIB_IGUANA_ANS_INL_H_) == \
+    defined(HWY_TARGET_TOGGLE)
 #ifdef HIGHWAY_HWY_CONTRIB_IGUANA_ANS_INL_H_
 #undef HIGHWAY_HWY_CONTRIB_IGUANA_ANS_INL_H_
 #else
@@ -111,11 +112,18 @@ HWY_INLINE hn::VFromD<D> RenormLane(D d, hn::VFromD<D> x, const uint8_t*& p) {
     words = hn::BitCast(d16, hn::LoadU(d16_bytes, p));
     p += 2 * cnt;
   }
-  else {
+  HWY_IF_CONSTEXPR(!kForward) {
     words = hn::Reverse(
         d16, hn::BitCast(d16, hn::LoadU(d16_bytes, p - 2 * hn::Lanes(d))));
     p -= 2 * cnt;
   }
+#if HWY_IS_BIG_ENDIAN
+  // The format stores these words little-endian (Read16LE in the scalar
+  // decoder and in the scalar tail below), but BitCast reinterprets the loaded
+  // bytes in host order, so swap them back. Lane order and byte order within a
+  // lane are independent, hence this also applies after the Reverse above.
+  words = hn::ReverseLaneBytes(words);
+#endif
   const hn::VFromD<D> expanded = hn::Expand(hn::PromoteTo(d, words), mask);
   return hn::IfThenElse(
       mask, hn::Or(hn::ShiftLeft<hi::kAnsWordLBits>(x), expanded), x);
@@ -266,6 +274,10 @@ HWY_INLINE bool Ans32DecodePayload(const uint8_t* HWY_RESTRICT payload,
                                    uint8_t* HWY_RESTRICT dst,
                                    size_t orig_size) {
   if (payload_size < 128) return false;
+  // Every lookup is an unchecked gather at (state & kAnsFreqMask), so a table
+  // shorter than kAnsWordM would read out of bounds. `table` is supplied by
+  // the caller, hence the check (Ans32DecodePayloadScalar does the same).
+  if (table.size() != hi::kAnsWordM) return false;
   const uint32_t* HWY_RESTRICT tab = table.data();
 
   const hn::CappedTag<uint32_t, 16> d;

@@ -144,7 +144,7 @@ struct BitWriter {
 };
 
 // Reads nibbles back-to-front; `idx` counts nibbles, `ok` clears on underflow.
-uint32_t FetchNibble(const uint8_t* src, int& idx, bool& ok) {
+uint32_t FetchNibble(const uint8_t* src, int64_t& idx, bool& ok) {
   if (idx < 0) {
     ok = false;
     return 0;
@@ -156,7 +156,13 @@ uint32_t FetchNibble(const uint8_t* src, int& idx, bool& ok) {
   return r;
 }
 
-void BuildDenseTable(AnsDenseTable& table, const uint32_t freqs[256]) {
+// `freqs` sum to kAnsWordM, or to kAnsWordM - 1 in the single-symbol case, in
+// which case `single_sym` is that symbol (see AnsStatistics::FromData) and the
+// one leftover slot is given to it with frequency 1. Every slot must end up
+// with freq >= 1: a zero frequency would collapse the decoder state to zero
+// and emit a spurious symbol, and the callers parse untrusted input.
+void BuildDenseTable(AnsDenseTable& table, const uint32_t freqs[256],
+                     uint32_t single_sym) {
   table.assign(kAnsWordM, 0);
   uint32_t start = 0;
   for (uint32_t sym = 0; sym < 256; ++sym) {
@@ -166,6 +172,14 @@ void BuildDenseTable(AnsDenseTable& table, const uint32_t freqs[256]) {
     }
     start += freq;
   }
+  HWY_DASSERT(start == kAnsWordM || start == kAnsWordM - 1);
+  if (start == kAnsWordM - 1) {
+    // Index 0, frequency 1. This does not change how any stream produced by
+    // Ans32Encode decodes: with freq == kAnsWordM - 1 the encoder never
+    // reaches this slot. It only keeps malformed input from reading a
+    // zero-frequency entry.
+    table[start] = (single_sym << 24) | 1;
+  }
 }
 
 }  // namespace
@@ -173,21 +187,24 @@ void BuildDenseTable(AnsDenseTable& table, const uint32_t freqs[256]) {
 HWY_CONTRIB_DLLEXPORT AnsStatistics AnsStatistics::FromData(
     const uint8_t* data, size_t size) {
   RawStats s;
-  if (size == 0) {
+  // Histogram returns -1 only if every counter is zero, which for size != 0
+  // means the uint32_t counters wrapped (size >= 2^32; Ans32Encode rejects
+  // that). Treat it like the empty input rather than reading freqs[-1].
+  const int nz = size == 0 ? -1 : Histogram(s.freqs, data, size);
+  HWY_DASSERT(size == 0 || nz >= 0);
+  if (nz < 0) {
+    for (int i = 0; i < 256; ++i) s.freqs[i] = 0;
+    for (int i = 0; i < 257; ++i) s.cum[i] = 0;
     s.freqs[254] = kAnsWordM / 2;
     s.freqs[255] = kAnsWordM / 2;
     s.cum[255] = kAnsWordM / 2;
     s.cum[256] = kAnsWordM;
+  } else if (s.freqs[nz] == static_cast<uint32_t>(size)) {
+    // Single distinct byte: give it kAnsWordM - 1 so the total is encodable.
+    s.freqs[nz] = kAnsWordM - 1;
+    for (int i = nz + 1; i < 257; ++i) s.cum[i] = kAnsWordM - 1;
   } else {
-    const int nz = Histogram(s.freqs, data, size);
-    HWY_DASSERT(nz >= 0);
-    if (s.freqs[nz] == static_cast<uint32_t>(size)) {
-      // Single distinct byte: give it kAnsWordM - 1 so the total is encodable.
-      s.freqs[nz] = kAnsWordM - 1;
-      for (int i = nz + 1; i < 257; ++i) s.cum[i] = kAnsWordM - 1;
-    } else {
-      NormalizeFreqs(s);
-    }
+    NormalizeFreqs(s);
   }
 
   AnsStatistics out;
@@ -238,7 +255,8 @@ HWY_CONTRIB_DLLEXPORT size_t DeserializeAnsTable(AnsDenseTable& table,
   size -= 1;
 
   const uint8_t* ctrl = src + size - kAnsCtrlBlockSize;
-  int nibidx = static_cast<int>(size - kAnsCtrlBlockSize - 1) * 2 + 1;
+  int64_t nibidx =
+      (static_cast<int64_t>(size) - int64_t{kAnsCtrlBlockSize} - 1) * 2 + 1;
   uint32_t freqs[256] = {};
   bool ok = true;
   int k = 0;
@@ -280,14 +298,37 @@ HWY_CONTRIB_DLLEXPORT size_t DeserializeAnsTable(AnsDenseTable& table,
     if (f >= kAnsWordM) return SIZE_MAX;
   }
 
-  BuildDenseTable(table, freqs);
+  // A total of kAnsWordM - 1 is only valid for the single-symbol table, which
+  // AnsStatistics::FromData writes as one symbol with freq kAnsWordM - 1 and
+  // the rest zero. Any other split summing to kAnsWordM - 1 would leave a
+  // table slot without a symbol.
+  uint32_t single_sym = 0;
+  if (total == kAnsWordM - 1) {
+    bool found = false;
+    for (uint32_t sym = 0; sym < 256; ++sym) {
+      if (freqs[sym] == kAnsWordM - 1) {
+        single_sym = sym;
+        found = true;
+        break;
+      }
+    }
+    if (!found) return SIZE_MAX;
+  }
+
+  BuildDenseTable(table, freqs, single_sym);
   return static_cast<size_t>((nibidx + 1) >> 1);
 }
 
 // ------------------------------ ANS32 encoder (scalar; unchanged from Iguana)
 
+// The histogram counters and the frequency model are uint32_t, so an input of
+// 2^32 bytes or more would wrap them: Histogram could then find no nonzero
+// symbol and return -1 (an out-of-bounds freqs[-1] read below), or leave
+// NormalizeFreqs dividing by a zero total. Refuse instead; hwy::iguana's
+// Compress already caps its input far below this.
 HWY_CONTRIB_DLLEXPORT std::vector<uint8_t> Ans32Encode(const uint8_t* data,
                                                        size_t size) {
+  if (static_cast<uint64_t>(size) >= (uint64_t{1} << 32)) return {};
   const AnsStatistics stats = AnsStatistics::FromData(data, size);
 
   uint32_t state[kAnsLanes];
@@ -338,18 +379,23 @@ HWY_CONTRIB_DLLEXPORT std::vector<uint8_t> Ans32Encode(const uint8_t* data,
 
 // ------------------------------ ANS32 scalar reference decoder
 
-HWY_CONTRIB_DLLEXPORT bool Ans32DecodePayloadScalar(
-    const uint8_t* src, size_t src_size, const AnsDenseTable& table,
-    uint8_t* dst, size_t orig_size) {
-  if (src_size < 128) return false;
+HWY_CONTRIB_DLLEXPORT bool Ans32DecodePayloadScalar(const uint8_t* payload,
+                                                    size_t payload_size,
+                                                    const AnsDenseTable& table,
+                                                    uint8_t* dst,
+                                                    size_t orig_size) {
+  if (payload_size < 128) return false;
+  // `table` comes from the caller, and every lookup below is an unchecked
+  // table[x & kAnsFreqMask], so a short table would read out of bounds.
+  if (table.size() != kAnsWordM) return false;
 
   uint32_t state[kAnsLanes];
   size_t cursor_fwd = 64;
-  size_t cursor_rev = src_size - 64;
+  size_t cursor_rev = payload_size - 64;
   for (int lane = 0; lane < 16; ++lane) {
-    state[lane] = Read32LE(src + lane * 4);
+    state[lane] = Read32LE(payload + lane * 4);
     state[lane + 16] =
-        Read32LE(src + static_cast<size_t>(lane) * 4 + cursor_rev);
+        Read32LE(payload + static_cast<size_t>(lane) * 4 + cursor_rev);
   }
 
   size_t cursor_dst = 0;
@@ -374,15 +420,15 @@ HWY_CONTRIB_DLLEXPORT bool Ans32DecodePayloadScalar(
       if (state[lane] < kAnsWordL) {
         if (cursor_fwd + 2 > cursor_rev) return false;
         state[lane] =
-            (state[lane] << kAnsWordLBits) | Read16LE(src + cursor_fwd);
+            (state[lane] << kAnsWordLBits) | Read16LE(payload + cursor_fwd);
         cursor_fwd += 2;
       }
     }
     for (int lane = 16; lane < 32; ++lane) {
       if (state[lane] < kAnsWordL) {
         if (cursor_rev < cursor_fwd + 2) return false;
-        state[lane] =
-            (state[lane] << kAnsWordLBits) | Read16LE(src + cursor_rev - 2);
+        state[lane] = (state[lane] << kAnsWordLBits) |
+                      Read16LE(payload + cursor_rev - 2);
         cursor_rev -= 2;
       }
     }
