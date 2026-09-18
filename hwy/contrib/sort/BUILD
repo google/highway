@@ -138,6 +138,7 @@ cc_library(
     deps = [
         "//:algo",
         "//:hwy",
+        "//:os_rng",
     ],
 )
 
@@ -158,6 +159,7 @@ cc_library(
         ":vqsort_shared",
         "//:algo",
         "//:hwy",
+        "//:os_rng",
     ],
 )
 
@@ -179,6 +181,7 @@ cc_library(
         "//:algo",
         "//:hwy",
         "//:nanobenchmark",
+        "//:os_rng",
     ],
 )
 
@@ -206,6 +209,7 @@ cc_library(
         "//:algo",
         "//:hwy",
         "//:nanobenchmark",
+        "//:os_rng",
     ],
 )
 

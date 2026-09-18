@@ -24,8 +24,8 @@
 #include <limits>
 
 #include "hwy/aligned_allocator.h"
-#include "hwy/contrib/sort/vqsort.h"  // Fill16BytesSecure
 #include "hwy/highway.h"
+#include "hwy/os_rng.h"
 #include "hwy/timer.h"
 
 HWY_BEFORE_NAMESPACE();  // required if not using HWY_ATTR

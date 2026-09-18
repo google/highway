@@ -31,6 +31,7 @@
 #include <stddef.h>
 
 #include "hwy/base.h"
+#include "hwy/os_rng.h"
 #include "hwy/contrib/sort/order.h"  // SortAscending
 // IWYU pragma: end_exports
 
@@ -299,8 +300,6 @@ class HWY_CONTRIB_DLLEXPORT Sorter {
 #endif
 };
 
-// Used by vqsort-inl.h unless VQSORT_ONLY_STATIC.
-HWY_CONTRIB_DLLEXPORT bool Fill16BytesSecure(void* bytes);
 
 // Unused, only provided for binary compatibility.
 HWY_CONTRIB_DLLEXPORT uint64_t* GetGeneratorState();

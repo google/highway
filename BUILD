@@ -456,6 +456,23 @@ cc_library(
 )
 
 cc_library(
+    name = "os_rng",
+    srcs = [
+        "hwy/os_rng.cc",
+    ],
+    hdrs = [
+        "hwy/os_rng.h",
+    ],
+    compatible_with = [],
+    copts = COPTS,
+    # This used to reside in contrib/ (vqsort), hence HWY_CONTRIB_DLLEXPORT.
+    local_defines = ["hwy_contrib_EXPORTS"],
+    deps = [
+        ":hwy",
+    ],
+)
+
+cc_library(
     name = "random",
     compatible_with = [],
     copts = COPTS,
@@ -464,8 +481,8 @@ cc_library(
     ],
     deps = [
         ":hwy",
+        ":os_rng",
         ":timer",
-        "//hwy/contrib/sort:vqsort",
     ],
 )
 
@@ -517,7 +534,6 @@ cc_library(
     ],
     deps = [
         ":hwy",
-        ":random",
     ],
 )
 

@@ -75,7 +75,7 @@ template <class Hash>
 static HWY_NOINLINE void TestMasked() {
   AesCtrEngine engine(/*deterministic=*/true);
   RngStream rng(engine, 0);
-  Hash hash(engine, 0);
+  Hash hash(static_cast<typename Hash::LaneType>(RngStream(engine, 0)()));
 
   using T = typename Hash::LaneType;
   const T mask_val = Hash::kMask;
@@ -232,10 +232,11 @@ static HWY_NOINLINE HWY_MAYBE_UNUSED void TestAvalanche(const Hash& hash) {
 
 static HWY_NOINLINE void TestAllAvalanche() {
   AesCtrEngine engine(/*deterministic=*/true);
-  ForeachHash(engine, 0, [](const auto& hash) {
-    fprintf(stderr, "%s\n", hash.Name());
-    TestAvalanche(hash);
-  });
+  ForeachHash(static_cast<uint32_t>(RngStream(engine, 0)()),
+              [](const auto& hash) {
+                fprintf(stderr, "%s\n", hash.Name());
+                TestAvalanche(hash);
+              });
 }
 
 // Test that each output bit is approximately unbiased (50% zeros, 50% ones).
@@ -279,10 +280,11 @@ static HWY_NOINLINE HWY_MAYBE_UNUSED void TestBias(const Hash& hash) {
 
 static HWY_NOINLINE void TestAllBias() {
   AesCtrEngine engine(/*deterministic=*/true);
-  ForeachHash(engine, 0, [](const auto& hash) {
-    fprintf(stderr, "%s\n", hash.Name());
-    TestBias(hash);
-  });
+  ForeachHash(static_cast<uint32_t>(RngStream(engine, 0)()),
+              [](const auto& hash) {
+                fprintf(stderr, "%s\n", hash.Name());
+                TestBias(hash);
+              });
 }
 
 // Enumerates all 2^32 inputs and computes histogram of hash values.
@@ -453,39 +455,40 @@ static HWY_NOINLINE void TestMaskedBuckets(const Hash& hash) {
 
 static HWY_NOINLINE void TestAllBuckets() {
   AesCtrEngine engine(/*deterministic=*/true);
-  ForeachHash(engine, 0, [](const auto& hash) {
+  const uint32_t seed32 = static_cast<uint32_t>(RngStream(engine, 0)());
+  ForeachHash(seed32, [](const auto& hash) {
     fprintf(stderr, "%s\n", hash.Name());
     TestBuckets(hash);
   });
 
   // Also verify masked hashes are bijections on their domain.
   {
-    MaskedWeakTwoMul<15> masked15(engine, 0);
+    MaskedWeakTwoMul<15> masked15(seed32);
     fprintf(stderr, "MaskedWeakTwoMul<15>\n");
     TestMaskedBuckets<15>(masked15);
   }
   {
-    MaskedWeakTwoMul<31> masked31(engine, 0);
+    MaskedWeakTwoMul<31> masked31(seed32);
     fprintf(stderr, "MaskedWeakTwoMul<31>\n");
     TestMaskedBuckets<31>(masked31);
   }
   {
-    MaskedMoremur<14> masked14(engine, 0);
+    MaskedMoremur<14> masked14(seed32);
     fprintf(stderr, "MaskedMoremur<14>\n");
     TestMaskedBuckets<14>(masked14);
   }
   {
-    MaskedMoremur<27> masked27(engine, 0);
+    MaskedMoremur<27> masked27(seed32);
     fprintf(stderr, "MaskedMoremur<27>\n");
     TestMaskedBuckets<27>(masked27);
   }
   {
-    MaskedWeakXMX<14> masked14(engine, 0);
+    MaskedWeakXMX<14> masked14(seed32);
     fprintf(stderr, "MaskedWeakXMX<14>\n");
     TestMaskedBuckets<14>(masked14);
   }
   {
-    MaskedWeakXMX<27> masked27(engine, 0);
+    MaskedWeakXMX<27> masked27(seed32);
     fprintf(stderr, "MaskedWeakXMX<27>\n");
     TestMaskedBuckets<27>(masked27);
   }
@@ -550,10 +553,11 @@ static HWY_NOINLINE HWY_MAYBE_UNUSED void TestBijection(const Hash& hash) {
 
 static HWY_NOINLINE void TestAllBijection() {
   AesCtrEngine engine(/*deterministic=*/true);
-  ForeachHash(engine, 0, [](const auto& hash) {
-    fprintf(stderr, "%s\n", hash.Name());
-    TestBijection(hash);
-  });
+  ForeachHash(static_cast<uint32_t>(RngStream(engine, 0)()),
+              [](const auto& hash) {
+                fprintf(stderr, "%s\n", hash.Name());
+                TestBijection(hash);
+              });
 }
 
 // Ensures each lane (per-vector) computes the same permutation.
@@ -591,10 +595,11 @@ static HWY_NOINLINE HWY_MAYBE_UNUSED void TestLanesEqual(const Hash& hash) {
 
 static HWY_NOINLINE void TestAllLanesEqual() {
   AesCtrEngine engine(/*deterministic=*/true);
-  ForeachHash(engine, 0, [](const auto& hash) {
-    fprintf(stderr, "%s\n", hash.Name());
-    TestLanesEqual(hash);
-  });
+  ForeachHash(static_cast<uint32_t>(RngStream(engine, 0)()),
+              [](const auto& hash) {
+                fprintf(stderr, "%s\n", hash.Name());
+                TestLanesEqual(hash);
+              });
 }
 
 // Edge case tests for permutation variants.
@@ -617,16 +622,17 @@ static HWY_NOINLINE HWY_MAYBE_UNUSED void TestEdgeCases(const Hash& hash) {
 
   // Different seeds produce different permutations.
   AesCtrEngine engine(/*deterministic=*/true);
-  Hash hash2(engine, 1);
+  Hash hash2(static_cast<typename Hash::LaneType>(RngStream(engine, 1)()));
   HWY_ASSERT(hash(42u) != hash2(42u));
 }
 
 static HWY_NOINLINE void TestAllEdgeCases() {
   AesCtrEngine engine(/*deterministic=*/true);
-  ForeachHash(engine, 0, [](const auto& hash) {
-    fprintf(stderr, "%s\n", hash.Name());
-    TestEdgeCases(hash);
-  });
+  ForeachHash(static_cast<uint32_t>(RngStream(engine, 0)()),
+              [](const auto& hash) {
+                fprintf(stderr, "%s\n", hash.Name());
+                TestEdgeCases(hash);
+              });
 }
 
 // ---------- 64-bit hash tests ----------
@@ -658,13 +664,13 @@ static HWY_NOINLINE HWY_MAYBE_UNUSED void TestEdgeCases64(const Hash& hash) {
 
   // Different seeds produce different permutations.
   AesCtrEngine engine(/*deterministic=*/true);
-  Hash hash2(engine, 1);
+  Hash hash2(static_cast<typename Hash::LaneType>(RngStream(engine, 1)()));
   HWY_ASSERT(hash(uint64_t{42}) != hash2(uint64_t{42}));
 }
 
 static HWY_NOINLINE HWY_MAYBE_UNUSED void TestAllEdgeCases64() {
   AesCtrEngine engine(/*deterministic=*/true);
-  ForeachHash64(engine, 0, [](const auto& hash) {
+  ForeachHash64(RngStream(engine, 0)(), [](const auto& hash) {
     fprintf(stderr, "%s (64-bit)\n", hash.Name());
     TestEdgeCases64(hash);
   });
@@ -725,7 +731,7 @@ static HWY_NOINLINE HWY_MAYBE_UNUSED void TestBijection64(const Hash& hash) {
 
 static HWY_NOINLINE void TestAllBijection64() {
   AesCtrEngine engine(/*deterministic=*/true);
-  ForeachHash64(engine, 0, [](const auto& hash) {
+  ForeachHash64(RngStream(engine, 0)(), [](const auto& hash) {
     fprintf(stderr, "%s (64-bit)\n", hash.Name());
     TestBijection64(hash);
   });

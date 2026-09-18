@@ -293,8 +293,8 @@ static Cuckoo2x2Data BuildCuckoo2x2Impl(Span<const uint32_t> keys,
 
   // Ensure keys are distinct.
   AesCtrEngine engine(/*deterministic=*/true);
-  HashArray(WeakTwoMul(engine, 0), keys.data(), per_worker[0].MutableHashes(),
-            num_keys);
+  HashArray(WeakTwoMul(static_cast<uint32_t>(RngStream(engine, 0)())),
+            keys.data(), per_worker[0].MutableHashes(), num_keys);
   VQSortStatic(per_worker[0].MutableHashes(), num_keys, SortAscending());
   const ScalableTag<uint32_t> du32;
   HWY_ASSERT_M(

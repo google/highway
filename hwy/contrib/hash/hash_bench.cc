@@ -98,14 +98,18 @@ HWY_NOINLINE void TestThroughput(const IHash& hash) {
 
 HWY_NOINLINE void TestAllLatency() {
   AesCtrEngine engine(/*deterministic=*/true);
-  ForeachHash(engine, 0, [](const auto& hash) { TestLatency(hash); });
-  ForeachHash64(engine, 0, [](const auto& hash) { TestLatency(hash); });
+  const uint64_t seed = RngStream(engine, 0)();
+  const uint32_t seed32 = static_cast<uint32_t>(seed & 0xFFFFFFFF);
+  ForeachHash(seed32, [](const auto& hash) { TestLatency(hash); });
+  ForeachHash64(seed, [](const auto& hash) { TestLatency(hash); });
 }
 
 HWY_NOINLINE void TestAllThroughput() {
   AesCtrEngine engine(/*deterministic=*/true);
-  ForeachHash(engine, 0, [](const auto& hash) { TestThroughput(hash); });
-  ForeachHash64(engine, 0, [](const auto& hash) { TestThroughput(hash); });
+  const uint64_t seed = RngStream(engine, 0)();
+  const uint32_t seed32 = static_cast<uint32_t>(seed & 0xFFFFFFFF);
+  ForeachHash(seed32, [](const auto& hash) { TestThroughput(hash); });
+  ForeachHash64(seed, [](const auto& hash) { TestThroughput(hash); });
 }
 
 #else   // HWY_TARGET == HWY_SCALAR

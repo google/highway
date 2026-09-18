@@ -810,10 +810,12 @@ void RunTests(const HashFunction& hash) {
 
 HWY_NOINLINE void RunAll() {
   AesCtrEngine engine(/*deterministic=*/true);
+  const uint64_t seed = RngStream(engine, 0)();
   if constexpr (sizeof(HashType) == 4) {
-    ForeachHash(engine, 0, [](const auto& hash) { RunTests(hash); });
+    const uint32_t seed32 = static_cast<uint32_t>(seed & 0xFFFFFFFF);
+    ForeachHash(seed32, [](const auto& hash) { RunTests(hash); });
   } else {
-    ForeachHash64(engine, 0, [](const auto& hash) { RunTests(hash); });
+    ForeachHash64(seed, [](const auto& hash) { RunTests(hash); });
   }
   PROFILER_PRINT_RESULTS();
 }

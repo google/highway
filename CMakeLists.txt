@@ -325,6 +325,7 @@ set(HWY_SOURCES
     hwy/targets.h
     hwy/timer-inl.h
     hwy/timer.h
+    hwy/os_rng.h
     hwy/x86_cpuid.h
 )
 
@@ -333,6 +334,7 @@ if (NOT HWY_CMAKE_HEADER_ONLY)
     hwy/abort.cc
     hwy/aligned_allocator.cc
     hwy/nanobenchmark.cc
+    hwy/os_rng.cc
     hwy/per_target.cc
     hwy/perf_counters.cc
     hwy/print.cc

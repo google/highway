@@ -45,7 +45,7 @@
 #endif
 
 #if !VQSORT_ONLY_STATIC
-#include "hwy/contrib/sort/vqsort.h"  // Fill16BytesSecure
+#include "hwy/os_rng.h"
 #endif
 
 namespace hwy {

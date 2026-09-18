@@ -668,8 +668,8 @@ static PhastData BuildPhastImpl(Span<const KeyT> keys,
   // because `keys` are immutable, and the hash function is a permutation,
   // hence hash collisions imply duplicate keys.
   AesCtrEngine engine(/*deterministic=*/true);
-  HashArray(HashT(engine, 0), keys.data(), per_worker[0].MutableHashes(),
-            num_keys);
+  HashArray(HashT(static_cast<KeyT>(RngStream(engine, 0)())), keys.data(),
+            per_worker[0].MutableHashes(), num_keys);
   VQSortStatic(per_worker[0].MutableHashes(), num_keys, SortAscending());
   const ScalableTag<KeyT> d_hash;
   HWY_ASSERT_M(

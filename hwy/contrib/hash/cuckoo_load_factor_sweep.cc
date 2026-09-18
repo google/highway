@@ -66,7 +66,7 @@ static AlignedVector<uint32_t> GenerateKeys(size_t num_keys,
   }
   AlignedVector<uint32_t> keys(num_keys);
   AesCtrEngine engine(/*deterministic=*/true);
-  Triple32 perm(engine, seed);
+  Triple32 perm(static_cast<uint32_t>(RngStream(engine, seed)()));
   for (uint32_t i = 0; i < num_keys; ++i) {
     keys[i] = perm(i);
     // Ensure no key equals the sentinel value.

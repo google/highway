@@ -1,4 +1,4 @@
-// Copyright 2021 Google LLC
+// Copyright 2026 Google LLC
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,17 +13,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "hwy/contrib/sort/vqsort.h"
+#ifndef HIGHWAY_HWY_OS_RNG_H_
+#define HIGHWAY_HWY_OS_RNG_H_
 
 #include "hwy/base.h"
-#include "hwy/contrib/sort/vqsort-inl.h"
+
 namespace hwy {
 
-// Unused, only for ABI compatibility
-void Sorter::Fill24Bytes(const void*, size_t, void*) {}
-bool Sorter::HaveFloat64() { return VQSortHaveFloat64(); }
-Sorter::Sorter() {}
-void Sorter::Delete() {}
-uint64_t* GetGeneratorState() { return hwy::detail::GetGeneratorStateStatic(); }
+// Returns false or performs the equivalent of `memcpy(bytes, r, 16)`, where r
+// is high-quality (unpredictable, uniformly distributed) random bits.
+// This used to reside in contrib/ (vqsort.h), hence HWY_CONTRIB_DLLEXPORT.
+HWY_CONTRIB_DLLEXPORT bool Fill16BytesSecure(void* bytes);
 
 }  // namespace hwy
+
+#endif  // HIGHWAY_HWY_OS_RNG_H_

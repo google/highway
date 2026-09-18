@@ -1461,8 +1461,10 @@ static HWY_MAYBE_UNUSED CuckooTableT<Traits> CuckooBuild(
     uint32_t best_num_primary = LimitsMax<uint32_t>();
     for (uint32_t attempt = 0; attempt < args.max_attempts; ++attempt) {
       CuckooBuilderT<Traits> builder(config);
-      HashT h1(engine, attempt * 2 + 0);
-      HashT h2(engine, attempt * 2 + 1);
+      HashT h1(static_cast<typename HashT::LaneType>(
+          RngStream(engine, attempt * 2 + 0)()));
+      HashT h2(static_cast<typename HashT::LaneType>(
+          RngStream(engine, attempt * 2 + 1)()));
       CuckooBuildStats trial;
       if (!builder.Build(keys.data(), h1, h2, args.algo, &trial)) {
         continue;
@@ -1500,8 +1502,10 @@ static HWY_MAYBE_UNUSED CuckooTableT<Traits> CuckooBuild(
               num_keys);
     }
     // Use different seeds for primary and secondary hash functions.
-    HashT h1(engine, attempt * 2);
-    HashT h2(engine, attempt * 2 + 1);
+    HashT h1(static_cast<typename HashT::LaneType>(
+        RngStream(engine, attempt * 2)()));
+    HashT h2(static_cast<typename HashT::LaneType>(
+        RngStream(engine, attempt * 2 + 1)()));
 
     if (builder.Build(keys.data(), h1, h2, args.algo, stats)) {
       if (stats) {
