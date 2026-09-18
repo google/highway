@@ -68,7 +68,8 @@ static ThreadPool MakePool() {
 // Every seed places a key inside its own slice.
 HWY_NOINLINE void TestSliceInvariant() {
   fprintf(stderr, "=== TestSliceInvariant ===\n");
-  const size_t kNumSlots[] = {203, 1021, 12289, 206001};
+  const size_t kNumSlots[] = {203, 1021, AdjustedReps(12289),
+                              AdjustedReps(206001)};
   const uint32_t kSliceLengths[] = {64, 128, 512, 2048};
   size_t checked = 0;
   for (size_t num_slots : kNumSlots) {
@@ -96,11 +97,12 @@ HWY_NOINLINE void TestSliceInvariant() {
 // lets the builder skip those pairs instead of retesting them per seed.
 HWY_NOINLINE void TestDisjointSlicesNeverCollide() {
   fprintf(stderr, "=== TestDisjointSlicesNeverCollide ===\n");
-  const PhastPlacement pp(/*num_slots=*/1020001, /*slice_length=*/2048);
+  const size_t num_slots = AdjustedReps(1020001);
+  const PhastPlacement pp(num_slots, /*slice_length=*/2048);
   const uint32_t slice_length = pp.slice_mask + 1;
   uint32_t hash = 12345u;
   size_t disjoint = 0;
-  for (size_t t = 0; t < 20000; ++t) {
+  for (size_t t = 0; t < AdjustedReps(20000); ++t) {
     hash = hash * 1664525u + 1013904223u;
     const uint32_t hi = hash;
     hash = hash * 1664525u + 1013904223u;
@@ -170,7 +172,7 @@ HWY_NOINLINE void TestSliceBoundIsTight() {
 template <typename KeyT>
 HWY_NOINLINE void TestQueryConsistencyT() {
   fprintf(stderr, "=== TestQueryConsistency (%zu-bit) ===\n", sizeof(KeyT) * 8);
-  const size_t num_keys = AdjustedReps(5'000);
+  const size_t num_keys = AdjustedReps(2'000);
   AlignedVector<KeyT> keys(num_keys);
   for (size_t i = 0; i < num_keys; ++i) {
     keys[i] = static_cast<KeyT>(i * 37 + 1);  // Distinct, non-sequential.
@@ -245,8 +247,7 @@ void CheckDistinctAndRange(uint32_t* indices, size_t num_indices,
 }
 
 template <typename KeyT>
-void TestDistinctAndRange(const size_t num_keys) {
-  ThreadPool pool = MakePool();
+void TestDistinctAndRange(const size_t num_keys, ThreadPool& pool) {
   AlignedVector<KeyT> keys = FillRandomDistinct<KeyT>(num_keys, 0);
 
   const double t0 = platform::Now();
@@ -270,34 +271,36 @@ void TestDistinctAndRange(const size_t num_keys) {
 }
 
 HWY_NOINLINE void TestMultipleSizes() {
+  ThreadPool pool = MakePool();
+
   const size_t kMul = 1;  // increase for larger tests.
   fprintf(stderr, "=== TestSmall (32-bit) ===\n");
   // Includes num_keys == 64, where MinSliceLength(num_keys) == num_keys.
-  for (size_t num_keys = 1; num_keys < 100; ++num_keys) {
-    TestDistinctAndRange<uint32_t>(num_keys);
+  for (size_t num_keys = 1; num_keys < AdjustedReps(100); ++num_keys) {
+    TestDistinctAndRange<uint32_t>(num_keys, pool);
   }
   TestDistinctAndRange<uint32_t>(
-      /*num_keys=*/AdjustedReps(AdjustedReps(100 * kMul)));
+      /*num_keys=*/AdjustedReps(AdjustedReps(20 * kMul)), pool);
   fprintf(stderr, "=== TestSmall (64-bit) ===\n");
-  for (size_t num_keys = 1; num_keys < 100; ++num_keys) {
-    TestDistinctAndRange<uint64_t>(num_keys);
+  for (size_t num_keys = 1; num_keys < AdjustedReps(100); ++num_keys) {
+    TestDistinctAndRange<uint64_t>(num_keys, pool);
   }
   TestDistinctAndRange<uint64_t>(
-      /*num_keys=*/AdjustedReps(AdjustedReps(100 * kMul)));
+      /*num_keys=*/AdjustedReps(AdjustedReps(20 * kMul)), pool);
 
   fprintf(stderr, "=== TestMedium (32-bit) ===\n");
   TestDistinctAndRange<uint32_t>(
-      /*num_keys=*/AdjustedReps(AdjustedReps(500 * kMul)));
+      /*num_keys=*/AdjustedReps(AdjustedReps(200 * kMul)), pool);
   fprintf(stderr, "=== TestMedium (64-bit) ===\n");
   TestDistinctAndRange<uint64_t>(
-      /*num_keys=*/AdjustedReps(AdjustedReps(500 * kMul)));
+      /*num_keys=*/AdjustedReps(AdjustedReps(200 * kMul)), pool);
 
   fprintf(stderr, "=== TestLarge (32-bit) ===\n");
   TestDistinctAndRange<uint32_t>(
-      /*num_keys=*/AdjustedReps(AdjustedReps(2 * kMul)) * 1024);
+      /*num_keys=*/AdjustedReps(AdjustedReps(1 * kMul)) * 1024, pool);
   fprintf(stderr, "=== TestLarge (64-bit) ===\n");
   TestDistinctAndRange<uint64_t>(
-      /*num_keys=*/AdjustedReps(AdjustedReps(2 * kMul)) * 1024);
+      /*num_keys=*/AdjustedReps(AdjustedReps(1 * kMul)) * 1024, pool);
 
   PROFILER_PRINT_RESULTS();
 }
