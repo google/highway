@@ -77,6 +77,9 @@ HWY_DIAGNOSTICS_OFF(disable : 4701 4703 6001 26494,
 #if HWY_TARGET <= HWY_AVX3_SPR
 #include <avx512fp16intrin.h>
 #include <avx512vlfp16intrin.h>
+#if HWY_ARCH_X86_64
+#include <amxintrin.h>
+#endif
 #endif  // HWY_TARGET <= HWY_AVX3_SPR
 
 // clang-format on
@@ -8836,6 +8839,49 @@ template <class V, HWY_IF_UI64(TFromV<V>), HWY_IF_V_SIZE_V(V, 64)>
 HWY_API V MaskedLeadingZeroCount(MFromD<DFromV<V>> m, V v) {
   return V{_mm512_maskz_lzcnt_epi64(m.raw, v.raw)};
 }
+
+// ------------------------------ Tile64BMatMul (AMX-BF16 hardware wrappers)
+#if HWY_NATIVE_TILE_64B_MATMUL_BF16
+
+// Creates a tile descriptor for a 64-byte-per-row tile (default 16 rows x 64
+// bytes = 1024 bytes).
+// Do not initialize the 1024-byte `tile` field - matches compiler test suite,
+// but raises a warning.
+HWY_DIAGNOSTICS(push)
+HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wmissing-field-initializers")
+HWY_API __tile1024i MakeTile64B(uint16_t rows = 16, uint16_t col_bytes = 64) {
+  return __tile1024i{rows, col_bytes};
+}
+HWY_DIAGNOSTICS(pop)
+
+HWY_API void Tile64BZero(__tile1024i* HWY_RESTRICT dst) { __tile_zero(dst); }
+
+HWY_API void Tile64BLoad(__tile1024i* HWY_RESTRICT dst,
+                         const void* HWY_RESTRICT base, size_t stride_bytes) {
+  __tile_loadd(dst, base, stride_bytes);
+}
+
+HWY_API void Tile64BStore(const __tile1024i* HWY_RESTRICT src,
+                          void* HWY_RESTRICT base, size_t stride_bytes) {
+  __tile_stored(base, stride_bytes, *src);
+}
+
+// Computes C += A * B where A is [rows x 32] BF16, B is [16 x 32] BF16 in
+// 2-wide VNNI layout (representing a [32 x 16] BF16 matrix), and C is
+// [rows x 16] float (64 bytes per row).
+// Hardware requires dst, a, and b to be distinct tile registers (#UD if any
+// two alias), hence HWY_RESTRICT.
+template <class DF32, HWY_IF_F32_D(DF32)>
+HWY_API void Tile64BMatMul(DF32 /* d */, __tile1024i* HWY_RESTRICT dst,
+                           const __tile1024i* HWY_RESTRICT a,
+                           const __tile1024i* HWY_RESTRICT b) {
+  __tile_dpbf16ps(dst, *a, *b);
+}
+
+HWY_API void Tile64BRelease() { _tile_release(); }
+
+#endif  // HWY_NATIVE_TILE_64B_MATMUL_BF16
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy

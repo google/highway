@@ -26,6 +26,10 @@
 
 #if HWY_ARCH_X86
 #include <xmmintrin.h>
+#if HWY_ARCH_X86_64 && HWY_OS_LINUX
+#include <sys/syscall.h>
+#include <unistd.h>
+#endif
 
 #elif (HWY_ARCH_ARM || HWY_ARCH_PPC || HWY_ARCH_S390X || HWY_ARCH_RISCV || \
        HWY_ARCH_LOONGARCH) &&                                              \
@@ -54,11 +58,13 @@
 
 namespace hwy {
 
+using CapBits = unsigned long;  // NOLINT
+
 #if (HWY_ARCH_ARM || HWY_ARCH_PPC || HWY_ARCH_RISCV) &&                  \
        (HWY_OS_FREEBSD || HWY_OS_OPENBSD)
 #if HWY_HAVE_ELF_AUX_INFO
-static HWY_INLINE HWY_MAYBE_UNUSED unsigned long getauxval(unsigned long type) {
-  unsigned long hwcap = 0;
+static HWY_INLINE HWY_MAYBE_UNUSED CapBits getauxval(CapBits type) {
+  CapBits hwcap = 0;
   switch (type) {
   case AT_HWCAP:
   case AT_HWCAP2:
@@ -68,8 +74,8 @@ static HWY_INLINE HWY_MAYBE_UNUSED unsigned long getauxval(unsigned long type) {
     return 0;
   }
 }
-#endif // HWY_HAVE_ELF_AUX_INFO
-#endif // HWY_ARCH_*
+#endif  // HWY_HAVE_ELF_AUX_INFO
+#endif  // HWY_ARCH_*
 
 #if HWY_OS_APPLE
 static HWY_INLINE HWY_MAYBE_UNUSED bool HasCpuFeature(
@@ -139,8 +145,17 @@ static HWY_INLINE HWY_MAYBE_UNUSED bool IsMacOs12_2OrLater() {
 #if HWY_ARCH_X86 && HWY_HAVE_RUNTIME_DISPATCH
 namespace x86 {
 
+// https://en.wikipedia.org/wiki/Control_register#XCR0_and_XSS
+constexpr HWY_INLINE_VAR uint32_t kXCR0_XMM = 1u << 1;
+constexpr HWY_INLINE_VAR uint32_t kXCR0_YMM = 1u << 2;
+constexpr HWY_INLINE_VAR uint32_t kXCR0_OPMASK = 1u << 5;
+constexpr HWY_INLINE_VAR uint32_t kXCR0_ZMM_HI = 1u << 6;
+constexpr HWY_INLINE_VAR uint32_t kXCR0_REGS32 = 1u << 7;
+constexpr HWY_INLINE_VAR uint32_t kXCR0_TILECFG = 1u << 17;
+constexpr HWY_INLINE_VAR uint32_t kXCR0_TILEDATA = 1u << 18;
+
 // Returns the lower 32 bits of extended control register 0.
-// Requires CPU support for "OSXSAVE" (see below).
+// Requires CPU support for "OSXSAVE" (see below). Compare against kXCR0_*.
 static uint32_t ReadXCR0() {
 #if HWY_COMPILER_MSVC
   return static_cast<uint32_t>(_xgetbv(0));
@@ -153,6 +168,25 @@ static uint32_t ReadXCR0() {
   return xcr0;
 #endif  // HWY_COMPILER_MSVC
 }
+
+static bool HasYMM(uint32_t xcr0) {
+  constexpr uint32_t kXMM_YMM = kXCR0_XMM | kXCR0_YMM;
+  return (xcr0 & kXMM_YMM) == kXMM_YMM;
+}
+
+static bool HasZMM(uint32_t xcr0) {
+  constexpr uint32_t kZMM = kXCR0_OPMASK | kXCR0_ZMM_HI | kXCR0_REGS32;
+  return (xcr0 & kZMM) == kZMM;
+}
+
+#if HWY_ARCH_X86_64
+
+static bool HWY_MAYBE_UNUSED HasAMX(uint32_t xcr0) {
+  constexpr uint32_t kAMX = kXCR0_TILECFG | kXCR0_TILEDATA;
+  return (xcr0 & kAMX) == kAMX;
+}
+
+#endif  // HWY_ARCH_X86_64
 
 // Arbitrary bit indices indicating which instruction set extensions are
 // supported. Use enum to ensure values are distinct.
@@ -183,6 +217,8 @@ enum class FeatureIndex : uint32_t {
   kAVX512FP16,
   kAVX512BF16,
   kAVX512IFMA,
+  kAMX_TILE,
+  kAMX_BF16,
 
   kVNNI,
   kVPCLMULQDQ,
@@ -254,6 +290,8 @@ static uint64_t FlagsFromCPUID() {
     flags |= IsBitSet(abcd[2], 14) ? Bit(FeatureIndex::kPOPCNTDQ) : 0;
 
     flags |= IsBitSet(abcd[3], 23) ? Bit(FeatureIndex::kAVX512FP16) : 0;
+    flags |= IsBitSet(abcd[3], 24) ? Bit(FeatureIndex::kAMX_TILE) : 0;
+    flags |= IsBitSet(abcd[3], 22) ? Bit(FeatureIndex::kAMX_BF16) : 0;
 
     Cpuid(7, 1, abcd);
     flags |= IsBitSet(abcd[0], 5) ? Bit(FeatureIndex::kAVX512BF16) : 0;
@@ -436,17 +474,14 @@ static int64_t DetectTargets() {
 
     const uint32_t xcr0 = ReadXCR0();
     constexpr int64_t min_avx3 = HWY_AVX3 | (HWY_AVX3 - 1);
-    // XMM/YMM
-    if (!IsBitSet(xcr0, 1) || !IsBitSet(xcr0, 2)) {
+    if (!HasYMM(xcr0)) {
       // Clear the AVX2/AVX3 bits if XMM/YMM XSAVE is not enabled
       bits &= ~min_avx2;
     }
 
 #if !HWY_OS_APPLE
-    // On OS's other than macOS, check for AVX3 XSAVE support by checking that
-    // bits 5, 6, and 7 of XCR0 are set.
-    const bool have_avx3_xsave_support =
-        IsBitSet(xcr0, 5) && IsBitSet(xcr0, 6) && IsBitSet(xcr0, 7);
+    // On OS's other than macOS, check for AVX3 XSAVE via XCR0.
+    const bool have_avx3_xsave_support = HasZMM(xcr0);
 #endif
 
     // opmask, ZMM lo/hi
@@ -496,7 +531,6 @@ HWY_POP_ATTRIBUTES
 static int64_t DetectTargets() {
   int64_t bits = 0;  // return value of supported targets.
 
-  using CapBits = unsigned long;  // NOLINT
 #if HWY_OS_APPLE
   const CapBits hw = 0UL;
 #else
@@ -856,6 +890,53 @@ HWY_DLLEXPORT int64_t SupportedTargets() {
 HWY_DLLEXPORT ChosenTarget& GetChosenTarget() {
   static ChosenTarget chosen_target;
   return chosen_target;
+}
+
+HWY_DLLEXPORT bool HaveTile64BMatMulBF16() {
+#if HWY_ARCH_X86_64 && HWY_HAVE_RUNTIME_DISPATCH
+  static const bool has_amx_bf16 = []() -> bool {
+    const uint64_t flags = x86::FlagsFromCPUID();
+    constexpr uint64_t kAmxBF16Flags = x86::Bit(x86::FeatureIndex::kAMX_TILE) |
+                                       x86::Bit(x86::FeatureIndex::kAMX_BF16);
+    if ((flags & kAmxBF16Flags) != kAmxBF16Flags) {
+      return false;
+    }
+
+    uint32_t abcd[4];
+    x86::Cpuid(1, 0, abcd);
+    const bool has_xsave = x86::IsBitSet(abcd[2], 26);
+    const bool has_osxsave = x86::IsBitSet(abcd[2], 27);
+    if (!has_xsave || !has_osxsave) {
+      return false;
+    }
+
+#if HWY_OS_LINUX
+    // On Linux, request OS permission for dynamic XSAVE tile state
+    // (XFEATURE_XTILEDATA) first, before checking XCR0.
+#ifndef ARCH_REQ_XCOMP_PERM
+#define ARCH_REQ_XCOMP_PERM 0x1023
+#endif
+#ifndef XFEATURE_XTILEDATA
+#define XFEATURE_XTILEDATA 18
+#endif
+    const int64_t status =
+        syscall(SYS_arch_prctl, ARCH_REQ_XCOMP_PERM, XFEATURE_XTILEDATA);
+    if (status != 0) {
+      return false;
+    }
+#endif  // HWY_OS_LINUX
+
+    const uint32_t xcr0 = x86::ReadXCR0();
+    if (!x86::HasYMM(xcr0) || !x86::HasZMM(xcr0) || !x86::HasAMX(xcr0)) {
+      return false;
+    }
+
+    return true;
+  }();
+  return has_amx_bf16;
+#else
+  return false;
+#endif
 }
 
 }  // namespace hwy

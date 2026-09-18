@@ -32,7 +32,11 @@ namespace {
 #error "Bug in set_macros-inl.h, did not set HWY_NATIVE_PER_BLOCK_2X2_MATMUL_BF16"
 #endif
 
-struct TestInt8PerBlock2x2MatMul {
+#ifndef HWY_NATIVE_TILE_64B_MATMUL_BF16
+#error "Bug in set_macros-inl.h, did not set HWY_NATIVE_TILE_64B_MATMUL_BF16"
+#endif
+
+struct TestPerBlock2x2MatMulInt8 {
   template <typename TN, class DN>
   HWY_NOINLINE void operator()(TN /*unused*/, DN dn) {
 #if HWY_NATIVE_PER_BLOCK_2X2_MATMUL_INT8
@@ -86,11 +90,11 @@ struct TestInt8PerBlock2x2MatMul {
   }
 };
 
-HWY_NOINLINE void TestAllInt8PerBlock2x2MatMul() {
-  ForGEVectors<128, TestInt8PerBlock2x2MatMul>()(int32_t());
+HWY_NOINLINE void TestAllPerBlock2x2MatMulInt8() {
+  ForGEVectors<128, TestPerBlock2x2MatMulInt8>()(int32_t());
 }
 
-struct TestUint8Int8PerBlock2x2MatMul {
+struct TestPerBlock2x2MatMulUint8Int8 {
   template <typename TN, class DN>
   HWY_NOINLINE void operator()(TN /*unused*/, DN dn) {
 #if HWY_NATIVE_PER_BLOCK_2X2_MATMUL_INT8
@@ -146,11 +150,11 @@ struct TestUint8Int8PerBlock2x2MatMul {
   }
 };
 
-HWY_NOINLINE void TestAllUint8Int8PerBlock2x2MatMul() {
-  ForGEVectors<128, TestUint8Int8PerBlock2x2MatMul>()(int32_t());
+HWY_NOINLINE void TestAllPerBlock2x2MatMulUint8Int8() {
+  ForGEVectors<128, TestPerBlock2x2MatMulUint8Int8>()(int32_t());
 }
 
-struct TestBf16PerBlock2x2MatMul {
+struct TestPerBlock2x2MatMulBF16 {
   template <typename TN, class DN>
   HWY_NOINLINE void operator()(TN /*unused*/, DN dn) {
 #if HWY_NATIVE_PER_BLOCK_2X2_MATMUL_BF16
@@ -167,8 +171,10 @@ struct TestBf16PerBlock2x2MatMul {
     HWY_ASSERT(in_a && in_b && in_c && expected);
 
     for (size_t i = 0; i < N * 2; ++i) {
-      in_a[i] = hwy::ConvertScalarTo<hwy::bfloat16_t>(static_cast<float>(i % 5) * 0.5f);
-      in_b[i] = hwy::ConvertScalarTo<hwy::bfloat16_t>(static_cast<float>(i % 7) * 0.25f);
+      in_a[i] = hwy::ConvertScalarTo<hwy::bfloat16_t>(
+          static_cast<float>(i % 5) * 0.5f);
+      in_b[i] = hwy::ConvertScalarTo<hwy::bfloat16_t>(
+          static_cast<float>(i % 7) * 0.25f);
     }
     for (size_t i = 0; i < N; ++i) {
       in_c[i] = static_cast<float>(i % 3) + 1.0f;
@@ -201,8 +207,84 @@ struct TestBf16PerBlock2x2MatMul {
   }
 };
 
-HWY_NOINLINE void TestAllBf16PerBlock2x2MatMul() {
-  ForGEVectors<128, TestBf16PerBlock2x2MatMul>()(float());
+HWY_NOINLINE void TestAllPerBlock2x2MatMulBF16() {
+  ForGEVectors<128, TestPerBlock2x2MatMulBF16>()(float());
+}
+
+struct TestTile64BMatMulBF16 {
+  // AMX is only supported on x64; this template is unused on 32-bit builds.
+  template <typename TN, class DN>
+  HWY_NOINLINE HWY_MAYBE_UNUSED void operator()(TN /*unused*/, DN dn) {
+#if HWY_NATIVE_TILE_64B_MATMUL_BF16
+    if (!hwy::HaveTile64BMatMulBF16()) {
+      return;
+    }
+    constexpr size_t kRows = 16;
+    constexpr size_t kColsF32 = 16;
+    constexpr size_t kDimStepBF16 = 32;
+    constexpr size_t kRowBytes = 64;
+
+    auto in_a = AllocateAligned<hwy::bfloat16_t>(kRows * kDimStepBF16);
+    auto in_b = AllocateAligned<hwy::bfloat16_t>(kRows * kDimStepBF16);
+    auto in_c = AllocateAligned<float>(kRows * kColsF32);
+    auto actual = AllocateAligned<float>(kRows * kColsF32);
+    auto expected = AllocateAligned<float>(kRows * kColsF32);
+    HWY_ASSERT(in_a && in_b && in_c && actual && expected);
+
+    for (size_t i = 0; i < kRows * kDimStepBF16; ++i) {
+      in_a[i] = hwy::ConvertScalarTo<hwy::bfloat16_t>(
+          static_cast<float>((i % 7) - 3) * 0.5f);
+      in_b[i] = hwy::ConvertScalarTo<hwy::bfloat16_t>(
+          static_cast<float>((i % 5) - 2) * 0.25f);
+    }
+    for (size_t i = 0; i < kRows * kColsF32; ++i) {
+      in_c[i] = static_cast<float>(i % 11) * 0.125f;
+    }
+
+    const Repartition<hwy::bfloat16_t, DN> dbf;
+    const RebindToUnsigned<DN> du32;
+    using VBF = Vec<decltype(dbf)>;
+    using VF = Vec<decltype(dn)>;
+
+    for (size_t r = 0; r < kRows; ++r) {
+      VF sum0 = Zero(dn);
+      VF sum1 = Zero(dn);
+      for (size_t k_pair = 0; k_pair < kDimStepBF16 / 2; ++k_pair) {
+        uint32_t a_pair;
+        CopyBytes<4>(&in_a[r * kDimStepBF16 + 2 * k_pair], &a_pair);
+        const VBF va = BitCast(dbf, Set(du32, a_pair));
+        const VBF vb = Load(dbf, in_b.get() + k_pair * kDimStepBF16);
+        sum0 = ReorderWidenMulAccumulate(dn, va, vb, sum0, sum1);
+      }
+      const VF vc = Load(dn, in_c.get() + r * kColsF32);
+      const VF row_expected = Add(vc, RearrangeToOddPlusEven(sum0, sum1));
+      Store(row_expected, dn, expected.get() + r * kColsF32);
+    }
+
+    auto tile_c = MakeTile64B(kRows, kRowBytes);
+    auto tile_a = MakeTile64B(kRows, kRowBytes);
+    auto tile_b = MakeTile64B(kRows, kRowBytes);
+
+    Tile64BLoad(&tile_c, in_c.get(), kRowBytes);
+    Tile64BLoad(&tile_a, in_a.get(), kRowBytes);
+    Tile64BLoad(&tile_b, in_b.get(), kRowBytes);
+    Tile64BMatMul(dn, &tile_c, &tile_a, &tile_b);
+    Tile64BStore(&tile_c, actual.get(), kRowBytes);
+    Tile64BRelease();
+
+    for (size_t r = 0; r < kRows; ++r) {
+      HWY_ASSERT_VEC_EQ(dn, expected.get() + r * kColsF32,
+                        Load(dn, actual.get() + r * kColsF32));
+    }
+#else
+    (void)dn;
+#endif
+  }
+};
+
+HWY_NOINLINE void TestAllTile64BMatMulBF16() {
+  // AMX is independent of vector length, hence only test 512.
+  ForGEVectors<512, TestTile64BMatMulBF16>()(float());
 }
 
 }  // namespace
@@ -215,9 +297,10 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 namespace {
 HWY_BEFORE_TEST(HwyMatmulOpTest);
-HWY_EXPORT_AND_TEST_P(HwyMatmulOpTest, TestAllInt8PerBlock2x2MatMul);
-HWY_EXPORT_AND_TEST_P(HwyMatmulOpTest, TestAllUint8Int8PerBlock2x2MatMul);
-HWY_EXPORT_AND_TEST_P(HwyMatmulOpTest, TestAllBf16PerBlock2x2MatMul);
+HWY_EXPORT_AND_TEST_P(HwyMatmulOpTest, TestAllPerBlock2x2MatMulInt8);
+HWY_EXPORT_AND_TEST_P(HwyMatmulOpTest, TestAllPerBlock2x2MatMulUint8Int8);
+HWY_EXPORT_AND_TEST_P(HwyMatmulOpTest, TestAllPerBlock2x2MatMulBF16);
+HWY_EXPORT_AND_TEST_P(HwyMatmulOpTest, TestAllTile64BMatMulBF16);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy
