@@ -412,22 +412,14 @@ struct TestFastTanRelative {
   HWY_NOINLINE void operator()(T, D d) {
     if (sizeof(T) == 4) {
       // Float: [-89.999999, +89.999999] deg
-      // Max relative error is 0.002 to tolerate accuracy drop on architectures
-      // without FMA support (like SSE4). On targets with FMA, the actual max
-      // rel error is ~0.00045.
       TestMathRelative<T, D>(
           "FastTan", std::tan, CallFastTan, d, static_cast<T>(-1.570796309),
-          static_cast<T>(1.570796309), (HWY_NATIVE_FMA ? 0.00045 : 0.002),
-          4000, 1e-20);
+          static_cast<T>(1.570796309), 0.0000005, 4000, 1e-20);
     } else {
       // Double: [-89.999999999999, +89.999999999999] deg
-      // Max relative error is 0.002 to tolerate accuracy drop on architectures
-      // without FMA support (like SSE4). On targets with FMA, the actual max
-      // rel error is ~0.00045.
       TestMathRelative<T, D>(
           "FastTan", std::tan, CallFastTan, d, static_cast<T>(-1.5707963267948),
-          static_cast<T>(1.5707963267948), (HWY_NATIVE_FMA ? 0.00045 : 0.002),
-          4000, 1e-20);
+          static_cast<T>(1.5707963267948), 0.00000015, 4000, 1e-20);
     }
   }
 };
@@ -460,8 +452,8 @@ struct TestFastAtanRelative {
     if (sizeof(T) == 4) {
       // Float: [-1e35, +1e35]
       TestMathRelative<T, D>("FastAtan", std::atan, CallFastAtan, d,
-                             static_cast<T>(-1e35), static_cast<T>(1e35),
-                             6e-6, 1000000, 1e-20);
+                             static_cast<T>(-1e35), static_cast<T>(1e35), 6e-6,
+                             1000000, 1e-20);
       // Float: [0, +1e35]
       TestMathRelative<T, D>("FastAtanPositive", std::atan,
                              CallFastAtanPositive, d, static_cast<T>(0),

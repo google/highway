@@ -209,12 +209,10 @@ struct FastExpImpl<double> {
  * Fast approximation of tan(x).
  *
  * Valid Lane Types: float32, float64
- * Max Relative Error: < 0.2% for angles equivalent to falling between
- * [-89.999999, +89.999999] degrees (float32) and
- *                     [-89.999999999999, +89.999999999999] degrees (float64).
- *                     Note: On targets with FMA, max error is < 0.045%.
- *                     Increased to < 0.2% to accommodate precision constraints
- *                     of older targets without FMA (e.g., SSE4).
+ * Max Relative Error: < 0.00005% (4.5e-7) for float32 in
+ *                     [-89.999999, +89.999999] degrees and
+ *                     < 0.000015% (1.5e-7) for float64 in
+ *                     [-89.999999999999, +89.999999999999] degrees.
  * Valid Range: float32 : [-250, +250] rads
  *              float64 : [-1e10, +1e10] rads
  *
@@ -227,276 +225,55 @@ template <class D, class V>
 HWY_INLINE V FastTan(D d, V x) {
   using T = TFromD<D>;
 
-  // Reduction
+  // Reduction to x_red in [0, pi/2] with sign tracking.
   V x_red, sign;
   impl::ReduceAngleTan(d, x, x_red, sign);
 
-  V a, c, d_val, e, f;
+  // The Taylor expansion of tan(x) around 0 contains only odd powers of x:
+  //   tan(x) = x + (1/3)x^3 + (2/15)x^5 + (17/315)x^7 + ...
+  // Factoring out x and multiplying by the exact vertical asymptote pole factor
+  // (pi^2/4 - x^2) = (pi/2 - x)(pi/2 + x) cancels the singularity at x = pi/2
+  // and produces a smooth, strictly positive even function of x:
+  //   h(x^2) = (pi^2/4 - x^2) * (tan(x) / x)
+  // Using the substitution u = x^2, we approximate h(u) on u in [0, pi^2/4]
+  // with a [2, 1] rational function P2(u) / Q1(u) via the Caratheodory-Fejer
+  // method:
+  //   P2(u) = p2 * u^2 + p1 * u + 1
+  //   Q1(u) = q1 * u + q0
+  // Reconstruct tan(x) as:
+  //   tan(x) ~= x * P2(u) / ((pi/2 - x) * (pi/2 + x) * Q1(u))
+  // which is a [5, 4] rational approximation in x with an exact pole at pi/2.
+  const V u = Mul(x_red, x_red);
 
-  // The coefficients below were derived by applying the Caratheodory-Fejer
-  // algorithm independently onto sin(x) and cos(x)
-  // fitting 2 - degree standard polynomial, then dividing them. This approach
-  // avoids artificial zeros in the denominator that occur when attempting to
-  // directly fit a generic [2,2] Padé rational approximation onto tan(x) thus
-  // getting much better accuracy.
-  if constexpr (CanLookup8(d)) {
-    HWY_ALIGN static constexpr T arr_a[8] = {
-        static_cast<T>(0.0),
-        static_cast<T>(-0.14904330302387969),
-        static_cast<T>(-0.2236118661080502),
-        static_cast<T>(-0.27287996538479159),
-        static_cast<T>(-0.30070890865230282),
-        static_cast<T>(-0.31363197421492123),
-        static_cast<T>(-0.31784368873871471),
-        static_cast<T>(-0.31830988618379067)};
+  const V p2 = Set(d, static_cast<T>(0.0011413062935132635));
+  const V p1 = Set(d, static_cast<T>(-0.1122671620241909));
+  const V p0 = Set(d, static_cast<T>(1.0));
 
-    HWY_ALIGN static constexpr T arr_c[8] = {
-        static_cast<T>(0.0),
-        static_cast<T>(-0.0045410360710521729),
-        static_cast<T>(-0.019521549474786976),
-        static_cast<T>(-0.04547905981941365),
-        static_cast<T>(-0.078350997372374373),
-        static_cast<T>(-0.11179597154548386),
-        static_cast<T>(-0.13826309735032882),
-        static_cast<T>(0.16953149515570081)};
+  const V q1 = Set(d, static_cast<T>(-0.016338901306484525));
+  const V q0 = Set(d, static_cast<T>(0.40528469663390199));
 
-    HWY_ALIGN static constexpr T arr_d[8] = {
-        static_cast<T>(-0.33416459999999898),
-        static_cast<T>(-0.45272542209772138),
-        static_cast<T>(-0.381612664975434),
-        static_cast<T>(-0.29765694039613683),
-        static_cast<T>(-0.21326455806446845),
-        static_cast<T>(-0.13445251346360662),
-        static_cast<T>(-0.062164841384927304),
-        static_cast<T>(0.0)};
+  // Evaluate P2(u) and Q1(u).
+  const V p2_u = MulAdd(MulAdd(p2, u, p1), u, p0);
+  const V q1_u = MulAdd(q1, u, q0);
 
-    HWY_ALIGN static constexpr T arr_e[8] = {
-        static_cast<T>(0.0),
-        static_cast<T>(-0.010035513401260365),
-        static_cast<T>(-0.042528750593724261),
-        static_cast<T>(-0.10379407917577334),
-        static_cast<T>(-0.19421600539466946),
-        static_cast<T>(-0.31338001212544747),
-        static_cast<T>(-0.4639699587956761),
-        static_cast<T>(-0.95492965855137202)};
+  // Split pi/2 = kHalfPiHi + kHalfPiLo so that (kHalfPiHi - x_red) is exact by
+  // Sterbenz's lemma near x_red = pi/2, avoiding catastrophic cancellation.
+  const V kHalfPiHi = Set(
+      d, sizeof(T) == 8 ? static_cast<T>(1.57079632679489655799898173427209258)
+                        : static_cast<T>(1.5707962512969970703125f));
+  const V kHalfPiLo =
+      Set(d, sizeof(T) == 8
+                 ? static_cast<T>(6.12323399573676603586882014729198302e-17)
+                 : static_cast<T>(7.5497899548918820676e-08f));
 
-    HWY_ALIGN static constexpr T arr_f[8] = {
-        static_cast<T>(1.0),
-        static_cast<T>(0.95545184636008651),
-        static_cast<T>(0.89377779158763637),
-        static_cast<T>(0.83677608090227806),
-        static_cast<T>(0.8062237042338477),
-        static_cast<T>(0.81718468304926728),
-        static_cast<T>(0.88159214558286314),
-        static_cast<T>(1.5)};
+  const V dx = Add(Sub(kHalfPiHi, x_red), kHalfPiLo);
+  const V sum_x = Add(kHalfPiHi, x_red);
+  const V pole = Mul(dx, sum_x);
 
-    // The intervals for the coefficients divide the 0 to 85 degrees range into
-    // 7 equal parts. The 8th interval constructed by this scale would
-    // technically cover 85 to 97.14 degrees. Since x_red is mathematically
-    // capped at 90 degrees (pi/2) during angle reduction, any angle in the
-    // final 85-90 degree block neatly lands in index 7 without needing us to
-    // use a function like `ComputeIndices8Intervals`
-    const auto scale = Set(d, static_cast<T>(4.718475878411516086));
-    // Since x_red is strictly non-negative, we can skip Floor() and use
-    // ConvertInRangeTo() (truncation) which is faster on certain architectures.
-    auto idx_i = ConvertInRangeTo(RebindToSigned<D>(), Mul(x_red, scale));
+  const V num = Mul(x_red, p2_u);
+  const V den = Abs(Mul(pole, q1_u));
 
-    a = Lookup8(d, arr_a, idx_i);
-    c = Lookup8(d, arr_c, idx_i);
-    d_val = Lookup8(d, arr_d, idx_i);
-    e = Lookup8(d, arr_e, idx_i);
-    f = Lookup8(d, arr_f, idx_i);
-  } else {
-    HWY_ALIGN static constexpr T thresholds[7] = {
-        static_cast<T>(0.21193283774216859),
-        static_cast<T>(0.42386567548433718),
-        static_cast<T>(0.63579851322650582),
-        static_cast<T>(0.84773135096867436),
-        static_cast<T>(1.0596641887108429),
-        static_cast<T>(1.2715970264530116),
-        static_cast<T>(1.4835298641951802)};
-    const auto t0 = Set(d, thresholds[0]);
-    const auto t1 = Set(d, thresholds[1]);
-    const auto t2 = Set(d, thresholds[2]);
-    const auto t3 = Set(d, thresholds[3]);
-    const auto t4 = Set(d, thresholds[4]);
-    const auto t5 = Set(d, thresholds[5]);
-    const auto t6 = Set(d, thresholds[6]);
-
-    if constexpr (HWY_REGISTERS >= 32) {
-      auto a_low = Set(d, static_cast<T>(-0.27287996538479159));
-      auto c_low = Set(d, static_cast<T>(-0.04547905981941365));
-      auto d_low = Set(d, static_cast<T>(-0.29765694039613683));
-      auto e_low = Set(d, static_cast<T>(-0.10379407917577334));
-      auto f_low = Set(d, static_cast<T>(0.83677608090227806));
-
-      auto mask = Lt(x_red, t2);
-      a_low =
-          IfThenElse(mask, Set(d, static_cast<T>(-0.2236118661080502)), a_low);
-      c_low = IfThenElse(mask, Set(d, static_cast<T>(-0.019521549474786976)),
-                         c_low);
-      d_low =
-          IfThenElse(mask, Set(d, static_cast<T>(-0.381612664975434)), d_low);
-      e_low = IfThenElse(mask, Set(d, static_cast<T>(-0.042528750593724261)),
-                         e_low);
-      f_low =
-          IfThenElse(mask, Set(d, static_cast<T>(0.89377779158763637)), f_low);
-
-      mask = Lt(x_red, t1);
-      a_low =
-          IfThenElse(mask, Set(d, static_cast<T>(-0.14904330302387969)), a_low);
-      c_low = IfThenElse(mask, Set(d, static_cast<T>(-0.0045410360710521729)),
-                         c_low);
-      d_low =
-          IfThenElse(mask, Set(d, static_cast<T>(-0.45272542209772138)), d_low);
-      e_low = IfThenElse(mask, Set(d, static_cast<T>(-0.010035513401260365)),
-                         e_low);
-      f_low =
-          IfThenElse(mask, Set(d, static_cast<T>(0.95545184636008651)), f_low);
-
-      mask = Lt(x_red, t0);
-      a_low = IfThenZeroElse(mask, a_low);
-      c_low = IfThenZeroElse(mask, c_low);
-      d_low =
-          IfThenElse(mask, Set(d, static_cast<T>(-0.33416459999999898)), d_low);
-      e_low = IfThenZeroElse(mask, e_low);
-      f_low = IfThenElse(mask, Set(d, static_cast<T>(1.0)), f_low);
-
-      auto a_high = Set(d, static_cast<T>(-0.31830988618379067));
-      auto c_high = Set(d, static_cast<T>(0.16953149515570081));
-      auto d_high = Set(d, static_cast<T>(0.0));
-      auto e_high = Set(d, static_cast<T>(-0.95492965855137202));
-      auto f_high = Set(d, static_cast<T>(1.5));
-
-      mask = Lt(x_red, t6);
-      a_high = IfThenElse(mask, Set(d, static_cast<T>(-0.31784368873871471)),
-                          a_high);
-      c_high = IfThenElse(mask, Set(d, static_cast<T>(-0.13826309735032882)),
-                          c_high);
-      d_high =
-          IfThenElseZero(mask, Set(d, static_cast<T>(-0.062164841384927304)));
-      e_high =
-          IfThenElse(mask, Set(d, static_cast<T>(-0.4639699587956761)), e_high);
-      f_high =
-          IfThenElse(mask, Set(d, static_cast<T>(0.88159214558286314)), f_high);
-
-      mask = Lt(x_red, t5);
-      a_high = IfThenElse(mask, Set(d, static_cast<T>(-0.31363197421492123)),
-                          a_high);
-      c_high = IfThenElse(mask, Set(d, static_cast<T>(-0.11179597154548386)),
-                          c_high);
-      d_high = IfThenElse(mask, Set(d, static_cast<T>(-0.13445251346360662)),
-                          d_high);
-      e_high = IfThenElse(mask, Set(d, static_cast<T>(-0.31338001212544747)),
-                          e_high);
-      f_high =
-          IfThenElse(mask, Set(d, static_cast<T>(0.81718468304926728)), f_high);
-
-      mask = Lt(x_red, t4);
-      a_high = IfThenElse(mask, Set(d, static_cast<T>(-0.30070890865230282)),
-                          a_high);
-      c_high = IfThenElse(mask, Set(d, static_cast<T>(-0.078350997372374373)),
-                          c_high);
-      d_high = IfThenElse(mask, Set(d, static_cast<T>(-0.21326455806446845)),
-                          d_high);
-      e_high = IfThenElse(mask, Set(d, static_cast<T>(-0.19421600539466946)),
-                          e_high);
-      f_high =
-          IfThenElse(mask, Set(d, static_cast<T>(0.8062237042338477)), f_high);
-
-      auto merge_mask = Lt(x_red, t3);
-      a = IfThenElse(merge_mask, a_low, a_high);
-      c = IfThenElse(merge_mask, c_low, c_high);
-      d_val = IfThenElse(merge_mask, d_low, d_high);
-      e = IfThenElse(merge_mask, e_low, e_high);
-      f = IfThenElse(merge_mask, f_low, f_high);
-    } else {
-      a = Set(d, static_cast<T>(-0.31830988618379067));
-      c = Set(d, static_cast<T>(0.16953149515570081));
-      d_val = Set(d, static_cast<T>(0.0));
-      e = Set(d, static_cast<T>(-0.95492965855137202));
-      f = Set(d, static_cast<T>(1.5));
-
-      auto mask = Lt(x_red, t6);
-      a = IfThenElse(mask, Set(d, static_cast<T>(-0.31784368873871471)), a);
-      c = IfThenElse(mask, Set(d, static_cast<T>(-0.13826309735032882)), c);
-      d_val =
-          IfThenElseZero(mask, Set(d, static_cast<T>(-0.062164841384927304)));
-      e = IfThenElse(mask, Set(d, static_cast<T>(-0.4639699587956761)), e);
-      f = IfThenElse(mask, Set(d, static_cast<T>(0.88159214558286314)), f);
-
-      mask = Lt(x_red, t5);
-      a = IfThenElse(mask, Set(d, static_cast<T>(-0.31363197421492123)), a);
-      c = IfThenElse(mask, Set(d, static_cast<T>(-0.11179597154548386)), c);
-      d_val =
-          IfThenElse(mask, Set(d, static_cast<T>(-0.13445251346360662)), d_val);
-      e = IfThenElse(mask, Set(d, static_cast<T>(-0.31338001212544747)), e);
-      f = IfThenElse(mask, Set(d, static_cast<T>(0.81718468304926728)), f);
-
-      mask = Lt(x_red, t4);
-      a = IfThenElse(mask, Set(d, static_cast<T>(-0.30070890865230282)), a);
-      c = IfThenElse(mask, Set(d, static_cast<T>(-0.078350997372374373)), c);
-      d_val =
-          IfThenElse(mask, Set(d, static_cast<T>(-0.21326455806446845)), d_val);
-      e = IfThenElse(mask, Set(d, static_cast<T>(-0.19421600539466946)), e);
-      f = IfThenElse(mask, Set(d, static_cast<T>(0.8062237042338477)), f);
-
-      mask = Lt(x_red, t3);
-      a = IfThenElse(mask, Set(d, static_cast<T>(-0.27287996538479159)), a);
-      c = IfThenElse(mask, Set(d, static_cast<T>(-0.04547905981941365)), c);
-      d_val =
-          IfThenElse(mask, Set(d, static_cast<T>(-0.29765694039613683)), d_val);
-      e = IfThenElse(mask, Set(d, static_cast<T>(-0.10379407917577334)), e);
-      f = IfThenElse(mask, Set(d, static_cast<T>(0.83677608090227806)), f);
-
-      mask = Lt(x_red, t2);
-      a = IfThenElse(mask, Set(d, static_cast<T>(-0.2236118661080502)), a);
-      c = IfThenElse(mask, Set(d, static_cast<T>(-0.019521549474786976)), c);
-      d_val =
-          IfThenElse(mask, Set(d, static_cast<T>(-0.381612664975434)), d_val);
-      e = IfThenElse(mask, Set(d, static_cast<T>(-0.042528750593724261)), e);
-      f = IfThenElse(mask, Set(d, static_cast<T>(0.89377779158763637)), f);
-
-      mask = Lt(x_red, t1);
-      a = IfThenElse(mask, Set(d, static_cast<T>(-0.14904330302387969)), a);
-      c = IfThenElse(mask, Set(d, static_cast<T>(-0.0045410360710521729)), c);
-      d_val =
-          IfThenElse(mask, Set(d, static_cast<T>(-0.45272542209772138)), d_val);
-      e = IfThenElse(mask, Set(d, static_cast<T>(-0.010035513401260365)), e);
-      f = IfThenElse(mask, Set(d, static_cast<T>(0.95545184636008651)), f);
-
-      mask = Lt(x_red, t0);
-      a = IfThenZeroElse(mask, a);
-      c = IfThenZeroElse(mask, c);
-      d_val =
-          IfThenElse(mask, Set(d, static_cast<T>(-0.33416459999999898)), d_val);
-      e = IfThenZeroElse(mask, e);
-      f = IfThenElse(mask, Set(d, static_cast<T>(1.0)), f);
-    }
-  }
-
-  // Math: y = (a x^2 + x + c) / (d x^2 + e x + f)
-  // Evaluated using Horner's scheme to minimize catastrophic cancellation near
-  // roots
-  const auto kOne = Set(d, static_cast<T>(1.0));
-  auto num = MulAdd(MulAdd(a, x_red, kOne), x_red, c);
-  auto den = MulAdd(MulAdd(d_val, x_red, e), x_red, f);
-
-  // Guard against denominator underflow/sign-flip near singularities
-  T epsilon_val;
-  if constexpr (sizeof(T) == 8) {
-    epsilon_val = static_cast<T>(1e-15);
-  } else {
-    epsilon_val = static_cast<T>(1e-6);
-  }
-  const auto kMinDenom = Set(d, epsilon_val);
-  // We use Abs() because on the reduced interval [0, pi/2], the tangent
-  // magnitude must be positive. If the polynomial approximation calculates a
-  // negative denominator (overshoot), it is an error, and we force it to be
-  // positive.
-  den = Max(Abs(den), kMinDenom);
-
-  auto result = Div(num, den);
+  const V result = Div(num, den);
 
   // Apply Sign
   return CopySign(result, sign);
