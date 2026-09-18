@@ -103,6 +103,45 @@ void TestRoundTripModels() {
   RoundTrip(two);
 }
 
+// The single-symbol table sums to kAnsWordM - 1, one slot short of filling the
+// dense table. That slot must still hold a nonzero frequency: the decoders
+// index the table with attacker-controlled state, and a zero frequency there
+// would collapse the state to zero and emit a spurious symbol.
+void TestSingleSymbolTableIsDense() {
+  const std::vector<uint8_t> data(64, 0x42);
+  std::vector<uint8_t> serialized;
+  hwy::iguana::AnsStatistics::FromData(data.data(), data.size())
+      .Serialize(serialized);
+
+  hwy::iguana::AnsDenseTable table;
+  HWY_ASSERT(hwy::iguana::DeserializeAnsTable(table, serialized.data(),
+                                              serialized.size()) != SIZE_MAX);
+  HWY_ASSERT(table.size() == hwy::iguana::kAnsWordM);
+  for (uint32_t entry : table) {
+    HWY_ASSERT((entry & hwy::iguana::kAnsFreqMask) != 0);
+    HWY_ASSERT((entry >> 24) == 0x42);
+  }
+}
+
+// Both decoders index the table with attacker-controlled rANS state masked to
+// 12 bits, so a caller-supplied table shorter than kAnsWordM must be rejected
+// rather than gathered out of bounds.
+void TestShortTableRejected() {
+  // Large enough to pass the payload_size >= 128 precondition, so that the
+  // table-size check is what rejects the input.
+  const std::vector<uint8_t> payload(256, 0);
+  std::vector<uint8_t> dst(64, 0xCD);
+
+  for (size_t len : {size_t{0}, size_t{1}, size_t{hwy::iguana::kAnsWordM} - 1,
+                     size_t{hwy::iguana::kAnsWordM} + 1}) {
+    const hwy::iguana::AnsDenseTable table(len, 1u);
+    HWY_ASSERT(!hwy::iguana::Ans32DecodePayloadScalar(
+        payload.data(), payload.size(), table, dst.data(), dst.size()));
+    HWY_ASSERT(!ans::Ans32DecodePayload(payload.data(), payload.size(), table,
+                                        dst.data(), dst.size()));
+  }
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -114,6 +153,8 @@ namespace hwy {
 HWY_BEFORE_TEST(IguanaAnsTest);
 HWY_EXPORT_AND_TEST_P(IguanaAnsTest, TestRoundTripSizes);
 HWY_EXPORT_AND_TEST_P(IguanaAnsTest, TestRoundTripModels);
+HWY_EXPORT_AND_TEST_P(IguanaAnsTest, TestSingleSymbolTableIsDense);
+HWY_EXPORT_AND_TEST_P(IguanaAnsTest, TestShortTableRejected);
 HWY_AFTER_TEST();
 }  // namespace hwy
 HWY_TEST_MAIN();
