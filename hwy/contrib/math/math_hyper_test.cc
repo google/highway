@@ -75,14 +75,14 @@ DEFINE_MATH_TEST(Tanh,
 struct TestFastTanh {
   template <class T, class D>
   HWY_NOINLINE void operator()(T, D d) {
-    const double max_relative_error_float = 0.000007;
-    const double max_relative_error_double = 0.000007;
-    const double max_relative_error_small = 0.0000004;
+    const double max_relative_error_float = 0.0000035;
+    const double max_relative_error_double = 0.0000035;
+    const double max_relative_error_small = 0.00000022;
     const uint64_t samples = 1000000;
     const uint64_t samples_small = 10000;
     TestMathRelative<T, D>("FastTanh Small", std::tanh, CallFastTanh, d,
-                             static_cast<T>(-1e-2), static_cast<T>(1e-2),
-                             max_relative_error_small, samples_small);
+                           static_cast<T>(-1e-2), static_cast<T>(1e-2),
+                           max_relative_error_small, samples_small);
     if (sizeof(T) == 4) {
       TestMathRelative<T, D>("FastTanh Float", std::tanh, CallFastTanh, d,
                              static_cast<T>(-1e35), static_cast<T>(1e35),
