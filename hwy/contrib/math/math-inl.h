@@ -1751,7 +1751,7 @@ struct SinCosImpl<double> {
  *      Valid Range: [-1, +1]
  * @return arc cosine of 'x'
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Acos(const D d, V x) {
   using T = TFromD<D>;
 
@@ -1830,7 +1830,7 @@ HWY_NOINLINE V CallAcosh(const D d, VecArg<V> x) {
  *      Valid Range: [-1, +1]
  * @return arc sine of 'x'
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Asin(const D d, V x) {
   using T = TFromD<D>;
 
@@ -1910,7 +1910,7 @@ HWY_NOINLINE V CallAsinh(const D d, VecArg<V> x) {
  *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
  * @return arc tangent of 'x'
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Atan(const D d, V x) {
   using T = TFromD<D>;
 
@@ -2019,7 +2019,8 @@ HWY_INLINE void CbrtDivMod3Scalar(DI di, VI exp_shifted, VI& div, VI& mod) {
  *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
  * @return cube root of 'x'
  */
-template <bool kHandleSubnormals = true, class D, class V>
+template <bool kHandleSubnormals = true, class D, class V,
+          HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Cbrt(const D d, V x) {
   using T = TFromD<D>;
 
@@ -2229,7 +2230,7 @@ HWY_NOINLINE V CallExp(const D d, VecArg<V> x) {
  *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
  * @return error function of 'x'
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Erf(const D d, V x) {
   using T = TFromD<D>;
   impl::ErfImpl<T> impl;
