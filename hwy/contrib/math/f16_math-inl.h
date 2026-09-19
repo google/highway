@@ -118,6 +118,13 @@ struct AcosKernel {
   }
 };
 
+struct AcoshKernel {
+  template <class DF, class VF>
+  HWY_INLINE VF operator()(DF df, VF x) const {
+    return Acosh(df, x);
+  }
+};
+
 struct AsinKernel {
   template <class DF, class VF>
   HWY_INLINE VF operator()(DF df, VF x) const {
@@ -125,10 +132,24 @@ struct AsinKernel {
   }
 };
 
+struct AsinhKernel {
+  template <class DF, class VF>
+  HWY_INLINE VF operator()(DF df, VF x) const {
+    return Asinh(df, x);
+  }
+};
+
 struct AtanKernel {
   template <class DF, class VF>
   HWY_INLINE VF operator()(DF df, VF x) const {
     return Atan(df, x);
+  }
+};
+
+struct AtanhKernel {
+  template <class DF, class VF>
+  HWY_INLINE VF operator()(DF df, VF x) const {
+    return Atanh(df, x);
   }
 };
 
@@ -144,6 +165,13 @@ struct CosKernel {
   template <class DF, class VF>
   HWY_INLINE VF operator()(DF df, VF x) const {
     return Cos(df, x);
+  }
+};
+
+struct CoshKernel {
+  template <class DF, class VF>
+  HWY_INLINE VF operator()(DF df, VF x) const {
+    return Cosh(df, x);
   }
 };
 
@@ -217,12 +245,26 @@ struct SinCosKernel {
   }
 };
 
+struct SinhKernel {
+  template <class DF, class VF>
+  HWY_INLINE VF operator()(DF df, VF x) const {
+    return Sinh(df, x);
+  }
+};
+
 // Calls the float32 Tan, which divides in float32; dividing the demoted
 // float16 sine and cosine would instead lose accuracy near the poles.
 struct TanKernel {
   template <class DF, class VF>
   HWY_INLINE VF operator()(DF df, VF x) const {
     return Tan(df, x);
+  }
+};
+
+struct TanhKernel {
+  template <class DF, class VF>
+  HWY_INLINE VF operator()(DF df, VF x) const {
+    return Tanh(df, x);
   }
 };
 
@@ -246,6 +288,19 @@ HWY_INLINE V Acos(D d, V x) {
 }
 
 /**
+ * Highway SIMD version of std::acosh(x) for float16 lanes.
+ *
+ * Valid Lane Types: float16
+ *        Max Error: ULP = 1
+ *      Valid Range: float16[1, +65504]
+ * @return hyperbolic arc cosine of 'x'
+ */
+template <class D, class V, HWY_IF_F16_D(D)>
+HWY_INLINE V Acosh(D d, V x) {
+  return f16_impl::F16ViaF32(d, x, f16_impl::AcoshKernel());
+}
+
+/**
  * Highway SIMD version of std::asin(x) for float16 lanes.
  *
  * Valid Lane Types: float16
@@ -259,6 +314,19 @@ HWY_INLINE V Asin(D d, V x) {
 }
 
 /**
+ * Highway SIMD version of std::asinh(x) for float16 lanes.
+ *
+ * Valid Lane Types: float16
+ *        Max Error: ULP = 1
+ *      Valid Range: float16[-65504, +65504]
+ * @return hyperbolic arc sine of 'x'
+ */
+template <class D, class V, HWY_IF_F16_D(D)>
+HWY_INLINE V Asinh(D d, V x) {
+  return f16_impl::F16ViaF32(d, x, f16_impl::AsinhKernel());
+}
+
+/**
  * Highway SIMD version of std::atan(x) for float16 lanes.
  *
  * Valid Lane Types: float16
@@ -269,6 +337,19 @@ HWY_INLINE V Asin(D d, V x) {
 template <class D, class V, HWY_IF_F16_D(D)>
 HWY_INLINE V Atan(D d, V x) {
   return f16_impl::F16ViaF32(d, x, f16_impl::AtanKernel());
+}
+
+/**
+ * Highway SIMD version of std::atanh(x) for float16 lanes.
+ *
+ * Valid Lane Types: float16
+ *        Max Error: ULP = 1
+ *      Valid Range: float16(-1, +1)
+ * @return hyperbolic arc tangent of 'x'
+ */
+template <class D, class V, HWY_IF_F16_D(D)>
+HWY_INLINE V Atanh(D d, V x) {
+  return f16_impl::F16ViaF32(d, x, f16_impl::AtanhKernel());
 }
 
 /**
@@ -295,6 +376,19 @@ HWY_INLINE V Cbrt(D d, V x) {
 template <class D, class V, HWY_IF_F16_D(D)>
 HWY_INLINE V Cos(D d, V x) {
   return f16_impl::F16ViaF32(d, x, f16_impl::CosKernel());
+}
+
+/**
+ * Highway SIMD version of std::cosh(x) for float16 lanes.
+ *
+ * Valid Lane Types: float16
+ *        Max Error: ULP = 1
+ *      Valid Range: float16[-80, +80]
+ * @return hyperbolic cosine of 'x'
+ */
+template <class D, class V, HWY_IF_F16_D(D)>
+HWY_INLINE V Cosh(D d, V x) {
+  return f16_impl::F16ViaF32(d, x, f16_impl::CoshKernel());
 }
 
 /**
@@ -429,6 +523,19 @@ HWY_INLINE void SinCos(D d, V x, V& s, V& c) {
 }
 
 /**
+ * Highway SIMD version of std::sinh(x) for float16 lanes.
+ *
+ * Valid Lane Types: float16
+ *        Max Error: ULP = 1
+ *      Valid Range: float16[-80, +80]
+ * @return hyperbolic sine of 'x'
+ */
+template <class D, class V, HWY_IF_F16_D(D)>
+HWY_INLINE V Sinh(D d, V x) {
+  return f16_impl::F16ViaF32(d, x, f16_impl::SinhKernel());
+}
+
+/**
  * Highway SIMD version of std::tan(x) for float16 lanes.
  *
  * Valid Lane Types: float16
@@ -439,6 +546,19 @@ HWY_INLINE void SinCos(D d, V x, V& s, V& c) {
 template <class D, class V, HWY_IF_F16_D(D)>
 HWY_INLINE V Tan(D d, V x) {
   return f16_impl::F16ViaF32(d, x, f16_impl::TanKernel());
+}
+
+/**
+ * Highway SIMD version of std::tanh(x) for float16 lanes.
+ *
+ * Valid Lane Types: float16
+ *        Max Error: ULP = 1
+ *      Valid Range: float16[-65504, +65504]
+ * @return hyperbolic tangent of 'x'
+ */
+template <class D, class V, HWY_IF_F16_D(D)>
+HWY_INLINE V Tanh(D d, V x) {
+  return f16_impl::F16ViaF32(d, x, f16_impl::TanhKernel());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
