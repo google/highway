@@ -1939,7 +1939,7 @@ HWY_NOINLINE V CallAtan(const D d, VecArg<V> x) {
  * Correctly handles negative zero, infinities, and NaN.
  * @return atan2 of 'y', 'x'
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Atan2(const D d, V y, V x) {
   using T = TFromD<D>;
   using M = MFromD<D>;
@@ -2455,7 +2455,7 @@ HWY_NOINLINE V CallLog2(const D d, VecArg<V> x) {
  *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
  * @return a raised to b
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Pow(D d, V a, V b) {
   using T = TFromD<decltype(d)>;
   using TI = MakeSigned<T>;
@@ -2752,7 +2752,7 @@ HWY_NOINLINE V CallTan(const D d, VecArg<V> x) {
  *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
  * @return hypotenuse of a and b
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Hypot(const D d, V a, V b) {
   using T = TFromD<D>;
   using TI = MakeSigned<T>;

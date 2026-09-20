@@ -32,7 +32,8 @@ namespace HWY_NAMESPACE {
 // float16_t overloads of the math functions in math-inl.h. There are no
 // float16 kernels yet, so these promote to float32, evaluate the float32
 // kernel, and demote the result. The ops used here support float16_t lanes
-// on all targets, even when HWY_HAVE_FLOAT16 is 0.
+// on all targets, even when HWY_HAVE_FLOAT16 is 0. As with float16_t
+// conversions, behavior for non-finite inputs is implementation-defined.
 
 // Not named `impl`: unqualified calls such as Log() from inside that
 // namespace would also find math-inl.h's impl::Log and be ambiguous.
@@ -81,6 +82,31 @@ HWY_INLINE V F16ViaF32(D d, V v, Kernel kernel) {
   const Rebind<float, D> df32;
   HWY_DASSERT(Lanes(df32) == Lanes(d));
   return DemoteTo(d, kernel(df32, PromoteTo(df32, v)));
+}
+
+// Two-input counterparts of F16ViaF32: promote corresponding lanes of both
+// inputs before evaluating the float32 kernel. Use the same tag split as the
+// unary adapter so that both operands retain all lanes on scalable targets.
+template <class D, class Kernel, class V = VFromD<D>, HWY_IF_F16_D(D),
+          HWY_IF_LANES_GT_D(D, 1), HWY_IF_POW2_GT_D(D, -1)>
+HWY_INLINE V F16ViaF32TwoIn(D d, V a, V b, Kernel kernel) {
+  const Half<D> dh;
+  const RepartitionToWide<D> df32;
+  HWY_DASSERT(Lanes(df32) == Lanes(d) / 2);
+  const VFromD<decltype(df32)> lo =
+      kernel(df32, PromoteLowerTo(df32, a), PromoteLowerTo(df32, b));
+  const VFromD<decltype(df32)> hi =
+      kernel(df32, PromoteUpperTo(df32, a), PromoteUpperTo(df32, b));
+  return Combine(d, DemoteTo(dh, hi), DemoteTo(dh, lo));
+}
+
+template <class D, class Kernel, class V = VFromD<D>, HWY_IF_F16_D(D),
+          hwy::EnableIf<(HWY_MAX_LANES_D(D) == 1) ||
+                        (HWY_POW2_D(D) < 0)>* = nullptr>
+HWY_INLINE V F16ViaF32TwoIn(D d, V a, V b, Kernel kernel) {
+  const Rebind<float, D> df32;
+  HWY_DASSERT(Lanes(df32) == Lanes(d));
+  return DemoteTo(d, kernel(df32, PromoteTo(df32, a), PromoteTo(df32, b)));
 }
 
 // Two-output counterparts of F16ViaF32: `kernel` writes two float32 results,
@@ -146,6 +172,13 @@ struct AtanKernel {
   }
 };
 
+struct Atan2Kernel {
+  template <class DF, class VF>
+  HWY_INLINE VF operator()(DF df, VF a, VF b) const {
+    return Atan2(df, a, b);
+  }
+};
+
 struct AtanhKernel {
   template <class DF, class VF>
   HWY_INLINE VF operator()(DF df, VF x) const {
@@ -203,6 +236,13 @@ struct Expm1Kernel {
   }
 };
 
+struct HypotKernel {
+  template <class DF, class VF>
+  HWY_INLINE VF operator()(DF df, VF a, VF b) const {
+    return Hypot(df, a, b);
+  }
+};
+
 struct LogKernel {
   template <class DF, class VF>
   HWY_INLINE VF operator()(DF df, VF x) const {
@@ -228,6 +268,13 @@ struct Log2Kernel {
   template <class DF, class VF>
   HWY_INLINE VF operator()(DF df, VF x) const {
     return Log2(df, x);
+  }
+};
+
+struct PowKernel {
+  template <class DF, class VF>
+  HWY_INLINE VF operator()(DF df, VF a, VF b) const {
+    return Pow(df, a, b);
   }
 };
 
@@ -340,6 +387,19 @@ HWY_INLINE V Atan(D d, V x) {
 }
 
 /**
+ * Highway SIMD version of std::atan2(y, x) for float16 lanes.
+ *
+ * Valid Lane Types: float16
+ *        Max Error: ULP = 1
+ *      Valid Range: float16[-65504, +65504] for both inputs
+ * @return arc tangent of 'y' / 'x', with the quadrant determined by both signs
+ */
+template <class D, class V, HWY_IF_F16_D(D)>
+HWY_INLINE V Atan2(D d, V y, V x) {
+  return f16_impl::F16ViaF32TwoIn(d, y, x, f16_impl::Atan2Kernel());
+}
+
+/**
  * Highway SIMD version of std::atanh(x) for float16 lanes.
  *
  * Valid Lane Types: float16
@@ -444,6 +504,19 @@ HWY_INLINE V Expm1(D d, V x) {
 }
 
 /**
+ * Highway SIMD version of std::hypot(a, b) for float16 lanes.
+ *
+ * Valid Lane Types: float16
+ *        Max Error: ULP = 1
+ *      Valid Range: float16[-65504, +65504] for both inputs
+ * @return hypotenuse of a and b
+ */
+template <class D, class V, HWY_IF_F16_D(D)>
+HWY_INLINE V Hypot(D d, V a, V b) {
+  return f16_impl::F16ViaF32TwoIn(d, a, b, f16_impl::HypotKernel());
+}
+
+/**
  * Highway SIMD version of std::log(x) for float16 lanes.
  *
  * Valid Lane Types: float16
@@ -493,6 +566,19 @@ HWY_INLINE V Log1p(D d, V x) {
 template <class D, class V, HWY_IF_F16_D(D)>
 HWY_INLINE V Log2(D d, V x) {
   return f16_impl::F16ViaF32(d, x, f16_impl::Log2Kernel());
+}
+
+/**
+ * Highway SIMD version of std::pow(a, b) for float16 lanes.
+ *
+ * Valid Lane Types: float16
+ *        Max Error: ULP = 1
+ *      Valid Range: float16[-65504, +65504] for both inputs
+ * @return a raised to b
+ */
+template <class D, class V, HWY_IF_F16_D(D)>
+HWY_INLINE V Pow(D d, V a, V b) {
+  return f16_impl::F16ViaF32TwoIn(d, a, b, f16_impl::PowKernel());
 }
 
 /**
