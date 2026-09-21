@@ -35,7 +35,7 @@
 // After foreach_target
 #include "hwy/contrib/algo/find-inl.h"
 #include "hwy/contrib/hash/shardmul-inl.h"
-#include "hwy/contrib/random/random-inl.h"
+#include "hwy/contrib/random/aes_ctr-inl.h"
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
 
@@ -111,8 +111,11 @@ HWY_NOINLINE void TestShardMulExtraOutputs() {
   // Generate some extra outputs.
   const size_t kNumExtra = AdjustedReps(AdjustedReps(80'000));
   AesCtrEngine engine(/*deterministic=*/true);
-  AlignedVector<uint32_t> extra_outputs =
-      FillRandom<uint32_t>(kNumExtra, engine, /*seed=*/0);
+  RngStream rng(engine, /*stream=*/0);
+  AlignedVector<uint32_t> extra_outputs(kNumExtra);
+  for (size_t i = 0; i < kNumExtra; ++i) {
+    extra_outputs[i] = static_cast<uint32_t>(rng());
+  }
   VQSort(extra_outputs.data(), extra_outputs.size(), SortAscending());
   // Per birthday paradox, duplicates are likely, which would cause building
   // ShardMul to fail.

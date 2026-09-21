@@ -41,7 +41,7 @@
 // After foreach_target
 #include "hwy/contrib/algo/find-inl.h"
 #include "hwy/contrib/hash/shardmul-inl.h"
-#include "hwy/contrib/random/random-inl.h"
+#include "hwy/contrib/random/aes_ctr-inl.h"
 #include "hwy/contrib/sort/vqsort-inl.h"
 #include "hwy/highway.h"
 

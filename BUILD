@@ -153,6 +153,7 @@ cc_library(
         "hwy/base.h",
         "hwy/cache_control.h",
         "hwy/detect_compiler_arch.h",  # private
+        "hwy/generator.h",
         "hwy/print.h",
         "hwy/x86_cpuid.h",
     ],
@@ -473,16 +474,68 @@ cc_library(
 )
 
 cc_library(
-    name = "random",
+    name = "distributions",
+    hdrs = [
+        "hwy/contrib/distributions/uniform.h",
+    ],
     compatible_with = [],
     copts = COPTS,
     textual_hdrs = [
-        "hwy/contrib/random/random-inl.h",
+        "hwy/contrib/distributions/uniform-inl.h",
+    ],
+    deps = [
+        ":hwy",
+    ],
+)
+
+cc_library(
+    name = "random_mt19937",
+    hdrs = [
+        "hwy/contrib/random/mt19937.h",
+        "hwy/contrib/random/mt19937_jump.h",
+    ],
+    compatible_with = [],
+    copts = COPTS,
+    deps = [
+        ":hwy",
+    ],
+)
+
+cc_library(
+    name = "random_xoshiro",
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/random/xoshiro-inl.h",
+    ],
+    deps = [
+        ":hwy",
+    ],
+)
+
+cc_library(
+    name = "random_aes_ctr",
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/random/aes_ctr-inl.h",
     ],
     deps = [
         ":hwy",
         ":os_rng",
         ":timer",
+    ],
+)
+
+cc_library(
+    name = "random_cached",
+    hdrs = [
+        "hwy/contrib/random/cached.h",
+    ],
+    compatible_with = [],
+    copts = COPTS,
+    deps = [
+        ":hwy",
     ],
 )
 
@@ -585,7 +638,7 @@ cc_library(
         ":hash",
         ":hwy",
         ":profiler",
-        ":random",
+        ":random_aes_ctr",
         ":thread_pool",
         ":timer",
         "//hwy/contrib/sort:vqsort",
@@ -611,7 +664,7 @@ cc_library(
         ":hash",
         ":hwy",
         ":profiler",
-        ":random",
+        ":random_aes_ctr",
         ":thread_pool",
         ":timer",
         "//hwy/contrib/sort:vqsort",
@@ -636,7 +689,7 @@ cc_library(
         ":algo",
         ":hwy",
         ":profiler",
-        ":random",
+        ":random_aes_ctr",
         ":stats",
         ":thread_pool",
         "//hwy/contrib/sort:vqsort",
@@ -814,7 +867,7 @@ cc_test(
     copts = COPTS,
     deps = [
         ":hwy",
-        ":random",
+        ":random_xoshiro",
         ":timer",
     ],
 )
@@ -1004,7 +1057,7 @@ cc_test(
         ":algo",
         ":hash",
         ":profiler",
-        ":random",
+        ":random_aes_ctr",
         ":stats",
         ":thread_pool",
         ":topology",
@@ -1024,7 +1077,7 @@ cc_test(
         "notap",
     ],
     deps = HWY_TEST_DEPS + [
-        ":random",
+        ":random_aes_ctr",
         ":thread_pool",
         ":topology",
     ],
@@ -1043,7 +1096,7 @@ cc_test(
     ],
     deps = HWY_TEST_DEPS + [
         ":hash",
-        ":random",
+        ":random_aes_ctr",
     ],
 )
 
@@ -1063,7 +1116,6 @@ cc_test(
         ":hash",
         ":phast",
         ":profiler",
-        ":random",
         ":robust_statistics",
         ":shardmul",
         ":thread_pool",
@@ -1081,7 +1133,7 @@ cc_test(
         ":cuckoo",
         ":hash",
         ":hwy",
-        ":random",
+        ":random_aes_ctr",
         ":thread_pool",
         ":timer",
         ":topology",

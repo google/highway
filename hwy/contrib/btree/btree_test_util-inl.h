@@ -21,7 +21,7 @@
 #define HIGHWAY_HWY_CONTRIB_BTREE_BTREE_TEST_UTIL_INL_H_
 #endif
 
-#include "hwy/contrib/random/random-inl.h"
+#include "hwy/contrib/random/aes_ctr-inl.h"
 
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
