@@ -1999,6 +1999,27 @@ HWY_API V GetExponent(V v) {
   HWY_DIAGNOSTICS(pop)
 }
 
+#if HWY_HAVE_FLOAT16
+template <class V, HWY_IF_F16(TFromV<V>), HWY_IF_V_SIZE_V(V, 64)>
+HWY_API V GetMantissa0p75_1p5(V v) {
+  return V{_mm512_getmant_ph(v.raw, _MM_MANT_NORM_p75_1p5, _MM_MANT_SIGN_zero)};
+}
+#endif
+template <class V, HWY_IF_F32(TFromV<V>), HWY_IF_V_SIZE_V(V, 64)>
+HWY_API V GetMantissa0p75_1p5(V v) {
+  HWY_DIAGNOSTICS(push)
+  HWY_DIAGNOSTICS_OFF(disable : 4245 4365, ignored "-Wsign-conversion")
+  return V{_mm512_getmant_ps(v.raw, _MM_MANT_NORM_p75_1p5, _MM_MANT_SIGN_zero)};
+  HWY_DIAGNOSTICS(pop)
+}
+template <class V, HWY_IF_F64(TFromV<V>), HWY_IF_V_SIZE_V(V, 64)>
+HWY_API V GetMantissa0p75_1p5(V v) {
+  HWY_DIAGNOSTICS(push)
+  HWY_DIAGNOSTICS_OFF(disable : 4245 4365, ignored "-Wsign-conversion")
+  return V{_mm512_getmant_pd(v.raw, _MM_MANT_NORM_p75_1p5, _MM_MANT_SIGN_zero)};
+  HWY_DIAGNOSTICS(pop)
+}
+
 // ------------------------------ MaskedMinOr
 
 template <typename T, HWY_IF_U8(T)>
