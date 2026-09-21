@@ -219,6 +219,7 @@ enum class FeatureIndex : uint32_t {
   kAVX512IFMA,
   kAMX_TILE,
   kAMX_BF16,
+  kAMX_INT8,
 
   kVNNI,
   kVPCLMULQDQ,
@@ -289,9 +290,10 @@ static uint64_t FlagsFromCPUID() {
     flags |= IsBitSet(abcd[2], 12) ? Bit(FeatureIndex::kBITALG) : 0;
     flags |= IsBitSet(abcd[2], 14) ? Bit(FeatureIndex::kPOPCNTDQ) : 0;
 
+    flags |= IsBitSet(abcd[3], 22) ? Bit(FeatureIndex::kAMX_BF16) : 0;
     flags |= IsBitSet(abcd[3], 23) ? Bit(FeatureIndex::kAVX512FP16) : 0;
     flags |= IsBitSet(abcd[3], 24) ? Bit(FeatureIndex::kAMX_TILE) : 0;
-    flags |= IsBitSet(abcd[3], 22) ? Bit(FeatureIndex::kAMX_BF16) : 0;
+    flags |= IsBitSet(abcd[3], 25) ? Bit(FeatureIndex::kAMX_INT8) : 0;
 
     Cpuid(7, 1, abcd);
     flags |= IsBitSet(abcd[0], 5) ? Bit(FeatureIndex::kAVX512BF16) : 0;
@@ -897,7 +899,8 @@ HWY_DLLEXPORT bool HaveTile64BMatMulBF16() {
   static const bool has_amx_bf16 = []() -> bool {
     const uint64_t flags = x86::FlagsFromCPUID();
     constexpr uint64_t kAmxBF16Flags = x86::Bit(x86::FeatureIndex::kAMX_TILE) |
-                                       x86::Bit(x86::FeatureIndex::kAMX_BF16);
+                                       x86::Bit(x86::FeatureIndex::kAMX_BF16) |
+                                       x86::Bit(x86::FeatureIndex::kAMX_INT8);
     if ((flags & kAmxBF16Flags) != kAmxBF16Flags) {
       return false;
     }
