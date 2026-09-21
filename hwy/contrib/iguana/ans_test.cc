@@ -103,6 +103,26 @@ void TestRoundTripModels() {
   RoundTrip(two);
 }
 
+// The single-symbol table sums to kAnsWordM - 1, one slot short of filling the
+// dense table. That slot must still hold a nonzero frequency: the decoders
+// index the table with attacker-controlled state, and a zero frequency there
+// would collapse the state to zero and emit a spurious symbol.
+void TestSingleSymbolTableIsDense() {
+  const std::vector<uint8_t> data(64, 0x42);
+  std::vector<uint8_t> serialized;
+  hwy::iguana::AnsStatistics::FromData(data.data(), data.size())
+      .Serialize(serialized);
+
+  hwy::iguana::AnsDenseTable table;
+  HWY_ASSERT(hwy::iguana::DeserializeAnsTable(table, serialized.data(),
+                                              serialized.size()) != SIZE_MAX);
+  HWY_ASSERT(table.size() == hwy::iguana::kAnsWordM);
+  for (uint32_t entry : table) {
+    HWY_ASSERT((entry & hwy::iguana::kAnsFreqMask) != 0);
+    HWY_ASSERT((entry >> 24) == 0x42);
+  }
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -114,6 +134,7 @@ namespace hwy {
 HWY_BEFORE_TEST(IguanaAnsTest);
 HWY_EXPORT_AND_TEST_P(IguanaAnsTest, TestRoundTripSizes);
 HWY_EXPORT_AND_TEST_P(IguanaAnsTest, TestRoundTripModels);
+HWY_EXPORT_AND_TEST_P(IguanaAnsTest, TestSingleSymbolTableIsDense);
 HWY_AFTER_TEST();
 }  // namespace hwy
 HWY_TEST_MAIN();

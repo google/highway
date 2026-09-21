@@ -45,17 +45,15 @@ HWY_CONTRIB_DLLEXPORT std::vector<uint8_t> Compress(const uint8_t* data,
                                                     size_t size);
 
 // Decompresses a block produced by Compress. Returns false on malformed input.
-// The SIMD path in iguana-inl.h produces identical output.
+// Decompress() produces identical output.
 HWY_CONTRIB_DLLEXPORT bool DecompressScalar(const uint8_t* src, size_t src_size,
                                             std::vector<uint8_t>& out);
 
 // Same, but dispatches at run time to the best available target (the SIMD
 // decoders in iguana-inl.h). Prefer this unless you specifically need the
-// scalar reference; the two produce identical output. Defined in iguana-inl.h,
-// which is what callers include: unlike the two functions above, there is no
-// per-target entry point to select by hand.
-HWY_INLINE bool Decompress(const uint8_t* src, size_t src_size,
-                           std::vector<uint8_t>& out);
+// scalar reference; the two produce identical output.
+HWY_CONTRIB_DLLEXPORT bool Decompress(const uint8_t* src, size_t src_size,
+                                      std::vector<uint8_t>& out);
 
 }  // namespace iguana
 }  // namespace hwy

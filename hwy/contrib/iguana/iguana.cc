@@ -25,13 +25,24 @@
 
 #include "hwy/base.h"
 #include "hwy/contrib/iguana/ans.h"
-#include "hwy/contrib/iguana/detail.h"
+#include "hwy/contrib/iguana/iguana_detail.h"
 
+#ifndef HWY_DISABLED_TARGETS
+#define HWY_DISABLED_TARGETS HWY_IGUANA_DISABLED_TARGETS
+#endif  // HWY_DISABLED_TARGETS
+
+// clang-format off
+#undef HWY_TARGET_INCLUDE
+#define HWY_TARGET_INCLUDE "hwy/contrib/iguana/iguana.cc"  // NOLINT
+// clang-format on
+#include "hwy/foreach_target.h"  // IWYU pragma: keep
+// After foreach_target
+#include "hwy/contrib/iguana/iguana-inl.h"
+
+#if HWY_ONCE
 namespace hwy {
 namespace iguana {
-
 using Bytes = std::vector<uint8_t>;
-
 namespace {
 
 constexpr uint32_t kMaxU16 = (1u << 16) - 1;
@@ -484,5 +495,15 @@ HWY_CONTRIB_DLLEXPORT bool DecompressScalar(const uint8_t* HWY_RESTRICT src,
   return DecompressBlock(src, src_size, out, decode);
 }
 
+HWY_EXPORT(DecompressStatic);
+
+// Dispatches to the best target available at run time.
+HWY_CONTRIB_DLLEXPORT bool Decompress(const uint8_t* HWY_RESTRICT src,
+                                      size_t src_size,
+                                      std::vector<uint8_t>& out) {
+  return HWY_DYNAMIC_DISPATCH(DecompressStatic)(src, src_size, out);
+}
+
 }  // namespace iguana
 }  // namespace hwy
+#endif  // HWY_ONCE

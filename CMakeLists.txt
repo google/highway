@@ -236,9 +236,9 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/iguana/ans.h
     hwy/contrib/iguana/ans_detail.h
     hwy/contrib/iguana/ans-inl.h
-    hwy/contrib/iguana/detail.h
     hwy/contrib/iguana/iguana.cc
     hwy/contrib/iguana/iguana.h
+    hwy/contrib/iguana/iguana_detail.h
     hwy/contrib/iguana/iguana-inl.h
     hwy/contrib/hash/hash-inl.h
     hwy/contrib/hash/highwayhash-inl.h
