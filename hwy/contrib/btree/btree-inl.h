@@ -1131,11 +1131,13 @@ HWY_INLINE bool CanMergeLeaves(const LeafNode* leaf,
   using Node = LeafNode;
   using KeyT = decltype(leaf->base_key);
   const size_t total_keys = leaf->NumKeys() + next_leaf->NumKeys();
+  // If either leaf is empty, all surviving keys already fit in the other leaf
+  // (even if it is an 8-bit leaf with > kMax16 keys), so always allow merging.
+  if (leaf->NumKeys() == 0 || next_leaf->NumKeys() == 0) return true;
   // kMax16 is the upper bound for 16-bit, 32-bit, and 64-bit modes. Capping
   // merges at kMax16 avoids creating fragile, near-full 8-bit leaves that
   // immediately split again on the next insert (preventing thrashing).
   if (total_keys > Node::kMax16) return false;
-  if (leaf->NumKeys() == 0 || next_leaf->NumKeys() == 0) return true;
 
   const KeyT max_key = GetLeafKey(next_leaf, next_leaf->NumKeys() - 1);
   const uint64_t spread = static_cast<uint64_t>(max_key - leaf->base_key);
@@ -2348,41 +2350,192 @@ class BTree {
     size_t c_idx = child_indices[1];
 
     if (HWY_UNLIKELY(leaf->NumKeys() <= Leaf::kMax16 / 2)) {
-      // Determine merge index: right sibling (c_idx) or left sibling (c_idx -
-      // 1)
-      const size_t merge_idx =
-          (c_idx + 1 <= parent->num_keys)
-              ? c_idx
-              : (c_idx > 0 ? c_idx - 1 : static_cast<size_t>(-1));
+      // Try merging with right sibling (c_idx) first; if unavailable or too
+      // full, fall back to left sibling (c_idx - 1), matching
+      // absl::btree::try_merge_or_rebalance's strategy
+      size_t merge_idx = static_cast<size_t>(-1);
+      if (c_idx + 1 <= parent->num_keys &&
+          CanMergeLeaves(static_cast<Leaf*>(parent->children[c_idx]),
+                         static_cast<Leaf*>(parent->children[c_idx + 1]))) {
+        merge_idx = c_idx;
+      } else if (c_idx > 0 &&
+                 CanMergeLeaves(static_cast<Leaf*>(parent->children[c_idx - 1]),
+                                static_cast<Leaf*>(parent->children[c_idx]))) {
+        merge_idx = c_idx - 1;
+      }
 
       if (merge_idx != static_cast<size_t>(-1)) {
         auto* l_leaf = static_cast<Leaf*>(parent->children[merge_idx]);
         auto* r_leaf = static_cast<Leaf*>(parent->children[merge_idx + 1]);
 
-        if (CanMergeLeaves(l_leaf, r_leaf)) {
-          MergeLeaves(l_leaf, r_leaf, state_->last_leaf_);
-          state_->num_leaves_--;
+        MergeLeaves(l_leaf, r_leaf, state_->last_leaf_);
+        state_->num_leaves_--;
 
-          // Remove separator key and child pointer from parent
-          std::memmove(
-              parent->keys + merge_idx, parent->keys + merge_idx + 1,
-              (parent->num_keys - 1 - merge_idx) * sizeof(StorageKeyT));
-          std::memmove(parent->children + merge_idx + 1,
-                       parent->children + merge_idx + 2,
-                       (parent->num_keys - 1 - merge_idx) * sizeof(void*));
-          parent->num_keys--;
-          parent->keys[parent->num_keys] =
-              std::numeric_limits<StorageKeyT>::max();
-          parent->children[parent->num_keys + 1] = nullptr;
+        // Remove separator key and child pointer from parent
+        std::memmove(parent->keys + merge_idx, parent->keys + merge_idx + 1,
+                     (parent->num_keys - 1 - merge_idx) * sizeof(StorageKeyT));
+        std::memmove(parent->children + merge_idx + 1,
+                     parent->children + merge_idx + 2,
+                     (parent->num_keys - 1 - merge_idx) * sizeof(void*));
+        parent->num_keys--;
+        parent->keys[parent->num_keys] =
+            std::numeric_limits<StorageKeyT>::max();
+        parent->children[parent->num_keys + 1] = nullptr;
 
-          // If root internal node becomes empty, shrink tree height to 0
-          if (parent->num_keys == 0 && parent == state_->root_ &&
-              state_->tree_height_ == 1) {
-            delete parent;
-            state_->num_internals_--;
-            state_->root_ = l_leaf;
-            state_->tree_height_ = 0;
+        // Propagate internal node underflow up ancestor levels (lvl = 1..H-1,
+        // where lvl = 0 is leaves, lvl = 1 is parent of leaves, and
+        // lvl = tree_height_ is root).
+        // Each internal node holds up to 16 keys (17 children). Just as a full
+        // node splits 50/50 into 8 keys each on insert, every non-root internal
+        // node must stay at least 50% full (>= 8 keys = 9 children) on erase.
+        constexpr size_t kMinInternalKeys = Internal::kCapacity / 2;
+        for (size_t lvl = 1; lvl < state_->tree_height_; ++lvl) {
+          Internal* curr_internal = path[lvl];
+          // Stop climbing as soon as the current internal node is >= 50% full.
+          if (curr_internal->num_keys >= kMinInternalKeys) break;
+
+          // upper_parent is curr_internal's parent at lvl + 1, and u_idx is
+          // curr_internal's slot in upper_parent->children[].
+          Internal* upper_parent = path[lvl + 1];
+          const size_t u_idx = child_indices[lvl + 1];
+
+          // Choose the left index (u_merge_idx) of the adjacent sibling pair
+          // (children[u_merge_idx], children[u_merge_idx + 1]):
+          // - Default to right sibling (u_merge_idx = u_idx) if one exists,
+          //   otherwise left sibling (u_merge_idx = u_idx - 1).
+          // - If both siblings exist and the right sibling is too full to merge
+          //   (> 16 combined keys) while the left sibling can merge (<= 16),
+          //   switch to the left sibling to save an internal node allocation.
+          size_t u_merge_idx =
+              (u_idx + 1 <= upper_parent->num_keys) ? u_idx : (u_idx - 1);
+          if (u_idx + 1 <= upper_parent->num_keys && u_idx > 0) {
+            auto* right_sib =
+                static_cast<Internal*>(upper_parent->children[u_idx + 1]);
+            auto* left_sib =
+                static_cast<Internal*>(upper_parent->children[u_idx - 1]);
+            if (curr_internal->num_keys + 1 + right_sib->num_keys >
+                    Internal::kCapacity &&
+                left_sib->num_keys + 1 + curr_internal->num_keys <=
+                    Internal::kCapacity) {
+              u_merge_idx = u_idx - 1;
+            }
           }
+
+          auto* left_internal =
+              static_cast<Internal*>(upper_parent->children[u_merge_idx]);
+          auto* right_internal =
+              static_cast<Internal*>(upper_parent->children[u_merge_idx + 1]);
+          // Separator key in upper_parent sitting between left_internal and
+          // right_internal.
+          const StorageKeyT sep_key = upper_parent->keys[u_merge_idx];
+
+          const size_t left_k = left_internal->num_keys;
+          const size_t right_k = right_internal->num_keys;
+          // Combined keys = left_k + 1 (sep_key) + right_k.
+          // Combined children = (left_k + 1) + (right_k + 1) = total_k + 1.
+          const size_t total_k = left_k + 1 + right_k;
+
+          if (total_k <= Internal::kCapacity) {
+            // Case 1 (Merge): All total_k keys fit in a single internal node
+            // (<= 16 keys). Absorb sep_key and right_internal into
+            // left_internal:
+            // 1. Place sep_key right after left_internal's keys (at [left_k]).
+            left_internal->keys[left_k] = sep_key;
+            // 2. Append right_internal's keys into [left_k + 1 .. total_k - 1].
+            std::copy_n(right_internal->keys, right_k,
+                        left_internal->keys + left_k + 1);
+            // 3. Append right_internal's (right_k + 1) children right after
+            //    left_internal's (left_k + 1) children, into
+            //    [left_k + 1 .. total_k].
+            std::copy_n(right_internal->children, right_k + 1,
+                        left_internal->children + left_k + 1);
+            left_internal->num_keys = static_cast<uint8_t>(total_k);
+
+            // 4. Free the absorbed right_internal node.
+            delete right_internal;
+            state_->num_internals_--;
+
+            // 5. Remove keys[u_merge_idx] (sep_key) and
+            //    children[u_merge_idx + 1] (right_internal) from upper_parent,
+            //    then continue the loop to lvl + 1 in case upper_parent now
+            //    underflowed.
+            std::memmove(upper_parent->keys + u_merge_idx,
+                         upper_parent->keys + u_merge_idx + 1,
+                         (upper_parent->num_keys - 1 - u_merge_idx) *
+                             sizeof(StorageKeyT));
+            std::memmove(
+                upper_parent->children + u_merge_idx + 1,
+                upper_parent->children + u_merge_idx + 2,
+                (upper_parent->num_keys - 1 - u_merge_idx) * sizeof(void*));
+            upper_parent->num_keys--;
+            upper_parent->keys[upper_parent->num_keys] =
+                std::numeric_limits<StorageKeyT>::max();
+            upper_parent->children[upper_parent->num_keys + 1] = nullptr;
+          } else {
+            // Case 2 (Rebalance): Combined keys exceed one node (> 16), so
+            // they cannot merge. Redistribute (split 50/50) across both nodes:
+            StorageKeyT temp_keys[2 * Internal::kCapacity + 1];
+            void* temp_children[2 * Internal::kCapacity + 2];
+
+            // 1. Concatenate all total_k keys into temp_keys[0 .. total_k - 1]:
+            //    [0 .. left_k - 1]         = left_internal->keys
+            //    [left_k]                  = sep_key
+            //    [left_k + 1 .. total_k-1] = right_internal->keys
+            std::copy_n(left_internal->keys, left_k, temp_keys);
+            temp_keys[left_k] = sep_key;
+            std::copy_n(right_internal->keys, right_k, temp_keys + left_k + 1);
+
+            // 2. Concatenate all (total_k + 1) children into temp_children:
+            //    [0 .. left_k]             = left_internal->children
+            //    [left_k + 1 .. total_k]   = right_internal->children
+            std::copy_n(left_internal->children, left_k + 1, temp_children);
+            std::copy_n(right_internal->children, right_k + 1,
+                        temp_children + left_k + 1);
+
+            // 3. Promote the middle key temp_keys[mid] as the new separator
+            //    in upper_parent.
+            const size_t mid = total_k / 2;
+            upper_parent->keys[u_merge_idx] = temp_keys[mid];
+
+            // 4. Write the left half (mid keys, mid + 1 children) into
+            //    left_internal, and reset unused trailing slots to MAX/nullptr.
+            std::copy_n(temp_keys, mid, left_internal->keys);
+            std::copy_n(temp_children, mid + 1, left_internal->children);
+            left_internal->num_keys = static_cast<uint8_t>(mid);
+            std::fill_n(left_internal->keys + mid, Internal::kCapacity - mid,
+                        std::numeric_limits<StorageKeyT>::max());
+            std::fill_n(left_internal->children + mid + 1,
+                        Internal::kMaxChildren - (mid + 1), nullptr);
+
+            // 5. Write the right half after temp_keys[mid] (new_right_k keys,
+            //    new_right_k + 1 children) into right_internal, and reset
+            //    unused trailing slots to MAX/nullptr.
+            const size_t new_right_k = total_k - mid - 1;
+            std::copy_n(temp_keys + mid + 1, new_right_k, right_internal->keys);
+            std::copy_n(temp_children + mid + 1, new_right_k + 1,
+                        right_internal->children);
+            right_internal->num_keys = static_cast<uint8_t>(new_right_k);
+            std::fill_n(right_internal->keys + new_right_k,
+                        Internal::kCapacity - new_right_k,
+                        std::numeric_limits<StorageKeyT>::max());
+            std::fill_n(right_internal->children + new_right_k + 1,
+                        Internal::kMaxChildren - (new_right_k + 1), nullptr);
+
+            // 6. Because no internal node was deleted, upper_parent->num_keys
+            //    is unchanged, so underflow propagation stops here.
+            break;
+          }
+        }
+
+        // Root Collapse: If merges reached the root and merged its last 2
+        // children into 1 child (num_keys == 0), promote that sole child
+        // (root->children[0]) as the new root and shrink tree_height_ by 1.
+        auto* root = static_cast<Internal*>(state_->root_);
+        if (root->num_keys == 0) {
+          state_->root_ = root->children[0];
+          state_->tree_height_--;
+          delete root;
+          state_->num_internals_--;
         }
       }
     }
@@ -2555,6 +2708,8 @@ class BTree {
       parent->num_keys = static_cast<uint8_t>(kMid);
       std::fill_n(parent->keys + kMid, Internal::kCapacity - kMid,
                   std::numeric_limits<StorageKeyT>::max());
+      std::fill_n(parent->children + kMid + 1,
+                  Internal::kMaxChildren - (kMid + 1), nullptr);
 
       // Right node (new_internal) gets 8 keys and 9 children.
       const size_t right_k = kTotalK - kMid - 1;
@@ -2753,6 +2908,8 @@ class BTree {
       parent->num_keys = static_cast<uint8_t>(kMid);
       std::fill_n(parent->keys + kMid, Internal::kCapacity - kMid,
                   std::numeric_limits<StorageKeyT>::max());
+      std::fill_n(parent->children + kMid + 1,
+                  Internal::kMaxChildren - (kMid + 1), nullptr);
 
       // Right node (new_internal) gets 8 keys and 9 children.
       const size_t right_k = kTotalK - kMid - 1;
@@ -2914,13 +3071,23 @@ class BTree {
       std::vector<StorageKeyT> next_separators;
 
       constexpr size_t kBranching = Internal::kMaxChildren;
+      constexpr size_t kMinChildren = Internal::kCapacity / 2 + 1;
       size_t num_nodes = current_level_ptrs.size();
 
       for (size_t idx = 0; idx < num_nodes;) {
         auto* internal = new Internal();
         tree.state_->num_internals_++;
 
-        size_t children_count = std::min(kBranching, num_nodes - idx);
+        const size_t remaining_nodes = num_nodes - idx;
+        // Ensure every non-root internal node is at least 50% full (>= 9
+        // children = 8 keys): if packing 17 children into this node would leave
+        // fewer than 9 children for the final node (i.e. 18..25 nodes left),
+        // split the remaining nodes evenly between the last two internal nodes.
+        const size_t children_count =
+            (remaining_nodes > kBranching &&
+             remaining_nodes < kBranching + kMinChildren)
+                ? (remaining_nodes / 2)
+                : std::min(kBranching, remaining_nodes);
         // Link child node pointers into this internal node.
         for (size_t c = 0; c < children_count; ++c) {
           internal->children[c] = current_level_ptrs[idx + c];

@@ -580,6 +580,7 @@ class BTreeMap {
 
   const LeafT* last_leaf() const { return state_.last_leaf_; }
   LeafT* last_leaf() { return state_.last_leaf_; }
+  const BTreeState<KeyT, LeafT>* state() const { return &state_; }
 
   // Batch Query (Amortizes dynamic dispatch overhead)
   bool contains(KeyT key) const { return Contains(key); }
