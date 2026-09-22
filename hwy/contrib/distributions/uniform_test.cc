@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -22,6 +23,7 @@
 #include "hwy/contrib/distributions/uniform-inl.h"
 #include "hwy/contrib/random/aes_ctr-inl.h"
 #include "hwy/contrib/random/xoshiro-inl.h"
+#include "hwy/generator-inl.h"
 #include "hwy/tests/test_util-inl.h"
 // clang-format on
 
@@ -40,6 +42,59 @@ struct FixedBits {
     return value;
   }
 };
+
+class MoveOnlyBits {
+ public:
+  explicit MoveOnlyBits(uint64_t start) : next_(new uint64_t(start)) {}
+  MoveOnlyBits(MoveOnlyBits&&) = default;
+  uint64_t operator()() { return (*next_)++; }
+  uint64_t Next() const { return *next_; }
+
+ private:
+  std::unique_ptr<uint64_t> next_;
+};
+
+struct StatefulOffset {
+  explicit StatefulOffset(uint64_t value) : offset(value), calls(0) {}
+  StatefulOffset(const StatefulOffset&) = delete;
+
+  template <class Bits>
+  uint64_t operator()(Bits& bits) {
+    ++calls;
+    return bits() + offset;
+  }
+
+  template <class Bits>
+  void Fill(Bits& bits, uint64_t* out, size_t count) {
+    for (size_t i = 0; i < count; ++i) out[i] = (*this)(bits);
+  }
+
+  uint64_t offset;
+  size_t calls;
+};
+
+void TestTargetGeneratorComposition() {
+  // The target-specific adapter also accepts scalar-only, move-only backends.
+  Generator<MoveOnlyBits> generator{MoveOnlyBits(10)};
+  StatefulOffset distribution(100);
+  HWY_ASSERT_EQ(uint64_t{110}, generator.Sample(distribution));
+  uint64_t out[3];
+  generator.Fill(distribution, out, 3);
+  for (size_t i = 0; i < 3; ++i) {
+    HWY_ASSERT_EQ(uint64_t{111} + i, out[i]);
+  }
+  generator.Fill(distribution, static_cast<uint64_t*>(nullptr), 0);
+  HWY_ASSERT_EQ(size_t{4}, distribution.calls);
+  const auto& view = generator;
+  HWY_ASSERT_EQ(uint64_t{14}, view.GetBitGenerator().Next());
+
+  Generator<MoveOnlyBits> moved(std::move(generator));
+  HWY_ASSERT_EQ(uint64_t{34}, moved.Sample(StatefulOffset(20)));
+  moved.Fill(StatefulOffset(30), out, 1);
+  HWY_ASSERT_EQ(uint64_t{45}, out[0]);
+  HWY_ASSERT_EQ(uint64_t{16}, moved());
+  HWY_ASSERT_EQ(uint64_t{17}, moved.GetBitGenerator()());
+}
 
 void TestUniformEdges() {
   const uint64_t inputs[] = {0, 2047, 2048, uint64_t{1} << 63, UINT64_MAX};
@@ -148,7 +203,7 @@ void TestVectorUniformFill() {
   }
 
   for (size_t count : counts) {
-    hwy::Generator<XoshiroBitGenerator> generator(XoshiroBitGenerator(123, 2));
+    Generator<XoshiroBitGenerator> generator(XoshiroBitGenerator(123, 2));
     auto reference = initial;
     auto storage = hwy::AllocateAligned<double>(count + 2);
     HWY_ASSERT(storage);
@@ -170,13 +225,14 @@ void TestVectorUniformFill() {
 
     // A partial output still consumes a complete vector, including lanes that
     // were not stored. Zero output must not consume any values.
+    Generator<XoshiroBitGenerator> moved(std::move(generator));
     std::vector<double> next(lanes);
-    StoreU(generator.Sample(Uniform()), df, next.data());
+    StoreU(moved.Sample(Uniform()), df, next.data());
     for (size_t lane = 0; lane < lanes; ++lane) {
       HWY_ASSERT_EQ(hwy::Uniform::FromBits(reference[lane]()), next[lane]);
     }
     std::vector<uint64_t> raw(lanes);
-    StoreU(generator(), du, raw.data());
+    StoreU(moved(), du, raw.data());
     for (size_t lane = 0; lane < lanes; ++lane) {
       HWY_ASSERT_EQ(reference[lane](), raw[lane]);
     }
@@ -221,6 +277,7 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 namespace {
 HWY_BEFORE_TEST(UniformTest);
+HWY_EXPORT_AND_TEST_P(UniformTest, TestTargetGeneratorComposition);
 HWY_EXPORT_AND_TEST_P(UniformTest, TestUniformEdges);
 HWY_EXPORT_AND_TEST_P(UniformTest, TestNormalizedUniformEdges);
 HWY_EXPORT_AND_TEST_P(UniformTest, TestScalarBackends);

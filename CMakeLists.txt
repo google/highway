@@ -302,6 +302,7 @@ set(HWY_SOURCES
     hwy/detect_targets.h  # private
     hwy/foreach_target.h
     hwy/generator.h
+    hwy/generator-inl.h
     hwy/highway_export.h
     hwy/highway.h
     hwy/nanobenchmark.h

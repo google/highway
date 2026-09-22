@@ -14,6 +14,7 @@ namespace hwy {
 
 // Composes a bit generator with caller-supplied distributions. This header is
 // target-independent and does not include any concrete backend or distribution.
+// For native SIMD returns, use the per-target Generator in generator-inl.h.
 // BitGenerator owns its state; any resources it borrows must outlive Generator.
 template <class BitGenerator>
 class Generator {
@@ -21,7 +22,7 @@ class Generator {
   explicit Generator(BitGenerator bit_generator)
       : bit_generator_(std::move(bit_generator)) {}
 
-  // Returns the backend's native result (a scalar or SIMD vector).
+  // The result type must be valid in the baseline target.
   auto operator()() -> decltype(std::declval<BitGenerator&>()()) {
     return bit_generator_();
   }

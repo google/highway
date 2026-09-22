@@ -168,8 +168,7 @@ class XoshiroBitGenerator {
     }
   }
 
-  // Ordinary inline also allows calls from target-independent adapters. A
-  // forced inline would require those adapters to carry this target's flags.
+  // Native vectors must be consumed in the same target's scope.
   VU64 operator()() noexcept {
     const ScalableTag<std::uint64_t> tag;
     auto s0 = Load(tag, state_[{0}].data());

@@ -170,6 +170,7 @@ cc_library(
         # End of list
         "hwy/highway.h",  # public
         "hwy/foreach_target.h",  # public
+        "hwy/generator-inl.h",  # public
         "hwy/per_target.h",  # public
         "hwy/print-inl.h",  # public
         "hwy/highway_export.h",  # public
