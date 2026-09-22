@@ -34,64 +34,12 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace detail {
 
-// Triple32 from hash/hash-inl.h. That header cannot be included here because
-// it depends on random-inl.h and thus VQSort, which includes contrib/algo.
-HWY_INLINE uint32_t ShuffleHash32(uint32_t key, uint32_t x) {
-  x ^= key;
-  x ^= x >> 17;
-  x *= 0xED5AD4BBu;
-  x ^= x >> 11;
-  x *= 0xAC4C1B51u;
-  x ^= x >> 15;
-  x *= 0x31848BABu;
-  x ^= x >> 14;
-  return x;
-}
-
-template <class DU32, class VU32 = Vec<DU32>>
-HWY_INLINE VU32 ShuffleHash32(DU32 du32, uint32_t key, VU32 x) {
-  x = Xor(x, Set(du32, key));
-  x = Xor(x, ShiftRight<17>(x));
-  x = Mul(x, Set(du32, 0xED5AD4BBu));
-  x = Xor(x, ShiftRight<11>(x));
-  x = Mul(x, Set(du32, 0xAC4C1B51u));
-  x = Xor(x, ShiftRight<15>(x));
-  x = Mul(x, Set(du32, 0x31848BABu));
-  return Xor(x, ShiftRight<14>(x));
-}
-
 // Returns a position in [0, i] from 64 random bits, for i past the u32 path.
 HWY_INLINE uint64_t ShuffleIndex64(uint64_t bits, uint64_t i) {
   uint64_t upper;
   Mul128(bits, i + 1, &upper);
   return upper;
 }
-
-// Random bits that depend only on the seed and the swap position.
-class ShuffleSeedBits {
- public:
-  explicit ShuffleSeedBits(uint64_t seed)
-      : seed_(seed), key_(static_cast<uint32_t>(seed ^ (seed >> 32))) {}
-
-  // SplitMix64 finalizer.
-  uint64_t Bits64(uint64_t i) const {
-    uint64_t x = i ^ seed_;
-    x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ull;
-    x = (x ^ (x >> 27)) * 0x94D049BB133111EBull;
-    return x ^ (x >> 31);
-  }
-
-  uint32_t Bits32(uint32_t i) const { return ShuffleHash32(key_, i); }
-
-  template <class DU32, class VU32 = Vec<DU32>>
-  VU32 Bits(DU32 du32, VU32 positions, uint32_t* /*buf*/) const {
-    return ShuffleHash32(du32, key_, positions);
-  }
-
- private:
-  uint64_t seed_;
-  uint32_t key_;
-};
 
 // Random bits drawn from a UniformRandomBitGenerator, in order of decreasing
 // swap position, as a sequential loop would.
@@ -106,24 +54,22 @@ class ShuffleDrawnBits {
         "ShuffleSpan needs a generator with at least 32 bits");
   }
 
-  uint64_t Bits64(uint64_t /*i*/) {
+  uint64_t Bits64() {
     if constexpr (sizeof(Result) >= sizeof(uint64_t)) {
       if ((URBG::max)() - (URBG::min)() == ~Result{0}) {
         return static_cast<uint64_t>(g_() - (URBG::min)());
       }
     }
-    const uint64_t upper = Bits32(0);
-    return (upper << 32) | Bits32(0);
+    const uint64_t upper = Bits32();
+    return (upper << 32) | Bits32();
   }
 
-  uint32_t Bits32(uint32_t /*i*/) {
-    return static_cast<uint32_t>(g_() - (URBG::min)());
-  }
+  uint32_t Bits32() { return static_cast<uint32_t>(g_() - (URBG::min)()); }
 
   template <class DU32, class VU32 = Vec<DU32>>
-  VU32 Bits(DU32 du32, VU32 /*positions*/, uint32_t* buf) {
+  VU32 Bits(DU32 du32, uint32_t* buf) {
     for (size_t k = Lanes(du32); k-- != 0;) {
-      buf[k] = Bits32(0);
+      buf[k] = Bits32();
     }
     return Load(du32, buf);
   }
@@ -141,7 +87,7 @@ void ShuffleSpanImpl(D /*d*/, T* HWY_RESTRICT inout, size_t count, Bits& bits) {
 
   // Keeps i + 1 within u32 below. Only reachable with 64-bit size_t.
   for (; i >= size_t{0xFFFFFFFFu}; --i) {
-    std::swap(inout[i], inout[ShuffleIndex64(bits.Bits64(i), i)]);
+    std::swap(inout[i], inout[ShuffleIndex64(bits.Bits64(), i)]);
   }
 
   // Positions are u32 whatever T is; capping keeps the buffer on the stack.
@@ -153,7 +99,7 @@ void ShuffleSpanImpl(D /*d*/, T* HWY_RESTRICT inout, size_t count, Bits& bits) {
   while (i >= N) {
     const uint32_t lo = static_cast<uint32_t>(i - (N - 1));
     const Vec<decltype(du32)> positions = Iota(du32, lo);
-    const Vec<decltype(du32)> rand = bits.Bits(du32, positions, js);
+    const Vec<decltype(du32)> rand = bits.Bits(du32, js);
     Store(MulHigh(rand, Add(positions, k1)), du32, js);
     for (size_t k = N; k-- != 0;) {
       std::swap(inout[lo + k], inout[js[k]]);
@@ -163,25 +109,19 @@ void ShuffleSpanImpl(D /*d*/, T* HWY_RESTRICT inout, size_t count, Bits& bits) {
 
   for (; i != 0; --i) {
     const uint32_t i32 = static_cast<uint32_t>(i);
-    std::swap(inout[i], inout[LemireMod(bits.Bits32(i32), i32 + 1)]);
+    std::swap(inout[i], inout[LemireMod(bits.Bits32(), i32 + 1)]);
   }
 }
 
 }  // namespace detail
 
-// Randomly permutes `inout[0, count)`, like std::shuffle. The permutation
-// depends only on `seed`, so it is the same on every target. Positions come
-// from Lemire's multiply-shift, whose bias is negligible for count << 2^32.
-template <class D, typename T = TFromD<D>>
-void ShuffleSpan(D d, T* HWY_RESTRICT inout, size_t count, uint64_t seed) {
-  detail::ShuffleSeedBits bits(seed);
-  detail::ShuffleSpanImpl(d, inout, count, bits);
-}
-
-// As above, but with random bits drawn from `g`, a UniformRandomBitGenerator
-// with at least a 32-bit range, such as RngStream or std::mt19937.
-template <class D, class URBG, typename T = TFromD<D>,
-          hwy::EnableIf<!hwy::IsInteger<URBG>()>* = nullptr>
+// Randomly permutes `inout[0, count)`, like std::shuffle, with random bits
+// drawn from `g`, a UniformRandomBitGenerator with at least a 32-bit range,
+// such as RngStream or std::mt19937. Draws are consumed in the same order as a
+// sequential loop, so the permutation is the same on every target. Positions
+// come from Lemire's multiply-shift, whose bias is negligible for
+// count << 2^32.
+template <class D, class URBG, typename T = TFromD<D>>
 void ShuffleSpan(D d, T* HWY_RESTRICT inout, size_t count, URBG&& g) {
   detail::ShuffleDrawnBits<RemoveCvRef<URBG>> bits(g);
   detail::ShuffleSpanImpl(d, inout, count, bits);

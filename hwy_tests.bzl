@@ -37,7 +37,6 @@ HWY_CONTRIB_TESTS = (
         "shuffle_test",
         [
             ":algo",
-            ":hash",
             ":random",
         ],
     ),

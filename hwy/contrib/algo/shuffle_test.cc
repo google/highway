@@ -28,7 +28,6 @@
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
 #include "hwy/contrib/algo/shuffle-inl.h"
-#include "hwy/contrib/hash/hash-inl.h"
 #include "hwy/contrib/random/random-inl.h"
 #include "hwy/tests/test_util-inl.h"
 // clang-format on
@@ -39,22 +38,17 @@ namespace HWY_NAMESPACE {
 namespace {
 
 // Sequential Fisher-Yates using the position rule ShuffleSpan documents.
-// `next(i)` returns the 32 random bits for swap position i.
+// `next()` returns the next 32 random bits, in the order a sequential loop
+// consumes them.
 template <class Next>
 std::vector<size_t> ReferencePermutation(size_t count, Next next) {
   std::vector<size_t> perm(count);
   for (size_t k = 0; k < count; ++k) perm[k] = k;
   for (size_t i = count; i-- > 1;) {
     const uint32_t i32 = static_cast<uint32_t>(i);
-    std::swap(perm[i], perm[MulHigh32(next(i32), i32 + 1)]);
+    std::swap(perm[i], perm[MulHigh32(next(), i32 + 1)]);
   }
   return perm;
-}
-
-std::vector<size_t> SeedPermutation(size_t count, uint64_t seed) {
-  const uint32_t key = static_cast<uint32_t>(seed ^ (seed >> 32));
-  return ReferencePermutation(
-      count, [key](uint32_t i) { return detail::ShuffleHash32(key, i); });
 }
 
 void AssertIsPermutation(const std::vector<size_t>& perm) {
@@ -106,43 +100,24 @@ std::vector<size_t> CountsFor(D d) {
   return counts;
 }
 
-struct TestSeed {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const size_t misalignments[2] = {0, Lanes(d) / 3 + 1};
-    for (uint64_t seed :
-         {uint64_t{0}, uint64_t{1}, uint64_t{0x123456789ABCDEF0}}) {
-      for (size_t count : CountsFor(d)) {
-        const std::vector<size_t> perm = SeedPermutation(count, seed);
-        AssertIsPermutation(perm);
-        for (size_t misalign : misalignments) {
-          CheckShuffle(d, count, misalign, perm, [seed](D tag, T* p, size_t n) {
-            ShuffleSpan(tag, p, n, seed);
-          });
-        }
-      }
-    }
-  }
-};
-
-void TestAllSeed() { ForAllTypes(ForPartialVectors<TestSeed>()); }
-
-// The generator overload must consume draws in the same order as a sequential
-// loop, so identically seeded generators give the reference permutation.
+// ShuffleSpan must consume draws in the same order as a sequential loop, so
+// identically seeded generators give the reference permutation.
 template <class D, class Gen>
 void CheckGenerator(D d, const Gen& prototype) {
   using T = TFromD<D>;
+  const size_t misalignments[2] = {0, Lanes(d) / 3 + 1};
   for (size_t count : CountsFor(d)) {
     Gen ref_gen = prototype;
-    const std::vector<size_t> perm =
-        ReferencePermutation(count, [&ref_gen](uint32_t /*i*/) {
-          return static_cast<uint32_t>(ref_gen() - (Gen::min)());
-        });
-    AssertIsPermutation(perm);
-    Gen gen = prototype;
-    CheckShuffle(d, count, 0, perm, [&gen](D tag, T* p, size_t n) {
-      ShuffleSpan(tag, p, n, gen);
+    const std::vector<size_t> perm = ReferencePermutation(count, [&ref_gen]() {
+      return static_cast<uint32_t>(ref_gen() - (Gen::min)());
     });
+    AssertIsPermutation(perm);
+    for (size_t misalign : misalignments) {
+      Gen gen = prototype;
+      CheckShuffle(d, count, misalign, perm, [&gen](D tag, T* p, size_t n) {
+        ShuffleSpan(tag, p, n, gen);
+      });
+    }
   }
 }
 
@@ -160,15 +135,16 @@ void TestAllGenerator() { ForAllTypes(ForPartialVectors<TestGenerator>()); }
 
 // Every ordering of 4 elements, and every final position of the first and last
 // of 64 elements (which goes through the vector path), should be about equally
-// likely. Seeds are fixed, so this cannot flake; the bounds are ~6 sigma.
+// likely. Generator seeds are fixed, so this cannot flake; bounds are ~6 sigma.
 struct TestUniform {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     std::vector<size_t> orderings(256);
     const size_t kOrderingTrials = 24 * 1000;
-    for (uint64_t seed = 0; seed < kOrderingTrials; ++seed) {
+    std::mt19937 ordering_gen(1);
+    for (size_t trial = 0; trial < kOrderingTrials; ++trial) {
       T data[4] = {0, 1, 2, 3};
-      ShuffleSpan(d, data, 4, seed);
+      ShuffleSpan(d, data, 4, ordering_gen);
       size_t code = 0;
       for (T v : data) code = code * 4 + static_cast<size_t>(v);
       ++orderings[code];
@@ -187,11 +163,7 @@ struct TestUniform {
     std::mt19937 gen(42);
     for (size_t trial = 0; trial < kCount * 1000; ++trial) {
       for (size_t k = 0; k < kCount; ++k) data[k] = ConvertScalarTo<T>(k);
-      if (trial & 1) {
-        ShuffleSpan(d, data.data(), kCount, gen);
-      } else {
-        ShuffleSpan(d, data.data(), kCount, uint64_t{trial});
-      }
+      ShuffleSpan(d, data.data(), kCount, gen);
       for (size_t k = 0; k < kCount; ++k) {
         if (data[k] == ConvertScalarTo<T>(0)) ++first_pos[k];
         if (data[k] == ConvertScalarTo<T>(kCount - 1)) ++last_pos[k];
@@ -220,39 +192,6 @@ void TestIndex64() {
   }
 }
 
-// The private hash must stay identical to Triple32 in hash-inl.h, which is
-// not available for HWY_SCALAR.
-struct TestHashMatchesTriple32 {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-#if HWY_TARGET != HWY_SCALAR
-    RandomState rng;
-    const size_t N = Lanes(d);
-    auto in = AllocateAligned<uint32_t>(N);
-    auto expected = AllocateAligned<uint32_t>(N);
-    HWY_ASSERT(in && expected);
-    for (size_t rep = 0; rep < 1000; ++rep) {
-      const uint32_t key = Random32(&rng);
-      const Triple32 triple32(key);
-      for (size_t k = 0; k < N; ++k) {
-        in[k] = Random32(&rng);
-        expected[k] = triple32(in[k]);
-        HWY_ASSERT_EQ(expected[k], detail::ShuffleHash32(key, in[k]));
-      }
-      const Vec<D> v = Load(d, in.get());
-      HWY_ASSERT_VEC_EQ(d, expected.get(), detail::ShuffleHash32(d, key, v));
-      HWY_ASSERT_VEC_EQ(d, expected.get(), triple32.OneVec(d, v));
-    }
-#else
-    (void)d;
-#endif
-  }
-};
-
-void TestAllHashMatchesTriple32() {
-  ForPartialVectors<TestHashMatchesTriple32>()(uint32_t());
-}
-
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -263,11 +202,9 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 namespace {
 HWY_BEFORE_TEST(ShuffleTest);
-HWY_EXPORT_AND_TEST_P(ShuffleTest, TestAllSeed);
 HWY_EXPORT_AND_TEST_P(ShuffleTest, TestAllGenerator);
 HWY_EXPORT_AND_TEST_P(ShuffleTest, TestAllUniform);
 HWY_EXPORT_AND_TEST_P(ShuffleTest, TestIndex64);
-HWY_EXPORT_AND_TEST_P(ShuffleTest, TestAllHashMatchesTriple32);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy
