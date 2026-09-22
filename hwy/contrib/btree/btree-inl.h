@@ -547,6 +547,18 @@ HWY_INLINE void CompressIntoLeaf(MapLeafNode<KeyT, ValueT>* leaf,
   leaf->SetNumKeys(static_cast<uint16_t>(count));
 }
 
+// Returns true if `count` keys with key spread `max_delta = max_key - min_key`
+// can fit inside a single LeafNode under its narrowest viable compression mode.
+template <typename LeafNode>
+HWY_INLINE bool CanLeafFitSpan(size_t count, uint64_t max_delta) {
+  using KeyT = typename LeafNode::StorageKeyT;
+  if (count <= LeafNode::kMax8 && max_delta <= 255) return true;
+  if (count <= LeafNode::kMax16 && max_delta <= 65535) return true;
+  if constexpr (sizeof(KeyT) == 4) return count <= LeafNode::kMax32;
+  if (count <= LeafNode::kMax32 && max_delta <= 0xFFFFFFFFULL) return true;
+  return count <= LeafNode::kMax64;
+}
+
 // Returns true if a new key can fit into the leaf (potentially upgrading its
 // compression mode).
 template <typename LeafNode, typename KeyT>
@@ -558,17 +570,7 @@ HWY_INLINE bool CanLeafFitInsert(const LeafNode* leaf, KeyT new_key) {
   const KeyT max_existing = GetLeafKey(leaf, count - 1);
   const KeyT new_max_key = std::max(max_existing, new_key);
   const uint64_t max_delta = static_cast<uint64_t>(new_max_key - new_min_key);
-
-  constexpr size_t kMax8 = LeafNode::kMax8;
-  constexpr size_t kMax16 = LeafNode::kMax16;
-  constexpr size_t kMax32 = LeafNode::kMax32;
-  constexpr size_t kMax64 = LeafNode::kMax64;
-
-  if (new_count <= kMax8 && max_delta <= 255) return true;
-  if (new_count <= kMax16 && max_delta <= 65535) return true;
-  if constexpr (sizeof(KeyT) == 4) return new_count <= kMax32;
-  if (new_count <= kMax32 && max_delta <= 0xFFFFFFFFULL) return true;
-  return new_count <= kMax64;
+  return CanLeafFitSpan<LeafNode>(new_count, max_delta);
 }
 
 // Decompresses all existing leaf keys into the caller-provided out_keys buffer,
@@ -1053,6 +1055,7 @@ HWY_INLINE bool TryFastEraseFromLeaf(MapLeafNode<KeyT, ValueT>* leaf,
 template <typename KeyT>
 void SplitLeafNode(LeafNode<KeyT>* leaf, LeafNode<KeyT>* new_leaf, KeyT new_key,
                    KeyT* out_promo_key) {
+  using Leaf = LeafNode<KeyT>;
   // Stack storage to avoid heap allocation.
   KeyT temp[512];
 
@@ -1074,6 +1077,35 @@ void SplitLeafNode(LeafNode<KeyT>* leaf, LeafNode<KeyT>* new_leaf, KeyT new_key,
     split_point = 1;
   }
 
+  // Why a 50/50 split can overflow when `new_key` widens the key span:
+  // Suppose `leaf` (64-bit Set) holds 244 keys in 8/16-bit mode (or 122 keys in
+  // 32-bit mode), and `new_key` has a huge delta (> 2^32) that forces whichever
+  // half receives it down to 64-bit raw mode (max capacity kMax64 = 61 keys).
+  // A 50/50 split (122/123 keys, or 61/62 keys) would give that half > 61 keys
+  // and overflow the 512B leaf!
+  //
+  // Fix: Cap the half containing `new_key` at kMinModeCap (123 for 32-bit keys,
+  // 61 for 64-bit keys), which always fits even in uncompressed mode; the other
+  // half is a subset of the original leaf's keys and still fits in its original
+  // denser mode.
+  constexpr size_t kMinModeCap =
+      (sizeof(KeyT) == 4) ? Leaf::kMax32 : Leaf::kMax64;
+  // Case 1 (Left half overflow): e.g. leaf had [10^10 .. 10^10 + 243] and
+  // new_key = 5*10^9 landed at temp[0]. Give left half 61 keys; right half gets
+  // the remaining 184 dense keys.
+  if (!CanLeafFitSpan<Leaf>(
+          split_point,
+          static_cast<uint64_t>(temp[split_point - 1] - temp[0]))) {
+    split_point = kMinModeCap;
+  } else if (!CanLeafFitSpan<Leaf>(
+                 total - split_point,
+                 static_cast<uint64_t>(temp[total - 1] - temp[split_point]))) {
+    // Case 2 (Right half overflow): e.g. leaf had [10000 .. 10243] and
+    // new_key = 5*10^9 landed at temp[244]. Keep 184 dense keys in left half;
+    // right half gets the last 61 keys.
+    split_point = total - kMinModeCap;
+  }
+
   // Recompress left half (temp[0..split_point-1]) back into original leaf.
   CompressIntoLeaf(leaf, temp, split_point);
 
@@ -1091,6 +1123,7 @@ template <typename KeyT, typename ValueT>
 void SplitLeafNode(MapLeafNode<KeyT, ValueT>* leaf,
                    MapLeafNode<KeyT, ValueT>* new_leaf, KeyT new_key,
                    const ValueT& new_value, KeyT* out_promo_key) {
+  using Leaf = MapLeafNode<KeyT, ValueT>;
   // Stack storage to avoid heap allocation.
   KeyT temp_keys[512];
   ValueT temp_values[512];
@@ -1112,6 +1145,20 @@ void SplitLeafNode(MapLeafNode<KeyT, ValueT>* leaf,
     split_point = total - 1;
   } else if (leaf->Prev() == nullptr && new_key == temp_keys[0]) {
     split_point = 1;
+  }
+
+  // Mode-downgrade guard: see SplitLeafNode (Set) above.
+  constexpr size_t kMinModeCap =
+      (sizeof(KeyT) == 4) ? Leaf::kMax32 : Leaf::kMax64;
+  if (!CanLeafFitSpan<Leaf>(
+          split_point,
+          static_cast<uint64_t>(temp_keys[split_point - 1] - temp_keys[0]))) {
+    split_point = kMinModeCap;
+  } else if (!CanLeafFitSpan<Leaf>(
+                 total - split_point,
+                 static_cast<uint64_t>(temp_keys[total - 1] -
+                                       temp_keys[split_point]))) {
+    split_point = total - kMinModeCap;
   }
 
   // Recompress left half back into original leaf.

@@ -829,6 +829,63 @@ void DoDiverseBitModesTest() {
       HWY_ASSERT(tree.contains(ExtractKey(v)));
     }
   }
+
+  // Mode-downgrade outlier split: pack Leaf 0 with 244 dense keys in
+  // 8-bit/16-bit mode and Leaf 1 with a far key, then insert outlier keys
+  // with huge deltas into both Leaf 0 (right-half downgrade) and Leaf 1
+  // (left-half downgrade).
+  {
+    std::vector<value_type> mixed_vals;
+    mixed_vals.reserve(490);
+    // 244 dense keys in [10000 .. 10243]
+    for (size_t i = 0; i < 244; ++i) {
+      key_type k = static_cast<key_type>(10000 + i);
+      if constexpr (TreeT::kIsMap) {
+        mixed_vals.push_back(
+            {k, static_cast<typename TreeT::mapped_type>(i + 1)});
+      } else {
+        mixed_vals.push_back(k);
+      }
+    }
+    // 244 dense keys in [100000000 .. 100000243] to form a second dense leaf
+    const key_type far_base = (sizeof(key_type) == 4)
+                                  ? static_cast<key_type>(100000000U)
+                                  : static_cast<key_type>(10000000000ULL);
+    for (size_t i = 0; i < 244; ++i) {
+      key_type k = static_cast<key_type>(far_base + static_cast<key_type>(i));
+      if constexpr (TreeT::kIsMap) {
+        mixed_vals.push_back(
+            {k, static_cast<typename TreeT::mapped_type>(i + 1000)});
+      } else {
+        mixed_vals.push_back(k);
+      }
+    }
+    // Outlier 1: lands at the end of Leaf 0 (forces right-half mode downgrade)
+    // Outlier 2: lands at the start of Leaf 1 (forces left-half mode downgrade)
+    const key_type outlier_right = (sizeof(key_type) == 4)
+                                       ? static_cast<key_type>(50000000U)
+                                       : static_cast<key_type>(5000000000ULL);
+    const key_type outlier_left = (sizeof(key_type) == 4)
+                                      ? static_cast<key_type>(90000000U)
+                                      : static_cast<key_type>(9000000000ULL);
+    for (key_type k : {outlier_right, outlier_left}) {
+      if constexpr (TreeT::kIsMap) {
+        mixed_vals.push_back(
+            {k, static_cast<typename TreeT::mapped_type>(777)});
+      } else {
+        mixed_vals.push_back(k);
+      }
+    }
+
+    TreeT tree;
+    for (const auto& v : mixed_vals) {
+      tree.insert(v);
+      BTreeChecker<TreeT, TreeT>::VerifyPhysicalTree(tree);
+    }
+    for (const auto& v : mixed_vals) {
+      HWY_ASSERT(tree.contains(ExtractKey(v)));
+    }
+  }
 }
 
 template <typename TreeT>
