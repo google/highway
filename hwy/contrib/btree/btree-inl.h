@@ -2296,56 +2296,24 @@ class BTree {
     return nullptr;
   }
 
-  size_t EraseInternal(StorageKeyT key) {
-    if (HWY_UNLIKELY(state_->root_ == nullptr || state_->num_elements_ == 0)) {
-      return 0;
-    }
+  // Removes keys[idx] (separator key) and children[idx + 1] (merged right
+  // child) from `node`, shifting trailing elements left by 1 and resetting the
+  // vacated tail slots to MAX/nullptr.
+  static HWY_INLINE void RemoveInternalEntry(Internal* node, size_t idx) {
+    std::memmove(node->keys + idx, node->keys + idx + 1,
+                 (node->num_keys - 1 - idx) * sizeof(StorageKeyT));
+    std::memmove(node->children + idx + 1, node->children + idx + 2,
+                 (node->num_keys - 1 - idx) * sizeof(void*));
+    node->num_keys--;
+    node->keys[node->num_keys] = std::numeric_limits<StorageKeyT>::max();
+    node->children[node->num_keys + 1] = nullptr;
+  }
 
-    // Handle single-node tree (height == 0)
-    if (state_->tree_height_ == 0) {
-      auto* leaf = static_cast<Leaf*>(state_->root_);
-      size_t slot = 0;
-      // Check if key exists in leaf
-      if (!LeafContains(leaf, key, &slot)) return 0;
-
-      // In-place fast erase from leaf
-      TryFastEraseFromLeaf(leaf, slot);
-      state_->num_elements_--;
-      if (HWY_UNLIKELY(leaf->NumKeys() == 0)) {
-        delete leaf;
-        state_->root_ = nullptr;
-        state_->first_leaf_ = nullptr;
-        state_->last_leaf_ = nullptr;
-        state_->num_leaves_ = 0;
-      }
-      return 1;
-    }
-
-    // Multi-level tree: Record descent path from root to target leaf
-    // (ancestors are saved on stack to propagate parent splits without
-    // recursion).
-    Internal* path[kMaxTreeHeight];
-    size_t child_indices[kMaxTreeHeight];
-    void* curr = state_->root_;
-    for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
-      auto* internal = static_cast<Internal*>(curr);
-      path[lvl] = internal;
-      size_t child_idx = FindChild(internal, key);
-      child_indices[lvl] = child_idx;
-      curr = internal->children[child_idx];
-    }
-
-    auto* leaf = static_cast<Leaf*>(curr);
-    size_t slot = 0;
-    // Check if key exists in leaf
-    if (!LeafContains(leaf, key, &slot)) return 0;
-
-    // In-place fast erase from leaf
-    TryFastEraseFromLeaf(leaf, slot);
-    state_->num_elements_--;
-
-    // Underflow Handling: If leaf has <= Leaf::kMax16 / 2 keys, attempt merge
-    // with adjacent siblings
+  // Underflow Handling: If leaf has <= Leaf::kMax16 / 2 keys, attempt merge
+  // with adjacent siblings and propagate any internal node underflows up to
+  // the root.
+  void RebalanceAfterErase(Leaf* leaf, Internal** path,
+                           const size_t* child_indices) {
     Internal* parent = path[1];
     size_t c_idx = child_indices[1];
 
@@ -2372,15 +2340,7 @@ class BTree {
         state_->num_leaves_--;
 
         // Remove separator key and child pointer from parent
-        std::memmove(parent->keys + merge_idx, parent->keys + merge_idx + 1,
-                     (parent->num_keys - 1 - merge_idx) * sizeof(StorageKeyT));
-        std::memmove(parent->children + merge_idx + 1,
-                     parent->children + merge_idx + 2,
-                     (parent->num_keys - 1 - merge_idx) * sizeof(void*));
-        parent->num_keys--;
-        parent->keys[parent->num_keys] =
-            std::numeric_limits<StorageKeyT>::max();
-        parent->children[parent->num_keys + 1] = nullptr;
+        RemoveInternalEntry(parent, merge_idx);
 
         // Propagate internal node underflow up ancestor levels (lvl = 1..H-1,
         // where lvl = 0 is leaves, lvl = 1 is parent of leaves, and
@@ -2459,18 +2419,7 @@ class BTree {
             //    children[u_merge_idx + 1] (right_internal) from upper_parent,
             //    then continue the loop to lvl + 1 in case upper_parent now
             //    underflowed.
-            std::memmove(upper_parent->keys + u_merge_idx,
-                         upper_parent->keys + u_merge_idx + 1,
-                         (upper_parent->num_keys - 1 - u_merge_idx) *
-                             sizeof(StorageKeyT));
-            std::memmove(
-                upper_parent->children + u_merge_idx + 1,
-                upper_parent->children + u_merge_idx + 2,
-                (upper_parent->num_keys - 1 - u_merge_idx) * sizeof(void*));
-            upper_parent->num_keys--;
-            upper_parent->keys[upper_parent->num_keys] =
-                std::numeric_limits<StorageKeyT>::max();
-            upper_parent->children[upper_parent->num_keys + 1] = nullptr;
+            RemoveInternalEntry(upper_parent, u_merge_idx);
           } else {
             // Case 2 (Rebalance): Combined keys exceed one node (> 16), so
             // they cannot merge. Redistribute (split 50/50) across both nodes:
@@ -2539,9 +2488,141 @@ class BTree {
         }
       }
     }
+  }
+
+  // Propagates a leaf or internal node split (`promo_key` and `promo_child`)
+  // up the ancestor `path` (lvl = 1..tree_height_), splitting full internal
+  // nodes 50/50 and growing the root if the split reaches the top.
+  void PropagateSplit(StorageKeyT promo_key, void* promo_child, Internal** path,
+                      const size_t* child_indices) {
+    for (size_t lvl = 1; lvl <= state_->tree_height_; ++lvl) {
+      Internal* parent = path[lvl];
+      // Case A: Parent has room (num_keys < 16).
+      // Shift keys and children right of c_idx to insert the new entry.
+      if (HWY_LIKELY(parent->num_keys < Internal::kCapacity)) {
+        size_t c_idx = child_indices[lvl];
+        for (size_t k = parent->num_keys; k > c_idx; --k) {
+          parent->keys[k] = parent->keys[k - 1];
+          parent->children[k + 1] = parent->children[k];
+        }
+        parent->keys[c_idx] = promo_key;
+        parent->children[c_idx + 1] = promo_child;
+        parent->num_keys++;
+        return;
+      }
+
+      // Case B: Parent is full (16 keys, 17 children) -> Internal node split!
+      auto* new_internal = new Internal();
+      state_->num_internals_++;
+
+      // Assemble all 17 keys and 18 children in sorted order on the stack.
+      constexpr size_t kTotalK = Internal::kCapacity + 1;
+      StorageKeyT temp_keys[kTotalK];
+      void* temp_children[kTotalK + 1];
+      size_t c_idx = child_indices[lvl];
+
+      for (size_t i = 0; i < c_idx; ++i) {
+        temp_keys[i] = parent->keys[i];
+        temp_children[i] = parent->children[i];
+      }
+      temp_children[c_idx] = parent->children[c_idx];
+      temp_keys[c_idx] = promo_key;
+      temp_children[c_idx + 1] = promo_child;
+      for (size_t i = c_idx; i < parent->num_keys; ++i) {
+        temp_keys[i + 1] = parent->keys[i];
+        temp_children[i + 2] = parent->children[i + 1];
+      }
+
+      // Promote the middle key (index 8) to the next ancestor level.
+      constexpr size_t kMid = kTotalK / 2;
+      promo_key = temp_keys[kMid];
+      promo_child = new_internal;
+
+      // Left node (parent) keeps 8 keys and 9 children.
+      std::copy_n(temp_keys, kMid, parent->keys);
+      std::copy_n(temp_children, kMid + 1, parent->children);
+      parent->num_keys = static_cast<uint8_t>(kMid);
+      std::fill_n(parent->keys + kMid, Internal::kCapacity - kMid,
+                  std::numeric_limits<StorageKeyT>::max());
+      std::fill_n(parent->children + kMid + 1,
+                  Internal::kMaxChildren - (kMid + 1), nullptr);
+
+      // Right node (new_internal) gets 8 keys and 9 children.
+      const size_t right_k = kTotalK - kMid - 1;
+      std::copy_n(temp_keys + kMid + 1, right_k, new_internal->keys);
+      std::copy_n(temp_children + kMid + 1, right_k + 1,
+                  new_internal->children);
+      new_internal->num_keys = static_cast<uint8_t>(right_k);
+      std::fill_n(new_internal->keys + right_k, Internal::kCapacity - right_k,
+                  std::numeric_limits<StorageKeyT>::max());
+    }
+
+    // Root split (grows tree height by 1)
+    auto* new_root = new Internal();
+    state_->num_internals_++;
+    new_root->keys[0] = promo_key;
+    new_root->children[0] = state_->root_;
+    new_root->children[1] = promo_child;
+    new_root->num_keys = 1;
+    state_->root_ = new_root;
+    state_->tree_height_++;
+  }
+
+  size_t EraseInternal(StorageKeyT key) {
+    if (HWY_UNLIKELY(state_->root_ == nullptr || state_->num_elements_ == 0)) {
+      return 0;
+    }
+
+    // Handle single-node tree (height == 0)
+    if (state_->tree_height_ == 0) {
+      auto* leaf = static_cast<Leaf*>(state_->root_);
+      size_t slot = 0;
+      // Check if key exists in leaf
+      if (!LeafContains(leaf, key, &slot)) return 0;
+
+      // In-place fast erase from leaf
+      TryFastEraseFromLeaf(leaf, slot);
+      state_->num_elements_--;
+      if (HWY_UNLIKELY(leaf->NumKeys() == 0)) {
+        delete leaf;
+        state_->root_ = nullptr;
+        state_->first_leaf_ = nullptr;
+        state_->last_leaf_ = nullptr;
+        state_->num_leaves_ = 0;
+      }
+      return 1;
+    }
+
+    // Multi-level tree: Record descent path from root to target leaf
+    // (ancestors are saved on stack to propagate parent splits without
+    // recursion).
+    Internal* path[kMaxTreeHeight];
+    size_t child_indices[kMaxTreeHeight];
+    void* curr = state_->root_;
+    for (size_t lvl = state_->tree_height_; lvl > 0; --lvl) {
+      auto* internal = static_cast<Internal*>(curr);
+      path[lvl] = internal;
+      size_t child_idx = FindChild(internal, key);
+      child_indices[lvl] = child_idx;
+      curr = internal->children[child_idx];
+    }
+
+    auto* leaf = static_cast<Leaf*>(curr);
+    size_t slot = 0;
+    // Check if key exists in leaf
+    if (!LeafContains(leaf, key, &slot)) return 0;
+
+    // In-place fast erase from leaf
+    TryFastEraseFromLeaf(leaf, slot);
+    state_->num_elements_--;
+
+    // Underflow Handling: If leaf has <= Leaf::kMax16 / 2 keys, attempt merge
+    // with adjacent siblings
+    RebalanceAfterErase(leaf, path, child_indices);
 
     return 1;
   }
+
   std::pair<iterator, bool> InsertSetInternal(StorageKeyT key) {
     // Handle empty tree initialization
     if (HWY_UNLIKELY(state_->root_ == nullptr)) {
@@ -2658,78 +2739,7 @@ class BTree {
     state_->num_elements_++;
 
     // Propagate separator keys and splits up ancestor internal levels
-    void* promo_child = new_leaf;
-    for (size_t lvl = 1; lvl <= state_->tree_height_; ++lvl) {
-      Internal* parent = path[lvl];
-      // Case A: Parent has room (num_keys < 16).
-      // Shift keys and children right of c_idx to insert the new entry.
-      if (HWY_LIKELY(parent->num_keys < Internal::kCapacity)) {
-        size_t c_idx = child_indices[lvl];
-        for (size_t k = parent->num_keys; k > c_idx; --k) {
-          parent->keys[k] = parent->keys[k - 1];
-          parent->children[k + 1] = parent->children[k];
-        }
-        parent->keys[c_idx] = promo_key;
-        parent->children[c_idx + 1] = promo_child;
-        parent->num_keys++;
-        return {FindInternal(key), true};
-      }
-
-      // Case B: Parent is full (16 keys, 17 children) -> Internal node split!
-      auto* new_internal = new Internal();
-      state_->num_internals_++;
-
-      // Assemble all 17 keys and 18 children in sorted order on the stack.
-      constexpr size_t kTotalK = Internal::kCapacity + 1;
-      StorageKeyT temp_keys[kTotalK];
-      void* temp_children[kTotalK + 1];
-      size_t c_idx = child_indices[lvl];
-
-      for (size_t i = 0; i < c_idx; ++i) {
-        temp_keys[i] = parent->keys[i];
-        temp_children[i] = parent->children[i];
-      }
-      temp_children[c_idx] = parent->children[c_idx];
-      temp_keys[c_idx] = promo_key;
-      temp_children[c_idx + 1] = promo_child;
-      for (size_t i = c_idx; i < parent->num_keys; ++i) {
-        temp_keys[i + 1] = parent->keys[i];
-        temp_children[i + 2] = parent->children[i + 1];
-      }
-
-      // Promote the middle key (index 8) to the next ancestor level.
-      constexpr size_t kMid = kTotalK / 2;
-      promo_key = temp_keys[kMid];
-      promo_child = new_internal;
-
-      // Left node (parent) keeps 8 keys and 9 children.
-      std::copy_n(temp_keys, kMid, parent->keys);
-      std::copy_n(temp_children, kMid + 1, parent->children);
-      parent->num_keys = static_cast<uint8_t>(kMid);
-      std::fill_n(parent->keys + kMid, Internal::kCapacity - kMid,
-                  std::numeric_limits<StorageKeyT>::max());
-      std::fill_n(parent->children + kMid + 1,
-                  Internal::kMaxChildren - (kMid + 1), nullptr);
-
-      // Right node (new_internal) gets 8 keys and 9 children.
-      const size_t right_k = kTotalK - kMid - 1;
-      std::copy_n(temp_keys + kMid + 1, right_k, new_internal->keys);
-      std::copy_n(temp_children + kMid + 1, right_k + 1,
-                  new_internal->children);
-      new_internal->num_keys = static_cast<uint8_t>(right_k);
-      std::fill_n(new_internal->keys + right_k, Internal::kCapacity - right_k,
-                  std::numeric_limits<StorageKeyT>::max());
-    }
-
-    // Root split (grows tree height by 1)
-    auto* new_root = new Internal();
-    state_->num_internals_++;
-    new_root->keys[0] = promo_key;
-    new_root->children[0] = state_->root_;
-    new_root->children[1] = promo_child;
-    new_root->num_keys = 1;
-    state_->root_ = new_root;
-    state_->tree_height_++;
+    PropagateSplit(promo_key, new_leaf, path, child_indices);
 
     return {FindInternal(key), true};
   }
@@ -2858,78 +2868,7 @@ class BTree {
     state_->num_elements_++;
 
     // Propagate separator keys and splits up ancestor internal levels
-    void* promo_child = new_leaf;
-    for (size_t lvl = 1; lvl <= state_->tree_height_; ++lvl) {
-      Internal* parent = path[lvl];
-      // Case A: Parent has room (num_keys < 16).
-      // Shift keys and children right of c_idx to insert the new entry.
-      if (HWY_LIKELY(parent->num_keys < Internal::kCapacity)) {
-        size_t c_idx = child_indices[lvl];
-        for (size_t k = parent->num_keys; k > c_idx; --k) {
-          parent->keys[k] = parent->keys[k - 1];
-          parent->children[k + 1] = parent->children[k];
-        }
-        parent->keys[c_idx] = promo_key;
-        parent->children[c_idx + 1] = promo_child;
-        parent->num_keys++;
-        return {FindInternal(key), true};
-      }
-
-      // Case B: Parent is full (16 keys, 17 children) -> Internal node split!
-      auto* new_internal = new Internal();
-      state_->num_internals_++;
-
-      // Assemble all 17 keys and 18 children in sorted order on the stack.
-      constexpr size_t kTotalK = Internal::kCapacity + 1;
-      StorageKeyT temp_keys[kTotalK];
-      void* temp_children[kTotalK + 1];
-      size_t c_idx = child_indices[lvl];
-
-      for (size_t i = 0; i < c_idx; ++i) {
-        temp_keys[i] = parent->keys[i];
-        temp_children[i] = parent->children[i];
-      }
-      temp_children[c_idx] = parent->children[c_idx];
-      temp_keys[c_idx] = promo_key;
-      temp_children[c_idx + 1] = promo_child;
-      for (size_t i = c_idx; i < parent->num_keys; ++i) {
-        temp_keys[i + 1] = parent->keys[i];
-        temp_children[i + 2] = parent->children[i + 1];
-      }
-
-      // Promote the middle key (index 8) to the next ancestor level.
-      constexpr size_t kMid = kTotalK / 2;
-      promo_key = temp_keys[kMid];
-      promo_child = new_internal;
-
-      // Left node (parent) keeps 8 keys and 9 children.
-      std::copy_n(temp_keys, kMid, parent->keys);
-      std::copy_n(temp_children, kMid + 1, parent->children);
-      parent->num_keys = static_cast<uint8_t>(kMid);
-      std::fill_n(parent->keys + kMid, Internal::kCapacity - kMid,
-                  std::numeric_limits<StorageKeyT>::max());
-      std::fill_n(parent->children + kMid + 1,
-                  Internal::kMaxChildren - (kMid + 1), nullptr);
-
-      // Right node (new_internal) gets 8 keys and 9 children.
-      const size_t right_k = kTotalK - kMid - 1;
-      std::copy_n(temp_keys + kMid + 1, right_k, new_internal->keys);
-      std::copy_n(temp_children + kMid + 1, right_k + 1,
-                  new_internal->children);
-      new_internal->num_keys = static_cast<uint8_t>(right_k);
-      std::fill_n(new_internal->keys + right_k, Internal::kCapacity - right_k,
-                  std::numeric_limits<StorageKeyT>::max());
-    }
-
-    // Root split (grows tree height by 1)
-    auto* new_root = new Internal();
-    state_->num_internals_++;
-    new_root->keys[0] = promo_key;
-    new_root->children[0] = state_->root_;
-    new_root->children[1] = promo_child;
-    new_root->num_keys = 1;
-    state_->root_ = new_root;
-    state_->tree_height_++;
+    PropagateSplit(promo_key, new_leaf, path, child_indices);
 
     return {FindInternal(key), true};
   }
