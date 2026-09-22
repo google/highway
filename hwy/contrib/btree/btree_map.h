@@ -224,16 +224,12 @@ class BTreeMap {
     const_iterator& operator--() {
       if (HWY_UNLIKELY(leaf_ == nullptr)) {
         leaf_ = last_leaf_;
-        slot_ = (leaf_ != nullptr && leaf_->NumKeys() > 0)
-                    ? leaf_->NumKeys() - 1
-                    : 0;
+        slot_ = (leaf_ != nullptr) ? leaf_->NumKeys() - 1 : 0;
         return *this;
       }
       if (HWY_UNLIKELY(slot_ == 0)) {
         leaf_ = leaf_->Prev();
-        slot_ = (leaf_ != nullptr && leaf_->NumKeys() > 0)
-                    ? leaf_->NumKeys() - 1
-                    : 0;
+        slot_ = (leaf_ != nullptr) ? leaf_->NumKeys() - 1 : 0;
       } else {
         --slot_;
       }
@@ -569,6 +565,10 @@ class BTreeMap {
   }
   std::pair<iterator, bool> insert(const value_type& kv) {
     return insert(kv.first, kv.second);
+  }
+  template <typename... Args>
+  std::pair<iterator, bool> emplace(KeyT key, Args&&... args) {
+    return insert(key, ValueT(std::forward<Args>(args)...));
   }
   std::pair<iterator, bool> insert_or_assign(KeyT key, const ValueT& value) {
     StorageValueT s_val = hwy::BitCastScalar<StorageValueT>(value);

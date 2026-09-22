@@ -112,16 +112,12 @@ class BTreeSet {
     const_iterator& operator--() {
       if (HWY_UNLIKELY(leaf_ == nullptr)) {
         leaf_ = last_leaf_;
-        slot_ = (leaf_ != nullptr && leaf_->NumKeys() > 0)
-                    ? leaf_->NumKeys() - 1
-                    : 0;
+        slot_ = (leaf_ != nullptr) ? leaf_->NumKeys() - 1 : 0;
         return *this;
       }
       if (HWY_UNLIKELY(slot_ == 0)) {
         leaf_ = leaf_->Prev();
-        slot_ = (leaf_ != nullptr && leaf_->NumKeys() > 0)
-                    ? leaf_->NumKeys() - 1
-                    : 0;
+        slot_ = (leaf_ != nullptr) ? leaf_->NumKeys() - 1 : 0;
       } else {
         --slot_;
       }
@@ -385,6 +381,10 @@ class BTreeSet {
   }
 
   std::pair<iterator, bool> insert(KeyT key);
+  template <typename... Args>
+  std::pair<iterator, bool> emplace(Args&&... args) {
+    return insert(KeyT(std::forward<Args>(args)...));
+  }
   size_t erase(KeyT key);
 
   const LeafT* last_leaf() const { return state_.last_leaf_; }

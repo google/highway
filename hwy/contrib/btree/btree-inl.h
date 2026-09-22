@@ -276,6 +276,7 @@ template <BoundMode kBound = BoundMode::kLowerBound, typename LeafNode,
           typename KeyT>
 HWY_INLINE size_t FindLeafSlot(const LeafNode* HWY_RESTRICT leaf, KeyT target) {
   using Node = LeafNode;
+  HWY_DASSERT(leaf->NumKeys() > 0);
   if constexpr (kBound == BoundMode::kLowerBound) {
     if (HWY_UNLIKELY(target <= leaf->base_key)) return 0;
   } else {
@@ -314,6 +315,7 @@ template <typename LeafNode, typename KeyT>
 HWY_INLINE bool LeafContains(const LeafNode* HWY_RESTRICT leaf, KeyT target,
                              size_t* HWY_RESTRICT out_slot = nullptr) {
   using Node = LeafNode;
+  HWY_DASSERT(leaf->NumKeys() > 0);
 
   // If caller requested the exact slot index (for insert/erase/find),
   // compute the lower_bound slot via Lt comparisons.
@@ -1161,10 +1163,13 @@ void MergeLeaves(LeafNode<KeyT>* leaf, LeafNode<KeyT>* next_leaf,
   const size_t leaf_keys = leaf->NumKeys();
   const size_t next_keys = next_leaf->NumKeys();
   if (next_keys > 0) {
+    const size_t total_keys = leaf_keys + next_keys;
+    // A single 512B leaf holds at most kMax8 (<= 492) keys, guaranteeing
+    // total_keys fits within the 512-element stack buffer below.
+    HWY_DASSERT(total_keys <= LeafNode<KeyT>::kMax8);
     KeyT temp_keys[512];
     DecompressLeaf(leaf, temp_keys);
     DecompressLeaf(next_leaf, temp_keys + leaf_keys);
-    const size_t total_keys = leaf_keys + next_keys;
     CompressIntoLeaf(leaf, temp_keys, total_keys);
   }
 
@@ -1188,11 +1193,14 @@ void MergeLeaves(MapLeafNode<KeyT, ValueT>* leaf,
   const size_t leaf_keys = leaf->NumKeys();
   const size_t next_keys = next_leaf->NumKeys();
   if (next_keys > 0) {
+    const size_t total_keys = leaf_keys + next_keys;
+    // A single 512B leaf holds at most kMax8 (<= 96) pairs, guaranteeing
+    // total_keys fits within the 512-element stack buffers below.
+    HWY_DASSERT((total_keys <= MapLeafNode<KeyT, ValueT>::kMax8));
     KeyT temp_keys[512];
     ValueT temp_values[512];
     DecompressLeaf(leaf, temp_keys, temp_values);
     DecompressLeaf(next_leaf, temp_keys + leaf_keys, temp_values + leaf_keys);
-    const size_t total_keys = leaf_keys + next_keys;
     CompressIntoLeaf(leaf, temp_keys, temp_values, total_keys);
   }
 
@@ -1320,16 +1328,12 @@ class BTree {
     const_iterator& operator--() {
       if (HWY_UNLIKELY(leaf_ == nullptr)) {
         leaf_ = last_leaf_;
-        slot_ = (leaf_ != nullptr && leaf_->NumKeys() > 0)
-                    ? leaf_->NumKeys() - 1
-                    : 0;
+        slot_ = (leaf_ != nullptr) ? leaf_->NumKeys() - 1 : 0;
         return *this;
       }
       if (HWY_UNLIKELY(slot_ == 0)) {
         leaf_ = leaf_->Prev();
-        slot_ = (leaf_ != nullptr && leaf_->NumKeys() > 0)
-                    ? leaf_->NumKeys() - 1
-                    : 0;
+        slot_ = (leaf_ != nullptr) ? leaf_->NumKeys() - 1 : 0;
       } else {
         --slot_;
       }
@@ -1968,8 +1972,7 @@ class BTree {
         size_t slot = FindLeafSlot(leaf, q[b]);
         if (HWY_LIKELY(slot < leaf->NumKeys())) {
           results[i + b] = const_iterator(leaf, slot, state_->last_leaf_);
-        } else if (HWY_LIKELY(leaf->Next() != nullptr &&
-                              leaf->Next()->NumKeys() > 0)) {
+        } else if (HWY_LIKELY(leaf->Next() != nullptr)) {
           results[i + b] = const_iterator(leaf->Next(), 0, state_->last_leaf_);
         } else {
           results[i + b] = end();
@@ -1997,7 +2000,8 @@ class BTree {
   template <typename V = mapped_type,
             typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
   std::pair<iterator, bool> insert(const std::pair<KeyT, V>& kv) {
-    return InsertMapInternal(KeyCodec<KeyT>::ToStorage(kv.first), kv.second,
+    return InsertMapInternal(KeyCodec<KeyT>::ToStorage(kv.first),
+                             static_cast<mapped_type>(kv.second),
                              /*assign_if_exists=*/false);
   }
 
@@ -2006,7 +2010,8 @@ class BTree {
   template <typename V = mapped_type,
             typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
   std::pair<iterator, bool> insert(KeyT key, const V& value) {
-    return InsertMapInternal(KeyCodec<KeyT>::ToStorage(key), value,
+    return InsertMapInternal(KeyCodec<KeyT>::ToStorage(key),
+                             static_cast<mapped_type>(value),
                              /*assign_if_exists=*/false);
   }
 
@@ -2014,15 +2019,16 @@ class BTree {
   template <typename V = mapped_type,
             typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
   std::pair<iterator, bool> insert_or_assign(KeyT key, const V& value) {
-    return InsertMapInternal(KeyCodec<KeyT>::ToStorage(key), value,
+    return InsertMapInternal(KeyCodec<KeyT>::ToStorage(key),
+                             static_cast<mapped_type>(value),
                              /*assign_if_exists=*/true);
   }
 
-  // Emplaces a key-value pair into the Map.
+  // Emplaces a key-value pair into the Map (does not overwrite if key exists).
   template <typename V = mapped_type, typename... Args,
             typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
   std::pair<iterator, bool> emplace(KeyT key, Args&&... args) {
-    return insert_or_assign(key, V(std::forward<Args>(args)...));
+    return insert(key, V(std::forward<Args>(args)...));
   }
 
   // Emplaces a key into the Set.
@@ -2197,7 +2203,7 @@ class BTree {
     if (HWY_LIKELY(slot < leaf->NumKeys())) {
       return const_iterator(leaf, slot, state_->last_leaf_);
     }
-    if (HWY_LIKELY(leaf->Next() != nullptr && leaf->Next()->NumKeys() > 0)) {
+    if (HWY_LIKELY(leaf->Next() != nullptr)) {
       return const_iterator(leaf->Next(), 0, state_->last_leaf_);
     }
     return end();
@@ -2216,7 +2222,7 @@ class BTree {
     if (HWY_LIKELY(slot < leaf->NumKeys())) {
       return iterator(leaf, slot, state_->last_leaf_);
     }
-    if (HWY_LIKELY(leaf->Next() != nullptr && leaf->Next()->NumKeys() > 0)) {
+    if (HWY_LIKELY(leaf->Next() != nullptr)) {
       return iterator(leaf->Next(), 0, state_->last_leaf_);
     }
     return end();
@@ -2235,7 +2241,7 @@ class BTree {
     if (slot < leaf->NumKeys()) {
       return const_iterator(leaf, slot, state_->last_leaf_);
     }
-    if (leaf->Next() != nullptr && leaf->Next()->NumKeys() > 0) {
+    if (leaf->Next() != nullptr) {
       return const_iterator(leaf->Next(), 0, state_->last_leaf_);
     }
     return end();
@@ -2254,7 +2260,7 @@ class BTree {
     if (slot < leaf->NumKeys()) {
       return iterator(leaf, slot, state_->last_leaf_);
     }
-    if (leaf->Next() != nullptr && leaf->Next()->NumKeys() > 0) {
+    if (leaf->Next() != nullptr) {
       return iterator(leaf->Next(), 0, state_->last_leaf_);
     }
     return end();

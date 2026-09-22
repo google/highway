@@ -513,6 +513,21 @@ void DoFullContainerTest(const std::vector<typename TreeT::value_type>& values,
     checker.CheckLookup(k);
   }
   checker.verify();
+  if (!inserted_keys.empty()) {
+    key_type existing_k = inserted_keys[0];
+    if constexpr (kIsMap) {
+      using mapped_type = typename TreeT::mapped_type;
+      auto [it, inserted] =
+          checker.tree().emplace(existing_k, static_cast<mapped_type>(999));
+      HWY_ASSERT(!inserted);
+      HWY_ASSERT(it != checker.tree().end());
+    } else {
+      auto [it, inserted] = checker.tree().emplace(existing_k);
+      HWY_ASSERT(!inserted);
+      HWY_ASSERT(it != checker.tree().end());
+    }
+    checker.verify();
+  }
 
   // Preserve original insertion order (sorted, rsorted, or random)
   const std::vector<key_type> initial_order_keys = inserted_keys;

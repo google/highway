@@ -69,7 +69,18 @@ void TestCustomValues() {
     HWY_ASSERT_EQ(true, it != map32.end());
     HWY_ASSERT_EQ(true, (it->second == Custom32(1, 2)));
 
+    auto [it_new, inserted_new] = map32.emplace(30, 5, 6);
+    HWY_ASSERT_EQ(true, inserted_new);
+    HWY_ASSERT_EQ(true, (it_new->second == Custom32(5, 6)));
+
+    // emplace on existing key must NOT overwrite existing value
+    auto [it_dup, inserted_dup] = map32.emplace(10, 99, 99);
+    HWY_ASSERT_EQ(false, inserted_dup);
+    HWY_ASSERT_EQ(true, (it_dup->second == Custom32(1, 2)));
+    HWY_ASSERT_EQ(true, (map32[10] == Custom32(1, 2)));
+
     map32.erase(10);
+    map32.erase(30);
     HWY_ASSERT_EQ(size_t{1}, map32.size());
     HWY_ASSERT_EQ(true, map32.find(10) == map32.end());
   }
