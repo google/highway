@@ -399,7 +399,7 @@ struct FunctionCache {
   // exported functions, even those defined by different translation units,
   // will dispatch directly to the best available target.
 #if HWY_DISPATCH_MAP
-  template <class ExportsKey, uint64_t kHash>
+  template <class ExportsKey, uint64_t kHash, int64_t kMask>
   static RetType ChooseAndCall(Args... args) {
     ChosenTarget& chosen_target = GetChosenTarget();
     chosen_target.Update(SupportedTargets());
@@ -408,24 +408,24 @@ struct FunctionCache {
         FuncPtr, RemoveCvRef<ExportsKey>, kHash>();
     HWY_ASSERT(table);
 
-    return (table[chosen_target.GetIndex()])(args...);
+    return (table[chosen_target.GetIndex(kMask)])(args...);
   }
 
 #if !HWY_DISPATCH_WORKAROUND
-  template <const FuncPtr* table>
+  template <const FuncPtr* table, int64_t kMask>
   static RetType TableChooseAndCall(Args... args) {
     ChosenTarget& chosen_target = GetChosenTarget();
     chosen_target.Update(SupportedTargets());
-    return (table[chosen_target.GetIndex()])(args...);
+    return (table[chosen_target.GetIndex(kMask)])(args...);
   }
 #endif  // !HWY_DISPATCH_WORKAROUND
 
 #else   // !HWY_DISPATCH_MAP: zero-overhead, but requires C++17
-  template <const FuncPtr* table>
+  template <const FuncPtr* table, int64_t kMask>
   static RetType ChooseAndCall(Args... args) {
     ChosenTarget& chosen_target = GetChosenTarget();
     chosen_target.Update(SupportedTargets());
-    return (table[chosen_target.GetIndex()])(args...);
+    return (table[chosen_target.GetIndex(kMask)])(args...);
   }
 #endif  // HWY_DISPATCH_MAP
 };
@@ -571,7 +571,8 @@ struct AddExport {
       &decltype(hwy::DeduceFunctionCache(&HWY_STATIC_DISPATCH(FUNC_NAME)))::  \
           template ChooseAndCall<decltype(HWY_CONCAT(                         \
                                      TABLE_NAME, HighwayDispatchExportsKey)), \
-                                 hwy::FNV(#TABLE_NAME)>,                      \
+                                 hwy::FNV(#TABLE_NAME),                       \
+                                 HWY_CHOSEN_TARGET_MASK_TARGETS>,             \
       HWY_CHOOSE_TARGET_LIST(FUNC_NAME),                                      \
       HWY_CHOOSE_FALLBACK(FUNC_NAME),                                         \
   };                                                                          \
@@ -591,7 +592,8 @@ struct AddExport {
       /* The first entry in the table initializes the global cache and       \
        * calls the appropriate function. */                                  \
       &decltype(hwy::DeduceFunctionCache(&HWY_STATIC_DISPATCH(FUNC_NAME))):: \
-          template TableChooseAndCall<HWY_DISPATCH_TABLE(FUNC_NAME)>,        \
+          template TableChooseAndCall<HWY_DISPATCH_TABLE(FUNC_NAME),         \
+                                      HWY_CHOSEN_TARGET_MASK_TARGETS>,       \
       HWY_CHOOSE_TARGET_LIST(FUNC_NAME),                                     \
       HWY_CHOOSE_FALLBACK(FUNC_NAME),                                        \
   }
@@ -607,7 +609,8 @@ struct AddExport {
       /* The first entry in the table initializes the global cache and       \
        * calls the appropriate function. */                                  \
       &decltype(hwy::DeduceFunctionCache(&HWY_STATIC_DISPATCH(FUNC_NAME))):: \
-          template ChooseAndCall<HWY_DISPATCH_TABLE(TABLE_NAME)>,            \
+          template ChooseAndCall<HWY_DISPATCH_TABLE(TABLE_NAME),             \
+                                 HWY_CHOSEN_TARGET_MASK_TARGETS>,            \
       HWY_CHOOSE_TARGET_LIST(FUNC_NAME),                                     \
       HWY_CHOOSE_FALLBACK(FUNC_NAME),                                        \
   }
@@ -619,8 +622,9 @@ struct AddExport {
 // HWY_DISPATCH_MAP only affects how tables are created, not their usage.
 
 // Evaluates to the function pointer for the chosen target.
-#define HWY_DYNAMIC_POINTER(FUNC_NAME) \
-  (HWY_DISPATCH_TABLE(FUNC_NAME)[hwy::GetChosenTarget().GetIndex()])
+#define HWY_DYNAMIC_POINTER(FUNC_NAME)                              \
+  (HWY_DISPATCH_TABLE(FUNC_NAME)[hwy::GetChosenTarget().GetIndex(   \
+      HWY_CHOSEN_TARGET_MASK_TARGETS)])
 
 // Calls the function pointer for the chosen target.
 #if HWY_COMPILER_GCC || HWY_COMPILER_CLANG

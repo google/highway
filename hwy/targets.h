@@ -357,13 +357,12 @@ struct ChosenTarget {
   bool IsInitialized() const { return LoadMask() != 1; }
 
   // Return the index in the dynamic dispatch table to be used by the current
-  // CPU. Note that this method must be in the header file so it uses the value
-  // of HWY_CHOSEN_TARGET_MASK_TARGETS defined in the translation unit that
-  // calls it, which may be different from others. This means we only enable
-  // those targets that were actually compiled in this module.
-  size_t HWY_INLINE GetIndex() const {
+  // CPU. `mask` must be passed by the caller (as
+  // HWY_CHOSEN_TARGET_MASK_TARGETS) so that it reflects the targets compiled in
+  // the calling translation unit even if GetIndex is not inlined.
+  size_t HWY_INLINE GetIndex(int64_t mask) const {
     return hwy::Num0BitsBelowLS1Bit_Nonzero64(
-        static_cast<uint64_t>(LoadMask() & HWY_CHOSEN_TARGET_MASK_TARGETS));
+        static_cast<uint64_t>(LoadMask() & mask));
   }
 
  private:
