@@ -5,10 +5,12 @@
 #include <stdio.h>
 
 #include <algorithm>
+#include <limits>
 #include <set>
 #include <utility>
 #include <vector>
 
+#include "hwy/contrib/btree/btree_nodes.h"
 #include "hwy/tests/test_util-inl.h"
 
 // Per-target include guard
@@ -292,9 +294,139 @@ class BTreeChecker {
     }
   }
 
+  static void VerifyPhysicalTree(const TreeT& tree_) {
+    using StorageKeyT = typename KeyCodec<key_type>::StorageKey;
+    using InternalNodeT = InternalNode<StorageKeyT>;
+    const auto* st = tree_.state();
+
+    if (tree_.empty()) {
+      HWY_ASSERT(st->root_ == nullptr);
+      HWY_ASSERT(st->first_leaf_ == nullptr);
+      HWY_ASSERT(st->last_leaf_ == nullptr);
+      HWY_ASSERT_EQ(st->tree_height_, size_t{0});
+      HWY_ASSERT_EQ(st->num_leaves_, size_t{0});
+      HWY_ASSERT_EQ(st->num_internals_, size_t{0});
+      HWY_ASSERT(tree_.begin() == tree_.end());
+      return;
+    }
+
+    HWY_ASSERT(st->root_ != nullptr);
+    HWY_ASSERT(st->first_leaf_ != nullptr);
+    HWY_ASSERT(st->last_leaf_ != nullptr);
+    HWY_ASSERT(st->first_leaf_->Prev() == nullptr);
+    HWY_ASSERT(st->last_leaf_->Next() == nullptr);
+
+    struct NodeBounds {
+      const void* node;
+      bool has_lo;
+      StorageKeyT lo;
+      bool has_hi;
+      StorageKeyT hi;
+    };
+
+    std::vector<NodeBounds> level{{st->root_, false, 0, false, 0}};
+    size_t visited_internals = 0;
+
+    for (size_t h = st->tree_height_; h > 0; --h) {
+      std::vector<NodeBounds> next;
+      for (const auto& item : level) {
+        HWY_ASSERT(item.node != nullptr);
+        const auto* internal = static_cast<const InternalNodeT*>(item.node);
+        visited_internals++;
+
+        if (h == st->tree_height_) {
+          HWY_ASSERT(internal->num_keys >= 1 &&
+                     internal->num_keys <= InternalNodeT::kCapacity);
+        } else {
+          HWY_ASSERT(internal->num_keys >= InternalNodeT::kCapacity / 2 &&
+                     internal->num_keys <= InternalNodeT::kCapacity);
+        }
+
+        for (size_t k = 0; k < internal->num_keys; ++k) {
+          if (k > 0) {
+            HWY_ASSERT(internal->keys[k - 1] < internal->keys[k]);
+          }
+          if (item.has_lo) {
+            HWY_ASSERT(internal->keys[k] >= item.lo);
+          }
+          if (item.has_hi) {
+            HWY_ASSERT(internal->keys[k] <= item.hi);
+          }
+        }
+
+        // Verify unused key and child slots hold sentinels (MAX and nullptr)
+        for (size_t k = internal->num_keys; k < InternalNodeT::kCapacity; ++k) {
+          HWY_ASSERT_EQ(internal->keys[k],
+                        std::numeric_limits<StorageKeyT>::max());
+        }
+        for (size_t c = internal->num_keys + 1; c < InternalNodeT::kMaxChildren;
+             ++c) {
+          HWY_ASSERT(internal->children[c] == nullptr);
+        }
+
+        for (size_t c = 0; c <= internal->num_keys; ++c) {
+          HWY_ASSERT(internal->children[c] != nullptr);
+          const bool c_has_lo = (c > 0) ? true : item.has_lo;
+          const StorageKeyT c_lo = (c > 0) ? internal->keys[c - 1] : item.lo;
+          const bool c_has_hi = (c < internal->num_keys) ? true : item.has_hi;
+          const StorageKeyT c_hi =
+              (c < internal->num_keys) ? internal->keys[c] : item.hi;
+          next.push_back(
+              {internal->children[c], c_has_lo, c_lo, c_has_hi, c_hi});
+        }
+      }
+      level = std::move(next);
+    }
+
+    HWY_ASSERT_EQ(visited_internals, st->num_internals_);
+    HWY_ASSERT_EQ(level.size(), st->num_leaves_);
+
+    using LeafPtrT = decltype(st->first_leaf_);
+    HWY_ASSERT(static_cast<LeafPtrT>(const_cast<void*>(level.front().node)) ==
+               st->first_leaf_);
+    HWY_ASSERT(static_cast<LeafPtrT>(const_cast<void*>(level.back().node)) ==
+               st->last_leaf_);
+
+    size_t total_leaf_keys = 0;
+    for (size_t i = 0; i < level.size(); ++i) {
+      const auto* leaf =
+          static_cast<const std::remove_pointer_t<LeafPtrT>*>(level[i].node);
+      HWY_ASSERT(leaf->NumKeys() >= 1);
+      total_leaf_keys += leaf->NumKeys();
+
+      if (i == 0) {
+        HWY_ASSERT(leaf->Prev() == nullptr);
+      } else {
+        HWY_ASSERT(leaf->Prev() ==
+                   static_cast<LeafPtrT>(const_cast<void*>(level[i - 1].node)));
+      }
+      if (i + 1 == level.size()) {
+        HWY_ASSERT(leaf->Next() == nullptr);
+      } else {
+        HWY_ASSERT(leaf->Next() ==
+                   static_cast<LeafPtrT>(const_cast<void*>(level[i + 1].node)));
+      }
+
+      for (size_t k = 0; k < leaf->NumKeys(); ++k) {
+        const StorageKeyT sk = GetLeafKey(leaf, k);
+        if (k > 0) {
+          HWY_ASSERT(GetLeafKey(leaf, k - 1) < sk);
+        }
+        if (level[i].has_lo) {
+          HWY_ASSERT(sk >= level[i].lo);
+        }
+        if (level[i].has_hi) {
+          HWY_ASSERT(sk <= level[i].hi);
+        }
+      }
+    }
+    HWY_ASSERT_EQ(total_leaf_keys, st->num_elements_);
+  }
+
   void verify() const {
     HWY_ASSERT_EQ(tree_.size(), ref_.size());
     HWY_ASSERT_EQ(tree_.empty(), ref_.empty());
+    VerifyPhysicalTree(tree_);
 
     // 1. Forward iteration
     auto ref_it = ref_.begin();
@@ -382,6 +514,11 @@ void DoFullContainerTest(const std::vector<typename TreeT::value_type>& values,
   }
   checker.verify();
 
+  // Preserve original insertion order (sorted, rsorted, or random)
+  const std::vector<key_type> initial_order_keys = inserted_keys;
+  std::vector<key_type> sorted_keys = inserted_keys;
+  std::sort(sorted_keys.begin(), sorted_keys.end());
+
   // 2. Lookups on all inserted keys and random queries
   for (key_type k : inserted_keys) {
     checker.CheckLookup(k);
@@ -408,7 +545,7 @@ void DoFullContainerTest(const std::vector<typename TreeT::value_type>& values,
     HWY_ASSERT_EQ(checker.tree().size(), checker.ref().size());
   }
 
-  // 4. Deletions (Erase half the inserted elements)
+  // 4. Deletions (Erase half the inserted elements in random order)
   AesCtrEngine engine3(/*deterministic=*/true);
   RngStream shuf_rng(engine3, seed + 84);
   std::shuffle(inserted_keys.begin(), inserted_keys.end(), shuf_rng);
@@ -427,18 +564,63 @@ void DoFullContainerTest(const std::vector<typename TreeT::value_type>& values,
   }
 
   // 5. Re-insertion of deleted elements
-  for (size_t i = 0; i < to_delete; ++i) {
-    key_type k = inserted_keys[i];
+  auto reinsert_key = [&](key_type k) {
     if constexpr (kIsMap) {
       checker.insert({k, static_cast<typename TreeT::mapped_type>(k * 10 + 3)});
     } else {
       checker.insert(k);
     }
-    checker.CheckLookup(k);
+  };
+  for (size_t i = 0; i < to_delete; ++i) {
+    reinsert_key(inserted_keys[i]);
+    checker.CheckLookup(inserted_keys[i]);
   }
   checker.verify();
 
-  // 6. Clear
+  // 6. Sub-range deletions (matching absl::btree_test.cc: first half, second
+  // half, and middle quarter)
+  const size_t n_keys = sorted_keys.size();
+  // 6a. First half [0, N/2)
+  for (size_t i = 0; i < n_keys / 2; ++i) checker.erase(sorted_keys[i]);
+  checker.verify();
+  for (size_t i = 0; i < n_keys / 2; ++i) reinsert_key(sorted_keys[i]);
+  checker.verify();
+
+  // 6b. Second half [N/2, N)
+  for (size_t i = n_keys / 2; i < n_keys; ++i) checker.erase(sorted_keys[i]);
+  checker.verify();
+  for (size_t i = n_keys / 2; i < n_keys; ++i) reinsert_key(sorted_keys[i]);
+  checker.verify();
+
+  // 6c. Middle quarter [N/4, N/2)
+  for (size_t i = n_keys / 4; i < n_keys / 2; ++i) {
+    checker.erase(sorted_keys[i]);
+  }
+  checker.verify();
+  for (size_t i = n_keys / 4; i < n_keys / 2; ++i) {
+    reinsert_key(sorted_keys[i]);
+  }
+  checker.verify();
+
+  // 7. Full 100% drain in the input's order (sorted = front-to-back, rsorted =
+  // back-to-front, random = random)
+  const size_t split_60 = (initial_order_keys.size() * 3) / 5;
+  for (size_t i = 0; i < split_60; ++i) {
+    checker.erase(initial_order_keys[i]);
+    HWY_ASSERT_EQ(checker.erase(initial_order_keys[i]), size_t{0});
+  }
+  checker.verify();
+
+  for (size_t i = split_60; i < initial_order_keys.size(); ++i) {
+    checker.erase(initial_order_keys[i]);
+    HWY_ASSERT_EQ(checker.erase(initial_order_keys[i]), size_t{0});
+  }
+  checker.verify();
+  HWY_ASSERT(checker.empty());
+  HWY_ASSERT_EQ(checker.tree().height(), size_t{0});
+  HWY_ASSERT(checker.tree().begin() == checker.tree().end());
+
+  // 8. Clear
   checker.clear();
 }
 
@@ -458,6 +640,7 @@ void DoBulkBuildAndBatchTest(size_t n, uint32_t seed) {
     TreeT tree = BuildTreeFromValues<TreeT>(values, fill_ratio);
     HWY_ASSERT_EQ(tree.size(), ref.size());
     HWY_ASSERT_EQ(tree.empty(), ref.empty());
+    BTreeChecker<TreeT, StdRefT>::VerifyPhysicalTree(tree);
 
     // 1. In-order forward traversal
     auto ref_it = ref.begin();
@@ -867,12 +1050,23 @@ void RunFullTestSuite() {
   DoDiverseBitModesTest<TreeT>();
   DoExtremeBoundariesTest<TreeT, StdRefT>();
 
-  // Multi-level scale (AdjustedReps ensures ASan/MSan/QEMU builds don't
-  // timeout)
+  // Multi-level scale across sorted, rsorted, and random orderings (matching
+  // absl::btree_test.cc's BtreeTest()). AdjustedReps ensures ASan/MSan/QEMU
+  // builds don't timeout.
   const size_t kLargeScale = AdjustedReps(5000);
-  auto large_values = GenerateValuesWithSeed<typename TreeT::value_type>(
+  auto random_values = GenerateValuesWithSeed<typename TreeT::value_type>(
       kLargeScale, kLargeScale * 50, /*seed=*/98765);
-  DoFullContainerTest<TreeT, StdRefT>(large_values, /*seed=*/98765);
+
+  auto sorted_values = random_values;
+  std::sort(sorted_values.begin(), sorted_values.end(),
+            ValueComparator<typename TreeT::value_type>{});
+  DoFullContainerTest<TreeT, StdRefT>(sorted_values, /*seed=*/98765);
+
+  auto rsorted_values = sorted_values;
+  std::reverse(rsorted_values.begin(), rsorted_values.end());
+  DoFullContainerTest<TreeT, StdRefT>(rsorted_values, /*seed=*/98766);
+
+  DoFullContainerTest<TreeT, StdRefT>(random_values, /*seed=*/98767);
   DoBulkBuildAndBatchTest<TreeT, StdRefT>(kLargeScale, /*seed=*/56789);
 }
 

@@ -57,54 +57,113 @@ HWY_INLINE void ReduceAngleTan(D d, V ang, V& x_red, V& sign) {
 }
 
 // Range reduction and exponent extraction for logarithm functions.
-// Normalizes x to y in [0.707, 1.414] and extracts the exponent as a float in
-// 'exp'. If kHandleSubnormals is true, scales subnormal inputs to prevent
-// underflow.
+//
+// Mathematical Goal:
+// Every positive float x > 0 is represented in standard binary scientific
+// notation (buckets [2^k, 2^{k+1})) as:
+//   x = 2^k * m,   where k in Z and m = x / 2^k in [1.0, 2.0).
+// Taking the logarithm yields:
+//   ln(x) = k * ln(2) + ln(m).
+//
+// Why we shift the buckets by 0.75 to [0.75 * 2^e, 1.50 * 2^e):
+// If we used m in [1.0, 2.0) directly, x = 1.0 (where ln(1.0) = 0) would sit on
+// a bucket boundary: inputs x = 1 - eps just below 1.0 fall into the k = -1
+// bucket with m = 2 * x -> 2.0, causing (-1)*ln(2) + P(m) to suffer
+// catastrophic cancellation and huge relative error as ln(x) -> 0. Multiplying
+// all bucket boundaries by 0.75 shifts the buckets to [0.75 * 2^e, 1.50 * 2^e),
+// placing 1.0 safely inside the e = 0 bucket [0.75, 1.50). Dividing x by 2^e
+// gives:
+//   x = 2^e * y,   where e in Z and y = x / 2^e in [0.75, 1.50),
+//   ln(x) = e * ln(2) + ln(y).
+//
+// Specifically, starting from x = 2^k * m with m in [1.0, 2.0):
+//   - Case 1 (1.0 <= m < 1.50): e = k,     y = m     in [1.0, 1.50)
+//   - Case 2 (1.50 <= m < 2.0): e = k + 1, y = m / 2 in [0.75, 1.0)
 template <bool kHandleSubnormals = true, class D, class V>
 HWY_INLINE void FastLogRangeReduction(D d, V x, V& y, V& exp) {
-  using T = TFromD<D>;
-  const RebindToSigned<D> di;
-  const RebindToUnsigned<D> du;
-  using TI = TFromD<decltype(di)>;
-  using VI = decltype(Zero(di));
-
-  constexpr bool kIsF32 = (sizeof(T) == 4);
-
-  const VI kExpMagicDiff = Set(
-      di, kIsF32
-              ? static_cast<TI>(0x3F800000L - 0x3F3504F3L)
-              : static_cast<TI>(0x3FF0000000000000LL - 0x3FE6A09E00000000LL));
-
-  MFromD<D> is_denormal;
-  if constexpr (kHandleSubnormals) {
-    const V kMinNormal =
-        Set(d, kIsF32 ? static_cast<T>(1.175494351e-38f)
-                      : static_cast<T>(2.2250738585072014e-308));
-    const V kScale = Set(d, kIsF32 ? static_cast<T>(3.355443200e+7f)
-                                   : static_cast<T>(1.8014398509481984e+16));
-    is_denormal = Lt(x, kMinNormal);
-    x = MaskedMulOr(x, is_denormal, x, kScale);
+  if constexpr (HWY_NATIVE_GET_MANTISSA) {
+    // Path 1: Hardware Instructions on AVX-512 (VGETMANTPS/PD + VGETEXPPS/PD).
+    // Step 1: GetMantissa0p75_1p5(x) directly extracts y in [0.75, 1.50) in one
+    //         instruction (keeping y = m if m < 1.5, or halving to y = m / 2 if
+    //         m >= 1.5, while normalizing subnormals in hardware).
+    // Step 2: GetExponent(x) returns the original exponent k, and
+    //         GetExponent(y) returns 0 when y in [1.0, 1.50) or -1 when y in
+    //         [0.75, 1.0). Therefore:
+    //           exp = GetExponent(x) - GetExponent(y)
+    //               = k - 0    = k     (when m < 1.50)
+    //               = k - (-1) = k + 1 (when m >= 1.50)
+    //         yielding the exact shifted exponent e in both cases.
+    y = GetMantissa0p75_1p5(x);
+    exp = Sub(GetExponent(x), GetExponent(y));
   } else {
-    (void)is_denormal;
+    // Path 2: Software Bit-Manipulation Fallback.
+    // In IEEE-754, x = 2^k * m has integer bit representation:
+    //   bits(x) = (k + bias) * 2^p + M,
+    // where p = 23 (float32) or 52 (float64), and M in [0, 2^p) are the
+    // fractional bits of m = 1 + M / 2^p in [1.0, 2.0).
+    // Note that m >= 1.50 iff the top mantissa bit (bit p-1, value 2^{p-1})
+    // is 1.
+    using T = TFromD<D>;
+    const RebindToSigned<D> di;
+    const RebindToUnsigned<D> du;
+    using TI = TFromD<decltype(di)>;
+    using VI = decltype(Zero(di));
+
+    constexpr bool kIsF32 = (sizeof(T) == 4);
+
+    // Step 1: Compute shifted exponent e = k (if m < 1.5) or k + 1 (if m
+    // >= 1.5). kExpMagicDiff = bits(1.0) - bits(0.75) = 2^{p-1} (0x00400000 for
+    // float32, which is a single '1' at the top mantissa bit p-1, representing
+    // 0.5). Adding 2^{p-1} to bits(x) adds 1 to the top mantissa bit of M:
+    //   - If m < 1.50 (top mantissa bit is 0): no carry into bit p; exponent
+    //     field remains (k + bias).
+    //   - If m >= 1.50 (top mantissa bit is 1): 1 + 1 carries +1 into bit p;
+    //     exponent field becomes (k + 1 + bias).
+    const VI kExpMagicDiff = Set(
+        di, kIsF32
+                ? static_cast<TI>(0x3F800000L - 0x3F400000L)
+                : static_cast<TI>(0x3FF0000000000000LL - 0x3FE8000000000000LL));
+
+    MFromD<D> is_denormal;
+    if constexpr (kHandleSubnormals) {
+      const V kMinNormal =
+          Set(d, kIsF32 ? static_cast<T>(1.175494351e-38f)
+                        : static_cast<T>(2.2250738585072014e-308));
+      const V kScale = Set(d, kIsF32 ? static_cast<T>(3.355443200e+7f)
+                                     : static_cast<T>(1.8014398509481984e+16));
+      is_denormal = Lt(x, kMinNormal);
+      x = MaskedMulOr(x, is_denormal, x, kScale);
+    } else {
+      (void)is_denormal;
+    }
+
+    auto exp_bits = Add(BitCast(di, x), kExpMagicDiff);
+
+    // Step 2: Shift right by p bits and subtract bias to obtain integer e.
+    constexpr int kMantissaShift = kIsF32 ? 23 : 52;
+    const auto kBias = Set(di, kIsF32 ? 0x7F : 0x3FF);
+    const auto exp_int = Sub(
+        BitCast(di, ShiftRight<kMantissaShift>(BitCast(du, exp_bits))), kBias);
+    exp = ConvertTo(d, exp_int);
+
+    if constexpr (kHandleSubnormals) {
+      const V kExpScaleFloat =
+          Set(d, kIsF32 ? static_cast<T>(-25.0) : static_cast<T>(-54.0));
+      exp = MaskedAddOr(exp, is_denormal, exp, kExpScaleFloat);
+    }
+
+    // Step 3: Compute y = x / 2^e in [0.75, 1.50).
+    // Dividing x by 2^e in IEEE-754 simply subtracts e from x's exponent field
+    // (i.e., subtracting e * 2^p from bits(x)):
+    //   y_bits = bits(x) - e * 2^p = ((k - e) + bias) * 2^p + M
+    //   - If m < 1.50 (e = k):     k - e = 0  -> exponent is 0  -> y = m in
+    //   [1.0, 1.50)
+    //   - If m >= 1.50 (e = k + 1): k - e = -1 -> exponent is -1 -> y = m/2 in
+    //   [0.75, 1.0)
+    const VI exp_int_shifted = ShiftLeft<kMantissaShift>(exp_int);
+    const VI y_bits = Sub(BitCast(di, x), exp_int_shifted);
+    y = BitCast(d, y_bits);
   }
-
-  auto exp_bits = Add(BitCast(di, x), kExpMagicDiff);
-
-  constexpr int kMantissaShift = kIsF32 ? 23 : 52;
-  const auto kBias = Set(di, kIsF32 ? 0x7F : 0x3FF);
-  const auto exp_int = Sub(
-      BitCast(di, ShiftRight<kMantissaShift>(BitCast(du, exp_bits))), kBias);
-  exp = ConvertTo(d, exp_int);
-
-  if constexpr (kHandleSubnormals) {
-    const V kExpScaleFloat =
-        Set(d, kIsF32 ? static_cast<T>(-25.0) : static_cast<T>(-54.0));
-    exp = MaskedAddOr(exp, is_denormal, exp, kExpScaleFloat);
-  }
-
-  const VI exp_int_shifted = ShiftLeft<kMantissaShift>(exp_int);
-  const VI y_bits = Sub(BitCast(di, x), exp_int_shifted);
-  y = BitCast(d, y_bits);
 }
 
 }  // namespace impl
@@ -744,14 +803,14 @@ HWY_INLINE V FastLogPoly(D d, V z) {
 
   // Centering the approximation around z = y - 1 significantly improves
   // accuracy for low-degree polynomials compared to approximating log(y)
-  // directly. This evaluates a degree-6 polynomial for log(1+z) on z in
-  // [-0.293, 0.415].
-  const auto c1 = Set(d, static_cast<T>(1.00000554887648 * scale));
-  const auto c2 = Set(d, static_cast<T>(-0.499913224389596 * scale));
-  const auto c3 = Set(d, static_cast<T>(0.332482347949672 * scale));
-  const auto c4 = Set(d, static_cast<T>(-0.253620465177317 * scale));
-  const auto c5 = Set(d, static_cast<T>(0.221685822570816 * scale));
-  const auto c6 = Set(d, static_cast<T>(-0.146434794822797 * scale));
+  // directly. This evaluates a degree-6 minimax polynomial for
+  // log(1+z) on z in [-0.25, 0.50] (corresponding to y in [0.75, 1.50)).
+  const auto c1 = Set(d, static_cast<T>(0.99999706695836765 * scale));
+  const auto c2 = Set(d, static_cast<T>(-0.49987522853513588 * scale));
+  const auto c3 = Set(d, static_cast<T>(0.33362333005435102 * scale));
+  const auto c4 = Set(d, static_cast<T>(-0.2562350754778312 * scale));
+  const auto c5 = Set(d, static_cast<T>(0.20391195859159791 * scale));
+  const auto c6 = Set(d, static_cast<T>(-0.10415052602438714 * scale));
 
   const auto z2 = Mul(z, z);
   const auto z4 = Mul(z2, z2);
@@ -775,8 +834,8 @@ HWY_INLINE V FastLogPoly(D d, V z) {
  * Fast approximation of log(x).
  *
  * Valid Lane Types: float32, float64
- * Max Relative Error: 0.00089%
- * Average Relative Error: 8.0e-6% for float32, 1.1e-6% for float64
+ * Max Relative Error: 0.00081% for float32, 0.00079% for float64
+ * Average Relative Error: 7.4e-6% for float32, 1.2e-6% for float64
  * Valid Range: float32: (0, +FLT_MAX]
  *              float64: (0, +DBL_MAX]
  *
@@ -1024,8 +1083,8 @@ HWY_INLINE V FastExpMinusOrZero(D d, V x) {
  * Fast approximation of log2(x).
  *
  * Valid Lane Types: float32, float64
- * Max Relative Error: 0.00089%
- * Average Relative Error: 7.0e-6% for float32, 1.1e-6% for float64
+ * Max Relative Error: 0.00081% for float32, 0.00079% for float64
+ * Average Relative Error: 7.4e-6% for float32, 1.2e-6% for float64
  * Valid Range: float32: (0, +FLT_MAX]
  *              float64: (0, +DBL_MAX]
  *
@@ -1051,8 +1110,8 @@ HWY_INLINE V FastLog2(D d, V x) {
  * Fast approximation of log10(x).
  *
  * Valid Lane Types: float32, float64
- * Max Relative Error: 0.00089%
- * Average Relative Error: 9.8e-6% for float32, 1.1e-6% for float64
+ * Max Relative Error: 0.00080% for float32, 0.00079% for float64
+ * Average Relative Error: 1.0e-5% for float32, 1.2e-6% for float64
  * Valid Range: float32: (0, +FLT_MAX]
  *              float64: (0, +DBL_MAX]
  *
@@ -1083,8 +1142,8 @@ HWY_INLINE V FastLog10(D d, V x) {
  * Fast approximation of log(1 + x).
  *
  * Valid Lane Types: float32, float64
- * Max Relative Error: 0.00089%
- * Average Relative Error: 7.5e-5% for float32, 2.1e-5% for float64
+ * Max Relative Error: 0.00081% for float32, 0.00079% for float64
+ * Average Relative Error: 4.9e-5% for float32, 1.2e-5% for float64
  * Valid Range: float32: [-1 + epsilon, +FLT_MAX]
  *              float64: [-1 + epsilon, +DBL_MAX]
  *

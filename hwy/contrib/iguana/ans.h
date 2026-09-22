@@ -32,9 +32,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <array>
 #include <vector>
 
 #include "hwy/base.h"  // HWY_CONTRIB_DLLEXPORT
+#include "hwy/highway_export.h"
 
 namespace hwy {
 namespace iguana {
@@ -70,7 +72,7 @@ struct HWY_CONTRIB_DLLEXPORT AnsStatistics {
 };
 
 // 4096-entry rANS decoding table: entry = (sym << 24) | (i << 12) | freq.
-using AnsDenseTable = std::vector<uint32_t>;
+using AnsDenseTable = std::array<uint32_t, kAnsWordM>;
 
 // Parses a table serialized by AnsStatistics::Serialize from the END of
 // `src[0, size)`. Returns the length of the data that precedes it (the rANS

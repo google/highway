@@ -5592,6 +5592,27 @@ HWY_API V GetExponent(V v) {
   return V{_mm_getexp_pd(v.raw)};
 }
 
+#ifdef HWY_NATIVE_GET_MANTISSA_TOGGLE
+#undef HWY_NATIVE_GET_MANTISSA_TOGGLE
+#else
+#define HWY_NATIVE_GET_MANTISSA_TOGGLE
+#endif
+
+#if HWY_HAVE_FLOAT16
+template <class V, HWY_IF_F16(TFromV<V>), HWY_IF_V_SIZE_LE_V(V, 16)>
+HWY_API V GetMantissa0p75_1p5(V v) {
+  return V{_mm_getmant_ph(v.raw, _MM_MANT_NORM_p75_1p5, _MM_MANT_SIGN_zero)};
+}
+#endif
+template <class V, HWY_IF_F32(TFromV<V>), HWY_IF_V_SIZE_LE_V(V, 16)>
+HWY_API V GetMantissa0p75_1p5(V v) {
+  return V{_mm_getmant_ps(v.raw, _MM_MANT_NORM_p75_1p5, _MM_MANT_SIGN_zero)};
+}
+template <class V, HWY_IF_F64(TFromV<V>), HWY_IF_V_SIZE_LE_V(V, 16)>
+HWY_API V GetMantissa0p75_1p5(V v) {
+  return V{_mm_getmant_pd(v.raw, _MM_MANT_NORM_p75_1p5, _MM_MANT_SIGN_zero)};
+}
+
 #endif
 
 // ------------------------------ MaskedMinOr

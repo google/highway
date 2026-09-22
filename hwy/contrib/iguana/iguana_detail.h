@@ -22,8 +22,8 @@
 // both paths; only the entropy stage differs (Ans32DecodeScalar vs
 // Ans32Decode). DecompressBlock is templated over that stage.
 
-#ifndef HIGHWAY_HWY_CONTRIB_IGUANA_DETAIL_H_
-#define HIGHWAY_HWY_CONTRIB_IGUANA_DETAIL_H_
+#ifndef HIGHWAY_HWY_CONTRIB_IGUANA_IGUANA_DETAIL_H_
+#define HIGHWAY_HWY_CONTRIB_IGUANA_IGUANA_DETAIL_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -34,6 +34,10 @@
 
 namespace hwy {
 namespace iguana {
+
+// iguana.cc and iguana_test.cc must agree on this, else we get a null pointer
+// for targets that the latter selected but the former disabled.
+#define HWY_IGUANA_DISABLED_TARGETS (HWY_SSE2 | HWY_SSSE3 | HWY_SSE4)
 
 // ------------------------------ Format constants
 //
@@ -310,26 +314,35 @@ HWY_INLINE bool DecompressIguanaLZ(std::vector<uint8_t>& dst,
 // control section, and no command may produce more than the declared total,
 // which (together with kMaxUncompressedSize) bounds "zip bombs".
 // Returns false on malformed input.
+// Body of DecompressBlock below, which is what callers use: this one may leave
+// partial output in `out` when it returns false.
 template <class DecodeFn>
-bool DecompressBlock(const uint8_t* src, size_t src_size,
-                     std::vector<uint8_t>& out, DecodeFn decode) {
+bool DecompressBlockImpl(const uint8_t* src, size_t src_size,
+                         std::vector<uint8_t>& out, DecodeFn decode) {
   if (src_size == 0) return false;
   bool ok = true;
   int64_t ctrl = static_cast<int64_t>(src_size) - 1;
   const uint64_t uncompressed_len = ReadControlVarUint(src, &ctrl, &ok);
   if (!ok) return false;
   out.clear();
-  if (uncompressed_len == 0) return true;
+  // An empty block carries no command, so the length must have been the only
+  // thing in it; trailing bytes mean the input is not the block it claims.
+  if (uncompressed_len == 0) return ctrl < 0;
   if (uncompressed_len > kMaxUncompressedSize) return false;
 
   size_t data_cursor = 0;
   // The payload is read forwards from the start and the control bytes backwards
   // from the end: they must not overlap, so a command may only use bytes that
   // are still in front of the control section. `ctrl` is the last unconsumed
-  // control byte, hence the +1.
+  // control byte, hence the +1; once it goes negative nothing is left.
   const auto have_payload = [&](uint64_t len) {
-    if (len > src_size - data_cursor) return false;
-    return data_cursor + len <= static_cast<uint64_t>(ctrl) + 1;
+    // `ctrl` moves backwards while `data_cursor` moves forwards, so once they
+    // meet there is nothing left; the subtraction has to be guarded (it is a
+    // subtraction, and not `data_cursor + len <= ...`, because that sum could
+    // wrap around). ctrl_begin <= src_size, so this also bounds the read.
+    const uint64_t ctrl_begin = ctrl < 0 ? 0 : static_cast<uint64_t>(ctrl) + 1;
+    if (ctrl_begin < data_cursor) return false;
+    return len <= ctrl_begin - data_cursor;
   };
   // One per stream, as a fixed array: a vector of vectors would reallocate as
   // entries are appended, and the streams below point into these buffers.
@@ -370,11 +383,19 @@ bool DecompressBlock(const uint8_t* src, size_t src_size,
         if (!ok) return false;
         IguanaStream streams[kStreamCount];
         uint64_t ulens[kStreamCount];
+        // Each stream is buffered in full before the LZ stage runs, so it is
+        // the *total* that has to be bounded: checking only each ulens[i]
+        // against the declared output would still let a tiny block ask for
+        // kStreamCount times that. The streams of a block the encoder
+        // produced are together smaller than its output, so the cap costs
+        // nothing in practice and the peak stays within kMaxUncompressedSize.
+        uint64_t ulens_total = 0;
         for (size_t i = 0; i < kStreamCount; ++i) {
           ulens[i] = ReadControlVarUint(src, &ctrl, &ok);
-          // Each stream is part of the output, so the declared total bounds
-          // it; the cap alone would still permit full-size allocations.
-          if (!ok || ulens[i] > uncompressed_len) return false;
+          if (!ok || ulens[i] > kMaxUncompressedSize - ulens_total) {
+            return false;
+          }
+          ulens_total += ulens[i];
         }
         for (size_t i = 0; i < kStreamCount; ++i) {
           const size_t mode = static_cast<size_t>((hdr >> (i * 4)) & 0xF);
@@ -425,7 +446,23 @@ bool DecompressBlock(const uint8_t* src, size_t src_size,
   }
 }
 
+// Decodes a complete Iguana block into `out` (which is replaced, not appended
+// to). `decode` is the entropy stage, i.e. Ans32DecodeScalar (scalar path) or
+// Ans32Decode (SIMD path):
+//   bool(const uint8_t* src, size_t src_size, uint8_t* dst, size_t orig_size)
+//
+// Returns false on malformed input, in which case `out` is left empty: a
+// rejected block must not leave half-decoded bytes behind for a caller that
+// forgets to check.
+template <class DecodeFn>
+bool DecompressBlock(const uint8_t* src, size_t src_size,
+                     std::vector<uint8_t>& out, DecodeFn decode) {
+  if (DecompressBlockImpl(src, src_size, out, decode)) return true;
+  out.clear();
+  return false;
+}
+
 }  // namespace iguana
 }  // namespace hwy
 
-#endif  // HIGHWAY_HWY_CONTRIB_IGUANA_DETAIL_H_
+#endif  // HIGHWAY_HWY_CONTRIB_IGUANA_IGUANA_DETAIL_H_

@@ -2889,6 +2889,21 @@ HWY_API V GetExponent(V v) {
   return V{_mm256_getexp_pd(v.raw)};
 }
 
+#if HWY_HAVE_FLOAT16
+template <class V, HWY_IF_F16(TFromV<V>), HWY_IF_V_SIZE_V(V, 32)>
+HWY_API V GetMantissa0p75_1p5(V v) {
+  return V{_mm256_getmant_ph(v.raw, _MM_MANT_NORM_p75_1p5, _MM_MANT_SIGN_zero)};
+}
+#endif
+template <class V, HWY_IF_F32(TFromV<V>), HWY_IF_V_SIZE_V(V, 32)>
+HWY_API V GetMantissa0p75_1p5(V v) {
+  return V{_mm256_getmant_ps(v.raw, _MM_MANT_NORM_p75_1p5, _MM_MANT_SIGN_zero)};
+}
+template <class V, HWY_IF_F64(TFromV<V>), HWY_IF_V_SIZE_V(V, 32)>
+HWY_API V GetMantissa0p75_1p5(V v) {
+  return V{_mm256_getmant_pd(v.raw, _MM_MANT_NORM_p75_1p5, _MM_MANT_SIGN_zero)};
+}
+
 #endif
 
 // ------------------------------ MaskedMinOr

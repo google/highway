@@ -2947,6 +2947,20 @@ HWY_API constexpr RemoveCvRef<T> NativeFromLittleEndian(T val) noexcept {
 #endif
 }
 
+HWY_API uint32_t LoadLE16(const uint8_t* p) {
+  return uint32_t{p[0]} | (uint32_t{p[1]} << 8);
+}
+HWY_API uint32_t LoadLE32(const uint8_t* p) {
+  return uint32_t{p[0]} | (uint32_t{p[1]} << 8) | (uint32_t{p[2]} << 16) |
+         (uint32_t{p[3]} << 24);
+}
+HWY_API uint64_t LoadLE64(const uint8_t* p) {
+  return uint64_t{p[0]} | (uint64_t{p[1]} << 8) | (uint64_t{p[2]} << 16) |
+         (uint64_t{p[3]} << 24) | (uint64_t{p[4]} << 32) |
+         (uint64_t{p[5]} << 40) | (uint64_t{p[6]} << 48) |
+         (uint64_t{p[7]} << 56);
+}
+
 namespace detail {
 
 // T is unsigned or T is signed and (val >> shift_amt) is an arithmetic right

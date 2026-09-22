@@ -32,418 +32,11 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
-/**
- * Highway SIMD version of std::acos(x).
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = 2
- *      Valid Range: [-1, +1]
- * @return arc cosine of 'x'
- */
-template <class D, class V>
-HWY_INLINE V Acos(D d, V x);
-template <class D, class V>
-HWY_NOINLINE V CallAcos(const D d, VecArg<V> x) {
-  return Acos(d, x);
-}
-
-/**
- * Highway SIMD version of std::acosh(x).
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = 3
- *      Valid Range: float32[1, +FLT_MAX], float64[1, +DBL_MAX]
- * @return hyperbolic arc cosine of 'x'
- */
-template <class D, class V>
-HWY_INLINE V Acosh(D d, V x);
-template <class D, class V>
-HWY_NOINLINE V CallAcosh(const D d, VecArg<V> x) {
-  return Acosh(d, x);
-}
-
-/**
- * Highway SIMD version of std::asin(x).
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = 2
- *      Valid Range: [-1, +1]
- * @return arc sine of 'x'
- */
-template <class D, class V>
-HWY_INLINE V Asin(D d, V x);
-template <class D, class V>
-HWY_NOINLINE V CallAsin(const D d, VecArg<V> x) {
-  return Asin(d, x);
-}
-
-/**
- * Highway SIMD version of std::asinh(x).
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = 3
- *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
- * @return hyperbolic arc sine of 'x'
- */
-template <class D, class V>
-HWY_INLINE V Asinh(D d, V x);
-template <class D, class V>
-HWY_NOINLINE V CallAsinh(const D d, VecArg<V> x) {
-  return Asinh(d, x);
-}
-
-/**
- * Highway SIMD version of std::atan(x).
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = 3
- *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
- * @return arc tangent of 'x'
- */
-template <class D, class V>
-HWY_INLINE V Atan(D d, V x);
-template <class D, class V>
-HWY_NOINLINE V CallAtan(const D d, VecArg<V> x) {
-  return Atan(d, x);
-}
-
-/**
- * Highway SIMD version of std::atanh(x).
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = 3
- *      Valid Range: (-1, +1)
- * @return hyperbolic arc tangent of 'x'
- */
-template <class D, class V>
-HWY_INLINE V Atanh(D d, V x);
-template <class D, class V>
-HWY_NOINLINE V CallAtanh(const D d, VecArg<V> x) {
-  return Atanh(d, x);
-}
-
 // Atan2 was added later and some users may be implementing it themselves, so
 // notify them that this version of Highway defines it already.
 #ifndef HWY_HAVE_ATAN2
 #define HWY_HAVE_ATAN2 1
 #endif
-
-/**
- * Highway SIMD version of std::atan2(x).
- *
- * Valid Lane Types: float32, float64
- * Correctly handles negative zero, infinities, and NaN.
- * @return atan2 of 'y', 'x'
- */
-template <class D, class V>
-HWY_INLINE V Atan2(D d, V y, V x);
-template <class D, class V>
-HWY_NOINLINE V CallAtan2(const D d, VecArg<V> y, VecArg<V> x) {
-  return Atan2(d, y, x);
-}
-
-/**
- * Highway SIMD version of std::cbrt(x).
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = 6
- *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
- * @return cube root of 'x'
- */
-template <bool kHandleSubnormals = true, class D, class V>
-HWY_INLINE V Cbrt(D d, V x);
-template <class D, class V>
-HWY_NOINLINE V CallCbrt(const D d, VecArg<V> x) {
-  return Cbrt<true>(d, x);
-}
-
-/**
- * Highway SIMD version of std::cos(x).
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = 3
- *      Valid Range: [-39000, +39000]
- * @return cosine of 'x'
- */
-template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
-HWY_INLINE V Cos(D d, V x);
-template <class D, class V>
-HWY_NOINLINE V CallCos(const D d, VecArg<V> x) {
-  return Cos(d, x);
-}
-
-/**
- * Highway SIMD version of std::tan(x).
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = ~300 (float32), 2 (float64)
- *                   Note: On float32, error is ~64 ULP on targets with FMA.
- *                   Without FMA (e.g. SSE4), rounding errors accumulate up to
- * ~300 ULP. Valid Range: [-39000, +39000]
- * @return tangent of 'x'
- */
-template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
-HWY_INLINE V Tan(D d, V x);
-template <class D, class V>
-HWY_NOINLINE V CallTan(const D d, VecArg<V> x) {
-  return Tan(d, x);
-}
-
-/**
- * Highway SIMD version of std::erf(x).
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = 4
- *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
- * @return error function of 'x'
- */
-template <class D, class V>
-HWY_INLINE V Erf(D d, V x);
-template <class D, class V>
-HWY_NOINLINE V CallErf(const D d, VecArg<V> x) {
-  return Erf(d, x);
-}
-
-/**
- * Highway SIMD version of std::exp(x).
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = 1
- *      Valid Range: float32[-FLT_MAX, +104], float64[-DBL_MAX, +706]
- * @return e^x
- */
-template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
-HWY_INLINE V Exp(D d, V x);
-template <class D, class V>
-HWY_NOINLINE V CallExp(const D d, VecArg<V> x) {
-  return Exp(d, x);
-}
-
-/**
- * Highway SIMD version of std::exp2(x).
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = 2
- *      Valid Range: float32[-FLT_MAX, +128], float64[-DBL_MAX, +1024]
- * @return 2^x
- */
-template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
-HWY_INLINE V Exp2(D d, V x);
-template <class D, class V>
-HWY_NOINLINE V CallExp2(const D d, VecArg<V> x) {
-  return Exp2(d, x);
-}
-
-/**
- * Highway SIMD version of std::expm1(x).
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = 4
- *      Valid Range: float32[-FLT_MAX, +104], float64[-DBL_MAX, +706]
- * @return e^x - 1
- */
-template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
-HWY_INLINE V Expm1(D d, V x);
-template <class D, class V>
-HWY_NOINLINE V CallExpm1(const D d, VecArg<V> x) {
-  return Expm1(d, x);
-}
-
-/**
- * Highway SIMD version of std::log(x).
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = 4
- *      Valid Range: float32(0, +FLT_MAX], float64(0, +DBL_MAX]
- * @return natural logarithm of 'x'
- */
-template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
-HWY_INLINE V Log(D d, V x);
-template <class D, class V>
-HWY_NOINLINE V CallLog(const D d, VecArg<V> x) {
-  return Log(d, x);
-}
-
-/**
- * Highway SIMD version of std::log10(x).
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = 2
- *      Valid Range: float32(0, +FLT_MAX], float64(0, +DBL_MAX]
- * @return base 10 logarithm of 'x'
- */
-template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
-HWY_INLINE V Log10(D d, V x);
-template <class D, class V>
-HWY_NOINLINE V CallLog10(const D d, VecArg<V> x) {
-  return Log10(d, x);
-}
-
-/**
- * Highway SIMD version of std::log1p(x).
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = 2
- *      Valid Range: float32[0, +FLT_MAX], float64[0, +DBL_MAX]
- * @return log(1 + x)
- */
-template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
-HWY_INLINE V Log1p(D d, V x);
-template <class D, class V>
-HWY_NOINLINE V CallLog1p(const D d, VecArg<V> x) {
-  return Log1p(d, x);
-}
-
-/**
- * Highway SIMD version of std::log2(x).
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = 2
- *      Valid Range: float32(0, +FLT_MAX], float64(0, +DBL_MAX]
- * @return base 2 logarithm of 'x'
- */
-template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
-HWY_INLINE V Log2(D d, V x);
-template <class D, class V>
-HWY_NOINLINE V CallLog2(const D d, VecArg<V> x) {
-  return Log2(d, x);
-}
-
-/**
- * Highway SIMD version of std::sin(x).
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = 3
- *      Valid Range: [-39000, +39000]
- * @return sine of 'x'
- */
-template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
-HWY_INLINE V Sin(D d, V x);
-template <class D, class V>
-HWY_NOINLINE V CallSin(const D d, VecArg<V> x) {
-  return Sin(d, x);
-}
-
-/**
- * Highway SIMD version of std::sinh(x).
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = 4
- *      Valid Range: float32[-88.7228, +88.7228], float64[-709, +709]
- * @return hyperbolic sine of 'x'
- */
-template <class D, class V>
-HWY_INLINE V Sinh(D d, V x);
-template <class D, class V>
-HWY_NOINLINE V CallSinh(const D d, VecArg<V> x) {
-  return Sinh(d, x);
-}
-
-/**
- * Highway SIMD version of std::cosh(x).
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = 4
- *      Valid Range: float32[-88.7228, +88.7228], float64[-709, +709]
- * @return hyperbolic cosine of 'x'
- */
-template <class D, class V>
-HWY_INLINE V Cosh(D d, V x);
-template <class D, class V>
-HWY_NOINLINE V CallCosh(const D d, VecArg<V> x) {
-  return Cosh(d, x);
-}
-
-/**
- * Highway SIMD version of std::tanh(x).
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = 4
- *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
- * @return hyperbolic tangent of 'x'
- */
-template <class D, class V>
-HWY_INLINE V Tanh(D d, V x);
-template <class D, class V>
-HWY_NOINLINE V CallTanh(const D d, VecArg<V> x) {
-  return Tanh(d, x);
-}
-
-/**
- * Highway SIMD version of std::tgamma(x).
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = 6 (float32), 8 (float64)
- *      Valid Range: float32(0, +35], float64(0, +171.6]
- * @return gamma function of 'x'
- */
-template <class D, class V>
-HWY_INLINE V Tgamma(D d, V x);
-template <class D, class V>
-HWY_NOINLINE V CallTgamma(const D d, VecArg<V> x) {
-  return Tgamma(d, x);
-}
-
-/**
- * Highway SIMD version of std::lgamma(x).
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = 6 (float32), 10 (float64)
- *      Valid Range: float32(0, +FLT_MAX], float64(0, +DBL_MAX]
- * @return natural log of the absolute value of the gamma function of 'x'
- */
-template <class D, class V>
-HWY_INLINE V LogGamma(D d, V x);
-template <class D, class V>
-HWY_NOINLINE V CallLogGamma(const D d, VecArg<V> x) {
-  return LogGamma(d, x);
-}
-
-/**
- * Highway SIMD version of SinCos.
- * Compute the sine and cosine at the same time
- * The performance should be around the same as calling Sin.
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = 1
- *      Valid Range: [-39000, +39000]
- */
-template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
-HWY_INLINE void SinCos(D d, V x, V& s, V& c);
-template <class D, class V>
-HWY_NOINLINE void CallSinCos(const D d, VecArg<V> x, V& s, V& c) {
-  SinCos(d, x, s, c);
-}
-
-/**
- * Highway SIMD version of Hypot
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = 4
- *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
- * @return hypotenuse of a and b
- */
-template <class D, class V>
-HWY_INLINE V Hypot(D d, V a, V b);
-template <class D, class V>
-HWY_NOINLINE V CallHypot(const D d, VecArg<V> a, VecArg<V> b) {
-  return Hypot(d, a, b);
-}
-
-/**
- * Highway SIMD version of Pow
- *
- * Valid Lane Types: float32, float64
- *        Max Error: ULP = 5
- *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
- * @return a raised to b
- */
-template <class D, class V>
-HWY_INLINE V Pow(D d, V a, V b);
-template <class D, class V>
-HWY_NOINLINE V CallPow(const D d, VecArg<V> a, VecArg<V> b) {
-  return Pow(d, a, b);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Implementation
@@ -1914,143 +1507,6 @@ HWY_INLINE V StirlingLogGamma(D d, V w, V& lo) {
   return DDAdd(d, hi, lo, series, kZero, lo);
 }
 
-// Computes signed Gamma(a). For a < 0.5 uses w = 1 - a; then a [2, 3)
-// polynomial below kStirlingLimit, Stirling above.
-template <class D, class V = VFromD<D>, class M = MFromD<D>>
-HWY_INLINE V Gamma(D d, V a) {
-  using T = TFromD<D>;
-  static_assert(IsFloat<T>(), "Only makes sense for floating-point");
-  GammaImpl<T> impl;
-
-  const V kHalf = Set(d, static_cast<T>(0.5));
-  const V kOne = Set(d, static_cast<T>(1.0));
-  const V kZero = Zero(d);
-  const V kPi = Set(d, static_cast<T>(+3.14159265358979323846264));
-  const V kTwo = Set(d, static_cast<T>(2.0));
-  const V kThree = Set(d, static_cast<T>(3.0));
-  const V kStirlingLimit = impl.StirlingLimit(d);
-
-  // Reduce to w >= 0.5: w = 1 - a when a < 0.5.
-  const M neg = Lt(a, kHalf);
-  V w = MaskedSubOr(a, neg, kOne, a);
-
-  // Shift w into [2, 3) via Gamma(x+1) = x*Gamma(x).
-  V wa = w;
-  V num_hi = kOne, num_lo = kZero;
-  V den_hi = kOne, den_lo = kZero;
-
-  for (int i = 0; i < 2; ++i) {
-    const M up = Lt(wa, kTwo);
-    V d_lo;
-    const V d_hi = DDMul1(d, den_hi, den_lo, wa, d_lo);
-    den_hi = IfThenElse(up, d_hi, den_hi);
-    den_lo = IfThenElse(up, d_lo, den_lo);
-    wa = MaskedAddOr(wa, up, wa, kOne);
-  }
-
-  for (int i = 0; i < GammaImpl<T>::kReduceSteps; ++i) {
-    const M down = Ge(wa, kThree);
-    wa = MaskedSubOr(wa, down, wa, kOne);
-    V m_lo;
-    const V m_hi = DDMul1(d, num_hi, num_lo, wa, m_lo);
-    num_hi = IfThenElse(down, m_hi, num_hi);
-    num_lo = IfThenElse(down, m_lo, num_lo);
-  }
-
-  const V poly = impl.GammaPoly(d, Sub(wa, Set(d, static_cast<T>(2.5))));
-  V np_lo;
-  const V np_hi = DDMul1(d, num_hi, num_lo, poly, np_lo);
-  V gA_lo;
-  const V gamma_a = DDDiv(d, np_hi, np_lo, den_hi, den_lo, gA_lo);
-
-  // Gamma via Stirling logGamma (dd): exp(hi+lo) = exp(hi)*(1+lo).
-  V lo;
-  const V hi = StirlingLogGamma(d, w, lo);
-  const V exp_hi = Exp(d, hi);
-  const V gamma_b = MulAdd(exp_hi, lo, exp_hi);
-
-  const V gamma_w = IfThenElse(Lt(w, kStirlingLimit), gamma_a, gamma_b);
-
-  // For a < 0.5: Gamma(a) = pi / (sin(pi*a) * Gamma(w)).
-  const V ra = Round(a);
-  const V frac = Sub(a, ra);
-  const V s_mag = Sin(d, Mul(kPi, frac));
-  const RebindToSigned<decltype(d)> di;
-  const M odd =
-      RebindMask(d, Ne(And(ConvertTo(di, ra), Set(di, 1)), Zero(di)));
-  const V s_signed = MaskedXorOr(s_mag, odd, s_mag, SignBit(d));
-  const V refl = Div(kPi, Mul(s_signed, gamma_w));
-
-  return IfThenElse(neg, refl, gamma_w);
-}
-
-template <class D, class V = VFromD<D>, class M = MFromD<D>>
-HWY_INLINE V Lgamma(D d, V a) {
-  using T = TFromD<D>;
-  static_assert(IsFloat<T>(), "Only makes sense for floating-point");
-  LgammaImpl<T> impl;
-
-  const V kHalf = Set(d, static_cast<T>(0.5));
-  const V kOne = Set(d, static_cast<T>(1.0));
-  const V kTwo = Set(d, static_cast<T>(2.0));
-  const V kZero = Zero(d);
-  const V kPi = Set(d, static_cast<T>(+3.14159265358979323846264));
-  const V kLogPi = Set(d, static_cast<T>(+1.1447298858494001741434));
-  const V kLowCenter = Set(d, static_cast<T>(0.75));
-  const V kMidCenter = Set(d, static_cast<T>(1.5));
-  const V kStirlingLimit = impl.StirlingLimit(d);
-
-  // Reduce to w >= 0.5: w = 1 - a when a < 0.5.
-  const M neg = Lt(a, kHalf);
-  const V w = MaskedSubOr(a, neg, kOne, a);
-
-  // [0.5, 1): logGamma = (w-1)*LowPoly(w - 0.75).
-  const V low_poly = impl.LowPoly(d, Sub(w, kLowCenter));
-  V low;
-  if constexpr (HWY_NATIVE_FMA) {
-    low = MulSub(w, low_poly, low_poly);
-  } else {
-    low = Mul(Sub(w, kOne), low_poly);
-  }
-
-  // Shift w into [1, 2) via logGamma(y) = logGamma(y-1) + log(y-1).
-  V y = w;
-  V acc = kZero;
-  for (int i = 0; i < LgammaImpl<T>::kReduceSteps; ++i) {
-    const M down = Ge(y, kTwo);
-    y = MaskedSubOr(y, down, y, kOne);
-    acc = MaskedAddOr(acc, down, acc, impl::Log(d, y));
-  }
-
-  // [1, 2): logGamma = (y-1)*(y-2)*MidPoly(y - 1.5) + acc.
-  const V t = Sub(y, kMidCenter);
-  V zero_factors;
-  if constexpr (HWY_NATIVE_FMA) {
-    const V q = Sub(kTwo, y);
-    zero_factors = NegMulAdd(y, q, q);
-  } else {
-    zero_factors = Mul(Sub(y, kOne), Sub(y, kTwo));
-  }
-  const V mid = MulAdd(zero_factors, impl.MidPoly(d, t), acc);
-
-  // w >= StirlingLimit: Stirling series in double-double.
-  V stir_lo;
-  const V stir_hi = StirlingLogGamma(d, w, stir_lo);
-  const V stir = Add(stir_hi, stir_lo);
-
-  const M is_low = Lt(w, kOne);
-  const M is_stir = Ge(w, kStirlingLimit);
-  V loggamma_w = IfThenElse(is_low, low, mid);
-  loggamma_w = IfThenElse(is_stir, stir, loggamma_w);
-
-  // For a < 0.5: logGamma(a) = log(pi) - log|sin(pi*a)| - logGamma(1 - a).
-  const V frac = Sub(a, Round(a));
-  const V s_mag = Abs(Sin(d, Mul(kPi, frac)));
-  const V refl = Sub(Sub(kLogPi, impl::Log(d, s_mag)), loggamma_w);
-
-  return IfThenElse(neg, refl, loggamma_w);
-}
-
 // SinCos
 // Based on "sse_mathfun.h", by Julien Pommier
 // http://gruntthepeon.free.fr/ssemath/
@@ -2287,6 +1743,14 @@ struct SinCosImpl<double> {
 
 }  // namespace impl
 
+/**
+ * Highway SIMD version of std::acos(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 2
+ *      Valid Range: [-1, +1]
+ * @return arc cosine of 'x'
+ */
 template <class D, class V>
 HWY_INLINE V Acos(const D d, V x) {
   using T = TFromD<D>;
@@ -2313,6 +1777,19 @@ HWY_INLINE V Acos(const D d, V x) {
   return IfThenElse(Or(mask, Ge(x, kZero)), z, Sub(kPi, z));
 }
 
+template <class D, class V>
+HWY_NOINLINE V CallAcos(const D d, VecArg<V> x) {
+  return Acos(d, x);
+}
+
+/**
+ * Highway SIMD version of std::acosh(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 3
+ *      Valid Range: float32[1, +FLT_MAX], float64[1, +DBL_MAX]
+ * @return hyperbolic arc cosine of 'x'
+ */
 template <class D, class V>
 HWY_INLINE V Acosh(const D d, V x) {
   using T = TFromD<D>;
@@ -2341,6 +1818,19 @@ HWY_INLINE V Acosh(const D d, V x) {
 }
 
 template <class D, class V>
+HWY_NOINLINE V CallAcosh(const D d, VecArg<V> x) {
+  return Acosh(d, x);
+}
+
+/**
+ * Highway SIMD version of std::asin(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 2
+ *      Valid Range: [-1, +1]
+ * @return arc sine of 'x'
+ */
+template <class D, class V>
 HWY_INLINE V Asin(const D d, V x) {
   using T = TFromD<D>;
 
@@ -2361,6 +1851,19 @@ HWY_INLINE V Asin(const D d, V x) {
   return Or(IfThenElse(mask, z0, z1), sign_x);
 }
 
+template <class D, class V>
+HWY_NOINLINE V CallAsin(const D d, VecArg<V> x) {
+  return Asin(d, x);
+}
+
+/**
+ * Highway SIMD version of std::asinh(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 3
+ *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
+ * @return hyperbolic arc sine of 'x'
+ */
 template <class D, class V>
 HWY_INLINE V Asinh(const D d, V x) {
   using T = TFromD<D>;
@@ -2395,6 +1898,19 @@ HWY_INLINE V Asinh(const D d, V x) {
 }
 
 template <class D, class V>
+HWY_NOINLINE V CallAsinh(const D d, VecArg<V> x) {
+  return Asinh(d, x);
+}
+
+/**
+ * Highway SIMD version of std::atan(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 3
+ *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
+ * @return arc tangent of 'x'
+ */
+template <class D, class V>
 HWY_INLINE V Atan(const D d, V x) {
   using T = TFromD<D>;
 
@@ -2411,6 +1927,18 @@ HWY_INLINE V Atan(const D d, V x) {
   return Or(IfThenElse(mask, Sub(kPiOverTwo, y), y), sign);
 }
 
+template <class D, class V>
+HWY_NOINLINE V CallAtan(const D d, VecArg<V> x) {
+  return Atan(d, x);
+}
+
+/**
+ * Highway SIMD version of std::atan2(x).
+ *
+ * Valid Lane Types: float32, float64
+ * Correctly handles negative zero, infinities, and NaN.
+ * @return atan2 of 'y', 'x'
+ */
 template <class D, class V>
 HWY_INLINE V Atan2(const D d, V y, V x) {
   using T = TFromD<D>;
@@ -2450,16 +1978,8 @@ HWY_INLINE V Atan2(const D d, V y, V x) {
 }
 
 template <class D, class V>
-HWY_INLINE V Atanh(const D d, V x) {
-  using T = TFromD<D>;
-
-  const V kHalf = Set(d, static_cast<T>(+0.5));
-  const V kOne = Set(d, static_cast<T>(+1.0));
-
-  const V sign = And(SignBit(d), x);  // Extract the sign bit
-  const V abs_x = Xor(x, sign);
-  return Mul(Log1p(d, Div(Add(abs_x, abs_x), Sub(kOne, abs_x))),
-             Xor(kHalf, sign));
+HWY_NOINLINE V CallAtan2(const D d, VecArg<V> y, VecArg<V> x) {
+  return Atan2(d, y, x);
 }
 
 namespace impl {
@@ -2491,7 +2011,15 @@ HWY_INLINE void CbrtDivMod3Scalar(DI di, VI exp_shifted, VI& div, VI& mod) {
 // Modified from BSD-licensed code
 // Copyright (c) the JPEG XL Project Authors. All rights reserved.
 // See https://github.com/libjxl/libjxl/blob/main/LICENSE.
-template <bool kHandleSubnormals, class D, class V>
+/**
+ * Highway SIMD version of std::cbrt(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 6
+ *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
+ * @return cube root of 'x'
+ */
+template <bool kHandleSubnormals = true, class D, class V>
 HWY_INLINE V Cbrt(const D d, V x) {
   using T = TFromD<D>;
 
@@ -2607,9 +2135,20 @@ HWY_INLINE V Cbrt(const D d, V x) {
   return y;
 }
 
-template <class D, class V,
-          hwy::EnableIf<
-              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
+template <class D, class V>
+HWY_NOINLINE V CallCbrt(const D d, VecArg<V> x) {
+  return Cbrt<true>(d, x);
+}
+
+/**
+ * Highway SIMD version of std::cos(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 3
+ *      Valid Range: [-39000, +39000]
+ * @return cosine of 'x'
+ */
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Cos(const D d, V x) {
   using T = TFromD<D>;
   impl::CosSinImpl<T> impl;
@@ -2632,36 +2171,23 @@ HWY_INLINE V Cos(const D d, V x) {
       d, Xor(impl.CosReduce(d, y, q), impl.CosSignFromQuadrant(d, q)));
 }
 
+template <class D, class V>
+HWY_NOINLINE V CallCos(const D d, VecArg<V> x) {
+  return Cos(d, x);
+}
+
 // Erf
 // Based on Cephes erff/erf by Stephen Moshier (public domain, 1989)
 // See https://www.netlib.org/cephes/ - single/ndtrf.c (f32), cprob/ndtr.c (f64)
-template <class D, class V>
-HWY_INLINE V Erf(const D d, V x) {
-  using T = TFromD<D>;
-  impl::ErfImpl<T> impl;
-  const V kOne = Set(d, static_cast<T>(1));
-  const V kLimit = impl.Limit(d);
-
-  const V sign = And(SignBit(d), x);
-  x = Xor(x, sign);
-
-  const V x_clamped = Min(x, kLimit);
-  const V z = Mul(x_clamped, x_clamped);
-
-  const V small = impl.SmallErf(d, x_clamped, z);
-  const V exp_neg_z = Exp(d, Neg(z));
-  const V large = NegMulAdd(exp_neg_z, impl.ErfcFactor(d, x_clamped, z), kOne);
-
-  const auto is_small = Lt(x_clamped, kOne);
-  V result = IfThenElse(is_small, small, large);
-  result = IfThenElse(IsNaN(x), x, result);
-
-  return Or(result, sign);
-}
-
-template <class D, class V,
-          hwy::EnableIf<
-              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
+/**
+ * Highway SIMD version of std::exp(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 1
+ *      Valid Range: float32[-FLT_MAX, +104], float64[-DBL_MAX, +706]
+ * @return e^x
+ */
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Exp(const D d, V x) {
   using T = TFromD<D>;
 
@@ -2690,9 +2216,57 @@ HWY_INLINE V Exp(const D d, V x) {
   return IfThenElseZero(Ge(x, kLowerBound), y);
 }
 
-template <class D, class V,
-          hwy::EnableIf<
-              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
+template <class D, class V>
+HWY_NOINLINE V CallExp(const D d, VecArg<V> x) {
+  return Exp(d, x);
+}
+
+/**
+ * Highway SIMD version of std::erf(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 4
+ *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
+ * @return error function of 'x'
+ */
+template <class D, class V>
+HWY_INLINE V Erf(const D d, V x) {
+  using T = TFromD<D>;
+  impl::ErfImpl<T> impl;
+  const V kOne = Set(d, static_cast<T>(1));
+  const V kLimit = impl.Limit(d);
+
+  const V sign = And(SignBit(d), x);
+  x = Xor(x, sign);
+
+  const V x_clamped = Min(x, kLimit);
+  const V z = Mul(x_clamped, x_clamped);
+
+  const V small = impl.SmallErf(d, x_clamped, z);
+  const V exp_neg_z = Exp(d, Neg(z));
+  const V large = NegMulAdd(exp_neg_z, impl.ErfcFactor(d, x_clamped, z), kOne);
+
+  const auto is_small = Lt(x_clamped, kOne);
+  V result = IfThenElse(is_small, small, large);
+  result = IfThenElse(IsNaN(x), x, result);
+
+  return Or(result, sign);
+}
+
+template <class D, class V>
+HWY_NOINLINE V CallErf(const D d, VecArg<V> x) {
+  return Erf(d, x);
+}
+
+/**
+ * Highway SIMD version of std::exp2(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 2
+ *      Valid Range: float32[-FLT_MAX, +128], float64[-DBL_MAX, +1024]
+ * @return 2^x
+ */
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Exp2(const D d, V x) {
   using T = TFromD<D>;
 
@@ -2711,9 +2285,20 @@ HWY_INLINE V Exp2(const D d, V x) {
   return IfThenElseZero(Ge(x, kLowerBound), y);
 }
 
-template <class D, class V,
-          hwy::EnableIf<
-              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
+template <class D, class V>
+HWY_NOINLINE V CallExp2(const D d, VecArg<V> x) {
+  return Exp2(d, x);
+}
+
+/**
+ * Highway SIMD version of std::expm1(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 4
+ *      Valid Range: float32[-FLT_MAX, +104], float64[-DBL_MAX, +706]
+ * @return e^x - 1
+ */
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Expm1(const D d, V x) {
   using T = TFromD<D>;
 
@@ -2742,24 +2327,57 @@ HWY_INLINE V Expm1(const D d, V x) {
   return IfThenElse(Lt(x, kLowerBound), kNegOne, z);
 }
 
-template <class D, class V,
-          hwy::EnableIf<
-              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
+template <class D, class V>
+HWY_NOINLINE V CallExpm1(const D d, VecArg<V> x) {
+  return Expm1(d, x);
+}
+
+/**
+ * Highway SIMD version of std::log(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 4
+ *      Valid Range: float32(0, +FLT_MAX], float64(0, +DBL_MAX]
+ * @return natural logarithm of 'x'
+ */
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Log(const D d, V x) {
   return impl::Log<D, V, /*kAllowSubnormals=*/true>(d, x);
 }
 
-template <class D, class V,
-          hwy::EnableIf<
-              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
+template <class D, class V>
+HWY_NOINLINE V CallLog(const D d, VecArg<V> x) {
+  return Log(d, x);
+}
+
+/**
+ * Highway SIMD version of std::log10(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 2
+ *      Valid Range: float32(0, +FLT_MAX], float64(0, +DBL_MAX]
+ * @return base 10 logarithm of 'x'
+ */
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Log10(const D d, V x) {
   using T = TFromD<D>;
   return Mul(Log(d, x), Set(d, static_cast<T>(0.4342944819032518276511)));
 }
 
-template <class D, class V,
-          hwy::EnableIf<
-              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
+template <class D, class V>
+HWY_NOINLINE V CallLog10(const D d, VecArg<V> x) {
+  return Log10(d, x);
+}
+
+/**
+ * Highway SIMD version of std::log1p(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 2
+ *      Valid Range: float32[0, +FLT_MAX], float64[0, +DBL_MAX]
+ * @return log(1 + x)
+ */
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Log1p(const D d, V x) {
   using T = TFromD<D>;
   const V kOne = Set(d, static_cast<T>(+1.0));
@@ -2778,14 +2396,64 @@ HWY_INLINE V Log1p(const D d, V x) {
   return IfThenElse(not_pole, non_pole, x);
 }
 
-template <class D, class V,
-          hwy::EnableIf<
-              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
+template <class D, class V>
+HWY_NOINLINE V CallLog1p(const D d, VecArg<V> x) {
+  return Log1p(d, x);
+}
+
+/**
+ * Highway SIMD version of std::atanh(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 3
+ *      Valid Range: (-1, +1)
+ * @return hyperbolic arc tangent of 'x'
+ */
+template <class D, class V>
+HWY_INLINE V Atanh(const D d, V x) {
+  using T = TFromD<D>;
+
+  const V kHalf = Set(d, static_cast<T>(+0.5));
+  const V kOne = Set(d, static_cast<T>(+1.0));
+
+  const V sign = And(SignBit(d), x);  // Extract the sign bit
+  const V abs_x = Xor(x, sign);
+  return Mul(Log1p(d, Div(Add(abs_x, abs_x), Sub(kOne, abs_x))),
+             Xor(kHalf, sign));
+}
+
+template <class D, class V>
+HWY_NOINLINE V CallAtanh(const D d, VecArg<V> x) {
+  return Atanh(d, x);
+}
+
+/**
+ * Highway SIMD version of std::log2(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 2
+ *      Valid Range: float32(0, +FLT_MAX], float64(0, +DBL_MAX]
+ * @return base 2 logarithm of 'x'
+ */
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Log2(const D d, V x) {
   using T = TFromD<D>;
   return Mul(Log(d, x), Set(d, static_cast<T>(1.44269504088896340735992)));
 }
 
+template <class D, class V>
+HWY_NOINLINE V CallLog2(const D d, VecArg<V> x) {
+  return Log2(d, x);
+}
+
+/**
+ * Highway SIMD version of Pow
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 5
+ *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
+ * @return a raised to b
+ */
 template <class D, class V>
 HWY_INLINE V Pow(D d, V a, V b) {
   using T = TFromD<decltype(d)>;
@@ -2906,9 +2574,20 @@ HWY_INLINE V Pow(D d, V a, V b) {
   return result;
 }
 
-template <class D, class V,
-          hwy::EnableIf<
-              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
+template <class D, class V>
+HWY_NOINLINE V CallPow(const D d, VecArg<V> a, VecArg<V> b) {
+  return Pow(d, a, b);
+}
+
+/**
+ * Highway SIMD version of std::sin(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 3
+ *      Valid Range: [-39000, +39000]
+ * @return sine of 'x'
+ */
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Sin(const D d, V x) {
   using T = TFromD<D>;
   impl::CosSinImpl<T> impl;
@@ -2936,6 +2615,19 @@ HWY_INLINE V Sin(const D d, V x) {
 }
 
 template <class D, class V>
+HWY_NOINLINE V CallSin(const D d, VecArg<V> x) {
+  return Sin(d, x);
+}
+
+/**
+ * Highway SIMD version of std::sinh(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 4
+ *      Valid Range: float32[-88.7228, +88.7228], float64[-709, +709]
+ * @return hyperbolic sine of 'x'
+ */
+template <class D, class V>
 HWY_INLINE V Sinh(const D d, V x) {
   using T = TFromD<D>;
   const V kHalf = Set(d, static_cast<T>(+0.5));
@@ -2949,6 +2641,19 @@ HWY_INLINE V Sinh(const D d, V x) {
   return Xor(z, sign);  // Reapply the sign bit
 }
 
+template <class D, class V>
+HWY_NOINLINE V CallSinh(const D d, VecArg<V> x) {
+  return Sinh(d, x);
+}
+
+/**
+ * Highway SIMD version of std::cosh(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 4
+ *      Valid Range: float32[-88.7228, +88.7228], float64[-709, +709]
+ * @return hyperbolic cosine of 'x'
+ */
 template <class D, class V>
 HWY_INLINE V Cosh(const D d, V x) {
   using T = TFromD<D>;
@@ -2964,6 +2669,19 @@ HWY_INLINE V Cosh(const D d, V x) {
 }
 
 template <class D, class V>
+HWY_NOINLINE V CallCosh(const D d, VecArg<V> x) {
+  return Cosh(d, x);
+}
+
+/**
+ * Highway SIMD version of std::tanh(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 4
+ *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
+ * @return hyperbolic tangent of 'x'
+ */
+template <class D, class V>
 HWY_INLINE V Tanh(const D d, V x) {
   using T = TFromD<D>;
   const V kLimit = Set(d, static_cast<T>(18.714973875));
@@ -2977,24 +2695,62 @@ HWY_INLINE V Tanh(const D d, V x) {
   return Xor(z, sign);  // Reapply the sign bit
 }
 
-template <class D, class V,
-          hwy::EnableIf<
-              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
+template <class D, class V>
+HWY_NOINLINE V CallTanh(const D d, VecArg<V> x) {
+  return Tanh(d, x);
+}
+
+/**
+ * Highway SIMD version of SinCos.
+ * Compute the sine and cosine at the same time
+ * The performance should be around the same as calling Sin.
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 1
+ *      Valid Range: [-39000, +39000]
+ */
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE void SinCos(const D d, V x, V& s, V& c) {
   using T = TFromD<D>;
   impl::SinCosImpl<T> impl;
   impl.SinCos(d, x, s, c);
 }
 
-template <class D, class V,
-          hwy::EnableIf<
-              !hwy::IsSpecialFloat<hwy::HWY_NAMESPACE::TFromD<D>>()>*>
+template <class D, class V>
+HWY_NOINLINE void CallSinCos(const D d, VecArg<V> x, V& s, V& c) {
+  SinCos(d, x, s, c);
+}
+
+/**
+ * Highway SIMD version of std::tan(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = ~300 (float32), 2 (float64)
+ *                   Note: On float32, error is ~64 ULP on targets with FMA.
+ *                   Without FMA (e.g. SSE4), rounding errors accumulate up to
+ * ~300 ULP. Valid Range: [-39000, +39000]
+ * @return tangent of 'x'
+ */
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Tan(const D d, V x) {
   V s, c;
   SinCos(d, x, s, c);
   return Div(s, c);
 }
 
+template <class D, class V>
+HWY_NOINLINE V CallTan(const D d, VecArg<V> x) {
+  return Tan(d, x);
+}
+
+/**
+ * Highway SIMD version of Hypot
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 4
+ *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
+ * @return hypotenuse of a and b
+ */
 template <class D, class V>
 HWY_INLINE V Hypot(const D d, V a, V b) {
   using T = TFromD<D>;
@@ -3120,6 +2876,160 @@ HWY_INLINE V Hypot(const D d, V a, V b) {
 }
 
 template <class D, class V>
+HWY_NOINLINE V CallHypot(const D d, VecArg<V> a, VecArg<V> b) {
+  return Hypot(d, a, b);
+}
+
+namespace impl {
+
+// Computes signed Gamma(a). For a < 0.5 uses w = 1 - a; then a [2, 3)
+// polynomial below kStirlingLimit, Stirling above.
+template <class D, class V = VFromD<D>, class M = MFromD<D>>
+HWY_INLINE V Gamma(D d, V a) {
+  using T = TFromD<D>;
+  static_assert(IsFloat<T>(), "Only makes sense for floating-point");
+  GammaImpl<T> impl;
+
+  const V kHalf = Set(d, static_cast<T>(0.5));
+  const V kOne = Set(d, static_cast<T>(1.0));
+  const V kZero = Zero(d);
+  const V kPi = Set(d, static_cast<T>(+3.14159265358979323846264));
+  const V kTwo = Set(d, static_cast<T>(2.0));
+  const V kThree = Set(d, static_cast<T>(3.0));
+  const V kStirlingLimit = impl.StirlingLimit(d);
+
+  // Reduce to w >= 0.5: w = 1 - a when a < 0.5.
+  const M neg = Lt(a, kHalf);
+  V w = MaskedSubOr(a, neg, kOne, a);
+
+  // Shift w into [2, 3) via Gamma(x+1) = x*Gamma(x).
+  V wa = w;
+  V num_hi = kOne, num_lo = kZero;
+  V den_hi = kOne, den_lo = kZero;
+
+  for (int i = 0; i < 2; ++i) {
+    const M up = Lt(wa, kTwo);
+    V d_lo;
+    const V d_hi = DDMul1(d, den_hi, den_lo, wa, d_lo);
+    den_hi = IfThenElse(up, d_hi, den_hi);
+    den_lo = IfThenElse(up, d_lo, den_lo);
+    wa = MaskedAddOr(wa, up, wa, kOne);
+  }
+
+  for (int i = 0; i < GammaImpl<T>::kReduceSteps; ++i) {
+    const M down = Ge(wa, kThree);
+    wa = MaskedSubOr(wa, down, wa, kOne);
+    V m_lo;
+    const V m_hi = DDMul1(d, num_hi, num_lo, wa, m_lo);
+    num_hi = IfThenElse(down, m_hi, num_hi);
+    num_lo = IfThenElse(down, m_lo, num_lo);
+  }
+
+  const V poly = impl.GammaPoly(d, Sub(wa, Set(d, static_cast<T>(2.5))));
+  V np_lo;
+  const V np_hi = DDMul1(d, num_hi, num_lo, poly, np_lo);
+  V gA_lo;
+  const V gamma_a = DDDiv(d, np_hi, np_lo, den_hi, den_lo, gA_lo);
+
+  // Gamma via Stirling logGamma (dd): exp(hi+lo) = exp(hi)*(1+lo).
+  V lo;
+  const V hi = StirlingLogGamma(d, w, lo);
+  const V exp_hi = Exp(d, hi);
+  const V gamma_b = MulAdd(exp_hi, lo, exp_hi);
+
+  const V gamma_w = IfThenElse(Lt(w, kStirlingLimit), gamma_a, gamma_b);
+
+  // For a < 0.5: Gamma(a) = pi / (sin(pi*a) * Gamma(w)).
+  const V ra = Round(a);
+  const V frac = Sub(a, ra);
+  const V s_mag = Sin(d, Mul(kPi, frac));
+  const RebindToSigned<decltype(d)> di;
+  const M odd =
+      RebindMask(d, Ne(And(ConvertTo(di, ra), Set(di, 1)), Zero(di)));
+  const V s_signed = MaskedXorOr(s_mag, odd, s_mag, SignBit(d));
+  const V refl = Div(kPi, Mul(s_signed, gamma_w));
+
+  return IfThenElse(neg, refl, gamma_w);
+}
+
+template <class D, class V = VFromD<D>, class M = MFromD<D>>
+HWY_INLINE V Lgamma(D d, V a) {
+  using T = TFromD<D>;
+  static_assert(IsFloat<T>(), "Only makes sense for floating-point");
+  LgammaImpl<T> impl;
+
+  const V kHalf = Set(d, static_cast<T>(0.5));
+  const V kOne = Set(d, static_cast<T>(1.0));
+  const V kTwo = Set(d, static_cast<T>(2.0));
+  const V kZero = Zero(d);
+  const V kPi = Set(d, static_cast<T>(+3.14159265358979323846264));
+  const V kLogPi = Set(d, static_cast<T>(+1.1447298858494001741434));
+  const V kLowCenter = Set(d, static_cast<T>(0.75));
+  const V kMidCenter = Set(d, static_cast<T>(1.5));
+  const V kStirlingLimit = impl.StirlingLimit(d);
+
+  // Reduce to w >= 0.5: w = 1 - a when a < 0.5.
+  const M neg = Lt(a, kHalf);
+  const V w = MaskedSubOr(a, neg, kOne, a);
+
+  // [0.5, 1): logGamma = (w-1)*LowPoly(w - 0.75).
+  const V low_poly = impl.LowPoly(d, Sub(w, kLowCenter));
+  V low;
+  if constexpr (HWY_NATIVE_FMA) {
+    low = MulSub(w, low_poly, low_poly);
+  } else {
+    low = Mul(Sub(w, kOne), low_poly);
+  }
+
+  // Shift w into [1, 2) via logGamma(y) = logGamma(y-1) + log(y-1).
+  V y = w;
+  V acc = kZero;
+  for (int i = 0; i < LgammaImpl<T>::kReduceSteps; ++i) {
+    const M down = Ge(y, kTwo);
+    y = MaskedSubOr(y, down, y, kOne);
+    acc = MaskedAddOr(acc, down, acc, impl::Log(d, y));
+  }
+
+  // [1, 2): logGamma = (y-1)*(y-2)*MidPoly(y - 1.5) + acc.
+  const V t = Sub(y, kMidCenter);
+  V zero_factors;
+  if constexpr (HWY_NATIVE_FMA) {
+    const V q = Sub(kTwo, y);
+    zero_factors = NegMulAdd(y, q, q);
+  } else {
+    zero_factors = Mul(Sub(y, kOne), Sub(y, kTwo));
+  }
+  const V mid = MulAdd(zero_factors, impl.MidPoly(d, t), acc);
+
+  // w >= StirlingLimit: Stirling series in double-double.
+  V stir_lo;
+  const V stir_hi = StirlingLogGamma(d, w, stir_lo);
+  const V stir = Add(stir_hi, stir_lo);
+
+  const M is_low = Lt(w, kOne);
+  const M is_stir = Ge(w, kStirlingLimit);
+  V loggamma_w = IfThenElse(is_low, low, mid);
+  loggamma_w = IfThenElse(is_stir, stir, loggamma_w);
+
+  // For a < 0.5: logGamma(a) = log(pi) - log|sin(pi*a)| - logGamma(1 - a).
+  const V frac = Sub(a, Round(a));
+  const V s_mag = Abs(Sin(d, Mul(kPi, frac)));
+  const V refl = Sub(Sub(kLogPi, impl::Log(d, s_mag)), loggamma_w);
+
+  return IfThenElse(neg, refl, loggamma_w);
+}
+
+}  // namespace impl
+
+/**
+ * Highway SIMD version of std::tgamma(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 6 (float32), 8 (float64)
+ *      Valid Range: float32(0, +35], float64(0, +171.6]
+ * @return gamma function of 'x'
+ */
+template <class D, class V>
 HWY_INLINE V Tgamma(const D d, V x) {
   using T = TFromD<D>;
   const V kZero = Zero(d);
@@ -3137,6 +3047,19 @@ HWY_INLINE V Tgamma(const D d, V x) {
 }
 
 template <class D, class V>
+HWY_NOINLINE V CallTgamma(const D d, VecArg<V> x) {
+  return Tgamma(d, x);
+}
+
+/**
+ * Highway SIMD version of std::lgamma(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 6 (float32), 10 (float64)
+ *      Valid Range: float32(0, +FLT_MAX], float64(0, +DBL_MAX]
+ * @return natural log of the absolute value of the gamma function of 'x'
+ */
+template <class D, class V>
 HWY_INLINE V LogGamma(const D d, V x) {
   const V kZero = Zero(d);
   V result = impl::Lgamma(d, x);
@@ -3146,6 +3069,11 @@ HWY_INLINE V LogGamma(const D d, V x) {
   result = IfThenElse(IsInf(x), Inf(d), result);
   result = IfThenElse(IsNaN(x), x, result);
   return result;
+}
+
+template <class D, class V>
+HWY_NOINLINE V CallLogGamma(const D d, VecArg<V> x) {
+  return LogGamma(d, x);
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

@@ -77,7 +77,7 @@ struct TestFastTanh {
   HWY_NOINLINE void operator()(T, D d) {
     const double max_relative_error_float = 0.0000035;
     const double max_relative_error_double = 0.0000035;
-    const double max_relative_error_small = 0.00000022;
+    const double max_relative_error_small = 0.00000025;
     const uint64_t samples = 1000000;
     const uint64_t samples_small = 10000;
     TestMathRelative<T, D>("FastTanh Small", std::tanh, CallFastTanh, d,

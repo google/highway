@@ -1654,6 +1654,49 @@ HWY_API V GetExponent(V v) {
 }
 
 #endif  // HWY_NATIVE_GET_EXPONENT
+
+#if (defined(HWY_NATIVE_GET_MANTISSA_TOGGLE) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_GET_MANTISSA_TOGGLE
+#undef HWY_NATIVE_GET_MANTISSA_TOGGLE
+#else
+#define HWY_NATIVE_GET_MANTISSA_TOGGLE
+#endif
+
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_API V GetMantissa0p75_1p5(V v) {
+  const DFromV<V> d;
+  using T = TFromV<V>;
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+
+  constexpr TU kMantMask = MantissaMask<T>();
+  constexpr TU kHalfMant = (kMantMask >> 1) + 1;
+  const TU kBits0p75 = BitCastScalar<TU>(ConvertScalarTo<T>(0.75f));
+
+  // We want to keep the mantissa bits of `v` unchanged and replace its
+  // exponent with:
+  //   - 127 (2^0 -> y in [1.0, 1.5))  when the top mantissa bit is 0 (m < 1.5)
+  //   - 126 (2^-1 -> y in [0.75, 1.0)) when the top mantissa bit is 1 (m
+  //   >= 1.5)
+  //
+  // Notice that 0.75f (kBits0p75) has exponent = 126 and top mantissa bit = 1
+  // (with all lower mantissa bits = 0).
+  //
+  // 1. Adding kHalfMant (1 in the top mantissa bit) and masking with kMantMask
+  //    clears the old exponent and FLIPS the top mantissa bit (0 -> 1, 1 -> 0),
+  //    leaving all lower mantissa bits untouched.
+  // 2. Adding kBits0p75 ([exp=126 | top_bit=1 | 0...0]) adds 1 to that flipped
+  //    top mantissa bit:
+  //    - If top_bit was originally 0 (flipped to 1): 1 + 1 = 0 (restoring
+  //      top_bit back to 0) and carries +1 into the exponent (126 + 1 = 127).
+  //    - If top_bit was originally 1 (flipped to 0): 0 + 1 = 1 (restoring
+  //      top_bit back to 1) with no carry into the exponent (stays 126).
+  const auto wrapped =
+      And(Add(BitCast(du, v), Set(du, kHalfMant)), Set(du, kMantMask));
+  return BitCast(d, Add(wrapped, Set(du, kBits0p75)));
+}
+
+#endif  // HWY_NATIVE_GET_MANTISSA_TOGGLE
 // ------------------------------ LoadInterleaved2
 
 #if HWY_IDE || \
