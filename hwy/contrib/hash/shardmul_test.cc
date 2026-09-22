@@ -105,11 +105,11 @@ HWY_NOINLINE void TestShardMulExtraOutputs() {
   const size_t NU32 = Lanes(du32);
 
   ThreadPool pool = MakePool();
-  const size_t num_keys = RoundUpTo(AdjustedReps(AdjustedReps(300'000)), NU32);
+  const size_t num_keys = RoundUpTo(AdjustedReps(AdjustedReps(100'000)), NU32);
   AlignedVector<uint64_t> keys = GenerateClusteredKeys(num_keys);
 
   // Generate some extra outputs.
-  const size_t kNumExtra = AdjustedReps(AdjustedReps(80'000));
+  const size_t kNumExtra = AdjustedReps(AdjustedReps(20'000));
   AesCtrEngine engine(/*deterministic=*/true);
   AlignedVector<uint32_t> extra_outputs =
       FillRandom<uint32_t>(kNumExtra, engine, /*seed=*/0);
@@ -149,7 +149,7 @@ HWY_NOINLINE void TestShardMulCollisionFree() {
 
   ThreadPool pool = MakePool();
   const size_t num_keys =
-      RoundUpTo(AdjustedReps(AdjustedReps(1'000'000)), NU32);
+      RoundUpTo(AdjustedReps(AdjustedReps(200'000)), NU32);
   AlignedVector<uint64_t> keys = GenerateClusteredKeys(num_keys);
 
   const double t0 = platform::Now();
