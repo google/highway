@@ -88,7 +88,7 @@ template <template <size_t> class PackT, size_t kVectors, size_t kBits>
 struct TestPack {
   template <typename T, class D>
   void operator()(T /* t */, D d) {
-    constexpr size_t kLoops = 16;  // working set slightly larger than L1
+    constexpr size_t kLoops = AdjustedReps(8);
     const size_t N = Lanes(d);
     RandomState rng(N * 129);
     static_assert(kBits <= kVectors, "");

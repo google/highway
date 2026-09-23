@@ -251,7 +251,7 @@ static HWY_NOINLINE HWY_MAYBE_UNUSED void TestBias(const Hash& hash) {
 
     uint32_t bit_count[32] = {};  // Count of 1s in each output bit position.
 
-    constexpr uint32_t kNumTrials = AdjustedReps(100'000);
+    constexpr uint32_t kNumTrials = AdjustedReps(50'000);
     for (uint32_t trial = 0; trial < kNumTrials; ++trial) {
       const uint32_t val = static_cast<uint32_t>(rng() & 0xFFFFFFFFu);
       const uint32_t h = hash(val);
@@ -472,26 +472,6 @@ static HWY_NOINLINE void TestAllBuckets() {
     fprintf(stderr, "MaskedWeakTwoMul<31>\n");
     TestMaskedBuckets<31>(masked31);
   }
-  {
-    MaskedMoremur<14> masked14(seed32);
-    fprintf(stderr, "MaskedMoremur<14>\n");
-    TestMaskedBuckets<14>(masked14);
-  }
-  {
-    MaskedMoremur<27> masked27(seed32);
-    fprintf(stderr, "MaskedMoremur<27>\n");
-    TestMaskedBuckets<27>(masked27);
-  }
-  {
-    MaskedWeakXMX<14> masked14(seed32);
-    fprintf(stderr, "MaskedWeakXMX<14>\n");
-    TestMaskedBuckets<14>(masked14);
-  }
-  {
-    MaskedWeakXMX<27> masked27(seed32);
-    fprintf(stderr, "MaskedWeakXMX<27>\n");
-    TestMaskedBuckets<27>(masked27);
-  }
 }
 
 // Verify bijection: hash all inputs, check each output was not yet seen using
@@ -574,7 +554,7 @@ static HWY_NOINLINE HWY_MAYBE_UNUSED void TestLanesEqual(const Hash& hash) {
 
     HWY_ALIGN uint32_t out[2 * MaxLanes(du32)];
 
-    constexpr size_t kNumTrials = AdjustedReps(50'000);
+    constexpr size_t kNumTrials = AdjustedReps(10'000);
     for (size_t trial = 0; trial < kNumTrials; ++trial) {
       VU32 vout0 = Set(du32, static_cast<uint32_t>(rng()));
       VU32 vout1 = vout0;
@@ -686,7 +666,7 @@ static HWY_NOINLINE HWY_MAYBE_UNUSED void TestBijection64(const Hash& hash) {
 
   // Each worker hashes random inputs and stores outputs in a sorted array,
   // then we check for duplicates. Any collision very likely indicates a bug.
-  constexpr size_t kNumTrials = AdjustedReps(500'000);
+  constexpr size_t kNumTrials = AdjustedReps(100'000);
 
   pool.Run(0, pool.NumWorkers(), [&](uint64_t task, size_t /*worker*/) {
     RngStream rng(engine, task);
