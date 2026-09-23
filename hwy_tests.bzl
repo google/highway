@@ -65,7 +65,10 @@ HWY_CONTRIB_TESTS = (
     (
         "hwy/contrib/iguana/",
         "iguana_test",
-        [":iguana"],
+        [
+            ":iguana",
+            ":thread_pool",
+        ],
     ),
     (
         "hwy/contrib/image/",

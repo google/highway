@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "hwy/contrib/iguana/iguana_detail.h"
+#include "hwy/contrib/thread_pool/thread_pool.h"
 #ifndef HWY_DISABLED_TARGETS
 #define HWY_DISABLED_TARGETS HWY_IGUANA_DISABLED_TARGETS
 #endif  // HWY_DISABLED_TARGETS
@@ -62,29 +63,157 @@ std::vector<uint8_t> MakeData(size_t n, uint64_t seed, int mode) {
   return v;
 }
 
+// One workspace shared by every call below, which is also what a real caller
+// would do: if Compress() failed to reset its hash chains, the second and
+// later blocks would decode to something other than their input.
+hwy::iguana::IguanaWorkspace* SharedWorkspace() {
+  static hwy::iguana::IguanaWorkspace ws;
+  return &ws;
+}
+
+// A real pool, so that the tests actually exercise the chunk-parallel paths
+// rather than only the single-worker fallbacks. Inputs below are mostly
+// smaller than one chunk; TestRoundTripSizes covers the multi-chunk case.
+hwy::ThreadPool* SharedPool() {
+  static hwy::ThreadPool pool(hwy::ThreadPool::NumThreadsFromCores());
+  return &pool;
+}
+
+// Stands in for the vector-based Compress() overload the API used to have.
+// Most tests below care about the resulting block, not about sizing `dst`.
+size_t CompressVec(Span<const uint8_t> src, AlignedVector<uint8_t>& out) {
+  const size_t max_len = hwy::iguana::MaxCompressedSize(src.size());
+  if (max_len == 0) {
+    out.clear();
+    return 0;
+  }
+  out.resize(max_len);
+  const size_t written =
+      hwy::iguana::Compress(src, Span<uint8_t>(out.data(), out.size()),
+                            *SharedWorkspace(), *SharedPool());
+  out.resize(written);
+  return written;
+}
+
+// Stand-ins for the vector-based Decompress() overloads the API used to have:
+// size `out` from the block header, then decode into it. Returning bool keeps
+// the assertions below readable, and clearing `out` on rejection keeps the
+// "a rejected block leaves no partial output" property testable.
+template <class DecompressFn>
+bool DecompressVec(Span<const uint8_t> src, AlignedVector<uint8_t>& out,
+                   const DecompressFn& decompress) {
+  size_t len = 0;
+  if (!hwy::iguana::DecompressedSize(src, &len)) {
+    out.clear();
+    return false;
+  }
+  out.resize(len);
+  if (decompress(src, Span<uint8_t>(out.data(), out.size())) ==
+      hwy::iguana::kDecompressFailed) {
+    out.clear();
+    return false;
+  }
+  return true;
+}
+
+bool DecompressScalarVec(Span<const uint8_t> src, AlignedVector<uint8_t>& out) {
+  return DecompressVec(src, out, [](Span<const uint8_t> s, Span<uint8_t> d) {
+    return hwy::iguana::DecompressScalar(s, d, *SharedWorkspace(),
+                                         *SharedPool());
+  });
+}
+
+bool DecompressStaticVec(Span<const uint8_t> src, AlignedVector<uint8_t>& out) {
+  return DecompressVec(src, out, [](Span<const uint8_t> s, Span<uint8_t> d) {
+    return DecompressStatic(s, d, *SharedWorkspace(), *SharedPool());
+  });
+}
+
 void RoundTrip(const std::vector<uint8_t>& data) {
-  const std::vector<uint8_t> comp =
-      hwy::iguana::Compress(data.data(), data.size());
-  HWY_ASSERT(!comp.empty());
+  const Span<const uint8_t> src_span(data.data(), data.size());
 
-  std::vector<uint8_t> dec;
-  HWY_ASSERT(DecompressStatic(comp.data(), comp.size(), dec));
-  HWY_ASSERT(dec.size() == data.size());
-  HWY_ASSERT(data.empty() || memcmp(dec.data(), data.data(), data.size()) == 0);
+  AlignedVector<uint8_t> comp_buf(hwy::iguana::MaxCompressedSize(data.size()));
+  const size_t comp_size = hwy::iguana::Compress(
+      src_span, Span<uint8_t>(comp_buf.data(), comp_buf.size()),
+      *SharedWorkspace(), *SharedPool());
+  HWY_ASSERT(comp_size > 0);
+  const Span<const uint8_t> comp_span(comp_buf.data(), comp_size);
 
-  std::vector<uint8_t> dec2;
-  HWY_ASSERT(hwy::iguana::DecompressScalar(comp.data(), comp.size(), dec2));
-  HWY_ASSERT(dec2 == dec);
+  size_t expected_dec_size = 0;
+  HWY_ASSERT(hwy::iguana::DecompressedSize(comp_span, &expected_dec_size));
+  HWY_ASSERT(expected_dec_size == data.size());
 
-  // The public wrapper dispatches to the best target at runtime.
-  std::vector<uint8_t> dec3;
-  HWY_ASSERT(hwy::iguana::Decompress(comp.data(), comp.size(), dec3));
-  HWY_ASSERT(dec3 == dec);
+  AlignedVector<uint8_t> dec_buf(data.size());
+  const Span<uint8_t> dec_span(dec_buf.data(), dec_buf.size());
+  HWY_ASSERT(DecompressStatic(comp_span, dec_span, *SharedWorkspace(),
+                              *SharedPool()) == data.size());
+  HWY_ASSERT(data.empty() ||
+             memcmp(dec_buf.data(), data.data(), data.size()) == 0);
+
+  AlignedVector<uint8_t> dec_scalar_buf(data.size());
+  HWY_ASSERT(hwy::iguana::DecompressScalar(
+                 comp_span,
+                 Span<uint8_t>(dec_scalar_buf.data(), dec_scalar_buf.size()),
+                 *SharedWorkspace(), *SharedPool()) == data.size());
+  HWY_ASSERT(dec_scalar_buf == dec_buf);
+
+  AlignedVector<uint8_t> dec_dyn_buf(data.size());
+  HWY_ASSERT(hwy::iguana::Decompress(
+                 comp_span,
+                 Span<uint8_t>(dec_dyn_buf.data(), dec_dyn_buf.size()),
+                 *SharedWorkspace(), *SharedPool()) == data.size());
+  HWY_ASSERT(dec_dyn_buf == dec_buf);
+
+  // Decoding the same block without a pool must give the same bytes: the
+  // chunk-parallel path and the serial one are two readings of one format.
+  hwy::ThreadPool no_pool(0);
+  AlignedVector<uint8_t> dec_serial_buf(data.size());
+  HWY_ASSERT(hwy::iguana::Decompress(
+                 comp_span,
+                 Span<uint8_t>(dec_serial_buf.data(), dec_serial_buf.size()),
+                 *SharedWorkspace(), no_pool) == data.size());
+  HWY_ASSERT(dec_serial_buf == dec_buf);
+
+  // A fresh workspace must produce exactly the same block as the reused one,
+  // and so must compressing without a pool: chunking is a property of the
+  // format, not of how many workers happened to be available.
+  hwy::iguana::IguanaWorkspace fresh;
+  AlignedVector<uint8_t> comp_buf2(hwy::iguana::MaxCompressedSize(data.size()));
+  const size_t comp_size2 = hwy::iguana::Compress(
+      src_span, Span<uint8_t>(comp_buf2.data(), comp_buf2.size()), fresh,
+      no_pool);
+  HWY_ASSERT(comp_size2 == comp_size);
+  HWY_ASSERT(memcmp(comp_buf2.data(), comp_buf.data(), comp_size) == 0);
+}
+
+void TestWorkspaceReserve() {
+  constexpr size_t kWorkers = 4;
+  hwy::iguana::IguanaWorkspace ws;
+  HWY_ASSERT(ws.Capacity() == 0);
+  HWY_ASSERT(ws.Reserve(1 << 20, kWorkers));
+  const size_t cap = ws.Capacity();
+  HWY_ASSERT(cap >= hwy::iguana::IguanaWorkspace::SizeFor(1 << 20, kWorkers));
+  // Reserving no more than what is already there must not reallocate.
+  HWY_ASSERT(ws.Reserve(1 << 19, kWorkers));
+  HWY_ASSERT(ws.Capacity() == cap);
+  // The per-worker regions are sized for one chunk, so they do not grow with
+  // the input; only the staging arena does, at roughly 1x.
+  HWY_ASSERT(hwy::iguana::IguanaWorkspace::SizeFor(2 << 20, kWorkers) -
+                 hwy::iguana::IguanaWorkspace::SizeFor(1 << 20, kWorkers) <
+             2 << 20);
+  // More workers cost more, and fewer cost less.
+  HWY_ASSERT(hwy::iguana::IguanaWorkspace::SizeFor(1 << 20, 1) <
+             hwy::iguana::IguanaWorkspace::SizeFor(1 << 20, kWorkers));
 }
 
 void TestRoundTripSizes() {
-  const size_t kSizes[] = {0,   1,    10,   31,    36,    37,    64,
-                           100, 1000, 5000, 40000, 65536, 200000};
+  // The sizes from kChunkSize on exercise the multi-chunk paths: exactly one
+  // chunk, one chunk plus a one-byte remainder, an exact multiple, and a
+  // partial last chunk.
+  const size_t kSizes[] = {0,      1,      10,     31,     36,
+                           37,     64,     100,    1000,   5000,
+                           40000,  65536,  200000, 262144, 262145,
+                           524288, 700000};
   for (size_t idx = 0; idx < sizeof(kSizes) / sizeof(kSizes[0]); ++idx) {
     const size_t n = kSizes[idx];
     RoundTrip(MakeData(n, n * 7 + 1, 0));
@@ -116,11 +245,11 @@ void TestRoundTripStructure() {
 // Malformed or truncated inputs must be rejected: no crash, and no allocation
 // driven by an attacker-controlled length.
 void TestRejectsMalformed() {
-  std::vector<uint8_t> out;
+  AlignedVector<uint8_t> out;
 
   // No header at all.
-  HWY_ASSERT(!hwy::iguana::DecompressScalar(nullptr, 0, out));
-  HWY_ASSERT(!DecompressStatic(nullptr, 0, out));
+  HWY_ASSERT(!DecompressScalarVec(Span<const uint8_t>(), out));
+  HWY_ASSERT(!DecompressStaticVec(Span<const uint8_t>(), out));
 
   // A hand-built block whose very first LZ token is a match that reuses the
   // "previous offset" (bit 0x80) when there has not been one yet - the offset
@@ -140,23 +269,22 @@ void TestRejectsMalformed() {
         0x80 | hwy::iguana::kCmdDecodeIguana,  // command (last)
         0x84,                                  // uncompressed_len = 4
     };
-    HWY_ASSERT(!hwy::iguana::DecompressScalar(first_match_reuse,
-                                              sizeof(first_match_reuse), out));
-    HWY_ASSERT(
-        !DecompressStatic(first_match_reuse, sizeof(first_match_reuse), out));
+    const Span<const uint8_t> span(first_match_reuse,
+                                   sizeof(first_match_reuse));
+    HWY_ASSERT(!DecompressScalarVec(span, out));
+    HWY_ASSERT(!DecompressStaticVec(span, out));
   }
 
   // Every truncation of a valid block is rejected or decodes a shorter output.
   const std::vector<uint8_t> data = MakeData(5000, 777, 2);
-  const std::vector<uint8_t> comp =
-      hwy::iguana::Compress(data.data(), data.size());
-  HWY_ASSERT(!comp.empty());
+  AlignedVector<uint8_t> comp;
+  HWY_ASSERT(CompressVec(Span<const uint8_t>(data), comp) > 0);
   for (size_t n = 0; n < comp.size(); ++n) {
-    std::vector<uint8_t> scalar;
-    std::vector<uint8_t> simd;
-    const bool ok_scalar =
-        hwy::iguana::DecompressScalar(comp.data(), n, scalar);
-    const bool ok_simd = DecompressStatic(comp.data(), n, simd);
+    AlignedVector<uint8_t> scalar;
+    AlignedVector<uint8_t> simd;
+    const Span<const uint8_t> trunc(comp.data(), n);
+    const bool ok_scalar = DecompressScalarVec(trunc, scalar);
+    const bool ok_simd = DecompressStaticVec(trunc, simd);
     HWY_ASSERT(ok_scalar == ok_simd);
     if (ok_scalar) {
       // A truncated block may decode, but never to more than the original.
@@ -167,10 +295,10 @@ void TestRejectsMalformed() {
 
   // Single-byte mutations: accepted output is still bounded by the cap.
   for (size_t i = 0; i < comp.size(); i += 5) {
-    std::vector<uint8_t> mutated = comp;
+    AlignedVector<uint8_t> mutated = comp;
     mutated[i] ^= 0xFF;
-    std::vector<uint8_t> dec;
-    if (hwy::iguana::DecompressScalar(mutated.data(), mutated.size(), dec)) {
+    AlignedVector<uint8_t> dec;
+    if (DecompressScalarVec(Span<const uint8_t>(mutated), dec)) {
       HWY_ASSERT(dec.size() <= (size_t{1} << 30));
     }
   }
@@ -234,10 +362,10 @@ void TestSecurityZipBomb() {
   const uint64_t huge = (uint64_t{1} << 30) + 1;
   const std::vector<uint8_t> bomb = MakeIguanaBlock(streams, ulens, huge);
 
-  std::vector<uint8_t> out;
-  HWY_ASSERT(!hwy::iguana::DecompressScalar(bomb.data(), bomb.size(), out));
+  AlignedVector<uint8_t> out;
+  HWY_ASSERT(!DecompressScalarVec(Span<const uint8_t>(bomb), out));
   HWY_ASSERT(out.empty());
-  HWY_ASSERT(!DecompressStatic(bomb.data(), bomb.size(), out));
+  HWY_ASSERT(!DecompressStaticVec(Span<const uint8_t>(bomb), out));
 
   // The cap is part of the contract, so keep it visible here.
   HWY_ASSERT(hwy::iguana::kMaxUncompressedSize == (size_t{1} << 30));
@@ -264,10 +392,10 @@ void TestSecurityStreamTotalBomb() {
   std::vector<uint8_t> block(payload);
   for (size_t i = ctrl.size(); i-- > 0;) block.push_back(ctrl[i]);
 
-  std::vector<uint8_t> out;
-  HWY_ASSERT(!hwy::iguana::DecompressScalar(block.data(), block.size(), out));
+  AlignedVector<uint8_t> out;
+  HWY_ASSERT(!DecompressScalarVec(Span<const uint8_t>(block), out));
   HWY_ASSERT(out.empty());
-  HWY_ASSERT(!DecompressStatic(block.data(), block.size(), out));
+  HWY_ASSERT(!DecompressStaticVec(Span<const uint8_t>(block), out));
   HWY_ASSERT(out.empty());
 }
 
@@ -275,20 +403,21 @@ void TestSecurityStreamTotalBomb() {
 // bytes in front of it are unaccounted for and the block must be rejected
 // rather than silently reported as "successfully decoded to nothing".
 void TestSecurityEmptyBlockIsExact() {
-  std::vector<uint8_t> out;
+  AlignedVector<uint8_t> out;
 
   // What Compress() emits for an empty input: a single stop-bit-only varint.
-  const std::vector<uint8_t> empty = hwy::iguana::Compress(nullptr, 0);
+  AlignedVector<uint8_t> empty;
+  HWY_ASSERT(CompressVec(Span<const uint8_t>(), empty) == 1);
   HWY_ASSERT(empty.size() == 1);
-  HWY_ASSERT(hwy::iguana::DecompressScalar(empty.data(), empty.size(), out));
+  HWY_ASSERT(DecompressScalarVec(Span<const uint8_t>(empty), out));
   HWY_ASSERT(out.empty());
-  HWY_ASSERT(DecompressStatic(empty.data(), empty.size(), out));
+  HWY_ASSERT(DecompressStaticVec(Span<const uint8_t>(empty), out));
   HWY_ASSERT(out.empty());
 
   // The same length byte with unaccounted-for bytes in front of it.
   std::vector<uint8_t> padded = {0xDE, 0xAD, 0xBE, 0xEF, 0x80};
-  HWY_ASSERT(!hwy::iguana::DecompressScalar(padded.data(), padded.size(), out));
-  HWY_ASSERT(!DecompressStatic(padded.data(), padded.size(), out));
+  HWY_ASSERT(!DecompressScalarVec(Span<const uint8_t>(padded), out));
+  HWY_ASSERT(!DecompressStaticVec(Span<const uint8_t>(padded), out));
 }
 
 // A rejected block must leave `out` empty: callers that forget to check the
@@ -304,17 +433,17 @@ void TestSecurityRejectedOutputIsCleared() {
   const uint64_t ulens[6] = {2, 0, 0, 1, 0, 100};
   const std::vector<uint8_t> block = MakeIguanaBlock(streams, ulens, 100);
 
-  std::vector<uint8_t> out;
-  HWY_ASSERT(!hwy::iguana::DecompressScalar(block.data(), block.size(), out));
+  AlignedVector<uint8_t> out;
+  HWY_ASSERT(!DecompressScalarVec(Span<const uint8_t>(block), out));
   HWY_ASSERT(out.empty());
-  HWY_ASSERT(!DecompressStatic(block.data(), block.size(), out));
+  HWY_ASSERT(!DecompressStaticVec(Span<const uint8_t>(block), out));
   HWY_ASSERT(out.empty());
 }
 
 // Malformed containers: unknown commands, unimplemented stream modes, a control
 // varint longer than 64 bits, and auxiliary streams left with leftover bytes.
 void TestSecurityMalformedContainer() {
-  std::vector<uint8_t> out;
+  AlignedVector<uint8_t> out;
 
   // Unknown command byte: only CopyRaw / DecodeIguana / DecodeANS32 exist.
   {
@@ -322,8 +451,8 @@ void TestSecurityMalformedContainer() {
     ctrl.push_back(static_cast<uint8_t>(0x80 | 0x7F));
     AppendCtrlVarUint(ctrl, 1);
     std::vector<uint8_t> block(ctrl.rbegin(), ctrl.rend());
-    HWY_ASSERT(!hwy::iguana::DecompressScalar(block.data(), block.size(), out));
-    HWY_ASSERT(!DecompressStatic(block.data(), block.size(), out));
+    HWY_ASSERT(!DecompressScalarVec(Span<const uint8_t>(block), out));
+    HWY_ASSERT(!DecompressStaticVec(Span<const uint8_t>(block), out));
   }
 
   // Stream mode 2 (ANS1) is declared but not implemented: must be rejected.
@@ -334,16 +463,16 @@ void TestSecurityMalformedContainer() {
     streams[2].assign(4, 0);
     const std::vector<uint8_t> block =
         MakeIguanaBlock(streams, ulens, 64, /*ansi_mode_stream=*/2);
-    HWY_ASSERT(!hwy::iguana::DecompressScalar(block.data(), block.size(), out));
-    HWY_ASSERT(!DecompressStatic(block.data(), block.size(), out));
+    HWY_ASSERT(!DecompressScalarVec(Span<const uint8_t>(block), out));
+    HWY_ASSERT(!DecompressStaticVec(Span<const uint8_t>(block), out));
   }
 
   // A control varint of 11 bytes: more bits than fit in 64.
   {
     std::vector<uint8_t> block;
     for (int i = 0; i < 11; ++i) block.push_back(0xFF);
-    HWY_ASSERT(!hwy::iguana::DecompressScalar(block.data(), block.size(), out));
-    HWY_ASSERT(!DecompressStatic(block.data(), block.size(), out));
+    HWY_ASSERT(!DecompressScalarVec(Span<const uint8_t>(block), out));
+    HWY_ASSERT(!DecompressStaticVec(Span<const uint8_t>(block), out));
   }
 
   // Leftover bytes in an auxiliary stream: the token stream is empty, but the
@@ -353,14 +482,14 @@ void TestSecurityMalformedContainer() {
     uint64_t ulens[6] = {0, 2, 0, 0, 0, 0};
     streams[1].assign(2, 0);
     const std::vector<uint8_t> block = MakeIguanaBlock(streams, ulens, 64);
-    HWY_ASSERT(!hwy::iguana::DecompressScalar(block.data(), block.size(), out));
-    HWY_ASSERT(!DecompressStatic(block.data(), block.size(), out));
+    HWY_ASSERT(!DecompressScalarVec(Span<const uint8_t>(block), out));
+    HWY_ASSERT(!DecompressStaticVec(Span<const uint8_t>(block), out));
   }
 }
 
 // LZ77-level malformed input: a match whose offset points before the output.
 void TestSecurityMalformedLZ() {
-  std::vector<uint8_t> out;
+  AlignedVector<uint8_t> out;
 
   // tokens = {0x28}: short form, literal length 0, the repeat-offset bit is
   // clear so a new 16-bit offset is read, and it says 65535 while the output is
@@ -371,9 +500,9 @@ void TestSecurityMalformedLZ() {
   streams[1].push_back(0xFF);
   const uint64_t ulens[6] = {1, 2, 0, 0, 0, 0};
   const std::vector<uint8_t> block = MakeIguanaBlock(streams, ulens, 100);
-  HWY_ASSERT(!hwy::iguana::DecompressScalar(block.data(), block.size(), out));
+  HWY_ASSERT(!DecompressScalarVec(Span<const uint8_t>(block), out));
   HWY_ASSERT(out.empty());
-  HWY_ASSERT(!DecompressStatic(block.data(), block.size(), out));
+  HWY_ASSERT(!DecompressStaticVec(Span<const uint8_t>(block), out));
 
   // A NOP token (0x80) carries neither literals nor a match. A block can be
   // padded with them: it still produces its declared output, so without an
@@ -388,7 +517,7 @@ void TestSecurityMalformedLZ() {
   const std::vector<uint8_t> ok_block =
       MakeIguanaBlock(ok_streams, ok_ulens, 100);
   const bool ok_res =
-      hwy::iguana::DecompressScalar(ok_block.data(), ok_block.size(), out);
+      DecompressScalarVec(Span<const uint8_t>(ok_block), out);
   HWY_ASSERT(ok_res);
   HWY_ASSERT(out.size() == 100 && out[0] == 'A');
 
@@ -404,10 +533,10 @@ void TestSecurityMalformedLZ() {
       MakeIguanaBlock(nop_streams, nop_ulens, 100);
   // Both paths must reject it, and leave no partial output behind.
   const bool nop_res =
-      hwy::iguana::DecompressScalar(nop_block.data(), nop_block.size(), out);
+      DecompressScalarVec(Span<const uint8_t>(nop_block), out);
   HWY_ASSERT(!nop_res);
   HWY_ASSERT(out.empty());
-  HWY_ASSERT(!DecompressStatic(nop_block.data(), nop_block.size(), out));
+  HWY_ASSERT(!DecompressStaticVec(Span<const uint8_t>(nop_block), out));
   HWY_ASSERT(out.empty());
 }
 
@@ -421,11 +550,10 @@ void TestSecurityMutationSweep() {
     const size_t n = 1 + static_cast<size_t>(Random64(&rng) % 4000);
     const std::vector<uint8_t> data =
         MakeData(n, Random64(&rng) & 0xFFFF, round % 3);
-    const std::vector<uint8_t> comp =
-        hwy::iguana::Compress(data.data(), data.size());
-    if (comp.empty()) continue;
+    AlignedVector<uint8_t> comp;
+    if (CompressVec(Span<const uint8_t>(data), comp) == 0) continue;
 
-    std::vector<uint8_t> mutated = comp;
+    AlignedVector<uint8_t> mutated = comp;
     const int mutations = 1 + static_cast<int>(Random64(&rng) % 4);
     for (int m = 0; m < mutations; ++m) {
       const size_t pos = static_cast<size_t>(Random64(&rng) % mutated.size());
@@ -443,11 +571,12 @@ void TestSecurityMutationSweep() {
       }
     }
 
-    std::vector<uint8_t> scalar;
-    std::vector<uint8_t> simd;
+    AlignedVector<uint8_t> scalar;
+    AlignedVector<uint8_t> simd;
     const bool ok_scalar =
-        hwy::iguana::DecompressScalar(mutated.data(), mutated.size(), scalar);
-    const bool ok_simd = DecompressStatic(mutated.data(), mutated.size(), simd);
+        DecompressScalarVec(Span<const uint8_t>(mutated), scalar);
+    const bool ok_simd =
+        DecompressStaticVec(Span<const uint8_t>(mutated), simd);
     HWY_ASSERT(ok_scalar == ok_simd);
     if (ok_scalar) {
       HWY_ASSERT(scalar == simd);
@@ -466,11 +595,11 @@ void TestSecurityRandomInput() {
     for (size_t i = 0; i < n; ++i) {
       bytes[i] = static_cast<uint8_t>(Random64(&rng));
     }
-    std::vector<uint8_t> scalar;
-    std::vector<uint8_t> simd;
-    const bool ok_scalar =
-        hwy::iguana::DecompressScalar(bytes.data(), n, scalar);
-    const bool ok_simd = DecompressStatic(bytes.data(), n, simd);
+    AlignedVector<uint8_t> scalar;
+    AlignedVector<uint8_t> simd;
+    const Span<const uint8_t> span(bytes.data(), n);
+    const bool ok_scalar = DecompressScalarVec(span, scalar);
+    const bool ok_simd = DecompressStaticVec(span, simd);
     HWY_ASSERT(ok_scalar == ok_simd);
     if (ok_scalar) {
       HWY_ASSERT(scalar == simd);
@@ -504,20 +633,20 @@ void TestLongLiteralRunSplit() {
            (((lfsr ^ (lfsr >> 1) ^ (lfsr >> 3) ^ (lfsr >> 4)) & 1) << 23);
   }
 
-  const std::vector<uint8_t> comp =
-      hwy::iguana::Compress(data.data(), data.size());
-  HWY_ASSERT(!comp.empty());
+  AlignedVector<uint8_t> comp;
+  HWY_ASSERT(CompressVec(Span<const uint8_t>(data), comp) > 0);
   // If the raw path had won, the LZ path (and the splitting inside it) would
   // never have run, so the test would prove nothing.
   HWY_ASSERT(comp.size() * 4 < data.size());
 
-  std::vector<uint8_t> dec;
-  HWY_ASSERT(DecompressStatic(comp.data(), comp.size(), dec));
-  HWY_ASSERT(dec == data);
-  std::vector<uint8_t> dec_scalar;
+  AlignedVector<uint8_t> dec;
+  HWY_ASSERT(DecompressStaticVec(Span<const uint8_t>(comp), dec));
+  HWY_ASSERT(dec.size() == data.size() &&
+             memcmp(dec.data(), data.data(), data.size()) == 0);
+  AlignedVector<uint8_t> dec_scalar;
   HWY_ASSERT(
-      hwy::iguana::DecompressScalar(comp.data(), comp.size(), dec_scalar));
-  HWY_ASSERT(dec_scalar == data);
+      DecompressScalarVec(Span<const uint8_t>(comp), dec_scalar));
+  HWY_ASSERT(dec_scalar == dec);
 }
 
 }  // namespace
@@ -529,6 +658,7 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 namespace hwy {
 HWY_BEFORE_TEST(IguanaTest);
+HWY_EXPORT_AND_TEST_P(IguanaTest, TestWorkspaceReserve);
 HWY_EXPORT_AND_TEST_P(IguanaTest, TestRoundTripSizes);
 HWY_EXPORT_AND_TEST_P(IguanaTest, TestRoundTripStructure);
 HWY_EXPORT_AND_TEST_P(IguanaTest, TestRejectsMalformed);

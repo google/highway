@@ -2947,6 +2947,14 @@ HWY_API constexpr RemoveCvRef<T> NativeFromLittleEndian(T val) noexcept {
 #endif
 }
 
+// LittleEndianFromNative is the inverse of NativeFromLittleEndian. Byte
+// swapping is an involution, so the two are the same operation; both names
+// exist so call sites can state which direction they mean.
+template <class T, HWY_IF_INTEGER(RemoveCvRef<T>)>
+HWY_API constexpr RemoveCvRef<T> LittleEndianFromNative(T val) noexcept {
+  return NativeFromLittleEndian(val);
+}
+
 HWY_API uint32_t LoadLE16(const uint8_t* p) {
   return uint32_t{p[0]} | (uint32_t{p[1]} << 8);
 }
@@ -2959,6 +2967,26 @@ HWY_API uint64_t LoadLE64(const uint8_t* p) {
          (uint64_t{p[3]} << 24) | (uint64_t{p[4]} << 32) |
          (uint64_t{p[5]} << 40) | (uint64_t{p[6]} << 48) |
          (uint64_t{p[7]} << 56);
+}
+
+// Returns the `T` stored in little-endian byte order at the possibly unaligned
+// `from`. Same result as LoadLE16/32/64 above, but a single unaligned load
+// (plus one byte swap on big-endian targets) rather than assembling the value
+// byte by byte, which compilers do not always recognize and widen. Prefer this
+// in hot loops; `T` must be given explicitly because it cannot be deduced.
+template <class T, HWY_IF_INTEGER(RemoveCvRef<T>)>
+HWY_API RemoveCvRef<T> ScalarLoadULittleEndian(const void* HWY_RESTRICT from) {
+  RemoveCvRef<T> val;
+  CopyBytes<sizeof(val)>(from, &val);
+  return NativeFromLittleEndian(val);
+}
+
+// Stores `val` in little-endian byte order to the possibly unaligned `to`;
+// the inverse of ScalarLoadULittleEndian.
+template <class T, HWY_IF_INTEGER(RemoveCvRef<T>)>
+HWY_API void ScalarStoreULittleEndian(T val, void* HWY_RESTRICT to) {
+  const RemoveCvRef<T> le = LittleEndianFromNative(val);
+  CopyBytes<sizeof(le)>(&le, to);
 }
 
 namespace detail {

@@ -53,17 +53,21 @@ std::vector<uint8_t> MakeData(size_t n, uint64_t seed, int skew) {
 }
 
 void RoundTrip(const std::vector<uint8_t>& data) {
-  std::vector<uint8_t> enc = hwy::iguana::Ans32Encode(data.data(), data.size());
-  HWY_ASSERT(!enc.empty());
+  const size_t scratch_size = hwy::iguana::Ans32EncodeScratchSize(data.size());
+  AlignedFreeUniquePtr<uint8_t[]> scratch =
+      AllocateAligned<uint8_t>(scratch_size);
+  HWY_ASSERT(scratch != nullptr);
+  const Span<const uint8_t> enc = hwy::iguana::Ans32Encode(
+      data.data(), data.size(), Span<uint8_t>(scratch.get(), scratch_size));
+  HWY_ASSERT(enc.size() != 0);
 
   std::vector<uint8_t> dec(data.size(), 0xCD);
-  HWY_ASSERT(ans::Ans32Decode(enc.data(), enc.size(), dec.data(), data.size()));
+  HWY_ASSERT(ans::Ans32Decode(enc, dec));
   HWY_ASSERT(data.empty() || memcmp(dec.data(), data.data(), data.size()) == 0);
 
   // The SIMD decoder must match the scalar reference bit-for-bit.
   std::vector<uint8_t> dec2(data.size(), 0xAB);
-  HWY_ASSERT(hwy::iguana::Ans32DecodeScalar(enc.data(), enc.size(), dec2.data(),
-                                            data.size()));
+  HWY_ASSERT(hwy::iguana::Ans32DecodeScalar(enc, dec2));
   HWY_ASSERT(data.empty() ||
              memcmp(dec2.data(), data.data(), data.size()) == 0);
 }
@@ -109,13 +113,14 @@ void TestRoundTripModels() {
 // would collapse the state to zero and emit a spurious symbol.
 void TestSingleSymbolTableIsDense() {
   const std::vector<uint8_t> data(64, 0x42);
-  std::vector<uint8_t> serialized;
-  hwy::iguana::AnsStatistics::FromData(data.data(), data.size())
-      .Serialize(serialized);
+  uint8_t serialized[hwy::iguana::kAnsMaxSerializedBytes];
+  const size_t serialized_size =
+      hwy::iguana::AnsStatistics::FromData(data.data(), data.size())
+          .Serialize(serialized);
 
   hwy::iguana::AnsDenseTable table;
-  HWY_ASSERT(hwy::iguana::DeserializeAnsTable(table, serialized.data(),
-                                              serialized.size()) != SIZE_MAX);
+  HWY_ASSERT(hwy::iguana::DeserializeAnsTable(table, serialized,
+                                              serialized_size) != SIZE_MAX);
   HWY_ASSERT(table.size() == hwy::iguana::kAnsWordM);
   for (uint32_t entry : table) {
     HWY_ASSERT((entry & hwy::iguana::kAnsFreqMask) != 0);

@@ -58,31 +58,11 @@ namespace hn = hwy::HWY_NAMESPACE;
 // HWY_SCALAR doesn't support Repartition for RenormLane.
 #if HWY_TARGET == HWY_SCALAR
 
-HWY_INLINE bool Ans32Decode(const uint8_t* src, size_t src_size, uint8_t* dst,
-                            size_t orig_size) {
-  return hi::Ans32DecodeScalar(src, src_size, dst, orig_size);
+HWY_INLINE bool Ans32Decode(Span<const uint8_t> src, Span<uint8_t> dst) {
+  return hi::Ans32DecodeScalar(src, dst);
 }
 
 #else
-
-// Decodes one symbol per lane of `x`; returns the updated state and writes the
-// `Lanes(d)` symbol bytes to `out`.
-template <class D, class V = hn::VFromD<D> >
-HWY_INLINE hn::VFromD<D> DecodeLane(D d, V x,
-                                    const uint32_t* HWY_RESTRICT table,
-                                    uint8_t* HWY_RESTRICT out) {
-  const hn::RebindToSigned<D> di;
-  const V freq_mask = hn::Set(d, hi::kAnsFreqMask);
-  const V slot = hn::And(x, freq_mask);
-  const V t = hn::GatherIndex(d, table, hn::BitCast(di, slot));
-  const V freq = hn::And(t, freq_mask);
-  const V bias = hn::And(hn::ShiftRight<hi::kAnsWordMBits>(t), freq_mask);
-
-  const hn::Rebind<uint8_t, D> d8;
-  hn::StoreU(hn::TruncateTo(d8, hn::ShiftRight<24>(t)), d8, out);
-
-  return hn::MulAdd(freq, hn::ShiftRight<hi::kAnsWordMBits>(x), bias);
-}
 
 // Renormalizes the lanes of `x` whose state < 2^16, consuming 16-bit words from
 // `p` (advanced by the number consumed). `forward` selects the read direction.
@@ -115,6 +95,82 @@ HWY_INLINE V RenormLane(D d, V x, const uint8_t*& p) {
       mask, hn::Or(hn::ShiftLeft<hi::kAnsWordLBits>(x), expanded), x);
 }
 
+// Decodes a pair of `N`-lane uint32_t state vectors `(x0, x1)` (`2 * N` lanes
+// total) without `GatherIndex`, using the algebraic split:
+//   state' = freq[sym] * (x >> 12) + (x & 0xFFF) - cum_freq[sym]
+// where `sym = slot_to_sym[x & 0xFFF]` is written directly to `out0` and `out1`
+// (`N` bytes each), and `(freq[sym], cum_freq[sym])` are looked up via
+// `TwoTablesLookupLanes` (when the active alphabet fits in 2 vectors) or from
+// the 1 KiB `sym_fc` L1 table.
+template <class D, class V = hn::VFromD<D>,
+          class DU16 = hn::Repartition<uint16_t, D>,
+          class V16 = hn::VFromD<DU16>>
+HWY_INLINE void DecodePairAlgebraic(
+    D d, DU16 du16, size_t n, V& x0, V& x1,
+    const uint8_t* HWY_RESTRICT slot_to_sym,
+    const uint8_t* HWY_RESTRICT slot_to_compact, bool use_two_tables,
+    V16 cf0, V16 cf1, V16 cc0, V16 cc1,
+    const uint32_t* HWY_RESTRICT sym_fc, uint8_t* HWY_RESTRICT out0,
+    uint8_t* HWY_RESTRICT out1) {
+  const hn::Rebind<uint8_t, DU16> du8_2n;
+  const V freq_mask = hn::Set(d, hi::kAnsFreqMask);
+  const V slot0 = hn::And(x0, freq_mask);
+  const V slot1 = hn::And(x1, freq_mask);
+
+  HWY_ALIGN uint32_t slots[32];
+  hn::Store(slot0, d, slots);
+  hn::Store(slot1, d, slots + n);
+
+  // When the active alphabet fits in two `du16` registers (`<= 4 * n` symbols,
+  // i.e. <= 64 symbols on AVX-512, <= 32 on AVX2), a single
+  // `TwoTablesLookupLanes` looks up all `2 * n` lanes in registers with zero
+  // register spills.
+  if (use_two_tables) {
+    HWY_ALIGN uint8_t c_idx[32];
+    for (size_t i = 0; i < n; ++i) {
+      const uint32_t s0 = slots[i];
+      const uint32_t s1 = slots[n + i];
+      out0[i] = slot_to_sym[s0];
+      out1[i] = slot_to_sym[s1];
+      c_idx[i] = slot_to_compact[s0];
+      c_idx[n + i] = slot_to_compact[s1];
+    }
+    const auto v_idx = hn::PromoteTo(du16, hn::Load(du8_2n, c_idx));
+    const auto indices = hn::IndicesFromVec(du16, v_idx);
+    const V16 freq16 = hn::TwoTablesLookupLanes(du16, cf0, cf1, indices);
+    const V16 cum16 = hn::TwoTablesLookupLanes(du16, cc0, cc1, indices);
+
+    const V bias0 = hn::Sub(slot0, hn::PromoteLowerTo(d, cum16));
+    const V bias1 = hn::Sub(slot1, hn::PromoteUpperTo(d, cum16));
+    x0 = hn::MulAdd(hn::PromoteLowerTo(d, freq16),
+                    hn::ShiftRight<hi::kAnsWordMBits>(x0), bias0);
+    x1 = hn::MulAdd(hn::PromoteUpperTo(d, freq16),
+                    hn::ShiftRight<hi::kAnsWordMBits>(x1), bias1);
+    return;
+  }
+
+  // For larger alphabets (> 4 * n unique symbols), use the algebraic split
+  // (`4 KiB slot_to_sym` + `1 KiB sym_fc`) with L1D loads, avoiding both
+  // `vpgatherdd` and multi-register shuffle cascades.
+  HWY_ALIGN uint32_t fc[32];
+  for (size_t i = 0; i < n; ++i) {
+    const uint8_t sym0 = slot_to_sym[slots[i]];
+    const uint8_t sym1 = slot_to_sym[slots[n + i]];
+    out0[i] = sym0;
+    out1[i] = sym1;
+    fc[i] = sym_fc[sym0];
+    fc[n + i] = sym_fc[sym1];
+  }
+  const V fc0 = hn::Load(d, fc);
+  const V fc1 = hn::Load(d, fc + n);
+  const V freq0 = hn::And(fc0, freq_mask);
+  const V freq1 = hn::And(fc1, freq_mask);
+  const V bias0 = hn::Sub(slot0, hn::ShiftRight<16>(fc0));
+  const V bias1 = hn::Sub(slot1, hn::ShiftRight<16>(fc1));
+  x0 = hn::MulAdd(freq0, hn::ShiftRight<hi::kAnsWordMBits>(x0), bias0);
+  x1 = hn::MulAdd(freq1, hn::ShiftRight<hi::kAnsWordMBits>(x1), bias1);
+}
+
 // Decodes `payload` with `kNumVectors` (1, 2 or 4) vector groups per half.
 template <size_t kNumVectors, class D>
 HWY_INLINE bool Ans32DecodePayloadT(D d, size_t n,
@@ -124,6 +180,8 @@ HWY_INLINE bool Ans32DecodePayloadT(D d, size_t n,
                                     uint8_t* HWY_RESTRICT dst,
                                     size_t orig_size) {
   using V = hn::VFromD<D>;
+  const hn::Repartition<uint16_t, D> du16;
+  using V16 = hn::VFromD<decltype(du16)>;
   V fwd0 = hn::Zero(d), rev0 = hn::Zero(d);
   HWY_MAYBE_UNUSED V fwd1 = hn::Zero(d), fwd2 = hn::Zero(d), fwd3 = hn::Zero(d);
   HWY_MAYBE_UNUSED V rev1 = hn::Zero(d), rev2 = hn::Zero(d), rev3 = hn::Zero(d);
@@ -154,22 +212,70 @@ HWY_INLINE bool Ans32DecodePayloadT(D d, size_t n,
   const uint8_t* pr = payload + payload_size - 64;
   size_t pos = 0;
 
+  // Build the algebraic split tables (`slot_to_sym[4096]` + 256-entry symbol
+  // tables) in <= 256 steps (one per active symbol run). Skip the vectorized
+  // loop only for the degenerate 1-symbol edge case where slot 4095 has a
+  // synthetic sentinel entry.
+  const bool is_single_sym =
+      (tab[hi::kAnsWordM - 1] & hi::kAnsFreqMask) == 1 &&
+      (tab[0] & hi::kAnsFreqMask) == hi::kAnsWordM - 1;
+
+  HWY_ALIGN uint8_t slot_to_sym[hi::kAnsWordM];
+  HWY_ALIGN uint8_t slot_to_compact[hi::kAnsWordM];
+  HWY_ALIGN uint16_t compact_freq[64] = {};
+  HWY_ALIGN uint16_t compact_cum[64] = {};
+  HWY_ALIGN uint32_t sym_fc[256] = {};
+  size_t num_unique = 0;
+  if (HWY_LIKELY(!is_single_sym)) {
+    uint32_t slot = 0;
+    while (slot < hi::kAnsWordM) {
+      const uint32_t t = tab[slot];
+      const uint32_t sym = t >> 24;
+      const uint32_t freq = t & hi::kAnsFreqMask;
+      sym_fc[sym] = (slot << 16) | freq;
+      if (num_unique < 64) {
+        compact_freq[num_unique] = static_cast<uint16_t>(freq);
+        compact_cum[num_unique] = static_cast<uint16_t>(slot);
+      }
+      memset(slot_to_sym + slot, static_cast<int>(sym), freq);
+      ++num_unique;
+      slot += freq;
+    }
+  }
+  const bool use_two_tables = !is_single_sym && (num_unique <= 4 * n);
+  V16 cf0 = hn::Zero(du16), cf1 = hn::Zero(du16);
+  V16 cc0 = hn::Zero(du16), cc1 = hn::Zero(du16);
+  if (use_two_tables) {
+    uint32_t slot = 0;
+    for (size_t idx = 0; idx < num_unique; ++idx) {
+      const uint32_t freq = compact_freq[idx];
+      memset(slot_to_compact + slot, static_cast<int>(idx), freq);
+      slot += freq;
+    }
+    cf0 = hn::Load(du16, compact_freq);
+    cf1 = hn::Load(du16, compact_freq + 2 * n);
+    cc0 = hn::Load(du16, compact_cum);
+    cc1 = hn::Load(du16, compact_cum + 2 * n);
+  }
+
   // Vectorized rounds, kept clear of the point where the two halves meet.
-  // fwd/rev decode fused into one loop (likewise for renorm below): the two
-  // halves are independent within a round, so interleaving them changes
-  // neither the result nor which bytes of `pf`/`pr` each touches.
-  while (pos + 32 <= orig_size && pf + 64 <= pr - 64) {
-    fwd0 = DecodeLane(d, fwd0, tab, dst + pos + 0 * n);
-    rev0 = DecodeLane(d, rev0, tab, dst + pos + 16 + 0 * n);
+  while (HWY_LIKELY(!is_single_sym) && pos + 32 <= orig_size &&
+         pf + 64 <= pr - 64) {
+    DecodePairAlgebraic(d, du16, n, fwd0, rev0, slot_to_sym, slot_to_compact,
+                        use_two_tables, cf0, cf1, cc0, cc1, sym_fc,
+                        dst + pos + 0 * n, dst + pos + 16 + 0 * n);
     if constexpr (kNumVectors >= 2) {
-      fwd1 = DecodeLane(d, fwd1, tab, dst + pos + 1 * n);
-      rev1 = DecodeLane(d, rev1, tab, dst + pos + 16 + 1 * n);
+      DecodePairAlgebraic(d, du16, n, fwd1, rev1, slot_to_sym, slot_to_compact,
+                          use_two_tables, cf0, cf1, cc0, cc1, sym_fc,
+                          dst + pos + 1 * n, dst + pos + 16 + 1 * n);
     }
     if constexpr (kNumVectors >= 4) {
-      fwd2 = DecodeLane(d, fwd2, tab, dst + pos + 2 * n);
-      rev2 = DecodeLane(d, rev2, tab, dst + pos + 16 + 2 * n);
-      fwd3 = DecodeLane(d, fwd3, tab, dst + pos + 3 * n);
-      rev3 = DecodeLane(d, rev3, tab, dst + pos + 16 + 3 * n);
+      DecodePairAlgebraic(d, du16, n, fwd2, rev2, slot_to_sym, slot_to_compact,
+                          use_two_tables, cf0, cf1, cc0, cc1, sym_fc,
+                          dst + pos + 2 * n, dst + pos + 16 + 2 * n);
+      DecodePairAlgebraic(d, du16, n, fwd3, rev3, slot_to_sym, slot_to_compact,
+                          use_two_tables, cf0, cf1, cc0, cc1, sym_fc,
+                          dst + pos + 3 * n, dst + pos + 16 + 3 * n);
     }
     pos += 32;
     fwd0 = RenormLane<true>(d, fwd0, pf);
@@ -246,15 +352,18 @@ HWY_INLINE bool Ans32DecodePayloadT(D d, size_t n,
 // group count (16 / Lanes(d)) at runtime and dispatches to the matching
 // Ans32DecodePayloadT instantiation; the `if constexpr` guards keep a
 // fixed-size target from compiling the group counts it can never see.
-HWY_INLINE bool Ans32DecodePayload(const uint8_t* HWY_RESTRICT payload,
-                                   size_t payload_size,
+HWY_INLINE bool Ans32DecodePayload(Span<const uint8_t> src,
                                    const hi::AnsDenseTable& table,
-                                   uint8_t* HWY_RESTRICT dst,
-                                   size_t orig_size) {
+                                   Span<uint8_t> out) {
+  const size_t payload_size = src.size();
   if (payload_size < 128) return false;
   // Every lookup is an unchecked gather at (state & kAnsFreqMask); the table
   // size is ensured via std::array.
   const uint32_t* HWY_RESTRICT tab = table.data();
+  // Unpacked here so the inner loop keeps the restrict qualifiers.
+  const uint8_t* HWY_RESTRICT payload = src.data();
+  uint8_t* HWY_RESTRICT dst = out.data();
+  const size_t orig_size = out.size();
 
   const hn::CappedTag<uint32_t, 16> d;
   HWY_LANES_CONSTEXPR size_t N = hn::Lanes(d);
@@ -274,8 +383,7 @@ HWY_INLINE bool Ans32DecodePayload(const uint8_t* HWY_RESTRICT payload,
         return Ans32DecodePayloadT<kNV>(d, N, payload, payload_size, tab, dst,
                                         orig_size);
       } else {
-        return hi::Ans32DecodePayloadScalar(payload, payload_size, table, dst,
-                                            orig_size);
+        return hi::Ans32DecodePayloadScalar(src, table, out);
       }
     }
   }
@@ -298,19 +406,17 @@ HWY_INLINE bool Ans32DecodePayload(const uint8_t* HWY_RESTRICT payload,
       HWY_DASSERT(false);  // unreachable: fulls scalable >= 128 bits.
       return false;
     } else {  // < 128 bit vectors: fall back to scalar.
-      return hi::Ans32DecodePayloadScalar(payload, payload_size, table, dst,
-                                          orig_size);
+      return hi::Ans32DecodePayloadScalar(src, table, out);
     }
   }
 }
 
 // Decodes a full ANS32 block (rANS payload + serialized frequency table).
-HWY_INLINE bool Ans32Decode(const uint8_t* HWY_RESTRICT src, size_t src_size,
-                            uint8_t* HWY_RESTRICT dst, size_t orig_size) {
+HWY_INLINE bool Ans32Decode(Span<const uint8_t> src, Span<uint8_t> dst) {
   HWY_ALIGN hi::AnsDenseTable table;
-  const size_t payload = hi::DeserializeAnsTable(table, src, src_size);
+  const size_t payload = hi::DeserializeAnsTable(table, src.data(), src.size());
   if (payload == SIZE_MAX) return false;
-  return Ans32DecodePayload(src, payload, table, dst, orig_size);
+  return Ans32DecodePayload(src.first(payload), table, dst);
 }
 
 #endif  // HWY_TARGET == HWY_SCALAR
