@@ -2823,20 +2823,20 @@ HWY_API Mask512<float16_t> MaskedNe(Mask512<float16_t> m,
                                      Vec512<float16_t> a,
                                      Vec512<float16_t> b) {
   return Mask512<float16_t>{
-      _mm512_mask_cmp_ph_mask(m.raw, a.raw, b.raw, _CMP_NEQ_OQ)};
+      _mm512_mask_cmp_ph_mask(m.raw, a.raw, b.raw, _CMP_NEQ_UQ)};
 }
 #endif  // HWY_HAVE_FLOAT16
 
 HWY_API Mask512<float> MaskedNe(Mask512<float> m, Vec512<float> a,
                                  Vec512<float> b) {
   return Mask512<float>{
-      _mm512_mask_cmp_ps_mask(m.raw, a.raw, b.raw, _CMP_NEQ_OQ)};
+      _mm512_mask_cmp_ps_mask(m.raw, a.raw, b.raw, _CMP_NEQ_UQ)};
 }
 
 HWY_API Mask512<double> MaskedNe(Mask512<double> m, Vec512<double> a,
                                   Vec512<double> b) {
   return Mask512<double>{
-      _mm512_mask_cmp_pd_mask(m.raw, a.raw, b.raw, _CMP_NEQ_OQ)};
+      _mm512_mask_cmp_pd_mask(m.raw, a.raw, b.raw, _CMP_NEQ_UQ)};
 }
 
 // ------------------------------ MaskedLt
@@ -3653,17 +3653,17 @@ HWY_API Mask512<float16_t> operator!=(Vec512<float16_t> a,
   // Work around warnings in the intrinsic definitions (passing -1 as a mask).
   HWY_DIAGNOSTICS(push)
   HWY_DIAGNOSTICS_OFF(disable : 4245 4365, ignored "-Wsign-conversion")
-  return Mask512<float16_t>{_mm512_cmp_ph_mask(a.raw, b.raw, _CMP_NEQ_OQ)};
+  return Mask512<float16_t>{_mm512_cmp_ph_mask(a.raw, b.raw, _CMP_NEQ_UQ)};
   HWY_DIAGNOSTICS(pop)
 }
 #endif  // HWY_HAVE_FLOAT16
 
 HWY_API Mask512<float> operator!=(Vec512<float> a, Vec512<float> b) {
-  return Mask512<float>{_mm512_cmp_ps_mask(a.raw, b.raw, _CMP_NEQ_OQ)};
+  return Mask512<float>{_mm512_cmp_ps_mask(a.raw, b.raw, _CMP_NEQ_UQ)};
 }
 
 HWY_API Mask512<double> operator!=(Vec512<double> a, Vec512<double> b) {
-  return Mask512<double>{_mm512_cmp_pd_mask(a.raw, b.raw, _CMP_NEQ_OQ)};
+  return Mask512<double>{_mm512_cmp_pd_mask(a.raw, b.raw, _CMP_NEQ_UQ)};
 }
 
 // ------------------------------ Strict inequality

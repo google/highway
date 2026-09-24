@@ -3009,19 +3009,19 @@ HWY_API Mask128<float16_t, N> operator!=(Vec128<float16_t, N> a,
   // Work around warnings in the intrinsic definitions (passing -1 as a mask).
   HWY_DIAGNOSTICS(push)
   HWY_DIAGNOSTICS_OFF(disable : 4245 4365, ignored "-Wsign-conversion")
-  return Mask128<float16_t, N>{_mm_cmp_ph_mask(a.raw, b.raw, _CMP_NEQ_OQ)};
+  return Mask128<float16_t, N>{_mm_cmp_ph_mask(a.raw, b.raw, _CMP_NEQ_UQ)};
   HWY_DIAGNOSTICS(pop)
 }
 #endif  // HWY_HAVE_FLOAT16
 template <size_t N>
 HWY_API Mask128<float, N> operator!=(Vec128<float, N> a, Vec128<float, N> b) {
-  return Mask128<float, N>{_mm_cmp_ps_mask(a.raw, b.raw, _CMP_NEQ_OQ)};
+  return Mask128<float, N>{_mm_cmp_ps_mask(a.raw, b.raw, _CMP_NEQ_UQ)};
 }
 
 template <size_t N>
 HWY_API Mask128<double, N> operator!=(Vec128<double, N> a,
                                       Vec128<double, N> b) {
-  return Mask128<double, N>{_mm_cmp_pd_mask(a.raw, b.raw, _CMP_NEQ_OQ)};
+  return Mask128<double, N>{_mm_cmp_pd_mask(a.raw, b.raw, _CMP_NEQ_UQ)};
 }
 
 // ------------------------------ Strict inequality
@@ -6601,20 +6601,20 @@ HWY_API Mask128<float16_t, N> MaskedNe(Mask128<float16_t, N> m,
                                        Vec128<float16_t, N> a,
                                        Vec128<float16_t, N> b) {
   return Mask128<float16_t, N>{
-      _mm_mask_cmp_ph_mask(m.raw, a.raw, b.raw, _CMP_NEQ_OQ)};
+      _mm_mask_cmp_ph_mask(m.raw, a.raw, b.raw, _CMP_NEQ_UQ)};
 }
 #endif  // HWY_HAVE_FLOAT16
 template <size_t N>
 HWY_API Mask128<float, N> MaskedNe(Mask128<float, N> m, Vec128<float, N> a,
                                    Vec128<float, N> b) {
   return Mask128<float, N>{
-      _mm_mask_cmp_ps_mask(m.raw, a.raw, b.raw, _CMP_NEQ_OQ)};
+      _mm_mask_cmp_ps_mask(m.raw, a.raw, b.raw, _CMP_NEQ_UQ)};
 }
 template <size_t N>
 HWY_API Mask128<double, N> MaskedNe(Mask128<double, N> m, Vec128<double, N> a,
                                     Vec128<double, N> b) {
   return Mask128<double, N>{
-      _mm_mask_cmp_pd_mask(m.raw, a.raw, b.raw, _CMP_NEQ_OQ)};
+      _mm_mask_cmp_pd_mask(m.raw, a.raw, b.raw, _CMP_NEQ_UQ)};
 }
 
 // ----- MaskedLt

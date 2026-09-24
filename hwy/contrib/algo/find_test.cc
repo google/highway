@@ -425,8 +425,44 @@ struct TestEqualSpan {
   }
 };
 
+// As with std::equal, spans holding a NaN at the same index are unequal.
+struct TestEqualSpanNaN {
+  template <class D>
+  void operator()(D d, size_t count, size_t misalign, RandomState& rng) {
+    using T = TFromD<D>;
+    if (count == 0) return;
+
+    AlignedFreeUniquePtr<T[]> storage_a = AllocateAligned<T>(misalign + count);
+    AlignedFreeUniquePtr<T[]> storage_b = AllocateAligned<T>(misalign + count);
+    HWY_ASSERT(storage_a && storage_b);
+    T* a = storage_a.get() + misalign;
+    T* b = storage_b.get() + misalign;
+    for (size_t i = 0; i < count; ++i) {
+      a[i] = Random<T>(rng);
+      b[i] = a[i];
+    }
+
+    const T nan = GetLane(NaN(d));
+    for (size_t pos : {size_t{0}, count / 2, count - 1}) {
+      const T old = a[pos];
+      a[pos] = nan;
+      b[pos] = nan;
+      HWY_ASSERT(!std::equal(a, a + count, b));
+      if (EqualSpan(d, a, b, count)) {
+        fprintf(stderr, "%s count %d misalign %d NaN at %d: got equal\n",
+                hwy::TypeName(T(), Lanes(d)).c_str(), static_cast<int>(count),
+                static_cast<int>(misalign), static_cast<int>(pos));
+        HWY_ASSERT(false);
+      }
+      a[pos] = old;
+      b[pos] = old;
+    }
+  }
+};
+
 void TestAllEqualSpan() {
   ForAllTypes(ForPartialVectors<ForeachCountAndMisalign<TestEqualSpan>>());
+  ForFloatTypes(ForPartialVectors<ForeachCountAndMisalign<TestEqualSpanNaN>>());
 }
 
 void TestAllUnique() {
