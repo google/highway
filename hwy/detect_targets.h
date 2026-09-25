@@ -443,7 +443,11 @@
 // Also check HWY_ARCH to ensure that simulating unknown platforms ends up with
 // HWY_TARGET == HWY_BASELINE_SCALAR.
 
-#if HWY_ARCH_WASM && defined(__wasm_simd128__)
+// WASM SIMD (simd128) is now widespread across modern runtimes, so enable it as
+// the baseline target without requiring -msimd128. Code paths that need a
+// non-SIMD fallback binary can opt out by adding HWY_WASM to
+// HWY_DISABLED_TARGETS or defining HWY_COMPILE_ONLY_SCALAR.
+#if HWY_ARCH_WASM
 #if defined(HWY_WANT_WASM2)
 #define HWY_BASELINE_WASM HWY_WASM_EMU256
 #else
