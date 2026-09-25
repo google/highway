@@ -343,11 +343,18 @@ struct TestFastPow {
       return;
     }
 
+    // Include 0.75 (left polynomial endpoint z = -0.25 with e = 0) and
+    // 0.9298014 (interior polynomial oscillation peak with e = 0), where
+    // FastLog reaches its maximum relative error (~7.98e-6) without e * ln(2)
+    // dilution, magnified by |exp * log(base)| = 25 to ~2.05e-4.
     const T bases[] = {
-        static_cast<T>(0.1),   static_cast<T>(0.5),     static_cast<T>(0.99),
-        static_cast<T>(1.0),   static_cast<T>(1.0001),  static_cast<T>(1.5),
-        static_cast<T>(2.0),   static_cast<T>(2.71828), static_cast<T>(10.0),
-        static_cast<T>(100.0), static_cast<T>(1.0e-10), static_cast<T>(1.0e10),
+        static_cast<T>(0.1),     static_cast<T>(0.5),
+        static_cast<T>(0.75),    static_cast<T>(0.9298014),
+        static_cast<T>(0.99),    static_cast<T>(1.0),
+        static_cast<T>(1.0001),  static_cast<T>(1.5),
+        static_cast<T>(2.0),     static_cast<T>(2.71828),
+        static_cast<T>(10.0),    static_cast<T>(100.0),
+        static_cast<T>(1.0e-10), static_cast<T>(1.0e10),
     };
 
     double max_actual_rel_error = 0.0;
@@ -415,7 +422,7 @@ struct TestFastPow {
               max_error_base = static_cast<double>(base);
               max_error_exp = static_cast<double>(exp_val);
             }
-            if (rel > 0.00015) {
+            if (rel > 0.00021) {
               static int print_count = 0;
               if (print_count < 10) {
                 fprintf(stderr,
@@ -424,7 +431,7 @@ struct TestFastPow {
                         hwy::TypeName(T(), Lanes(d)).c_str(),
                         static_cast<double>(base), static_cast<double>(exp_val),
                         static_cast<double>(expected),
-                        static_cast<double>(actual), rel, 0.00015);
+                        static_cast<double>(actual), rel, 0.00021);
                 print_count++;
               }
             }
@@ -435,7 +442,7 @@ struct TestFastPow {
     fprintf(stderr, "%s: FastPow max_rel_error %E at base=%E exp=%E\n",
             hwy::TypeName(T(), Lanes(d)).c_str(), max_actual_rel_error,
             max_error_base, max_error_exp);
-    HWY_ASSERT(max_actual_rel_error <= 0.00015);
+    HWY_ASSERT(max_actual_rel_error <= 0.00021);
   }
 };
 

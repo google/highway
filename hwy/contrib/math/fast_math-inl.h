@@ -363,10 +363,12 @@ struct FastExpImpl<double> {
  * Fast approximation of tan(x).
  *
  * Valid Lane Types: float32, float64
- * Max Relative Error: < 0.00005% (4.5e-7) for float32 in
- *                     [-89.999999, +89.999999] degrees and
- *                     < 0.000015% (1.5e-7) for float64 in
- *                     [-89.999999999999, +89.999999999999] degrees.
+ * Max Relative Error: 0.000044% (4.42e-7) for float32 in
+ *                     [-89.999999, +89.999999] degrees,
+ *                     0.000062% (6.19e-7) for float32 in
+ *                     [-39000, +39000] rads, and
+ *                     0.000012% (1.16e-7) for float64 in
+ *                     [-39000, +39000] rads.
  * Valid Range: float32 : [-39000, +39000] rads
  *              float64 : [-1e10, +1e10] rads
  *
@@ -1270,7 +1272,7 @@ HWY_INLINE V FastLog1p(const D d, V x) {
  * Valid Lane Types: float32, float64
  * Valid Range: float32: base in (0, +FLT_MAX], exp * log(base) in [-25.0,
  * +25.0] float64: base in (0, +DBL_MAX], exp * log(base) in [-25.0, +25.0] Max
- * Relative Error for Valid Range: float32 : 0.015%, float64 : 0.015%
+ * Relative Error for Valid Range: float32 : 0.021%, float64 : 0.021%
  * @return base^exp
  */
 // If false, subnormals are treated as zero.
