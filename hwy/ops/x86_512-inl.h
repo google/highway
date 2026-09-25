@@ -8903,6 +8903,54 @@ HWY_API void Tile64BRelease() { _tile_release(); }
 
 #endif  // HWY_NATIVE_TILE_64B_MATMUL_BF16
 
+// ------------------------------ Tile64BMatMul (AMX-INT8 hardware wrappers)
+#if HWY_NATIVE_TILE_64B_MATMUL_I8
+
+// Computes C += A * B where A is [rows x 64] int8/uint8, B is [16 x 64]
+// int8/uint8 in 4-wide VNNI layout (representing a [64 x 16] matrix), and C is
+// [rows x 16] int32 (64 bytes per row). Because `__tile1024i` does not encode a
+// lane type, the `da`/`db` tags select the signedness of A and B; all four
+// combinations map to a distinct instruction.
+// Hardware requires dst, a, and b to be distinct tile registers (#UD if any
+// two alias), hence HWY_RESTRICT.
+template <class DI32, class DA, class DB, HWY_IF_I32_D(DI32), HWY_IF_I8_D(DA),
+          HWY_IF_I8_D(DB)>
+HWY_API void Tile64BMatMul(DI32 /* d */, DA /* da */, DB /* db */,
+                           __tile1024i* HWY_RESTRICT dst,
+                           const __tile1024i* HWY_RESTRICT a,
+                           const __tile1024i* HWY_RESTRICT b) {
+  __tile_dpbssd(dst, *a, *b);
+}
+
+template <class DI32, class DA, class DB, HWY_IF_I32_D(DI32), HWY_IF_I8_D(DA),
+          HWY_IF_U8_D(DB)>
+HWY_API void Tile64BMatMul(DI32 /* d */, DA /* da */, DB /* db */,
+                           __tile1024i* HWY_RESTRICT dst,
+                           const __tile1024i* HWY_RESTRICT a,
+                           const __tile1024i* HWY_RESTRICT b) {
+  __tile_dpbsud(dst, *a, *b);
+}
+
+template <class DI32, class DA, class DB, HWY_IF_I32_D(DI32), HWY_IF_U8_D(DA),
+          HWY_IF_I8_D(DB)>
+HWY_API void Tile64BMatMul(DI32 /* d */, DA /* da */, DB /* db */,
+                           __tile1024i* HWY_RESTRICT dst,
+                           const __tile1024i* HWY_RESTRICT a,
+                           const __tile1024i* HWY_RESTRICT b) {
+  __tile_dpbusd(dst, *a, *b);
+}
+
+template <class DI32, class DA, class DB, HWY_IF_I32_D(DI32), HWY_IF_U8_D(DA),
+          HWY_IF_U8_D(DB)>
+HWY_API void Tile64BMatMul(DI32 /* d */, DA /* da */, DB /* db */,
+                           __tile1024i* HWY_RESTRICT dst,
+                           const __tile1024i* HWY_RESTRICT a,
+                           const __tile1024i* HWY_RESTRICT b) {
+  __tile_dpbuud(dst, *a, *b);
+}
+
+#endif  // HWY_NATIVE_TILE_64B_MATMUL_I8
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
