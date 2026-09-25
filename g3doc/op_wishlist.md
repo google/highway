@@ -35,7 +35,6 @@ fmod, nexttoward
 
 ### Remaining STL functions for hwy/contrib/algo
 
-*   ShuffleSpan
 *   Reduce (see #3374)
 
 *   In-place Remove / RemoveIf, like CopyIf, but in-place.
@@ -192,6 +191,7 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~AllOf / AnyOf / NoneOf~~ (algo)
 *   ~~EqualSpan~~ (algo)
 *   ~~ReverseSpan~~ (algo)
+*   ~~ShuffleSpan~~ (algo)
 *   ~~NEON dot product~~
 *   ~~ilogb, logb, modf, nextafter~~
 *   ~~Iguana~~

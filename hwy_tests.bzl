@@ -34,6 +34,14 @@ HWY_CONTRIB_TESTS = (
     ),
     (
         "hwy/contrib/algo/",
+        "shuffle_test",
+        [
+            ":algo",
+            ":random",
+        ],
+    ),
+    (
+        "hwy/contrib/algo/",
         "transform_test",
         [":algo"],
     ),
