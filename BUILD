@@ -1076,7 +1076,7 @@ cc_test(
 
 filegroup(
     name = "testdata",
-    srcs = ["hwy/contrib/testdata/silesia_dickens.txt"],
+    srcs = glob(["hwy/contrib/testdata/*"]),
 )
 
 cc_test(
