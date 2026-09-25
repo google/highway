@@ -597,12 +597,14 @@ HWY_API Mask256<T> operator!=(Vec256<T> a, Vec256<T> b) {
 HWY_API Mask256<float> operator!=(Vec256<float> a, Vec256<float> b) {
   const DFromV<decltype(a)> d;
   const RebindToSigned<decltype(d)> di;
-  return RebindMask(d, MFromD<decltype(di)>{__lasx_xvfcmp_cne_s(a.raw, b.raw)});
+  return RebindMask(d,
+                    MFromD<decltype(di)>{__lasx_xvfcmp_cune_s(a.raw, b.raw)});
 }
 HWY_API Mask256<double> operator!=(Vec256<double> a, Vec256<double> b) {
   const DFromV<decltype(a)> d;
   const RebindToSigned<decltype(d)> di;
-  return RebindMask(d, MFromD<decltype(di)>{__lasx_xvfcmp_cne_d(a.raw, b.raw)});
+  return RebindMask(d,
+                    MFromD<decltype(di)>{__lasx_xvfcmp_cune_d(a.raw, b.raw)});
 }
 
 // ------------------------------ Strict inequality

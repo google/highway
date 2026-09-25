@@ -154,6 +154,8 @@ struct TestMaskedFloatClassification {
 
     // Test against NaN values
     HWY_ASSERT_MASK_EQ(d, mask_true, MaskedIsNaN(mask_true, v3));
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedNe(mask_true, v3, v1));
+    HWY_ASSERT_MASK_EQ(d, mask_true, MaskedNe(mask_true, v3, v3));
 
     auto bool_lanes = AllocateAligned<T>(N);
     HWY_ASSERT(bool_lanes);
@@ -177,6 +179,8 @@ struct TestMaskedFloatClassification {
 
       // Test against NaN values
       HWY_ASSERT_MASK_EQ(d, mask, MaskedIsNaN(mask, v3));
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedNe(mask, v3, v1));
+      HWY_ASSERT_MASK_EQ(d, mask, MaskedNe(mask, v3, v3));
     }
   }
 };

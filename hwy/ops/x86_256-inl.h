@@ -1376,16 +1376,16 @@ HWY_API Mask256<float16_t> operator!=(Vec256<float16_t> a,
   // Work around warnings in the intrinsic definitions (passing -1 as a mask).
   HWY_DIAGNOSTICS(push)
   HWY_DIAGNOSTICS_OFF(disable : 4245 4365, ignored "-Wsign-conversion")
-  return Mask256<float16_t>{_mm256_cmp_ph_mask(a.raw, b.raw, _CMP_NEQ_OQ)};
+  return Mask256<float16_t>{_mm256_cmp_ph_mask(a.raw, b.raw, _CMP_NEQ_UQ)};
   HWY_DIAGNOSTICS(pop)
 }
 #endif  // HWY_HAVE_FLOAT16
 HWY_API Mask256<float> operator!=(Vec256<float> a, Vec256<float> b) {
-  return Mask256<float>{_mm256_cmp_ps_mask(a.raw, b.raw, _CMP_NEQ_OQ)};
+  return Mask256<float>{_mm256_cmp_ps_mask(a.raw, b.raw, _CMP_NEQ_UQ)};
 }
 
 HWY_API Mask256<double> operator!=(Vec256<double> a, Vec256<double> b) {
-  return Mask256<double>{_mm256_cmp_pd_mask(a.raw, b.raw, _CMP_NEQ_OQ)};
+  return Mask256<double>{_mm256_cmp_pd_mask(a.raw, b.raw, _CMP_NEQ_UQ)};
 }
 
 // ------------------------------ Strict inequality
@@ -1603,10 +1603,10 @@ HWY_API Mask256<T> operator!=(Vec256<T> a, Vec256<T> b) {
   return Not(a == b);
 }
 HWY_API Mask256<float> operator!=(Vec256<float> a, Vec256<float> b) {
-  return Mask256<float>{_mm256_cmp_ps(a.raw, b.raw, _CMP_NEQ_OQ)};
+  return Mask256<float>{_mm256_cmp_ps(a.raw, b.raw, _CMP_NEQ_UQ)};
 }
 HWY_API Mask256<double> operator!=(Vec256<double> a, Vec256<double> b) {
-  return Mask256<double>{_mm256_cmp_pd(a.raw, b.raw, _CMP_NEQ_OQ)};
+  return Mask256<double>{_mm256_cmp_pd(a.raw, b.raw, _CMP_NEQ_UQ)};
 }
 
 // ------------------------------ Strict inequality
@@ -3705,18 +3705,18 @@ HWY_API Mask256<T> MaskedNe(Mask256<T> m, Vec256<T> a, Vec256<T> b) {
 HWY_API Mask256<float16_t> MaskedNe(Mask256<float16_t> m, Vec256<float16_t> a,
                                     Vec256<float16_t> b) {
   return Mask256<float16_t>{
-      _mm256_mask_cmp_ph_mask(m.raw, a.raw, b.raw, _CMP_NEQ_OQ)};
+      _mm256_mask_cmp_ph_mask(m.raw, a.raw, b.raw, _CMP_NEQ_UQ)};
 }
 #endif  // HWY_HAVE_FLOAT16
 HWY_API Mask256<float> MaskedNe(Mask256<float> m, Vec256<float> a,
                                 Vec256<float> b) {
   return Mask256<float>{
-      _mm256_mask_cmp_ps_mask(m.raw, a.raw, b.raw, _CMP_NEQ_OQ)};
+      _mm256_mask_cmp_ps_mask(m.raw, a.raw, b.raw, _CMP_NEQ_UQ)};
 }
 HWY_API Mask256<double> MaskedNe(Mask256<double> m, Vec256<double> a,
                                  Vec256<double> b) {
   return Mask256<double>{
-      _mm256_mask_cmp_pd_mask(m.raw, a.raw, b.raw, _CMP_NEQ_OQ)};
+      _mm256_mask_cmp_pd_mask(m.raw, a.raw, b.raw, _CMP_NEQ_UQ)};
 }
 
 // ----- MaskedLt

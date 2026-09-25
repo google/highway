@@ -15,8 +15,6 @@ freshness: { owner: 'janwas' reviewed: '2026-06-08' }
 
 ### numpy
 
-NeUnordered
-
 Loadn: Gather*, but for stride 2..4 use ld2..4.
 
 LoadnPair: Gather with optimizations in particular for 2x64-bit, which use
@@ -196,3 +194,4 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~ilogb, logb, modf, nextafter~~
 *   ~~Iguana~~
 *   ~~Mul52~~
+*   ~~NeUnordered~~

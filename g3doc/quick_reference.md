@@ -1746,8 +1746,9 @@ These return a mask (see above) indicating whether the condition is true.
 
 *   <code>M **operator==**(V a, V b)</code>: returns `a[i] == b[i]`. Currently
     unavailable on SVE/RVV; use the equivalent `Eq` instead.
-*   <code>M **operator!=**(V a, V b)</code>: returns `a[i] != b[i]`. Currently
-    unavailable on SVE/RVV; use the equivalent `Ne` instead.
+*   <code>M **operator!=**(V a, V b)</code>: returns `a[i] != b[i]`, which is
+    true if either is NaN. Currently unavailable on SVE/RVV; use the equivalent
+    `Ne` instead.
 
 *   <code>M **operator&lt;**(V a, V b)</code>: returns `a[i] < b[i]`. Currently
     unavailable on SVE/RVV; use the equivalent `Lt` instead.
@@ -1821,8 +1822,8 @@ equivalent to, and potentially more efficient than, `And(m, Eq(a, b));` etc.
 *   <code>M **MaskedEq**(M m, V a, V b)</code>: returns `a[i] == b[i]` or
     `false` if `m[i]` is false.
 
-*   <code>M **MaskedNe**(M m, V a, V b)</code>: returns `a[i] != b[i]` or
-    `false` if `m[i]` is false.
+*   <code>M **MaskedNe**(M m, V a, V b)</code>: returns `a[i] != b[i]` (true if
+    either is NaN) or `false` if `m[i]` is false.
 
 *   <code>M **MaskedLt**(M m, V a, V b)</code>: returns `a[i] < b[i]` or `false`
     if `m[i]` is false.
