@@ -41,10 +41,20 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
 
-// The float16 min/max bounds mirror the float32 bounds in math_test.cc where
+// The float16 min/max bounds mirror the float32 math test bounds where
 // the kernel is validated (e.g. +104 for Exp), clamped to the float16 finite
 // range [-65504, +65504]. The smallest positive float16 subnormal is 2^-24.
 // clang-format off
+DEFINE_F16_MATH_TEST(Acos,
+  std::acos,  CallAcos,  -1.0f,            +1.0f,     1)
+DEFINE_F16_MATH_TEST(Asin,
+  std::asin,  CallAsin,  -1.0f,            +1.0f,     1)
+DEFINE_F16_MATH_TEST(Atan,
+  std::atan,  CallAtan,  -65504.0f,        +65504.0f, 1)
+DEFINE_F16_MATH_TEST(Cbrt,
+  std::cbrt,  CallCbrt,  -65504.0f,        +65504.0f, 1)
+DEFINE_F16_MATH_TEST(Erf,
+  std::erf,   CallErf,   -65504.0f,        +65504.0f, 1)
 DEFINE_F16_MATH_TEST(Exp,
   std::exp,   CallExp,   -65504.0f,        +104.0f,   1)
 DEFINE_F16_MATH_TEST(Exp2,
@@ -60,6 +70,16 @@ DEFINE_F16_MATH_TEST(Log1p,
 DEFINE_F16_MATH_TEST(Log2,
   std::log2,  CallLog2,  +5.960464478E-8f, +65504.0f, 1)
 // clang-format on
+
+// Even subnormal float16 inputs become normal float32 inputs, so both
+// Cbrt modes should cover the entire finite float16 range.
+template <class D>
+static Vec<D> F16CbrtNoSubnormals(const D d, VecArg<Vec<D>> x) {
+  return Cbrt<false>(d, x);
+}
+
+DEFINE_F16_MATH_TEST(CbrtNoSubnormals, std::cbrt, F16CbrtNoSubnormals, -65504.0f,
+                     +65504.0f, 1)
 
 // SinCos has two outputs, so test each separately, as math_trig_test.cc does.
 template <class D>
@@ -93,6 +113,29 @@ DEFINE_F16_MATH_TEST(SinCosCos,
   std::cos,   F16SinCosCos, -39000.0f,        +39000.0f, 1)
 // clang-format on
 
+// The exhaustive ULP test treats +0 and -0 as equal. Check that these odd
+// functions preserve their bits in every lane.
+struct TestF16UnarySignedZero {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const RebindToUnsigned<D> du;
+    const uint16_t zero_bits[] = {0x0000, 0x8000};
+    for (const uint16_t bits : zero_bits) {
+      const auto expected = Set(du, bits);
+      const auto x = BitCast(d, expected);
+      HWY_ASSERT_VEC_EQ(du, expected, BitCast(du, CallAsin(d, x)));
+      HWY_ASSERT_VEC_EQ(du, expected, BitCast(du, CallAtan(d, x)));
+      HWY_ASSERT_VEC_EQ(du, expected, BitCast(du, CallCbrt(d, x)));
+      HWY_ASSERT_VEC_EQ(du, expected, BitCast(du, Cbrt<false>(d, x)));
+      HWY_ASSERT_VEC_EQ(du, expected, BitCast(du, CallErf(d, x)));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllF16UnarySignedZero() {
+  ForPartialVectors<TestF16UnarySignedZero>()(float16_t());
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -103,6 +146,13 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 namespace {
 HWY_BEFORE_TEST(HwyF16MathTest);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Acos);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Asin);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Atan);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Cbrt);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16CbrtNoSubnormals);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Erf);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16UnarySignedZero);
 HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Exp);
 HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Exp2);
 HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Expm1);
