@@ -621,6 +621,8 @@ class ForHalfVectors {
 
 // Calls Test for all power of two N in [1, Lanes(d)]. This is the default
 // for ops that do not narrow nor widen their input, nor require 128 bits.
+// On HWY_EMU128, also includes 32-byte vectors, which are larger than
+// `ScalableTag<T>` but can be requested via `CappedTag`.
 template <class Test>
 class ForPartialVectors {
   mutable bool called_ = false;
@@ -638,6 +640,10 @@ class ForPartialVectors {
 #if HWY_TARGET == HWY_SCALAR
     (void)t;
     detail::ForeachCappedR<T, 1, 1, Test>::Do(1, 1);
+#elif HWY_TARGET == HWY_EMU128 && !defined(HWY_EMU128_CAPPED_TAG_16)
+    (void)t;
+    constexpr size_t kMaxLanes = 32 / sizeof(T);
+    detail::ForeachCappedR<T, kMaxLanes, 1, Test>::Do(1, kMaxLanes);
 #else
     ForExtendableVectors<Test, 0>()(t);
 #endif

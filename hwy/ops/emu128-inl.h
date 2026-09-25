@@ -31,6 +31,28 @@ namespace HWY_NAMESPACE {
 template <typename T>
 using Full128 = Simd<T, 16 / sizeof(T), 0>;
 
+// Although this target is named EMU128 and `ScalableTag<T>` is 16 bytes,
+// vectors may be larger (any power of two up to HWY_MAX_BYTES = 128 bytes) if
+// requested via `FixedTag`, `CappedTag` or `ScalableTag<T, kPow2 > 0>`. As on
+// other targets, 'blockwise' ops then operate independently on each 16-byte
+// block.
+
+namespace detail {
+
+// Number of lanes in the `raw` array: at least 16 bytes' worth, see below.
+template <typename T, size_t N>
+constexpr size_t Emu128RawLanes() {
+  return HWY_MAX(N, 16 / sizeof(T));
+}
+
+// Number of lanes per 16-byte block, or fewer if the vector is partial.
+template <typename T, size_t N>
+constexpr size_t Emu128LanesPerBlock() {
+  return HWY_MIN(N, 16 / sizeof(T));
+}
+
+}  // namespace detail
+
 // (Wrapper class required for overloading comparison operators.)
 template <typename T, size_t N = 16 / sizeof(T)>
 struct Vec128 {
@@ -66,12 +88,13 @@ struct Vec128 {
     return *this = (*this ^ other);
   }
 
-  // Behave like wasm128 (vectors can always hold 128 bits). generic_ops-inl.h
-  // relies on this for LoadInterleaved*. CAVEAT: this method of padding
-  // prevents using range for, especially in SumOfLanes, where it would be
-  // incorrect. Moving padding to another field would require handling the case
-  // where N = 16 / sizeof(T) (i.e. there is no padding), which is also awkward.
-  T raw[16 / sizeof(T)] = {};
+  // Behave like wasm128 (vectors can always hold at least 128 bits).
+  // generic_ops-inl.h relies on this for LoadInterleaved*. CAVEAT: this method
+  // of padding prevents using range for, especially in SumOfLanes, where it
+  // would be incorrect. Moving padding to another field would require handling
+  // the case where N >= 16 / sizeof(T) (i.e. there is no padding), which is
+  // also awkward.
+  T raw[detail::Emu128RawLanes<T, N>()] = {};
 };
 
 // 0 or FF..FF, same size as Vec128.
@@ -87,7 +110,7 @@ struct Mask128 {
   }
 
   // Must match the size of Vec128.
-  Raw bits[16 / sizeof(T)] = {};
+  Raw bits[detail::Emu128RawLanes<T, N>()] = {};
 };
 
 template <class V>
@@ -102,7 +125,7 @@ using TFromV = typename V::PrivateT;
 // ------------------------------ Zero
 
 // Use HWY_MAX_LANES_D here because VFromD is defined in terms of Zero.
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+template <class D>
 HWY_API Vec128<TFromD<D>, HWY_MAX_LANES_D(D)> Zero(D /* tag */) {
   Vec128<TFromD<D>, HWY_MAX_LANES_D(D)> v;  // zero-initialized
   return v;
@@ -169,6 +192,22 @@ HWY_API VFromD<D> Undefined(D d) {
 
 // ------------------------------ Dup128VecFromValues
 
+namespace detail {
+
+// Copies the first 16-byte block to all subsequent blocks, if any.
+template <class V>
+HWY_INLINE V BroadcastBlock0(V v) {
+  using T = TFromV<V>;
+  constexpr size_t N = HWY_MAX_LANES_D(DFromV<V>);
+  constexpr size_t kLPB = Emu128LanesPerBlock<T, N>();
+  for (size_t i = kLPB; i < N; ++i) {
+    v.raw[i] = v.raw[i - kLPB];
+  }
+  return v;
+}
+
+}  // namespace detail
+
 template <class D, HWY_IF_T_SIZE_D(D, 1)>
 HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
                                       TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
@@ -194,7 +233,7 @@ HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
   result.raw[13] = t13;
   result.raw[14] = t14;
   result.raw[15] = t15;
-  return result;
+  return detail::BroadcastBlock0(result);
 }
 
 template <class D, HWY_IF_T_SIZE_D(D, 2)>
@@ -211,7 +250,7 @@ HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
   result.raw[5] = t5;
   result.raw[6] = t6;
   result.raw[7] = t7;
-  return result;
+  return detail::BroadcastBlock0(result);
 }
 
 template <class D, HWY_IF_T_SIZE_D(D, 4)>
@@ -222,7 +261,7 @@ HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
   result.raw[1] = t1;
   result.raw[2] = t2;
   result.raw[3] = t3;
-  return result;
+  return detail::BroadcastBlock0(result);
 }
 
 template <class D, HWY_IF_T_SIZE_D(D, 8)>
@@ -230,7 +269,7 @@ HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1) {
   VFromD<D> result;
   result.raw[0] = t0;
   result.raw[1] = t1;
-  return result;
+  return detail::BroadcastBlock0(result);
 }
 
 // ------------------------------ Iota
@@ -387,7 +426,8 @@ VFromD<D> VecFromMask(D /* tag */, MFromD<D> mask) {
   return v;
 }
 
-template <class D>
+// Only available if there are at most 64 lanes, see quick_reference.
+template <class D, HWY_IF_LANES_LE_D(D, 64)>
 uint64_t BitsFromMask(D d, MFromD<D> mask) {
   uint64_t bits = 0;
   for (size_t i = 0; i < Lanes(d); ++i) {
@@ -868,15 +908,14 @@ HWY_API Vec128<T, 1> MulHigh(Vec128<T, 1> a, Vec128<T, 1> b) {
   return Set(Full64<T>(), hi);
 }
 
-template <class T, HWY_IF_UI64(T)>
-HWY_API Vec128<T> MulHigh(Vec128<T> a, Vec128<T> b) {
-  T hi_0;
-  T hi_1;
-
-  Mul128(GetLane(a), GetLane(b), &hi_0);
-  Mul128(ExtractLane(a, 1), ExtractLane(b, 1), &hi_1);
-
-  return Dup128VecFromValues(Full128<T>(), hi_0, hi_1);
+template <class T, size_t N, HWY_IF_UI64(T), HWY_IF_LANES_GT(N, 1)>
+HWY_API Vec128<T, N> MulHigh(Vec128<T, N> a, Vec128<T, N> b) {
+  for (size_t i = 0; i < N; ++i) {
+    T hi;
+    Mul128(a.raw[i], b.raw[i], &hi);
+    a.raw[i] = hi;
+  }
+  return a;
 }
 
 template <size_t N>
@@ -1288,60 +1327,68 @@ HWY_API Mask128<T, N> operator>=(Vec128<T, N> a, Vec128<T, N> b) {
 
 // ------------------------------ Lt128
 
-// Only makes sense for full vectors of u64.
-template <class D>
-HWY_API MFromD<D> Lt128(D /* tag */, Vec128<uint64_t> a, Vec128<uint64_t> b) {
-  const bool lt =
-      (a.raw[1] < b.raw[1]) || (a.raw[1] == b.raw[1] && a.raw[0] < b.raw[0]);
-  Mask128<uint64_t> ret;
-  ret.bits[0] = ret.bits[1] = Mask128<uint64_t>::FromBool(lt);
+// These only make sense for u64 vectors with at least two lanes. The result
+// is computed independently for each 128-bit block.
+template <class D, HWY_IF_U64_D(D)>
+HWY_API MFromD<D> Lt128(D d, VFromD<D> a, VFromD<D> b) {
+  MFromD<D> ret;
+  for (size_t i = 0; i < MaxLanes(d); i += 2) {
+    const bool lt = (a.raw[i + 1] < b.raw[i + 1]) ||
+                    (a.raw[i + 1] == b.raw[i + 1] && a.raw[i] < b.raw[i]);
+    ret.bits[i] = ret.bits[i + 1] = MFromD<D>::FromBool(lt);
+  }
   return ret;
 }
 
-template <class D>
-HWY_API MFromD<D> Lt128Upper(D /* tag */, Vec128<uint64_t> a,
-                             Vec128<uint64_t> b) {
-  const bool lt = a.raw[1] < b.raw[1];
-  Mask128<uint64_t> ret;
-  ret.bits[0] = ret.bits[1] = Mask128<uint64_t>::FromBool(lt);
+template <class D, HWY_IF_U64_D(D)>
+HWY_API MFromD<D> Lt128Upper(D d, VFromD<D> a, VFromD<D> b) {
+  MFromD<D> ret;
+  for (size_t i = 0; i < MaxLanes(d); i += 2) {
+    const bool lt = a.raw[i + 1] < b.raw[i + 1];
+    ret.bits[i] = ret.bits[i + 1] = MFromD<D>::FromBool(lt);
+  }
   return ret;
 }
 
 // ------------------------------ Eq128
 
-// Only makes sense for full vectors of u64.
-template <class D>
-HWY_API MFromD<D> Eq128(D /* tag */, Vec128<uint64_t> a, Vec128<uint64_t> b) {
-  const bool eq = a.raw[1] == b.raw[1] && a.raw[0] == b.raw[0];
-  Mask128<uint64_t> ret;
-  ret.bits[0] = ret.bits[1] = Mask128<uint64_t>::FromBool(eq);
+template <class D, HWY_IF_U64_D(D)>
+HWY_API MFromD<D> Eq128(D d, VFromD<D> a, VFromD<D> b) {
+  MFromD<D> ret;
+  for (size_t i = 0; i < MaxLanes(d); i += 2) {
+    const bool eq = a.raw[i + 1] == b.raw[i + 1] && a.raw[i] == b.raw[i];
+    ret.bits[i] = ret.bits[i + 1] = MFromD<D>::FromBool(eq);
+  }
   return ret;
 }
 
-template <class D>
-HWY_API Mask128<uint64_t> Ne128(D /* tag */, Vec128<uint64_t> a,
-                                Vec128<uint64_t> b) {
-  const bool ne = a.raw[1] != b.raw[1] || a.raw[0] != b.raw[0];
-  Mask128<uint64_t> ret;
-  ret.bits[0] = ret.bits[1] = Mask128<uint64_t>::FromBool(ne);
+template <class D, HWY_IF_U64_D(D)>
+HWY_API MFromD<D> Ne128(D d, VFromD<D> a, VFromD<D> b) {
+  MFromD<D> ret;
+  for (size_t i = 0; i < MaxLanes(d); i += 2) {
+    const bool ne = a.raw[i + 1] != b.raw[i + 1] || a.raw[i] != b.raw[i];
+    ret.bits[i] = ret.bits[i + 1] = MFromD<D>::FromBool(ne);
+  }
   return ret;
 }
 
-template <class D>
-HWY_API MFromD<D> Eq128Upper(D /* tag */, Vec128<uint64_t> a,
-                             Vec128<uint64_t> b) {
-  const bool eq = a.raw[1] == b.raw[1];
-  Mask128<uint64_t> ret;
-  ret.bits[0] = ret.bits[1] = Mask128<uint64_t>::FromBool(eq);
+template <class D, HWY_IF_U64_D(D)>
+HWY_API MFromD<D> Eq128Upper(D d, VFromD<D> a, VFromD<D> b) {
+  MFromD<D> ret;
+  for (size_t i = 0; i < MaxLanes(d); i += 2) {
+    const bool eq = a.raw[i + 1] == b.raw[i + 1];
+    ret.bits[i] = ret.bits[i + 1] = MFromD<D>::FromBool(eq);
+  }
   return ret;
 }
 
-template <class D>
-HWY_API MFromD<D> Ne128Upper(D /* tag */, Vec128<uint64_t> a,
-                             Vec128<uint64_t> b) {
-  const bool ne = a.raw[1] != b.raw[1];
-  Mask128<uint64_t> ret;
-  ret.bits[0] = ret.bits[1] = Mask128<uint64_t>::FromBool(ne);
+template <class D, HWY_IF_U64_D(D)>
+HWY_API MFromD<D> Ne128Upper(D d, VFromD<D> a, VFromD<D> b) {
+  MFromD<D> ret;
+  for (size_t i = 0; i < MaxLanes(d); i += 2) {
+    const bool ne = a.raw[i + 1] != b.raw[i + 1];
+    ret.bits[i] = ret.bits[i + 1] = MFromD<D>::FromBool(ne);
+  }
   return ret;
 }
 
@@ -1398,7 +1445,9 @@ HWY_API VFromD<D> LoadU(D d, const TFromD<D>* HWY_RESTRICT p) {
 // In some use cases, "load single lane" is sufficient; otherwise avoid this.
 template <class D>
 HWY_API VFromD<D> LoadDup128(D d, const TFromD<D>* HWY_RESTRICT aligned) {
-  return Load(d, aligned);
+  VFromD<D> v;
+  CopyBytes<HWY_MIN(d.MaxBytes(), 16)>(aligned, v.raw);
+  return detail::BroadcastBlock0(v);
 }
 
 #ifdef HWY_NATIVE_LOAD_N
@@ -1570,15 +1619,31 @@ HWY_EMU128_CONCAT_INLINE VFromD<D> ConcatOdd(D d, VFromD<D> hi, VFromD<D> lo) {
 }
 
 // ------------------------------ CombineShiftRightBytes
+
+namespace detail {
+
+// Bytes per 16-byte block, or fewer if the vector is partial.
+template <class D>
+constexpr size_t Emu128BlockBytes() {
+  return Emu128LanesPerBlock<TFromD<D>, HWY_MAX_LANES_D(D)>() *
+         sizeof(TFromD<D>);
+}
+
+}  // namespace detail
+
 template <int kBytes, class D>
 HWY_API VFromD<D> CombineShiftRightBytes(D d, VFromD<D> hi, VFromD<D> lo) {
+  constexpr size_t kBlockBytes = detail::Emu128BlockBytes<D>();
   VFromD<D> ret;
   const uint8_t* HWY_RESTRICT lo8 =
-      reinterpret_cast<const uint8_t * HWY_RESTRICT>(lo.raw);
-  uint8_t* HWY_RESTRICT ret8 =
-      reinterpret_cast<uint8_t * HWY_RESTRICT>(ret.raw);
-  CopyBytes<d.MaxBytes() - kBytes>(lo8 + kBytes, ret8);
-  CopyBytes<kBytes>(hi.raw, ret8 + d.MaxBytes() - kBytes);
+      reinterpret_cast<const uint8_t* HWY_RESTRICT>(lo.raw);
+  const uint8_t* HWY_RESTRICT hi8 =
+      reinterpret_cast<const uint8_t* HWY_RESTRICT>(hi.raw);
+  uint8_t* HWY_RESTRICT ret8 = reinterpret_cast<uint8_t* HWY_RESTRICT>(ret.raw);
+  for (size_t blk = 0; blk < d.MaxBytes(); blk += kBlockBytes) {
+    CopyBytes<kBlockBytes - kBytes>(lo8 + blk + kBytes, ret8 + blk);
+    CopyBytes<kBytes>(hi8 + blk, ret8 + blk + kBlockBytes - kBytes);
+  }
   return ret;
 }
 
@@ -1587,11 +1652,15 @@ HWY_API VFromD<D> CombineShiftRightBytes(D d, VFromD<D> hi, VFromD<D> lo) {
 template <int kBytes, class D>
 HWY_API VFromD<D> ShiftLeftBytes(D d, VFromD<D> v) {
   static_assert(0 <= kBytes && kBytes <= 16, "Invalid kBytes");
+  constexpr size_t kBlockBytes = detail::Emu128BlockBytes<D>();
   VFromD<D> ret;
-  uint8_t* HWY_RESTRICT ret8 =
-      reinterpret_cast<uint8_t * HWY_RESTRICT>(ret.raw);
-  ZeroBytes<kBytes>(ret8);
-  CopyBytes<d.MaxBytes() - kBytes>(v.raw, ret8 + kBytes);
+  const uint8_t* HWY_RESTRICT v8 =
+      reinterpret_cast<const uint8_t* HWY_RESTRICT>(v.raw);
+  uint8_t* HWY_RESTRICT ret8 = reinterpret_cast<uint8_t* HWY_RESTRICT>(ret.raw);
+  for (size_t blk = 0; blk < d.MaxBytes(); blk += kBlockBytes) {
+    ZeroBytes<kBytes>(ret8 + blk);
+    CopyBytes<kBlockBytes - kBytes>(v8 + blk, ret8 + blk + kBytes);
+  }
   return ret;
 }
 
@@ -1617,13 +1686,15 @@ HWY_API Vec128<T, N> ShiftLeftLanes(Vec128<T, N> v) {
 template <int kBytes, class D>
 HWY_API VFromD<D> ShiftRightBytes(D d, VFromD<D> v) {
   static_assert(0 <= kBytes && kBytes <= 16, "Invalid kBytes");
+  constexpr size_t kBlockBytes = detail::Emu128BlockBytes<D>();
   VFromD<D> ret;
   const uint8_t* HWY_RESTRICT v8 =
-      reinterpret_cast<const uint8_t * HWY_RESTRICT>(v.raw);
-  uint8_t* HWY_RESTRICT ret8 =
-      reinterpret_cast<uint8_t * HWY_RESTRICT>(ret.raw);
-  CopyBytes<d.MaxBytes() - kBytes>(v8 + kBytes, ret8);
-  ZeroBytes<kBytes>(ret8 + d.MaxBytes() - kBytes);
+      reinterpret_cast<const uint8_t* HWY_RESTRICT>(v.raw);
+  uint8_t* HWY_RESTRICT ret8 = reinterpret_cast<uint8_t* HWY_RESTRICT>(ret.raw);
+  for (size_t blk = 0; blk < d.MaxBytes(); blk += kBlockBytes) {
+    CopyBytes<kBlockBytes - kBytes>(v8 + blk + kBytes, ret8 + blk);
+    ZeroBytes<kBytes>(ret8 + blk + kBlockBytes - kBytes);
+  }
   return ret;
 }
 
@@ -2295,37 +2366,120 @@ HWY_API VFromD<D> InterleaveOdd(D /*d*/, VFromD<D> a, VFromD<D> b) {
   return b;
 }
 
+// Block ops are no-ops (return the first input) for single-block vectors.
+
 template <typename T, size_t N>
-HWY_API Vec128<T, N> OddEvenBlocks(Vec128<T, N> /* odd */, Vec128<T, N> even) {
+HWY_API Vec128<T, N> OddEvenBlocks(Vec128<T, N> odd, Vec128<T, N> even) {
+  constexpr size_t kLPB = detail::Emu128LanesPerBlock<T, N>();
+  for (size_t i = 0; i < N; ++i) {
+    if ((i / kLPB) & 1) even.raw[i] = odd.raw[i];
+  }
   return even;
 }
 
 // ------------------------------ SwapAdjacentBlocks
 template <typename T, size_t N>
 HWY_API Vec128<T, N> SwapAdjacentBlocks(Vec128<T, N> v) {
-  return v;
+  constexpr size_t kLPB = detail::Emu128LanesPerBlock<T, N>();
+  // Avoids out of bounds accesses for single-block vectors.
+  constexpr size_t kFlip = (N > kLPB) ? kLPB : 0;
+  Vec128<T, N> ret;
+  for (size_t i = 0; i < N; ++i) {
+    ret.raw[i] = v.raw[i ^ kFlip];
+  }
+  return ret;
 }
 
 // ------------------------------ InterleaveEvenBlocks
 template <class D, class V = VFromD<D>>
-HWY_API V InterleaveEvenBlocks(D, V a, V /*b*/) {
+HWY_API V InterleaveEvenBlocks(D, V a, V b) {
+  constexpr size_t N = HWY_MAX_LANES_D(D);
+  constexpr size_t kLPB = detail::Emu128LanesPerBlock<TFromD<D>, N>();
+  // Odd blocks of the result are the preceding (even) blocks of b.
+  for (size_t i = 0; i < N; ++i) {
+    if ((i / kLPB) & 1) a.raw[i] = b.raw[i - kLPB];
+  }
   return a;
 }
 // ------------------------------ InterleaveOddBlocks
 template <class D, class V = VFromD<D>>
-HWY_API V InterleaveOddBlocks(D, V a, V /*b*/) {
-  return a;
+HWY_API V InterleaveOddBlocks(D, V a, V b) {
+  constexpr size_t N = HWY_MAX_LANES_D(D);
+  constexpr size_t kLPB = detail::Emu128LanesPerBlock<TFromD<D>, N>();
+  // Avoids out of bounds accesses for single-block vectors.
+  constexpr size_t kNext = (N > kLPB) ? kLPB : 0;
+  // Even blocks of the result are the subsequent (odd) blocks of a.
+  V ret;
+  for (size_t i = 0; i < N; ++i) {
+    ret.raw[i] = ((i / kLPB) & 1) ? b.raw[i] : a.raw[i + kNext];
+  }
+  return ret;
 }
 
 // ------------------------------ InterleaveLowerBlocks
 template <class D, class V = VFromD<D>>
-HWY_API V InterleaveLowerBlocks(D, V a, V /*b*/) {
-  return a;
+HWY_API V InterleaveLowerBlocks(D, V a, V b) {
+  constexpr size_t N = HWY_MAX_LANES_D(D);
+  constexpr size_t kLPB = detail::Emu128LanesPerBlock<TFromD<D>, N>();
+  V ret;
+  for (size_t i = 0; i < N; ++i) {
+    const size_t blk = i / kLPB;
+    const size_t src = (blk / 2) * kLPB + (i % kLPB);
+    ret.raw[i] = (blk & 1) ? b.raw[src] : a.raw[src];
+  }
+  return ret;
 }
 // ------------------------------ InterleaveUpperBlocks
 template <class D, class V = VFromD<D>>
-HWY_API V InterleaveUpperBlocks(D, V a, V /*b*/) {
-  return a;
+HWY_API V InterleaveUpperBlocks(D, V a, V b) {
+  constexpr size_t N = HWY_MAX_LANES_D(D);
+  constexpr size_t kLPB = detail::Emu128LanesPerBlock<TFromD<D>, N>();
+  constexpr size_t kHalfBlocks = (N / kLPB) / 2;
+  V ret;
+  for (size_t i = 0; i < N; ++i) {
+    const size_t blk = i / kLPB;
+    const size_t src = (kHalfBlocks + blk / 2) * kLPB + (i % kLPB);
+    ret.raw[i] = (blk & 1) ? b.raw[src] : a.raw[src];
+  }
+  return ret;
+}
+
+// ------------------------------ InsertBlock/ExtractBlock/BroadcastBlock
+
+// generic_ops-inl.h handles vectors of at most one block.
+
+template <int kBlockIdx, class V, HWY_IF_V_SIZE_GT_V(V, 16)>
+HWY_API V InsertBlock(V v, VFromD<BlockDFromD<DFromV<V>>> blk_to_insert) {
+  constexpr size_t kLPB = 16 / sizeof(TFromV<V>);
+  static_assert(0 <= kBlockIdx && static_cast<size_t>(kBlockIdx) <
+                                      HWY_MAX_LANES_D(DFromV<V>) / kLPB,
+                "Invalid block index");
+  CopyBytes<16>(blk_to_insert.raw, v.raw + kBlockIdx * kLPB);
+  return v;
+}
+
+template <int kBlockIdx, class V, HWY_IF_V_SIZE_GT_V(V, 16)>
+HWY_API VFromD<BlockDFromD<DFromV<V>>> ExtractBlock(V v) {
+  constexpr size_t kLPB = 16 / sizeof(TFromV<V>);
+  static_assert(0 <= kBlockIdx && static_cast<size_t>(kBlockIdx) <
+                                      HWY_MAX_LANES_D(DFromV<V>) / kLPB,
+                "Invalid block index");
+  VFromD<BlockDFromD<DFromV<V>>> ret;
+  CopyBytes<16>(v.raw + kBlockIdx * kLPB, ret.raw);
+  return ret;
+}
+
+template <int kBlockIdx, class V, HWY_IF_V_SIZE_GT_V(V, 16)>
+HWY_API V BroadcastBlock(V v) {
+  constexpr size_t N = HWY_MAX_LANES_D(DFromV<V>);
+  constexpr size_t kLPB = 16 / sizeof(TFromV<V>);
+  static_assert(0 <= kBlockIdx && static_cast<size_t>(kBlockIdx) < N / kLPB,
+                "Invalid block index");
+  V ret;
+  for (size_t i = 0; i < N; ++i) {
+    ret.raw[i] = v.raw[kBlockIdx * kLPB + (i % kLPB)];
+  }
+  return ret;
 }
 
 // ------------------------------ TableLookupLanes
@@ -2377,7 +2531,15 @@ HWY_API Vec128<T, N> TwoTablesLookupLanes(Vec128<T, N> a, Vec128<T, N> b,
 // ------------------------------ ReverseBlocks
 template <class D>
 HWY_API VFromD<D> ReverseBlocks(D /* tag */, VFromD<D> v) {
-  return v;  // Single block: no change
+  constexpr size_t N = HWY_MAX_LANES_D(D);
+  constexpr size_t kLPB = detail::Emu128LanesPerBlock<TFromD<D>, N>();
+  constexpr size_t kBlocks = N / kLPB;
+  VFromD<D> ret;
+  for (size_t i = 0; i < N; ++i) {
+    const size_t blk = i / kLPB;
+    ret.raw[i] = v.raw[(kBlocks - 1 - blk) * kLPB + (i % kLPB)];
+  }
+  return ret;
 }
 
 // ------------------------------ Reverse
@@ -2460,69 +2622,109 @@ HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
   return ret;
 }
 
+// ------------------------------ Slide1Up/Slide1Down
+
+// generic_ops-inl.h handles vectors of at most one block.
+template <class D, HWY_IF_V_SIZE_GT_D(D, 16)>
+HWY_API VFromD<D> Slide1Up(D d, VFromD<D> v) {
+  return SlideUpLanes(d, v, 1);
+}
+template <class D, HWY_IF_V_SIZE_GT_D(D, 16)>
+HWY_API VFromD<D> Slide1Down(D d, VFromD<D> v) {
+  return SlideDownLanes(d, v, 1);
+}
+
 // ================================================== BLOCKWISE
 
 // ------------------------------ Shuffle*
+
+// These operate independently on each 16-byte block. Except for Shuffle2301,
+// they require at least one full block.
 
 // Swap 32-bit halves in 64-bit halves.
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Shuffle2301(Vec128<T, N> v) {
   static_assert(sizeof(T) == 4, "Only for 32-bit");
-  static_assert(N == 2 || N == 4, "Does not make sense for N=1");
+  static_assert(N >= 2, "Does not make sense for N=1");
   return Reverse2(DFromV<decltype(v)>(), v);
 }
 
 // Swap 64-bit halves
-template <typename T>
-HWY_API Vec128<T> Shuffle1032(Vec128<T> v) {
+template <typename T, size_t N, HWY_IF_LANES_GT(N, 3)>
+HWY_API Vec128<T, N> Shuffle1032(Vec128<T, N> v) {
   static_assert(sizeof(T) == 4, "Only for 32-bit");
-  Vec128<T> ret;
-  ret.raw[3] = v.raw[1];
-  ret.raw[2] = v.raw[0];
-  ret.raw[1] = v.raw[3];
-  ret.raw[0] = v.raw[2];
+  Vec128<T, N> ret;
+  for (size_t i = 0; i < N; i += 4) {
+    ret.raw[i + 3] = v.raw[i + 1];
+    ret.raw[i + 2] = v.raw[i + 0];
+    ret.raw[i + 1] = v.raw[i + 3];
+    ret.raw[i + 0] = v.raw[i + 2];
+  }
   return ret;
 }
-template <typename T>
-HWY_API Vec128<T> Shuffle01(Vec128<T> v) {
+template <typename T, size_t N, HWY_IF_LANES_GT(N, 1)>
+HWY_API Vec128<T, N> Shuffle01(Vec128<T, N> v) {
   static_assert(sizeof(T) == 8, "Only for 64-bit");
   return Reverse2(DFromV<decltype(v)>(), v);
 }
 
 // Rotate right 32 bits
-template <typename T>
-HWY_API Vec128<T> Shuffle0321(Vec128<T> v) {
-  Vec128<T> ret;
-  ret.raw[3] = v.raw[0];
-  ret.raw[2] = v.raw[3];
-  ret.raw[1] = v.raw[2];
-  ret.raw[0] = v.raw[1];
+template <typename T, size_t N, HWY_IF_LANES_GT(N, 3)>
+HWY_API Vec128<T, N> Shuffle0321(Vec128<T, N> v) {
+  static_assert(sizeof(T) == 4, "Only for 32-bit");
+  Vec128<T, N> ret;
+  for (size_t i = 0; i < N; i += 4) {
+    ret.raw[i + 3] = v.raw[i + 0];
+    ret.raw[i + 2] = v.raw[i + 3];
+    ret.raw[i + 1] = v.raw[i + 2];
+    ret.raw[i + 0] = v.raw[i + 1];
+  }
   return ret;
 }
 
 // Rotate left 32 bits
-template <typename T>
-HWY_API Vec128<T> Shuffle2103(Vec128<T> v) {
-  Vec128<T> ret;
-  ret.raw[3] = v.raw[2];
-  ret.raw[2] = v.raw[1];
-  ret.raw[1] = v.raw[0];
-  ret.raw[0] = v.raw[3];
+template <typename T, size_t N, HWY_IF_LANES_GT(N, 3)>
+HWY_API Vec128<T, N> Shuffle2103(Vec128<T, N> v) {
+  static_assert(sizeof(T) == 4, "Only for 32-bit");
+  Vec128<T, N> ret;
+  for (size_t i = 0; i < N; i += 4) {
+    ret.raw[i + 3] = v.raw[i + 2];
+    ret.raw[i + 2] = v.raw[i + 1];
+    ret.raw[i + 1] = v.raw[i + 0];
+    ret.raw[i + 0] = v.raw[i + 3];
+  }
   return ret;
 }
 
-template <typename T>
-HWY_API Vec128<T> Shuffle0123(Vec128<T> v) {
+template <typename T, size_t N, HWY_IF_LANES_GT(N, 3)>
+HWY_API Vec128<T, N> Shuffle0123(Vec128<T, N> v) {
+  static_assert(sizeof(T) == 4, "Only for 32-bit");
   return Reverse4(DFromV<decltype(v)>(), v);
 }
 
-// ------------------------------ Broadcast
+// ------------------------------ Broadcast (per block)
 template <int kLane, typename T, size_t N>
 HWY_API Vec128<T, N> Broadcast(Vec128<T, N> v) {
+  constexpr size_t kLPB = detail::Emu128LanesPerBlock<T, N>();
+  Vec128<T, N> ret;
   for (size_t i = 0; i < N; ++i) {
-    v.raw[i] = v.raw[kLane];
+    ret.raw[i] = v.raw[(i / kLPB) * kLPB + static_cast<size_t>(kLane)];
   }
-  return v;
+  return ret;
+}
+
+// ------------------------------ BroadcastLane (whole vector)
+
+// generic_ops-inl.h handles vectors of at most one block via Broadcast.
+template <int kLane, class V, HWY_IF_V_SIZE_GT_V(V, 16)>
+HWY_API V BroadcastLane(V v) {
+  constexpr size_t N = HWY_MAX_LANES_D(DFromV<V>);
+  static_assert(0 <= kLane && static_cast<size_t>(kLane) < N, "Invalid lane");
+  V ret;
+  for (size_t i = 0; i < N; ++i) {
+    ret.raw[i] = v.raw[kLane];
+  }
+  return ret;
 }
 
 // ------------------------------ TableLookupBytes, TableLookupBytesOr0
@@ -2536,11 +2738,18 @@ HWY_API Vec128<TI, NI> TableLookupBytes(Vec128<T, N> v,
       reinterpret_cast<const uint8_t*>(indices.raw);
   Vec128<TI, NI> ret;
   uint8_t* HWY_RESTRICT ret_bytes =
-      reinterpret_cast<uint8_t * HWY_RESTRICT>(ret.raw);
+      reinterpret_cast<uint8_t* HWY_RESTRICT>(ret.raw);
+  // Indices select bytes within the corresponding 16-byte block of `v`. If `v`
+  // is a single (possibly partial) block, it is used for all blocks of indices.
+  constexpr size_t kVBytes = sizeof(T) * N;
+  constexpr size_t kVBlockBytes = HWY_MIN(kVBytes, size_t{16});
   for (size_t i = 0; i < NI * sizeof(TI); ++i) {
     const size_t idx = idx_bytes[i];
+    // For kVBytes <= 16, this is zero. Otherwise, the offset of the block
+    // containing byte i, wrapped around if `indices` is larger than `v`.
+    const size_t v_block_offset = (i & ~size_t{15}) & (kVBytes - 1);
     // Avoid out of bounds reads.
-    ret_bytes[i] = idx < sizeof(T) * N ? v_bytes[idx] : 0;
+    ret_bytes[i] = idx < kVBlockBytes ? v_bytes[v_block_offset + idx] : 0;
   }
   return ret;
 }
@@ -2554,12 +2763,16 @@ HWY_API Vec128<TI, NI> TableLookupBytesOr0(Vec128<T, N> v,
 
 // ------------------------------ InterleaveLower/InterleaveUpper
 
+// These operate independently on each 16-byte block.
 template <typename T, size_t N>
 HWY_API Vec128<T, N> InterleaveLower(Vec128<T, N> a, Vec128<T, N> b) {
+  constexpr size_t kLPB = detail::Emu128LanesPerBlock<T, N>();
   Vec128<T, N> ret;
-  for (size_t i = 0; i < N / 2; ++i) {
-    ret.raw[2 * i + 0] = a.raw[i];
-    ret.raw[2 * i + 1] = b.raw[i];
+  for (size_t blk = 0; blk < N; blk += kLPB) {
+    for (size_t i = 0; i < kLPB / 2; ++i) {
+      ret.raw[blk + 2 * i + 0] = a.raw[blk + i];
+      ret.raw[blk + 2 * i + 1] = b.raw[blk + i];
+    }
   }
   return ret;
 }
@@ -2571,12 +2784,39 @@ HWY_API VFromD<D> InterleaveLower(D /* tag */, VFromD<D> a, VFromD<D> b) {
 }
 
 template <class D>
-HWY_API VFromD<D> InterleaveUpper(D d, VFromD<D> a, VFromD<D> b) {
-  const Half<decltype(d)> dh;
+HWY_API VFromD<D> InterleaveUpper(D /* tag */, VFromD<D> a, VFromD<D> b) {
+  constexpr size_t N = HWY_MAX_LANES_D(D);
+  constexpr size_t kLPB = detail::Emu128LanesPerBlock<TFromD<D>, N>();
   VFromD<D> ret;
-  for (size_t i = 0; i < MaxLanes(dh); ++i) {
-    ret.raw[2 * i + 0] = a.raw[MaxLanes(dh) + i];
-    ret.raw[2 * i + 1] = b.raw[MaxLanes(dh) + i];
+  for (size_t blk = 0; blk < N; blk += kLPB) {
+    for (size_t i = 0; i < kLPB / 2; ++i) {
+      ret.raw[blk + 2 * i + 0] = a.raw[blk + kLPB / 2 + i];
+      ret.raw[blk + 2 * i + 1] = b.raw[blk + kLPB / 2 + i];
+    }
+  }
+  return ret;
+}
+
+// ------------------------------ InterleaveWholeLower/InterleaveWholeUpper
+
+// generic_ops-inl.h handles vectors of at most one block via Interleave*.
+template <class D, HWY_IF_V_SIZE_GT_D(D, 16)>
+HWY_API VFromD<D> InterleaveWholeLower(D d, VFromD<D> a, VFromD<D> b) {
+  VFromD<D> ret;
+  for (size_t i = 0; i < MaxLanes(d) / 2; ++i) {
+    ret.raw[2 * i + 0] = a.raw[i];
+    ret.raw[2 * i + 1] = b.raw[i];
+  }
+  return ret;
+}
+
+template <class D, HWY_IF_V_SIZE_GT_D(D, 16)>
+HWY_API VFromD<D> InterleaveWholeUpper(D d, VFromD<D> a, VFromD<D> b) {
+  const size_t half = MaxLanes(d) / 2;
+  VFromD<D> ret;
+  for (size_t i = 0; i < half; ++i) {
+    ret.raw[2 * i + 0] = a.raw[half + i];
+    ret.raw[2 * i + 1] = b.raw[half + i];
   }
   return ret;
 }
@@ -2634,18 +2874,21 @@ HWY_API MFromD<D> LoadMaskBits(D d, const uint8_t* HWY_RESTRICT bits) {
 
 template <class D>
 HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
+  constexpr size_t kLanesPerBlock = 16 / sizeof(TFromD<D>);
   MFromD<D> m;
   for (size_t i = 0; i < MaxLanes(d); ++i) {
-    m.bits[i] = MFromD<D>::FromBool(((mask_bits >> i) & 1u) != 0);
+    const size_t bit_idx = i & (kLanesPerBlock - 1);
+    m.bits[i] = MFromD<D>::FromBool(((mask_bits >> bit_idx) & 1u) != 0);
   }
   return m;
 }
 
-// `p` points to at least 8 writable bytes.
+// `p` points to at least 8 writable bytes, or `(MaxLanes(d) + 7) / 8` if
+// larger (only possible for vectors larger than 64 bytes).
 template <class D>
 HWY_API size_t StoreMaskBits(D d, MFromD<D> mask, uint8_t* bits) {
-  bits[0] = 0;
-  if (MaxLanes(d) > 8) bits[1] = 0;  // MaxLanes(d) <= 16, so max two bytes
+  constexpr size_t kNumBytes = (HWY_MAX_LANES_D(D) + 7) / 8;
+  ZeroBytes<kNumBytes>(bits);
   for (size_t i = 0; i < MaxLanes(d); ++i) {
     const size_t bit = size_t{1} << (i & 7);
     const size_t idx_byte = i >> 3;
@@ -2653,7 +2896,7 @@ HWY_API size_t StoreMaskBits(D d, MFromD<D> mask, uint8_t* bits) {
       bits[idx_byte] = static_cast<uint8_t>(bits[idx_byte] | bit);
     }
   }
-  return MaxLanes(d) > 8 ? 2 : 1;
+  return kNumBytes;
 }
 
 template <class D>
@@ -2989,20 +3232,23 @@ HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
 
 // ------------------------------ MulEven/Odd 64x64 (UpperHalf)
 
-template <class T, HWY_IF_UI64(T)>
-HWY_API Vec128<T> MulEven(Vec128<T> a, Vec128<T> b) {
-  alignas(16) T mul[2];
-  mul[0] = Mul128(GetLane(a), GetLane(b), &mul[1]);
-  return Load(Full128<T>(), mul);
+// These operate independently on each 16-byte block.
+template <class T, size_t N, HWY_IF_UI64(T), HWY_IF_LANES_GT(N, 1)>
+HWY_API Vec128<T, N> MulEven(Vec128<T, N> a, Vec128<T, N> b) {
+  Vec128<T, N> ret;
+  for (size_t i = 0; i < N; i += 2) {
+    ret.raw[i] = Mul128(a.raw[i], b.raw[i], &ret.raw[i + 1]);
+  }
+  return ret;
 }
 
-template <class T, HWY_IF_UI64(T)>
-HWY_API Vec128<T> MulOdd(Vec128<T> a, Vec128<T> b) {
-  alignas(16) T mul[2];
-  const Half<Full128<T>> d2;
-  mul[0] =
-      Mul128(GetLane(UpperHalf(d2, a)), GetLane(UpperHalf(d2, b)), &mul[1]);
-  return Load(Full128<T>(), mul);
+template <class T, size_t N, HWY_IF_UI64(T), HWY_IF_LANES_GT(N, 1)>
+HWY_API Vec128<T, N> MulOdd(Vec128<T, N> a, Vec128<T, N> b) {
+  Vec128<T, N> ret;
+  for (size_t i = 0; i < N; i += 2) {
+    ret.raw[i] = Mul128(a.raw[i + 1], b.raw[i + 1], &ret.raw[i + 1]);
+  }
+  return ret;
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

@@ -22,6 +22,8 @@
 #define HIGHWAY_HWY_CONTRIB_SORT_SORTING_NETWORKS_TOGGLE
 #endif
 
+#include <stddef.h>
+
 #include "hwy/contrib/sort/shared-inl.h"  // SortConstants
 #include "hwy/highway.h"
 
@@ -786,6 +788,17 @@ HWY_INLINE void Merge16x16(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4,
 
 #endif  // !HWY_COMPILER_MSVC && !HWY_IS_DEBUG_BUILD
 
+#if HWY_TARGET == HWY_EMU128
+// CappedTag can be larger than 16 bytes, which would be slower.
+template <class Traits>
+using SortingNetworkTag = Full128<typename Traits::LaneType>;
+#else
+// traits*-inl assume 'full' vectors (but still capped to kMaxCols).
+template <class Traits>
+using SortingNetworkTag =
+    CappedTag<typename Traits::LaneType, Constants::kMaxCols>;
+#endif
+
 // Reshapes `buf` into a matrix, sorts columns independently, and then merges
 // into a sorted 1D array without transposing.
 //
@@ -794,8 +807,7 @@ template <class Traits, class V>
 HWY_INLINE void SortingNetwork(Traits st, size_t cols, V& v0, V& v1, V& v2,
                                V& v3, V& v4, V& v5, V& v6, V& v7, V& v8, V& v9,
                                V& va, V& vb, V& vc, V& vd, V& ve, V& vf) {
-  // traits*-inl assume 'full' vectors (but still capped to kMaxCols).
-  const CappedTag<typename Traits::LaneType, Constants::kMaxCols> d;
+  const SortingNetworkTag<Traits> d;
 
   HWY_DASSERT(cols <= Constants::kMaxCols);
 
@@ -840,10 +852,7 @@ HWY_INLINE void SortingNetwork(Traits st, size_t cols, V& v0, V& v1, V& v2,
 // DEPRECATED, use BaseCase() instead.
 template <class Traits, typename T>
 HWY_NOINLINE void SortingNetwork(Traits st, T* HWY_RESTRICT buf, size_t cols) {
-  // traits*-inl assume 'full' vectors (but still capped to kMaxCols).
-  // However, for smaller arrays and sub-maximal `cols` we have overlapping
-  // loads where only the lowest `cols` are valid, and we skip Merge16 etc.
-  const CappedTag<T, Constants::kMaxCols> d;
+  const SortingNetworkTag<Traits> d;
   using V = decltype(Zero(d));
 
   HWY_DASSERT(cols <= Constants::kMaxCols);
@@ -895,7 +904,7 @@ struct SharedTraits : public Base {};
 
 namespace detail {
 
-// Empty function to avoid a possible -Wpragma-clang-attribute warning if
+// Empty function to avoid a possible `-Wpragma-clang-attribute` warning if
 // compiling with Clang
 static HWY_INLINE HWY_MAYBE_UNUSED void HWY_CONCAT(UnusedSortingNetworksFunc,
                                                    __LINE__)() {}

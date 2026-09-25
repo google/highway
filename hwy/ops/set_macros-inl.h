@@ -72,7 +72,7 @@
 #define HWY_CAP_GE512 (HWY_MIN_BYTES >= 64)
 #endif
 
-// Almost all targets (except RVV and SCALAR) use this definition.
+// Almost all targets (except RVV, SCALAR, EMU128) use this definition.
 #undef HWY_LANES
 #define HWY_LANES(T) (HWY_MAX_BYTES / sizeof(T))
 
@@ -144,7 +144,9 @@
 // For HWY_TARGET == HWY_RVV, LMUL <= 8. Even on other targets, we want to
 // support say Rebind<uint64_t, Simd<uint8_t, 1, 0>> d; whose kPow2 is also 3.
 // However, those other targets do not actually support multiple vectors, and
-// thus Lanes(d) must not exceed Lanes(ScalableTag<T>()).
+// thus Lanes(d) must not exceed Lanes(ScalableTag<T>()). The exception is
+// HWY_EMU128, which supports vectors of up to HWY_MAX_BYTES = `16 <<
+// HWY_MAX_POW2` bytes, even though ScalableTag<T> is only 16 bytes.
 #define HWY_MAX_POW2 3
 
 // User-visible. Loose lower bound that guarantees HWY_MAX_BYTES >>
@@ -915,8 +917,15 @@
 #elif HWY_TARGET == HWY_EMU128
 
 #define HWY_ALIGN alignas(16)
-#define HWY_MAX_BYTES 16
+// ScalableTag<T> is 16 bytes, but FixedTag/CappedTag/ScalableTag<T, kPow2 > 0>
+// may request up to `16 << HWY_MAX_POW2` bytes.
+#define HWY_MAX_BYTES 128
 #define HWY_MIN_BYTES 16
+
+// As on RVV, this is the (upper bound on) lanes in ScalableTag<T>, which is
+// less than HWY_MAX_BYTES / sizeof(T).
+#undef HWY_LANES
+#define HWY_LANES(T) (16 / sizeof(T))
 
 #define HWY_HAVE_SCALABLE 0
 #define HWY_HAVE_INTEGER64 1
@@ -1016,7 +1025,7 @@
 #endif
 
 #if (HWY_MAX_BYTES <= 16) || HWY_TARGET_IS_SVE || (HWY_TARGET == HWY_RVV) || \
-      (HWY_TARGET == HWY_WASM_EMU256)
+      (HWY_TARGET == HWY_WASM_EMU256) || (HWY_TARGET == HWY_EMU128)
 #define HWY_NATIVE_INTERLEAVE_WHOLE 1
 #else
 #define HWY_NATIVE_INTERLEAVE_WHOLE 0
