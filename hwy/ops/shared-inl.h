@@ -358,20 +358,42 @@ struct ScalableTagChecker {
   using type = typename ClampNAndPow2<T, HWY_LANES(T), kPow2>::type;
 };
 
+// Upper bound on the number of lanes requested via FixedTag or CappedTag. This
+// is normally HWY_LANES(T), but HWY_EMU128 supports vectors of up to
+// HWY_MAX_BYTES (128) via FixedTag/CappedTag, and also
+// `ScalableTag<T, kPow2 > 0>`, even though `ScalableTag<T>` remains 16 bytes.
+// Defining HWY_EMU128_CAPPED_TAG_16 restricts CappedTag on HWY_EMU128 to the
+// usual HWY_LANES(T), in case callers pass large kLimit and do not want to
+// receive vectors larger than 16 bytes.
+#undef HWY_PRIVATE_MAX_FIXED_LANES
+#undef HWY_PRIVATE_MAX_CAPPED_LANES
+#if HWY_TARGET == HWY_EMU128
+#define HWY_PRIVATE_MAX_FIXED_LANES(T) (HWY_MAX_BYTES / sizeof(T))
+#ifdef HWY_EMU128_CAPPED_TAG_16
+#define HWY_PRIVATE_MAX_CAPPED_LANES(T) HWY_LANES(T)
+#else
+#define HWY_PRIVATE_MAX_CAPPED_LANES(T) HWY_PRIVATE_MAX_FIXED_LANES(T)
+#endif
+#else
+#define HWY_PRIVATE_MAX_FIXED_LANES(T) HWY_LANES(T)
+#define HWY_PRIVATE_MAX_CAPPED_LANES(T) HWY_LANES(T)
+#endif  // HWY_TARGET == HWY_EMU128
+
 template <typename T, size_t kLimit, int kPow2>
 struct CappedTagChecker {
   static_assert(kLimit != 0, "Does not make sense to have zero lanes");
   // Safely handle non-power-of-two inputs by rounding down, which is allowed by
   // CappedTag. Otherwise, Simd<T, 3, 0> would static_assert.
   static constexpr size_t kLimitPow2 = size_t{1} << hwy::FloorLog2(kLimit);
-  static constexpr size_t N = HWY_MIN(kLimitPow2, HWY_LANES(T));
+  static constexpr size_t N =
+      HWY_MIN(kLimitPow2, HWY_PRIVATE_MAX_CAPPED_LANES(T));
   using type = typename ClampNAndPow2<T, N, kPow2>::type;
 };
 
 template <typename T, size_t kNumLanes>
 struct FixedTagChecker {
   static_assert(kNumLanes != 0, "Does not make sense to have zero lanes");
-  static_assert(kNumLanes <= HWY_LANES(T), "Too many lanes");
+  static_assert(kNumLanes <= HWY_PRIVATE_MAX_FIXED_LANES(T), "Too many lanes");
   using type = Simd<T, kNumLanes, 0>;
 };
 

@@ -453,7 +453,7 @@ HWY_INLINE V ReplicateTop4x(V v) {
 #if HWY_TARGET == HWY_SVE_256
   return svdup_lane_u64(v, 3);
 #else
-  const ScalableTag<uint64_t> d;
+  const DFromV<V> d;
   HWY_DASSERT(Lanes(d) == 4 || Lanes(d) == 8);  // for table below
   HWY_ALIGN static constexpr uint64_t kIndices[8] = {3, 3, 3, 3, 7, 7, 7, 7};
   return TableLookupLanes(v, SetTableIndices(d, kIndices));

@@ -1474,7 +1474,8 @@ encoding depends on the platform).
     `(b >> i) & 1` indicates whether `m[i]` was set, and any remaining bits in
     the `uint64_t` are zero. This is only available if `HWY_MAX_BYTES <= 64`,
     because 512-bit vectors are the longest for which there are no more than 64
-    lanes and thus mask bits.
+    lanes and thus mask bits. As an exception, `HWY_EMU128` also provides it for
+    vectors with at most 64 lanes, despite its `HWY_MAX_BYTES` of 128.
 
 *   <code>size_t **StoreMaskBits**(D, M m, uint8_t* p)</code>: stores a bit
     array indicating whether `m[i]` is true, in ascending order of `i`, filling
@@ -3123,9 +3124,12 @@ supported for the `HWY_SCALAR` target.
 *   `HWY_REGISTERS` expands to the number of architectural vector registers
     available on the current target.
 
-*   `HWY_MAX_BYTES` is an upper bound on the size of a full vector, suitable for
+*   `HWY_MAX_BYTES` is an upper bound on the size of any vector, suitable for
     use in `#if` expressions. It is equal to the vector size unless
-    `HWY_HAVE_SCALABLE` or `HWY_TARGET == HWY_SCALAR`. As with the other macros
+    `HWY_HAVE_SCALABLE` or `HWY_TARGET == HWY_SCALAR`, or `HWY_TARGET ==
+    HWY_EMU128`: the latter supports vectors of up to 128 bytes via `FixedTag`,
+    `CappedTag` or `ScalableTag<T, kPow2 > 0>`, although `ScalableTag<T>` (and
+    `HWY_LANES(T)`) are 16 bytes. As with the other macros
     here, beware that this is only an upper bound for the current target. For
     use outside SIMD code, call`hwy::VectorBytes()` instead.
 
