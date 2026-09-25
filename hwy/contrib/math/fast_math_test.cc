@@ -41,6 +41,56 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
 
+template <class T, class D, class Func>
+HWY_NOINLINE void VerifyWorstCases(D d, double (*ref_fn)(double), Func fast_fn,
+                                   const uint32_t* bits_list, size_t count,
+                                   double max_rel_err) {
+  for (size_t i = 0; i < count; ++i) {
+    const T x = static_cast<T>(BitCastScalar<float>(bits_list[i]));
+    const double expected = ref_fn(static_cast<double>(x));
+    const double actual = static_cast<double>(GetLane(fast_fn(d, Set(d, x))));
+    const double rel_err = std::abs(actual - expected) / std::abs(expected);
+    HWY_ASSERT(rel_err <= max_rel_err);
+  }
+}
+
+// Worst-case float32 bit patterns for FastLog / FastLog2 / FastLog10:
+// - 1.0f +/- 1 ULP: root neighborhood where ln(x) -> 0
+// - 1.5f +/- 1 ULP & 0.75f: bucket-split boundary (m = 1.50) and polynomial
+//   endpoints z = +0.50 and z = -0.25
+// - 2^127 * 1.5f & 2^-126 * 1.5f: max |exp| drift combined with poly endpoints
+// - 0x007FFFFF & 0x00800000: max subnormal to min normal (FLT_MIN) transition
+constexpr uint32_t kLogWorstCasesBits[] = {
+    0x3F7FFFFFu,  // 1.0f - 1 ULP (0.99999994f)
+    0x3F800001u,  // 1.0f + 1 ULP (1.00000012f)
+    0x3F400000u,  // 0.75f (left polynomial endpoint z = -0.25)
+    0x3FBFFFFFu,  // 1.5f - 1 ULP (right polynomial endpoint z = +0.50 - eps)
+    0x3FC00000u,  // 1.5f (bucket carry boundary -> e = 1, z = -0.25)
+    0x3FC00001u,  // 1.5f + 1 ULP
+    0x7F3FFFFFu,  // 2^127 * (1.5f - 1 ULP): max +exp + right poly endpoint
+    0x7F400000u,  // 2^127 * 1.5f: max +exp + left poly endpoint
+    0x00C00000u,  // 2^-126 * 1.5f: min normal exp + bucket boundary
+    0x007FFFFFu,  // max subnormal float32
+    0x00800000u,  // FLT_MIN (min normal float32)
+};
+
+// Worst-case float32 bit patterns for FastExp:
+// - (q +/- 0.5) * ln(2) near +/-87: maximum |q| * delta_ln2 drift colliding
+//   with integer binade rounding and polynomial endpoints +/-ln(2)/2
+// - q * ln(2) near +/-87: maximum 24-bit cancellation in x_red = x - q * ln(2)
+constexpr uint32_t kExpWorstCasesBits[] = {
+    0x3EB17217u,  // +0.5 * ln(2) - 1 ULP (right poly endpoint before q=1)
+    0x3EB17218u,  // +0.5 * ln(2) + 1 ULP (left poly endpoint after q=1)
+    0xBEB17217u,  // -0.5 * ln(2) + 1 ULP
+    0xBEB17218u,  // -0.5 * ln(2) - 1 ULP
+    0x42AF5DC0u,  // 126.5 * ln(2) (~87.6831f): max +q + poly endpoint + round
+    0x42AF5DC1u,  // 126.5 * ln(2) + 1 ULP
+    0xC2AC97F9u,  // -124.5 * ln(2) (~-86.2968f): max -q + poly endpoint + round
+    0xC2AC97FAu,  // -124.5 * ln(2) - 1 ULP
+    0x42AEAC50u,  // 126.0 * ln(2) (~87.3365f): max +q root cancellation
+    0xC2AD4964u,  // -125.0 * ln(2) (~-86.6434f): max -q root cancellation
+};
+
 struct TestFastLog {
   template <class T, class D>
   HWY_NOINLINE void operator()(T, D d) {
@@ -54,7 +104,6 @@ struct TestFastLog {
                              CallFastLogPositiveNormal, d,
                              static_cast<T>(1.18e-38f), static_cast<T>(FLT_MAX),
                              max_relative_error, kSamples);
-
     } else {
       TestMathRelative<T, D>("FastLog", std::log, CallFastLog, d,
                              static_cast<T>(DBL_MIN), static_cast<T>(DBL_MAX),
@@ -64,6 +113,9 @@ struct TestFastLog {
                              static_cast<T>(2.23e-308), static_cast<T>(DBL_MAX),
                              max_relative_error, kSamples);
     }
+    VerifyWorstCases<T>(d, std::log, CallFastLog<D, Vec<D>>, kLogWorstCasesBits,
+                        sizeof(kLogWorstCasesBits) / sizeof(uint32_t),
+                        max_relative_error);
   }
 };
 
@@ -96,6 +148,9 @@ struct TestFastExp {
                              static_cast<T>(-744.0), static_cast<T>(-708.0),
                              1.4E-4);
     }
+    VerifyWorstCases<T>(d, std::exp, CallFastExp<D, Vec<D>>, kExpWorstCasesBits,
+                        sizeof(kExpWorstCasesBits) / sizeof(uint32_t),
+                        0.000008);
   }
 };
 
@@ -125,6 +180,18 @@ struct TestFastExp2 {
                              static_cast<T>(-1075.0), static_cast<T>(-1022.0),
                              0.0004);
     }
+    // Half-integer binade switches & polynomial endpoints (x_red = +/-0.5):
+    constexpr uint32_t kExp2WorstCasesBits[] = {
+        0x3EFFFFFFu,  // +0.5f - 1 ULP
+        0x3F000000u,  // +0.5f
+        0xBF000000u,  // -0.5f
+        0x42FDFFFFu,  // +126.5f - 1 ULP
+        0x42FE0000u,  // +126.5f
+        0xC2FB0000u,  // -125.5f
+    };
+    VerifyWorstCases<T>(
+        d, std::exp2, CallFastExp2<D, Vec<D>>, kExp2WorstCasesBits,
+        sizeof(kExp2WorstCasesBits) / sizeof(uint32_t), 0.000008);
   }
 };
 
@@ -168,6 +235,9 @@ struct TestFastLog2 {
                              static_cast<T>(2.23e-308), static_cast<T>(DBL_MAX),
                              max_relative_error, kSamples);
     }
+    VerifyWorstCases<T>(
+        d, std::log2, CallFastLog2<D, Vec<D>>, kLogWorstCasesBits,
+        sizeof(kLogWorstCasesBits) / sizeof(uint32_t), max_relative_error);
   }
 };
 
@@ -193,6 +263,9 @@ struct TestFastLog10 {
                              static_cast<T>(2.23e-308), static_cast<T>(DBL_MAX),
                              max_relative_error, kSamples);
     }
+    VerifyWorstCases<T>(
+        d, std::log10, CallFastLog10<D, Vec<D>>, kLogWorstCasesBits,
+        sizeof(kLogWorstCasesBits) / sizeof(uint32_t), max_relative_error);
   }
 };
 
@@ -218,6 +291,20 @@ struct TestFastLog1p {
                              static_cast<T>(0.0), static_cast<T>(DBL_MAX),
                              max_relative_error, kSamples);
     }
+    // Half-precision and full-mantissa cancellation points where 1.0f + x
+    // rounds off 12 to 23 bits of x, plus bucket boundaries 0.5f and -0.25f:
+    constexpr uint32_t kLog1pWorstCasesBits[] = {
+        0x39800000u,  // +2^-12 (loses 12 bits in 1 + x)
+        0xB9800000u,  // -2^-12
+        0x34000000u,  // +2^-23 (loses 23 bits in 1 + x)
+        0xB4000000u,  // -2^-23
+        0x3EFFFFFFu,  // +0.5f - 1 ULP (1 + x = 1.5f - 1 ULP)
+        0x3F000000u,  // +0.5f (1 + x = 1.5f bucket boundary)
+        0xBE800000u,  // -0.25f (1 + x = 0.75f left poly endpoint)
+    };
+    VerifyWorstCases<T>(
+        d, std::log1p, CallFastLog1p<D, Vec<D>>, kLog1pWorstCasesBits,
+        sizeof(kLog1pWorstCasesBits) / sizeof(uint32_t), max_relative_error);
   }
 };
 
