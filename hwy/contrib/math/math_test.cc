@@ -243,6 +243,99 @@ HWY_NOINLINE void TestAllSignedZero() {
   ForFloat3264Types(ForPartialVectors<TestSignedZero>());
 }
 
+// Tests for special inputs (+/-Inf, +/-NaN) as specified by IEEE 754 / C11
+// Annex F.
+struct TestSpecialValues {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T, D d) {
+    using TU = MakeUnsigned<T>;
+    const T pinf = GetLane(Inf(d));
+    const T ninf = GetLane(Neg(Inf(d)));
+    const T pnan = GetLane(NaN(d));
+    const T nnan = GetLane(Neg(NaN(d)));
+
+    const T pos0 = ConvertScalarTo<T>(0.0);
+    const T pos1 = ConvertScalarTo<T>(1.0);
+    const T neg1 = ConvertScalarTo<T>(-1.0);
+
+    // Erf(+/-Inf) = +/-1, Erf(+/-NaN) = NaN
+    {
+      const T got_pinf = GetLane(CallErf(d, Set(d, pinf)));
+      const T got_ninf = GetLane(CallErf(d, Set(d, ninf)));
+      const T got_pnan = GetLane(CallErf(d, Set(d, pnan)));
+      const T got_nnan = GetLane(CallErf(d, Set(d, nnan)));
+      HWY_ASSERT_EQ(pos1, got_pinf);
+      HWY_ASSERT_EQ(neg1, got_ninf);
+      HWY_ASSERT(ScalarIsNaN(got_pnan));
+      HWY_ASSERT(ScalarIsNaN(got_nnan));
+    }
+
+    // Exp(+Inf) = +Inf, Exp(-Inf) = +0, Exp(+/-NaN) = NaN
+    {
+      const T got_pinf = GetLane(CallExp(d, Set(d, pinf)));
+      const T got_ninf = GetLane(CallExp(d, Set(d, ninf)));
+      const T got_pnan = GetLane(CallExp(d, Set(d, pnan)));
+      const T got_nnan = GetLane(CallExp(d, Set(d, nnan)));
+      HWY_ASSERT(ScalarIsInf(got_pinf) && got_pinf > 0);
+      HWY_ASSERT_EQ(BitCastScalar<TU>(pos0), BitCastScalar<TU>(got_ninf));
+      HWY_ASSERT(ScalarIsNaN(got_pnan));
+      HWY_ASSERT(ScalarIsNaN(got_nnan));
+    }
+
+    // Expm1(+Inf) = +Inf, Expm1(-Inf) = -1, Expm1(+/-NaN) = NaN
+    {
+      const T got_pinf = GetLane(CallExpm1(d, Set(d, pinf)));
+      const T got_ninf = GetLane(CallExpm1(d, Set(d, ninf)));
+      const T got_pnan = GetLane(CallExpm1(d, Set(d, pnan)));
+      const T got_nnan = GetLane(CallExpm1(d, Set(d, nnan)));
+      HWY_ASSERT(ScalarIsInf(got_pinf) && got_pinf > 0);
+      HWY_ASSERT_EQ(neg1, got_ninf);
+      HWY_ASSERT(ScalarIsNaN(got_pnan));
+      HWY_ASSERT(ScalarIsNaN(got_nnan));
+    }
+
+    // Log(+Inf) = +Inf, Log(-Inf) = NaN, Log(+/-NaN) = NaN
+    {
+      const T got_pinf = GetLane(CallLog(d, Set(d, pinf)));
+      const T got_ninf = GetLane(CallLog(d, Set(d, ninf)));
+      const T got_pnan = GetLane(CallLog(d, Set(d, pnan)));
+      const T got_nnan = GetLane(CallLog(d, Set(d, nnan)));
+      HWY_ASSERT(ScalarIsInf(got_pinf) && got_pinf > 0);
+      HWY_ASSERT(ScalarIsNaN(got_ninf));
+      HWY_ASSERT(ScalarIsNaN(got_pnan));
+      HWY_ASSERT(ScalarIsNaN(got_nnan));
+    }
+
+    // Log1p(+Inf) = +Inf, Log1p(-Inf) = NaN, Log1p(+/-NaN) = NaN
+    {
+      const T got_pinf = GetLane(CallLog1p(d, Set(d, pinf)));
+      const T got_ninf = GetLane(CallLog1p(d, Set(d, ninf)));
+      const T got_pnan = GetLane(CallLog1p(d, Set(d, pnan)));
+      const T got_nnan = GetLane(CallLog1p(d, Set(d, nnan)));
+      HWY_ASSERT(ScalarIsInf(got_pinf) && got_pinf > 0);
+      HWY_ASSERT(ScalarIsNaN(got_ninf));
+      HWY_ASSERT(ScalarIsNaN(got_pnan));
+      HWY_ASSERT(ScalarIsNaN(got_nnan));
+    }
+
+    // Tanh(+/-Inf) = +/-1, Tanh(+/-NaN) = NaN
+    {
+      const T got_pinf = GetLane(CallTanh(d, Set(d, pinf)));
+      const T got_ninf = GetLane(CallTanh(d, Set(d, ninf)));
+      const T got_pnan = GetLane(CallTanh(d, Set(d, pnan)));
+      const T got_nnan = GetLane(CallTanh(d, Set(d, nnan)));
+      HWY_ASSERT_EQ(pos1, got_pinf);
+      HWY_ASSERT_EQ(neg1, got_ninf);
+      HWY_ASSERT(ScalarIsNaN(got_pnan));
+      HWY_ASSERT(ScalarIsNaN(got_nnan));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllSpecialValues() {
+  ForFloat3264Types(ForPartialVectors<TestSpecialValues>());
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -267,6 +360,7 @@ HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLogGamma);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllPow);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExpm1SignedZero);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSignedZero);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSpecialValues);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy
