@@ -9168,10 +9168,24 @@ HWY_INLINE VFromD<D> NativeLoadExpand(MFromD<D> mask, D /* d */,
   return VFromD<D>{_mm256_maskz_expandloadu_epi8(mask.raw, unaligned)};
 }
 
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U8_D(D)>
+HWY_INLINE VFromD<D> NativeBlendedLoadExpand(
+    VFromD<D> no, MFromD<D> mask, D /* d */,
+    const uint8_t* HWY_RESTRICT unaligned) {
+  return VFromD<D>{_mm256_mask_expandloadu_epi8(no.raw, mask.raw, unaligned)};
+}
+
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U16_D(D)>
 HWY_INLINE VFromD<D> NativeLoadExpand(MFromD<D> mask, D /* d */,
                                       const uint16_t* HWY_RESTRICT unaligned) {
   return VFromD<D>{_mm256_maskz_expandloadu_epi16(mask.raw, unaligned)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U16_D(D)>
+HWY_INLINE VFromD<D> NativeBlendedLoadExpand(
+    VFromD<D> no, MFromD<D> mask, D /* d */,
+    const uint16_t* HWY_RESTRICT unaligned) {
+  return VFromD<D>{_mm256_mask_expandloadu_epi16(no.raw, mask.raw, unaligned)};
 }
 
 #endif  // HWY_TARGET <= HWY_AVX3_DL
@@ -9193,10 +9207,24 @@ HWY_INLINE VFromD<D> NativeLoadExpand(MFromD<D> mask, D /* d */,
   return VFromD<D>{_mm256_maskz_expandloadu_epi32(mask.raw, unaligned)};
 }
 
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U32_D(D)>
+HWY_INLINE VFromD<D> NativeBlendedLoadExpand(
+    VFromD<D> no, MFromD<D> mask, D /* d */,
+    const uint32_t* HWY_RESTRICT unaligned) {
+  return VFromD<D>{_mm256_mask_expandloadu_epi32(no.raw, mask.raw, unaligned)};
+}
+
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U64_D(D)>
 HWY_INLINE VFromD<D> NativeLoadExpand(MFromD<D> mask, D /* d */,
                                       const uint64_t* HWY_RESTRICT unaligned) {
   return VFromD<D>{_mm256_maskz_expandloadu_epi64(mask.raw, unaligned)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U64_D(D)>
+HWY_INLINE VFromD<D> NativeBlendedLoadExpand(
+    VFromD<D> no, MFromD<D> mask, D /* d */,
+    const uint64_t* HWY_RESTRICT unaligned) {
+  return VFromD<D>{_mm256_mask_expandloadu_epi64(no.raw, mask.raw, unaligned)};
 }
 
 #endif  // HWY_TARGET <= HWY_AVX3
@@ -9376,7 +9404,7 @@ HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
   const MFromD<decltype(du)> mu = RebindMask(du, mask);
   return BitCast(d, detail::NativeLoadExpand(mu, du, pu));
 #else
-  return Expand(LoadU(d, unaligned), mask);
+  return Expand(LoadN(d, unaligned, CountTrue(d, mask)), mask);
 #endif
 }
 
@@ -9391,9 +9419,48 @@ HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
   const MFromD<decltype(du)> mu = RebindMask(du, mask);
   return BitCast(d, detail::NativeLoadExpand(mu, du, pu));
 #else
-  return Expand(LoadU(d, unaligned), mask);
+  return Expand(LoadN(d, unaligned, CountTrue(d, mask)), mask);
 #endif
 }
+
+// ------------------------------ BlendedLoadExpand
+
+#if HWY_TARGET <= HWY_AVX3
+template <class D, HWY_IF_V_SIZE_D(D, 32),
+          HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2))>
+HWY_API VFromD<D> BlendedLoadExpand(VFromD<D> no, MFromD<D> mask, D d,
+                                    const TFromD<D>* HWY_RESTRICT unaligned) {
+#if HWY_TARGET <= HWY_AVX3_DL  // VBMI2
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  const TU* HWY_RESTRICT pu = reinterpret_cast<const TU*>(unaligned);
+  const MFromD<decltype(du)> mu = RebindMask(du, mask);
+  return BitCast(d, detail::NativeBlendedLoadExpand(BitCast(du, no), mu, du, pu));
+#else
+  return IfThenElse(mask, LoadExpand(mask, d, unaligned), no);
+#endif
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32),
+          HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 4) | (1 << 8))>
+HWY_API VFromD<D> BlendedLoadExpand(VFromD<D> no, MFromD<D> mask, D d,
+                                    const TFromD<D>* HWY_RESTRICT unaligned) {
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  const TU* HWY_RESTRICT pu = reinterpret_cast<const TU*>(unaligned);
+  const MFromD<decltype(du)> mu = RebindMask(du, mask);
+  return BitCast(d, detail::NativeBlendedLoadExpand(BitCast(du, no), mu, du, pu));
+}
+#endif  // HWY_TARGET <= HWY_AVX3
+
+// ------------------------------ MultishiftBytes
+
+#if HWY_TARGET <= HWY_AVX3_DL  // VBMI
+template <class V, HWY_IF_V_SIZE_V(V, 32), HWY_IF_T_SIZE_V(V, 1)>
+HWY_API V MultishiftBytes(V indices, V values) {
+  return V{_mm256_multishift_epi64_epi8(indices.raw, values.raw)};
+}
+#endif
 
 // ------------------------------ LoadInterleaved3/4
 
