@@ -33,27 +33,122 @@ namespace HWY_NAMESPACE {
 
 namespace impl {
 
-// Port of reduce_angle_tan_SIMD
+// Reduces input angle `ang` modulo pi into [-pi/2, +pi/2], outputting:
+//   - `x_red`: |ang - q * pi| in [0, pi/2], the reduced angle magnitude.
+//   - `dx`:    (pi/2 - x_red), the signed distance from x_red to the pole at
+//              pi/2, computed with extended precision to avoid cancellation.
+//   - `sign`:  vector whose sign bit matches tan(ang) on (-pi/2, +pi/2).
 template <class D, class V = VFromD<D>>
-HWY_INLINE void ReduceAngleTan(D d, V ang, V& x_red, V& sign) {
+HWY_INLINE void ReduceAngleTan(D d, V ang, V& x_red, V& dx, V& sign) {
   using T = TFromD<D>;
-  const auto pi = Set(d, static_cast<T>(3.14159265358979323846));
+  const V inv_pi = Set(d, static_cast<T>(0.31830988618379067153777));
 
-  const auto inv_pi = Set(d, static_cast<T>(0.31830988618379067153777));
+  // Step 1: Find the nearest integer multiple of pi:
+  //   quotient (q) = round(ang / pi).
+  const V quotient = Round(Mul(ang, inv_pi));
 
-  // Modulo pi
-  auto quotient = Mul(ang, inv_pi);
-  quotient = Round(quotient);
-  auto ang_mod = NegMulAdd(quotient, pi, ang);
+  // Step 2: Cody-Waite multi-word range reduction:
+  // Subtract q * pi in stages using a high-precision split of pi so that
+  // (ang - q * pi) does not lose mantissa bits when |ang| is large:
+  //   - `t1`:      partially reduced angle after subtracting the high bits of
+  //                q * pi. Because q * pi_hi is close to ang, this subtraction
+  //                is exact (zero rounding error).
+  //   - `pi_tail`: the remaining low-order bits of pi (pi = pi_hi + pi_tail).
+  V t1;
+  V kHalfPiHi;
+  V pi_3;
+  V pi_4 = Zero(d);
+  V pi_tail;
+  if constexpr (HWY_NATIVE_FMA) {
+    // With hardware FMA, each NegMulAdd computes (quotient * pi_word) to
+    // double-width precision before subtracting, so each constant can use all
+    // mantissa bits (24 bits in f32, 53 bits in f64). Using 3 words in f32
+    // gives 73 bits of pi (so even the worst-case float32 near 5152*pi =
+    // 16185.48535f, where 36 bits cancel, retains full accuracy).
+    const V pi_hi =
+        Set(d, sizeof(T) == 8
+                   ? static_cast<T>(3.14159265358979311599796346854418516)
+                   : static_cast<T>(3.1415927410125732421875f));
+    kHalfPiHi =
+        Set(d, sizeof(T) == 8
+                   ? static_cast<T>(0.5 * 3.14159265358979311599796346854418516)
+                   : static_cast<T>(0.5f * 3.1415927410125732421875f));
+    pi_3 =
+        Set(d, sizeof(T) == 8
+                   ? static_cast<T>(1.22464679914735320717376402945839660e-16)
+                   : static_cast<T>(-8.742277657347585773097e-08f));
+    pi_tail =
+        Set(d, sizeof(T) == 8
+                   ? static_cast<T>(-2.99476980971833966613301542650298899e-33)
+                   : static_cast<T>(-3.430248993517596376012e-15f));
+    t1 = NegMulAdd(quotient, pi_hi, ang);
+  } else {
+    // Without FMA, quotient * pi_k would round before subtracting if pi_k used
+    // all mantissa bits. Thus pi_1..pi_4 have 14-16 trailing zero bits in their
+    // binary mantissas so that each product (quotient * pi_k) and
+    // ((quotient +/- 0.5) * pi_k) is 100% exact in standard floating-point
+    // multiplication up to |ang| = 39000.
+    // Note: Only pi_1 and pi_2 (>= 2^-23) are subtracted in `t1`; pi_3, pi_4,
+    // and pi_tail (< 2^-21) are applied after `t1` so they are not rounded off
+    // when |t1| ~= 1.5708 near an asymptote.
+    const V pi_1 =
+        Set(d, sizeof(T) == 8 ? static_cast<T>(3.141592502593994140625)
+                              : static_cast<T>(3.140625f));
+    const V pi_2 =
+        Set(d, sizeof(T) == 8 ? static_cast<T>(1.509957883172319270673e-07)
+                              : static_cast<T>(0.00096797943115234375f));
+    kHalfPiHi = Set(
+        d, sizeof(T) == 8
+               ? static_cast<T>(0.5 * (3.141592502593994140625 +
+                                       1.509957883172319270673e-07))
+               : static_cast<T>(0.5f * (3.140625f + 0.00096797943115234375f)));
+    pi_3 =
+        Set(d, sizeof(T) == 8 ? static_cast<T>(1.078060559385155819106e-14)
+                              : static_cast<T>(-3.2596290111541748046875e-07f));
+    pi_4 = Set(d, sizeof(T) == 8
+                      ? static_cast<T>(0.0)
+                      : static_cast<T>(1.2141754268668591976165771484375e-10f));
+    pi_tail =
+        Set(d, sizeof(T) == 8 ? static_cast<T>(1.224646799147353207174e-22)
+                              : static_cast<T>(1.2448399344364623564e-13f));
+    t1 = NegMulAdd(quotient, pi_2, NegMulAdd(quotient, pi_1, ang));
+  }
 
-  // Determine sign. Preserve the input's signed zero: when the reduced angle
-  // is exactly zero, the cancellation above can turn a -0 input into +0 on
-  // some targets, but tan(-0) must be -0. For any nonzero reduced angle the
-  // sign correctly follows ang_mod (e.g. tan(2) < 0 for a positive input).
+  // Subtract the low tails of q * pi in descending magnitude order to get the
+  // signed reduced angle in [-pi/2, +pi/2]:
+  //   ang_mod = ang - quotient * pi.
+  V ang_mod = NegMulAdd(quotient, pi_3, t1);
+  if constexpr (!HWY_NATIVE_FMA) {
+    ang_mod = NegMulAdd(quotient, pi_4, ang_mod);
+  }
+  ang_mod = NegMulAdd(quotient, pi_tail, ang_mod);
+
+  // Step 3: Extract sign and magnitude x_red = |ang_mod| in [0, pi/2].
+  // Preserve signed zero when ang_mod == 0 so that tan(-0.0) == -0.0.
   sign = IfThenElse(Eq(ang_mod, Zero(d)), ang, ang_mod);
-
-  // Absolute value
   x_red = Abs(ang_mod);
+
+  // Step 4: Compute dx = (pi/2 - x_red) without losing low-order bits near the
+  // asymptote x_red -> pi/2.
+  // Since pi = pi_top + pi_low (where kHalfPiHi = 0.5 * pi_top exactly, so
+  // pi/2 = kHalfPiHi + 0.5 * pi_low) and x_red = t1_signed - q_signed * pi_low,
+  // we have the exact identity:
+  //   dx = (pi/2 - x_red) = (kHalfPiHi - t1_signed) + (q_signed + 0.5) * pi_low
+  // Because t1_signed ~= 1.5708 is within 2x of kHalfPiHi near any asymptote,
+  // (kHalfPiHi - t1_signed) cancels the leading 1.5708 with zero rounding error
+  // (by Sterbenz's lemma), and chaining (q_signed + 0.5) * pi_low in descending
+  // magnitude order preserves full 73-bit accuracy at every odd multiple of
+  // pi/2.
+  const V sign_bit = And(sign, SignBit(d));
+  const V t1_signed = Xor(t1, sign_bit);       // sgn(ang_mod) * t1
+  const V q_signed = Xor(quotient, sign_bit);  // sgn(ang_mod) * quotient
+  const V q_half = Add(q_signed, Set(d, static_cast<T>(0.5)));
+  V dx_val = Sub(kHalfPiHi, t1_signed);
+  dx_val = MulAdd(q_half, pi_3, dx_val);
+  if constexpr (!HWY_NATIVE_FMA) {
+    dx_val = MulAdd(q_half, pi_4, dx_val);
+  }
+  dx = MulAdd(q_half, pi_tail, dx_val);
 }
 
 // Range reduction and exponent extraction for logarithm functions.
@@ -272,11 +367,8 @@ struct FastExpImpl<double> {
  *                     [-89.999999, +89.999999] degrees and
  *                     < 0.000015% (1.5e-7) for float64 in
  *                     [-89.999999999999, +89.999999999999] degrees.
- * Valid Range: float32 : [-250, +250] rads
+ * Valid Range: float32 : [-39000, +39000] rads
  *              float64 : [-1e10, +1e10] rads
- *
- * Note: Inputs extremely close to asymptotes may result in
- * a sign flip due to precision limits.
  *
  * @return tangent of 'x'
  */
@@ -284,25 +376,31 @@ template <class D, class V>
 HWY_INLINE V FastTan(D d, V x) {
   using T = TFromD<D>;
 
-  // Reduction to x_red in [0, pi/2] with sign tracking.
-  V x_red, sign;
-  impl::ReduceAngleTan(d, x, x_red, sign);
+  // Step 1: Reduce `x` modulo pi to:
+  //   - `x_red` in [0, pi/2]: reduced angle magnitude.
+  //   - `dx`    = pi/2 - x_red: high-precision distance to the asymptote at
+  //   pi/2.
+  //   - `sign`  : sign of the reduced angle in [-pi/2, +pi/2].
+  V x_red, dx, sign;
+  impl::ReduceAngleTan(d, x, x_red, dx, sign);
 
-  // The Taylor expansion of tan(x) around 0 contains only odd powers of x:
-  //   tan(x) = x + (1/3)x^3 + (2/15)x^5 + (17/315)x^7 + ...
-  // Factoring out x and multiplying by the exact vertical asymptote pole factor
-  // (pi^2/4 - x^2) = (pi/2 - x)(pi/2 + x) cancels the singularity at x = pi/2
-  // and produces a smooth, strictly positive even function of x:
-  //   h(x^2) = (pi^2/4 - x^2) * (tan(x) / x)
-  // Using the substitution u = x^2, we approximate h(u) on u in [0, pi^2/4]
-  // with a [2, 1] rational function P2(u) / Q1(u) via the Caratheodory-Fejer
-  // method:
-  //   P2(u) = p2 * u^2 + p1 * u + 1
-  //   Q1(u) = q1 * u + q0
-  // Reconstruct tan(x) as:
-  //   tan(x) ~= x * P2(u) / ((pi/2 - x) * (pi/2 + x) * Q1(u))
-  // which is a [5, 4] rational approximation in x with an exact pole at pi/2.
-  const V u = Mul(x_red, x_red);
+  // Step 2: Rational approximation with an exact pole at x = pi/2.
+  // Why tan(x) blows up like 1 / (pi/2 - x) near x = pi/2:
+  //   tan(x) = sin(x) / cos(x). Let d = pi/2 - x. As x -> pi/2 (d -> 0),
+  //   sin(x) = cos(d) -> 1, while cos(x) = sin(d) = d - d^3/6 + ... ~= d.
+  //   Therefore, tan(x) ~= 1 / d = 1 / (pi/2 - x).
+  //
+  // Why we multiply (tan(x) / x) by (pi^2/4 - x^2) = (pi/2 - x)(pi/2 + x):
+  //   1) Dividing by x removes the odd symmetry so tan(x) / x = 1 + x^2/3 + ...
+  //      is a pure function of u = x^2 (halving the polynomial degree).
+  //   2) Multiplying by (pi/2 - x)(pi/2 + x) cancels the 1/(pi/2 - x) infinity
+  //      at both x = +pi/2 and x = -pi/2 while keeping only even powers (x^2).
+  //   This yields a smooth, bounded, strictly positive function of u = x_red^2:
+  //     h(u) = (pi^2/4 - u) * (tan(x_red) / x_red) ~= P2(u) / Q1(u).
+  //   Dividing back by the pole factor reconstructs tan(x_red):
+  //     tan(x_red) ~= (x_red * P2(u)) / ((pi/2 - x_red) * (pi/2 + x_red) *
+  //     Q1(u)).
+  const V u = Mul(x_red, x_red);  // u = x_red^2
 
   const V p2 = Set(d, static_cast<T>(0.0011413062935132635));
   const V p1 = Set(d, static_cast<T>(-0.1122671620241909));
@@ -311,31 +409,29 @@ HWY_INLINE V FastTan(D d, V x) {
   const V q1 = Set(d, static_cast<T>(-0.016338901306484525));
   const V q0 = Set(d, static_cast<T>(0.40528469663390199));
 
-  // Evaluate P2(u) and Q1(u).
+  // Evaluate numerator polynomial P2(u) = (p2 * u + p1) * u + p0
+  // and denominator polynomial Q1(u) = q1 * u + q0.
   const V p2_u = MulAdd(MulAdd(p2, u, p1), u, p0);
   const V q1_u = MulAdd(q1, u, q0);
 
-  // Split pi/2 = kHalfPiHi + kHalfPiLo so that (kHalfPiHi - x_red) is exact by
-  // Sterbenz's lemma near x_red = pi/2, avoiding catastrophic cancellation.
+  // Compute the pole factor: pole = (pi/2 - x_red) * (pi/2 + x_red) = dx *
+  // sum_x.
   const V kHalfPiHi = Set(
       d, sizeof(T) == 8 ? static_cast<T>(1.57079632679489655799898173427209258)
                         : static_cast<T>(1.5707962512969970703125f));
-  const V kHalfPiLo =
-      Set(d, sizeof(T) == 8
-                 ? static_cast<T>(6.12323399573676603586882014729198302e-17)
-                 : static_cast<T>(7.5497899548918820676e-08f));
+  const V sum_x = Add(kHalfPiHi, x_red);  // pi/2 + x_red
+  const V pole = Mul(dx, sum_x);          // (pi/2 - x_red) * (pi/2 + x_red)
 
-  const V dx = Add(Sub(kHalfPiHi, x_red), kHalfPiLo);
-  const V sum_x = Add(kHalfPiHi, x_red);
-  const V pole = Mul(dx, sum_x);
+  // Step 3: Reconstruct signed tan(x) = num / den.
+  // Apply `sign` to x_red in the numerator, and do NOT take Abs(den):
+  // P2(u), Q1(u), and sum_x are always positive, while dx = pi/2 - x_red
+  // becomes negative if and only if x_red slightly overshoots pi/2 (when
+  // round(x/pi) has not yet incremented across an asymptote). Leaving den
+  // signed lets dx automatically flip the output sign at the exact pole.
+  const V num = Mul(CopySign(x_red, sign), p2_u);
+  const V den = Mul(pole, q1_u);
 
-  const V num = Mul(x_red, p2_u);
-  const V den = Abs(Mul(pole, q1_u));
-
-  const V result = Div(num, den);
-
-  // Apply Sign
-  return CopySign(result, sign);
+  return Div(num, den);
 }
 
 /**
