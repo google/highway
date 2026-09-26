@@ -231,6 +231,8 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/coder/range_coder.h
     hwy/contrib/coder/range_coder-inl.h
     hwy/contrib/crc/crc-inl.h
+    hwy/contrib/distributions/uniform.h
+    hwy/contrib/distributions/uniform-inl.h
     hwy/contrib/dot/dot-inl.h
     hwy/contrib/iguana/ans.cc
     hwy/contrib/iguana/ans.h
@@ -260,7 +262,11 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/math/float_manip-inl.h
     hwy/contrib/math/math-inl.h
     hwy/contrib/matvec/matvec-inl.h
-    hwy/contrib/random/random-inl.h
+    hwy/contrib/random/aes_ctr-inl.h
+    hwy/contrib/random/cached.h
+    hwy/contrib/random/mt19937.h
+    hwy/contrib/random/mt19937_jump.h
+    hwy/contrib/random/xoshiro-inl.h
     hwy/contrib/sort/order.h
     hwy/contrib/sort/shared-inl.h
     hwy/contrib/sort/sorting_networks-inl.h
@@ -295,6 +301,8 @@ set(HWY_SOURCES
     hwy/detect_compiler_arch.h  # private
     hwy/detect_targets.h  # private
     hwy/foreach_target.h
+    hwy/generator.h
+    hwy/generator-inl.h
     hwy/highway_export.h
     hwy/highway.h
     hwy/nanobenchmark.h
@@ -967,6 +975,7 @@ set(HWY_TEST_FILES
   hwy/aligned_allocator_test.cc
   hwy/base_test.cc
   hwy/bit_set_test.cc
+  hwy/generator_test.cc
   hwy/highway_test.cc
   hwy/nanobenchmark_test.cc
   hwy/perf_counters_test.cc
@@ -1054,6 +1063,7 @@ list(APPEND HWY_TEST_FILES
   hwy/contrib/bit_pack/bit_pack_test.cc
   hwy/contrib/coder/range_coder_test.cc
   hwy/contrib/crc/crc_test.cc
+  hwy/contrib/distributions/uniform_test.cc
   hwy/contrib/dot/dot_test.cc
   hwy/contrib/iguana/ans_test.cc
   hwy/contrib/iguana/iguana_test.cc
@@ -1072,6 +1082,7 @@ list(APPEND HWY_TEST_FILES
   hwy/contrib/math/math_test.cc
   hwy/contrib/math/math_trig_test.cc
   hwy/contrib/matvec/matvec_test.cc
+  hwy/contrib/random/mt19937_test.cc
   hwy/contrib/random/random_test.cc
   hwy/contrib/sort/bench_sort.cc
   hwy/contrib/sort/sort_test.cc

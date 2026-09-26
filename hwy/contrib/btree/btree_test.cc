@@ -34,7 +34,6 @@
 // After highway.h
 #include "hwy/contrib/btree/btree-inl.h"
 #include "hwy/contrib/btree/btree_test_util-inl.h"
-#include "hwy/contrib/random/random-inl.h"
 #include "hwy/tests/test_util-inl.h"
 
 HWY_BEFORE_NAMESPACE();

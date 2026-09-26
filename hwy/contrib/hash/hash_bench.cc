@@ -31,7 +31,7 @@
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 // After foreach_target
 #include "hwy/contrib/hash/hash-inl.h"
-#include "hwy/contrib/random/random-inl.h"
+#include "hwy/contrib/random/aes_ctr-inl.h"
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
 
