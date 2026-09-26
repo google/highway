@@ -22,6 +22,8 @@
 #define HIGHWAY_HWY_CONTRIB_ALGO_MINMAX_INL_H_
 #endif
 
+#include <utility>
+
 #include "hwy/highway.h"
 
 HWY_BEFORE_NAMESPACE();
@@ -278,6 +280,56 @@ size_t IndexOfMax(D d, const T* HWY_RESTRICT in, size_t count) {
   }
 
   return best_idx;
+}
+
+// {MinValue(d, in, count), MaxValue(d, in, count)}
+template <class D, typename T = TFromD<D>>
+std::pair<T, T> MinMaxValue(D d, const T* HWY_RESTRICT in, size_t count) {
+  const size_t N = Lanes(d);
+  const T min_identity = hwy::PositiveInfOrHighestValue<T>();
+  const T max_identity = hwy::NegativeInfOrLowestValue<T>();
+  const Vec<D> min_identity_vec = Set(d, min_identity);
+  const Vec<D> max_identity_vec = Set(d, max_identity);
+
+  Vec<D> min0 = min_identity_vec;
+  Vec<D> min1 = min_identity_vec;
+  Vec<D> min2 = min_identity_vec;
+  Vec<D> min3 = min_identity_vec;
+  Vec<D> max0 = max_identity_vec;
+  Vec<D> max1 = max_identity_vec;
+  Vec<D> max2 = max_identity_vec;
+  Vec<D> max3 = max_identity_vec;
+
+  size_t i = 0;
+  if (count >= 4 * N) {
+    for (; i <= count - 4 * N; i += 4 * N) {
+      const Vec<D> v0 = LoadU(d, in + i);
+      const Vec<D> v1 = LoadU(d, in + i + N);
+      const Vec<D> v2 = LoadU(d, in + i + 2 * N);
+      const Vec<D> v3 = LoadU(d, in + i + 3 * N);
+      min0 = Min(min0, v0);
+      min1 = Min(min1, v1);
+      min2 = Min(min2, v2);
+      min3 = Min(min3, v3);
+      max0 = Max(max0, v0);
+      max1 = Max(max1, v1);
+      max2 = Max(max2, v2);
+      max3 = Max(max3, v3);
+    }
+  }
+
+  min0 = Min(Min(min0, min1), Min(min2, min3));
+  max0 = Max(Max(max0, max1), Max(max2, max3));
+
+  for (; i < count; i += N) {
+    const size_t remaining = count - i;
+    const size_t n = HWY_MIN(remaining, N);
+    const Vec<D> v = LoadNOr(min_identity_vec, d, in + i, n);
+    min0 = Min(min0, v);
+    max0 = Max(max0, IfThenElse(FirstN(d, n), v, max_identity_vec));
+  }
+
+  return {ReduceMin(d, min0), ReduceMax(d, max0)};
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
