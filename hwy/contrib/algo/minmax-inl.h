@@ -332,6 +332,142 @@ std::pair<T, T> MinMaxValue(D d, const T* HWY_RESTRICT in, size_t count) {
   return {ReduceMin(d, min0), ReduceMax(d, max0)};
 }
 
+// {IndexOfMin(d, in, count), IndexOfMax(d, in, count)}
+template <class D, typename T = TFromD<D>>
+std::pair<size_t, size_t> IndexOfMinMax(D d, const T* HWY_RESTRICT in,
+                                        size_t count) {
+  if (HWY_UNLIKELY(count == 0)) {
+    return {count, count};
+  }
+
+  const RebindToUnsigned<D> du;
+  using TU = TFromD<decltype(du)>;
+  using VU = VFromD<decltype(du)>;
+  using MU = Mask<decltype(du)>;
+  const size_t N = Lanes(d);
+
+  constexpr uint64_t kBlockLimit = static_cast<uint64_t>(LimitsMax<TU>());
+  constexpr uint64_t kBlockCap = uint64_t{1} << 20;
+  constexpr uint64_t kCappedLimit = HWY_MIN(kBlockLimit, kBlockCap);
+  constexpr size_t kMaxBlocks = static_cast<size_t>(kCappedLimit);
+  constexpr TU kInvBase = static_cast<TU>(kMaxBlocks);
+
+  const T min_identity = hwy::PositiveInfOrHighestValue<T>();
+  const T max_identity = hwy::NegativeInfOrLowestValue<T>();
+  const Vec<D> min_identity_vec = Set(d, min_identity);
+  const Vec<D> max_identity_vec = Set(d, max_identity);
+
+  T best_min = min_identity;
+  T best_max = max_identity;
+  size_t best_min_idx = 0;
+  size_t best_max_idx = 0;
+
+  const size_t max_seg_len = kMaxBlocks * N;
+  for (size_t seg = 0; seg < count; seg += max_seg_len) {
+    const size_t seg_len = HWY_MIN(count - seg, max_seg_len);
+    const T* HWY_RESTRICT seg_in = in + seg;
+
+    Vec<D> min0 = min_identity_vec;
+    Vec<D> min1 = min_identity_vec;
+    Vec<D> max0 = max_identity_vec;
+    Vec<D> max1 = max_identity_vec;
+    VU min_blocks0 = Set(du, kInvBase);
+    VU min_blocks1 = Set(du, kInvBase);
+    VU max_blocks0 = Set(du, kInvBase);
+    VU max_blocks1 = Set(du, kInvBase);
+
+    size_t i = 0;
+    TU inv_block = kInvBase;
+
+    if (seg_len >= 2 * N) {
+      for (; i + 2 * N <= seg_len; i += 2 * N) {
+        const Vec<D> v0 = LoadU(d, seg_in + i);
+        const Vec<D> v1 = LoadU(d, seg_in + i + N);
+        const VU block0 = Set(du, inv_block);
+        const VU block1 = Set(du, static_cast<TU>(inv_block - 1));
+
+        const Mask<D> lt0 = Lt(v0, min0);
+        const Mask<D> lt1 = Lt(v1, min1);
+        const Mask<D> gt0 = Gt(v0, max0);
+        const Mask<D> gt1 = Gt(v1, max1);
+        min0 = IfThenElse(lt0, v0, min0);
+        min1 = IfThenElse(lt1, v1, min1);
+        max0 = IfThenElse(gt0, v0, max0);
+        max1 = IfThenElse(gt1, v1, max1);
+        min_blocks0 = IfThenElse(RebindMask(du, lt0), block0, min_blocks0);
+        min_blocks1 = IfThenElse(RebindMask(du, lt1), block1, min_blocks1);
+        max_blocks0 = IfThenElse(RebindMask(du, gt0), block0, max_blocks0);
+        max_blocks1 = IfThenElse(RebindMask(du, gt1), block1, max_blocks1);
+        inv_block = static_cast<TU>(inv_block - 2);
+      }
+
+      const Mask<D> min1_smaller = Lt(min1, min0);
+      const Mask<D> min_tie = Eq(min0, min1);
+      const Mask<D> min1_earlier = RebindMask(d, Gt(min_blocks1, min_blocks0));
+      const Mask<D> min1_tie_earlier = And(min_tie, min1_earlier);
+      const Mask<D> take_min1 = Or(min1_smaller, min1_tie_earlier);
+      min0 = IfThenElse(take_min1, min1, min0);
+      const MU take_min1_u = RebindMask(du, take_min1);
+      min_blocks0 = IfThenElse(take_min1_u, min_blocks1, min_blocks0);
+
+      const Mask<D> max1_larger = Gt(max1, max0);
+      const Mask<D> max_tie = Eq(max0, max1);
+      const Mask<D> max1_earlier = RebindMask(d, Gt(max_blocks1, max_blocks0));
+      const Mask<D> max1_tie_earlier = And(max_tie, max1_earlier);
+      const Mask<D> take_max1 = Or(max1_larger, max1_tie_earlier);
+      max0 = IfThenElse(take_max1, max1, max0);
+      const MU take_max1_u = RebindMask(du, take_max1);
+      max_blocks0 = IfThenElse(take_max1_u, max_blocks1, max_blocks0);
+    }
+
+    for (; i < seg_len; i += N, --inv_block) {
+      const size_t n = HWY_MIN(seg_len - i, N);
+      const Vec<D> v = LoadNOr(min_identity_vec, d, seg_in + i, n);
+      const VU block = Set(du, inv_block);
+      const Mask<D> lt = Lt(v, min0);
+      const Vec<D> v_for_max = IfThenElse(FirstN(d, n), v, max_identity_vec);
+      const Mask<D> gt = Gt(v_for_max, max0);
+      min0 = IfThenElse(lt, v, min0);
+      max0 = IfThenElse(gt, v, max0);
+      min_blocks0 = IfThenElse(RebindMask(du, lt), block, min_blocks0);
+      max_blocks0 = IfThenElse(RebindMask(du, gt), block, max_blocks0);
+    }
+
+    const T seg_min = ReduceMin(d, min0);
+    const Mask<D> is_min = Eq(min0, Set(d, seg_min));
+    const MU is_min_u = RebindMask(du, is_min);
+    const VU min_candidates = IfThenElseZero(is_min_u, min_blocks0);
+    const TU min_inv = ReduceMax(du, min_candidates);
+    const MU min_winners_u = MaskedEq(is_min_u, min_blocks0, Set(du, min_inv));
+    const Mask<D> min_winners = RebindMask(d, min_winners_u);
+    const size_t min_block = kMaxBlocks - static_cast<size_t>(min_inv);
+    const size_t min_lane = FindKnownFirstTrue(d, min_winners);
+    const size_t min_idx = seg + min_block * N + min_lane;
+
+    const T seg_max = ReduceMax(d, max0);
+    const Mask<D> is_max = Eq(max0, Set(d, seg_max));
+    const MU is_max_u = RebindMask(du, is_max);
+    const VU max_candidates = IfThenElseZero(is_max_u, max_blocks0);
+    const TU max_inv = ReduceMax(du, max_candidates);
+    const MU max_winners_u = MaskedEq(is_max_u, max_blocks0, Set(du, max_inv));
+    const Mask<D> max_winners = RebindMask(d, max_winners_u);
+    const size_t max_block = kMaxBlocks - static_cast<size_t>(max_inv);
+    const size_t max_lane = FindKnownFirstTrue(d, max_winners);
+    const size_t max_idx = seg + max_block * N + max_lane;
+
+    if (seg_min < best_min) {
+      best_min = seg_min;
+      best_min_idx = min_idx;
+    }
+    if (seg_max > best_max) {
+      best_max = seg_max;
+      best_max_idx = max_idx;
+    }
+  }
+
+  return {best_min_idx, best_max_idx};
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
