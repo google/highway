@@ -40,9 +40,6 @@ fmod, nexttoward
 
 *   In-place Remove / RemoveIf, like CopyIf, but in-place.
 
-*   MinMaxValue, IndexOfMinMax (in minmax-inl.h) - straightforward fuse of the
-    existing functions which just compute Min or Max.
-
 *   FindLast / FindLastIf (in find-inl.h) - can use FindLastTrue.
 
 *   index-returning Mismatch(d, a, b, count) (in find-inl.h) - like EqualSpan,
@@ -196,3 +193,4 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~ilogb, logb, modf, nextafter~~
 *   ~~Iguana~~
 *   ~~Mul52~~
+*   ~~MinMaxValue, IndexOfMinMax~~ (algo)
