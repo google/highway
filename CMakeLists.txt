@@ -266,6 +266,9 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/sort/sorting_networks-inl.h
     hwy/contrib/sort/traits-inl.h
     hwy/contrib/sort/traits128-inl.h
+    hwy/contrib/sort/vqargsort-inl.h
+    hwy/contrib/sort/vqargsort.cc
+    hwy/contrib/sort/vqargsort.h
     hwy/contrib/sort/vqsort-inl.h
     hwy/contrib/sort/vqsort.cc
     hwy/contrib/sort/vqsort.h
@@ -1073,6 +1076,7 @@ list(APPEND HWY_TEST_FILES
   hwy/contrib/math/math_trig_test.cc
   hwy/contrib/matvec/matvec_test.cc
   hwy/contrib/random/random_test.cc
+  hwy/contrib/sort/argsort_test.cc
   hwy/contrib/sort/bench_sort.cc
   hwy/contrib/sort/sort_test.cc
   hwy/contrib/sort/sort_unit_test.cc

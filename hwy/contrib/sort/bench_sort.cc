@@ -16,6 +16,8 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include <algorithm>
+#include <numeric>  // std::iota
 #include <vector>
 #include <array>
 
@@ -26,6 +28,7 @@
 
 // After foreach_target
 #include "hwy/contrib/sort/algo-inl.h"
+#include "hwy/contrib/sort/vqargsort.h"
 #include "hwy/contrib/sort/vqsort.h"
 #include "hwy/contrib/sort/result-inl.h"
 #include "hwy/contrib/sort/sorting_networks-inl.h"  // SharedTraits
@@ -56,6 +59,7 @@ namespace hwy {
 // Defined within HWY_ONCE, used by BenchAllSort.
 extern int64_t first_sort_target;
 extern int64_t first_cold_target;  // for BenchAllColdSort
+extern int64_t first_argsort_target;
 
 namespace HWY_NAMESPACE {
 namespace {
@@ -458,6 +462,123 @@ HWY_NOINLINE void BenchAllSort() {
   }
 }
 
+// Argsort: vqargsort.h compared with std::sort and std::stable_sort of an
+// index array.
+enum class ArgAlgo { kStd, kStdStable, kVQ, kVQStable };
+
+const char* ArgAlgoName(ArgAlgo algo) {
+  switch (algo) {
+    case ArgAlgo::kStd:
+      return "std_arg";
+    case ArgAlgo::kStdStable:
+      return "std_stable_arg";
+    case ArgAlgo::kVQ:
+      return "vq_arg";
+    case ArgAlgo::kVQStable:
+      return "vq_stable_arg";
+  }
+  return "?";
+}
+
+template <typename Key>
+void RunArgSort(ArgAlgo algo, const Key* HWY_RESTRICT keys, size_t num,
+                uint64_t* HWY_RESTRICT indices,
+                uint128_t* HWY_RESTRICT scratch) {
+  const SortAscending order;
+  if (algo == ArgAlgo::kStd || algo == ArgAlgo::kStdStable) {
+    std::iota(indices, indices + num, uint64_t{0});
+    const auto less = [keys](uint64_t a, uint64_t b) {
+      return keys[a] < keys[b];
+    };
+    if (algo == ArgAlgo::kStd) {
+      std::sort(indices, indices + num, less);
+    } else {
+      std::stable_sort(indices, indices + num, less);
+    }
+  } else if constexpr (sizeof(Key) == 8) {
+    if (algo == ArgAlgo::kVQ) {
+      VQArgSort(keys, num, indices, scratch, order);
+    } else {
+      VQStableArgSort(keys, num, indices, scratch, order);
+    }
+  } else {
+    (void)scratch;
+    if (algo == ArgAlgo::kVQ) {
+      VQArgSort(keys, num, indices, order);
+    } else {
+      VQStableArgSort(keys, num, indices, order);
+    }
+  }
+}
+
+template <typename Key>
+HWY_NOINLINE void BenchArgSort(size_t num_keys) {
+  if (first_argsort_target == 0) first_argsort_target = HWY_TARGET;
+
+  using TU = MakeUnsigned<Key>;
+  auto bits = hwy::AllocateAligned<TU>(num_keys);
+  auto keys = hwy::AllocateAligned<Key>(num_keys);
+  auto indices = hwy::AllocateAligned<uint64_t>(num_keys);
+  auto scratch = hwy::AllocateAligned<uint128_t>(num_keys);
+  HWY_ASSERT(bits && keys && indices && scratch);
+
+  const size_t reps = num_keys > 1000 * 1000 ? 10 : 30;
+  const size_t inner_reps = num_keys <= 128 ? 30 : 1;
+
+  for (ArgAlgo algo :
+       {ArgAlgo::kStd, ArgAlgo::kStdStable, ArgAlgo::kVQ, ArgAlgo::kVQStable}) {
+    // std:: does not depend on the vector instructions.
+    const bool is_std = algo == ArgAlgo::kStd || algo == ArgAlgo::kStdStable;
+    if (is_std && HWY_TARGET != first_argsort_target) continue;
+    if (!is_std && !VQSORT_ENABLED) continue;
+
+    for (Dist dist : AllDist()) {
+      std::vector<double> seconds;
+      for (size_t rep = 0; rep < reps; ++rep) {
+        (void)GenerateInput(dist, bits.get(), num_keys);
+        // Floats from integers: same number of distinct values, and no NaN,
+        // for which std::sort with operator< would be undefined.
+        for (size_t i = 0; i < num_keys; ++i) {
+          keys[i] =
+              IsFloat<Key>()
+                  ? ConvertScalarTo<Key>(static_cast<MakeSigned<TU>>(bits[i]))
+                  : BitCastScalar<Key>(bits[i]);
+        }
+
+        const Timestamp t0;
+        for (size_t inner_rep = 0; inner_rep < inner_reps; ++inner_rep) {
+          RunArgSort(algo, keys.get(), num_keys, indices.get(), scratch.get());
+        }
+        seconds.push_back(SecondsSince(t0) / static_cast<double>(inner_reps));
+
+        for (size_t i = 1; i < num_keys; ++i) {
+          HWY_ASSERT(!(keys[indices[i]] < keys[indices[i - 1]]));
+        }
+      }
+      const double bytes = static_cast<double>(num_keys * sizeof(Key));
+      printf("%10s: %14s: %7s: %9s: %05g %4.0f MB/s\n",
+             hwy::TargetName(DispatchedTarget()), ArgAlgoName(algo),
+             TypeName(Key(), 1).c_str(), DistName(dist),
+             static_cast<double>(num_keys),
+             bytes * 1E-6 / SummarizeMeasurements(seconds));
+    }
+  }
+}
+
+HWY_NOINLINE void BenchAllArgSort() {
+  // Not interested in benchmark results for these targets. Note that SSE4 is
+  // numerically less than SSE2, hence it is the lower bound.
+  if (HWY_SSE4 <= HWY_TARGET && HWY_TARGET <= HWY_SSE2 && Unpredictable1()) {
+    return;
+  }
+
+  for (size_t num_keys : SizesToBenchmark(BenchmarkModes::kSmallPow2)) {
+    BenchArgSort<float>(num_keys);
+    BenchArgSort<int32_t>(num_keys);
+    BenchArgSort<double>(num_keys);
+  }
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -469,6 +590,7 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 int64_t first_sort_target = 0;  // none run yet
 int64_t first_cold_target = 0;  // none run yet
+int64_t first_argsort_target = 0;
 HWY_BEFORE_TEST(BenchSort);
 HWY_EXPORT_AND_TEST_P(BenchSort, BenchAllColdSort);
 #if SORT_BENCH_BASE_AND_PARTITION
@@ -478,6 +600,7 @@ HWY_EXPORT_AND_TEST_P(BenchSort, BenchAllBase);
 
 #if !SORT_ONLY_COLD  // skip (warms up vector unit for next run)
 HWY_EXPORT_AND_TEST_P(BenchSort, BenchAllSort);
+HWY_EXPORT_AND_TEST_P(BenchSort, BenchAllArgSort);
 #endif
 HWY_AFTER_TEST();
 }  // namespace hwy

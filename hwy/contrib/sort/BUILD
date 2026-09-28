@@ -185,6 +185,24 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "vqargsort",
+    srcs = ["vqargsort.cc"],
+    hdrs = [
+        "order.h",  # part of public interface, included by vqargsort.h
+        "vqargsort.h",  # public interface
+    ],
+    compatible_with = [],
+    local_defines = ["hwy_contrib_EXPORTS"],
+    textual_hdrs = VQSORT_TEXTUAL_HDRS + ["vqargsort-inl.h"],
+    deps = [
+        ":vqsort",
+        "//:algo",
+        "//:hwy",
+        "//:os_rng",
+    ],
+)
+
 # -----------------------------------------------------------------------------
 # Internal-only targets
 
@@ -209,6 +227,31 @@ cc_library(
         "//:algo",
         "//:hwy",
         "//:nanobenchmark",
+        "//:os_rng",
+    ],
+)
+
+# Same as vqargsort, but for all targets because argsort_test will
+# dynamic-dispatch to all.
+cc_library(
+    name = "vqargsort_for_test",
+    srcs = ["vqargsort.cc"],
+    hdrs = [
+        "order.h",  # part of public interface, included by vqargsort.h
+        "vqargsort.h",  # public interface
+    ],
+    compatible_with = [],
+    local_defines = [
+        "hwy_contrib_EXPORTS",
+        "HWY_COMPILE_ALL_ATTAINABLE",
+    ],
+    textual_hdrs = VQSORT_TEXTUAL_HDRS + ["vqargsort-inl.h"],
+    deps = [
+        ":vqsort_for_test",
+        ":vqsort_k32v32",
+        ":vqsort_shared",
+        "//:algo",
+        "//:hwy",
         "//:os_rng",
     ],
 )
@@ -245,6 +288,22 @@ TEST_MAIN = select({
     "//:compiler_msvc": [],
     "//conditions:default": ["@com_google_googletest//:gtest_main"],
 })
+
+cc_test(
+    name = "argsort_test",
+    size = "medium",
+    timeout = "long",
+    srcs = ["argsort_test.cc"],
+    # Do not enable fully_static_link (pthread crash on bazel)
+    local_defines = ["HWY_IS_TEST"],
+    # for test_suite.
+    tags = ["hwy_ops_test"],
+    deps = [
+        ":vqargsort_for_test",
+        "//:hwy",
+        "//:hwy_test_util",
+    ] + TEST_MAIN,
+)
 
 cc_test(
     name = "sort_unit_test",
@@ -291,6 +350,7 @@ cc_test(
     tags = ["hwy_ops_test"],
     deps = [
         ":helpers",
+        ":vqargsort",
         ":vqsort",
         "//:hwy",
         "//:hwy_test_util",
