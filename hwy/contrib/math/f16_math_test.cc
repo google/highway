@@ -71,6 +71,24 @@ DEFINE_F16_MATH_TEST(Log2,
   std::log2,  CallLog2,  +5.960464478E-8f, +65504.0f, 1)
 // clang-format on
 
+// Bounds match math_hyper_test.cc, restricted to finite float16 inputs.
+// 0.99951171875 is the largest float16 value below 1, excluding Atanh's poles.
+// Sinh/Cosh use the upstream-tested float32 range and include float16 overflow.
+// clang-format off
+DEFINE_F16_MATH_TEST(Acosh,
+  std::acosh, CallAcosh, +1.0f,          +65504.0f,       1)
+DEFINE_F16_MATH_TEST(Asinh,
+  std::asinh, CallAsinh, -65504.0f,      +65504.0f,       1)
+DEFINE_F16_MATH_TEST(Atanh,
+  std::atanh, CallAtanh, -0.99951171875f, +0.99951171875f, 1)
+DEFINE_F16_MATH_TEST(Cosh,
+  std::cosh,  CallCosh,  -80.0f,         +80.0f,          1)
+DEFINE_F16_MATH_TEST(Sinh,
+  std::sinh,  CallSinh,  -80.0f,         +80.0f,          1)
+DEFINE_F16_MATH_TEST(Tanh,
+  std::tanh,  CallTanh,  -65504.0f,      +65504.0f,       1)
+// clang-format on
+
 // Even subnormal float16 inputs become normal float32 inputs, so both
 // Cbrt modes should cover the entire finite float16 range.
 template <class D>
@@ -136,6 +154,45 @@ HWY_NOINLINE void TestAllF16UnarySignedZero() {
   ForPartialVectors<TestF16UnarySignedZero>()(float16_t());
 }
 
+// These exact results need stricter checks than the exhaustive 1-ULP test:
+// signed zeros, the smallest subnormals, the Acosh endpoint, and saturation.
+struct TestF16HyperbolicBoundaries {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const RebindToUnsigned<D> du;
+    const auto one_bits = Set(du, uint16_t{0x3C00});
+    const auto one = BitCast(d, one_bits);
+    HWY_ASSERT_VEC_EQ(du, Zero(du), BitCast(du, CallAcosh(d, one)));
+
+    const uint16_t tiny_bits[] = {0x0000, 0x8000, 0x0001, 0x8001};
+    for (const uint16_t bits : tiny_bits) {
+      const auto expected = Set(du, bits);
+      const auto x = BitCast(d, expected);
+      HWY_ASSERT_VEC_EQ(du, expected, BitCast(du, CallAsinh(d, x)));
+      HWY_ASSERT_VEC_EQ(du, expected, BitCast(du, CallAtanh(d, x)));
+      HWY_ASSERT_VEC_EQ(du, expected, BitCast(du, CallSinh(d, x)));
+      HWY_ASSERT_VEC_EQ(du, expected, BitCast(du, CallTanh(d, x)));
+      HWY_ASSERT_VEC_EQ(du, one_bits, BitCast(du, CallCosh(d, x)));
+    }
+
+    const uint16_t signs[] = {0x0000, 0x8000};
+    for (const uint16_t sign : signs) {
+      // +/-12: Sinh and Cosh overflow float16, and Tanh rounds to +/-1.
+      const auto x = BitCast(d, Set(du, static_cast<uint16_t>(sign | 0x4A00)));
+      const auto inf_bits = Set(du, uint16_t{0x7C00});
+      const auto signed_inf = Set(du, static_cast<uint16_t>(sign | 0x7C00));
+      const auto signed_one = Set(du, static_cast<uint16_t>(sign | 0x3C00));
+      HWY_ASSERT_VEC_EQ(du, signed_inf, BitCast(du, CallSinh(d, x)));
+      HWY_ASSERT_VEC_EQ(du, inf_bits, BitCast(du, CallCosh(d, x)));
+      HWY_ASSERT_VEC_EQ(du, signed_one, BitCast(du, CallTanh(d, x)));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllF16HyperbolicBoundaries() {
+  ForPartialVectors<TestF16HyperbolicBoundaries>()(float16_t());
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -146,6 +203,13 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 namespace {
 HWY_BEFORE_TEST(HwyF16MathTest);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Acosh);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Asinh);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Atanh);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Cosh);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Sinh);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Tanh);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16HyperbolicBoundaries);
 HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Acos);
 HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Asin);
 HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Atan);

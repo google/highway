@@ -1790,7 +1790,7 @@ HWY_NOINLINE V CallAcos(const D d, VecArg<V> x) {
  *      Valid Range: float32[1, +FLT_MAX], float64[1, +DBL_MAX]
  * @return hyperbolic arc cosine of 'x'
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Acosh(const D d, V x) {
   using T = TFromD<D>;
 
@@ -1864,7 +1864,7 @@ HWY_NOINLINE V CallAsin(const D d, VecArg<V> x) {
  *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
  * @return hyperbolic arc sine of 'x'
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Asinh(const D d, V x) {
   using T = TFromD<D>;
 
@@ -2410,7 +2410,7 @@ HWY_NOINLINE V CallLog1p(const D d, VecArg<V> x) {
  *      Valid Range: (-1, +1)
  * @return hyperbolic arc tangent of 'x'
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Atanh(const D d, V x) {
   using T = TFromD<D>;
 
@@ -2628,7 +2628,7 @@ HWY_NOINLINE V CallSin(const D d, VecArg<V> x) {
  *      Valid Range: float32[-88.7228, +88.7228], float64[-709, +709]
  * @return hyperbolic sine of 'x'
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Sinh(const D d, V x) {
   using T = TFromD<D>;
   const V kHalf = Set(d, static_cast<T>(+0.5));
@@ -2655,7 +2655,7 @@ HWY_NOINLINE V CallSinh(const D d, VecArg<V> x) {
  *      Valid Range: float32[-88.7228, +88.7228], float64[-709, +709]
  * @return hyperbolic cosine of 'x'
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Cosh(const D d, V x) {
   using T = TFromD<D>;
   const V kHalf = Set(d, static_cast<T>(+0.5));
@@ -2682,7 +2682,7 @@ HWY_NOINLINE V CallCosh(const D d, VecArg<V> x) {
  *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
  * @return hyperbolic tangent of 'x'
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Tanh(const D d, V x) {
   using T = TFromD<D>;
   const V kLimit = Set(d, static_cast<T>(18.714973875));
