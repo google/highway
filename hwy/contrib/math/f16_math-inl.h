@@ -231,6 +231,13 @@ struct Log2Kernel {
   }
 };
 
+struct LogGammaKernel {
+  template <class DF, class VF>
+  HWY_INLINE VF operator()(DF df, VF x) const {
+    return LogGamma(df, x);
+  }
+};
+
 struct SinKernel {
   template <class DF, class VF>
   HWY_INLINE VF operator()(DF df, VF x) const {
@@ -265,6 +272,13 @@ struct TanhKernel {
   template <class DF, class VF>
   HWY_INLINE VF operator()(DF df, VF x) const {
     return Tanh(df, x);
+  }
+};
+
+struct TgammaKernel {
+  template <class DF, class VF>
+  HWY_INLINE VF operator()(DF df, VF x) const {
+    return Tgamma(df, x);
   }
 };
 
@@ -496,6 +510,19 @@ HWY_INLINE V Log2(D d, V x) {
 }
 
 /**
+ * Highway SIMD version of std::lgamma(x) for float16 lanes.
+ *
+ * Valid Lane Types: float16
+ *        Max Error: ULP = 1
+ *      Valid Range: float16(0, +65504]
+ * @return natural log of the absolute value of the gamma function of 'x'
+ */
+template <class D, class V, HWY_IF_F16_D(D)>
+HWY_INLINE V LogGamma(D d, V x) {
+  return f16_impl::F16ViaF32(d, x, f16_impl::LogGammaKernel());
+}
+
+/**
  * Highway SIMD version of std::sin(x) for float16 lanes.
  *
  * Valid Lane Types: float16
@@ -559,6 +586,19 @@ HWY_INLINE V Tan(D d, V x) {
 template <class D, class V, HWY_IF_F16_D(D)>
 HWY_INLINE V Tanh(D d, V x) {
   return f16_impl::F16ViaF32(d, x, f16_impl::TanhKernel());
+}
+
+/**
+ * Highway SIMD version of std::tgamma(x) for float16 lanes.
+ *
+ * Valid Lane Types: float16
+ *        Max Error: ULP = 1
+ *      Valid Range: float16(0, +35]
+ * @return gamma function of 'x'
+ */
+template <class D, class V, HWY_IF_F16_D(D)>
+HWY_INLINE V Tgamma(D d, V x) {
+  return f16_impl::F16ViaF32(d, x, f16_impl::TgammaKernel());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
