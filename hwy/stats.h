@@ -101,14 +101,12 @@ class Bins {
     if (skip_zero) {
       for (size_t i = first_nonzero; i <= last_nonzero; ++i) {
         if (counts_[i] != 0) {
-          fprintf(stderr, " %3zu: %llu\n", i,
-                  static_cast<unsigned long long>(counts_[i]));  // NOLINT
+          fprintf(stderr, " %3zu: %.0f\n", i, static_cast<double>(counts_[i]));
         }
       }
     } else {
       for (size_t i = first_nonzero; i <= last_nonzero; ++i) {
-        fprintf(stderr, " %3zu: %llu\n", i,
-                static_cast<unsigned long long>(counts_[i]));  // NOLINT
+        fprintf(stderr, " %3zu: %.0f\n", i, static_cast<double>(counts_[i]));
       }
     }
   }
