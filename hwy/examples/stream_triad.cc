@@ -20,8 +20,10 @@
 #include <random>
 #include <string>
 
+#include "hwy/aligned_allocator.h"
 #include "hwy/contrib/thread_pool/index_range.h"
 #include "hwy/contrib/thread_pool/thread_pool.h"
+
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/examples/stream_triad.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
@@ -42,6 +44,7 @@ simd vectorization.
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 namespace hn = hwy::HWY_NAMESPACE;
 
 using DF = hn::ScalableTag<float>;
@@ -190,6 +193,8 @@ bool TriadValidate(const float* HWY_RESTRICT ref,
   }
   return ret;
 }
+
+}  // namespace
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
