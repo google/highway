@@ -142,7 +142,7 @@ namespace detail {
 // ResizeBitCast on the HWY_EMU128 target has zero-extending semantics if
 // VFromD<DTo> is a larger vector than FromV
 template <class FromSizeTag, class ToSizeTag, class DTo, class DFrom>
-HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(FromSizeTag /* from_size_tag */,
+HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCastImpl(FromSizeTag /* from_size_tag */,
                                                ToSizeTag /* to_size_tag */,
                                                DTo d_to, DFrom /* d_from */,
                                                VFromD<DFrom> v) {
@@ -565,7 +565,7 @@ HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, Vec128<T, N> bits) {
 namespace detail {
 
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> Add(hwy::NonFloatTag /*tag*/, Vec128<T, N> a,
+HWY_INLINE Vec128<T, N> AddImpl(hwy::NonFloatTag /*tag*/, Vec128<T, N> a,
                             Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
     const uint64_t a64 = static_cast<uint64_t>(a.raw[i]);
@@ -575,7 +575,7 @@ HWY_INLINE Vec128<T, N> Add(hwy::NonFloatTag /*tag*/, Vec128<T, N> a,
   return a;
 }
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> Sub(hwy::NonFloatTag /*tag*/, Vec128<T, N> a,
+HWY_INLINE Vec128<T, N> SubImpl(hwy::NonFloatTag /*tag*/, Vec128<T, N> a,
                             Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
     const uint64_t a64 = static_cast<uint64_t>(a.raw[i]);
@@ -586,7 +586,7 @@ HWY_INLINE Vec128<T, N> Sub(hwy::NonFloatTag /*tag*/, Vec128<T, N> a,
 }
 
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> Add(hwy::FloatTag /*tag*/, Vec128<T, N> a,
+HWY_INLINE Vec128<T, N> AddImpl(hwy::FloatTag /*tag*/, Vec128<T, N> a,
                             Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
     a.raw[i] += b.raw[i];
@@ -595,7 +595,7 @@ HWY_INLINE Vec128<T, N> Add(hwy::FloatTag /*tag*/, Vec128<T, N> a,
 }
 
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> Sub(hwy::FloatTag /*tag*/, Vec128<T, N> a,
+HWY_INLINE Vec128<T, N> SubImpl(hwy::FloatTag /*tag*/, Vec128<T, N> a,
                             Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
     a.raw[i] -= b.raw[i];
@@ -607,11 +607,11 @@ HWY_INLINE Vec128<T, N> Sub(hwy::FloatTag /*tag*/, Vec128<T, N> a,
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> operator-(Vec128<T, N> a, Vec128<T, N> b) {
-  return detail::Sub(hwy::IsFloatTag<T>(), a, b);
+  return detail::SubImpl(hwy::IsFloatTag<T>(), a, b);
 }
 template <typename T, size_t N>
 HWY_API Vec128<T, N> operator+(Vec128<T, N> a, Vec128<T, N> b) {
-  return detail::Add(hwy::IsFloatTag<T>(), a, b);
+  return detail::AddImpl(hwy::IsFloatTag<T>(), a, b);
 }
 
 // ------------------------------ SumsOf8
@@ -700,7 +700,7 @@ HWY_API Vec128<T, N> Abs(Vec128<T, N> a) {
 namespace detail {
 
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> Min(hwy::NonFloatTag /*tag*/, Vec128<T, N> a,
+HWY_INLINE Vec128<T, N> MinImpl(hwy::NonFloatTag /*tag*/, Vec128<T, N> a,
                             Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
     a.raw[i] = HWY_MIN(a.raw[i], b.raw[i]);
@@ -708,7 +708,7 @@ HWY_INLINE Vec128<T, N> Min(hwy::NonFloatTag /*tag*/, Vec128<T, N> a,
   return a;
 }
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> Max(hwy::NonFloatTag /*tag*/, Vec128<T, N> a,
+HWY_INLINE Vec128<T, N> MaxImpl(hwy::NonFloatTag /*tag*/, Vec128<T, N> a,
                             Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
     a.raw[i] = HWY_MAX(a.raw[i], b.raw[i]);
@@ -717,7 +717,7 @@ HWY_INLINE Vec128<T, N> Max(hwy::NonFloatTag /*tag*/, Vec128<T, N> a,
 }
 
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> Min(hwy::FloatTag /*tag*/, Vec128<T, N> a,
+HWY_INLINE Vec128<T, N> MinImpl(hwy::FloatTag /*tag*/, Vec128<T, N> a,
                             Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
     if (ScalarIsNaN(a.raw[i])) {
@@ -731,7 +731,7 @@ HWY_INLINE Vec128<T, N> Min(hwy::FloatTag /*tag*/, Vec128<T, N> a,
   return a;
 }
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> Max(hwy::FloatTag /*tag*/, Vec128<T, N> a,
+HWY_INLINE Vec128<T, N> MaxImpl(hwy::FloatTag /*tag*/, Vec128<T, N> a,
                             Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
     if (ScalarIsNaN(a.raw[i])) {
@@ -749,12 +749,12 @@ HWY_INLINE Vec128<T, N> Max(hwy::FloatTag /*tag*/, Vec128<T, N> a,
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Min(Vec128<T, N> a, Vec128<T, N> b) {
-  return detail::Min(hwy::IsFloatTag<T>(), a, b);
+  return detail::MinImpl(hwy::IsFloatTag<T>(), a, b);
 }
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Max(Vec128<T, N> a, Vec128<T, N> b) {
-  return detail::Max(hwy::IsFloatTag<T>(), a, b);
+  return detail::MaxImpl(hwy::IsFloatTag<T>(), a, b);
 }
 
 // ------------------------------ Neg
@@ -763,19 +763,19 @@ HWY_API Vec128<T, N> Max(Vec128<T, N> a, Vec128<T, N> b) {
 namespace detail {
 
 template <typename T, size_t N>
-HWY_API Vec128<T, N> Neg(hwy::NonFloatTag /*tag*/, Vec128<T, N> v) {
+HWY_API Vec128<T, N> NegImpl(hwy::NonFloatTag /*tag*/, Vec128<T, N> v) {
   const DFromV<decltype(v)> d;
   return Zero(d) - v;
 }
 
 template <typename T, size_t N>
-HWY_API Vec128<T, N> Neg(hwy::FloatTag /*tag*/, Vec128<T, N> v) {
+HWY_API Vec128<T, N> NegImpl(hwy::FloatTag /*tag*/, Vec128<T, N> v) {
   const DFromV<decltype(v)> d;
   return Xor(v, SignBit(d));
 }
 
 template <typename T, size_t N>
-HWY_API Vec128<T, N> Neg(hwy::SpecialTag /*tag*/, Vec128<T, N> v) {
+HWY_API Vec128<T, N> NegImpl(hwy::SpecialTag /*tag*/, Vec128<T, N> v) {
   const DFromV<decltype(v)> d;
   return Xor(v, SignBit(d));
 }
@@ -784,7 +784,7 @@ HWY_API Vec128<T, N> Neg(hwy::SpecialTag /*tag*/, Vec128<T, N> v) {
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Neg(Vec128<T, N> v) {
-  return detail::Neg(hwy::IsFloatTag<T>(), v);
+  return detail::NegImpl(hwy::IsFloatTag<T>(), v);
 }
 
 // ------------------------------ Mul/Div
@@ -793,7 +793,7 @@ HWY_API Vec128<T, N> Neg(Vec128<T, N> v) {
 namespace detail {
 
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> Mul(hwy::FloatTag /*tag*/, Vec128<T, N> a,
+HWY_INLINE Vec128<T, N> MulImpl(hwy::FloatTag /*tag*/, Vec128<T, N> a,
                             Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
     a.raw[i] *= b.raw[i];
@@ -802,7 +802,7 @@ HWY_INLINE Vec128<T, N> Mul(hwy::FloatTag /*tag*/, Vec128<T, N> a,
 }
 
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> Mul(SignedTag /*tag*/, Vec128<T, N> a, Vec128<T, N> b) {
+HWY_INLINE Vec128<T, N> MulImpl(SignedTag /*tag*/, Vec128<T, N> a, Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
     a.raw[i] = static_cast<T>(static_cast<uint64_t>(a.raw[i]) *
                               static_cast<uint64_t>(b.raw[i]));
@@ -811,7 +811,7 @@ HWY_INLINE Vec128<T, N> Mul(SignedTag /*tag*/, Vec128<T, N> a, Vec128<T, N> b) {
 }
 
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> Mul(UnsignedTag /*tag*/, Vec128<T, N> a,
+HWY_INLINE Vec128<T, N> MulImpl(UnsignedTag /*tag*/, Vec128<T, N> a,
                             Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
     a.raw[i] = static_cast<T>(static_cast<uint64_t>(a.raw[i]) *
@@ -836,7 +836,7 @@ HWY_INLINE Vec128<T, N> Mul(UnsignedTag /*tag*/, Vec128<T, N> a,
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> operator*(Vec128<T, N> a, Vec128<T, N> b) {
-  return detail::Mul(hwy::TypeTag<T>(), a, b);
+  return detail::MulImpl(hwy::TypeTag<T>(), a, b);
 }
 
 template <typename T, size_t N, HWY_IF_FLOAT(T)>
@@ -2097,7 +2097,7 @@ HWY_API VFromD<D32> DemoteInRangeTo(D32 d32, VFromD<Rebind<double, D32>> v) {
 namespace detail {
 
 template <typename TFrom, typename DTo>
-HWY_API VFromD<DTo> ConvertTo(hwy::FloatTag /*tag*/, DTo /*tag*/,
+HWY_API VFromD<DTo> ConvertToImpl(hwy::FloatTag /*tag*/, DTo /*tag*/,
                               Vec128<TFrom, HWY_MAX_LANES_D(DTo)> from) {
   using ToT = TFromD<DTo>;
   static_assert(sizeof(ToT) == sizeof(TFrom), "Should have same size");
@@ -2112,7 +2112,7 @@ HWY_API VFromD<DTo> ConvertTo(hwy::FloatTag /*tag*/, DTo /*tag*/,
 }
 
 template <typename TFrom, typename DTo>
-HWY_API VFromD<DTo> ConvertTo(hwy::NonFloatTag /*tag*/, DTo /* tag */,
+HWY_API VFromD<DTo> ConvertToImpl(hwy::NonFloatTag /*tag*/, DTo /* tag */,
                               Vec128<TFrom, HWY_MAX_LANES_D(DTo)> from) {
   using ToT = TFromD<DTo>;
   static_assert(sizeof(ToT) == sizeof(TFrom), "Should have same size");
@@ -2129,7 +2129,7 @@ HWY_API VFromD<DTo> ConvertTo(hwy::NonFloatTag /*tag*/, DTo /* tag */,
 
 template <class DTo, typename TFrom>
 HWY_API VFromD<DTo> ConvertTo(DTo d, Vec128<TFrom, HWY_MAX_LANES_D(DTo)> from) {
-  return detail::ConvertTo(hwy::IsFloatTag<TFrom>(), d, from);
+  return detail::ConvertToImpl(hwy::IsFloatTag<TFrom>(), d, from);
 }
 
 #ifdef HWY_NATIVE_F2I_CONVERT_IN_RANGE_TO

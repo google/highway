@@ -15,8 +15,8 @@
 
 // Must be included inside an existing include guard, with the following ops
 // already defined: BitCast, And, Set, ShiftLeft, ShiftRight, PromoteLowerTo,
-// ConcatEven, ConcatOdd, plus the optional detail::PromoteEvenTo and
-// detail::PromoteOddTo (if implemented in the target-specific header).
+// ConcatEven, ConcatOdd, plus the optional detail::PromoteEvenToImpl and
+// detail::PromoteOddToImpl (if implemented in the target-specific header).
 
 // This is normally set by set_macros-inl.h before this header is included;
 // if not, we are viewing this header standalone. Reduce IDE errors by:
@@ -434,18 +434,18 @@ HWY_API V RotateRightSame(V v, int bits) {
 #if HWY_TARGET != HWY_SCALAR || HWY_IDE
 namespace detail {
 
-// Tag dispatch is used in detail::PromoteEvenTo and detail::PromoteOddTo as
+// Tag dispatch is used in detail::PromoteEvenToImpl and detail::PromoteOddToImpl as
 // there are target-specific specializations for some of the
-// detail::PromoteEvenTo and detail::PromoteOddTo cases on
+// detail::PromoteEvenToImpl and detail::PromoteOddToImpl cases on
 // SVE/PPC/SSE2/SSSE3/SSE4/AVX2.
 
 // All targets except HWY_SCALAR use the implementations of
-// detail::PromoteEvenTo and detail::PromoteOddTo in generic_ops-inl.h for at
+// detail::PromoteEvenToImpl and detail::PromoteOddToImpl in generic_ops-inl.h for at
 // least some of the PromoteEvenTo and PromoteOddTo cases.
 
 // Signed to signed PromoteEvenTo/PromoteOddTo
 template <size_t kToLaneSize, class D, class V>
-HWY_INLINE VFromD<D> PromoteEvenTo(
+HWY_INLINE VFromD<D> PromoteEvenToImpl(
     hwy::SignedTag /*to_type_tag*/,
     hwy::SizeTag<kToLaneSize> /*to_lane_size_tag*/,
     hwy::SignedTag /*from_type_tag*/, D d_to, V v) {
@@ -472,7 +472,7 @@ HWY_INLINE VFromD<D> PromoteEvenTo(
 
 // Unsigned to unsigned PromoteEvenTo/PromoteOddTo
 template <size_t kToLaneSize, class D, class V>
-HWY_INLINE VFromD<D> PromoteEvenTo(
+HWY_INLINE VFromD<D> PromoteEvenToImpl(
     hwy::UnsignedTag /*to_type_tag*/,
     hwy::SizeTag<kToLaneSize> /*to_lane_size_tag*/,
     hwy::UnsignedTag /*from_type_tag*/, D d_to, V v) {
@@ -501,7 +501,7 @@ HWY_INLINE VFromD<D> PromoteEvenTo(
 }
 
 template <size_t kToLaneSize, class D, class V>
-HWY_INLINE VFromD<D> PromoteOddTo(
+HWY_INLINE VFromD<D> PromoteOddToImpl(
     hwy::SignedTag /*to_type_tag*/,
     hwy::SizeTag<kToLaneSize> /*to_lane_size_tag*/,
     hwy::SignedTag /*from_type_tag*/, D d_to, V v) {
@@ -521,7 +521,7 @@ HWY_INLINE VFromD<D> PromoteOddTo(
 }
 
 template <size_t kToLaneSize, class D, class V>
-HWY_INLINE VFromD<D> PromoteOddTo(
+HWY_INLINE VFromD<D> PromoteOddToImpl(
     hwy::UnsignedTag /*to_type_tag*/,
     hwy::SizeTag<kToLaneSize> /*to_lane_size_tag*/,
     hwy::UnsignedTag /*from_type_tag*/, D d_to, V v) {
@@ -547,24 +547,24 @@ HWY_INLINE VFromD<D> PromoteOddTo(
 // Unsigned to signed: Same as unsigned->unsigned PromoteEvenTo/PromoteOddTo
 // followed by BitCast to signed
 template <size_t kToLaneSize, class D, class V>
-HWY_INLINE VFromD<D> PromoteEvenTo(
+HWY_INLINE VFromD<D> PromoteEvenToImpl(
     hwy::SignedTag /*to_type_tag*/,
     hwy::SizeTag<kToLaneSize> /*to_lane_size_tag*/,
     hwy::UnsignedTag /*from_type_tag*/, D d_to, V v) {
   const RebindToUnsigned<decltype(d_to)> du_to;
   return BitCast(d_to,
-                 PromoteEvenTo(hwy::UnsignedTag(), hwy::SizeTag<kToLaneSize>(),
+                 PromoteEvenToImpl(hwy::UnsignedTag(), hwy::SizeTag<kToLaneSize>(),
                                hwy::UnsignedTag(), du_to, v));
 }
 
 template <size_t kToLaneSize, class D, class V>
-HWY_INLINE VFromD<D> PromoteOddTo(
+HWY_INLINE VFromD<D> PromoteOddToImpl(
     hwy::SignedTag /*to_type_tag*/,
     hwy::SizeTag<kToLaneSize> /*to_lane_size_tag*/,
     hwy::UnsignedTag /*from_type_tag*/, D d_to, V v) {
   const RebindToUnsigned<decltype(d_to)> du_to;
   return BitCast(d_to,
-                 PromoteOddTo(hwy::UnsignedTag(), hwy::SizeTag<kToLaneSize>(),
+                 PromoteOddToImpl(hwy::UnsignedTag(), hwy::SizeTag<kToLaneSize>(),
                               hwy::UnsignedTag(), du_to, v));
 }
 
@@ -581,7 +581,7 @@ HWY_INLINE VFromD<D> PromoteOddTo(
 template <class FromTypeTag, class DF32, class VBF16,
           class VBF16_2 = VFromD<Repartition<bfloat16_t, DF32>>,
           hwy::EnableIf<IsSame<TFromV<VBF16>, TFromV<VBF16_2>>()>* = nullptr>
-HWY_INLINE VFromD<DF32> PromoteEvenTo(hwy::FloatTag /*to_type_tag*/,
+HWY_INLINE VFromD<DF32> PromoteEvenToImpl(hwy::FloatTag /*to_type_tag*/,
                                       hwy::SizeTag<4> /*to_lane_size_tag*/,
                                       FromTypeTag /*from_type_tag*/, DF32 d_to,
                                       VBF16 v) {
@@ -614,7 +614,7 @@ HWY_INLINE VFromD<DF32> PromoteEvenTo(hwy::FloatTag /*to_type_tag*/,
 template <class FromTypeTag, class DF32, class VBF16,
           class VBF16_2 = VFromD<Repartition<bfloat16_t, DF32>>,
           hwy::EnableIf<IsSame<TFromV<VBF16>, TFromV<VBF16_2>>()>* = nullptr>
-HWY_INLINE VFromD<DF32> PromoteOddTo(hwy::FloatTag /*to_type_tag*/,
+HWY_INLINE VFromD<DF32> PromoteOddToImpl(hwy::FloatTag /*to_type_tag*/,
                                      hwy::SizeTag<4> /*to_lane_size_tag*/,
                                      FromTypeTag /*from_type_tag*/, DF32 d_to,
                                      VBF16 v) {
@@ -637,7 +637,7 @@ HWY_INLINE VFromD<DF32> PromoteOddTo(hwy::FloatTag /*to_type_tag*/,
 // Default PromoteEvenTo/PromoteOddTo implementations
 template <class ToTypeTag, size_t kToLaneSize, class FromTypeTag, class D,
           class V, HWY_IF_LANES_D(D, 1)>
-HWY_INLINE VFromD<D> PromoteEvenTo(
+HWY_INLINE VFromD<D> PromoteEvenToImpl(
     ToTypeTag /*to_type_tag*/, hwy::SizeTag<kToLaneSize> /*to_lane_size_tag*/,
     FromTypeTag /*from_type_tag*/, D d_to, V v) {
   return PromoteLowerTo(d_to, v);
@@ -645,7 +645,7 @@ HWY_INLINE VFromD<D> PromoteEvenTo(
 
 template <class ToTypeTag, size_t kToLaneSize, class FromTypeTag, class D,
           class V, HWY_IF_LANES_GT_D(D, 1)>
-HWY_INLINE VFromD<D> PromoteEvenTo(
+HWY_INLINE VFromD<D> PromoteEvenToImpl(
     ToTypeTag /*to_type_tag*/, hwy::SizeTag<kToLaneSize> /*to_lane_size_tag*/,
     FromTypeTag /*from_type_tag*/, D d_to, V v) {
   const DFromV<decltype(v)> d;
@@ -654,7 +654,7 @@ HWY_INLINE VFromD<D> PromoteEvenTo(
 
 template <class ToTypeTag, size_t kToLaneSize, class FromTypeTag, class D,
           class V>
-HWY_INLINE VFromD<D> PromoteOddTo(
+HWY_INLINE VFromD<D> PromoteOddToImpl(
     ToTypeTag /*to_type_tag*/, hwy::SizeTag<kToLaneSize> /*to_lane_size_tag*/,
     FromTypeTag /*from_type_tag*/, D d_to, V v) {
   const DFromV<decltype(v)> d;
@@ -667,7 +667,7 @@ template <class D, class V, HWY_IF_T_SIZE_D(D, 2 * sizeof(TFromV<V>)),
           class V2 = VFromD<Repartition<TFromV<V>, D>>,
           HWY_IF_LANES_D(DFromV<V>, HWY_MAX_LANES_V(V2))>
 HWY_API VFromD<D> PromoteEvenTo(D d, V v) {
-  return detail::PromoteEvenTo(hwy::TypeTag<TFromD<D>>(),
+  return detail::PromoteEvenToImpl(hwy::TypeTag<TFromD<D>>(),
                                hwy::SizeTag<sizeof(TFromD<D>)>(),
                                hwy::TypeTag<TFromV<V>>(), d, v);
 }
@@ -676,7 +676,7 @@ template <class D, class V, HWY_IF_T_SIZE_D(D, 2 * sizeof(TFromV<V>)),
           class V2 = VFromD<Repartition<TFromV<V>, D>>,
           HWY_IF_LANES_D(DFromV<V>, HWY_MAX_LANES_V(V2))>
 HWY_API VFromD<D> PromoteOddTo(D d, V v) {
-  return detail::PromoteOddTo(hwy::TypeTag<TFromD<D>>(),
+  return detail::PromoteOddToImpl(hwy::TypeTag<TFromD<D>>(),
                               hwy::SizeTag<sizeof(TFromD<D>)>(),
                               hwy::TypeTag<TFromV<V>>(), d, v);
 }

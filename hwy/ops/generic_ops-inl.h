@@ -156,15 +156,15 @@ HWY_API V MaskedSet(D d, M m, T a) {
 
 // ------------------------------ ZeroExtendResizeBitCast
 
-// The implementation of detail::ZeroExtendResizeBitCast for the HWY_EMU128
+// The implementation of detail::ZeroExtendResizeBitCastImpl for the HWY_EMU128
 // target is in emu128-inl.h, and the implementation of
-// detail::ZeroExtendResizeBitCast for the HWY_SCALAR target is in scalar-inl.h
+// detail::ZeroExtendResizeBitCastImpl for the HWY_SCALAR target is in scalar-inl.h
 #if HWY_TARGET != HWY_EMU128 && HWY_TARGET != HWY_SCALAR
 namespace detail {
 
 #if HWY_HAVE_SCALABLE
 template <size_t kFromVectSize, size_t kToVectSize, class DTo, class DFrom>
-HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(
+HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCastImpl(
     hwy::SizeTag<kFromVectSize> /* from_size_tag */,
     hwy::SizeTag<kToVectSize> /* to_size_tag */, DTo d_to, DFrom d_from,
     VFromD<DFrom> v) {
@@ -178,7 +178,7 @@ HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(
 // Truncating or same-size resizing cast: same as ResizeBitCast
 template <size_t kFromVectSize, size_t kToVectSize, class DTo, class DFrom,
           HWY_IF_LANES_LE(kToVectSize, kFromVectSize)>
-HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(
+HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCastImpl(
     hwy::SizeTag<kFromVectSize> /* from_size_tag */,
     hwy::SizeTag<kToVectSize> /* to_size_tag */, DTo d_to, DFrom /*d_from*/,
     VFromD<DFrom> v) {
@@ -189,7 +189,7 @@ HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(
 // vector
 template <size_t kFromVectSize, size_t kToVectSize, class DTo, class DFrom,
           HWY_IF_LANES(kToVectSize, kFromVectSize * 2)>
-HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(
+HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCastImpl(
     hwy::SizeTag<kFromVectSize> /* from_size_tag */,
     hwy::SizeTag<kToVectSize> /* to_size_tag */, DTo d_to, DFrom d_from,
     VFromD<DFrom> v) {
@@ -201,7 +201,7 @@ HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(
 // source vector
 template <size_t kFromVectSize, size_t kToVectSize, class DTo, class DFrom,
           HWY_IF_LANES_GT(kToVectSize, kFromVectSize * 2)>
-HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(
+HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCastImpl(
     hwy::SizeTag<kFromVectSize> /* from_size_tag */,
     hwy::SizeTag<kToVectSize> /* to_size_tag */, DTo d_to, DFrom /*d_from*/,
     VFromD<DFrom> v) {
@@ -219,7 +219,7 @@ HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(
 template <class DTo, class DFrom>
 HWY_API VFromD<DTo> ZeroExtendResizeBitCast(DTo d_to, DFrom d_from,
                                             VFromD<DFrom> v) {
-  return detail::ZeroExtendResizeBitCast(hwy::SizeTag<d_from.MaxBytes()>(),
+  return detail::ZeroExtendResizeBitCastImpl(hwy::SizeTag<d_from.MaxBytes()>(),
                                          hwy::SizeTag<d_to.MaxBytes()>(), d_to,
                                          d_from, v);
 }
@@ -4089,7 +4089,7 @@ HWY_API VFromD<D> PromoteInRangeOddTo(D d, V v) {
 namespace detail {
 
 template <class TypeTag, size_t kLaneSize, class V>
-HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
+HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2Impl(
     TypeTag /*type_tag*/, hwy::SizeTag<kLaneSize> /*lane_size_tag*/, V v) {
   const DFromV<decltype(v)> d;
   const RepartitionToWide<decltype(d)> dw;
@@ -4100,7 +4100,7 @@ HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
 
 template <class V>
 HWY_API VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(V v) {
-  return detail::SumsOf2(hwy::TypeTag<TFromV<V>>(),
+  return detail::SumsOf2Impl(hwy::TypeTag<TFromV<V>>(),
                          hwy::SizeTag<sizeof(TFromV<V>)>(), v);
 }
 #endif  // HWY_TARGET != HWY_SCALAR
@@ -4110,7 +4110,7 @@ HWY_API VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(V v) {
 namespace detail {
 
 template <class TypeTag, size_t kLaneSize, class V>
-HWY_INLINE VFromD<RepartitionToWideX2<DFromV<V>>> SumsOf4(
+HWY_INLINE VFromD<RepartitionToWideX2<DFromV<V>>> SumsOf4Impl(
     TypeTag /*type_tag*/, hwy::SizeTag<kLaneSize> /*lane_size_tag*/, V v) {
   using hwy::HWY_NAMESPACE::SumsOf2;
   return SumsOf2(SumsOf2(v));
@@ -4120,7 +4120,7 @@ HWY_INLINE VFromD<RepartitionToWideX2<DFromV<V>>> SumsOf4(
 
 template <class V>
 HWY_API VFromD<RepartitionToWideX2<DFromV<V>>> SumsOf4(V v) {
-  return detail::SumsOf4(hwy::TypeTag<TFromV<V>>(),
+  return detail::SumsOf4Impl(hwy::TypeTag<TFromV<V>>(),
                          hwy::SizeTag<sizeof(TFromV<V>)>(), v);
 }
 
@@ -7103,7 +7103,7 @@ static HWY_INLINE VFromD<D> CompressIndicesFromNotBits128(D d,
 }
 
 template <typename T, size_t N, HWY_IF_NOT_T_SIZE(T, 1)>
-static HWY_INLINE Vec128<T, N> CompressBits(Vec128<T, N> v,
+static HWY_INLINE Vec128<T, N> CompressBitsImpl(Vec128<T, N> v,
                                             uint64_t mask_bits) {
   const DFromV<decltype(v)> d;
   const RebindToUnsigned<decltype(d)> du;
@@ -7150,7 +7150,7 @@ HWY_API Vec128<T> Compress(Vec128<T> v, Mask128<T> mask) {
 template <typename T, size_t N, HWY_IF_T_SIZE_ONE_OF(T, (1 << 2) | (1 << 4))>
 HWY_API Vec128<T, N> Compress(Vec128<T, N> v, Mask128<T, N> mask) {
   const DFromV<decltype(v)> d;
-  return detail::CompressBits(v, BitsFromMask(d, mask));
+  return detail::CompressBitsImpl(v, BitsFromMask(d, mask));
 }
 
 template <typename T>
@@ -7176,7 +7176,7 @@ HWY_API Vec128<T, N> CompressNot(Vec128<T, N> v, Mask128<T, N> mask) {
   // For partial vectors, we cannot pull the Not() into the table because
   // BitsFromMask clears the upper bits.
   HWY_IF_CONSTEXPR(N < 16 / sizeof(T)) {
-    return detail::CompressBits(v, BitsFromMask(d, Not(mask)));
+    return detail::CompressBitsImpl(v, BitsFromMask(d, Not(mask)));
   }
   else {
     return detail::CompressNotBits(v, BitsFromMask(d, mask));
@@ -7254,7 +7254,7 @@ static HWY_INLINE Vec256<uint32_t> CompressIndicesFromNotBits256(
 }
 
 template <typename T, HWY_IF_T_SIZE_ONE_OF(T, (1 << 4) | (1 << 8))>
-static HWY_INLINE Vec256<T> CompressBits(Vec256<T> v,
+static HWY_INLINE Vec256<T> CompressBitsImpl(Vec256<T> v,
                                          const uint64_t mask_bits) {
   const DFromV<decltype(v)> d;
   const Repartition<uint32_t, decltype(d)> du32;
@@ -7281,7 +7281,7 @@ static HWY_INLINE Vec256<T> CompressBits(Vec256<T> v,
 // LUTs are infeasible for 2^16 possible masks, so splice together two
 // half-vector Compress.
 template <typename T, HWY_IF_T_SIZE(T, 2)>
-static HWY_INLINE Vec256<T> CompressBits(Vec256<T> v,
+static HWY_INLINE Vec256<T> CompressBitsImpl(Vec256<T> v,
                                          const uint64_t mask_bits) {
   const DFromV<decltype(v)> d;
   const RebindToUnsigned<decltype(d)> du;
@@ -7292,8 +7292,8 @@ static HWY_INLINE Vec256<T> CompressBits(Vec256<T> v,
 
   const uint64_t mask_bits0 = mask_bits & 0xFF;
   const uint64_t mask_bits1 = mask_bits >> 8;
-  const auto compressed0 = detail::CompressBits(half0, mask_bits0);
-  const auto compressed1 = detail::CompressBits(half1, mask_bits1);
+  const auto compressed0 = detail::CompressBitsImpl(half0, mask_bits0);
+  const auto compressed1 = detail::CompressBitsImpl(half1, mask_bits1);
 
   alignas(32) uint16_t all_true[16];
   // Store mask=true lanes, left to right.
@@ -7352,7 +7352,7 @@ template <typename T, HWY_IF_T_SIZE(T, 2)>
 static HWY_INLINE Vec256<T> CompressNotBits(Vec256<T> v,
                                             const uint64_t mask_bits) {
   // Compress ensures only the lower 16 bits are set, so flip those.
-  return CompressBits(v, mask_bits ^ 0xFFFF);
+  return CompressBitsImpl(v, mask_bits ^ 0xFFFF);
 }
 
 }  // namespace detail
@@ -7360,7 +7360,7 @@ static HWY_INLINE Vec256<T> CompressNotBits(Vec256<T> v,
 template <typename T, HWY_IF_NOT_T_SIZE(T, 1)>
 HWY_API Vec256<T> Compress(Vec256<T> v, Mask256<T> m) {
   const DFromV<decltype(v)> d;
-  return detail::CompressBits(v, BitsFromMask(d, m));
+  return detail::CompressBitsImpl(v, BitsFromMask(d, m));
 }
 
 template <typename T, HWY_IF_NOT_T_SIZE(T, 1)>
@@ -7374,13 +7374,13 @@ HWY_API Vec256<T> CompressNot(Vec256<T> v, Mask256<T> m) {
 namespace detail {
 
 template <class V, HWY_IF_V_SIZE_LE_V(V, 32), HWY_IF_NOT_T_SIZE_V(V, 1)>
-static HWY_INLINE V CompressBits(V v, const uint8_t* HWY_RESTRICT bits,
+static HWY_INLINE V CompressBitsImpl(V v, const uint8_t* HWY_RESTRICT bits,
                                  uint64_t& mask_bits) {
   const DFromV<decltype(v)> d;
 
   // Avoid using CopyBytes as the mask bits in bits are always stored in
   // little-endian byte order, even on big-endian targets, and as
-  // detail::CompressBits(v, bits, mask_bits) is used on some big-endian targets
+  // detail::CompressBitsImpl(v, bits, mask_bits) is used on some big-endian targets
   // such as big-endian PPC, Z14, or Z15.
 
   // If d.MaxBytes() <= 32 && sizeof(TFromD<decltype(d)>) >= 2 is true, then
@@ -7404,7 +7404,7 @@ static HWY_INLINE V CompressBits(V v, const uint8_t* HWY_RESTRICT bits,
     mask_bits &= (1ULL << kN) - 1ULL;
   }
 
-  return detail::CompressBits(v, mask_bits);
+  return detail::CompressBitsImpl(v, mask_bits);
 }
 
 }  // namespace detail
@@ -7422,7 +7422,7 @@ HWY_API VFromD<D> CompressNot(D /*d*/, VFromD<D> v, MFromD<D> m) {
 template <class V, HWY_IF_NOT_T_SIZE_V(V, 1)>
 HWY_API V CompressBits(V v, const uint8_t* HWY_RESTRICT bits) {
   uint64_t mask_bits;
-  return detail::CompressBits(v, bits, mask_bits);
+  return detail::CompressBitsImpl(v, bits, mask_bits);
 }
 
 template <class D, HWY_IF_NOT_T_SIZE_D(D, 1)>
@@ -7466,7 +7466,7 @@ template <class D, HWY_IF_NOT_T_SIZE_D(D, 1)>
 HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
                                  D d, TFromD<D>* HWY_RESTRICT unaligned) {
   uint64_t mask_bits;
-  const auto compressed = detail::CompressBits(v, bits, mask_bits);
+  const auto compressed = detail::CompressBitsImpl(v, bits, mask_bits);
   const size_t count = PopCount(mask_bits);
 
   StoreU(compressed, d, unaligned);
@@ -8891,11 +8891,11 @@ HWY_INLINE V TblLookupPer4LaneBlkShuf(V v, size_t idx3210) {
   return Per4LaneBlkShufDoTblLookup(v, idx);
 }
 
-// The detail::Per4LaneBlockShuffle overloads that have the extra lane_size_tag
+// The detail::Per4LaneBlockShuffleImpl overloads that have the extra lane_size_tag
 // and vect_size_tag parameters are only called for vectors that have at
 // least 4 lanes (or scalable vectors that might possibly have 4 or more lanes)
 template <size_t kIdx3210, size_t kLaneSize, size_t kVectSize, class V>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
                                   hwy::SizeTag<kLaneSize> /*lane_size_tag*/,
                                   hwy::SizeTag<kVectSize> /*vect_size_tag*/,
                                   V v) {
@@ -8932,7 +8932,7 @@ HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> Per4LaneBlockShufCastToWide(
 }
 
 template <class V>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0x1B> /*idx_3210_tag*/, V v) {
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<0x1B> /*idx_3210_tag*/, V v) {
   const DFromV<decltype(v)> d;
   return Reverse4(d, v);
 }
@@ -8940,7 +8940,7 @@ HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0x1B> /*idx_3210_tag*/, V v) {
 template <class V,
           HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2) |
                                         (HWY_HAVE_INTEGER64 ? (1 << 4) : 0))>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0x44> /*idx_3210_tag*/, V v) {
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<0x44> /*idx_3210_tag*/, V v) {
   const DFromV<decltype(v)> d;
   const auto vw = Per4LaneBlockShufCastToWide(
       hwy::IsFloatTag<TFromV<V>>(), hwy::SizeTag<sizeof(TFromV<V>)>(), v);
@@ -8950,7 +8950,7 @@ HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0x44> /*idx_3210_tag*/, V v) {
 template <class V,
           HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2) |
                                         (HWY_HAVE_INTEGER64 ? (1 << 4) : 0))>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0x4E> /*idx_3210_tag*/, V v) {
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<0x4E> /*idx_3210_tag*/, V v) {
   const DFromV<decltype(v)> d;
   const auto vw = Per4LaneBlockShufCastToWide(
       hwy::IsFloatTag<TFromV<V>>(), hwy::SizeTag<sizeof(TFromV<V>)>(), v);
@@ -8960,56 +8960,56 @@ HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0x4E> /*idx_3210_tag*/, V v) {
 
 #if HWY_MAX_BYTES >= 32
 template <class V, HWY_IF_T_SIZE_V(V, 8)>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0x4E> /*idx_3210_tag*/, V v) {
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<0x4E> /*idx_3210_tag*/, V v) {
   return SwapAdjacentBlocks(v);
 }
 #endif
 
 template <class V, HWY_IF_LANES_D(DFromV<V>, 4),
           HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2))>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0x50> /*idx_3210_tag*/, V v) {
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<0x50> /*idx_3210_tag*/, V v) {
   const DFromV<decltype(v)> d;
   return InterleaveLower(d, v, v);
 }
 
 template <class V, HWY_IF_T_SIZE_V(V, 4)>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0x50> /*idx_3210_tag*/, V v) {
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<0x50> /*idx_3210_tag*/, V v) {
   const DFromV<decltype(v)> d;
   return InterleaveLower(d, v, v);
 }
 
 template <class V, HWY_IF_LANES_D(DFromV<V>, 4)>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0x88> /*idx_3210_tag*/, V v) {
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<0x88> /*idx_3210_tag*/, V v) {
   const DFromV<decltype(v)> d;
   return ConcatEven(d, v, v);
 }
 
 template <class V>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0xA0> /*idx_3210_tag*/, V v) {
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<0xA0> /*idx_3210_tag*/, V v) {
   return DupEven(v);
 }
 
 template <class V>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0xB1> /*idx_3210_tag*/, V v) {
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<0xB1> /*idx_3210_tag*/, V v) {
   const DFromV<decltype(v)> d;
   return Reverse2(d, v);
 }
 
 template <class V, HWY_IF_LANES_D(DFromV<V>, 4)>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0xDD> /*idx_3210_tag*/, V v) {
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<0xDD> /*idx_3210_tag*/, V v) {
   const DFromV<decltype(v)> d;
   return ConcatOdd(d, v, v);
 }
 
 template <class V>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0xE4> /*idx_3210_tag*/, V v) {
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<0xE4> /*idx_3210_tag*/, V v) {
   return v;
 }
 
 template <class V,
           HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2) |
                                         (HWY_HAVE_INTEGER64 ? (1 << 4) : 0))>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0xEE> /*idx_3210_tag*/, V v) {
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<0xEE> /*idx_3210_tag*/, V v) {
   const DFromV<decltype(v)> d;
   const auto vw = Per4LaneBlockShufCastToWide(
       hwy::IsFloatTag<TFromV<V>>(), hwy::SizeTag<sizeof(TFromV<V>)>(), v);
@@ -9017,20 +9017,20 @@ HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0xEE> /*idx_3210_tag*/, V v) {
 }
 
 template <class V>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0xF5> /*idx_3210_tag*/, V v) {
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<0xF5> /*idx_3210_tag*/, V v) {
   return DupOdd(v);
 }
 
 template <class V, HWY_IF_T_SIZE_V(V, 4)>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0xFA> /*idx_3210_tag*/, V v) {
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<0xFA> /*idx_3210_tag*/, V v) {
   const DFromV<decltype(v)> d;
   return InterleaveUpper(d, v, v);
 }
 
 template <size_t kIdx3210, class V>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> idx_3210_tag, V v) {
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<kIdx3210> idx_3210_tag, V v) {
   const DFromV<decltype(v)> d;
-  return Per4LaneBlockShuffle(idx_3210_tag, hwy::SizeTag<sizeof(TFromV<V>)>(),
+  return Per4LaneBlockShuffleImpl(idx_3210_tag, hwy::SizeTag<sizeof(TFromV<V>)>(),
                               hwy::SizeTag<d.MaxBytes()>(), v);
 }
 
@@ -9076,7 +9076,7 @@ HWY_API V Per4LaneBlockShuffle(V v) {
 
   constexpr size_t kIdx3210 =
       (kIdx3 << 6) | (kIdx2 << 4) | (kIdx1 << 2) | kIdx0;
-  return detail::Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210>(), v);
+  return detail::Per4LaneBlockShuffleImpl(hwy::SizeTag<kIdx3210>(), v);
 }
 #endif
 

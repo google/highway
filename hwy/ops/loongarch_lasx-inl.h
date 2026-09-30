@@ -431,19 +431,19 @@ HWY_API Vec256<T> operator^(const Vec256<T> a, const Vec256<T> b) {
 namespace detail {
 
 template <typename T>
-HWY_INLINE Vec256<T> PopulationCount(hwy::SizeTag<1> /* tag */, Vec256<T> v) {
+HWY_INLINE Vec256<T> PopulationCountImpl(hwy::SizeTag<1> /* tag */, Vec256<T> v) {
   return Vec256<T>{__lasx_xvpcnt_b(v.raw)};
 }
 template <typename T>
-HWY_INLINE Vec256<T> PopulationCount(hwy::SizeTag<2> /* tag */, Vec256<T> v) {
+HWY_INLINE Vec256<T> PopulationCountImpl(hwy::SizeTag<2> /* tag */, Vec256<T> v) {
   return Vec256<T>{__lasx_xvpcnt_h(v.raw)};
 }
 template <typename T>
-HWY_INLINE Vec256<T> PopulationCount(hwy::SizeTag<4> /* tag */, Vec256<T> v) {
+HWY_INLINE Vec256<T> PopulationCountImpl(hwy::SizeTag<4> /* tag */, Vec256<T> v) {
   return Vec256<T>{__lasx_xvpcnt_w(v.raw)};
 }
 template <typename T>
-HWY_INLINE Vec256<T> PopulationCount(hwy::SizeTag<8> /* tag */, Vec256<T> v) {
+HWY_INLINE Vec256<T> PopulationCountImpl(hwy::SizeTag<8> /* tag */, Vec256<T> v) {
   return Vec256<T>{__lasx_xvpcnt_d(v.raw)};
 }
 
@@ -451,7 +451,7 @@ HWY_INLINE Vec256<T> PopulationCount(hwy::SizeTag<8> /* tag */, Vec256<T> v) {
 
 template <typename T>
 HWY_API Vec256<T> PopulationCount(Vec256<T> v) {
-  return detail::PopulationCount(hwy::SizeTag<sizeof(T)>(), v);
+  return detail::PopulationCountImpl(hwy::SizeTag<sizeof(T)>(), v);
 }
 
 // ------------------------------ Mask
@@ -609,47 +609,47 @@ HWY_API Mask256<double> operator!=(Vec256<double> a, Vec256<double> b) {
 
 namespace detail {
 
-HWY_API Mask256<int8_t> Gt(hwy::SignedTag /*tag*/, Vec256<int8_t> a,
+HWY_API Mask256<int8_t> GtImpl(hwy::SignedTag /*tag*/, Vec256<int8_t> a,
                            Vec256<int8_t> b) {
   return Mask256<int8_t>{__lasx_xvslt_b(b.raw, a.raw)};
 }
-HWY_API Mask256<int16_t> Gt(hwy::SignedTag /*tag*/, Vec256<int16_t> a,
+HWY_API Mask256<int16_t> GtImpl(hwy::SignedTag /*tag*/, Vec256<int16_t> a,
                             Vec256<int16_t> b) {
   return Mask256<int16_t>{__lasx_xvslt_h(b.raw, a.raw)};
 }
-HWY_API Mask256<int32_t> Gt(hwy::SignedTag /*tag*/, Vec256<int32_t> a,
+HWY_API Mask256<int32_t> GtImpl(hwy::SignedTag /*tag*/, Vec256<int32_t> a,
                             Vec256<int32_t> b) {
   return Mask256<int32_t>{__lasx_xvslt_w(b.raw, a.raw)};
 }
-HWY_API Mask256<int64_t> Gt(hwy::SignedTag /*tag*/, Vec256<int64_t> a,
+HWY_API Mask256<int64_t> GtImpl(hwy::SignedTag /*tag*/, Vec256<int64_t> a,
                             Vec256<int64_t> b) {
   return Mask256<int64_t>{__lasx_xvslt_d(b.raw, a.raw)};
 }
 
-HWY_API Mask256<uint8_t> Gt(hwy::UnsignedTag /*tag*/, Vec256<uint8_t> a,
+HWY_API Mask256<uint8_t> GtImpl(hwy::UnsignedTag /*tag*/, Vec256<uint8_t> a,
                             Vec256<uint8_t> b) {
   return Mask256<uint8_t>{__lasx_xvslt_bu(b.raw, a.raw)};
 }
-HWY_API Mask256<uint16_t> Gt(hwy::UnsignedTag /*tag*/, Vec256<uint16_t> a,
+HWY_API Mask256<uint16_t> GtImpl(hwy::UnsignedTag /*tag*/, Vec256<uint16_t> a,
                              Vec256<uint16_t> b) {
   return Mask256<uint16_t>{__lasx_xvslt_hu(b.raw, a.raw)};
 }
-HWY_API Mask256<uint32_t> Gt(hwy::UnsignedTag /*tag*/, Vec256<uint32_t> a,
+HWY_API Mask256<uint32_t> GtImpl(hwy::UnsignedTag /*tag*/, Vec256<uint32_t> a,
                              Vec256<uint32_t> b) {
   return Mask256<uint32_t>{__lasx_xvslt_wu(b.raw, a.raw)};
 }
-HWY_API Mask256<uint64_t> Gt(hwy::UnsignedTag /*tag*/, Vec256<uint64_t> a,
+HWY_API Mask256<uint64_t> GtImpl(hwy::UnsignedTag /*tag*/, Vec256<uint64_t> a,
                              Vec256<uint64_t> b) {
   return Mask256<uint64_t>{__lasx_xvslt_du(b.raw, a.raw)};
 }
 
-HWY_API Mask256<float> Gt(hwy::FloatTag /*tag*/, Vec256<float> a,
+HWY_API Mask256<float> GtImpl(hwy::FloatTag /*tag*/, Vec256<float> a,
                           Vec256<float> b) {
   const DFromV<decltype(a)> d;
   const RebindToSigned<decltype(d)> di;
   return RebindMask(d, MFromD<decltype(di)>{__lasx_xvfcmp_clt_s(b.raw, a.raw)});
 }
-HWY_API Mask256<double> Gt(hwy::FloatTag /*tag*/, Vec256<double> a,
+HWY_API Mask256<double> GtImpl(hwy::FloatTag /*tag*/, Vec256<double> a,
                            Vec256<double> b) {
   const DFromV<decltype(a)> d;
   const RebindToSigned<decltype(d)> di;
@@ -660,7 +660,7 @@ HWY_API Mask256<double> Gt(hwy::FloatTag /*tag*/, Vec256<double> a,
 
 template <typename T>
 HWY_API Mask256<T> operator>(Vec256<T> a, Vec256<T> b) {
-  return detail::Gt(hwy::TypeTag<T>(), a, b);
+  return detail::GtImpl(hwy::TypeTag<T>(), a, b);
 }
 
 // ------------------------------ Weak inequality
@@ -668,22 +668,22 @@ HWY_API Mask256<T> operator>(Vec256<T> a, Vec256<T> b) {
 namespace detail {
 
 template <typename T>
-HWY_INLINE Mask256<T> Ge(hwy::SignedTag /*tag*/, Vec256<T> a, Vec256<T> b) {
+HWY_INLINE Mask256<T> GeImpl(hwy::SignedTag /*tag*/, Vec256<T> a, Vec256<T> b) {
   return Not(b > a);
 }
 
 template <typename T>
-HWY_INLINE Mask256<T> Ge(hwy::UnsignedTag /*tag*/, Vec256<T> a, Vec256<T> b) {
+HWY_INLINE Mask256<T> GeImpl(hwy::UnsignedTag /*tag*/, Vec256<T> a, Vec256<T> b) {
   return Not(b > a);
 }
 
-HWY_INLINE Mask256<float> Ge(hwy::FloatTag /*tag*/, Vec256<float> a,
+HWY_INLINE Mask256<float> GeImpl(hwy::FloatTag /*tag*/, Vec256<float> a,
                              Vec256<float> b) {
   const DFromV<decltype(a)> d;
   const RebindToSigned<decltype(d)> di;
   return RebindMask(d, MFromD<decltype(di)>{__lasx_xvfcmp_cle_s(b.raw, a.raw)});
 }
-HWY_INLINE Mask256<double> Ge(hwy::FloatTag /*tag*/, Vec256<double> a,
+HWY_INLINE Mask256<double> GeImpl(hwy::FloatTag /*tag*/, Vec256<double> a,
                               Vec256<double> b) {
   const DFromV<decltype(a)> d;
   const RebindToSigned<decltype(d)> di;
@@ -694,7 +694,7 @@ HWY_INLINE Mask256<double> Ge(hwy::FloatTag /*tag*/, Vec256<double> a,
 
 template <typename T>
 HWY_API Mask256<T> operator>=(Vec256<T> a, Vec256<T> b) {
-  return detail::Ge(hwy::TypeTag<T>(), a, b);
+  return detail::GeImpl(hwy::TypeTag<T>(), a, b);
 }
 
 // ------------------------------ Reversed comparisons
@@ -1677,35 +1677,35 @@ HWY_API Vec256<int64_t> ShiftRightSame(const Vec256<int64_t> v,
 namespace detail {
 
 template <typename T>
-HWY_INLINE Vec256<T> Neg(hwy::FloatTag /*tag*/, const Vec256<T> v) {
+HWY_INLINE Vec256<T> NegImpl(hwy::FloatTag /*tag*/, const Vec256<T> v) {
   const DFromV<decltype(v)> d;
   return Xor(v, SignBit(d));
 }
 
 template <typename T>
-HWY_INLINE Vec256<T> Neg(hwy::SpecialTag /*tag*/, const Vec256<T> v) {
+HWY_INLINE Vec256<T> NegImpl(hwy::SpecialTag /*tag*/, const Vec256<T> v) {
   const DFromV<decltype(v)> d;
   return Xor(v, SignBit(d));
 }
 
 // Not floating-point
 template <typename T, HWY_IF_UI8(T)>
-HWY_INLINE Vec256<T> Neg(hwy::SignedTag /*tag*/, const Vec256<T> v) {
+HWY_INLINE Vec256<T> NegImpl(hwy::SignedTag /*tag*/, const Vec256<T> v) {
   return Vec256<T>{__lasx_xvneg_b(v.raw)};
 }
 
 template <typename T, HWY_IF_UI16(T)>
-HWY_INLINE Vec256<T> Neg(hwy::SignedTag /*tag*/, const Vec256<T> v) {
+HWY_INLINE Vec256<T> NegImpl(hwy::SignedTag /*tag*/, const Vec256<T> v) {
   return Vec256<T>{__lasx_xvneg_h(v.raw)};
 }
 
 template <typename T, HWY_IF_UI32(T)>
-HWY_INLINE Vec256<T> Neg(hwy::SignedTag /*tag*/, const Vec256<T> v) {
+HWY_INLINE Vec256<T> NegImpl(hwy::SignedTag /*tag*/, const Vec256<T> v) {
   return Vec256<T>{__lasx_xvneg_w(v.raw)};
 }
 
 template <typename T, HWY_IF_UI64(T)>
-HWY_INLINE Vec256<T> Neg(hwy::SignedTag /*tag*/, const Vec256<T> v) {
+HWY_INLINE Vec256<T> NegImpl(hwy::SignedTag /*tag*/, const Vec256<T> v) {
   return Vec256<T>{__lasx_xvneg_d(v.raw)};
 }
 
@@ -1713,7 +1713,7 @@ HWY_INLINE Vec256<T> Neg(hwy::SignedTag /*tag*/, const Vec256<T> v) {
 
 template <typename T>
 HWY_API Vec256<T> Neg(const Vec256<T> v) {
-  return detail::Neg(hwy::TypeTag<T>(), v);
+  return detail::NegImpl(hwy::TypeTag<T>(), v);
 }
 
 // ------------------------------ Floating-point mul / div
@@ -2120,7 +2120,7 @@ HWY_API VFromD<D> ZeroExtendVector(D /* tag */, VFromD<Half<D>> lo) {
 namespace detail {
 
 template <class DTo, class DFrom>
-HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(
+HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCastImpl(
     hwy::SizeTag<8> /* from_size_tag */, hwy::SizeTag<32> /* to_size_tag */,
     DTo d_to, DFrom d_from, VFromD<DFrom> v) {
   const Twice<decltype(d_from)> dt_from;
@@ -2241,13 +2241,13 @@ HWY_API Vec256<T> BroadcastBlock(Vec256<T> v) {
 namespace detail {
 
 template <class T, HWY_IF_T_SIZE(T, 1)>
-HWY_INLINE Vec256<T> BroadcastLane(hwy::SizeTag<0> /* lane_idx_tag */,
+HWY_INLINE Vec256<T> BroadcastLaneImpl(hwy::SizeTag<0> /* lane_idx_tag */,
                                    Vec256<T> v) {
   return Vec256<T>{__lasx_xvreplve0_b(v.raw)};
 }
 
 template <class T, HWY_IF_T_SIZE(T, 2)>
-HWY_INLINE Vec256<T> BroadcastLane(hwy::SizeTag<0> /* lane_idx_tag */,
+HWY_INLINE Vec256<T> BroadcastLaneImpl(hwy::SizeTag<0> /* lane_idx_tag */,
                                    Vec256<T> v) {
   const DFromV<decltype(v)> d;
   const RebindToUnsigned<decltype(d)> du;  // for float16_t
@@ -2256,18 +2256,18 @@ HWY_INLINE Vec256<T> BroadcastLane(hwy::SizeTag<0> /* lane_idx_tag */,
 }
 
 template <class T, HWY_IF_UI32(T)>
-HWY_INLINE Vec256<T> BroadcastLane(hwy::SizeTag<0> /* lane_idx_tag */,
+HWY_INLINE Vec256<T> BroadcastLaneImpl(hwy::SizeTag<0> /* lane_idx_tag */,
                                    Vec256<T> v) {
   return Vec256<T>{__lasx_xvreplve0_w(v.raw)};
 }
 
 template <class T, HWY_IF_UI64(T)>
-HWY_INLINE Vec256<T> BroadcastLane(hwy::SizeTag<0> /* lane_idx_tag */,
+HWY_INLINE Vec256<T> BroadcastLaneImpl(hwy::SizeTag<0> /* lane_idx_tag */,
                                    Vec256<T> v) {
   return Vec256<T>{__lasx_xvreplve0_d(v.raw)};
 }
 
-HWY_INLINE Vec256<float> BroadcastLane(hwy::SizeTag<0> /* lane_idx_tag */,
+HWY_INLINE Vec256<float> BroadcastLaneImpl(hwy::SizeTag<0> /* lane_idx_tag */,
                                        Vec256<float> v) {
   const DFromV<decltype(v)> d;
   const RebindToUnsigned<decltype(d)> du;
@@ -2275,7 +2275,7 @@ HWY_INLINE Vec256<float> BroadcastLane(hwy::SizeTag<0> /* lane_idx_tag */,
                  VFromD<decltype(du)>{__lasx_xvreplve0_w(BitCast(du, v).raw)});
 }
 
-HWY_INLINE Vec256<double> BroadcastLane(hwy::SizeTag<0> /* lane_idx_tag */,
+HWY_INLINE Vec256<double> BroadcastLaneImpl(hwy::SizeTag<0> /* lane_idx_tag */,
                                         Vec256<double> v) {
   const DFromV<decltype(v)> d;
   const RebindToUnsigned<decltype(d)> du;
@@ -2284,7 +2284,7 @@ HWY_INLINE Vec256<double> BroadcastLane(hwy::SizeTag<0> /* lane_idx_tag */,
 }
 
 template <size_t kLaneIdx, class T, hwy::EnableIf<kLaneIdx != 0>* = nullptr>
-HWY_INLINE Vec256<T> BroadcastLane(hwy::SizeTag<kLaneIdx> /* lane_idx_tag */,
+HWY_INLINE Vec256<T> BroadcastLaneImpl(hwy::SizeTag<kLaneIdx> /* lane_idx_tag */,
                                    Vec256<T> v) {
   constexpr size_t kLanesPerBlock = 16 / sizeof(T);
   constexpr int kBlockIdx = static_cast<int>(kLaneIdx / kLanesPerBlock);
@@ -2297,7 +2297,7 @@ HWY_INLINE Vec256<T> BroadcastLane(hwy::SizeTag<kLaneIdx> /* lane_idx_tag */,
 template <int kLaneIdx, class T>
 HWY_API Vec256<T> BroadcastLane(Vec256<T> v) {
   static_assert(kLaneIdx >= 0, "Invalid lane");
-  return detail::BroadcastLane(hwy::SizeTag<static_cast<size_t>(kLaneIdx)>(),
+  return detail::BroadcastLaneImpl(hwy::SizeTag<static_cast<size_t>(kLaneIdx)>(),
                                v);
 }
 
@@ -3029,7 +3029,7 @@ HWY_INLINE VFromD<D> Per4LaneBlkShufDupSet4xU32(D d, const uint32_t x3,
 }
 
 template <size_t kIdx3210, class V, HWY_IF_NOT_FLOAT(TFromV<V>)>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
                                   hwy::SizeTag<4> /*lane_size_tag*/,
                                   hwy::SizeTag<32> /*vect_size_tag*/, V v) {
   const DFromV<decltype(v)> d;
@@ -3040,7 +3040,7 @@ HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
 }
 
 template <size_t kIdx3210, class V, HWY_IF_FLOAT(TFromV<V>)>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
                                   hwy::SizeTag<4> /*lane_size_tag*/,
                                   hwy::SizeTag<32> /*vect_size_tag*/, V v) {
   const DFromV<decltype(v)> d;
@@ -3053,7 +3053,7 @@ HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
 }
 
 template <class V>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0x44> /*idx_3210_tag*/,
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<0x44> /*idx_3210_tag*/,
                                   hwy::SizeTag<8> /*lane_size_tag*/,
                                   hwy::SizeTag<32> /*vect_size_tag*/, V v) {
   const DFromV<decltype(v)> d;
@@ -3061,7 +3061,7 @@ HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0x44> /*idx_3210_tag*/,
 }
 
 template <class V>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0xEE> /*idx_3210_tag*/,
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<0xEE> /*idx_3210_tag*/,
                                   hwy::SizeTag<8> /*lane_size_tag*/,
                                   hwy::SizeTag<32> /*vect_size_tag*/, V v) {
   const DFromV<decltype(v)> d;
@@ -3069,7 +3069,7 @@ HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0xEE> /*idx_3210_tag*/,
 }
 
 template <size_t kIdx3210, class V, HWY_IF_NOT_FLOAT(TFromV<V>)>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
                                   hwy::SizeTag<8> /*lane_size_tag*/,
                                   hwy::SizeTag<32> /*vect_size_tag*/, V v) {
   const DFromV<decltype(v)> d;
@@ -3295,40 +3295,40 @@ HWY_API VFromD<D> Slide1Down(D d, VFromD<D> v) {
 // ------------------------------ Shl (Mul, ZipLower)
 namespace detail {
 
-HWY_INLINE Vec256<uint8_t> Shl(hwy::UnsignedTag /*tag*/, Vec256<uint8_t> v,
+HWY_INLINE Vec256<uint8_t> ShlImpl(hwy::UnsignedTag /*tag*/, Vec256<uint8_t> v,
                                Vec256<uint8_t> bits) {
   return Vec256<uint8_t>{__lasx_xvsll_b(v.raw, bits.raw)};
 }
 
-HWY_INLINE Vec256<uint16_t> Shl(hwy::UnsignedTag /*tag*/, Vec256<uint16_t> v,
+HWY_INLINE Vec256<uint16_t> ShlImpl(hwy::UnsignedTag /*tag*/, Vec256<uint16_t> v,
                                 Vec256<uint16_t> bits) {
   return Vec256<uint16_t>{__lasx_xvsll_h(v.raw, bits.raw)};
 }
 
-HWY_INLINE Vec256<uint32_t> Shl(hwy::UnsignedTag /*tag*/, Vec256<uint32_t> v,
+HWY_INLINE Vec256<uint32_t> ShlImpl(hwy::UnsignedTag /*tag*/, Vec256<uint32_t> v,
                                 Vec256<uint32_t> bits) {
   return Vec256<uint32_t>{__lasx_xvsll_w(v.raw, bits.raw)};
 }
 
-HWY_INLINE Vec256<uint64_t> Shl(hwy::UnsignedTag /*tag*/, Vec256<uint64_t> v,
+HWY_INLINE Vec256<uint64_t> ShlImpl(hwy::UnsignedTag /*tag*/, Vec256<uint64_t> v,
                                 Vec256<uint64_t> bits) {
   return Vec256<uint64_t>{__lasx_xvsll_d(v.raw, bits.raw)};
 }
 
 template <typename T>
-HWY_INLINE Vec256<T> Shl(hwy::SignedTag /*tag*/, Vec256<T> v, Vec256<T> bits) {
+HWY_INLINE Vec256<T> ShlImpl(hwy::SignedTag /*tag*/, Vec256<T> v, Vec256<T> bits) {
   // Signed left shifts are the same as unsigned.
   const Full256<T> di;
   const Full256<MakeUnsigned<T>> du;
   return BitCast(di,
-                 Shl(hwy::UnsignedTag(), BitCast(du, v), BitCast(du, bits)));
+                 ShlImpl(hwy::UnsignedTag(), BitCast(du, v), BitCast(du, bits)));
 }
 
 }  // namespace detail
 
 template <typename T>
 HWY_API Vec256<T> operator<<(Vec256<T> v, Vec256<T> bits) {
-  return detail::Shl(hwy::TypeTag<T>(), v, bits);
+  return detail::ShlImpl(hwy::TypeTag<T>(), v, bits);
 }
 
 // ------------------------------ Shr (MulHigh, IfThenElse, Not)
@@ -3592,7 +3592,7 @@ namespace detail {
 // I32->I64 PromoteEvenTo/PromoteOddTo
 
 template <class D, HWY_IF_LANES_D(D, 4)>
-HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteEvenToImpl(hwy::SignedTag /*to_type_tag*/,
                                    hwy::SizeTag<8> /*to_lane_size_tag*/,
                                    hwy::SignedTag /*from_type_tag*/, D d_to,
                                    Vec256<int32_t> v) {
@@ -3600,7 +3600,7 @@ HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
 }
 
 template <class D, HWY_IF_LANES_D(D, 4)>
-HWY_INLINE VFromD<D> PromoteOddTo(hwy::SignedTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteOddToImpl(hwy::SignedTag /*to_type_tag*/,
                                   hwy::SizeTag<8> /*to_lane_size_tag*/,
                                   hwy::SignedTag /*from_type_tag*/, D d_to,
                                   Vec256<int32_t> v) {

@@ -1749,45 +1749,45 @@ HWY_API svbool_t LowerHalfOfMask(D /*d*/, svbool_t m) {
 #endif
 
 namespace detail {
-HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMVV, MaskedMin, minnm)
-HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMVV, MaskedMax, maxnm)
-HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV, MaskedMin, min)
-HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV, MaskedMax, max)
-HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV, MaskedAdd, add)
-HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV, MaskedSub, sub)
-HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV, MaskedMul, mul)
-HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMVV, MaskedDiv, div)
-HWY_SVE_FOREACH_UI32(HWY_SVE_RETV_ARGMVV, MaskedDiv, div)
-HWY_SVE_FOREACH_UI64(HWY_SVE_RETV_ARGMVV, MaskedDiv, div)
+HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMVV, MaskedMinImpl, minnm)
+HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMVV, MaskedMaxImpl, maxnm)
+HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV, MaskedMinImpl, min)
+HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV, MaskedMaxImpl, max)
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV, MaskedAddImpl, add)
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV, MaskedSubImpl, sub)
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV, MaskedMulImpl, mul)
+HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMVV, MaskedDivImpl, div)
+HWY_SVE_FOREACH_UI32(HWY_SVE_RETV_ARGMVV, MaskedDivImpl, div)
+HWY_SVE_FOREACH_UI64(HWY_SVE_RETV_ARGMVV, MaskedDivImpl, div)
 #if HWY_SVE_HAVE_2
-HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV, MaskedSatAdd, qadd)
-HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV, MaskedSatSub, qsub)
+HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV, MaskedSatAddImpl, qadd)
+HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV, MaskedSatSubImpl, qsub)
 #endif
 }  // namespace detail
 
 template <class V, class M>
 HWY_API V MaskedMinOr(V no, M m, V a, V b) {
-  return IfThenElse(m, detail::MaskedMin(m, a, b), no);
+  return IfThenElse(m, detail::MaskedMinImpl(m, a, b), no);
 }
 
 template <class V, class M>
 HWY_API V MaskedMaxOr(V no, M m, V a, V b) {
-  return IfThenElse(m, detail::MaskedMax(m, a, b), no);
+  return IfThenElse(m, detail::MaskedMaxImpl(m, a, b), no);
 }
 
 template <class V, class M>
 HWY_API V MaskedAddOr(V no, M m, V a, V b) {
-  return IfThenElse(m, detail::MaskedAdd(m, a, b), no);
+  return IfThenElse(m, detail::MaskedAddImpl(m, a, b), no);
 }
 
 template <class V, class M>
 HWY_API V MaskedSubOr(V no, M m, V a, V b) {
-  return IfThenElse(m, detail::MaskedSub(m, a, b), no);
+  return IfThenElse(m, detail::MaskedSubImpl(m, a, b), no);
 }
 
 template <class V, class M>
 HWY_API V MaskedMulOr(V no, M m, V a, V b) {
-  return IfThenElse(m, detail::MaskedMul(m, a, b), no);
+  return IfThenElse(m, detail::MaskedMulImpl(m, a, b), no);
 }
 
 template <class V, class M,
@@ -1795,7 +1795,7 @@ template <class V, class M,
               V, (hwy::IsSame<TFromV<V>, hwy::float16_t>() ? (1 << 2) : 0) |
                      (1 << 4) | (1 << 8))>
 HWY_API V MaskedDivOr(V no, M m, V a, V b) {
-  return IfThenElse(m, detail::MaskedDiv(m, a, b), no);
+  return IfThenElse(m, detail::MaskedDivImpl(m, a, b), no);
 }
 
 // I8/U8/I16/U16 MaskedDivOr is implemented after I8/U8/I16/U16 Div
@@ -1803,12 +1803,12 @@ HWY_API V MaskedDivOr(V no, M m, V a, V b) {
 #if HWY_SVE_HAVE_2
 template <class V, class M>
 HWY_API V MaskedSatAddOr(V no, M m, V a, V b) {
-  return IfThenElse(m, detail::MaskedSatAdd(m, a, b), no);
+  return IfThenElse(m, detail::MaskedSatAddImpl(m, a, b), no);
 }
 
 template <class V, class M>
 HWY_API V MaskedSatSubOr(V no, M m, V a, V b) {
-  return IfThenElse(m, detail::MaskedSatSub(m, a, b), no);
+  return IfThenElse(m, detail::MaskedSatSubImpl(m, a, b), no);
 }
 #else
 template <class V, class M>
@@ -2954,9 +2954,9 @@ HWY_API svuint64_t PromoteTo(Simd<uint64_t, N, kPow2> /* d */,
 // ------------------------------ PromoteUpperTo
 
 namespace detail {
-HWY_SVE_FOREACH_UI16(HWY_SVE_PROMOTE_TO, PromoteUpperTo, unpkhi)
-HWY_SVE_FOREACH_UI32(HWY_SVE_PROMOTE_TO, PromoteUpperTo, unpkhi)
-HWY_SVE_FOREACH_UI64(HWY_SVE_PROMOTE_TO, PromoteUpperTo, unpkhi)
+HWY_SVE_FOREACH_UI16(HWY_SVE_PROMOTE_TO, PromoteUpperToImpl, unpkhi)
+HWY_SVE_FOREACH_UI32(HWY_SVE_PROMOTE_TO, PromoteUpperToImpl, unpkhi)
+HWY_SVE_FOREACH_UI64(HWY_SVE_PROMOTE_TO, PromoteUpperToImpl, unpkhi)
 #undef HWY_SVE_PROMOTE_TO
 }  // namespace detail
 
@@ -2972,7 +2972,7 @@ template <class D, class V, typename TD = TFromD<D>, typename TV = TFromV<V>,
                         (IsSigned<TD>() == IsSigned<TV>())>* = nullptr>
 HWY_API VFromD<D> PromoteUpperTo(D d, V v) {
   if (detail::IsFull(d)) {
-    return detail::PromoteUpperTo(d, v);
+    return detail::PromoteUpperToImpl(d, v);
   }
   const Rebind<TFromV<V>, decltype(d)> dh;
   return PromoteTo(d, UpperHalf(dh, v));
@@ -3572,7 +3572,7 @@ namespace detail {
   HWY_API HWY_SVE_V(int, BITS) NAME(HWY_SVE_V(BASE, BITS) v) { \
     return sv##OP##_##CHAR##BITS##_x(HWY_SVE_PTRUE(BITS), v);  \
   }
-HWY_SVE_FOREACH_F(HWY_SVE_GET_EXP, GetExponent, logb)
+HWY_SVE_FOREACH_F(HWY_SVE_GET_EXP, GetExponentImpl, logb)
 #undef HWY_SVE_GET_EXP
 }  // namespace detail
 
@@ -3580,7 +3580,7 @@ template <class V, HWY_IF_FLOAT_V(V)>
 HWY_API V GetExponent(V v) {
   const DFromV<V> d;
   const RebindToSigned<decltype(d)> di;
-  const VFromD<decltype(di)> exponent_int = detail::GetExponent(v);
+  const VFromD<decltype(di)> exponent_int = detail::GetExponentImpl(v);
   // convert integer to original type
   return ConvertTo(d, exponent_int);
 }
@@ -3679,7 +3679,7 @@ namespace detail {
 
 template <size_t kLaneSize, size_t kVectSize, class V,
           HWY_IF_NOT_T_SIZE_V(V, 8)>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0x88> /*idx_3210_tag*/,
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<0x88> /*idx_3210_tag*/,
                                   hwy::SizeTag<kLaneSize> /*lane_size_tag*/,
                                   hwy::SizeTag<kVectSize> /*vect_size_tag*/,
                                   V v) {
@@ -3693,7 +3693,7 @@ HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0x88> /*idx_3210_tag*/,
 
 template <size_t kLaneSize, size_t kVectSize, class V,
           HWY_IF_NOT_T_SIZE_V(V, 8)>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0xDD> /*idx_3210_tag*/,
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<0xDD> /*idx_3210_tag*/,
                                   hwy::SizeTag<kLaneSize> /*lane_size_tag*/,
                                   hwy::SizeTag<kVectSize> /*vect_size_tag*/,
                                   V v) {
@@ -3925,23 +3925,23 @@ HWY_API V UpperHalf(const DH dh, const V v) {
 // ------------------------------ DupEven
 
 namespace detail {
-HWY_SVE_FOREACH(HWY_SVE_RETV_ARGVV, InterleaveEven, trn1)
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGVV, InterleaveEvenImpl, trn1)
 }  // namespace detail
 
 template <class V>
 HWY_API V DupEven(const V v) {
-  return detail::InterleaveEven(v, v);
+  return detail::InterleaveEvenImpl(v, v);
 }
 
 // ------------------------------ DupOdd
 
 namespace detail {
-HWY_SVE_FOREACH(HWY_SVE_RETV_ARGVV, InterleaveOdd, trn2)
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGVV, InterleaveOddImpl, trn2)
 }  // namespace detail
 
 template <class V>
 HWY_API V DupOdd(const V v) {
-  return detail::InterleaveOdd(v, v);
+  return detail::InterleaveOddImpl(v, v);
 }
 
 // ------------------------------ OddEven
@@ -3969,7 +3969,7 @@ HWY_API V OddEven(const V odd, const V even) {
 template <class V>
 HWY_API V OddEven(const V odd, const V even) {
   const auto odd_in_even = detail::Ext<1>(odd, odd);
-  return detail::InterleaveEven(even, odd_in_even);
+  return detail::InterleaveEvenImpl(even, odd_in_even);
 }
 
 #endif  // HWY_TARGET
@@ -3977,13 +3977,13 @@ HWY_API V OddEven(const V odd, const V even) {
 // ------------------------------ InterleaveEven
 template <class D>
 HWY_API VFromD<D> InterleaveEven(D /*d*/, VFromD<D> a, VFromD<D> b) {
-  return detail::InterleaveEven(a, b);
+  return detail::InterleaveEvenImpl(a, b);
 }
 
 // ------------------------------ InterleaveOdd
 template <class D>
 HWY_API VFromD<D> InterleaveOdd(D /*d*/, VFromD<D> a, VFromD<D> b) {
-  return detail::InterleaveOdd(a, b);
+  return detail::InterleaveOddImpl(a, b);
 }
 
 // ------------------------------ OddEvenBlocks
@@ -4244,8 +4244,8 @@ HWY_API V InterleaveLowerBlocks(D d, V a, V b) {
   const Repartition<uint64_t, decltype(d)> du64;
   const svuint64_t a64 = BitCast(du64, a);
   const svuint64_t b64 = BitCast(du64, b);
-  svuint64_t even = detail::InterleaveEven(a64, b64);  // a0 b0 a2 b2
-  svuint64_t odd = detail::InterleaveOdd(a64, b64);    // a1 b1 a3 b3
+  svuint64_t even = detail::InterleaveEvenImpl(a64, b64);  // a0 b0 a2 b2
+  svuint64_t odd = detail::InterleaveOddImpl(a64, b64);    // a1 b1 a3 b3
   return BitCast(d, detail::ZipLowerSame(even, odd));  // a10 b10
 #endif
 }
@@ -4265,8 +4265,8 @@ HWY_API V InterleaveUpperBlocks(D d, V a, V b) {
   const Repartition<uint64_t, decltype(d)> du64;
   const svuint64_t a64 = BitCast(du64, a);
   const svuint64_t b64 = BitCast(du64, b);
-  svuint64_t even = detail::InterleaveEven(a64, b64);  // a0 b0 a2 b2
-  svuint64_t odd = detail::InterleaveOdd(a64, b64);    // a1 b1 a3 b3
+  svuint64_t even = detail::InterleaveEvenImpl(a64, b64);  // a0 b0 a2 b2
+  svuint64_t odd = detail::InterleaveOddImpl(a64, b64);    // a1 b1 a3 b3
   HWY_IF_CONSTEXPR(detail::IsFull(d)) {
     return BitCast(d, detail::ZipUpperSame(even, odd));  // a32 b32
   }
@@ -4354,7 +4354,7 @@ HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {  // 3210
 #endif
   (void)d;
   const auto odd_in_even = detail::Ext<1>(v, v);  // x321
-  return detail::InterleaveEven(odd_in_even, v);  // 2301
+  return detail::InterleaveEvenImpl(odd_in_even, v);  // 2301
 }
 
 // ------------------------------ Reverse4 (TableLookupLanes)
@@ -4612,7 +4612,7 @@ HWY_API VFromD<D> Compress(D d, VFromD<D> v, const svbool_t mask) {
 
   const auto vu = BitCast(du, v);
   const auto vw_lo = PromoteTo(dw, vu);
-  const auto vw_hi = detail::PromoteUpperTo(dw, vu);
+  const auto vw_hi = detail::PromoteUpperToImpl(dw, vu);
 
   const auto mask_lo = svunpklo_b(mask);
   const auto mask_hi = svunpkhi_b(mask);
@@ -4963,7 +4963,7 @@ namespace detail {
     return sv##OP##_##CHAR##BITS(v, kLane);                        \
   }
 
-HWY_SVE_FOREACH(HWY_SVE_BROADCAST, BroadcastLane, dup_lane)
+HWY_SVE_FOREACH(HWY_SVE_BROADCAST, BroadcastLaneImpl, dup_lane)
 #undef HWY_SVE_BROADCAST
 }  // namespace detail
 
@@ -4974,7 +4974,7 @@ HWY_API V Broadcast(const V v) {
   constexpr size_t kLanesPerBlock = detail::LanesPerBlock(du);
   static_assert(0 <= kLane && kLane < kLanesPerBlock, "Invalid lane");
 #if HWY_TARGET == HWY_SVE2_128
-  return detail::BroadcastLane<kLane>(v);
+  return detail::BroadcastLaneImpl<kLane>(v);
 #else
   auto idx = detail::OffsetsOf128BitBlocks(du, Iota(du, 0));
   if (kLane != 0) {
@@ -4987,7 +4987,7 @@ HWY_API V Broadcast(const V v) {
 template <int kLane, class V>
 HWY_API V BroadcastLane(const V v) {
   static_assert(0 <= kLane && kLane < HWY_MAX_LANES_V(V), "Invalid lane");
-  return detail::BroadcastLane<kLane>(v);
+  return detail::BroadcastLaneImpl<kLane>(v);
 }
 
 // ------------------------------ ShiftLeftLanes
@@ -5173,7 +5173,7 @@ namespace detail {
 
 // Signed to signed PromoteEvenTo
 template <class D>
-HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteEvenToImpl(hwy::SignedTag /*to_type_tag*/,
                                    hwy::SizeTag<2> /*to_lane_size_tag*/,
                                    hwy::SignedTag /*from_type_tag*/, D d_to,
                                    svint8_t v) {
@@ -5181,7 +5181,7 @@ HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
 }
 
 template <class D>
-HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteEvenToImpl(hwy::SignedTag /*to_type_tag*/,
                                    hwy::SizeTag<4> /*to_lane_size_tag*/,
                                    hwy::SignedTag /*from_type_tag*/, D d_to,
                                    svint16_t v) {
@@ -5189,7 +5189,7 @@ HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
 }
 
 template <class D>
-HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteEvenToImpl(hwy::SignedTag /*to_type_tag*/,
                                    hwy::SizeTag<8> /*to_lane_size_tag*/,
                                    hwy::SignedTag /*from_type_tag*/, D d_to,
                                    svint32_t v) {
@@ -5198,7 +5198,7 @@ HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
 
 // F16->F32 PromoteEvenTo
 template <class D>
-HWY_INLINE VFromD<D> PromoteEvenTo(hwy::FloatTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteEvenToImpl(hwy::FloatTag /*to_type_tag*/,
                                    hwy::SizeTag<4> /*to_lane_size_tag*/,
                                    hwy::FloatTag /*from_type_tag*/, D d_to,
                                    svfloat16_t v) {
@@ -5208,7 +5208,7 @@ HWY_INLINE VFromD<D> PromoteEvenTo(hwy::FloatTag /*to_type_tag*/,
 
 // F32->F64 PromoteEvenTo
 template <class D>
-HWY_INLINE VFromD<D> PromoteEvenTo(hwy::FloatTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteEvenToImpl(hwy::FloatTag /*to_type_tag*/,
                                    hwy::SizeTag<8> /*to_lane_size_tag*/,
                                    hwy::FloatTag /*from_type_tag*/, D d_to,
                                    svfloat32_t v) {
@@ -5218,7 +5218,7 @@ HWY_INLINE VFromD<D> PromoteEvenTo(hwy::FloatTag /*to_type_tag*/,
 
 // I32->F64 PromoteEvenTo
 template <class D>
-HWY_INLINE VFromD<D> PromoteEvenTo(hwy::FloatTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteEvenToImpl(hwy::FloatTag /*to_type_tag*/,
                                    hwy::SizeTag<8> /*to_lane_size_tag*/,
                                    hwy::SignedTag /*from_type_tag*/, D d_to,
                                    svint32_t v) {
@@ -5228,7 +5228,7 @@ HWY_INLINE VFromD<D> PromoteEvenTo(hwy::FloatTag /*to_type_tag*/,
 
 // U32->F64 PromoteEvenTo
 template <class D>
-HWY_INLINE VFromD<D> PromoteEvenTo(hwy::FloatTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteEvenToImpl(hwy::FloatTag /*to_type_tag*/,
                                    hwy::SizeTag<8> /*to_lane_size_tag*/,
                                    hwy::UnsignedTag /*from_type_tag*/, D d_to,
                                    svuint32_t v) {
@@ -5238,7 +5238,7 @@ HWY_INLINE VFromD<D> PromoteEvenTo(hwy::FloatTag /*to_type_tag*/,
 
 // F32->I64 PromoteEvenTo
 template <class D>
-HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteEvenToImpl(hwy::SignedTag /*to_type_tag*/,
                                    hwy::SizeTag<8> /*to_lane_size_tag*/,
                                    hwy::FloatTag /*from_type_tag*/, D d_to,
                                    svfloat32_t v) {
@@ -5248,7 +5248,7 @@ HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
 
 // F32->U64 PromoteEvenTo
 template <class D>
-HWY_INLINE VFromD<D> PromoteEvenTo(hwy::UnsignedTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteEvenToImpl(hwy::UnsignedTag /*to_type_tag*/,
                                    hwy::SizeTag<8> /*to_lane_size_tag*/,
                                    hwy::FloatTag /*from_type_tag*/, D d_to,
                                    svfloat32_t v) {
@@ -5258,30 +5258,30 @@ HWY_INLINE VFromD<D> PromoteEvenTo(hwy::UnsignedTag /*to_type_tag*/,
 
 // F16->F32 PromoteOddTo
 template <class D>
-HWY_INLINE VFromD<D> PromoteOddTo(hwy::FloatTag to_type_tag,
+HWY_INLINE VFromD<D> PromoteOddToImpl(hwy::FloatTag to_type_tag,
                                   hwy::SizeTag<4> to_lane_size_tag,
                                   hwy::FloatTag from_type_tag, D d_to,
                                   svfloat16_t v) {
-  return PromoteEvenTo(to_type_tag, to_lane_size_tag, from_type_tag, d_to,
+  return PromoteEvenToImpl(to_type_tag, to_lane_size_tag, from_type_tag, d_to,
                        DupOdd(v));
 }
 
 // I32/U32/F32->F64 PromoteOddTo
 template <class FromTypeTag, class D, class V>
-HWY_INLINE VFromD<D> PromoteOddTo(hwy::FloatTag to_type_tag,
+HWY_INLINE VFromD<D> PromoteOddToImpl(hwy::FloatTag to_type_tag,
                                   hwy::SizeTag<8> to_lane_size_tag,
                                   FromTypeTag from_type_tag, D d_to, V v) {
-  return PromoteEvenTo(to_type_tag, to_lane_size_tag, from_type_tag, d_to,
+  return PromoteEvenToImpl(to_type_tag, to_lane_size_tag, from_type_tag, d_to,
                        DupOdd(v));
 }
 
 // F32->I64/U64 PromoteOddTo
 template <class ToTypeTag, class D, HWY_IF_UI64_D(D)>
-HWY_INLINE VFromD<D> PromoteOddTo(ToTypeTag to_type_tag,
+HWY_INLINE VFromD<D> PromoteOddToImpl(ToTypeTag to_type_tag,
                                   hwy::SizeTag<8> to_lane_size_tag,
                                   hwy::FloatTag from_type_tag, D d_to,
                                   svfloat32_t v) {
-  return PromoteEvenTo(to_type_tag, to_lane_size_tag, from_type_tag, d_to,
+  return PromoteEvenToImpl(to_type_tag, to_lane_size_tag, from_type_tag, d_to,
                        DupOdd(v));
 }
 
@@ -5301,7 +5301,7 @@ HWY_API VBF16 ReorderDemote2To(Simd<bfloat16_t, N, kPow2> dbf16, svfloat32_t a,
       BitCast(ScalableTag<uint16_t>(), detail::RoundF32ForDemoteToBF16(a));
   const auto b_in_odd =
       BitCast(ScalableTag<uint16_t>(), detail::RoundF32ForDemoteToBF16(b));
-  return BitCast(dbf16, detail::InterleaveOdd(b_in_odd, a_in_odd));
+  return BitCast(dbf16, detail::InterleaveOddImpl(b_in_odd, a_in_odd));
 #endif
 }
 
@@ -5315,7 +5315,7 @@ HWY_API svint16_t ReorderDemote2To(Simd<int16_t, N, kPow2> d16, svint32_t a,
 #else
   const svint16_t a16 = BitCast(d16, detail::SaturateI<int16_t>(a));
   const svint16_t b16 = BitCast(d16, detail::SaturateI<int16_t>(b));
-  return detail::InterleaveEven(a16, b16);
+  return detail::InterleaveEvenImpl(a16, b16);
 #endif
 }
 
@@ -5332,7 +5332,7 @@ HWY_API svuint16_t ReorderDemote2To(Simd<uint16_t, N, kPow2> d16, svint32_t a,
   const svuint32_t clamped_b = BitCast(du32, detail::MaxN(b, 0));
   const svuint16_t a16 = BitCast(d16, detail::SaturateU<uint16_t>(clamped_a));
   const svuint16_t b16 = BitCast(d16, detail::SaturateU<uint16_t>(clamped_b));
-  return detail::InterleaveEven(a16, b16);
+  return detail::InterleaveEvenImpl(a16, b16);
 #endif
 }
 
@@ -5346,7 +5346,7 @@ HWY_API svuint16_t ReorderDemote2To(Simd<uint16_t, N, kPow2> d16, svuint32_t a,
 #else
   const svuint16_t a16 = BitCast(d16, detail::SaturateU<uint16_t>(a));
   const svuint16_t b16 = BitCast(d16, detail::SaturateU<uint16_t>(b));
-  return detail::InterleaveEven(a16, b16);
+  return detail::InterleaveEvenImpl(a16, b16);
 #endif
 }
 
@@ -5360,7 +5360,7 @@ HWY_API svint8_t ReorderDemote2To(Simd<int8_t, N, kPow2> d8, svint16_t a,
 #else
   const svint8_t a8 = BitCast(d8, detail::SaturateI<int8_t>(a));
   const svint8_t b8 = BitCast(d8, detail::SaturateI<int8_t>(b));
-  return detail::InterleaveEven(a8, b8);
+  return detail::InterleaveEvenImpl(a8, b8);
 #endif
 }
 
@@ -5377,7 +5377,7 @@ HWY_API svuint8_t ReorderDemote2To(Simd<uint8_t, N, kPow2> d8, svint16_t a,
   const svuint16_t clamped_b = BitCast(du16, detail::MaxN(b, 0));
   const svuint8_t a8 = BitCast(d8, detail::SaturateU<uint8_t>(clamped_a));
   const svuint8_t b8 = BitCast(d8, detail::SaturateU<uint8_t>(clamped_b));
-  return detail::InterleaveEven(a8, b8);
+  return detail::InterleaveEvenImpl(a8, b8);
 #endif
 }
 
@@ -5391,7 +5391,7 @@ HWY_API svuint8_t ReorderDemote2To(Simd<uint8_t, N, kPow2> d8, svuint16_t a,
 #else
   const svuint8_t a8 = BitCast(d8, detail::SaturateU<uint8_t>(a));
   const svuint8_t b8 = BitCast(d8, detail::SaturateU<uint8_t>(b));
-  return detail::InterleaveEven(a8, b8);
+  return detail::InterleaveEvenImpl(a8, b8);
 #endif
 }
 
@@ -5405,7 +5405,7 @@ HWY_API svint32_t ReorderDemote2To(Simd<int32_t, N, kPow2> d32, svint64_t a,
 #else
   const svint32_t a32 = BitCast(d32, detail::SaturateI<int32_t>(a));
   const svint32_t b32 = BitCast(d32, detail::SaturateI<int32_t>(b));
-  return detail::InterleaveEven(a32, b32);
+  return detail::InterleaveEvenImpl(a32, b32);
 #endif
 }
 
@@ -5422,7 +5422,7 @@ HWY_API svuint32_t ReorderDemote2To(Simd<uint32_t, N, kPow2> d32, svint64_t a,
   const svuint64_t clamped_b = BitCast(du64, detail::MaxN(b, 0));
   const svuint32_t a32 = BitCast(d32, detail::SaturateU<uint32_t>(clamped_a));
   const svuint32_t b32 = BitCast(d32, detail::SaturateU<uint32_t>(clamped_b));
-  return detail::InterleaveEven(a32, b32);
+  return detail::InterleaveEvenImpl(a32, b32);
 #endif
 }
 
@@ -5436,7 +5436,7 @@ HWY_API svuint32_t ReorderDemote2To(Simd<uint32_t, N, kPow2> d32, svuint64_t a,
 #else
   const svuint32_t a32 = BitCast(d32, detail::SaturateU<uint32_t>(a));
   const svuint32_t b32 = BitCast(d32, detail::SaturateU<uint32_t>(b));
-  return detail::InterleaveEven(a32, b32);
+  return detail::InterleaveEvenImpl(a32, b32);
 #endif
 }
 
@@ -5445,7 +5445,7 @@ template <class D, class V, HWY_IF_SIGNED_D(D), HWY_IF_UNSIGNED_V(V),
 HWY_API VFromD<D> ReorderDemote2To(D dn, V a, V b) {
   const auto clamped_a = BitCast(dn, detail::SaturateU<TFromD<D>>(a));
   const auto clamped_b = BitCast(dn, detail::SaturateU<TFromD<D>>(b));
-  return detail::InterleaveEven(clamped_a, clamped_b);
+  return detail::InterleaveEvenImpl(clamped_a, clamped_b);
 }
 
 template <class D, class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<D>),
@@ -6549,7 +6549,7 @@ HWY_API VFromD<DW> MulEven(const V a, const V b) {
 #else
   const auto lo = Mul(a, b);
   const auto hi = MulHigh(a, b);
-  return BitCast(DW(), detail::InterleaveEven(lo, hi));
+  return BitCast(DW(), detail::InterleaveEvenImpl(lo, hi));
 #endif
 }
 
@@ -6561,32 +6561,32 @@ HWY_API VFromD<DW> MulOdd(const V a, const V b) {
 #else
   const auto lo = Mul(a, b);
   const auto hi = MulHigh(a, b);
-  return BitCast(DW(), detail::InterleaveOdd(lo, hi));
+  return BitCast(DW(), detail::InterleaveOddImpl(lo, hi));
 #endif
 }
 
 HWY_API svint64_t MulEven(const svint64_t a, const svint64_t b) {
   const auto lo = Mul(a, b);
   const auto hi = MulHigh(a, b);
-  return detail::InterleaveEven(lo, hi);
+  return detail::InterleaveEvenImpl(lo, hi);
 }
 
 HWY_API svuint64_t MulEven(const svuint64_t a, const svuint64_t b) {
   const auto lo = Mul(a, b);
   const auto hi = MulHigh(a, b);
-  return detail::InterleaveEven(lo, hi);
+  return detail::InterleaveEvenImpl(lo, hi);
 }
 
 HWY_API svint64_t MulOdd(const svint64_t a, const svint64_t b) {
   const auto lo = Mul(a, b);
   const auto hi = MulHigh(a, b);
-  return detail::InterleaveOdd(lo, hi);
+  return detail::InterleaveOddImpl(lo, hi);
 }
 
 HWY_API svuint64_t MulOdd(const svuint64_t a, const svuint64_t b) {
   const auto lo = Mul(a, b);
   const auto hi = MulHigh(a, b);
-  return detail::InterleaveOdd(lo, hi);
+  return detail::InterleaveOddImpl(lo, hi);
 }
 
 // ------------------------------ PairwiseAdd/PairwiseSub
@@ -6608,14 +6608,14 @@ namespace detail {
     return sv##OP##_##CHAR##BITS##_m(HWY_SVE_PTRUE(BITS), a, b);           \
   }
 
-HWY_SVE_FOREACH(HWY_SVE_SV_PAIRWISE_ADD, PairwiseAdd, addp)
+HWY_SVE_FOREACH(HWY_SVE_SV_PAIRWISE_ADD, PairwiseAddImpl, addp)
 #undef HWY_SVE_SV_PAIRWISE_ADD
 }  // namespace detail
 
 // Pairwise add returning interleaved output of a and b
 template <class D, class V, HWY_IF_LANES_GT_D(D, 1)>
 HWY_API V PairwiseAdd(D d, V a, V b) {
-  return detail::PairwiseAdd(d, a, b);
+  return detail::PairwiseAddImpl(d, a, b);
 }
 
 #endif  // HWY_SVE_HAVE_2

@@ -894,22 +894,22 @@ HWY_API Vec128<T, N> operator^(const Vec128<T, N> a, const Vec128<T, N> b) {
 namespace detail {
 
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> PopulationCount(hwy::SizeTag<1> /* tag */,
+HWY_INLINE Vec128<T, N> PopulationCountImpl(hwy::SizeTag<1> /* tag */,
                                         Vec128<T, N> v) {
   return Vec128<T, N>{_mm_popcnt_epi8(v.raw)};
 }
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> PopulationCount(hwy::SizeTag<2> /* tag */,
+HWY_INLINE Vec128<T, N> PopulationCountImpl(hwy::SizeTag<2> /* tag */,
                                         Vec128<T, N> v) {
   return Vec128<T, N>{_mm_popcnt_epi16(v.raw)};
 }
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> PopulationCount(hwy::SizeTag<4> /* tag */,
+HWY_INLINE Vec128<T, N> PopulationCountImpl(hwy::SizeTag<4> /* tag */,
                                         Vec128<T, N> v) {
   return Vec128<T, N>{_mm_popcnt_epi32(v.raw)};
 }
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> PopulationCount(hwy::SizeTag<8> /* tag */,
+HWY_INLINE Vec128<T, N> PopulationCountImpl(hwy::SizeTag<8> /* tag */,
                                         Vec128<T, N> v) {
   return Vec128<T, N>{_mm_popcnt_epi64(v.raw)};
 }
@@ -918,7 +918,7 @@ HWY_INLINE Vec128<T, N> PopulationCount(hwy::SizeTag<8> /* tag */,
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> PopulationCount(Vec128<T, N> v) {
-  return detail::PopulationCount(hwy::SizeTag<sizeof(T)>(), v);
+  return detail::PopulationCountImpl(hwy::SizeTag<sizeof(T)>(), v);
 }
 
 #endif  // HWY_TARGET <= HWY_AVX3_DL
@@ -931,17 +931,17 @@ HWY_API Vec128<T, N> PopulationCount(Vec128<T, N> v) {
 namespace detail {
 
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> Neg(hwy::FloatTag /*tag*/, const Vec128<T, N> v) {
+HWY_INLINE Vec128<T, N> NegImpl(hwy::FloatTag /*tag*/, const Vec128<T, N> v) {
   return Xor(v, SignBit(DFromV<decltype(v)>()));
 }
 
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> Neg(hwy::SpecialTag /*tag*/, const Vec128<T, N> v) {
+HWY_INLINE Vec128<T, N> NegImpl(hwy::SpecialTag /*tag*/, const Vec128<T, N> v) {
   return Xor(v, SignBit(DFromV<decltype(v)>()));
 }
 
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> Neg(hwy::SignedTag /*tag*/, const Vec128<T, N> v) {
+HWY_INLINE Vec128<T, N> NegImpl(hwy::SignedTag /*tag*/, const Vec128<T, N> v) {
   return Zero(DFromV<decltype(v)>()) - v;
 }
 
@@ -949,7 +949,7 @@ HWY_INLINE Vec128<T, N> Neg(hwy::SignedTag /*tag*/, const Vec128<T, N> v) {
 
 template <typename T, size_t N>
 HWY_INLINE Vec128<T, N> Neg(const Vec128<T, N> v) {
-  return detail::Neg(hwy::TypeTag<T>(), v);
+  return detail::NegImpl(hwy::TypeTag<T>(), v);
 }
 
 // ------------------------------ Floating-point Abs
@@ -999,22 +999,22 @@ HWY_API V CopySignToAbs(const V abs, const V sign) {
 namespace detail {
 
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> MaskFromVec(hwy::SizeTag<1> /*tag*/,
+HWY_INLINE Mask128<T, N> MaskFromVecImpl(hwy::SizeTag<1> /*tag*/,
                                      const Vec128<T, N> v) {
   return Mask128<T, N>{_mm_movepi8_mask(v.raw)};
 }
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> MaskFromVec(hwy::SizeTag<2> /*tag*/,
+HWY_INLINE Mask128<T, N> MaskFromVecImpl(hwy::SizeTag<2> /*tag*/,
                                      const Vec128<T, N> v) {
   return Mask128<T, N>{_mm_movepi16_mask(v.raw)};
 }
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> MaskFromVec(hwy::SizeTag<4> /*tag*/,
+HWY_INLINE Mask128<T, N> MaskFromVecImpl(hwy::SizeTag<4> /*tag*/,
                                      const Vec128<T, N> v) {
   return Mask128<T, N>{_mm_movepi32_mask(v.raw)};
 }
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> MaskFromVec(hwy::SizeTag<8> /*tag*/,
+HWY_INLINE Mask128<T, N> MaskFromVecImpl(hwy::SizeTag<8> /*tag*/,
                                      const Vec128<T, N> v) {
   return Mask128<T, N>{_mm_movepi64_mask(v.raw)};
 }
@@ -1023,7 +1023,7 @@ HWY_INLINE Mask128<T, N> MaskFromVec(hwy::SizeTag<8> /*tag*/,
 
 template <typename T, size_t N>
 HWY_API Mask128<T, N> MaskFromVec(const Vec128<T, N> v) {
-  return detail::MaskFromVec(hwy::SizeTag<sizeof(T)>(), v);
+  return detail::MaskFromVecImpl(hwy::SizeTag<sizeof(T)>(), v);
 }
 // There do not seem to be native floating-point versions of these instructions.
 #if HWY_HAVE_FLOAT16
@@ -1456,25 +1456,25 @@ HWY_API MFromD<DTo> RebindMask(DTo /* tag */, Mask128<TFrom, NFrom> m) {
 namespace detail {
 
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> IfThenElse(hwy::SizeTag<1> /* tag */,
+HWY_INLINE Vec128<T, N> IfThenElseImpl(hwy::SizeTag<1> /* tag */,
                                    Mask128<T, N> mask, Vec128<T, N> yes,
                                    Vec128<T, N> no) {
   return Vec128<T, N>{_mm_mask_blend_epi8(mask.raw, no.raw, yes.raw)};
 }
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> IfThenElse(hwy::SizeTag<2> /* tag */,
+HWY_INLINE Vec128<T, N> IfThenElseImpl(hwy::SizeTag<2> /* tag */,
                                    Mask128<T, N> mask, Vec128<T, N> yes,
                                    Vec128<T, N> no) {
   return Vec128<T, N>{_mm_mask_blend_epi16(mask.raw, no.raw, yes.raw)};
 }
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> IfThenElse(hwy::SizeTag<4> /* tag */,
+HWY_INLINE Vec128<T, N> IfThenElseImpl(hwy::SizeTag<4> /* tag */,
                                    Mask128<T, N> mask, Vec128<T, N> yes,
                                    Vec128<T, N> no) {
   return Vec128<T, N>{_mm_mask_blend_epi32(mask.raw, no.raw, yes.raw)};
 }
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> IfThenElse(hwy::SizeTag<8> /* tag */,
+HWY_INLINE Vec128<T, N> IfThenElseImpl(hwy::SizeTag<8> /* tag */,
                                    Mask128<T, N> mask, Vec128<T, N> yes,
                                    Vec128<T, N> no) {
   return Vec128<T, N>{_mm_mask_blend_epi64(mask.raw, no.raw, yes.raw)};
@@ -1485,7 +1485,7 @@ HWY_INLINE Vec128<T, N> IfThenElse(hwy::SizeTag<8> /* tag */,
 template <typename T, size_t N, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec128<T, N> IfThenElse(Mask128<T, N> mask, Vec128<T, N> yes,
                                 Vec128<T, N> no) {
-  return detail::IfThenElse(hwy::SizeTag<sizeof(T)>(), mask, yes, no);
+  return detail::IfThenElseImpl(hwy::SizeTag<sizeof(T)>(), mask, yes, no);
 }
 
 #if HWY_HAVE_FLOAT16
@@ -1521,22 +1521,22 @@ HWY_API Vec128<double, N> IfThenElse(Mask128<double, N> mask,
 namespace detail {
 
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> IfThenElseZero(hwy::SizeTag<1> /* tag */,
+HWY_INLINE Vec128<T, N> IfThenElseZeroImpl(hwy::SizeTag<1> /* tag */,
                                        Mask128<T, N> mask, Vec128<T, N> yes) {
   return Vec128<T, N>{_mm_maskz_mov_epi8(mask.raw, yes.raw)};
 }
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> IfThenElseZero(hwy::SizeTag<2> /* tag */,
+HWY_INLINE Vec128<T, N> IfThenElseZeroImpl(hwy::SizeTag<2> /* tag */,
                                        Mask128<T, N> mask, Vec128<T, N> yes) {
   return Vec128<T, N>{_mm_maskz_mov_epi16(mask.raw, yes.raw)};
 }
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> IfThenElseZero(hwy::SizeTag<4> /* tag */,
+HWY_INLINE Vec128<T, N> IfThenElseZeroImpl(hwy::SizeTag<4> /* tag */,
                                        Mask128<T, N> mask, Vec128<T, N> yes) {
   return Vec128<T, N>{_mm_maskz_mov_epi32(mask.raw, yes.raw)};
 }
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> IfThenElseZero(hwy::SizeTag<8> /* tag */,
+HWY_INLINE Vec128<T, N> IfThenElseZeroImpl(hwy::SizeTag<8> /* tag */,
                                        Mask128<T, N> mask, Vec128<T, N> yes) {
   return Vec128<T, N>{_mm_maskz_mov_epi64(mask.raw, yes.raw)};
 }
@@ -1545,7 +1545,7 @@ HWY_INLINE Vec128<T, N> IfThenElseZero(hwy::SizeTag<8> /* tag */,
 
 template <typename T, size_t N, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec128<T, N> IfThenElseZero(Mask128<T, N> mask, Vec128<T, N> yes) {
-  return detail::IfThenElseZero(hwy::SizeTag<sizeof(T)>(), mask, yes);
+  return detail::IfThenElseZeroImpl(hwy::SizeTag<sizeof(T)>(), mask, yes);
 }
 
 template <size_t N>
@@ -1570,23 +1570,23 @@ HWY_API V IfThenElseZero(MFromD<D> mask, V yes) {
 namespace detail {
 
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> IfThenZeroElse(hwy::SizeTag<1> /* tag */,
+HWY_INLINE Vec128<T, N> IfThenZeroElseImpl(hwy::SizeTag<1> /* tag */,
                                        Mask128<T, N> mask, Vec128<T, N> no) {
   // xor_epi8/16 are missing, but we have sub, which is just as fast for u8/16.
   return Vec128<T, N>{_mm_mask_sub_epi8(no.raw, mask.raw, no.raw, no.raw)};
 }
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> IfThenZeroElse(hwy::SizeTag<2> /* tag */,
+HWY_INLINE Vec128<T, N> IfThenZeroElseImpl(hwy::SizeTag<2> /* tag */,
                                        Mask128<T, N> mask, Vec128<T, N> no) {
   return Vec128<T, N>{_mm_mask_sub_epi16(no.raw, mask.raw, no.raw, no.raw)};
 }
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> IfThenZeroElse(hwy::SizeTag<4> /* tag */,
+HWY_INLINE Vec128<T, N> IfThenZeroElseImpl(hwy::SizeTag<4> /* tag */,
                                        Mask128<T, N> mask, Vec128<T, N> no) {
   return Vec128<T, N>{_mm_mask_xor_epi32(no.raw, mask.raw, no.raw, no.raw)};
 }
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> IfThenZeroElse(hwy::SizeTag<8> /* tag */,
+HWY_INLINE Vec128<T, N> IfThenZeroElseImpl(hwy::SizeTag<8> /* tag */,
                                        Mask128<T, N> mask, Vec128<T, N> no) {
   return Vec128<T, N>{_mm_mask_xor_epi64(no.raw, mask.raw, no.raw, no.raw)};
 }
@@ -1595,7 +1595,7 @@ HWY_INLINE Vec128<T, N> IfThenZeroElse(hwy::SizeTag<8> /* tag */,
 
 template <typename T, size_t N, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec128<T, N> IfThenZeroElse(Mask128<T, N> mask, Vec128<T, N> no) {
-  return detail::IfThenZeroElse(hwy::SizeTag<sizeof(T)>(), mask, no);
+  return detail::IfThenZeroElseImpl(hwy::SizeTag<sizeof(T)>(), mask, no);
 }
 
 template <size_t N>
@@ -1622,7 +1622,7 @@ HWY_API V IfThenZeroElse(MFromD<D> mask, V no) {
 namespace detail {
 
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> And(hwy::SizeTag<1> /*tag*/, const Mask128<T, N> a,
+HWY_INLINE Mask128<T, N> AndImpl(hwy::SizeTag<1> /*tag*/, const Mask128<T, N> a,
                              const Mask128<T, N> b) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kand_mask16(a.raw, b.raw)};
@@ -1631,7 +1631,7 @@ HWY_INLINE Mask128<T, N> And(hwy::SizeTag<1> /*tag*/, const Mask128<T, N> a,
 #endif
 }
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> And(hwy::SizeTag<2> /*tag*/, const Mask128<T, N> a,
+HWY_INLINE Mask128<T, N> AndImpl(hwy::SizeTag<2> /*tag*/, const Mask128<T, N> a,
                              const Mask128<T, N> b) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kand_mask8(a.raw, b.raw)};
@@ -1640,7 +1640,7 @@ HWY_INLINE Mask128<T, N> And(hwy::SizeTag<2> /*tag*/, const Mask128<T, N> a,
 #endif
 }
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> And(hwy::SizeTag<4> /*tag*/, const Mask128<T, N> a,
+HWY_INLINE Mask128<T, N> AndImpl(hwy::SizeTag<4> /*tag*/, const Mask128<T, N> a,
                              const Mask128<T, N> b) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kand_mask8(a.raw, b.raw)};
@@ -1649,7 +1649,7 @@ HWY_INLINE Mask128<T, N> And(hwy::SizeTag<4> /*tag*/, const Mask128<T, N> a,
 #endif
 }
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> And(hwy::SizeTag<8> /*tag*/, const Mask128<T, N> a,
+HWY_INLINE Mask128<T, N> AndImpl(hwy::SizeTag<8> /*tag*/, const Mask128<T, N> a,
                              const Mask128<T, N> b) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kand_mask8(a.raw, b.raw)};
@@ -1659,7 +1659,7 @@ HWY_INLINE Mask128<T, N> And(hwy::SizeTag<8> /*tag*/, const Mask128<T, N> a,
 }
 
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> AndNot(hwy::SizeTag<1> /*tag*/, const Mask128<T, N> a,
+HWY_INLINE Mask128<T, N> AndNotImpl(hwy::SizeTag<1> /*tag*/, const Mask128<T, N> a,
                                 const Mask128<T, N> b) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kandn_mask16(a.raw, b.raw)};
@@ -1668,7 +1668,7 @@ HWY_INLINE Mask128<T, N> AndNot(hwy::SizeTag<1> /*tag*/, const Mask128<T, N> a,
 #endif
 }
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> AndNot(hwy::SizeTag<2> /*tag*/, const Mask128<T, N> a,
+HWY_INLINE Mask128<T, N> AndNotImpl(hwy::SizeTag<2> /*tag*/, const Mask128<T, N> a,
                                 const Mask128<T, N> b) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kandn_mask8(a.raw, b.raw)};
@@ -1677,7 +1677,7 @@ HWY_INLINE Mask128<T, N> AndNot(hwy::SizeTag<2> /*tag*/, const Mask128<T, N> a,
 #endif
 }
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> AndNot(hwy::SizeTag<4> /*tag*/, const Mask128<T, N> a,
+HWY_INLINE Mask128<T, N> AndNotImpl(hwy::SizeTag<4> /*tag*/, const Mask128<T, N> a,
                                 const Mask128<T, N> b) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kandn_mask8(a.raw, b.raw)};
@@ -1686,7 +1686,7 @@ HWY_INLINE Mask128<T, N> AndNot(hwy::SizeTag<4> /*tag*/, const Mask128<T, N> a,
 #endif
 }
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> AndNot(hwy::SizeTag<8> /*tag*/, const Mask128<T, N> a,
+HWY_INLINE Mask128<T, N> AndNotImpl(hwy::SizeTag<8> /*tag*/, const Mask128<T, N> a,
                                 const Mask128<T, N> b) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kandn_mask8(a.raw, b.raw)};
@@ -1696,7 +1696,7 @@ HWY_INLINE Mask128<T, N> AndNot(hwy::SizeTag<8> /*tag*/, const Mask128<T, N> a,
 }
 
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> Or(hwy::SizeTag<1> /*tag*/, const Mask128<T, N> a,
+HWY_INLINE Mask128<T, N> OrImpl(hwy::SizeTag<1> /*tag*/, const Mask128<T, N> a,
                             const Mask128<T, N> b) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kor_mask16(a.raw, b.raw)};
@@ -1705,7 +1705,7 @@ HWY_INLINE Mask128<T, N> Or(hwy::SizeTag<1> /*tag*/, const Mask128<T, N> a,
 #endif
 }
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> Or(hwy::SizeTag<2> /*tag*/, const Mask128<T, N> a,
+HWY_INLINE Mask128<T, N> OrImpl(hwy::SizeTag<2> /*tag*/, const Mask128<T, N> a,
                             const Mask128<T, N> b) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kor_mask8(a.raw, b.raw)};
@@ -1714,7 +1714,7 @@ HWY_INLINE Mask128<T, N> Or(hwy::SizeTag<2> /*tag*/, const Mask128<T, N> a,
 #endif
 }
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> Or(hwy::SizeTag<4> /*tag*/, const Mask128<T, N> a,
+HWY_INLINE Mask128<T, N> OrImpl(hwy::SizeTag<4> /*tag*/, const Mask128<T, N> a,
                             const Mask128<T, N> b) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kor_mask8(a.raw, b.raw)};
@@ -1723,7 +1723,7 @@ HWY_INLINE Mask128<T, N> Or(hwy::SizeTag<4> /*tag*/, const Mask128<T, N> a,
 #endif
 }
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> Or(hwy::SizeTag<8> /*tag*/, const Mask128<T, N> a,
+HWY_INLINE Mask128<T, N> OrImpl(hwy::SizeTag<8> /*tag*/, const Mask128<T, N> a,
                             const Mask128<T, N> b) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kor_mask8(a.raw, b.raw)};
@@ -1733,7 +1733,7 @@ HWY_INLINE Mask128<T, N> Or(hwy::SizeTag<8> /*tag*/, const Mask128<T, N> a,
 }
 
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> Xor(hwy::SizeTag<1> /*tag*/, const Mask128<T, N> a,
+HWY_INLINE Mask128<T, N> XorImpl(hwy::SizeTag<1> /*tag*/, const Mask128<T, N> a,
                              const Mask128<T, N> b) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kxor_mask16(a.raw, b.raw)};
@@ -1742,7 +1742,7 @@ HWY_INLINE Mask128<T, N> Xor(hwy::SizeTag<1> /*tag*/, const Mask128<T, N> a,
 #endif
 }
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> Xor(hwy::SizeTag<2> /*tag*/, const Mask128<T, N> a,
+HWY_INLINE Mask128<T, N> XorImpl(hwy::SizeTag<2> /*tag*/, const Mask128<T, N> a,
                              const Mask128<T, N> b) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kxor_mask8(a.raw, b.raw)};
@@ -1751,7 +1751,7 @@ HWY_INLINE Mask128<T, N> Xor(hwy::SizeTag<2> /*tag*/, const Mask128<T, N> a,
 #endif
 }
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> Xor(hwy::SizeTag<4> /*tag*/, const Mask128<T, N> a,
+HWY_INLINE Mask128<T, N> XorImpl(hwy::SizeTag<4> /*tag*/, const Mask128<T, N> a,
                              const Mask128<T, N> b) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kxor_mask8(a.raw, b.raw)};
@@ -1760,7 +1760,7 @@ HWY_INLINE Mask128<T, N> Xor(hwy::SizeTag<4> /*tag*/, const Mask128<T, N> a,
 #endif
 }
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> Xor(hwy::SizeTag<8> /*tag*/, const Mask128<T, N> a,
+HWY_INLINE Mask128<T, N> XorImpl(hwy::SizeTag<8> /*tag*/, const Mask128<T, N> a,
                              const Mask128<T, N> b) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kxor_mask8(a.raw, b.raw)};
@@ -1770,7 +1770,7 @@ HWY_INLINE Mask128<T, N> Xor(hwy::SizeTag<8> /*tag*/, const Mask128<T, N> a,
 }
 
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> ExclusiveNeither(hwy::SizeTag<1> /*tag*/,
+HWY_INLINE Mask128<T, N> ExclusiveNeitherImpl(hwy::SizeTag<1> /*tag*/,
                                           const Mask128<T, N> a,
                                           const Mask128<T, N> b) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
@@ -1780,7 +1780,7 @@ HWY_INLINE Mask128<T, N> ExclusiveNeither(hwy::SizeTag<1> /*tag*/,
 #endif
 }
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> ExclusiveNeither(hwy::SizeTag<2> /*tag*/,
+HWY_INLINE Mask128<T, N> ExclusiveNeitherImpl(hwy::SizeTag<2> /*tag*/,
                                           const Mask128<T, N> a,
                                           const Mask128<T, N> b) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
@@ -1790,7 +1790,7 @@ HWY_INLINE Mask128<T, N> ExclusiveNeither(hwy::SizeTag<2> /*tag*/,
 #endif
 }
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> ExclusiveNeither(hwy::SizeTag<4> /*tag*/,
+HWY_INLINE Mask128<T, N> ExclusiveNeitherImpl(hwy::SizeTag<4> /*tag*/,
                                           const Mask128<T, N> a,
                                           const Mask128<T, N> b) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
@@ -1800,7 +1800,7 @@ HWY_INLINE Mask128<T, N> ExclusiveNeither(hwy::SizeTag<4> /*tag*/,
 #endif
 }
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> ExclusiveNeither(hwy::SizeTag<8> /*tag*/,
+HWY_INLINE Mask128<T, N> ExclusiveNeitherImpl(hwy::SizeTag<8> /*tag*/,
                                           const Mask128<T, N> a,
                                           const Mask128<T, N> b) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
@@ -1830,79 +1830,79 @@ HWY_INLINE Mask128<T, N> UnmaskedNot(const Mask128<T, N> m) {
 }
 
 template <typename T>
-HWY_INLINE Mask128<T> Not(hwy::SizeTag<1> /*tag*/, const Mask128<T> m) {
+HWY_INLINE Mask128<T> NotImpl(hwy::SizeTag<1> /*tag*/, const Mask128<T> m) {
   // sizeof(T) == 1 and N == 16: simply return ~m as all 16 bits of m are valid
   return UnmaskedNot(m);
 }
 template <typename T, size_t N, HWY_IF_LANES_LE(N, 8)>
-HWY_INLINE Mask128<T, N> Not(hwy::SizeTag<1> /*tag*/, const Mask128<T, N> m) {
+HWY_INLINE Mask128<T, N> NotImpl(hwy::SizeTag<1> /*tag*/, const Mask128<T, N> m) {
   // sizeof(T) == 1 and N <= 8: need to zero out the upper bits of ~m as there
   // are fewer than 16 valid bits in m
 
   // Return (~m) & ((1ull << N) - 1)
-  return AndNot(hwy::SizeTag<1>(), m, Mask128<T, N>::FromBits((1ull << N) - 1));
+  return AndNotImpl(hwy::SizeTag<1>(), m, Mask128<T, N>::FromBits((1ull << N) - 1));
 }
 template <typename T>
-HWY_INLINE Mask128<T> Not(hwy::SizeTag<2> /*tag*/, const Mask128<T> m) {
+HWY_INLINE Mask128<T> NotImpl(hwy::SizeTag<2> /*tag*/, const Mask128<T> m) {
   // sizeof(T) == 2 and N == 8: simply return ~m as all 8 bits of m are valid
   return UnmaskedNot(m);
 }
 template <typename T, size_t N, HWY_IF_LANES_LE(N, 4)>
-HWY_INLINE Mask128<T, N> Not(hwy::SizeTag<2> /*tag*/, const Mask128<T, N> m) {
+HWY_INLINE Mask128<T, N> NotImpl(hwy::SizeTag<2> /*tag*/, const Mask128<T, N> m) {
   // sizeof(T) == 2 and N <= 4: need to zero out the upper bits of ~m as there
   // are fewer than 8 valid bits in m
 
   // Return (~m) & ((1ull << N) - 1)
-  return AndNot(hwy::SizeTag<2>(), m, Mask128<T, N>::FromBits((1ull << N) - 1));
+  return AndNotImpl(hwy::SizeTag<2>(), m, Mask128<T, N>::FromBits((1ull << N) - 1));
 }
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> Not(hwy::SizeTag<4> /*tag*/, const Mask128<T, N> m) {
+HWY_INLINE Mask128<T, N> NotImpl(hwy::SizeTag<4> /*tag*/, const Mask128<T, N> m) {
   // sizeof(T) == 4: need to zero out the upper bits of ~m as there are at most
   // 4 valid bits in m
 
   // Return (~m) & ((1ull << N) - 1)
-  return AndNot(hwy::SizeTag<4>(), m, Mask128<T, N>::FromBits((1ull << N) - 1));
+  return AndNotImpl(hwy::SizeTag<4>(), m, Mask128<T, N>::FromBits((1ull << N) - 1));
 }
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> Not(hwy::SizeTag<8> /*tag*/, const Mask128<T, N> m) {
+HWY_INLINE Mask128<T, N> NotImpl(hwy::SizeTag<8> /*tag*/, const Mask128<T, N> m) {
   // sizeof(T) == 8: need to zero out the upper bits of ~m as there are at most
   // 2 valid bits in m
 
   // Return (~m) & ((1ull << N) - 1)
-  return AndNot(hwy::SizeTag<8>(), m, Mask128<T, N>::FromBits((1ull << N) - 1));
+  return AndNotImpl(hwy::SizeTag<8>(), m, Mask128<T, N>::FromBits((1ull << N) - 1));
 }
 
 }  // namespace detail
 
 template <typename T, size_t N>
 HWY_API Mask128<T, N> And(const Mask128<T, N> a, Mask128<T, N> b) {
-  return detail::And(hwy::SizeTag<sizeof(T)>(), a, b);
+  return detail::AndImpl(hwy::SizeTag<sizeof(T)>(), a, b);
 }
 
 template <typename T, size_t N>
 HWY_API Mask128<T, N> AndNot(const Mask128<T, N> a, Mask128<T, N> b) {
-  return detail::AndNot(hwy::SizeTag<sizeof(T)>(), a, b);
+  return detail::AndNotImpl(hwy::SizeTag<sizeof(T)>(), a, b);
 }
 
 template <typename T, size_t N>
 HWY_API Mask128<T, N> Or(const Mask128<T, N> a, Mask128<T, N> b) {
-  return detail::Or(hwy::SizeTag<sizeof(T)>(), a, b);
+  return detail::OrImpl(hwy::SizeTag<sizeof(T)>(), a, b);
 }
 
 template <typename T, size_t N>
 HWY_API Mask128<T, N> Xor(const Mask128<T, N> a, Mask128<T, N> b) {
-  return detail::Xor(hwy::SizeTag<sizeof(T)>(), a, b);
+  return detail::XorImpl(hwy::SizeTag<sizeof(T)>(), a, b);
 }
 
 template <typename T, size_t N>
 HWY_API Mask128<T, N> Not(const Mask128<T, N> m) {
   // Flip only the valid bits
-  return detail::Not(hwy::SizeTag<sizeof(T)>(), m);
+  return detail::NotImpl(hwy::SizeTag<sizeof(T)>(), m);
 }
 
 template <typename T, size_t N>
 HWY_API Mask128<T, N> ExclusiveNeither(const Mask128<T, N> a, Mask128<T, N> b) {
-  return detail::ExclusiveNeither(hwy::SizeTag<sizeof(T)>(), a, b);
+  return detail::ExclusiveNeitherImpl(hwy::SizeTag<sizeof(T)>(), a, b);
 }
 
 // ------------------------------ MaskedOr
@@ -2908,22 +2908,22 @@ HWY_API Vec128<float> Shuffle0123(const Vec128<float> v) {
 namespace detail {
 
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> TestBit(hwy::SizeTag<1> /*tag*/, const Vec128<T, N> v,
+HWY_INLINE Mask128<T, N> TestBitImpl(hwy::SizeTag<1> /*tag*/, const Vec128<T, N> v,
                                  const Vec128<T, N> bit) {
   return Mask128<T, N>{_mm_test_epi8_mask(v.raw, bit.raw)};
 }
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> TestBit(hwy::SizeTag<2> /*tag*/, const Vec128<T, N> v,
+HWY_INLINE Mask128<T, N> TestBitImpl(hwy::SizeTag<2> /*tag*/, const Vec128<T, N> v,
                                  const Vec128<T, N> bit) {
   return Mask128<T, N>{_mm_test_epi16_mask(v.raw, bit.raw)};
 }
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> TestBit(hwy::SizeTag<4> /*tag*/, const Vec128<T, N> v,
+HWY_INLINE Mask128<T, N> TestBitImpl(hwy::SizeTag<4> /*tag*/, const Vec128<T, N> v,
                                  const Vec128<T, N> bit) {
   return Mask128<T, N>{_mm_test_epi32_mask(v.raw, bit.raw)};
 }
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> TestBit(hwy::SizeTag<8> /*tag*/, const Vec128<T, N> v,
+HWY_INLINE Mask128<T, N> TestBitImpl(hwy::SizeTag<8> /*tag*/, const Vec128<T, N> v,
                                  const Vec128<T, N> bit) {
   return Mask128<T, N>{_mm_test_epi64_mask(v.raw, bit.raw)};
 }
@@ -2933,7 +2933,7 @@ HWY_INLINE Mask128<T, N> TestBit(hwy::SizeTag<8> /*tag*/, const Vec128<T, N> v,
 template <typename T, size_t N>
 HWY_API Mask128<T, N> TestBit(const Vec128<T, N> v, const Vec128<T, N> bit) {
   static_assert(!hwy::IsFloat<T>(), "Only integer vectors supported");
-  return detail::TestBit(hwy::SizeTag<sizeof(T)>(), v, bit);
+  return detail::TestBitImpl(hwy::SizeTag<sizeof(T)>(), v, bit);
 }
 
 // ------------------------------ Equality
@@ -3299,23 +3299,23 @@ HWY_API Mask128<double, N> operator!=(Vec128<double, N> a,
 namespace detail {
 
 template <size_t N>
-HWY_INLINE Mask128<int8_t, N> Gt(hwy::SignedTag /*tag*/, Vec128<int8_t, N> a,
+HWY_INLINE Mask128<int8_t, N> GtImpl(hwy::SignedTag /*tag*/, Vec128<int8_t, N> a,
                                  Vec128<int8_t, N> b) {
   return Mask128<int8_t, N>{_mm_cmpgt_epi8(a.raw, b.raw)};
 }
 template <size_t N>
-HWY_INLINE Mask128<int16_t, N> Gt(hwy::SignedTag /*tag*/, Vec128<int16_t, N> a,
+HWY_INLINE Mask128<int16_t, N> GtImpl(hwy::SignedTag /*tag*/, Vec128<int16_t, N> a,
                                   Vec128<int16_t, N> b) {
   return Mask128<int16_t, N>{_mm_cmpgt_epi16(a.raw, b.raw)};
 }
 template <size_t N>
-HWY_INLINE Mask128<int32_t, N> Gt(hwy::SignedTag /*tag*/, Vec128<int32_t, N> a,
+HWY_INLINE Mask128<int32_t, N> GtImpl(hwy::SignedTag /*tag*/, Vec128<int32_t, N> a,
                                   Vec128<int32_t, N> b) {
   return Mask128<int32_t, N>{_mm_cmpgt_epi32(a.raw, b.raw)};
 }
 
 template <size_t N>
-HWY_INLINE Mask128<int64_t, N> Gt(hwy::SignedTag /*tag*/,
+HWY_INLINE Mask128<int64_t, N> GtImpl(hwy::SignedTag /*tag*/,
                                   const Vec128<int64_t, N> a,
                                   const Vec128<int64_t, N> b) {
 #if HWY_TARGET >= HWY_SSSE3
@@ -3335,23 +3335,23 @@ HWY_INLINE Mask128<int64_t, N> Gt(hwy::SignedTag /*tag*/,
 }
 
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> Gt(hwy::UnsignedTag /*tag*/, Vec128<T, N> a,
+HWY_INLINE Mask128<T, N> GtImpl(hwy::UnsignedTag /*tag*/, Vec128<T, N> a,
                             Vec128<T, N> b) {
   const DFromV<decltype(a)> du;
   const RebindToSigned<decltype(du)> di;
   const Vec128<T, N> msb = Set(du, (LimitsMax<T>() >> 1) + 1);
   const auto sa = BitCast(di, Xor(a, msb));
   const auto sb = BitCast(di, Xor(b, msb));
-  return RebindMask(du, Gt(hwy::SignedTag(), sa, sb));
+  return RebindMask(du, GtImpl(hwy::SignedTag(), sa, sb));
 }
 
 template <size_t N>
-HWY_INLINE Mask128<float, N> Gt(hwy::FloatTag /*tag*/, Vec128<float, N> a,
+HWY_INLINE Mask128<float, N> GtImpl(hwy::FloatTag /*tag*/, Vec128<float, N> a,
                                 Vec128<float, N> b) {
   return Mask128<float, N>{_mm_cmpgt_ps(a.raw, b.raw)};
 }
 template <size_t N>
-HWY_INLINE Mask128<double, N> Gt(hwy::FloatTag /*tag*/, Vec128<double, N> a,
+HWY_INLINE Mask128<double, N> GtImpl(hwy::FloatTag /*tag*/, Vec128<double, N> a,
                                  Vec128<double, N> b) {
   return Mask128<double, N>{_mm_cmpgt_pd(a.raw, b.raw)};
 }
@@ -3360,31 +3360,31 @@ HWY_INLINE Mask128<double, N> Gt(hwy::FloatTag /*tag*/, Vec128<double, N> a,
 
 template <typename T, size_t N>
 HWY_INLINE Mask128<T, N> operator>(Vec128<T, N> a, Vec128<T, N> b) {
-  return detail::Gt(hwy::TypeTag<T>(), a, b);
+  return detail::GtImpl(hwy::TypeTag<T>(), a, b);
 }
 
 // ------------------------------ Weak inequality
 
 namespace detail {
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> Ge(hwy::SignedTag tag, Vec128<T, N> a,
+HWY_INLINE Mask128<T, N> GeImpl(hwy::SignedTag tag, Vec128<T, N> a,
                             Vec128<T, N> b) {
-  return Not(Gt(tag, b, a));
+  return Not(GtImpl(tag, b, a));
 }
 
 template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> Ge(hwy::UnsignedTag tag, Vec128<T, N> a,
+HWY_INLINE Mask128<T, N> GeImpl(hwy::UnsignedTag tag, Vec128<T, N> a,
                             Vec128<T, N> b) {
-  return Not(Gt(tag, b, a));
+  return Not(GtImpl(tag, b, a));
 }
 
 template <size_t N>
-HWY_INLINE Mask128<float, N> Ge(hwy::FloatTag /*tag*/, Vec128<float, N> a,
+HWY_INLINE Mask128<float, N> GeImpl(hwy::FloatTag /*tag*/, Vec128<float, N> a,
                                 Vec128<float, N> b) {
   return Mask128<float, N>{_mm_cmpge_ps(a.raw, b.raw)};
 }
 template <size_t N>
-HWY_INLINE Mask128<double, N> Ge(hwy::FloatTag /*tag*/, Vec128<double, N> a,
+HWY_INLINE Mask128<double, N> GeImpl(hwy::FloatTag /*tag*/, Vec128<double, N> a,
                                  Vec128<double, N> b) {
   return Mask128<double, N>{_mm_cmpge_pd(a.raw, b.raw)};
 }
@@ -3393,7 +3393,7 @@ HWY_INLINE Mask128<double, N> Ge(hwy::FloatTag /*tag*/, Vec128<double, N> a,
 
 template <typename T, size_t N>
 HWY_API Mask128<T, N> operator>=(Vec128<T, N> a, Vec128<T, N> b) {
-  return detail::Ge(hwy::TypeTag<T>(), a, b);
+  return detail::GeImpl(hwy::TypeTag<T>(), a, b);
 }
 
 #endif  // HWY_TARGET <= HWY_AVX3
@@ -4362,7 +4362,7 @@ HWY_API VFromD<RepartitionToWideX3<DFromV<V>>> SumsOf8AbsDiff(V a, V b) {
 namespace detail {
 
 template <size_t N>
-HWY_INLINE Vec128<uint32_t, (N + 3) / 4> SumsOf4(
+HWY_INLINE Vec128<uint32_t, (N + 3) / 4> SumsOf4Impl(
     hwy::UnsignedTag /*type_tag*/, hwy::SizeTag<1> /*lane_size_tag*/,
     Vec128<uint8_t, N> v) {
   const DFromV<decltype(v)> d;
@@ -4374,7 +4374,7 @@ HWY_INLINE Vec128<uint32_t, (N + 3) / 4> SumsOf4(
       _mm_maskz_dbsad_epu8(static_cast<__mmask8>(0x55), v.raw, Zero(d).raw, 0)};
 }
 
-// detail::SumsOf4 for Vec128<int8_t, N> on AVX3 is implemented in x86_512-inl.h
+// detail::SumsOf4Impl for Vec128<int8_t, N> on AVX3 is implemented in x86_512-inl.h
 
 }  // namespace detail
 #endif  // HWY_TARGET <= HWY_AVX3
@@ -8197,7 +8197,7 @@ HWY_API VFromD<D> UpperHalf(D d, VFromD<Twice<D>> v) {
 namespace detail {
 
 template <class V, HWY_IF_V_SIZE_LE_V(V, 8)>
-HWY_INLINE V SlideDownLanes(V v, size_t amt) {
+HWY_INLINE V SlideDownLanesImpl(V v, size_t amt) {
   const DFromV<decltype(v)> d;
   const Repartition<UnsignedFromSize<d.MaxBytes()>, decltype(d)> dv;
   return BitCast(d,
@@ -8207,7 +8207,7 @@ HWY_INLINE V SlideDownLanes(V v, size_t amt) {
 
 #if HWY_TARGET <= HWY_SSSE3
 template <class V, HWY_IF_V_SIZE_V(V, 16)>
-HWY_INLINE V SlideDownLanes(V v, size_t amt) {
+HWY_INLINE V SlideDownLanesImpl(V v, size_t amt) {
   const DFromV<decltype(v)> d;
   const Repartition<int8_t, decltype(d)> di8;
   auto idx = Iota(di8, static_cast<int8_t>(amt * sizeof(TFromV<V>)));
@@ -8216,7 +8216,7 @@ HWY_INLINE V SlideDownLanes(V v, size_t amt) {
 }
 #else
 template <class V, HWY_IF_V_SIZE_V(V, 16)>
-HWY_INLINE V SlideDownLanes(V v, size_t amt) {
+HWY_INLINE V SlideDownLanesImpl(V v, size_t amt) {
   const DFromV<decltype(v)> d;
   const Repartition<int32_t, decltype(d)> di32;
   const Repartition<uint64_t, decltype(d)> du64;
@@ -8256,7 +8256,7 @@ HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
   (void)d;
 #endif
 
-  return detail::SlideDownLanes(v, amt);
+  return detail::SlideDownLanesImpl(v, amt);
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 4)>
@@ -8278,7 +8278,7 @@ HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
   (void)d;
 #endif
 
-  return detail::SlideDownLanes(v, amt);
+  return detail::SlideDownLanesImpl(v, amt);
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 8)>
@@ -8308,7 +8308,7 @@ HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
   (void)d;
 #endif
 
-  return detail::SlideDownLanes(v, amt);
+  return detail::SlideDownLanesImpl(v, amt);
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_LANES_D(D, 16)>
@@ -8354,7 +8354,7 @@ HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
   (void)d;
 #endif
 
-  return detail::SlideDownLanes(v, amt);
+  return detail::SlideDownLanesImpl(v, amt);
 }
 
 // ------------------------------ ExtractLane (UpperHalf, SlideDownLanes)
@@ -8362,7 +8362,7 @@ HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
 namespace detail {
 
 template <size_t kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
-HWY_INLINE T ExtractLane(const Vec128<T, N> v) {
+HWY_INLINE T ExtractLaneImpl(const Vec128<T, N> v) {
   static_assert(kLane < N, "Lane index out of bounds");
 #if HWY_TARGET >= HWY_SSSE3
   const int pair = _mm_extract_epi16(v.raw, kLane / 2);
@@ -8374,7 +8374,7 @@ HWY_INLINE T ExtractLane(const Vec128<T, N> v) {
 }
 
 template <size_t kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 2)>
-HWY_INLINE T ExtractLane(const Vec128<T, N> v) {
+HWY_INLINE T ExtractLaneImpl(const Vec128<T, N> v) {
   static_assert(kLane < N, "Lane index out of bounds");
   const DFromV<decltype(v)> d;
   const RebindToUnsigned<decltype(d)> du;
@@ -8384,7 +8384,7 @@ HWY_INLINE T ExtractLane(const Vec128<T, N> v) {
 }
 
 template <size_t kLane, typename T, size_t N, HWY_IF_UI32(T)>
-HWY_INLINE T ExtractLane(const Vec128<T, N> v) {
+HWY_INLINE T ExtractLaneImpl(const Vec128<T, N> v) {
   static_assert(kLane < N, "Lane index out of bounds");
 #if HWY_TARGET >= HWY_SSSE3
   return static_cast<T>(_mm_cvtsi128_si32(
@@ -8395,7 +8395,7 @@ HWY_INLINE T ExtractLane(const Vec128<T, N> v) {
 }
 
 template <size_t kLane, typename T, size_t N, HWY_IF_UI64(T)>
-HWY_INLINE T ExtractLane(const Vec128<T, N> v) {
+HWY_INLINE T ExtractLaneImpl(const Vec128<T, N> v) {
   static_assert(kLane < N, "Lane index out of bounds");
 #if HWY_ARCH_X86_32
   alignas(16) T lanes[2];
@@ -8410,7 +8410,7 @@ HWY_INLINE T ExtractLane(const Vec128<T, N> v) {
 }
 
 template <size_t kLane, size_t N>
-HWY_INLINE float ExtractLane(const Vec128<float, N> v) {
+HWY_INLINE float ExtractLaneImpl(const Vec128<float, N> v) {
   static_assert(kLane < N, "Lane index out of bounds");
 #if HWY_TARGET >= HWY_SSSE3
   return _mm_cvtss_f32((kLane == 0) ? v.raw
@@ -8424,13 +8424,13 @@ HWY_INLINE float ExtractLane(const Vec128<float, N> v) {
 
 // There is no extract_pd; two overloads because there is no UpperHalf for N=1.
 template <size_t kLane>
-HWY_INLINE double ExtractLane(const Vec64<double> v) {
+HWY_INLINE double ExtractLaneImpl(const Vec64<double> v) {
   static_assert(kLane == 0, "Lane index out of bounds");
   return GetLane(v);
 }
 
 template <size_t kLane>
-HWY_INLINE double ExtractLane(const Vec128<double> v) {
+HWY_INLINE double ExtractLaneImpl(const Vec128<double> v) {
   static_assert(kLane < 2, "Lane index out of bounds");
   const Half<DFromV<decltype(v)>> dh;
   return kLane == 0 ? GetLane(v) : GetLane(UpperHalf(dh, v));
@@ -8453,9 +8453,9 @@ HWY_API T ExtractLane(const Vec128<T, 2> v, size_t i) {
   if (__builtin_constant_p(i)) {
     switch (i) {
       case 0:
-        return detail::ExtractLane<0>(v);
+        return detail::ExtractLaneImpl<0>(v);
       case 1:
-        return detail::ExtractLane<1>(v);
+        return detail::ExtractLaneImpl<1>(v);
     }
   }
 #endif
@@ -8475,13 +8475,13 @@ HWY_API T ExtractLane(const Vec128<T, 4> v, size_t i) {
   if (__builtin_constant_p(i)) {
     switch (i) {
       case 0:
-        return detail::ExtractLane<0>(v);
+        return detail::ExtractLaneImpl<0>(v);
       case 1:
-        return detail::ExtractLane<1>(v);
+        return detail::ExtractLaneImpl<1>(v);
       case 2:
-        return detail::ExtractLane<2>(v);
+        return detail::ExtractLaneImpl<2>(v);
       case 3:
-        return detail::ExtractLane<3>(v);
+        return detail::ExtractLaneImpl<3>(v);
     }
   }
 #endif
@@ -8501,21 +8501,21 @@ HWY_API T ExtractLane(const Vec128<T, 8> v, size_t i) {
   if (__builtin_constant_p(i)) {
     switch (i) {
       case 0:
-        return detail::ExtractLane<0>(v);
+        return detail::ExtractLaneImpl<0>(v);
       case 1:
-        return detail::ExtractLane<1>(v);
+        return detail::ExtractLaneImpl<1>(v);
       case 2:
-        return detail::ExtractLane<2>(v);
+        return detail::ExtractLaneImpl<2>(v);
       case 3:
-        return detail::ExtractLane<3>(v);
+        return detail::ExtractLaneImpl<3>(v);
       case 4:
-        return detail::ExtractLane<4>(v);
+        return detail::ExtractLaneImpl<4>(v);
       case 5:
-        return detail::ExtractLane<5>(v);
+        return detail::ExtractLaneImpl<5>(v);
       case 6:
-        return detail::ExtractLane<6>(v);
+        return detail::ExtractLaneImpl<6>(v);
       case 7:
-        return detail::ExtractLane<7>(v);
+        return detail::ExtractLaneImpl<7>(v);
     }
   }
 #endif
@@ -8535,37 +8535,37 @@ HWY_API T ExtractLane(const Vec128<T, 16> v, size_t i) {
   if (__builtin_constant_p(i)) {
     switch (i) {
       case 0:
-        return detail::ExtractLane<0>(v);
+        return detail::ExtractLaneImpl<0>(v);
       case 1:
-        return detail::ExtractLane<1>(v);
+        return detail::ExtractLaneImpl<1>(v);
       case 2:
-        return detail::ExtractLane<2>(v);
+        return detail::ExtractLaneImpl<2>(v);
       case 3:
-        return detail::ExtractLane<3>(v);
+        return detail::ExtractLaneImpl<3>(v);
       case 4:
-        return detail::ExtractLane<4>(v);
+        return detail::ExtractLaneImpl<4>(v);
       case 5:
-        return detail::ExtractLane<5>(v);
+        return detail::ExtractLaneImpl<5>(v);
       case 6:
-        return detail::ExtractLane<6>(v);
+        return detail::ExtractLaneImpl<6>(v);
       case 7:
-        return detail::ExtractLane<7>(v);
+        return detail::ExtractLaneImpl<7>(v);
       case 8:
-        return detail::ExtractLane<8>(v);
+        return detail::ExtractLaneImpl<8>(v);
       case 9:
-        return detail::ExtractLane<9>(v);
+        return detail::ExtractLaneImpl<9>(v);
       case 10:
-        return detail::ExtractLane<10>(v);
+        return detail::ExtractLaneImpl<10>(v);
       case 11:
-        return detail::ExtractLane<11>(v);
+        return detail::ExtractLaneImpl<11>(v);
       case 12:
-        return detail::ExtractLane<12>(v);
+        return detail::ExtractLaneImpl<12>(v);
       case 13:
-        return detail::ExtractLane<13>(v);
+        return detail::ExtractLaneImpl<13>(v);
       case 14:
-        return detail::ExtractLane<14>(v);
+        return detail::ExtractLaneImpl<14>(v);
       case 15:
-        return detail::ExtractLane<15>(v);
+        return detail::ExtractLaneImpl<15>(v);
     }
   }
 #endif
@@ -8600,7 +8600,7 @@ HWY_INLINE V InsertLaneUsingBroadcastAndBlend(V v, size_t i, TFromV<V> t) {
 }
 
 template <size_t kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
-HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
+HWY_INLINE Vec128<T, N> InsertLaneImpl(const Vec128<T, N> v, T t) {
   static_assert(kLane < N, "Lane index out of bounds");
 #if HWY_TARGET >= HWY_SSSE3
   return InsertLaneUsingBroadcastAndBlend(v, kLane, t);
@@ -8610,7 +8610,7 @@ HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
 }
 
 template <size_t kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 2)>
-HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
+HWY_INLINE Vec128<T, N> InsertLaneImpl(const Vec128<T, N> v, T t) {
   static_assert(kLane < N, "Lane index out of bounds");
   const DFromV<decltype(v)> d;
   const RebindToUnsigned<decltype(d)> du;
@@ -8620,7 +8620,7 @@ HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
 }
 
 template <size_t kLane, typename T, size_t N, HWY_IF_UI32(T)>
-HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
+HWY_INLINE Vec128<T, N> InsertLaneImpl(const Vec128<T, N> v, T t) {
   static_assert(kLane < N, "Lane index out of bounds");
 #if HWY_TARGET >= HWY_SSSE3
   return InsertLaneUsingBroadcastAndBlend(v, kLane, t);
@@ -8631,7 +8631,7 @@ HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
 }
 
 template <size_t kLane, typename T, size_t N, HWY_IF_UI64(T)>
-HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
+HWY_INLINE Vec128<T, N> InsertLaneImpl(const Vec128<T, N> v, T t) {
   static_assert(kLane < N, "Lane index out of bounds");
 #if HWY_TARGET >= HWY_SSSE3 || HWY_ARCH_X86_32
   const DFromV<decltype(v)> d;
@@ -8650,7 +8650,7 @@ HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
 }
 
 template <size_t kLane, size_t N>
-HWY_INLINE Vec128<float, N> InsertLane(const Vec128<float, N> v, float t) {
+HWY_INLINE Vec128<float, N> InsertLaneImpl(const Vec128<float, N> v, float t) {
   static_assert(kLane < N, "Lane index out of bounds");
 #if HWY_TARGET >= HWY_SSSE3
   return InsertLaneUsingBroadcastAndBlend(v, kLane, t);
@@ -8661,13 +8661,13 @@ HWY_INLINE Vec128<float, N> InsertLane(const Vec128<float, N> v, float t) {
 
 // There is no insert_pd; two overloads because there is no UpperHalf for N=1.
 template <size_t kLane>
-HWY_INLINE Vec128<double, 1> InsertLane(const Vec128<double, 1> v, double t) {
+HWY_INLINE Vec128<double, 1> InsertLaneImpl(const Vec128<double, 1> v, double t) {
   static_assert(kLane == 0, "Lane index out of bounds");
   return Set(DFromV<decltype(v)>(), t);
 }
 
 template <size_t kLane>
-HWY_INLINE Vec128<double> InsertLane(const Vec128<double> v, double t) {
+HWY_INLINE Vec128<double> InsertLaneImpl(const Vec128<double> v, double t) {
   static_assert(kLane < 2, "Lane index out of bounds");
   const DFromV<decltype(v)> d;
   const Vec128<double> vt = Set(d, t);
@@ -8695,9 +8695,9 @@ HWY_API Vec128<T, 2> InsertLane(const Vec128<T, 2> v, size_t i, T t) {
   if (__builtin_constant_p(i)) {
     switch (i) {
       case 0:
-        return detail::InsertLane<0>(v, t);
+        return detail::InsertLaneImpl<0>(v, t);
       case 1:
-        return detail::InsertLane<1>(v, t);
+        return detail::InsertLaneImpl<1>(v, t);
     }
   }
 #endif
@@ -8710,13 +8710,13 @@ HWY_API Vec128<T, 4> InsertLane(const Vec128<T, 4> v, size_t i, T t) {
   if (__builtin_constant_p(i)) {
     switch (i) {
       case 0:
-        return detail::InsertLane<0>(v, t);
+        return detail::InsertLaneImpl<0>(v, t);
       case 1:
-        return detail::InsertLane<1>(v, t);
+        return detail::InsertLaneImpl<1>(v, t);
       case 2:
-        return detail::InsertLane<2>(v, t);
+        return detail::InsertLaneImpl<2>(v, t);
       case 3:
-        return detail::InsertLane<3>(v, t);
+        return detail::InsertLaneImpl<3>(v, t);
     }
   }
 #endif
@@ -8729,21 +8729,21 @@ HWY_API Vec128<T, 8> InsertLane(const Vec128<T, 8> v, size_t i, T t) {
   if (__builtin_constant_p(i)) {
     switch (i) {
       case 0:
-        return detail::InsertLane<0>(v, t);
+        return detail::InsertLaneImpl<0>(v, t);
       case 1:
-        return detail::InsertLane<1>(v, t);
+        return detail::InsertLaneImpl<1>(v, t);
       case 2:
-        return detail::InsertLane<2>(v, t);
+        return detail::InsertLaneImpl<2>(v, t);
       case 3:
-        return detail::InsertLane<3>(v, t);
+        return detail::InsertLaneImpl<3>(v, t);
       case 4:
-        return detail::InsertLane<4>(v, t);
+        return detail::InsertLaneImpl<4>(v, t);
       case 5:
-        return detail::InsertLane<5>(v, t);
+        return detail::InsertLaneImpl<5>(v, t);
       case 6:
-        return detail::InsertLane<6>(v, t);
+        return detail::InsertLaneImpl<6>(v, t);
       case 7:
-        return detail::InsertLane<7>(v, t);
+        return detail::InsertLaneImpl<7>(v, t);
     }
   }
 #endif
@@ -8756,37 +8756,37 @@ HWY_API Vec128<T, 16> InsertLane(const Vec128<T, 16> v, size_t i, T t) {
   if (__builtin_constant_p(i)) {
     switch (i) {
       case 0:
-        return detail::InsertLane<0>(v, t);
+        return detail::InsertLaneImpl<0>(v, t);
       case 1:
-        return detail::InsertLane<1>(v, t);
+        return detail::InsertLaneImpl<1>(v, t);
       case 2:
-        return detail::InsertLane<2>(v, t);
+        return detail::InsertLaneImpl<2>(v, t);
       case 3:
-        return detail::InsertLane<3>(v, t);
+        return detail::InsertLaneImpl<3>(v, t);
       case 4:
-        return detail::InsertLane<4>(v, t);
+        return detail::InsertLaneImpl<4>(v, t);
       case 5:
-        return detail::InsertLane<5>(v, t);
+        return detail::InsertLaneImpl<5>(v, t);
       case 6:
-        return detail::InsertLane<6>(v, t);
+        return detail::InsertLaneImpl<6>(v, t);
       case 7:
-        return detail::InsertLane<7>(v, t);
+        return detail::InsertLaneImpl<7>(v, t);
       case 8:
-        return detail::InsertLane<8>(v, t);
+        return detail::InsertLaneImpl<8>(v, t);
       case 9:
-        return detail::InsertLane<9>(v, t);
+        return detail::InsertLaneImpl<9>(v, t);
       case 10:
-        return detail::InsertLane<10>(v, t);
+        return detail::InsertLaneImpl<10>(v, t);
       case 11:
-        return detail::InsertLane<11>(v, t);
+        return detail::InsertLaneImpl<11>(v, t);
       case 12:
-        return detail::InsertLane<12>(v, t);
+        return detail::InsertLaneImpl<12>(v, t);
       case 13:
-        return detail::InsertLane<13>(v, t);
+        return detail::InsertLaneImpl<13>(v, t);
       case 14:
-        return detail::InsertLane<14>(v, t);
+        return detail::InsertLaneImpl<14>(v, t);
       case 15:
-        return detail::InsertLane<15>(v, t);
+        return detail::InsertLaneImpl<15>(v, t);
     }
   }
 #endif
@@ -9617,7 +9617,7 @@ HWY_INLINE VFromD<D> Per4LaneBlkShufDupSet4xU32(D d, const uint32_t x3,
 }
 
 template <size_t kIdx3210, class V>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
                                   hwy::SizeTag<2> /*lane_size_tag*/,
                                   hwy::SizeTag<8> /*vect_size_tag*/, V v) {
   const DFromV<decltype(v)> d;
@@ -9629,7 +9629,7 @@ HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
 
 #if HWY_TARGET == HWY_SSE2
 template <size_t kIdx3210, class V>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
                                   hwy::SizeTag<2> /*lane_size_tag*/,
                                   hwy::SizeTag<16> /*vect_size_tag*/, V v) {
   const DFromV<decltype(v)> d;
@@ -9642,7 +9642,7 @@ HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
 
 template <size_t kIdx3210, size_t kVectSize, class V,
           hwy::EnableIf<(kVectSize == 4 || kVectSize == 8)>* = nullptr>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> idx_3210_tag,
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<kIdx3210> idx_3210_tag,
                                   hwy::SizeTag<1> /*lane_size_tag*/,
                                   hwy::SizeTag<kVectSize> /*vect_size_tag*/,
                                   V v) {
@@ -9652,13 +9652,13 @@ HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> idx_3210_tag,
   const RebindToSigned<decltype(du16)> di16;
 
   const auto vu16 = PromoteTo(du16, BitCast(du, v));
-  const auto shuf16_result = Per4LaneBlockShuffle(
+  const auto shuf16_result = Per4LaneBlockShuffleImpl(
       idx_3210_tag, hwy::SizeTag<2>(), hwy::SizeTag<kVectSize * 2>(), vu16);
   return BitCast(d, DemoteTo(du, BitCast(di16, shuf16_result)));
 }
 
 template <size_t kIdx3210, size_t kVectSize, class V>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> idx_3210_tag,
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<kIdx3210> idx_3210_tag,
                                   hwy::SizeTag<1> /*lane_size_tag*/,
                                   hwy::SizeTag<16> /*vect_size_tag*/, V v) {
   const DFromV<decltype(v)> d;
@@ -9670,9 +9670,9 @@ HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> idx_3210_tag,
   const auto v_lo16 = BitCast(du16, InterleaveLower(d, v, zero));
   const auto v_hi16 = BitCast(du16, InterleaveUpper(d, v, zero));
 
-  const auto lo_shuf_result = Per4LaneBlockShuffle(
+  const auto lo_shuf_result = Per4LaneBlockShuffleImpl(
       idx_3210_tag, hwy::SizeTag<2>(), hwy::SizeTag<16>(), v_lo16);
-  const auto hi_shuf_result = Per4LaneBlockShuffle(
+  const auto hi_shuf_result = Per4LaneBlockShuffleImpl(
       idx_3210_tag, hwy::SizeTag<2>(), hwy::SizeTag<16>(), v_hi16);
 
   return BitCast(d, OrderedDemote2To(du, BitCast(di16, lo_shuf_result),
@@ -9681,14 +9681,14 @@ HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> idx_3210_tag,
 #endif
 
 template <size_t kIdx3210, class V, HWY_IF_NOT_FLOAT(TFromV<V>)>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
                                   hwy::SizeTag<4> /*lane_size_tag*/,
                                   hwy::SizeTag<16> /*vect_size_tag*/, V v) {
   return V{_mm_shuffle_epi32(v.raw, static_cast<int>(kIdx3210 & 0xFF))};
 }
 
 template <size_t kIdx3210, class V, HWY_IF_FLOAT(TFromV<V>)>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
                                   hwy::SizeTag<4> /*lane_size_tag*/,
                                   hwy::SizeTag<16> /*vect_size_tag*/, V v) {
   return V{_mm_shuffle_ps(v.raw, v.raw, static_cast<int>(kIdx3210 & 0xFF))};
@@ -9701,7 +9701,7 @@ HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
 namespace detail {
 
 template <class V, HWY_IF_V_SIZE_LE_V(V, 8)>
-HWY_INLINE V SlideUpLanes(V v, size_t amt) {
+HWY_INLINE V SlideUpLanesImpl(V v, size_t amt) {
   const DFromV<decltype(v)> d;
   const Full64<uint64_t> du64;
   const auto vu64 = ResizeBitCast(du64, v);
@@ -9711,7 +9711,7 @@ HWY_INLINE V SlideUpLanes(V v, size_t amt) {
 
 #if HWY_TARGET <= HWY_SSSE3
 template <class V, HWY_IF_V_SIZE_V(V, 16)>
-HWY_INLINE V SlideUpLanes(V v, size_t amt) {
+HWY_INLINE V SlideUpLanesImpl(V v, size_t amt) {
   const DFromV<decltype(v)> d;
   const Repartition<uint8_t, decltype(d)> du8;
   const auto idx =
@@ -9720,7 +9720,7 @@ HWY_INLINE V SlideUpLanes(V v, size_t amt) {
 }
 #else
 template <class V, HWY_IF_V_SIZE_V(V, 16)>
-HWY_INLINE V SlideUpLanes(V v, size_t amt) {
+HWY_INLINE V SlideUpLanesImpl(V v, size_t amt) {
   const DFromV<decltype(v)> d;
   const Repartition<int32_t, decltype(d)> di32;
   const Repartition<uint64_t, decltype(d)> du64;
@@ -9760,7 +9760,7 @@ HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
   (void)d;
 #endif
 
-  return detail::SlideUpLanes(v, amt);
+  return detail::SlideUpLanesImpl(v, amt);
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 4)>
@@ -9782,7 +9782,7 @@ HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
   (void)d;
 #endif
 
-  return detail::SlideUpLanes(v, amt);
+  return detail::SlideUpLanesImpl(v, amt);
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 8)>
@@ -9812,7 +9812,7 @@ HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
   (void)d;
 #endif
 
-  return detail::SlideUpLanes(v, amt);
+  return detail::SlideUpLanesImpl(v, amt);
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_LANES_D(D, 16)>
@@ -9858,7 +9858,7 @@ HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
   (void)d;
 #endif
 
-  return detail::SlideUpLanes(v, amt);
+  return detail::SlideUpLanesImpl(v, amt);
 }
 
 // ================================================== MEMORY (4)
@@ -9911,7 +9911,7 @@ template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)),
 HWY_API void StoreN(VFromD<D> v, D /*d*/, TFromD<D>* HWY_RESTRICT p,
                     size_t max_lanes_to_store) {
   if (max_lanes_to_store >= 1) {
-    p[static_cast<size_t>(max_lanes_to_store > 1)] = detail::ExtractLane<1>(v);
+    p[static_cast<size_t>(max_lanes_to_store > 1)] = detail::ExtractLaneImpl<1>(v);
     p[0] = GetLane(v);
   }
 }
@@ -9927,7 +9927,7 @@ HWY_API void AVX2UIF8Or16StoreTrailingN(VFromD<D> v_trailing, D /*d*/,
   const auto v_full128 = ResizeBitCast(Full128<TFromD<D>>(), v_trailing);
   if ((num_lanes_to_store & 2) != 0) {
     const uint16_t u16_bits = GetLane(BitCast(Full128<uint16_t>(), v_full128));
-    p[num_lanes_to_store - 1] = detail::ExtractLane<2>(v_full128);
+    p[num_lanes_to_store - 1] = detail::ExtractLaneImpl<2>(v_full128);
     CopyBytes<sizeof(uint16_t)>(&u16_bits,
                                 p + (num_lanes_to_store & ~size_t{3}));
   } else {
@@ -10958,7 +10958,7 @@ HWY_INLINE Vec128<MakeUnsigned<T>, N> Pow2(const Vec128<T, N> v) {
 #endif  // HWY_TARGET > HWY_AVX2
 
 template <size_t N>
-HWY_API Vec128<uint16_t, N> Shl(hwy::UnsignedTag /*tag*/, Vec128<uint16_t, N> v,
+HWY_API Vec128<uint16_t, N> ShlImpl(hwy::UnsignedTag /*tag*/, Vec128<uint16_t, N> v,
                                 Vec128<uint16_t, N> bits) {
 #if HWY_TARGET <= HWY_AVX3
   return Vec128<uint16_t, N>{_mm_sllv_epi16(v.raw, bits.raw)};
@@ -10970,7 +10970,7 @@ HWY_API Vec128<uint16_t, N> Shl(hwy::UnsignedTag /*tag*/, Vec128<uint16_t, N> v,
 }
 
 #if HWY_TARGET > HWY_AVX3
-HWY_API Vec16<uint16_t> Shl(hwy::UnsignedTag /*tag*/, Vec16<uint16_t> v,
+HWY_API Vec16<uint16_t> ShlImpl(hwy::UnsignedTag /*tag*/, Vec16<uint16_t> v,
                             Vec16<uint16_t> bits) {
 #if HWY_TARGET <= HWY_SSE4
   const Vec16<uint16_t> bits16{_mm_cvtepu16_epi64(bits.raw)};
@@ -11016,7 +11016,7 @@ HWY_INLINE V AVX2ShlU8Vec128(V v, V bits) {
 
 // 8-bit: may use the Shl overload for uint16_t.
 template <size_t N>
-HWY_API Vec128<uint8_t, N> Shl(hwy::UnsignedTag tag, Vec128<uint8_t, N> v,
+HWY_API Vec128<uint8_t, N> ShlImpl(hwy::UnsignedTag tag, Vec128<uint8_t, N> v,
                                Vec128<uint8_t, N> bits) {
   const DFromV<decltype(v)> d;
 #if HWY_TARGET <= HWY_AVX3_DL
@@ -11043,12 +11043,12 @@ HWY_API Vec128<uint8_t, N> Shl(hwy::UnsignedTag tag, Vec128<uint8_t, N> v,
   const VW vw = BitCast(dw, v);
   const VW bits16 = BitCast(dw, bits);
   // Shift even lanes in-place
-  const VW evens = Shl(tag, vw, And(bits16, even_mask));
-  const VW odds = Shl(tag, And(vw, odd_mask), ShiftRight<8>(bits16));
+  const VW evens = ShlImpl(tag, vw, And(bits16, even_mask));
+  const VW odds = ShlImpl(tag, And(vw, odd_mask), ShiftRight<8>(bits16));
   return OddEven(BitCast(d, odds), BitCast(d, evens));
 #endif
 }
-HWY_API Vec128<uint8_t, 1> Shl(hwy::UnsignedTag /*tag*/, Vec128<uint8_t, 1> v,
+HWY_API Vec128<uint8_t, 1> ShlImpl(hwy::UnsignedTag /*tag*/, Vec128<uint8_t, 1> v,
                                Vec128<uint8_t, 1> bits) {
 #if HWY_TARGET <= HWY_SSE4
   const Vec16<uint16_t> bits8{_mm_cvtepu8_epi64(bits.raw)};
@@ -11060,7 +11060,7 @@ HWY_API Vec128<uint8_t, 1> Shl(hwy::UnsignedTag /*tag*/, Vec128<uint8_t, 1> v,
 }
 
 template <size_t N>
-HWY_API Vec128<uint32_t, N> Shl(hwy::UnsignedTag /*tag*/, Vec128<uint32_t, N> v,
+HWY_API Vec128<uint32_t, N> ShlImpl(hwy::UnsignedTag /*tag*/, Vec128<uint32_t, N> v,
                                 Vec128<uint32_t, N> bits) {
 #if HWY_TARGET >= HWY_SSE4
   return v * Pow2(bits);
@@ -11070,7 +11070,7 @@ HWY_API Vec128<uint32_t, N> Shl(hwy::UnsignedTag /*tag*/, Vec128<uint32_t, N> v,
 }
 
 #if HWY_TARGET >= HWY_SSE4
-HWY_API Vec32<uint32_t> Shl(hwy::UnsignedTag /*tag*/, Vec32<uint32_t> v,
+HWY_API Vec32<uint32_t> ShlImpl(hwy::UnsignedTag /*tag*/, Vec32<uint32_t> v,
                             const Vec32<uint32_t> bits) {
 #if HWY_TARGET == HWY_SSE4
   const Vec32<uint32_t> bits32{_mm_cvtepu32_epi64(bits.raw)};
@@ -11082,7 +11082,7 @@ HWY_API Vec32<uint32_t> Shl(hwy::UnsignedTag /*tag*/, Vec32<uint32_t> v,
 }
 #endif
 
-HWY_API Vec128<uint64_t> Shl(hwy::UnsignedTag /*tag*/, Vec128<uint64_t> v,
+HWY_API Vec128<uint64_t> ShlImpl(hwy::UnsignedTag /*tag*/, Vec128<uint64_t> v,
                              Vec128<uint64_t> bits) {
 #if HWY_TARGET >= HWY_SSE4
   const DFromV<decltype(v)> d;
@@ -11095,26 +11095,26 @@ HWY_API Vec128<uint64_t> Shl(hwy::UnsignedTag /*tag*/, Vec128<uint64_t> v,
   return Vec128<uint64_t>{_mm_sllv_epi64(v.raw, bits.raw)};
 #endif
 }
-HWY_API Vec64<uint64_t> Shl(hwy::UnsignedTag /*tag*/, Vec64<uint64_t> v,
+HWY_API Vec64<uint64_t> ShlImpl(hwy::UnsignedTag /*tag*/, Vec64<uint64_t> v,
                             Vec64<uint64_t> bits) {
   return Vec64<uint64_t>{_mm_sll_epi64(v.raw, bits.raw)};
 }
 
 // Signed left shift is the same as unsigned.
 template <typename T, size_t N>
-HWY_API Vec128<T, N> Shl(hwy::SignedTag /*tag*/, Vec128<T, N> v,
+HWY_API Vec128<T, N> ShlImpl(hwy::SignedTag /*tag*/, Vec128<T, N> v,
                          Vec128<T, N> bits) {
   const DFromV<decltype(v)> di;
   const RebindToUnsigned<decltype(di)> du;
   return BitCast(di,
-                 Shl(hwy::UnsignedTag(), BitCast(du, v), BitCast(du, bits)));
+                 ShlImpl(hwy::UnsignedTag(), BitCast(du, v), BitCast(du, bits)));
 }
 
 }  // namespace detail
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> operator<<(Vec128<T, N> v, Vec128<T, N> bits) {
-  return detail::Shl(hwy::TypeTag<T>(), v, bits);
+  return detail::ShlImpl(hwy::TypeTag<T>(), v, bits);
 }
 
 // ------------------------------ Shr (mul, mask, BroadcastSignBit)
@@ -11547,7 +11547,7 @@ namespace detail {
 // I32->I64 PromoteEvenTo/PromoteOddTo
 
 template <class D, HWY_IF_LANES_D(D, 1)>
-HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteEvenToImpl(hwy::SignedTag /*to_type_tag*/,
                                    hwy::SizeTag<8> /*to_lane_size_tag*/,
                                    hwy::SignedTag /*from_type_tag*/, D d_to,
                                    Vec64<int32_t> v) {
@@ -11555,7 +11555,7 @@ HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
 }
 
 template <class D, HWY_IF_LANES_D(D, 2)>
-HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteEvenToImpl(hwy::SignedTag /*to_type_tag*/,
                                    hwy::SizeTag<8> /*to_lane_size_tag*/,
                                    hwy::SignedTag /*from_type_tag*/, D d_to,
                                    Vec128<int32_t> v) {
@@ -11564,7 +11564,7 @@ HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
 }
 
 template <class D, class V, HWY_IF_LANES_LE_D(D, 2)>
-HWY_INLINE VFromD<D> PromoteOddTo(hwy::SignedTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteOddToImpl(hwy::SignedTag /*to_type_tag*/,
                                   hwy::SizeTag<8> /*to_lane_size_tag*/,
                                   hwy::SignedTag /*from_type_tag*/, D d_to,
                                   V v) {
