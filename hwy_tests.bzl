@@ -244,6 +244,11 @@ HWY_TESTS = HWY_CONTRIB_TESTS + (
         "perf_counters_test",
         [":perf_counters", ":thread_pool"],
     ),
+    (
+        "hwy/",
+        "stats_test",
+        [":stats"],
+    ),
     ("hwy/", "targets_test", []),
     ("hwy/tests/", "arithmetic_test", []),
     ("hwy/tests/", "bit_permute_test", []),

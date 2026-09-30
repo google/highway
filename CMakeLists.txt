@@ -970,6 +970,7 @@ set(HWY_TEST_FILES
   hwy/highway_test.cc
   hwy/nanobenchmark_test.cc
   hwy/perf_counters_test.cc
+  hwy/stats_test.cc
   hwy/targets_test.cc
   hwy/examples/skeleton_test.cc
   hwy/tests/arithmetic_test.cc
