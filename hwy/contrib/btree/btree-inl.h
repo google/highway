@@ -222,7 +222,7 @@ HWY_INLINE size_t ScanOffsets(const void* HWY_RESTRICT data,
           const auto m5 = is_before(Load(d, offsets + i + 5 * N));
           const auto m6 = is_before(Load(d, offsets + i + 6 * N));
           const auto m7 = is_before_masked(FirstN(d, tail_rem),
-                                           LoadU(d, offsets + i + 7 * N));
+                                           Load(d, offsets + i + 7 * N));
 
           const auto m0123 = OrderedDemote4MasksTo(d_pack4, d, m0, m1, m2, m3);
           const auto m4567 = OrderedDemote4MasksTo(d_pack4, d, m4, m5, m6, m7);
@@ -258,7 +258,7 @@ HWY_INLINE size_t ScanOffsets(const void* HWY_RESTRICT data,
           const auto m5 = is_before(Load(d, offsets + i + 1 * N));
           const auto m6 = is_before(Load(d, offsets + i + 2 * N));
           const auto m7 = is_before_masked(FirstN(d, tail_rem),
-                                           LoadU(d, offsets + i + 3 * N));
+                                           Load(d, offsets + i + 3 * N));
 
           count += CountTrue(d_pack4,
                              OrderedDemote4MasksTo(d_pack4, d, m4, m5, m6, m7));
@@ -285,7 +285,7 @@ HWY_INLINE size_t ScanOffsets(const void* HWY_RESTRICT data,
           const size_t tail_rem = kTotal - (i + N);
           const auto m0 = is_before(Load(d, offsets + i));
           const auto m1 =
-              is_before_masked(FirstN(d, tail_rem), LoadU(d, offsets + i + N));
+              is_before_masked(FirstN(d, tail_rem), Load(d, offsets + i + N));
           count +=
               CountTrue(d_pack2, OrderedDemote2MasksTo(d_pack2, d, m0, m1));
           return count;
@@ -306,23 +306,27 @@ HWY_INLINE size_t ScanOffsets(const void* HWY_RESTRICT data,
 
     if (i < kTotal) {
       const size_t remaining = kTotal - i;
-      // Safety justification for unmasked LoadU on tail elements:
+      // Safety justification for unmasked aligned Load on tail elements:
       //
       // The Potential Problem (Page Boundary Faults):
       // Because each 512-byte LeafNode is alignas(512), a 4096-byte virtual
       // memory page holds exactly eight nodes. For the 8th node on a page
       // (occupying bytes [3584..4095]), reading past the 512-byte struct
       // boundary would cross into the next virtual memory page (byte 4096+). If
-      // that next page happens to be unmapped, an unmasked LoadU would trigger
-      // a SIGSEGV.
+      // that next page happens to be unmapped, an unmasked full-vector Load
+      // would trigger a SIGSEGV.
       //
-      // Proof that LoadU Never Exceeds the 512-byte Struct (EndByte <= 512):
+      // Proof that Load Is Aligned and Never Exceeds the 512-byte Struct
+      // (StartByte % VectorBytes == 0 and EndByte <= 512):
       //
-      // 1. Element & Byte Boundaries:
-      //    Here, i is the loop counter after the preceding for-loop finishes.
-      //    Because i starts at 0 and advances by N lanes on every iteration,
+      // 1. Alignment & Byte Boundaries:
+      //    Here, i is the loop counter after the preceding for-loops finish.
+      //    Because `offsets` starts at byte 0 of an `alignas(512)` node and i
+      //    starts at 0 and advances by multiples of N lanes on every iteration,
       //    i is always an exact multiple of N: i = x * N (for some integer x
-      //    >= 0). Loading N elements from offsets + i ends at element index:
+      //    >= 0). Thus, the starting byte offset `i * sizeof(OffsetT) = x *
+      //    VectorBytes` is always vector-aligned, making aligned `Load` safe.
+      //    Loading N elements from offsets + i ends at element index:
       //      (i + N) = (x + 1) * N
       //    In memory bytes, the load ends at:
       //      EndByte = (i + N) * sizeof(OffsetT)
@@ -359,8 +363,8 @@ HWY_INLINE size_t ScanOffsets(const void* HWY_RESTRICT data,
       // FirstN mask to ensure comparison correctness.
       //
       // Note: LoadN is much slower on architectures without native masked byte
-      // loads (e.g. AVX2, SSE4) compared to LoadU.
-      const auto v = LoadU(d, offsets + i);
+      // loads (e.g. AVX2, SSE4) compared to Load.
+      const auto v = Load(d, offsets + i);
       const auto mask = FirstN(d, remaining);
       count += CountTrue(d, is_before_masked(mask, v));
     }
@@ -387,8 +391,9 @@ HWY_INLINE size_t ScanOffsets(const void* HWY_RESTRICT data,
 
     if (i < kTotal) {
       const size_t remaining = kTotal - i;
-      // Safe unmasked tail load; see EndByte <= 512 proof in ScanOffsets above.
-      const auto v = LoadU(d, offsets + i);
+      // Safe unmasked aligned tail load; see EndByte <= 512 proof in
+      // ScanOffsets above.
+      const auto v = Load(d, offsets + i);
       const auto mask = FirstN(d, remaining);
       counts0 = Sub(counts0, VecFromMask(d, And(mask, is_before(v))));
     }
@@ -424,8 +429,9 @@ HWY_INLINE bool HasOffset(const void* HWY_RESTRICT data, OffsetT target_val) {
 
   if (i < kTotal) {
     const size_t remaining = kTotal - i;
-    // Safe unmasked tail load; see EndByte <= 512 proof in ScanOffsets above.
-    const auto v = LoadU(d, offsets + i);
+    // Safe unmasked aligned tail load; see EndByte <= 512 proof in ScanOffsets
+    // above.
+    const auto v = Load(d, offsets + i);
     const auto mask = FirstN(d, remaining);
     const auto tail_match = MaskedEq(mask, v, v_target);
     any_match = Or(any_match, tail_match);
