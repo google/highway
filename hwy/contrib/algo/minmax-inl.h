@@ -321,9 +321,14 @@ std::pair<T, T> MinMaxValue(D d, const T* HWY_RESTRICT in, size_t count) {
   min0 = Min(Min(min0, min1), Min(min2, min3));
   max0 = Max(Max(max0, max1), Max(max2, max3));
 
-  for (; i < count; i += N) {
-    const size_t remaining = count - i;
-    const size_t n = HWY_MIN(remaining, N);
+  for (; i + N <= count; i += N) {
+    const Vec<D> v = LoadU(d, in + i);
+    min0 = Min(min0, v);
+    max0 = Max(max0, v);
+  }
+
+  if (i < count) {
+    const size_t n = count - i;
     const Vec<D> v = LoadNOr(min_identity_vec, d, in + i, n);
     min0 = Min(min0, v);
     max0 = Max(max0, IfThenElse(FirstN(d, n), v, max_identity_vec));
@@ -332,7 +337,9 @@ std::pair<T, T> MinMaxValue(D d, const T* HWY_RESTRICT in, size_t count) {
   return {ReduceMin(d, min0), ReduceMax(d, max0)};
 }
 
-// {IndexOfMin(d, in, count), IndexOfMax(d, in, count)}
+// {IndexOfMin(d, in, count), IndexOfMax(d, in, count)}, so {count, count} if
+// `count == 0`. Both are the first occurrence, unlike `std::minmax_element`,
+// which returns the last maximum.
 template <class D, typename T = TFromD<D>>
 std::pair<size_t, size_t> IndexOfMinMax(D d, const T* HWY_RESTRICT in,
                                         size_t count) {
@@ -420,15 +427,26 @@ std::pair<size_t, size_t> IndexOfMinMax(D d, const T* HWY_RESTRICT in,
       max_blocks0 = IfThenElse(take_max1_u, max_blocks1, max_blocks0);
     }
 
-    for (; i < seg_len; i += N, --inv_block) {
-      const size_t n = HWY_MIN(seg_len - i, N);
+    for (; i + N <= seg_len; i += N, --inv_block) {
+      const Vec<D> v = LoadU(d, seg_in + i);
+      const VU block = Set(du, inv_block);
+      const Mask<D> lt = Lt(v, min0);
+      const Mask<D> gt = Gt(v, max0);
+      min0 = IfThenElse(lt, v, min0);
+      max0 = IfThenElse(gt, v, max0);
+      min_blocks0 = IfThenElse(RebindMask(du, lt), block, min_blocks0);
+      max_blocks0 = IfThenElse(RebindMask(du, gt), block, max_blocks0);
+    }
+
+    if (i < seg_len) {
+      const size_t n = seg_len - i;
       const Vec<D> v = LoadNOr(min_identity_vec, d, seg_in + i, n);
       const VU block = Set(du, inv_block);
       const Mask<D> lt = Lt(v, min0);
       const Vec<D> v_for_max = IfThenElse(FirstN(d, n), v, max_identity_vec);
       const Mask<D> gt = Gt(v_for_max, max0);
       min0 = IfThenElse(lt, v, min0);
-      max0 = IfThenElse(gt, v, max0);
+      max0 = IfThenElse(gt, v_for_max, max0);
       min_blocks0 = IfThenElse(RebindMask(du, lt), block, min_blocks0);
       max_blocks0 = IfThenElse(RebindMask(du, gt), block, max_blocks0);
     }

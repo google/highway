@@ -295,7 +295,7 @@ struct TestIndexOfExtremeInLongSpan {
 
     // A unique extreme either side of the 8-bit segment boundary, and at both
     // ends, so a mishandled segment base shows up as a wrong index.
-    const size_t positions[] = {N - 1, 254 * N, 255 * N, 256 * N, count - 1};
+    const size_t positions[] = {0, N - 1, 254 * N, 255 * N, 256 * N, count - 1};
     for (size_t pos : positions) {
       if (pos >= count) continue;
       const size_t first_flat = (pos == 0) ? 1 : 0;
@@ -321,11 +321,13 @@ struct TestIndexOfExtremeInLongSpan {
     }
     HWY_ASSERT_EQ(size_t{0}, IndexOfMin(d, in, count));
     HWY_ASSERT_EQ(size_t{0}, IndexOfMinMax(d, in, count).first);
+    HWY_ASSERT_EQ(size_t{0}, IndexOfMinMax(d, in, count).second);
 
     for (size_t i = 0; i < count; ++i) {
       in[i] = hwy::NegativeInfOrLowestValue<T>();
     }
     HWY_ASSERT_EQ(size_t{0}, IndexOfMax(d, in, count));
+    HWY_ASSERT_EQ(size_t{0}, IndexOfMinMax(d, in, count).first);
     HWY_ASSERT_EQ(size_t{0}, IndexOfMinMax(d, in, count).second);
   }
 };
