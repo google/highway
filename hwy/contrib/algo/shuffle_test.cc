@@ -16,7 +16,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <random>
 #include <utility>
 #include <vector>
 
@@ -102,18 +101,19 @@ std::vector<size_t> CountsFor(D d) {
 
 // ShuffleSpan must consume draws in the same order as a sequential loop, so
 // identically seeded generators give the reference permutation.
-template <class D, class Gen>
-void CheckGenerator(D d, const Gen& prototype) {
+template <class D, class MakeGen>
+void CheckGenerator(D d, const MakeGen& make_gen) {
   using T = TFromD<D>;
+  using Gen = decltype(make_gen());
   const size_t misalignments[2] = {0, Lanes(d) / 3 + 1};
   for (size_t count : CountsFor(d)) {
-    Gen ref_gen = prototype;
+    Gen ref_gen = make_gen();
     const std::vector<size_t> perm = ReferencePermutation(count, [&ref_gen]() {
       return static_cast<uint32_t>(ref_gen() - (Gen::min)());
     });
     AssertIsPermutation(perm);
     for (size_t misalign : misalignments) {
-      Gen gen = prototype;
+      Gen gen = make_gen();
       CheckShuffle(d, count, misalign, perm, [&gen](D tag, T* p, size_t n) {
         ShuffleSpan(tag, p, n, gen);
       });
@@ -124,14 +124,13 @@ void CheckGenerator(D d, const Gen& prototype) {
 struct TestGenerator {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    CheckGenerator(d, std::mt19937(123));
-    CheckGenerator(d, std::mt19937_64(456));
+    CheckGenerator(d, []() HWY_ATTR { return CachedXoshiro<>(123); });
     const AesCtrEngine engine(/*deterministic=*/true);
-    CheckGenerator(d, RngStream(engine, 789));
+    CheckGenerator(d, [&engine]() HWY_ATTR { return RngStream(engine, 789); });
   }
 };
 
-void TestAllGenerator() { ForAllTypes(ForPartialVectors<TestGenerator>()); }
+void TestAllGenerator() { ForIntegerTypes(ForPartialVectors<TestGenerator>()); }
 
 // Every ordering of 4 elements, and every final position of the first and last
 // of 64 elements (which goes through the vector path), should be about equally
@@ -141,7 +140,7 @@ struct TestUniform {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     std::vector<size_t> orderings(256);
     const size_t kOrderingTrials = 24 * 1000;
-    std::mt19937 ordering_gen(1);
+    CachedXoshiro<> ordering_gen(1);
     for (size_t trial = 0; trial < kOrderingTrials; ++trial) {
       T data[4] = {0, 1, 2, 3};
       ShuffleSpan(d, data, 4, ordering_gen);
@@ -160,7 +159,7 @@ struct TestUniform {
     const size_t kCount = 64;
     std::vector<size_t> first_pos(kCount), last_pos(kCount);
     std::vector<T> data(kCount);
-    std::mt19937 gen(42);
+    CachedXoshiro<> gen(42);
     for (size_t trial = 0; trial < kCount * 1000; ++trial) {
       for (size_t k = 0; k < kCount; ++k) data[k] = ConvertScalarTo<T>(k);
       ShuffleSpan(d, data.data(), kCount, gen);

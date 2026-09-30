@@ -117,7 +117,7 @@ void ShuffleSpanImpl(D /*d*/, T* HWY_RESTRICT inout, size_t count, Bits& bits) {
 
 // Randomly permutes `inout[0, count)`, like std::shuffle, with random bits
 // drawn from `g`, a UniformRandomBitGenerator with at least a 32-bit range,
-// such as RngStream or std::mt19937. Draws are consumed in the same order as a
+// such as RngStream. Draws are consumed in the same order as a
 // sequential loop, so the permutation is the same on every target. Positions
 // come from Lemire's multiply-shift, whose bias is negligible for
 // count << 2^32.
