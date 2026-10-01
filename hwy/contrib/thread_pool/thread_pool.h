@@ -27,6 +27,7 @@
 
 #include <array>
 #include <atomic>
+#include <optional>
 #include <string>
 #include <thread>  // NOLINT
 #include <vector>
@@ -1402,8 +1403,16 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
   // concurrently with any `Run`, because this uses the same waiter/barrier.
   void SetWaitMode(PoolWaitMode mode) {
     wait_mode_ = mode;
+    // NOTE: Clear any pending configuration change.
+    pending_config_.reset();
     SendConfig(AutoTuneComplete() ? *AutoTuner().Best()
                                   : AutoTuner().NextConfig());
+  }
+
+  void SetWaitModeLazy(PoolWaitMode mode) {
+    wait_mode_ = mode;
+    pending_config_ =
+        AutoTuneComplete() ? *AutoTuner().Best() : AutoTuner().NextConfig();
   }
 
   // For printing which is in use.
@@ -1427,8 +1436,10 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
   void Run(uint64_t begin, uint64_t end, pool::Caller caller,
            const Closure& closure) {
     AutoTuneT& auto_tuner = AutoTuner();
-    // Already finished tuning: run without time measurement.
-    if (HWY_LIKELY(auto_tuner.Best())) {
+    // Already finished tuning, or transitioning wait modes: run without time
+    // measurement.
+    if (HWY_LIKELY(auto_tuner.Best()) ||
+        HWY_UNLIKELY(pending_config_.has_value())) {
       // Don't care whether threads ran, we are done either way.
       (void)RunWithoutAutotune(begin, end, caller, closure);
       return;
@@ -1650,8 +1661,18 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
       pool::Tasks::DivideRangeAmongWorkers(begin, end, div_workers_, workers_);
     }
 
+    const pool::Config current_config = config();
+    if (HWY_UNLIKELY(pending_config_.has_value())) {
+      for (size_t worker = 1; worker < num_workers; ++worker) {
+        workers_[worker].SetNextConfig(*pending_config_);
+        workers_[worker].SetExit(Exit::kLoop);
+      }
+      workers_[0].SetNextConfig(*pending_config_);
+      pending_config_.reset();
+    }
+
     // Runs `MainWakeAndBarrier` with the first worker slot.
-    CallWithConfig(config(), MainWakeAndBarrier(), main, tasks_, shared_,
+    CallWithConfig(current_config, MainWakeAndBarrier(), main, tasks_, shared_,
                    stats_);
 
 #if PROFILER_ENABLED
@@ -1718,6 +1739,7 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
   std::vector<std::thread> threads_;
 
   PoolWaitMode wait_mode_;
+  std::optional<pool::Config> pending_config_;
   AutoTuneT auto_tune_[2];  // accessed via `AutoTuner`
 
   // Last because it is large. Store inside `ThreadPool` so that callers can
