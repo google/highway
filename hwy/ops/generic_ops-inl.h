@@ -9323,7 +9323,7 @@ HWY_API VFromD<D> SlideUpBlocks(D /*d*/, VFromD<D> v) {
   return v;
 }
 
-#if HWY_HAVE_SCALABLE || HWY_TARGET == HWY_SVE_256
+#if HWY_HAVE_SCALABLE || HWY_TARGET == HWY_SVE_256 || HWY_TARGET == HWY_EMU128
 template <int kBlocks, class D, HWY_IF_V_SIZE_GT_D(D, 16)>
 HWY_API VFromD<D> SlideUpBlocks(D d, VFromD<D> v) {
   static_assert(0 <= kBlocks && static_cast<size_t>(kBlocks) < d.MaxBlocks(),
@@ -9341,7 +9341,7 @@ HWY_API VFromD<D> SlideDownBlocks(D /*d*/, VFromD<D> v) {
   return v;
 }
 
-#if HWY_HAVE_SCALABLE || HWY_TARGET == HWY_SVE_256
+#if HWY_HAVE_SCALABLE || HWY_TARGET == HWY_SVE_256 || HWY_TARGET == HWY_EMU128
 template <int kBlocks, class D, HWY_IF_V_SIZE_GT_D(D, 16)>
 HWY_API VFromD<D> SlideDownBlocks(D d, VFromD<D> v) {
   static_assert(0 <= kBlocks && static_cast<size_t>(kBlocks) < d.MaxBlocks(),

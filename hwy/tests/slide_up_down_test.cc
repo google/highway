@@ -520,10 +520,12 @@ class TestSlideBlocks {
 
 #if HWY_MAX_BYTES >= 64
   template <class D, HWY_IF_V_SIZE_LE_D(D, 32)>
-  static HWY_INLINE void DoTestSlideBy2And3Blocks(D /*d*/, size_t /*N*/) {}
+  static HWY_INLINE HWY_MAYBE_UNUSED void DoTestSlideBy2And3Blocks(
+      D /*d*/, size_t /*N*/) {}
 
   template <class D, HWY_IF_V_SIZE_GT_D(D, 32)>
-  static HWY_INLINE void DoTestSlideBy2And3Blocks(D d, size_t N) {
+  static HWY_INLINE HWY_MAYBE_UNUSED void DoTestSlideBy2And3Blocks(D d,
+                                                                   size_t N) {
     if (N < (64 / sizeof(TFromD<D>))) return;
     DoTestSlideByKBlocks<2>(d);
     DoTestSlideByKBlocks<3>(d);

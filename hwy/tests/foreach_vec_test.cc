@@ -88,6 +88,16 @@ static HWY_INLINE size_t LanesPerVectWithLaneSize(size_t lanes_per_u8_vect,
 #endif
 }
 
+// Number of u8 lanes in the largest vector visited by ForPartialVectors, which
+// on HWY_EMU128 is 32 bytes, larger than ScalableTag.
+static HWY_INLINE size_t PartialVectorsU8Lanes() {
+#if HWY_TARGET == HWY_EMU128 && !defined(HWY_EMU128_CAPPED_TAG_16)
+  return 32;
+#else
+  return Lanes(ScalableTag<uint8_t>());
+#endif
+}
+
 #define HWY_DECLARE_FOREACH_VECTOR_TEST(TestClass)       \
   static ForeachVectorTestState TestClass##State;        \
                                                          \
@@ -568,7 +578,7 @@ HWY_NOINLINE void TestAllForPartialVectors() {
   HWY_ASSERT(TestForPartialVectorsState.lane_sizes_mask ==
              kSupportedLaneSizesMask);
 
-  const size_t lanes_per_u8_vect = Lanes(ScalableTag<uint8_t>());
+  const size_t lanes_per_u8_vect = PartialVectorsU8Lanes();
 
   for (int lane_size = 1; lane_size <= kMaxSupportedLaneSize; lane_size <<= 1) {
     ForeachVectorTestPerLaneSizeState *per_lane_size_state =
@@ -597,7 +607,7 @@ HWY_NOINLINE void TestAllForPartialFixedOrFullVectors() {
   HWY_ASSERT(TestForPartialFixedOrFullVectorsState.lane_sizes_mask ==
              kSupportedLaneSizesMask);
 
-  const size_t lanes_per_u8_vect = Lanes(ScalableTag<uint8_t>());
+  const size_t lanes_per_u8_vect = PartialVectorsU8Lanes();
 
   for (int lane_size = 1; lane_size <= kMaxSupportedLaneSize; lane_size <<= 1) {
     ForeachVectorTestPerLaneSizeState *per_lane_size_state =

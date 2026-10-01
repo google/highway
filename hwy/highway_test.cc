@@ -603,6 +603,77 @@ HWY_NOINLINE void TestAllBlockDFromD() {
   ForAllTypes(ForPartialVectors<TestBlockDFromD>());
 }
 
+// HWY_EMU128 supports vectors larger than its 16-byte `ScalableTag<T>`.
+HWY_NOINLINE void TestAllEmu128Wide() {
+#if HWY_TARGET == HWY_EMU128
+  // All ways of requesting a 32-byte vector result in the same type.
+  const FixedTag<uint32_t, 8> d;
+  using V = Vec128<uint32_t, 8>;
+  static_assert(IsSame<Vec<decltype(d)>, V>(), "FixedTag");
+#ifndef HWY_EMU128_CAPPED_TAG_16
+  static_assert(IsSame<Vec<CappedTag<uint32_t, 8>>, V>(), "CappedTag");
+#endif
+  static_assert(IsSame<Vec<ScalableTag<uint32_t, 1>>, V>(), "ScalableTag");
+  static_assert(IsSame<Vec<Twice<Full128<uint32_t>>>, V>(), "Twice");
+  static_assert(sizeof(V) == 32, "Unexpected padding");
+  static_assert(MaxLanes(d) == 8, "Wrong MaxLanes");
+  // ScalableTag<T> remains 16 bytes.
+  static_assert(MaxLanes(ScalableTag<uint32_t>()) == 4, "Wrong MaxLanes");
+  // Largest supported size is 128 bytes.
+  static_assert(MaxLanes(FixedTag<uint8_t, 128>()) == 128, "Wrong MaxLanes");
+#ifndef HWY_EMU128_CAPPED_TAG_16
+  static_assert(MaxLanes(CappedTag<uint8_t, 1024>()) == 128, "Wrong MaxLanes");
+#endif
+  HWY_ASSERT_EQ(size_t{8}, Lanes(d));
+
+  // Lane-wise ops and memory.
+  HWY_ALIGN uint32_t lanes[8];
+  const V v = Iota(d, 1);  // 1..8
+  Store(v, d, lanes);
+  for (size_t i = 0; i < 8; ++i) {
+    HWY_ASSERT_EQ(static_cast<uint32_t>(i + 1), lanes[i]);
+  }
+  HWY_ASSERT_VEC_EQ(d, v, LoadU(d, lanes));
+  HWY_ASSERT_VEC_EQ(d, Iota(d, 2), Add(v, Set(d, 1u)));
+  HWY_ASSERT_EQ(uint32_t{36}, ReduceSum(d, v));
+  HWY_ASSERT_EQ(uint32_t{8}, ReduceMax(d, v));
+
+  // Masks.
+  const auto gt4 = Gt(v, Set(d, 4u));
+  HWY_ASSERT_EQ(size_t{4}, CountTrue(d, gt4));
+  HWY_ASSERT_EQ(intptr_t{4}, FindFirstTrue(d, gt4));
+  uint8_t bits[8];
+  HWY_ASSERT_EQ(size_t{1}, StoreMaskBits(d, gt4, bits));
+  HWY_ASSERT_EQ(uint8_t{0xF0}, bits[0]);
+
+  // Halves and type conversions.
+  const Half<decltype(d)> dh;
+  HWY_ASSERT_VEC_EQ(dh, Iota(dh, 5), UpperHalf(dh, v));
+  HWY_ASSERT_VEC_EQ(d, v, Combine(d, UpperHalf(dh, v), LowerHalf(dh, v)));
+  const Repartition<uint8_t, decltype(d)> du8;
+  static_assert(MaxLanes(du8) == 32, "Wrong MaxLanes");
+  HWY_ASSERT_VEC_EQ(d, v, BitCast(d, BitCast(du8, v)));
+  const Rebind<uint64_t, decltype(d)> du64;  // 64 bytes
+  HWY_ASSERT_VEC_EQ(d, v, DemoteTo(d, PromoteTo(du64, v)));
+
+  // Blockwise ops operate independently on each 16-byte block.
+  const uint32_t kBroadcast[8] = {2, 2, 2, 2, 6, 6, 6, 6};
+  HWY_ASSERT_VEC_EQ(d, kBroadcast, Broadcast<1>(v));
+  const uint32_t kInterleave[8] = {1, 9, 2, 10, 5, 13, 6, 14};
+  HWY_ASSERT_VEC_EQ(d, kInterleave, InterleaveLower(v, Iota(d, 9)));
+  const uint32_t kShifted[8] = {0, 1, 2, 3, 0, 5, 6, 7};
+  HWY_ASSERT_VEC_EQ(d, kShifted, ShiftLeftLanes<1>(d, v));
+  const uint32_t kSwapped[8] = {5, 6, 7, 8, 1, 2, 3, 4};
+  HWY_ASSERT_VEC_EQ(d, kSwapped, SwapAdjacentBlocks(v));
+  HWY_ASSERT_VEC_EQ(d, kSwapped, ReverseBlocks(d, v));
+  HWY_ASSERT_VEC_EQ(dh, Iota(dh, 5), ExtractBlock<1>(v));
+
+  // 128-byte vector.
+  const FixedTag<uint8_t, 128> d128;
+  HWY_ASSERT_EQ(uint8_t{128 * 127 / 2 % 256}, ReduceSum(d128, Iota(d128, 0)));
+#endif  // HWY_TARGET == HWY_EMU128
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -628,6 +699,7 @@ HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllGetLane);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllDFromV);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllBlocks);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllBlockDFromD);
+HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllEmu128Wide);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy
