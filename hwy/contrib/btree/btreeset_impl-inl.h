@@ -135,6 +135,15 @@ void SetEraseImpl(TreeState* state, BTREE_KEY_T key, size_t* out_erased) {
   *out_erased = tree.erase(key);
 }
 
+void SetEraseIterImpl(TreeState* state, const typename TreeEngine::Leaf* leaf,
+                      size_t slot,
+                      typename hwy::BTreeSet<BTREE_KEY_T>::iterator* out_it) {
+  TreeEngine tree(state);
+  auto it = tree.erase(typename TreeEngine::const_iterator(leaf, slot));
+  *out_it = typename hwy::BTreeSet<BTREE_KEY_T>::iterator(it.leaf(), it.slot(),
+                                                          state->last_leaf_);
+}
+
 void SetContainsBatchImpl(const TreeState* state,
                           const BTREE_KEY_T* HWY_RESTRICT keys, size_t count,
                           bool* HWY_RESTRICT out) {
@@ -187,6 +196,7 @@ HWY_EXPORT(SetUpperBoundImpl);
 HWY_EXPORT(SetFindImpl);
 HWY_EXPORT(SetInsertImpl);
 HWY_EXPORT(SetEraseImpl);
+HWY_EXPORT(SetEraseIterImpl);
 
 template <>
 void BTreeSet<BTREE_KEY_T>::clear() {
@@ -266,6 +276,14 @@ size_t BTreeSet<BTREE_KEY_T>::erase(BTREE_KEY_T key) {
   size_t erased = 0;
   HWY_DYNAMIC_DISPATCH(SetEraseImpl)(&state_, key, &erased);
   return erased;
+}
+
+template <>
+BTreeSet<BTREE_KEY_T>::iterator BTreeSet<BTREE_KEY_T>::erase(
+    const_iterator pos) {
+  BTreeSet<BTREE_KEY_T>::iterator it;
+  HWY_DYNAMIC_DISPATCH(SetEraseIterImpl)(&state_, pos.leaf(), pos.slot(), &it);
+  return it;
 }
 
 template <>

@@ -25,6 +25,18 @@
 
 namespace hwy {
 
+// SIMD-accelerated ordered set of 32/64-bit integer keys with an API modelled
+// on std::set / absl::btree_set. Keys are stored delta-compressed in 512-byte
+// leaves; SIMD kernels are selected at runtime via dynamic dispatch.
+//
+// Iterator invalidation: as with absl::btree_set, if an insertion or erasure
+// occurs (insert, emplace, erase, clear, Build, swap, assignment), ALL
+// outstanding iterators, pointers and references may be invalidated,
+// including end(). To continue iterating after a mutation, use the iterator
+// returned by insert() or erase(iterator):
+//   for (auto it = s.begin(); it != s.end();) {
+//     if (ShouldErase(*it)) it = s.erase(it); else ++it;
+//   }
 template <typename KeyT>
 class BTreeSet {
  public:
@@ -60,9 +72,12 @@ class BTreeSet {
     return *this;
   }
 
+  // Bulk-builds a set from `num_keys` strictly ascending keys in O(N).
+  // Assigning the result to an existing set invalidates all of its iterators.
   static BTreeSet Build(const KeyT* sorted_keys, size_t num_keys,
                         float fill_ratio = 1.0f);
 
+  // Removes all elements. Invalidates all iterators, pointers and references.
   void clear();
 
   // ---------------------------------------------------------------------------
@@ -380,12 +395,19 @@ class BTreeSet {
                     state_.last_leaf_);
   }
 
+  // Inserts `key`. Returns (iterator to the element, whether it was inserted).
+  // If an insertion occurs, all other iterators are invalidated.
   std::pair<iterator, bool> insert(KeyT key);
   template <typename... Args>
   std::pair<iterator, bool> emplace(Args&&... args) {
     return insert(KeyT(std::forward<Args>(args)...));
   }
+  // Erases `key` if present. Returns the number of elements erased (0 or 1).
+  // If an erasure occurs, all iterators are invalidated.
   size_t erase(KeyT key);
+  // Erases the element at `pos` (must not be end()). Returns an iterator to the
+  // following element, or end(). All other iterators are invalidated.
+  iterator erase(const_iterator pos);
 
   const LeafT* last_leaf() const { return state_.last_leaf_; }
   LeafT* last_leaf() { return state_.last_leaf_; }
@@ -435,6 +457,9 @@ class BTreeSet {
   BTreeSet<KeyT>::insert(KeyT key);                                          \
   template <>                                                                \
   HWY_CONTRIB_DLLEXPORT size_t BTreeSet<KeyT>::erase(KeyT key);              \
+  template <>                                                                \
+  HWY_CONTRIB_DLLEXPORT BTreeSet<KeyT>::iterator BTreeSet<KeyT>::erase(      \
+      const_iterator pos);                                                   \
   template <>                                                                \
   HWY_CONTRIB_DLLEXPORT bool BTreeSet<KeyT>::Contains(KeyT key) const;       \
   template <>                                                                \

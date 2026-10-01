@@ -1442,6 +1442,14 @@ void MergeLeaves(MapLeafNode<KeyT, ValueT>* leaf,
 // 2. Adapter Mode (Non-owning): Constructed with an external BTreeState pointer
 //    (e.g., from hwy::BTreeSet). Operates directly on the external state
 //    without copying data, and leaves node deallocation to the external owner.
+//
+// Iterator invalidation: as with absl::btree_*, any mutation (insert, erase,
+// insert_or_assign, operator[], clear, Build, swap, assignment) may invalidate
+// ALL outstanding iterators, pointers and references, including end(). Keys
+// are stored delta-compressed inside 512-byte leaves, so an insert can shift,
+// recompress or split a leaf, and an erase can merge or free one. To continue
+// iterating after a mutation, use the iterator returned by insert() or
+// erase(iterator); do not reuse iterators obtained before the mutation.
 template <typename Traits>
 class BTree {
  public:
@@ -1870,7 +1878,8 @@ class BTree {
   // ---------------------------------------------------------------------------
 
   // Constructs a BTreeSet from an array of pre-sorted, unique keys in
-  // O(N) time.
+  // O(N) time. Assigning the result to an existing tree invalidates all of
+  // that tree's iterators, pointers and references.
   //
   // Example usage:
   //   std::vector<uint32_t> sorted_keys = {10, 20, 30, 40, 50};
@@ -2203,6 +2212,9 @@ class BTree {
   // ---------------------------------------------------------------------------
   // Dynamic Mutations (Insertions & Deletions)
   // ---------------------------------------------------------------------------
+  // If an insertion or erasure occurs, every outstanding iterator, pointer and
+  // reference (including end()) may be invalidated. The returned iterator (if
+  // any) is valid until the next mutation.
 
   // Inserts a key into the Set. Returns pair of (iterator, bool_inserted).
   template <bool IsMap = Traits::kIsMap, typename = std::enable_if_t<!IsMap>>
@@ -2302,10 +2314,30 @@ class BTree {
     return EraseInternal(KeyCodec<KeyT>::ToStorage(key));
   }
 
+  // Erases the element at `pos`, which must be dereferenceable (not end()).
+  // Returns an iterator to the element following the erased one, or end().
+  // Like absl::btree, this is the only safe way to erase while iterating:
+  //   for (auto it = t.begin(); it != t.end();) {
+  //     if (ShouldErase(*it)) it = t.erase(it); else ++it;
+  //   }
+  // Cost is one additional root-to-leaf descent to re-locate the successor,
+  // because erasing may merge or free the leaf that `pos` pointed into.
+  iterator erase(const_iterator pos) {
+    HWY_DASSERT(pos.leaf() != nullptr && pos.slot() < pos.leaf()->NumKeys());
+    const StorageKeyT key = GetLeafKey(pos.leaf(), pos.slot());
+    const size_t erased = EraseInternal(key);
+    HWY_DASSERT(erased == 1);
+    (void)erased;
+    // The key is gone, so lower_bound yields the first element greater than it.
+    return LowerBoundInternal(key);
+  }
+
   // ---------------------------------------------------------------------------
   // Capacity & Iteration
   // ---------------------------------------------------------------------------
 
+  // Removes all elements and frees all nodes. Invalidates all iterators,
+  // pointers and references.
   void clear() {
     DestroySubtree(state_->root_, state_->tree_height_);
     state_->root_ = nullptr;
