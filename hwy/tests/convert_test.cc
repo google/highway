@@ -452,6 +452,45 @@ struct TestF16 {
 
 HWY_NOINLINE void TestAllF16() { ForDemoteVectors<TestF16>()(float()); }
 
+// PromoteTo must map f16 infinity and NaN to f32 infinity and NaN, matching
+// the scalar F32FromF16.
+struct TestF16NonFinite {
+  template <typename TF32, class DF32>
+  HWY_NOINLINE void operator()(TF32 /*t*/, DF32 df32) {
+    const size_t N = Lanes(df32);
+    using TF16 = hwy::float16_t;
+    const Rebind<TF16, DF32> df16;
+    const RebindToUnsigned<decltype(df16)> du16;
+    const uint16_t kBits[] = {0x7C00, 0xFC00, 0x7E00, 0xFE00, 0x7C01,
+                              0xFFFF, 0x3C00, 0x0001, 0x7BFF, 0xFBFF};
+    constexpr size_t kNum = sizeof(kBits) / sizeof(kBits[0]);
+    auto in16 = AllocateAligned<uint16_t>(N);
+    auto out32 = AllocateAligned<float>(N);
+    HWY_ASSERT(in16 && out32);
+
+    for (size_t i = 0; i < kNum; ++i) {
+      for (size_t j = 0; j < N; ++j) {
+        in16[j] = kBits[(i + j) % kNum];
+      }
+      const auto v16 = BitCast(df16, Load(du16, in16.get()));
+      Store(PromoteTo(df32, v16), df32, out32.get());
+      for (size_t j = 0; j < N; ++j) {
+        const float expected =
+            F32FromF16(hwy::BitCastScalar<TF16>(in16[j]));
+        if (ScalarIsNaN(expected)) {
+          HWY_ASSERT(ScalarIsNaN(out32[j]));
+        } else {
+          HWY_ASSERT_EQ(expected, out32[j]);
+        }
+      }
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllF16NonFinite() {
+  ForDemoteVectors<TestF16NonFinite>()(float());
+}
+
 // This minimal interface is always supported, even if !HWY_HAVE_FLOAT16.
 struct TestF16FromF64 {
   template <typename TF64, class DF64>
@@ -1559,6 +1598,7 @@ HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteUpperLowerTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteOddEvenTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF16);
+HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF16NonFinite);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF16FromF64);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllBF16);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllConvertU8);

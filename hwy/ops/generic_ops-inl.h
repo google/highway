@@ -3662,7 +3662,10 @@ HWY_API VFromD<D> PromoteTo(D df32, VFromD<Rebind<float16_t, D>> v) {
       BitCast(du32, Mul(ConvertTo(df32, BitCast(di32, mantissa)),
                         Set(df32, 1.0f / 16384 / 1024)));
 
-  const VU32 biased_exp32 = Add(biased_exp, Set(du32, 127 - 15));
+  // Infinity and NaN (biased_exp == 31) map to the F32 exponent 255.
+  const VU32 biased_exp32 =
+      IfThenElse(Eq(biased_exp, Set(du32, 0x1F)), Set(du32, 0xFF),
+                 Add(biased_exp, Set(du32, 127 - 15)));
   const VU32 mantissa32 = ShiftLeft<23 - 10>(mantissa);
   const VU32 normal = Or(ShiftLeft<23>(biased_exp32), mantissa32);
   const VU32 bits32 = IfThenElse(Eq(biased_exp, Zero(du32)), subnormal, normal);
