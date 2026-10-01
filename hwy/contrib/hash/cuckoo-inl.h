@@ -48,7 +48,7 @@
 
 #include "hwy/contrib/algo/find-inl.h"
 #include "hwy/contrib/hash/hash-inl.h"
-#include "hwy/contrib/random/random-inl.h"
+#include "hwy/contrib/random/aes_ctr-inl.h"
 #include "hwy/highway.h"
 
 #if HWY_TARGET != HWY_SCALAR

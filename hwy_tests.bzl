@@ -53,6 +53,11 @@ HWY_CONTRIB_TESTS = (
         [":crc"],
     ),
     (
+        "hwy/contrib/distributions/",
+        "uniform_test",
+        [":distributions", ":random_aes_ctr", ":random_cached", ":random_xoshiro"],
+    ),
+    (
         "hwy/contrib/dot/",
         "dot_test",
         [":dot"],
@@ -117,15 +122,20 @@ HWY_CONTRIB_TESTS = (
     ),
     (
         "hwy/contrib/random/",
+        "mt19937_test",
+        [":distributions", ":random_cached", ":random_mt19937"],
+    ),
+    (
+        "hwy/contrib/random/",
         "random_test",
-        [":random"],
+        [":distributions", ":random_aes_ctr", ":random_cached", ":random_xoshiro"],
     ),
     (
         "hwy/contrib/hash/",
         "hash_test",
         [
             ":hash",
-            ":random",
+            ":random_aes_ctr",
             ":stats",
             ":thread_pool",
             ":bit_set",
@@ -145,7 +155,6 @@ HWY_CONTRIB_TESTS = (
             ":hash",
             ":phast",
             ":profiler",
-            ":random",
             ":thread_pool",
             ":topology",
             "//hwy/contrib/sort:vqsort",
@@ -158,7 +167,6 @@ HWY_CONTRIB_TESTS = (
             ":hash",
             ":cuckoo",
             ":profiler",
-            ":random",
             ":thread_pool",
             ":topology",
         ],
@@ -170,7 +178,7 @@ HWY_CONTRIB_TESTS = (
             ":algo",
             ":cuckoo",
             ":hash",
-            ":random",
+            ":random_aes_ctr",
             "//hwy/contrib/sort:vqsort",
             # Placeholder for ortools, do not remove
         ],
@@ -182,7 +190,7 @@ HWY_CONTRIB_TESTS = (
             ":shardmul",
             ":algo",
             ":profiler",
-            ":random",
+            ":random_aes_ctr",
             ":thread_pool",
             ":topology",
             "//hwy/contrib/sort:vqsort",
@@ -237,6 +245,7 @@ HWY_TESTS = HWY_CONTRIB_TESTS + (
         "bit_set_test",
         [":bit_set"],
     ),
+    ("hwy/", "generator_test", []),
     ("hwy/", "highway_test", []),
     ("hwy/", "nanobenchmark_test", []),
     (

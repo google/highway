@@ -35,7 +35,7 @@
 // After foreach_target
 #include "hwy/bit_set.h"
 #include "hwy/contrib/hash/hash-inl.h"
-#include "hwy/contrib/random/random-inl.h"
+#include "hwy/contrib/random/aes_ctr-inl.h"
 #include "hwy/contrib/sort/vqsort.h"
 #include "hwy/contrib/thread_pool/thread_pool.h"
 #include "hwy/highway.h"

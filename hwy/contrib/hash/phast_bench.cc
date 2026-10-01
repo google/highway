@@ -49,7 +49,6 @@
 #include "hwy/contrib/hash/cuckoo2x2-inl.h"
 #include "hwy/contrib/hash/phast-inl.h"
 #include "hwy/contrib/hash/shardmul-inl.h"
-#include "hwy/contrib/random/random-inl.h"
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
 
@@ -82,14 +81,14 @@ static ThreadPool MakePool() {
 HWY_NOINLINE AlignedVector<uint32_t> GenerateKeys(size_t num_keys) {
   // Round up to two vectors so we do not have to handle remainders here.
   num_keys = RoundUpTo(num_keys, 2 * VectorBytes() / sizeof(uint32_t));
-  // Must be distinct, hence do not use FillRandom().
+  // Hash table construction requires distinct keys.
   return FillRandomDistinct<uint32_t>(num_keys, Unpredictable1());
 }
 
 HWY_NOINLINE AlignedVector<uint64_t> GenerateKeys64(size_t num_keys) {
   // Round up to two vectors so we do not have to handle remainders here.
   num_keys = RoundUpTo(num_keys, 2 * VectorBytes() / sizeof(uint64_t));
-  // Must be distinct, hence do not use FillRandom().
+  // Hash table construction requires distinct keys.
   return FillRandomDistinct<uint64_t>(num_keys, Unpredictable1());
 }
 

@@ -25,7 +25,7 @@
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 // Put after foreach_target.h to avoid redefinition errors
 #include "hwy/aligned_allocator.h"
-#include "hwy/contrib/random/random-inl.h"
+#include "hwy/contrib/random/xoshiro-inl.h"
 #include "hwy/highway.h"
 #include "hwy/timer.h"
 
@@ -72,7 +72,7 @@ void InitializeState(uint8_t* HWY_RESTRICT a_byte_1,
   const size_t upp_bound = 1 + ((nx * ny) / (8 * sizeof(uint64_t)));
   AlignedFreeUniquePtr<uint64_t[]> bits = AllocateAligned<uint64_t>(upp_bound);
   hwy::AlignedVector<uint8_t> temp(NU8);
-  VectorXoshiro generator{uint64_t{5}};
+  XoshiroBitGenerator generator{uint64_t{5}};
   size_t i = 0;
   for (; i + NU64 <= upp_bound; i += NU64) {
     VU64 rand = generator();
