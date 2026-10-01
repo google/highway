@@ -87,6 +87,12 @@ DEFINE_F16_MATH_TEST(Sinh,
   std::sinh,  CallSinh,  -80.0f,         +80.0f,          1)
 DEFINE_F16_MATH_TEST(Tanh,
   std::tanh,  CallTanh,  -65504.0f,      +65504.0f,       1)
+// Retain the positive input ranges documented by the float32 kernels.
+// 2^-24 is the smallest positive float16 value, including subnormals.
+DEFINE_F16_MATH_TEST(Tgamma,
+  std::tgamma, CallTgamma, 0x1p-24f,     +35.0f,          1)
+DEFINE_F16_MATH_TEST(LogGamma,
+  std::lgamma, CallLogGamma, 0x1p-24f,   +65504.0f,       1)
 // clang-format on
 
 // Even subnormal float16 inputs become normal float32 inputs, so both
@@ -193,6 +199,64 @@ HWY_NOINLINE void TestAllF16HyperbolicBoundaries() {
   ForPartialVectors<TestF16HyperbolicBoundaries>()(float16_t());
 }
 
+// Check exact values separately from the ULP budget: signed-zero poles,
+// positive roots of LogGamma, factorials, and float16 overflow.
+struct TestF16GammaBoundaries {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    if (HWY_MATH_TEST_EXCESS_PRECISION) return;
+    const RebindToUnsigned<D> du;
+    const uint16_t signs[] = {0x0000, 0x8000};
+    for (const uint16_t sign : signs) {
+      const auto x = BitCast(d, Set(du, sign));
+      HWY_ASSERT_VEC_EQ(du, Set(du, static_cast<uint16_t>(sign | 0x7C00)),
+                        BitCast(du, CallTgamma(d, x)));
+      HWY_ASSERT_VEC_EQ(du, Set(du, uint16_t{0x7C00}),
+                        BitCast(du, CallLogGamma(d, x)));
+    }
+
+    const uint16_t roots[] = {0x3C00, 0x4000};  // 1 and 2.
+    for (const uint16_t bits : roots) {
+      const auto x = BitCast(d, Set(du, bits));
+      HWY_ASSERT_VEC_EQ(du, Set(du, uint16_t{0x3C00}),
+                        BitCast(du, CallTgamma(d, x)));
+      HWY_ASSERT_VEC_EQ(du, Zero(du), BitCast(du, CallLogGamma(d, x)));
+    }
+
+    // Gamma(9) = 8! = 40320 is exact in float16; Gamma(10) overflows.
+    const auto nine = BitCast(d, Set(du, uint16_t{0x4880}));
+    HWY_ASSERT_VEC_EQ(du, Set(du, uint16_t{0x78EC}),
+                      BitCast(du, CallTgamma(d, nine)));
+    // Adjacent inputs on both sides of Gamma's two overflow boundaries.
+    const auto small_finite = BitCast(d, Set(du, uint16_t{0x0101}));
+    HWY_ASSERT_VEC_EQ(du, Set(du, uint16_t{0x7BF8}),
+                      BitCast(du, CallTgamma(d, small_finite)));
+    const auto large_finite = BitCast(d, Set(du, uint16_t{0x489C}));
+    HWY_ASSERT_VEC_EQ(du, Set(du, uint16_t{0x7BE2}),
+                      BitCast(du, CallTgamma(d, large_finite)));
+    const uint16_t overflow[] = {0x0001, 0x0100, 0x489D, 0x4900, 0x5060};
+    for (const uint16_t bits : overflow) {
+      const auto x = BitCast(d, Set(du, bits));
+      HWY_ASSERT_VEC_EQ(du, Set(du, uint16_t{0x7C00}),
+                        BitCast(du, CallTgamma(d, x)));
+    }
+    // LogGamma(8180) is finite; the next float16 input, 8184, overflows.
+    const auto log_finite = BitCast(d, Set(du, uint16_t{0x6FFD}));
+    HWY_ASSERT_VEC_EQ(du, Set(du, uint16_t{0x7BFF}),
+                      BitCast(du, CallLogGamma(d, log_finite)));
+    const auto log_overflow = BitCast(d, Set(du, uint16_t{0x6FFE}));
+    HWY_ASSERT_VEC_EQ(du, Set(du, uint16_t{0x7C00}),
+                      BitCast(du, CallLogGamma(d, log_overflow)));
+    const auto largest = BitCast(d, Set(du, uint16_t{0x7BFF}));
+    HWY_ASSERT_VEC_EQ(du, Set(du, uint16_t{0x7C00}),
+                      BitCast(du, CallLogGamma(d, largest)));
+  }
+};
+
+HWY_NOINLINE void TestAllF16GammaBoundaries() {
+  ForPartialVectors<TestF16GammaBoundaries>()(float16_t());
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -203,6 +267,9 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 namespace {
 HWY_BEFORE_TEST(HwyF16MathTest);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Tgamma);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16LogGamma);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16GammaBoundaries);
 HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Acosh);
 HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Asinh);
 HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Atanh);

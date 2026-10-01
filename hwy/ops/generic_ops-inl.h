@@ -9630,6 +9630,21 @@ HWY_API V BitShuffle(V v, VI idx) {
 
 #endif  // HWY_NATIVE_BITSHUFFLE
 
+// ------------------------------ MaskedAnd
+
+#if (defined(HWY_NATIVE_MASKED_AND) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MASKED_AND
+#undef HWY_NATIVE_MASKED_AND
+#else
+#define HWY_NATIVE_MASKED_AND
+#endif
+
+template <class V, class M>
+HWY_API V MaskedAnd(M m, V a, V b) {
+  return IfThenElseZero(m, And(a, b));
+}
+#endif  // HWY_NATIVE_MASKED_AND
+
 // ------------------------------ MaskedOr
 
 #if (defined(HWY_NATIVE_MASKED_OR) == defined(HWY_TARGET_TOGGLE))
@@ -9659,6 +9674,21 @@ HWY_API V MaskedXor(M m, V a, V b) {
   return IfThenElseZero(m, Xor(a, b));
 }
 #endif  // HWY_NATIVE_MASKED_XOR
+
+// ------------------------------ MaskedAndOr
+
+#if (defined(HWY_NATIVE_MASKED_AND_OR) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MASKED_AND_OR
+#undef HWY_NATIVE_MASKED_AND_OR
+#else
+#define HWY_NATIVE_MASKED_AND_OR
+#endif
+
+template <class V, class M>
+HWY_API V MaskedAndOr(V no, M m, V a, V b) {
+  return IfThenElse(m, And(a, b), no);
+}
+#endif  // HWY_NATIVE_MASKED_AND_OR
 
 // ------------------------------ MaskedOrOr
 

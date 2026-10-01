@@ -538,9 +538,28 @@ HWY_API Vec256<double> Or(Vec256<double> a, Vec256<double> b) {
   return Vec256<double>{_mm256_or_pd(a.raw, b.raw)};
 }
 
-// ------------------------------ MaskedOr
-
 #if HWY_TARGET <= HWY_AVX3
+
+// ------------------------------ MaskedAnd
+
+HWY_API Vec256<uint32_t> MaskedAnd(Mask256<uint32_t> m, Vec256<uint32_t> a,
+                                   Vec256<uint32_t> b) {
+  return Vec256<uint32_t>{_mm256_maskz_and_epi32(m.raw, a.raw, b.raw)};
+}
+HWY_API Vec256<int32_t> MaskedAnd(Mask256<int32_t> m, Vec256<int32_t> a,
+                                  Vec256<int32_t> b) {
+  return Vec256<int32_t>{_mm256_maskz_and_epi32(m.raw, a.raw, b.raw)};
+}
+HWY_API Vec256<uint64_t> MaskedAnd(Mask256<uint64_t> m, Vec256<uint64_t> a,
+                                   Vec256<uint64_t> b) {
+  return Vec256<uint64_t>{_mm256_maskz_and_epi64(m.raw, a.raw, b.raw)};
+}
+HWY_API Vec256<int64_t> MaskedAnd(Mask256<int64_t> m, Vec256<int64_t> a,
+                                  Vec256<int64_t> b) {
+  return Vec256<int64_t>{_mm256_maskz_and_epi64(m.raw, a.raw, b.raw)};
+}
+
+// ------------------------------ MaskedOr
 
 HWY_API Vec256<uint32_t> MaskedOr(Mask256<uint32_t> m, Vec256<uint32_t> a,
                                   Vec256<uint32_t> b) {
@@ -576,6 +595,25 @@ HWY_API Vec256<uint64_t> MaskedXor(Mask256<uint64_t> m, Vec256<uint64_t> a,
 HWY_API Vec256<int64_t> MaskedXor(Mask256<int64_t> m, Vec256<int64_t> a,
                                   Vec256<int64_t> b) {
   return Vec256<int64_t>{_mm256_maskz_xor_epi64(m.raw, a.raw, b.raw)};
+}
+
+// ------------------------------ MaskedAndOr
+
+HWY_API Vec256<uint32_t> MaskedAndOr(Vec256<uint32_t> no, Mask256<uint32_t> m,
+                                     Vec256<uint32_t> a, Vec256<uint32_t> b) {
+  return Vec256<uint32_t>{_mm256_mask_and_epi32(no.raw, m.raw, a.raw, b.raw)};
+}
+HWY_API Vec256<int32_t> MaskedAndOr(Vec256<int32_t> no, Mask256<int32_t> m,
+                                    Vec256<int32_t> a, Vec256<int32_t> b) {
+  return Vec256<int32_t>{_mm256_mask_and_epi32(no.raw, m.raw, a.raw, b.raw)};
+}
+HWY_API Vec256<uint64_t> MaskedAndOr(Vec256<uint64_t> no, Mask256<uint64_t> m,
+                                     Vec256<uint64_t> a, Vec256<uint64_t> b) {
+  return Vec256<uint64_t>{_mm256_mask_and_epi64(no.raw, m.raw, a.raw, b.raw)};
+}
+HWY_API Vec256<int64_t> MaskedAndOr(Vec256<int64_t> no, Mask256<int64_t> m,
+                                    Vec256<int64_t> a, Vec256<int64_t> b) {
+  return Vec256<int64_t>{_mm256_mask_and_epi64(no.raw, m.raw, a.raw, b.raw)};
 }
 
 // ------------------------------ MaskedOrOr

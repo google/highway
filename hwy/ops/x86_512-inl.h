@@ -738,6 +738,25 @@ HWY_API Vec512<double> Or(const Vec512<double> a, const Vec512<double> b) {
   return Vec512<double>{_mm512_or_pd(a.raw, b.raw)};
 }
 
+// ------------------------------ MaskedAnd
+
+HWY_API Vec512<uint32_t> MaskedAnd(Mask512<uint32_t> m, Vec512<uint32_t> a,
+                                   Vec512<uint32_t> b) {
+  return Vec512<uint32_t>{_mm512_maskz_and_epi32(m.raw, a.raw, b.raw)};
+}
+HWY_API Vec512<int32_t> MaskedAnd(Mask512<int32_t> m, Vec512<int32_t> a,
+                                  Vec512<int32_t> b) {
+  return Vec512<int32_t>{_mm512_maskz_and_epi32(m.raw, a.raw, b.raw)};
+}
+HWY_API Vec512<uint64_t> MaskedAnd(Mask512<uint64_t> m, Vec512<uint64_t> a,
+                                   Vec512<uint64_t> b) {
+  return Vec512<uint64_t>{_mm512_maskz_and_epi64(m.raw, a.raw, b.raw)};
+}
+HWY_API Vec512<int64_t> MaskedAnd(Mask512<int64_t> m, Vec512<int64_t> a,
+                                  Vec512<int64_t> b) {
+  return Vec512<int64_t>{_mm512_maskz_and_epi64(m.raw, a.raw, b.raw)};
+}
+
 // ------------------------------ MaskedOr
 
 HWY_API Vec512<uint32_t> MaskedOr(Mask512<uint32_t> m, Vec512<uint32_t> a,
@@ -774,6 +793,25 @@ HWY_API Vec512<uint64_t> MaskedXor(Mask512<uint64_t> m, Vec512<uint64_t> a,
 HWY_API Vec512<int64_t> MaskedXor(Mask512<int64_t> m, Vec512<int64_t> a,
                                   Vec512<int64_t> b) {
   return Vec512<int64_t>{_mm512_maskz_xor_epi64(m.raw, a.raw, b.raw)};
+}
+
+// ------------------------------ MaskedAndOr
+
+HWY_API Vec512<uint32_t> MaskedAndOr(Vec512<uint32_t> no, Mask512<uint32_t> m,
+                                     Vec512<uint32_t> a, Vec512<uint32_t> b) {
+  return Vec512<uint32_t>{_mm512_mask_and_epi32(no.raw, m.raw, a.raw, b.raw)};
+}
+HWY_API Vec512<int32_t> MaskedAndOr(Vec512<int32_t> no, Mask512<int32_t> m,
+                                    Vec512<int32_t> a, Vec512<int32_t> b) {
+  return Vec512<int32_t>{_mm512_mask_and_epi32(no.raw, m.raw, a.raw, b.raw)};
+}
+HWY_API Vec512<uint64_t> MaskedAndOr(Vec512<uint64_t> no, Mask512<uint64_t> m,
+                                     Vec512<uint64_t> a, Vec512<uint64_t> b) {
+  return Vec512<uint64_t>{_mm512_mask_and_epi64(no.raw, m.raw, a.raw, b.raw)};
+}
+HWY_API Vec512<int64_t> MaskedAndOr(Vec512<int64_t> no, Mask512<int64_t> m,
+                                    Vec512<int64_t> a, Vec512<int64_t> b) {
+  return Vec512<int64_t>{_mm512_mask_and_epi64(no.raw, m.raw, a.raw, b.raw)};
 }
 
 // ------------------------------ MaskedOrOr

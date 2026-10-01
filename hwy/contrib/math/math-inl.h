@@ -3030,7 +3030,7 @@ HWY_INLINE V Lgamma(D d, V a) {
  *      Valid Range: float32(0, +35], float64(0, +171.6]
  * @return gamma function of 'x'
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Tgamma(const D d, V x) {
   using T = TFromD<D>;
   const V kZero = Zero(d);
@@ -3060,7 +3060,7 @@ HWY_NOINLINE V CallTgamma(const D d, VecArg<V> x) {
  *      Valid Range: float32(0, +FLT_MAX], float64(0, +DBL_MAX]
  * @return natural log of the absolute value of the gamma function of 'x'
  */
-template <class D, class V>
+template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V LogGamma(const D d, V x) {
   const V kZero = Zero(d);
   V result = impl::Lgamma(d, x);

@@ -817,6 +817,23 @@ HWY_API V Or(const V a, const V b) {
   return BitCast(df, Or(BitCast(du, a), BitCast(du, b)));
 }
 
+// ------------------------------ MaskedAnd
+#ifdef HWY_NATIVE_MASKED_AND
+#undef HWY_NATIVE_MASKED_AND
+#else
+#define HWY_NATIVE_MASKED_AND
+#endif
+
+HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV_Z, MaskedAnd, and)
+
+template <class M, class V, HWY_IF_FLOAT_V(V)>
+HWY_API V MaskedAnd(const M mask, const V a, const V b) {
+  const DFromV<V> df;
+  const RebindToUnsigned<decltype(df)> du;
+  return BitCast(
+      df, MaskedAnd(RebindMask(du, mask), BitCast(du, a), BitCast(du, b)));
+}
+
 // ------------------------------ MaskedOr
 #ifdef HWY_NATIVE_MASKED_OR
 #undef HWY_NATIVE_MASKED_OR

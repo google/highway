@@ -1905,6 +1905,56 @@ HWY_API Mask128<T, N> ExclusiveNeither(const Mask128<T, N> a, Mask128<T, N> b) {
   return detail::ExclusiveNeitherImpl(hwy::SizeTag<sizeof(T)>(), a, b);
 }
 
+// ------------------------------ MaskedAnd
+
+#ifdef HWY_NATIVE_MASKED_AND
+#undef HWY_NATIVE_MASKED_AND
+#else
+#define HWY_NATIVE_MASKED_AND
+#endif
+
+template <size_t N>
+HWY_API Vec128<uint32_t, N> MaskedAnd(Mask128<uint32_t, N> m,
+                                      Vec128<uint32_t, N> a,
+                                      Vec128<uint32_t, N> b) {
+  return Vec128<uint32_t, N>{_mm_maskz_and_epi32(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int32_t, N> MaskedAnd(Mask128<int32_t, N> m, Vec128<int32_t, N> a,
+                                     Vec128<int32_t, N> b) {
+  return Vec128<int32_t, N>{_mm_maskz_and_epi32(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint64_t, N> MaskedAnd(Mask128<uint64_t, N> m,
+                                      Vec128<uint64_t, N> a,
+                                      Vec128<uint64_t, N> b) {
+  return Vec128<uint64_t, N>{_mm_maskz_and_epi64(m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int64_t, N> MaskedAnd(Mask128<int64_t, N> m, Vec128<int64_t, N> a,
+                                     Vec128<int64_t, N> b) {
+  return Vec128<int64_t, N>{_mm_maskz_and_epi64(m.raw, a.raw, b.raw)};
+}
+
+// Generic for all vector lengths.
+template <class V, class D = DFromV<V>, class M = MFromD<D>, HWY_IF_UI8_D(D)>
+HWY_API V MaskedAnd(M m, V a, V b) {
+  return IfThenElseZero(m, And(a, b));
+}
+template <class V, class D = DFromV<V>, class M = MFromD<D>, HWY_IF_UI16_D(D)>
+HWY_API V MaskedAnd(M m, V a, V b) {
+  return IfThenElseZero(m, And(a, b));
+}
+
+// Generic for all vector lengths.
+template <class V, class D = DFromV<V>, class M = MFromD<D>, HWY_IF_FLOAT_D(D)>
+HWY_API V MaskedAnd(M m, V a, V b) {
+  const D d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d,
+                 MaskedAnd(RebindMask(du, m), BitCast(du, a), BitCast(du, b)));
+}
+
 // ------------------------------ MaskedOr
 
 #ifdef HWY_NATIVE_MASKED_OR
@@ -2005,6 +2055,62 @@ HWY_API V MaskedXor(M m, V a, V b) {
   const RebindToUnsigned<decltype(d)> du;
   return BitCast(d,
                  MaskedXor(RebindMask(du, m), BitCast(du, a), BitCast(du, b)));
+}
+
+// ------------------------------ MaskedAndOr
+
+#ifdef HWY_NATIVE_MASKED_AND_OR
+#undef HWY_NATIVE_MASKED_AND_OR
+#else
+#define HWY_NATIVE_MASKED_AND_OR
+#endif
+
+template <size_t N>
+HWY_API Vec128<uint32_t, N> MaskedAndOr(Vec128<uint32_t, N> no,
+                                        Mask128<uint32_t, N> m,
+                                        Vec128<uint32_t, N> a,
+                                        Vec128<uint32_t, N> b) {
+  return Vec128<uint32_t, N>{_mm_mask_and_epi32(no.raw, m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int32_t, N> MaskedAndOr(Vec128<int32_t, N> no,
+                                       Mask128<int32_t, N> m,
+                                       Vec128<int32_t, N> a,
+                                       Vec128<int32_t, N> b) {
+  return Vec128<int32_t, N>{_mm_mask_and_epi32(no.raw, m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint64_t, N> MaskedAndOr(Vec128<uint64_t, N> no,
+                                        Mask128<uint64_t, N> m,
+                                        Vec128<uint64_t, N> a,
+                                        Vec128<uint64_t, N> b) {
+  return Vec128<uint64_t, N>{_mm_mask_and_epi64(no.raw, m.raw, a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int64_t, N> MaskedAndOr(Vec128<int64_t, N> no,
+                                       Mask128<int64_t, N> m,
+                                       Vec128<int64_t, N> a,
+                                       Vec128<int64_t, N> b) {
+  return Vec128<int64_t, N>{_mm_mask_and_epi64(no.raw, m.raw, a.raw, b.raw)};
+}
+
+// Generic for all vector lengths.
+template <class V, class D = DFromV<V>, class M = MFromD<D>, HWY_IF_UI8_D(D)>
+HWY_API V MaskedAndOr(V no, M m, V a, V b) {
+  return IfThenElse(m, And(a, b), no);
+}
+template <class V, class D = DFromV<V>, class M = MFromD<D>, HWY_IF_UI16_D(D)>
+HWY_API V MaskedAndOr(V no, M m, V a, V b) {
+  return IfThenElse(m, And(a, b), no);
+}
+
+// Generic for all vector lengths.
+template <class V, class D = DFromV<V>, class M = MFromD<D>, HWY_IF_FLOAT_D(D)>
+HWY_API V MaskedAndOr(V no, M m, V a, V b) {
+  const D d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, MaskedAndOr(BitCast(du, no), RebindMask(du, m),
+                                BitCast(du, a), BitCast(du, b)));
 }
 
 // ------------------------------ MaskedOrOr
