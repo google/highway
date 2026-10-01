@@ -5844,7 +5844,7 @@ HWY_API Vec128<T, 1> Expand(Vec128<T, 1> v, Mask128<T, 1> mask) {
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
                              const TFromD<D>* HWY_RESTRICT unaligned) {
-  return Expand(LoadU(d, unaligned), mask);
+  return Expand(LoadN(d, unaligned, CountTrue(d, mask)), mask);
 }
 #endif  // HWY_PPC_HAVE_10
 

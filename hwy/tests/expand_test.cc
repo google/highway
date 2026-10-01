@@ -108,11 +108,29 @@ struct TestExpand {
         CheckExpanded(d, di, "Expand", in_lanes, mask_lanes, expected, actual_u,
                       __LINE__);
 
-        // LoadExpand
+        // LoadExpand (with exact-sized buffer to detect ASAN over-read)
+        std::unique_ptr<T[]> exact_in(new T[HWY_MAX(size_t{1}, in_pos)]);
+        for (size_t i = 0; i < in_pos; ++i) {
+          exact_in[i] = in_lanes[i];
+        }
         ZeroBytes(actual_u, N * sizeof(T));
-        StoreU(LoadExpand(mask, d, in_lanes.get()), d, actual_u);
+        StoreU(LoadExpand(mask, d, exact_in.get()), d, actual_u);
         CheckExpanded(d, di, "LoadExpand", in_lanes, mask_lanes, expected,
                       actual_u, __LINE__);
+
+        // BlendedLoadExpand
+        auto no_lanes = AllocateAligned<T>(N);
+        auto expected_blend = AllocateAligned<T>(N);
+        HWY_ASSERT(no_lanes && expected_blend);
+        for (size_t i = 0; i < N; ++i) {
+          no_lanes[i] = RandomFiniteValue<T>(&rng);
+          expected_blend[i] = (mask_lanes[i] > 0) ? expected[i] : no_lanes[i];
+        }
+        const auto no = Load(d, no_lanes.get());
+        ZeroBytes(actual_u, N * sizeof(T));
+        StoreU(BlendedLoadExpand(no, mask, d, exact_in.get()), d, actual_u);
+        CheckExpanded(d, di, "BlendedLoadExpand", in_lanes, mask_lanes,
+                      expected_blend, actual_u, __LINE__);
       }  // rep
     }    // frac
   }      // operator()
@@ -120,6 +138,44 @@ struct TestExpand {
 
 HWY_NOINLINE void TestAllExpand() {
   ForAllTypes(ForPartialVectors<TestExpand>());
+}
+
+struct TestMultishiftBytes {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    RandomState rng;
+    const size_t N = Lanes(d);
+    auto in_values = AllocateAligned<T>(HWY_MAX(size_t{8}, N));
+    auto in_indices = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<T>(N);
+    auto actual = AllocateAligned<T>(N);
+    HWY_ASSERT(in_values && in_indices && expected && actual);
+    ZeroBytes(in_values.get(), HWY_MAX(size_t{8}, N) * sizeof(T));
+
+    for (size_t rep = 0; rep < AdjustedReps(50); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        in_values[i] = static_cast<T>(Random32(&rng) & 0xFF);
+        in_indices[i] = static_cast<T>(Random32(&rng) & 0xFF);
+      }
+      for (size_t i = 0; i < N; ++i) {
+        uint64_t qword = 0;
+        CopyBytes<8>(in_values.get() + (i & ~size_t{7}), &qword);
+        const unsigned shift = static_cast<uint8_t>(in_indices[i]) & 63;
+        const uint8_t shifted = static_cast<uint8_t>(
+            (qword >> shift) | (shift == 0 ? 0 : (qword << (64 - shift))));
+        expected[i] = static_cast<T>(shifted);
+      }
+      const auto v_val = Load(d, in_values.get());
+      const auto v_idx = Load(d, in_indices.get());
+      Store(MultishiftBytes(v_idx, v_val), d, actual.get());
+      HWY_ASSERT_ARRAY_EQ(expected.get(), actual.get(), N);
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllMultishiftBytes() {
+  ForPartialVectors<TestMultishiftBytes>()(uint8_t());
+  ForPartialVectors<TestMultishiftBytes>()(int8_t());
 }
 
 #endif  // !HWY_PRINT_TABLES
@@ -283,6 +339,7 @@ HWY_BEFORE_TEST(HwyExpandTest);
 HWY_EXPORT_AND_TEST_P(HwyExpandTest, PrintTables);
 #else
 HWY_EXPORT_AND_TEST_P(HwyExpandTest, TestAllExpand);
+HWY_EXPORT_AND_TEST_P(HwyExpandTest, TestAllMultishiftBytes);
 #endif
 HWY_AFTER_TEST();
 }  // namespace
