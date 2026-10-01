@@ -1,0 +1,11 @@
+specfile_path: fedora/highway.spec
+
+notifications:
+  pull_request:
+    successful_build: true
+
+jobs:
+- job: copr_build
+  trigger: pull_request
+  targets:
+  - fedora-rawhide
