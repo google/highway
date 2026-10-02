@@ -223,7 +223,8 @@ endif()
 if (HWY_ENABLE_CONTRIB)
 # Glob all the traits so we don't need to modify this file when adding
 # additional special cases.
-file(GLOB HWY_CONTRIB_SOURCES "hwy/contrib/sort/vqsort_*.cc")
+file(GLOB HWY_CONTRIB_SOURCES "hwy/contrib/sort/vqsort_*.cc"
+                              "hwy/contrib/sort/vqargsort_*.cc")
 list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/base64/base64-inl.h
     hwy/contrib/bit_pack/bit_pack-inl.h

@@ -21,7 +21,14 @@
 #include <numeric>  // std::iota
 #include <vector>
 
+#include "hwy/aligned_allocator.h"  // AlignedVector
 #include "hwy/base.h"
+
+// After base.h, which defines HWY_IS_DEBUG_BUILD.
+#if !defined(HWY_DISABLED_TARGETS) && HWY_IS_DEBUG_BUILD
+#define HWY_DISABLED_TARGETS (HWY_SSE2 | HWY_SSSE3)
+#endif
+
 #include "hwy/contrib/sort/vqargsort.h"
 
 #undef HWY_TARGET_INCLUDE
@@ -59,7 +66,8 @@ std::vector<uint64_t> ReferenceOrder(const std::vector<Key>& keys) {
   std::vector<uint64_t> order(keys.size());
   std::iota(order.begin(), order.end(), uint64_t{0});
   std::stable_sort(order.begin(), order.end(), [&keys](uint64_t a, uint64_t b) {
-    return KeyLess<Order>(keys[a], keys[b]);
+    return KeyLess<Order>(keys[static_cast<size_t>(a)],
+                          keys[static_cast<size_t>(b)]);
   });
   return order;
 }
@@ -249,14 +257,14 @@ void CheckOne(const std::vector<Key>& keys, const std::vector<uint64_t>& ref,
   // Offsetting by `misalign` keys and indices exercises unaligned access.
   const size_t misalign = num & 1;
 
-  std::vector<Key> keys_buf(num + 1);
+  AlignedVector<Key> keys_buf(num + 1);
   Key* in = keys_buf.data() + misalign;
   std::copy(keys.begin(), keys.end(), in);
-  std::vector<uint64_t> indices_buf(num + 2 * kRedZone + 1, kIndicesCanary);
+  AlignedVector<uint64_t> indices_buf(num + 2 * kRedZone + 1, kIndicesCanary);
   uint64_t* indices = indices_buf.data() + kRedZone + misalign;
   uint128_t canary128;
   canary128.lo = canary128.hi = kScratchCanary;
-  std::vector<uint128_t> scratch_buf(num + 2 * kRedZone, canary128);
+  AlignedVector<uint128_t> scratch_buf(num + 2 * kRedZone, canary128);
   uint128_t* scratch = scratch_buf.data() + kRedZone;
 
   Api::template Call<kOp, kStable, Order>(in, num, k, indices, scratch);
@@ -281,15 +289,17 @@ void CheckOne(const std::vector<Key>& keys, const std::vector<uint64_t>& ref,
                            scratch_buf[i].hi == kScratchCanary;
     if (!inside && !is_canary) fail("wrote outside scratch", i);
   }
-  std::vector<bool> seen(num, false);
+  std::vector<uint8_t> seen(num, 0);
   for (size_t i = 0; i < num; ++i) {
-    if (indices[i] >= num || seen[indices[i]]) fail("not a permutation", i);
-    seen[indices[i]] = true;
+    const size_t index = static_cast<size_t>(indices[i]);
+    if (indices[i] >= num || seen[index]) fail("not a permutation", i);
+    seen[index] = 1;
   }
 
   const auto equivalent = [&keys](uint64_t a, uint64_t b) {
-    return !KeyLess<Order>(keys[a], keys[b]) &&
-           !KeyLess<Order>(keys[b], keys[a]);
+    const Key ka = keys[static_cast<size_t>(a)];
+    const Key kb = keys[static_cast<size_t>(b)];
+    return !KeyLess<Order>(ka, kb) && !KeyLess<Order>(kb, ka);
   };
   // Stable results are unique; unstable ones only need an equivalent key.
   const auto expect_ref_at = [&](size_t i) {
@@ -306,7 +316,10 @@ void CheckOne(const std::vector<Key>& keys, const std::vector<uint64_t>& ref,
     expect_ref_at(k);
     // Stable: ties are ordered by index. Unstable: only keys are ordered.
     const auto less = [&](uint64_t a, uint64_t b) {
-      if (KeyLess<Order>(keys[a], keys[b])) return true;
+      if (KeyLess<Order>(keys[static_cast<size_t>(a)],
+                         keys[static_cast<size_t>(b)])) {
+        return true;
+      }
       return kStable && equivalent(a, b) && a < b;
     };
     for (size_t i = 0; i < num; ++i) {

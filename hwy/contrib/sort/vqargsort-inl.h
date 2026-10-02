@@ -35,6 +35,13 @@ namespace detail {
 
 enum class ArgSortOp { kSort, kPartialSort, kSelect };
 
+// Defined in vqargsort.cc and called by vqargsort_*.cc after packing: sorts
+// `packed` with the precompiled VQSort etc., then writes the indices.
+void ArgSortPacked(uint64_t* HWY_RESTRICT packed, size_t num, size_t k,
+                   ArgSortOp op, bool stable);
+void ArgSortPacked(uint128_t* HWY_RESTRICT packed, size_t num, size_t k,
+                   uint64_t* HWY_RESTRICT indices, ArgSortOp op, bool stable);
+
 }  // namespace detail
 }  // namespace hwy
 
@@ -109,21 +116,33 @@ HWY_INLINE void PackKeys(D64 d64, const uint64_t* HWY_RESTRICT bits,
 template <class Order, typename Key, typename Packed>
 void PackAllKeys(const Key* HWY_RESTRICT keys, size_t num,
                  Packed* HWY_RESTRICT packed) {
+  static_assert(IsArgSortKey<Key>(), "Unsupported key type");
+  static_assert(sizeof(Packed) == (sizeof(Key) == 8 ? 16 : 8),
+                "Only 64-bit keys use `scratch`");
+  if constexpr (sizeof(Packed) == 8 && sizeof(size_t) > 4) {
+    HWY_ASSERT(static_cast<uint64_t>(num) <= (uint64_t{1} << 32));
+  }
   using TU = MakeUnsigned<Key>;
   const TU* HWY_RESTRICT bits = reinterpret_cast<const TU*>(keys);
   const ScalableTag<uint64_t> d64;
   const size_t N = Lanes(d64);
-  VFromD<decltype(d64)> index = Iota(d64, 0);
-  const VFromD<decltype(d64)> step = Set(d64, static_cast<uint64_t>(N));
-  size_t i = 0;
   if (num >= N) {
+    VFromD<decltype(d64)> index = Iota(d64, 0);
+    const VFromD<decltype(d64)> step = Set(d64, static_cast<uint64_t>(N));
+    size_t i = 0;
     for (; i <= num - N; i += N) {
       PackKeys<Key, Order>(d64, bits + i, index, packed + i);
       index = Add(index, step);
     }
+    // Overlaps the previous vector, which rewrites the same values.
+    if (i != num) {
+      i = num - N;
+      PackKeys<Key, Order>(d64, bits + i, Iota(d64, i), packed + i);
+    }
+    return;
   }
   const CappedTag<uint64_t, 1> d1;
-  for (; i < num; ++i) {
+  for (size_t i = 0; i < num; ++i) {
     PackKeys<Key, Order>(d1, bits + i, Set(d1, static_cast<uint64_t>(i)),
                          packed + i);
   }
@@ -140,28 +159,35 @@ HWY_INLINE void KeepIndices(uint64_t* HWY_RESTRICT packed, size_t num) {
       StoreU(And(LoadU(d64, packed + i), mask), d64, packed + i);
     }
   }
-  for (; i < num; ++i) {
-    packed[i] &= 0xFFFFFFFFu;
-  }
+  const size_t remaining = num - i;
+  StoreN(And(LoadN(d64, packed + i, remaining), mask), d64, packed + i,
+         remaining);
 }
 
 HWY_INLINE void CopyIndices(const uint128_t* HWY_RESTRICT packed, size_t num,
                             uint64_t* HWY_RESTRICT indices) {
-  const uint64_t* HWY_RESTRICT lanes =
-      reinterpret_cast<const uint64_t*>(packed);
-  const ScalableTag<uint64_t> d64;
-  const size_t N = Lanes(d64);
-  size_t i = 0;
-  if (num >= N) {
-    for (; i <= num - N; i += N) {
-      VFromD<decltype(d64)> lo, hi;
-      LoadInterleaved2(d64, lanes + 2 * i, lo, hi);
-      StoreU(lo, d64, indices + i);
-    }
-  }
-  for (; i < num; ++i) {
+#if HWY_TARGET == HWY_SCALAR
+  for (size_t i = 0; i < num; ++i) {
     indices[i] = packed[i].lo;
   }
+#else
+  // uint128_t has `lo` first in memory on either byte order, so the indices
+  // are in the even lanes.
+  const uint64_t* HWY_RESTRICT lanes = &packed->lo;
+  const ScalableTag<uint64_t> d64;
+  const Half<decltype(d64)> dh;
+  const size_t NH = Lanes(dh);
+  size_t i = 0;
+  if (num >= NH) {
+    for (; i <= num - NH; i += NH) {
+      const VFromD<decltype(d64)> v = LoadU(d64, lanes + 2 * i);
+      StoreU(LowerHalf(dh, ConcatEven(d64, v, v)), dh, indices + i);
+    }
+  }
+  const size_t remaining = num - i;
+  const VFromD<decltype(d64)> v = LoadN(d64, lanes + 2 * i, 2 * remaining);
+  StoreN(LowerHalf(dh, ConcatEven(d64, v, v)), dh, indices + i, remaining);
+#endif
 }
 
 // Sorts via VQSortStatic etc. on the current target. vqargsort.cc instead
@@ -233,53 +259,38 @@ HWY_INLINE void SortPacked(uint128_t* HWY_RESTRICT packed, size_t num,
 #endif
 }
 
+// Sorts, partially sorts or selects the output of PackAllKeys, then writes the
+// indices. These do not depend on the key type.
+template <ArgSortOp kOp, bool kStable, class Backend>
+void SortAndGetIndices(uint64_t* HWY_RESTRICT packed, size_t num, size_t k) {
+  if (num == 0) return;
+  SortPacked<kOp, kStable, Backend>(packed, num, k);
+  KeepIndices(packed, num);
+}
+
+template <ArgSortOp kOp, bool kStable, class Backend>
+void SortAndGetIndices(uint128_t* HWY_RESTRICT packed, size_t num, size_t k,
+                       uint64_t* HWY_RESTRICT indices) {
+  if (num == 0) return;
+  SortPacked<kOp, kStable, Backend>(packed, num, k);
+  CopyIndices(packed, num, indices);
+}
+
 // For 16 and 32-bit keys, `indices` also holds the packed integers.
-// `sort_packed(uint64_t*)` sorts, partially sorts or selects them.
-template <class Order, typename Key, class SortPackedFunc>
-void ArgSortWith(const Key* HWY_RESTRICT keys, size_t num,
-                 uint64_t* HWY_RESTRICT indices,
-                 const SortPackedFunc& sort_packed) {
-  static_assert(IsArgSortKey<Key>(), "Unsupported key type");
-  static_assert(sizeof(Key) <= 4, "64-bit keys also require `scratch`");
-  if (num == 0) return;
-  if constexpr (sizeof(size_t) > 4) {
-    HWY_ASSERT(static_cast<uint64_t>(num) <= (uint64_t{1} << 32));
-  }
-  PackAllKeys<Order>(keys, num, indices);
-  sort_packed(indices);
-  KeepIndices(indices, num);
-}
-
-// For 64-bit keys. `sort_packed(uint128_t*)` is as above.
-template <class Order, typename Key, class SortPackedFunc>
-void ArgSortWith(const Key* HWY_RESTRICT keys, size_t num,
-                 uint64_t* HWY_RESTRICT indices,
-                 uint128_t* HWY_RESTRICT scratch,
-                 const SortPackedFunc& sort_packed) {
-  static_assert(IsArgSortKey<Key>(), "Unsupported key type");
-  static_assert(sizeof(Key) == 8, "Only 64-bit keys use `scratch`");
-  if (num == 0) return;
-  PackAllKeys<Order>(keys, num, scratch);
-  sort_packed(scratch);
-  CopyIndices(scratch, num, indices);
-}
-
 template <ArgSortOp kOp, bool kStable, class Order, typename Key>
 void ArgSortStatic(const Key* HWY_RESTRICT keys, size_t num, size_t k,
                    uint64_t* HWY_RESTRICT indices) {
-  ArgSortWith<Order>(keys, num, indices, [num, k](uint64_t* packed) HWY_ATTR {
-    SortPacked<kOp, kStable, VQSortStaticBackend>(packed, num, k);
-  });
+  PackAllKeys<Order>(keys, num, indices);
+  SortAndGetIndices<kOp, kStable, VQSortStaticBackend>(indices, num, k);
 }
 
 template <ArgSortOp kOp, bool kStable, class Order, typename Key>
 void ArgSortStatic(const Key* HWY_RESTRICT keys, size_t num, size_t k,
                    uint64_t* HWY_RESTRICT indices,
                    uint128_t* HWY_RESTRICT scratch) {
-  ArgSortWith<Order>(
-      keys, num, indices, scratch, [num, k](uint128_t* packed) HWY_ATTR {
-        SortPacked<kOp, kStable, VQSortStaticBackend>(packed, num, k);
-      });
+  PackAllKeys<Order>(keys, num, scratch);
+  SortAndGetIndices<kOp, kStable, VQSortStaticBackend>(scratch, num, k,
+                                                       indices);
 }
 
 }  // namespace detail

@@ -488,7 +488,7 @@ void RunArgSort(ArgAlgo algo, const Key* HWY_RESTRICT keys, size_t num,
   if (algo == ArgAlgo::kStd || algo == ArgAlgo::kStdStable) {
     std::iota(indices, indices + num, uint64_t{0});
     const auto less = [keys](uint64_t a, uint64_t b) {
-      return keys[a] < keys[b];
+      return keys[static_cast<size_t>(a)] < keys[static_cast<size_t>(b)];
     };
     if (algo == ArgAlgo::kStd) {
       std::sort(indices, indices + num, less);
@@ -519,7 +519,8 @@ HWY_NOINLINE void BenchArgSort(size_t num_keys) {
   auto bits = hwy::AllocateAligned<TU>(num_keys);
   auto keys = hwy::AllocateAligned<Key>(num_keys);
   auto indices = hwy::AllocateAligned<uint64_t>(num_keys);
-  auto scratch = hwy::AllocateAligned<uint128_t>(num_keys);
+  auto scratch =
+      hwy::AllocateAligned<uint128_t>(sizeof(Key) == 8 ? num_keys : 1);
   HWY_ASSERT(bits && keys && indices && scratch);
 
   const size_t reps = num_keys > 1000 * 1000 ? 10 : 30;
@@ -552,7 +553,8 @@ HWY_NOINLINE void BenchArgSort(size_t num_keys) {
         seconds.push_back(SecondsSince(t0) / static_cast<double>(inner_reps));
 
         for (size_t i = 1; i < num_keys; ++i) {
-          HWY_ASSERT(!(keys[indices[i]] < keys[indices[i - 1]]));
+          const size_t prev = static_cast<size_t>(indices[i - 1]);
+          HWY_ASSERT(!(keys[static_cast<size_t>(indices[i])] < keys[prev]));
         }
       }
       const double bytes = static_cast<double>(num_keys * sizeof(Key));
