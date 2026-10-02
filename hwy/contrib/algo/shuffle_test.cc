@@ -101,6 +101,28 @@ std::vector<size_t> ReferencePermutation(size_t count, Bits& bits) {
   return perm;
 }
 
+// The bucket rule: from the bottom up, a new 64-bit key for each block of 32
+// positions, and each position goes in order to the bucket in the upper bits of
+// RefPositionBits of it. Then each bucket is shuffled as above.
+template <class Bits>
+std::vector<size_t> ReferenceBuckets(size_t count, size_t log2_buckets,
+                                     Bits& bits) {
+  std::vector<std::vector<size_t>> buckets(size_t{1} << log2_buckets);
+  uint64_t key = 0;
+  for (size_t k = 0; k < count; ++k) {
+    if (k % 32 == 0) key = bits.Bits64();
+    const uint64_t pos_bits = RefPositionBits(key, static_cast<uint32_t>(k));
+    buckets[static_cast<size_t>(pos_bits >> (64 - log2_buckets))].push_back(k);
+  }
+  std::vector<size_t> perm;
+  for (const std::vector<size_t>& bucket : buckets) {
+    for (size_t k : ReferencePermutation(bucket.size(), bits)) {
+      perm.push_back(bucket[k]);
+    }
+  }
+  return perm;
+}
+
 // Order-dependent fingerprint, to compare results without keeping copies.
 template <typename T>
 uint64_t Fingerprint(const T* p, size_t count) {
@@ -209,6 +231,45 @@ struct TestGenerator {
 
 void TestAllGenerator() { ForIntegerTypes(ForPartialVectors<TestGenerator>()); }
 
+// The bucket path against its reference, at sizes a test can afford. A guard
+// after `buf` checks that it fits in ShuffleBucketBufNum.
+template <class D, class MakeGen>
+void CheckBuckets(D d, const MakeGen& make_gen) {
+  using T = TFromD<D>;
+  using Gen = decltype(make_gen());
+  for (size_t count : {size_t{1}, size_t{33}, size_t{128}, size_t{1000}}) {
+    if (sizeof(T) == 1 && count > 128) continue;
+    for (size_t log2_buckets : {size_t{1}, size_t{3}, size_t{10}}) {
+      Gen ref_gen = make_gen();
+      RefBits<Gen> ref_bits(ref_gen);
+      const std::vector<size_t> perm =
+          ReferenceBuckets(count, log2_buckets, ref_bits);
+      AssertIsPermutation(perm);
+      const size_t buf_num = detail::ShuffleBucketBufNum<T>(count);
+      AlignedFreeUniquePtr<T[]> buf = AllocateAligned<T>(buf_num + 1);
+      HWY_ASSERT(buf);
+      const T guard = ConvertScalarTo<T>(99);
+      buf[buf_num] = guard;
+      Gen gen = make_gen();
+      CheckShuffle(d, count, /*misalign=*/1, perm, [&](D tag, T* p, size_t n) {
+        detail::ShuffleDrawnBits<Gen> bits(gen);
+        detail::ShuffleBuckets(tag, p, n, bits, log2_buckets, buf.get());
+      });
+      HWY_ASSERT_EQ(guard, buf[buf_num]);
+    }
+  }
+}
+
+struct TestBuckets {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    CheckBuckets(d, []() HWY_ATTR { return CachedXoshiro<>(123); });
+    CheckBuckets(d, []() HWY_ATTR { return Gen32(456); });
+  }
+};
+
+void TestAllBuckets() { ForIntegerTypes(ForPartialVectors<TestBuckets>()); }
+
 // Every ordering of 4 elements, and every final position of the first and last
 // of 96 elements (three blocks), should be about equally likely. Generator
 // seeds are fixed, so this cannot flake; bounds are ~6 sigma.
@@ -257,6 +318,61 @@ void TestUniform() {
   const ScalableTag<uint32_t> d;
   CheckUniform(d, [](ScalableTag<uint32_t> tag, uint32_t* p, size_t n,
                      CachedXoshiro<>& g) { ShuffleSpan(tag, p, n, g); });
+}
+
+// Two buckets, whose sizes vary between shuffles.
+void TestBucketUniform() {
+  const ScalableTag<uint32_t> d;
+  std::vector<uint32_t> buf(detail::ShuffleBucketBufNum<uint32_t>(96));
+  CheckUniform(d, [&buf](ScalableTag<uint32_t> tag, uint32_t* p, size_t n,
+                         CachedXoshiro<>& g) {
+    detail::ShuffleDrawnBits<CachedXoshiro<>> bits(g);
+    detail::ShuffleBuckets(tag, p, n, bits, /*log2_buckets=*/1, buf.data());
+  });
+}
+
+// At 64 MiB, the overload with `buf` must match the bucket path with 64
+// buckets. Large, so only for one type.
+void TestThreshold() {
+  if (HWY_IS_DEBUG_BUILD) return;  // too slow
+  using T = uint64_t;
+  const ScalableTag<T> d;
+  const size_t count = detail::kShuffleBucketMinBytes / sizeof(T);
+  HWY_ASSERT_EQ(size_t{0}, ShuffleSpanBufNum<T>(count - 1));
+  HWY_ASSERT_EQ(size_t{6}, detail::ShuffleLog2Buckets<T>(count));
+  // 1 GiB reaches the cap of 1024 buckets, and 2 GiB stays there.
+  HWY_ASSERT_EQ(size_t{10}, detail::ShuffleLog2Buckets<T>(size_t{1} << 27));
+  HWY_ASSERT_EQ(size_t{10}, detail::ShuffleLog2Buckets<T>(size_t{1} << 28));
+  const size_t buf_num = ShuffleSpanBufNum<T>(count);
+  HWY_ASSERT_EQ(detail::ShuffleBucketBufNum<T>(count), buf_num);
+
+  AlignedFreeUniquePtr<T[]> data = AllocateAligned<T>(count);
+  AlignedFreeUniquePtr<T[]> buf = AllocateAligned<T>(buf_num + 1);
+  HWY_ASSERT(data && buf);
+  buf[buf_num] = 99;
+  uint64_t prints[2];
+  for (size_t run = 0; run < 2; ++run) {
+    for (size_t k = 0; k < count; ++k) data[k] = k;
+    CachedXoshiro<> gen(5);
+    if (run == 0) {
+      ShuffleSpan(d, data.get(), count, gen, buf.get());
+    } else {
+      detail::ShuffleDrawnBits<CachedXoshiro<>> bits(gen);
+      detail::ShuffleBuckets(d, data.get(), count, bits, /*log2_buckets=*/6,
+                             buf.get());
+    }
+    prints[run] = Fingerprint(data.get(), count);
+  }
+  HWY_ASSERT_EQ(prints[0], prints[1]);
+  HWY_ASSERT_EQ(T{99}, buf[buf_num]);
+  std::vector<uint8_t> seen(count);
+  bool permutation = true;
+  for (size_t k = 0; k < count; ++k) {
+    const size_t value = static_cast<size_t>(data[k]);
+    permutation &= data[k] < count && !seen[value];
+    if (data[k] < count) seen[value] = 1;
+  }
+  HWY_ASSERT(permutation);
 }
 
 // The last 32 of 64 shuffled values depend only on one block's key. A 32-bit
@@ -384,7 +500,10 @@ namespace hwy {
 namespace {
 HWY_BEFORE_TEST(ShuffleTest);
 HWY_EXPORT_AND_TEST_P(ShuffleTest, TestAllGenerator);
+HWY_EXPORT_AND_TEST_P(ShuffleTest, TestAllBuckets);
 HWY_EXPORT_AND_TEST_BEST_P(ShuffleTest, TestUniform);
+HWY_EXPORT_AND_TEST_BEST_P(ShuffleTest, TestBucketUniform);
+HWY_EXPORT_AND_TEST_BEST_P(ShuffleTest, TestThreshold);
 HWY_EXPORT_AND_TEST_BEST_P(ShuffleTest, TestNoRepeats);
 HWY_EXPORT_AND_TEST_P(ShuffleTest, TestAllTarget);
 HWY_EXPORT_AND_TEST_P(ShuffleTest, TestAllPositionBits);
