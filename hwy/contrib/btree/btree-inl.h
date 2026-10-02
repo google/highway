@@ -1802,30 +1802,23 @@ class BTree {
     }
   }
 
-  BTree(BTree&& other) noexcept {
-    if (other.state_ == &other.owned_state_) {
-      owned_state_ = other.owned_state_;
-      other.owned_state_ = State{};
-      state_ = &owned_state_;
-    } else {
-      state_ = other.state_;
-    }
-    other.state_ = &other.owned_state_;
+  // Moves transfer the tree's contents, like copy-assignment and swap:
+  // afterwards *this holds other's nodes and other is empty. Each side reads or
+  // writes through its state_ pointer, so for an adapter the contents move into
+  // or out of the external state it refers to (moving from an adapter empties
+  // the external owner's tree). A move-constructed BTree always owns its state.
+  BTree(BTree&& other) noexcept : state_(&owned_state_) {
+    owned_state_ = *other.state_;
+    *other.state_ = State{};
   }
 
   BTree& operator=(BTree&& other) noexcept {
-    if (this != &other) {
-      if (state_ == &owned_state_) {
-        clear();
-      }
-      if (other.state_ == &other.owned_state_) {
-        owned_state_ = other.owned_state_;
-        other.owned_state_ = State{};
-        state_ = &owned_state_;
-      } else {
-        state_ = other.state_;
-      }
-      other.state_ = &other.owned_state_;
+    // Guard on the state, not the object: self-assignment and assignment
+    // between two adapters of the same external state are both no-ops.
+    if (state_ != other.state_) {
+      clear();
+      *state_ = *other.state_;
+      *other.state_ = State{};
     }
     return *this;
   }
@@ -1854,7 +1847,9 @@ class BTree {
   }
 
   BTree& operator=(const BTree& other) {
-    if (this != &other) {
+    // Same guard as move-assignment; avoids an O(N) rebuild (which would also
+    // invalidate iterators) when both sides already refer to the same state.
+    if (state_ != other.state_) {
       BTree temp(other);
       swap(temp);
     }

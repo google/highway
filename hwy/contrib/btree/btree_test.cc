@@ -45,6 +45,12 @@ namespace {
 HWY_NOINLINE void TestAll() {}
 #else
 void TestAll() {
+  fprintf(stderr, "Running adapter move semantics tests...\n");
+  DoAdapterMoveTest<BTreeSet<uint32_t> >();
+  DoAdapterMoveTest<BTreeSet<int64_t> >();
+  DoAdapterMoveTest<BTreeMap<uint32_t, uint64_t> >();
+  DoAdapterMoveTest<BTreeMap<uint64_t, double> >();
+
   fprintf(stderr, "Running BTreeSet uint32_t tests...\n");
   RunFullTestSuite<BTreeSet<uint32_t>, std::set<uint32_t> >();
 

@@ -54,6 +54,11 @@ namespace HWY_NAMESPACE {
 using TreeEngine = HWY_NAMESPACE::BTree<HWY_NAMESPACE::SetTraits<BTREE_KEY_T>>;
 using TreeState = hwy::BTreeState<BTREE_KEY_T>;
 
+// The *Impl functions below wrap a short-lived engine adapter around the
+// BTreeSet's state and run the corresponding engine operation on it. Engine
+// copy/move/swap operate on the contents of whatever state the adapter refers
+// to, so these transfers need no manual state copying.
+
 void SetClearImpl(TreeState* state) {
   TreeEngine tree(state);
   tree.clear();
@@ -61,9 +66,8 @@ void SetClearImpl(TreeState* state) {
 
 void SetCopyConstructImpl(TreeState* dst_state, const TreeState* src_state) {
   TreeEngine src(const_cast<TreeState*>(src_state));
-  TreeEngine copy(src);
-  *dst_state = *copy.state();
-  *copy.state() = TreeState{};
+  TreeEngine dst(dst_state);
+  dst = TreeEngine(src);  // deep copy into a temporary, then move it in
 }
 
 void SetCopyAssignImpl(TreeState* dst_state, const TreeState* src_state) {
@@ -72,23 +76,22 @@ void SetCopyAssignImpl(TreeState* dst_state, const TreeState* src_state) {
   dst = src;
 }
 
-void SetMoveConstructImpl(TreeState* dst_state, TreeState* src_state) {
-  *dst_state = *src_state;
-  *src_state = TreeState{};
+void SetMoveAssignImpl(TreeState* dst_state, TreeState* src_state) {
+  TreeEngine src(src_state);
+  TreeEngine dst(dst_state);
+  dst = std::move(src);
 }
 
-void SetMoveAssignImpl(TreeState* dst_state, TreeState* src_state) {
-  TreeEngine dst(dst_state);
-  dst.clear();
-  *dst_state = *src_state;
-  *src_state = TreeState{};
+void SetMoveConstructImpl(TreeState* dst_state, TreeState* src_state) {
+  // dst_state is a freshly default-initialized (empty) state, so this is
+  // the same as move-assignment.
+  SetMoveAssignImpl(dst_state, src_state);
 }
 
 void SetBuildImpl(const BTREE_KEY_T* HWY_RESTRICT keys, size_t count,
                   float fill, TreeState* out_state) {
-  auto tree = TreeEngine::Build(keys, count, fill);
-  *out_state = *tree.state();
-  *tree.state() = TreeState{};
+  TreeEngine out(out_state);
+  out = TreeEngine::Build(keys, count, fill);
 }
 
 bool SetContainsImpl(const TreeState* state, BTREE_KEY_T key) {

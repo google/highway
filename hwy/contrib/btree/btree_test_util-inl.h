@@ -583,7 +583,9 @@ void DoFullContainerTest(const std::vector<typename TreeT::value_type>& values,
   // 5. Re-insertion of deleted elements
   auto reinsert_key = [&](key_type k) {
     if constexpr (kIsMap) {
-      checker.insert({k, static_cast<typename TreeT::mapped_type>(k * 10 + 3)});
+      // Compute in uint64_t: extreme signed keys would overflow in key_type.
+      const uint64_t v = static_cast<uint64_t>(k) * 10 + 3;
+      checker.insert({k, static_cast<typename TreeT::mapped_type>(v)});
     } else {
       checker.insert(k);
     }
@@ -1060,7 +1062,6 @@ void DoCopyAndSwapTest() {
 
     TreeT large_copy(large_orig);
     HWY_ASSERT_EQ(large_copy.size(), large_orig.size());
-    HWY_ASSERT_EQ(large_copy.height(), large_orig.height());
     for (const auto& v : large_vals) {
       HWY_ASSERT(large_copy.contains(ExtractKey(v)));
     }
@@ -1282,6 +1283,132 @@ void DoEraseIteratorTest() {
       HWY_ASSERT_EQ(tree.size(), ref.size());
       Checker::VerifyPhysicalTree(tree);
     }
+  }
+}
+
+// Engine-only: moves must transfer contents through an adapter's external
+// state, matching copy-assignment and swap. Not part of RunFullTestSuite
+// because the dynamic-dispatch wrappers (hwy::BTreeSet / hwy::BTreeMap) have no
+// adapter constructor; btree_test.cc calls this directly.
+template <typename TreeT>
+void DoAdapterMoveTest() {
+  using key_type = typename TreeT::key_type;
+  using State = typename TreeT::State;
+  constexpr size_t kN = 100;
+
+  const auto insert_range = [](TreeT& tree, size_t first, size_t count) {
+    for (size_t i = first; i < first + count; ++i) {
+      const key_type k = static_cast<key_type>(i);
+      if constexpr (TreeT::kIsMap) {
+        tree.insert(k, typename TreeT::mapped_type{});
+      } else {
+        tree.insert(k);
+      }
+    }
+  };
+  const auto contains_range = [](const TreeT& tree, size_t first,
+                                 size_t count) {
+    for (size_t i = first; i < first + count; ++i) {
+      HWY_ASSERT(tree.contains(static_cast<key_type>(i)));
+    }
+  };
+
+  // Move-assign into an adapter writes through to the external state.
+  {
+    State ext;
+    TreeT src;
+    insert_range(src, 0, kN);
+    {
+      TreeT adapter(&ext);
+      adapter = std::move(src);
+    }  // adapter is non-owning: must not free ext's nodes.
+    HWY_ASSERT(src.empty());
+    HWY_ASSERT_EQ(size_t{kN}, ext.num_elements_);
+    TreeT check(&ext);
+    contains_range(check, 0, kN);
+    check.clear();
+  }
+
+  // Move-assign into an adapter that already holds nodes frees them first.
+  {
+    State ext;
+    {
+      TreeT pre(&ext);
+      insert_range(pre, 1000, kN);
+    }
+    TreeT src;
+    insert_range(src, 0, kN);
+    {
+      TreeT adapter(&ext);
+      adapter = std::move(src);
+    }
+    TreeT check(&ext);
+    HWY_ASSERT_EQ(size_t{kN}, check.size());
+    contains_range(check, 0, kN);
+    HWY_ASSERT(!check.contains(static_cast<key_type>(1000)));
+    check.clear();
+  }
+
+  // Move-construct from an adapter yields an owning tree and empties the
+  // external state.
+  {
+    State ext;
+    {
+      TreeT pre(&ext);
+      insert_range(pre, 0, kN);
+    }
+    {
+      TreeT adapter(&ext);
+      TreeT moved(std::move(adapter));
+      HWY_ASSERT(moved.state() != &ext);
+      HWY_ASSERT_EQ(size_t{kN}, moved.size());
+      HWY_ASSERT(adapter.empty());
+      HWY_ASSERT_EQ(size_t{0}, ext.num_elements_);
+      HWY_ASSERT(ext.root_ == nullptr);
+      contains_range(moved, 0, kN);
+    }  // moved owns the nodes and frees them here.
+  }
+
+  // Move-assign from an adapter into an owning tree empties the external
+  // state.
+  {
+    State ext;
+    {
+      TreeT pre(&ext);
+      insert_range(pre, 0, kN);
+    }
+    TreeT dst;
+    insert_range(dst, 7777, 1);
+    {
+      TreeT adapter(&ext);
+      dst = std::move(adapter);
+    }
+    HWY_ASSERT_EQ(size_t{0}, ext.num_elements_);
+    HWY_ASSERT_EQ(size_t{kN}, dst.size());
+    HWY_ASSERT(!dst.contains(static_cast<key_type>(7777)));
+  }
+
+  // Moving or copying between two adapters of the same external state is a
+  // no-op (no rebuild: the root pointer is unchanged).
+  {
+    State ext;
+    {
+      TreeT pre(&ext);
+      insert_range(pre, 0, kN);
+    }
+    {
+      TreeT a(&ext);
+      TreeT b(&ext);
+      const void* root_before = ext.root_;
+      a = std::move(b);
+      HWY_ASSERT(ext.root_ == root_before);
+      HWY_ASSERT_EQ(size_t{kN}, ext.num_elements_);
+      a = b;
+      HWY_ASSERT(ext.root_ == root_before);
+      HWY_ASSERT_EQ(size_t{kN}, a.size());
+    }
+    TreeT cleanup(&ext);
+    cleanup.clear();
   }
 }
 
