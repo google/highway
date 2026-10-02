@@ -655,7 +655,8 @@ void DoBulkBuildAndBatchTest(size_t n, uint32_t seed) {
 
   StdRefT ref(values.begin(), values.end());
 
-  for (float fill_ratio : {0.5f, 0.75f, 1.0f}) {
+  // 0.0 and 5.0 exercise the clamp to [0.1, 1.0].
+  for (float fill_ratio : {0.5f, 0.75f, 1.0f, 0.0f, 5.0f}) {
     TreeT tree = BuildTreeFromValues<TreeT>(values, fill_ratio);
     HWY_ASSERT_EQ(tree.size(), ref.size());
     HWY_ASSERT_EQ(tree.empty(), ref.empty());
@@ -676,6 +677,14 @@ void DoBulkBuildAndBatchTest(size_t n, uint32_t seed) {
       VerifyEqualElements(tree_rit, ref_rit);
     }
     HWY_ASSERT(ref_rit == ref.rend());
+    // Mixed reverse_iterator / const_reverse_iterator comparisons.
+    HWY_ASSERT(tree_rit == tree.crend());
+    HWY_ASSERT(tree.crend() == tree_rit);
+    HWY_ASSERT(!(tree_rit != tree.crend()));
+    if (!tree.empty()) {
+      HWY_ASSERT(tree.rbegin() != tree.crend());
+      HWY_ASSERT(tree.crbegin() != tree.rend());
+    }
 
     // 3. Backward traversal with --it
     if (!tree.empty()) {

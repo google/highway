@@ -44,10 +44,6 @@ class BTreeSet {
   using value_type = KeyT;
   using size_type = size_t;
   using difference_type = ptrdiff_t;
-  using reference = KeyT&;
-  using const_reference = const KeyT&;
-  using pointer = KeyT*;
-  using const_pointer = const KeyT*;
   using key_compare = std::less<KeyT>;
   using allocator_type = std::allocator<KeyT>;
 
@@ -313,6 +309,14 @@ class BTreeSet {
     bool operator!=(const reverse_iterator& other) const {
       return current_ != other.current_;
     }
+    // Mixed comparisons (rit == crit). Needed before C++20, where the
+    // implicit object parameter does not undergo user-defined conversions.
+    bool operator==(const const_reverse_iterator& other) const {
+      return current_ == other.base();
+    }
+    bool operator!=(const const_reverse_iterator& other) const {
+      return current_ != other.base();
+    }
 
     operator const_reverse_iterator() const {
       return const_reverse_iterator(current_);
@@ -323,6 +327,13 @@ class BTreeSet {
    private:
     iterator current_;
   };
+
+  // Keys are decompressed on the fly, so dereferencing yields a value, not an
+  // lvalue; mirror the iterator typedefs (as btree_map.h does).
+  using reference = typename iterator::reference;              // KeyT
+  using const_reference = typename const_iterator::reference;  // KeyT
+  using pointer = typename iterator::pointer;                  // SetConstRef
+  using const_pointer = typename const_iterator::pointer;      // SetConstRef
 
   iterator begin() {
     return iterator(state_.first_leaf_, 0, state_.last_leaf_);

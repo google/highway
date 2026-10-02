@@ -184,6 +184,9 @@ class BTreeMap {
   struct MapConstRef {
     KeyT first;
     const mapped_type& second;
+    // Lets `value_type kv = *it;` and range constructors such as
+    // std::vector<value_type>(m.begin(), m.end()) compile.
+    operator std::pair<KeyT, mapped_type>() const { return {first, second}; }
   };
 
   struct MapConstArrowProxy {
@@ -194,6 +197,9 @@ class BTreeMap {
   struct MapMutRef {
     KeyT first;
     mapped_type& second;
+    operator std::pair<KeyT, mapped_type>() const { return {first, second}; }
+    // iterator::reference -> const_iterator::reference, as for std containers.
+    operator MapConstRef() const { return {first, second}; }
   };
 
   struct MapMutArrowProxy {
@@ -434,6 +440,14 @@ class BTreeMap {
       return current_ == other.current_;
     }
     bool operator!=(const reverse_iterator& other) const {
+      return !(*this == other);
+    }
+    // Mixed comparisons (rit == crit). Needed before C++20, where the
+    // implicit object parameter does not undergo user-defined conversions.
+    bool operator==(const const_reverse_iterator& other) const {
+      return current_ == other.base();
+    }
+    bool operator!=(const const_reverse_iterator& other) const {
       return !(*this == other);
     }
 

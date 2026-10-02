@@ -457,23 +457,42 @@ HWY_INLINE size_t FindLeafSlot(const LeafNode* HWY_RESTRICT leaf, KeyT target) {
   const uint8_t mode = leaf->BitMode();
 
   if (HWY_LIKELY(mode == kMode16Bit)) {
-    if (HWY_UNLIKELY(delta > 65535)) return leaf->NumKeys();
+    if constexpr (kBound == BoundMode::kUpperBound) {
+      // 0xFFFF also fills inactive slots, so Le() would count them too.
+      if (HWY_UNLIKELY(delta >= 65535)) return leaf->NumKeys();
+    } else {
+      if (HWY_UNLIKELY(delta > 65535)) return leaf->NumKeys();
+    }
     return ScanOffsets<kBound, uint16_t, Node::kMax16>(
         leaf->KeyData(), static_cast<uint16_t>(delta));
   } else if (mode == kMode8Bit) {
-    if (HWY_UNLIKELY(delta > 255)) return leaf->NumKeys();
+    if constexpr (kBound == BoundMode::kUpperBound) {
+      if (HWY_UNLIKELY(delta >= 255)) return leaf->NumKeys();
+    } else {
+      if (HWY_UNLIKELY(delta > 255)) return leaf->NumKeys();
+    }
     return ScanOffsets<kBound, uint8_t, Node::kMax8>(
         leaf->KeyData(), static_cast<uint8_t>(delta));
   } else if (mode == kMode32Bit) {
     if constexpr (sizeof(KeyT) == 4) {
+      if constexpr (kBound == BoundMode::kUpperBound) {
+        if (HWY_UNLIKELY(target == LimitsMax<KeyT>())) return leaf->NumKeys();
+      }
       return ScanOffsets<kBound, uint32_t, Node::kMax32>(
           leaf->KeyData(), static_cast<uint32_t>(target));
     } else {
-      if (HWY_UNLIKELY(delta > 0xFFFFFFFFULL)) return leaf->NumKeys();
+      if constexpr (kBound == BoundMode::kUpperBound) {
+        if (HWY_UNLIKELY(delta >= 0xFFFFFFFFULL)) return leaf->NumKeys();
+      } else {
+        if (HWY_UNLIKELY(delta > 0xFFFFFFFFULL)) return leaf->NumKeys();
+      }
       return ScanOffsets<kBound, uint32_t, Node::kMax32>(
           leaf->KeyData(), static_cast<uint32_t>(delta));
     }
   } else {
+    if constexpr (kBound == BoundMode::kUpperBound) {
+      if (HWY_UNLIKELY(target == LimitsMax<KeyT>())) return leaf->NumKeys();
+    }
     return ScanOffsets<kBound, uint64_t, Node::kMax64>(
         leaf->KeyData(), static_cast<uint64_t>(target));
   }
@@ -829,7 +848,7 @@ HWY_INLINE void InsertIntoLeaf(MapLeafNode<KeyT, ValueT>* leaf, KeyT new_key,
 template <typename Traits, typename OffsetT, uint64_t kMaxDelta, typename KeyT>
 HWY_INLINE bool TryFastInsertOffset(LeafNode<KeyT>* leaf, KeyT new_key,
                                     size_t slot) {
-  constexpr size_t kCapacity = LeafNode<KeyT>::kDataBytes / sizeof(OffsetT);
+  constexpr size_t kCapacity = Traits::template MaxKeys<OffsetT>();
   const size_t count = leaf->NumKeys();
   if (HWY_UNLIKELY(count >= kCapacity)) return false;
 
@@ -1487,6 +1506,9 @@ class BTree {
   struct MapConstRef {
     KeyT first;
     const mapped_type& second;
+    // Lets `value_type kv = *it;` and range constructors such as
+    // std::vector<value_type>(m.begin(), m.end()) compile.
+    operator std::pair<KeyT, mapped_type>() const { return {first, second}; }
   };
 
   struct MapConstArrowProxy {
@@ -1497,6 +1519,9 @@ class BTree {
   struct MapMutRef {
     KeyT first;
     mapped_type& second;
+    operator std::pair<KeyT, mapped_type>() const { return {first, second}; }
+    // iterator::reference -> const_iterator::reference, as for std containers.
+    operator MapConstRef() const { return {first, second}; }
   };
 
   struct MapMutArrowProxy {
@@ -1755,6 +1780,14 @@ class BTree {
     }
     bool operator!=(const reverse_iterator& other) const {
       return current_ != other.current_;
+    }
+    // Mixed comparisons (rit == crit). Needed before C++20, where the
+    // implicit object parameter does not undergo user-defined conversions.
+    bool operator==(const const_reverse_iterator& other) const {
+      return current_ == other.base();
+    }
+    bool operator!=(const const_reverse_iterator& other) const {
+      return current_ != other.base();
     }
 
     operator const_reverse_iterator() const {
@@ -3130,6 +3163,13 @@ class BTree {
                              float fill_ratio) {
     BTree tree;
     if (num_keys == 0) return tree;
+
+    if constexpr (HWY_IS_DEBUG_BUILD) {
+      for (size_t i = 1; i < num_keys; ++i) {
+        HWY_DASSERT_M(sorted_keys[i - 1] < sorted_keys[i],
+                      "BTree::Build requires strictly ascending unique keys");
+      }
+    }
 
     tree.state_->num_elements_ = num_keys;
     fill_ratio = std::clamp(fill_ratio, 0.1f, 1.0f);

@@ -4,6 +4,7 @@
 #ifndef HIGHWAY_HWY_CONTRIB_BTREE_BTREE_NODES_H_
 #define HIGHWAY_HWY_CONTRIB_BTREE_BTREE_NODES_H_
 
+#include <algorithm>  // std::fill_n
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -23,7 +24,8 @@ namespace hwy {
 enum CompactBitMode : uint8_t {
   kMode8Bit = 0,   // 8-bit unsigned offsets (holds up to 492/488 keys)
   kMode16Bit = 1,  // 16-bit unsigned offsets (holds up to 246/244 keys)
-  kMode32Bit = 2,  // 32-bit offsets/keys (holds up to 123/122 keys)
+  kMode32Bit = 2,  // 32-bit keys: raw keys, no base_key subtraction (123 keys)
+                   // 64-bit keys: 32-bit offsets from base_key (122 keys)
   kModeRaw64 = 3,  // 64-bit raw uncompressed keys (holds up to 61 keys)
 };
 
@@ -244,6 +246,12 @@ struct alignas(512) MapLeafNode {
   static constexpr size_t kMax16 = ComputeMaxPairs<uint16_t>();
   static constexpr size_t kMax32 = ComputeMaxPairs<uint32_t>();
   static constexpr size_t kMax64 = ComputeMaxPairs<uint64_t>();
+  // kMax64 <= kMax32 <= kMax16 <= kMax8, so this is the binding constraint.
+  // With zero capacity in any mode, CompressIntoLeaf's fill_n(kMaxN - count)
+  // underflows and corrupts memory on the first insert that selects that mode.
+  static_assert(kMax64 >= 1,
+                "sizeof(ValueT) is too large: at least one key/value pair must "
+                "fit in a 512-byte MapLeafNode (roughly <= 480 bytes).");
 
   uint8_t payload[kPayloadBytes];
 
@@ -359,8 +367,12 @@ struct alignas(64) InternalNode {
   StorageKeyT keys[kCapacity];
   void* children[kMaxChildren];
   uint8_t num_keys = 0;
-  // Pad struct to 256 bytes (32-bit) / 320 bytes (64-bit).
-  uint8_t padding[sizeof(StorageKeyT) == 8 ? 23 : 55] = {};
+  // Pad struct to exactly 256 bytes (32-bit keys: 64 + 136 + 1 + 55) or
+  // 320 bytes (64-bit keys: 128 + 136 + 1 + 55), both TCMalloc size classes.
+  // For 64-bit keys, We could have also padded to 288 bytes which is also a
+  // tcmalloc size class bin but alignas(64) rounds up to 320 anyway; so padding
+  // explicitly is better.
+  HWY_MEMBER_VAR_MAYBE_UNUSED uint8_t padding[55] = {};
 
   InternalNode() {
     // Unused key slots hold the maximum value so SIMD comparisons ignore them.
@@ -379,12 +391,13 @@ static_assert(sizeof(InternalNode<int64_t>) == 320,
               "InternalNode<int64_t> must be exactly 320 bytes");
 
 // Maximum possible B-Tree height on 64-bit architectures.
-// Internal nodes have capacity for 16 keys (17 children) and split 50/50,
-// guaranteeing a minimum branching factor of B >= 8 (at least 8 children per
-// non-root internal node).
-// Thus, a tree of height H stores at least 32 * 8^(H-1) elements.
-// For H = 32, minimum capacity is 32 * 8^31 = 2^98 elements, which exceeds
-// the entire 64-bit addressable memory space (2^64 bytes).
+// Internal nodes have capacity for 16 keys (17 children) and split 50/50.
+// RebalanceAfterErase keeps every non-root internal node at >= 8 keys
+// (>= 9 children) and the root at >= 2 children, so a tree of height H has at
+// least 2 * 9^(H-1) leaves. (Leaves have no minimum occupancy, so we count
+// leaves rather than elements.)
+// For H = 32, that is 2 * 9^31 > 2^99 leaves, which exceeds the entire 64-bit
+// addressable memory space (2^64 bytes).
 // In physical 64-bit RAM, the tree height can never exceed ~20 levels, so a
 // fixed stack array of 32 elements is guaranteed safe against overflow.
 static constexpr size_t kMaxTreeHeight = 32;
