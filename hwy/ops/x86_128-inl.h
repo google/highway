@@ -14060,8 +14060,9 @@ HWY_API Vec128<T, N> Round(const Vec128<T, N> v) {
   const auto large = CopySignToAbs(max, v);
   const auto added = large + v;
   const auto rounded = added - large;
-  // Keep original if NaN or the magnitude is large (already an int).
-  return IfThenElse(Abs(v) < max, rounded, v);
+  // Keep original if NaN or the magnitude is large (already an int). The
+  // addition above returns +0 for v in [-0.5, -0], so restore the sign.
+  return IfThenElse(Abs(v) < max, CopySign(rounded, v), v);
 }
 
 namespace detail {
@@ -14104,7 +14105,8 @@ HWY_API Vec128<T, N> Ceil(const Vec128<T, N> v) {
   // Truncating a positive non-integer ends up smaller; if so, add 1.
   const auto neg1 = ConvertTo(df, VecFromMask(di, RebindMask(di, int_f < v)));
 
-  return IfThenElse(detail::UseInt(v), int_f - neg1, v);
+  // The subtraction returns +0 for v in (-1, -0], so restore the sign.
+  return IfThenElse(detail::UseInt(v), CopySign(int_f - neg1, v), v);
 }
 
 #ifdef HWY_NATIVE_CEIL_FLOOR_INT
@@ -14139,7 +14141,8 @@ HWY_API Vec128<T, N> Floor(const Vec128<T, N> v) {
   // Truncating a negative non-integer ends up larger; if so, subtract 1.
   const auto neg1 = ConvertTo(df, VecFromMask(di, RebindMask(di, int_f > v)));
 
-  return IfThenElse(detail::UseInt(v), int_f + neg1, v);
+  // The addition returns +0 for -0, so restore the sign.
+  return IfThenElse(detail::UseInt(v), CopySign(int_f + neg1, v), v);
 }
 
 template <class V, HWY_IF_FLOAT_V(V)>
