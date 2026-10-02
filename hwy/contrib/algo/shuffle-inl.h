@@ -27,6 +27,7 @@
 #define HIGHWAY_HWY_CONTRIB_ALGO_SHUFFLE_INL_H_
 #endif
 
+#include "hwy/contrib/hash/hash-inl.h"
 #include "hwy/highway.h"
 
 HWY_BEFORE_NAMESPACE();
@@ -41,21 +42,23 @@ HWY_INLINE uint64_t ShuffleIndex64(uint64_t bits, uint64_t i) {
   return upper;
 }
 
-// Random bits drawn from a UniformRandomBitGenerator, in order of decreasing
-// swap position, as a sequential loop would.
+// Random bits drawn from a UniformRandomBitGenerator, in the order the callers
+// below ask for them.
 template <class URBG>
 class ShuffleDrawnBits {
   using Result = typename URBG::result_type;
 
  public:
   explicit ShuffleDrawnBits(URBG& g) : g_(g) {
-    static_assert(
-        static_cast<uint64_t>((URBG::max)() - (URBG::min)()) >= 0xFFFFFFFFu,
-        "ShuffleSpan needs a generator with at least 32 bits");
+    // Draws must take 2^k values, else their low 32 bits are not uniform.
+    constexpr uint64_t kRange =
+        static_cast<uint64_t>((URBG::max)() - (URBG::min)());
+    static_assert(kRange >= 0xFFFFFFFFu && (kRange & (kRange + 1)) == 0,
+                  "ShuffleSpan needs a generator of 32 or more random bits");
   }
 
   uint64_t Bits64() {
-    if constexpr (sizeof(Result) >= sizeof(uint64_t)) {
+    HWY_IF_CONSTEXPR(sizeof(Result) >= sizeof(uint64_t)) {
       if ((URBG::max)() - (URBG::min)() == ~Result{0}) {
         return static_cast<uint64_t>(g_() - (URBG::min)());
       }
@@ -64,22 +67,80 @@ class ShuffleDrawnBits {
     return (upper << 32) | Bits32();
   }
 
-  uint32_t Bits32() { return static_cast<uint32_t>(g_() - (URBG::min)()); }
-
-  template <class DU32, class VU32 = Vec<DU32>>
-  VU32 Bits(DU32 du32, uint32_t* buf) {
-    for (size_t k = Lanes(du32); k-- != 0;) {
-      buf[k] = Bits32();
+  // Both halves of each Bits64(), upper half first.
+  uint32_t Key32() {
+    upper_ = !upper_;
+    if (upper_) {
+      spare_ = Bits64();
+      return static_cast<uint32_t>(spare_ >> 32);
     }
-    return Load(du32, buf);
+    return static_cast<uint32_t>(spare_);
   }
 
  private:
+  uint32_t Bits32() { return static_cast<uint32_t>(g_() - (URBG::min)()); }
+
   URBG& g_;
+  uint64_t spare_ = 0;
+  bool upper_ = false;
 };
 
-// Fisher-Yates: position i swaps with a random position in [0, i], from the
-// top down. Positions are generated a vector at a time, then swapped in order.
+// Positions per key; a constant, so every target draws the same.
+constexpr size_t kShuffleBlock = 32;
+
+// Positions are u32 whatever T is, in D's vector size. At most one block, so
+// the buffers stay on the stack.
+template <class D>
+using ShuffleTagU32 =
+    CappedTag<uint32_t,
+              HWY_MIN(MaxLanes(Repartition<uint32_t, D>()), kShuffleBlock)>;
+
+// Odd, so positions get distinct hash inputs, and large, so that the carries in
+// offset + position * kShuffleStep depend on every bit of the offset.
+constexpr uint32_t kShuffleStep = 0x9E3779B9u;
+
+// 64 random bits per position from a 64-bit key (2^63 outcomes per block). With
+// a 32-bit key, a block would repeat after about 2^16 shuffles.
+class ShuffleHash {
+ public:
+  explicit ShuffleHash(uint64_t key)
+      : offset_(static_cast<uint32_t>(key >> 32)),
+        upper_(static_cast<uint32_t>(key)),
+        lower_(offset_) {}
+
+  // For positions first + [0, Lanes); `steps` is Iota(du32, 0) * kShuffleStep.
+  template <class DU32>
+  HWY_INLINE Vec<DU32> Upper(DU32 du32, uint32_t first, Vec<DU32> steps) const {
+    const uint32_t start = offset_ + first * kShuffleStep;
+    return upper_.OneVec(du32, Add(Set(du32, start), steps));
+  }
+
+  template <class DU32>
+  HWY_INLINE Vec<DU32> Lower(DU32 du32, Vec<DU32> upper) const {
+    return lower_.OneVec(du32, upper);
+  }
+
+ private:
+  uint32_t offset_;
+  Triple32 upper_;
+  Triple32 lower_;
+};
+
+// (upper:lower * range) >> 64, Lemire's multiply-shift of 64 random bits. Calls
+// hash.Lower only if the low half of upper * range is within range of 2^32.
+template <class DU32, class VU32 = Vec<DU32>, class Hash>
+HWY_INLINE VU32 ShuffleTarget(DU32 du32, VU32 upper, VU32 range,
+                              const Hash& hash) {
+  const VU32 high = MulHigh(upper, range);
+  const VU32 mid = Mul(upper, range);
+  if (HWY_LIKELY(AllFalse(du32, Lt(Add(mid, range), mid)))) return high;
+  const VU32 sum = Add(mid, MulHigh(hash.Lower(du32, upper), range));
+  return Sub(high, VecFromMask(du32, Lt(sum, mid)));
+}
+
+// Fisher-Yates from the top down: position i swaps with a position in [0, i]
+// from ShuffleHash of i, with a new key for each block of kShuffleBlock
+// positions. The last block takes 32 bits per position from `bits` instead.
 template <class D, typename T, class Bits>
 void ShuffleSpanImpl(D /*d*/, T* HWY_RESTRICT inout, size_t count, Bits& bits) {
   if (count < 2) return;
@@ -90,37 +151,46 @@ void ShuffleSpanImpl(D /*d*/, T* HWY_RESTRICT inout, size_t count, Bits& bits) {
     std::swap(inout[i], inout[ShuffleIndex64(bits.Bits64(), i)]);
   }
 
-  // Positions are u32 whatever T is; capping keeps the buffer on the stack.
-  const CappedTag<uint32_t, HWY_MIN(HWY_MAX_LANES_D(D), 64)> du32;
+  const ShuffleTagU32<D> du32;
+  using VU32 = Vec<decltype(du32)>;
   const size_t N = Lanes(du32);
-  const Vec<decltype(du32)> k1 = Set(du32, 1u);
-  HWY_ALIGN uint32_t js[MaxLanes(du32)];
-  // Each batch handles [lo, i]; position 0 never needs a swap.
-  while (i >= N) {
-    const uint32_t lo = static_cast<uint32_t>(i - (N - 1));
-    const Vec<decltype(du32)> positions = Iota(du32, lo);
-    const Vec<decltype(du32)> rand = bits.Bits(du32, js);
-    Store(MulHigh(rand, Add(positions, k1)), du32, js);
-    for (size_t k = N; k-- != 0;) {
-      std::swap(inout[lo + k], inout[js[k]]);
+  const VU32 k1 = Set(du32, 1u);
+  const VU32 steps = Mul(Iota(du32, 0u), Set(du32, kShuffleStep));
+  HWY_ALIGN uint32_t js[kShuffleBlock + MaxLanes(du32)];
+  while (i >= kShuffleBlock) {
+    const size_t lo = i / kShuffleBlock * kShuffleBlock;
+    const ShuffleHash hash(bits.Bits64());
+    for (size_t k = 0; k <= i - lo; k += N) {
+      const uint32_t first = static_cast<uint32_t>(lo + k);
+      const VU32 upper = hash.Upper(du32, first, steps);
+      const VU32 range = Add(Iota(du32, first), k1);
+      Store(ShuffleTarget(du32, upper, range, hash), du32, js + k);
     }
-    i -= N;
+    for (size_t q = i; q >= lo; --q) {
+      std::swap(inout[q], inout[js[q - lo]]);
+    }
+    i = lo - 1;
   }
 
+  // One key would allow at most 2^64 of the 32! (~2^118) orderings.
+  for (size_t q = i; q != 0; --q) {
+    js[q] = MulHigh32(bits.Key32(), static_cast<uint32_t>(q) + 1);
+  }
   for (; i != 0; --i) {
-    const uint32_t i32 = static_cast<uint32_t>(i);
-    std::swap(inout[i], inout[LemireMod(bits.Bits32(), i32 + 1)]);
+    std::swap(inout[i], inout[js[i]]);
   }
 }
 
 }  // namespace detail
 
-// Randomly permutes `inout[0, count)`, like std::shuffle, with random bits
-// drawn from `g`, a UniformRandomBitGenerator with at least a 32-bit range,
-// such as RngStream. Draws are consumed in the same order as a
-// sequential loop, so the permutation is the same on every target. Positions
-// come from Lemire's multiply-shift, whose bias is negligible for
-// count << 2^32.
+// Randomly permutes `inout[0, count)` in place, like std::shuffle, with random
+// bits drawn from `g`, a UniformRandomBitGenerator of 32 or more random bits,
+// such as RngStream. Each block of 32 positions hashes the position under a new
+// 64-bit key from `g`, except the last 32 positions, which take 32 bits each
+// from `g`. The permutation thus depends only on `g` and `count`, and is the
+// same on every target.
+// Positions come from Lemire's multiply-shift of 64 random bits (32 for the
+// last 32 positions), so the bias is at most 2^-27 + count / 2^64.
 template <class D, class URBG, typename T = TFromD<D>>
 void ShuffleSpan(D d, T* HWY_RESTRICT inout, size_t count, URBG&& g) {
   detail::ShuffleDrawnBits<RemoveCvRef<URBG>> bits(g);

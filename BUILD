@@ -323,6 +323,7 @@ cc_library(
         "hwy/contrib/algo/transform-inl.h",
     ],
     deps = [
+        ":hash",
         ":hwy",
     ],
 )
