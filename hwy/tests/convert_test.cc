@@ -452,6 +452,56 @@ struct TestF16 {
 
 HWY_NOINLINE void TestAllF16() { ForDemoteVectors<TestF16>()(float()); }
 
+// PromoteTo(f32 <- f16) of special values, including infinity and NaN, which
+// are exactly representable as f32 (unlike DemoteTo, see F16TestCases).
+struct TestF16PromoteSpecial {
+  template <typename TF32, class DF32>
+  HWY_NOINLINE void operator()(TF32 /*t*/, DF32 df32) {
+    const RebindToUnsigned<decltype(df32)> du32;
+    const Rebind<hwy::float16_t, DF32> df16;
+    const RebindToUnsigned<decltype(df16)> du16;
+
+    const uint16_t test_cases[] = {
+        0x0000, 0x8000,  // +/- 0
+        0x0001, 0x8001,  // +/- smallest subnormal
+        0x03FF, 0x83FF,  // +/- largest subnormal
+        0x0400, 0x8400,  // +/- smallest normal
+        0x3C00, 0xBC00,  // +/- 1
+        0x7BFF, 0xFBFF,  // +/- largest finite (65504)
+        0x7C00, 0xFC00,  // +/- infinity
+        0x7E00, 0xFE00,  // +/- quiet NaN
+        0x7C01, 0xFD55,  // +/- signaling NaN
+        0x7FFF, 0xFFFF,  // +/- NaN with all mantissa bits set
+    };
+    constexpr size_t kNumTestCases = sizeof(test_cases) / sizeof(test_cases[0]);
+    const size_t N = Lanes(df32);  // same count for f16
+    HWY_ASSERT(N != 0);
+    const size_t padded = RoundUpTo(kNumTestCases, N);
+    auto in = AllocateAligned<uint16_t>(padded);
+    auto expected = AllocateAligned<float>(padded);
+    HWY_ASSERT(in && expected);
+    for (size_t i = 0; i < padded; ++i) {
+      in[i] = i < kNumTestCases ? test_cases[i] : 0;
+      expected[i] = F32FromF16(BitCastScalar<hwy::float16_t>(in[i]));
+    }
+
+    for (size_t i = 0; i < padded; i += N) {
+      const Vec<DF32> vexpected = Load(df32, expected.get() + i);
+      const Vec<DF32> actual =
+          PromoteTo(df32, BitCast(df16, Load(du16, in.get() + i)));
+      const Mask<DF32> is_nan = IsNaN(vexpected);
+      HWY_ASSERT_MASK_EQ(df32, is_nan, IsNaN(actual));
+      // NaN payloads may differ, but all other results must be bit-exact.
+      HWY_ASSERT_VEC_EQ(du32, BitCast(du32, IfThenZeroElse(is_nan, vexpected)),
+                        BitCast(du32, IfThenZeroElse(is_nan, actual)));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllF16PromoteSpecial() {
+  ForDemoteVectors<TestF16PromoteSpecial>()(float());
+}
+
 // This minimal interface is always supported, even if !HWY_HAVE_FLOAT16.
 struct TestF16FromF64 {
   template <typename TF64, class DF64>
@@ -1559,6 +1609,7 @@ HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteUpperLowerTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteOddEvenTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF16);
+HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF16PromoteSpecial);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF16FromF64);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllBF16);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllConvertU8);
