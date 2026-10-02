@@ -38,9 +38,8 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
 
-// Random bits from `gen` as ShuffleSpan draws them: 64 at a time, and 32 at a
-// time as the halves of 64, upper half first. With a 32-bit generator, the
-// first of two draws is the upper half.
+// Random bits from `gen` as ShuffleSpan draws them, 64 at a time. With a 32-bit
+// generator, the first of two draws is the upper half.
 template <class Gen>
 class RefBits {
  public:
@@ -54,16 +53,8 @@ class RefBits {
     return bits;
   }
 
-  uint32_t Key32() {
-    upper_ = !upper_;
-    if (upper_) spare_ = Bits64();
-    return static_cast<uint32_t>(upper_ ? spare_ >> 32 : spare_);
-  }
-
  private:
   Gen& gen_;
-  uint64_t spare_ = 0;
-  bool upper_ = false;
 };
 
 // The 64 random bits of a position, as ShuffleHash documents: the upper 32 are
@@ -81,17 +72,21 @@ uint64_t RefPositionBits(uint64_t key, uint32_t pos) {
 // Sequential Fisher-Yates using the rule ShuffleSpan documents: from the top
 // down, a new 64-bit key for each block of 32 positions, and the target is the
 // upper 64 bits of RefPositionBits times (i + 1). Positions below 32 take 32
-// bits each.
+// bits each: the upper, then the lower half of each draw.
 template <class Bits>
 std::vector<size_t> ReferencePermutation(size_t count, Bits& bits) {
   std::vector<size_t> perm(count);
   for (size_t k = 0; k < count; ++k) perm[k] = k;
-  uint64_t key = 0;
+  uint64_t key = 0, draw = 0;
+  bool upper = true;
   for (size_t i = count; i-- > 1;) {
     const uint32_t i32 = static_cast<uint32_t>(i);
     uint64_t target;
     if (i < 32) {
-      target = MulHigh32(bits.Key32(), i32 + 1);
+      if (upper) draw = bits.Bits64();
+      const uint64_t half = upper ? draw >> 32 : draw;
+      target = MulHigh32(static_cast<uint32_t>(half), i32 + 1);
+      upper = !upper;
     } else {
       if (i == count - 1 || i % 32 == 31) key = bits.Bits64();
       Mul128(RefPositionBits(key, i32), uint64_t{i32} + 1, &target);

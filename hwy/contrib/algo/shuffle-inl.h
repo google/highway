@@ -68,22 +68,10 @@ class ShuffleDrawnBits {
     return (upper << 32) | Bits32();
   }
 
-  // Both halves of each Bits64(), upper half first.
-  uint32_t Key32() {
-    upper_ = !upper_;
-    if (upper_) {
-      spare_ = Bits64();
-      return static_cast<uint32_t>(spare_ >> 32);
-    }
-    return static_cast<uint32_t>(spare_);
-  }
-
  private:
   uint32_t Bits32() { return static_cast<uint32_t>(g_() - (URBG::min)()); }
 
   URBG& g_;
-  uint64_t spare_ = 0;
-  bool upper_ = false;
 };
 
 // Positions per key; a constant, so every target draws the same.
@@ -173,12 +161,19 @@ void ShuffleSpanImpl(D /*d*/, T* HWY_RESTRICT inout, size_t count, Bits& bits) {
     i = lo - 1;
   }
 
-  // One key would allow at most 2^64 of the 32! (~2^118) orderings.
-  for (size_t q = i; q != 0; --q) {
-    js[q] = MulHigh32(bits.Key32(), static_cast<uint32_t>(q) + 1);
+  // One key would allow at most 2^64 of the 32! (~2^118) orderings, so each
+  // position takes 32 bits: the upper, then the lower half of a draw.
+  for (; i >= 2; i -= 2) {
+    const uint64_t r = bits.Bits64();
+    const uint32_t upper = static_cast<uint32_t>(r >> 32);
+    const uint32_t lower = static_cast<uint32_t>(r);
+    const uint32_t i32 = static_cast<uint32_t>(i);
+    std::swap(inout[i], inout[MulHigh32(upper, i32 + 1)]);
+    std::swap(inout[i - 1], inout[MulHigh32(lower, i32)]);
   }
-  for (; i != 0; --i) {
-    std::swap(inout[i], inout[js[i]]);
+  if (i == 1) {
+    const uint32_t upper = static_cast<uint32_t>(bits.Bits64() >> 32);
+    std::swap(inout[1], inout[MulHigh32(upper, 2u)]);
   }
 }
 
