@@ -579,6 +579,56 @@ HWY_NOINLINE void TestAllFloor() {
   ForFloatTypes(ForPartialVectors<TestFloor>());
 }
 
+// -0 and +0 are equal and zero ULPs apart, so HWY_ASSERT_VEC_EQ cannot see a
+// rounding op that returns a zero of the wrong sign. Check the sign bit of the
+// results that are zero, which is where the emulated targets differed from C.
+struct TestRoundingSignOfZero {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const T test_cases[] = {
+        ConvertScalarTo<T>(0),     ConvertScalarTo<T>(-0.0),
+        ConvertScalarTo<T>(0.25),  ConvertScalarTo<T>(-0.25),
+        ConvertScalarTo<T>(0.5),   ConvertScalarTo<T>(-0.5),
+        ConvertScalarTo<T>(0.75),  ConvertScalarTo<T>(-0.75),
+        ConvertScalarTo<T>(1),     ConvertScalarTo<T>(-1),
+    };
+
+    for (const T in : test_cases) {
+      const auto v = Set(d, in);
+      const T actual[4] = {GetLane(Floor(v)), GetLane(Ceil(v)),
+                           GetLane(Round(v)), GetLane(Trunc(v))};
+      // Cast because floor etc. do not support _Float16.
+#if HWY_HAVE_FLOAT64
+      using TF = double;
+#else
+      using TF = float;
+#endif
+      const TF f = ConvertScalarTo<TF>(in);
+      // Avoid [std::]round, which does not round to nearest *even*.
+      const TF expected[4] = {std::floor(f), std::ceil(f),
+                              static_cast<TF>(nearbyint(f)), std::trunc(f)};
+      static const char* names[4] = {"Floor", "Ceil", "Round", "Trunc"};
+
+      for (size_t i = 0; i < 4; ++i) {
+        // Only a zero result carries a sign that the ULP comparison drops.
+        if (expected[i] != 0) continue;
+        if (ScalarSignBit(actual[i]) != ScalarSignBit(expected[i])) {
+          fprintf(stderr, "%s: %s(%f) returned %szero, expected %szero\n",
+                  hwy::TargetName(HWY_TARGET), names[i],
+                  ConvertScalarTo<double>(in),
+                  ScalarSignBit(actual[i]) ? "-" : "+",
+                  ScalarSignBit(expected[i]) ? "-" : "+");
+          HWY_ASSERT(false);
+        }
+      }
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllRoundingSignOfZero() {
+  ForFloatTypes(ForPartialVectors<TestRoundingSignOfZero>());
+}
+
 struct TestAbsDiff {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -665,6 +715,7 @@ HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllDemoteToNearestInt);
 HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllTrunc);
 HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllCeil);
 HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllFloor);
+HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllRoundingSignOfZero);
 HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllAbsDiff);
 HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllGetExponent);
 HWY_AFTER_TEST();
