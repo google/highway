@@ -379,6 +379,31 @@ HWY_NOINLINE void TestAllWeakFloat() {
   ForFloatTypes(ForPartialVectors<TestWeakFloat>());
 }
 
+// As in C++, NaN is unequal to everything, itself included.
+struct TestFloatNaN {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const Vec<D> nan = NaN(d);
+    const Vec<D> v1 = Iota(d, 1);
+
+    const Mask<D> mask_false = MaskFalse(d);
+    const Mask<D> mask_true = MaskTrue(d);
+
+    HWY_ASSERT_MASK_EQ(d, mask_true, Ne(nan, v1));
+    HWY_ASSERT_MASK_EQ(d, mask_true, Ne(v1, nan));
+    HWY_ASSERT_MASK_EQ(d, mask_true, Ne(nan, nan));
+    HWY_ASSERT_MASK_EQ(d, mask_false, Eq(nan, v1));
+    HWY_ASSERT_MASK_EQ(d, mask_false, Eq(nan, nan));
+
+    const Vec<D> v1_nan = InsertLane(v1, 0, GetLane(nan));
+    HWY_ASSERT_MASK_EQ(d, FirstN(d, 1), Ne(v1_nan, v1));
+  }
+};
+
+HWY_NOINLINE void TestAllFloatNaN() {
+  ForFloatTypes(ForPartialVectors<TestFloatNaN>());
+}
+
 struct TestIsNegative {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -440,6 +465,7 @@ HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllStrictFloat);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllWeakUnsigned);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllWeakInt);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllWeakFloat);
+HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllFloatNaN);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllIsNegative);
 HWY_AFTER_TEST();
 }  // namespace

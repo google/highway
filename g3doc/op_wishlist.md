@@ -180,5 +180,6 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~ilogb, logb, modf, nextafter~~
 *   ~~Iguana~~
 *   ~~Mul52~~
+*   ~~NeUnordered~~
 *   ~~MinMaxValue, IndexOfMinMax~~ (algo)
 *   ~~_mm512_getmant (f32/f64)~~
