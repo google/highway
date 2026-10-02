@@ -41,10 +41,20 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
 
-// The float16 min/max bounds mirror the float32 bounds in math_test.cc where
+// The float16 min/max bounds mirror the float32 math test bounds where
 // the kernel is validated (e.g. +104 for Exp), clamped to the float16 finite
 // range [-65504, +65504]. The smallest positive float16 subnormal is 2^-24.
 // clang-format off
+DEFINE_F16_MATH_TEST(Acos,
+  std::acos,  CallAcos,  -1.0f,            +1.0f,     1)
+DEFINE_F16_MATH_TEST(Asin,
+  std::asin,  CallAsin,  -1.0f,            +1.0f,     1)
+DEFINE_F16_MATH_TEST(Atan,
+  std::atan,  CallAtan,  -65504.0f,        +65504.0f, 1)
+DEFINE_F16_MATH_TEST(Cbrt,
+  std::cbrt,  CallCbrt,  -65504.0f,        +65504.0f, 1)
+DEFINE_F16_MATH_TEST(Erf,
+  std::erf,   CallErf,   -65504.0f,        +65504.0f, 1)
 DEFINE_F16_MATH_TEST(Exp,
   std::exp,   CallExp,   -65504.0f,        +104.0f,   1)
 DEFINE_F16_MATH_TEST(Exp2,
@@ -60,6 +70,40 @@ DEFINE_F16_MATH_TEST(Log1p,
 DEFINE_F16_MATH_TEST(Log2,
   std::log2,  CallLog2,  +5.960464478E-8f, +65504.0f, 1)
 // clang-format on
+
+// Bounds match math_hyper_test.cc, restricted to finite float16 inputs.
+// 0.99951171875 is the largest float16 value below 1, excluding Atanh's poles.
+// Sinh/Cosh use the upstream-tested float32 range and include float16 overflow.
+// clang-format off
+DEFINE_F16_MATH_TEST(Acosh,
+  std::acosh, CallAcosh, +1.0f,          +65504.0f,       1)
+DEFINE_F16_MATH_TEST(Asinh,
+  std::asinh, CallAsinh, -65504.0f,      +65504.0f,       1)
+DEFINE_F16_MATH_TEST(Atanh,
+  std::atanh, CallAtanh, -0.99951171875f, +0.99951171875f, 1)
+DEFINE_F16_MATH_TEST(Cosh,
+  std::cosh,  CallCosh,  -80.0f,         +80.0f,          1)
+DEFINE_F16_MATH_TEST(Sinh,
+  std::sinh,  CallSinh,  -80.0f,         +80.0f,          1)
+DEFINE_F16_MATH_TEST(Tanh,
+  std::tanh,  CallTanh,  -65504.0f,      +65504.0f,       1)
+// Retain the positive input ranges documented by the float32 kernels.
+// 2^-24 is the smallest positive float16 value, including subnormals.
+DEFINE_F16_MATH_TEST(Tgamma,
+  std::tgamma, CallTgamma, 0x1p-24f,     +35.0f,          1)
+DEFINE_F16_MATH_TEST(LogGamma,
+  std::lgamma, CallLogGamma, 0x1p-24f,   +65504.0f,       1)
+// clang-format on
+
+// Even subnormal float16 inputs become normal float32 inputs, so both
+// Cbrt modes should cover the entire finite float16 range.
+template <class D>
+static Vec<D> F16CbrtNoSubnormals(const D d, VecArg<Vec<D>> x) {
+  return Cbrt<false>(d, x);
+}
+
+DEFINE_F16_MATH_TEST(CbrtNoSubnormals, std::cbrt, F16CbrtNoSubnormals, -65504.0f,
+                     +65504.0f, 1)
 
 // SinCos has two outputs, so test each separately, as math_trig_test.cc does.
 template <class D>
@@ -93,6 +137,126 @@ DEFINE_F16_MATH_TEST(SinCosCos,
   std::cos,   F16SinCosCos, -39000.0f,        +39000.0f, 1)
 // clang-format on
 
+// The exhaustive ULP test treats +0 and -0 as equal. Check that these odd
+// functions preserve their bits in every lane.
+struct TestF16UnarySignedZero {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const RebindToUnsigned<D> du;
+    const uint16_t zero_bits[] = {0x0000, 0x8000};
+    for (const uint16_t bits : zero_bits) {
+      const auto expected = Set(du, bits);
+      const auto x = BitCast(d, expected);
+      HWY_ASSERT_VEC_EQ(du, expected, BitCast(du, CallAsin(d, x)));
+      HWY_ASSERT_VEC_EQ(du, expected, BitCast(du, CallAtan(d, x)));
+      HWY_ASSERT_VEC_EQ(du, expected, BitCast(du, CallCbrt(d, x)));
+      HWY_ASSERT_VEC_EQ(du, expected, BitCast(du, Cbrt<false>(d, x)));
+      HWY_ASSERT_VEC_EQ(du, expected, BitCast(du, CallErf(d, x)));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllF16UnarySignedZero() {
+  ForPartialVectors<TestF16UnarySignedZero>()(float16_t());
+}
+
+// These exact results need stricter checks than the exhaustive 1-ULP test:
+// signed zeros, the smallest subnormals, the Acosh endpoint, and saturation.
+struct TestF16HyperbolicBoundaries {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const RebindToUnsigned<D> du;
+    const auto one_bits = Set(du, uint16_t{0x3C00});
+    const auto one = BitCast(d, one_bits);
+    HWY_ASSERT_VEC_EQ(du, Zero(du), BitCast(du, CallAcosh(d, one)));
+
+    const uint16_t tiny_bits[] = {0x0000, 0x8000, 0x0001, 0x8001};
+    for (const uint16_t bits : tiny_bits) {
+      const auto expected = Set(du, bits);
+      const auto x = BitCast(d, expected);
+      HWY_ASSERT_VEC_EQ(du, expected, BitCast(du, CallAsinh(d, x)));
+      HWY_ASSERT_VEC_EQ(du, expected, BitCast(du, CallAtanh(d, x)));
+      HWY_ASSERT_VEC_EQ(du, expected, BitCast(du, CallSinh(d, x)));
+      HWY_ASSERT_VEC_EQ(du, expected, BitCast(du, CallTanh(d, x)));
+      HWY_ASSERT_VEC_EQ(du, one_bits, BitCast(du, CallCosh(d, x)));
+    }
+
+    const uint16_t signs[] = {0x0000, 0x8000};
+    for (const uint16_t sign : signs) {
+      // +/-12: Sinh and Cosh overflow float16, and Tanh rounds to +/-1.
+      const auto x = BitCast(d, Set(du, static_cast<uint16_t>(sign | 0x4A00)));
+      const auto inf_bits = Set(du, uint16_t{0x7C00});
+      const auto signed_inf = Set(du, static_cast<uint16_t>(sign | 0x7C00));
+      const auto signed_one = Set(du, static_cast<uint16_t>(sign | 0x3C00));
+      HWY_ASSERT_VEC_EQ(du, signed_inf, BitCast(du, CallSinh(d, x)));
+      HWY_ASSERT_VEC_EQ(du, inf_bits, BitCast(du, CallCosh(d, x)));
+      HWY_ASSERT_VEC_EQ(du, signed_one, BitCast(du, CallTanh(d, x)));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllF16HyperbolicBoundaries() {
+  ForPartialVectors<TestF16HyperbolicBoundaries>()(float16_t());
+}
+
+// Check exact values separately from the ULP budget: signed-zero poles,
+// positive roots of LogGamma, factorials, and float16 overflow.
+struct TestF16GammaBoundaries {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    if (HWY_MATH_TEST_EXCESS_PRECISION) return;
+    const RebindToUnsigned<D> du;
+    const uint16_t signs[] = {0x0000, 0x8000};
+    for (const uint16_t sign : signs) {
+      const auto x = BitCast(d, Set(du, sign));
+      HWY_ASSERT_VEC_EQ(du, Set(du, static_cast<uint16_t>(sign | 0x7C00)),
+                        BitCast(du, CallTgamma(d, x)));
+      HWY_ASSERT_VEC_EQ(du, Set(du, uint16_t{0x7C00}),
+                        BitCast(du, CallLogGamma(d, x)));
+    }
+
+    const uint16_t roots[] = {0x3C00, 0x4000};  // 1 and 2.
+    for (const uint16_t bits : roots) {
+      const auto x = BitCast(d, Set(du, bits));
+      HWY_ASSERT_VEC_EQ(du, Set(du, uint16_t{0x3C00}),
+                        BitCast(du, CallTgamma(d, x)));
+      HWY_ASSERT_VEC_EQ(du, Zero(du), BitCast(du, CallLogGamma(d, x)));
+    }
+
+    // Gamma(9) = 8! = 40320 is exact in float16; Gamma(10) overflows.
+    const auto nine = BitCast(d, Set(du, uint16_t{0x4880}));
+    HWY_ASSERT_VEC_EQ(du, Set(du, uint16_t{0x78EC}),
+                      BitCast(du, CallTgamma(d, nine)));
+    // Adjacent inputs on both sides of Gamma's two overflow boundaries.
+    const auto small_finite = BitCast(d, Set(du, uint16_t{0x0101}));
+    HWY_ASSERT_VEC_EQ(du, Set(du, uint16_t{0x7BF8}),
+                      BitCast(du, CallTgamma(d, small_finite)));
+    const auto large_finite = BitCast(d, Set(du, uint16_t{0x489C}));
+    HWY_ASSERT_VEC_EQ(du, Set(du, uint16_t{0x7BE2}),
+                      BitCast(du, CallTgamma(d, large_finite)));
+    const uint16_t overflow[] = {0x0001, 0x0100, 0x489D, 0x4900, 0x5060};
+    for (const uint16_t bits : overflow) {
+      const auto x = BitCast(d, Set(du, bits));
+      HWY_ASSERT_VEC_EQ(du, Set(du, uint16_t{0x7C00}),
+                        BitCast(du, CallTgamma(d, x)));
+    }
+    // LogGamma(8180) is finite; the next float16 input, 8184, overflows.
+    const auto log_finite = BitCast(d, Set(du, uint16_t{0x6FFD}));
+    HWY_ASSERT_VEC_EQ(du, Set(du, uint16_t{0x7BFF}),
+                      BitCast(du, CallLogGamma(d, log_finite)));
+    const auto log_overflow = BitCast(d, Set(du, uint16_t{0x6FFE}));
+    HWY_ASSERT_VEC_EQ(du, Set(du, uint16_t{0x7C00}),
+                      BitCast(du, CallLogGamma(d, log_overflow)));
+    const auto largest = BitCast(d, Set(du, uint16_t{0x7BFF}));
+    HWY_ASSERT_VEC_EQ(du, Set(du, uint16_t{0x7C00}),
+                      BitCast(du, CallLogGamma(d, largest)));
+  }
+};
+
+HWY_NOINLINE void TestAllF16GammaBoundaries() {
+  ForPartialVectors<TestF16GammaBoundaries>()(float16_t());
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -103,6 +267,23 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 namespace {
 HWY_BEFORE_TEST(HwyF16MathTest);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Tgamma);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16LogGamma);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16GammaBoundaries);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Acosh);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Asinh);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Atanh);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Cosh);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Sinh);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Tanh);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16HyperbolicBoundaries);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Acos);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Asin);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Atan);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Cbrt);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16CbrtNoSubnormals);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Erf);
+HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16UnarySignedZero);
 HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Exp);
 HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Exp2);
 HWY_EXPORT_AND_TEST_P(HwyF16MathTest, TestAllF16Expm1);

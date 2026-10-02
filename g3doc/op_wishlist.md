@@ -1,8 +1,8 @@
 # Potential new ops for Highway
 
 <!--*
-# Document freshness: For more information, see go/fresh-source.
-freshness: { owner: 'janwas' reviewed: '2026-06-08' }
+# Document freshness placeholder
+freshness: { owner: 'janwas' reviewed: '2026-09-30' }
 *-->
 
 ## Wishlist
@@ -15,15 +15,11 @@ freshness: { owner: 'janwas' reviewed: '2026-06-08' }
 
 ### numpy
 
-NeUnordered
-
 Loadn: Gather*, but for stride 2..4 use ld2..4.
 
 LoadnPair: Gather with optimizations in particular for 2x64-bit, which use
 128-bit loads plus Combine.
 Also StorePair
-
-_mm512_getmant (f32/f64)
 
 ### Clear lowest mask bit
 
@@ -35,12 +31,10 @@ fmod, nexttoward
 
 ### Remaining STL functions for hwy/contrib/algo
 
+*   ShuffleSpan (see #3392)
 *   Reduce (see #3374)
 
 *   In-place Remove / RemoveIf, like CopyIf, but in-place.
-
-*   MinMaxValue, IndexOfMinMax (in minmax-inl.h) - straightforward fuse of the
-    existing functions which just compute Min or Max.
 
 *   FindLast / FindLastIf (in find-inl.h) - can use FindLastTrue.
 
@@ -73,15 +67,6 @@ fmod, nexttoward
 ### emu128 codegen
 
 * `#pragma unroll(1)` in all loops to enable autovectorization
-
-### Guaranteed 256-bit support
-
-For non-scalable, can be similar to wasm256. Unclear how best to support
-scalable vectors: would require a pair of vectors because not allowed to wrap
-vectors in a struct.
-
-### Conflict detection
-For hash tables. Use VPCONFLICT on ZEN4.
 
 ### `Dup128TableLookupBytes`
 Avoids having to add offset on RVV. Table must come from `LoadDup128`.
@@ -191,8 +176,9 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~AllOf / AnyOf / NoneOf~~ (algo)
 *   ~~EqualSpan~~ (algo)
 *   ~~ReverseSpan~~ (algo)
-*   ~~ShuffleSpan~~ (algo)
 *   ~~NEON dot product~~
 *   ~~ilogb, logb, modf, nextafter~~
 *   ~~Iguana~~
 *   ~~Mul52~~
+*   ~~MinMaxValue, IndexOfMinMax~~ (algo)
+*   ~~_mm512_getmant (f32/f64)~~

@@ -151,7 +151,7 @@ namespace detail {
 // ResizeBitCast on the HWY_SCALAR target has zero-extending semantics if
 // sizeof(TFromD<DTo>) is greater than sizeof(TFromV<FromV>)
 template <class FromSizeTag, class ToSizeTag, class DTo, class DFrom>
-HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(FromSizeTag /* from_size_tag */,
+HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCastImpl(FromSizeTag /* from_size_tag */,
                                                ToSizeTag /* to_size_tag */,
                                                DTo d_to, DFrom /*d_from*/,
                                                VFromD<DFrom> v) {

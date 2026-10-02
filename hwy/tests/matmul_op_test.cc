@@ -36,6 +36,10 @@ namespace {
 #error "Bug in set_macros-inl.h, did not set HWY_NATIVE_TILE_64B_MATMUL_BF16"
 #endif
 
+#ifndef HWY_NATIVE_TILE_64B_MATMUL_I8
+#error "Bug in set_macros-inl.h, did not set HWY_NATIVE_TILE_64B_MATMUL_I8"
+#endif
+
 struct TestPerBlock2x2MatMulInt8 {
   template <typename TN, class DN>
   HWY_NOINLINE void operator()(TN /*unused*/, DN dn) {
@@ -287,6 +291,101 @@ HWY_NOINLINE void TestAllTile64BMatMulBF16() {
   ForGEVectors<512, TestTile64BMatMulBF16>()(float());
 }
 
+struct TestTile64BMatMulI8 {
+  // AMX is only supported on x64; this template is unused on 32-bit builds.
+  template <typename TN, class DN>
+  HWY_NOINLINE HWY_MAYBE_UNUSED void operator()(TN /*unused*/, DN dn) {
+#if HWY_NATIVE_TILE_64B_MATMUL_I8
+    if (!hwy::HaveTile64BMatMulI8()) {
+      return;
+    }
+    TestOne<int8_t, int8_t>(dn);
+    TestOne<int8_t, uint8_t>(dn);
+    TestOne<uint8_t, int8_t>(dn);
+    TestOne<uint8_t, uint8_t>(dn);
+#else
+    (void)dn;
+#endif
+  }
+
+#if HWY_NATIVE_TILE_64B_MATMUL_I8
+ private:
+  // Reinterprets `bits` as TA, which also yields negative values for int8.
+  // Avoids implementation-defined behavior of out-of-range static_cast.
+  template <typename T>
+  static T FromBits(uint8_t bits) {
+    T t;
+    CopyBytes<1>(&bits, &t);
+    return t;
+  }
+
+  // TA/TB are the lane types of the A/B tiles; the C tile is always int32.
+  template <typename TA, typename TB, class DN>
+  static void TestOne(DN dn) {
+    constexpr size_t kRows = 16;
+    constexpr size_t kColsI32 = 16;
+    constexpr size_t kDimStepI8 = 64;  // K, also the tile row size in bytes.
+    constexpr size_t kRowBytes = 64;
+
+    auto in_a = AllocateAligned<TA>(kRows * kDimStepI8);
+    auto in_b = AllocateAligned<TB>(kRows * kRowBytes);
+    auto in_c = AllocateAligned<int32_t>(kRows * kColsI32);
+    auto actual = AllocateAligned<int32_t>(kRows * kColsI32);
+    auto expected = AllocateAligned<int32_t>(kRows * kColsI32);
+    HWY_ASSERT(in_a && in_b && in_c && actual && expected);
+
+    // Cover the full 8-bit range so that the four instructions differ.
+    for (size_t i = 0; i < kRows * kDimStepI8; ++i) {
+      in_a[i] = FromBits<TA>(static_cast<uint8_t>(i * 13 + 7));
+      in_b[i] = FromBits<TB>(static_cast<uint8_t>(i * 29 + 3));
+    }
+    for (size_t i = 0; i < kRows * kColsI32; ++i) {
+      in_c[i] = static_cast<int32_t>(i) - 8;
+    }
+
+    // C[r][c] += sum_k A[r][k] * B[k][c]. B is in 4-wide VNNI layout: its tile
+    // row k / 4 holds, at byte offset c * 4 + k % 4, the logical B[k][c].
+    // The maximum magnitude is 64 * 128 * 255, hence int32 does not overflow.
+    for (size_t r = 0; r < kRows; ++r) {
+      for (size_t c = 0; c < kColsI32; ++c) {
+        int32_t sum = in_c[r * kColsI32 + c];
+        for (size_t k = 0; k < kDimStepI8; ++k) {
+          const TB b = in_b[(k / 4) * kRowBytes + c * 4 + (k % 4)];
+          sum += static_cast<int32_t>(in_a[r * kDimStepI8 + k]) *
+                 static_cast<int32_t>(b);
+        }
+        expected[r * kColsI32 + c] = sum;
+      }
+    }
+
+    // Only used to select the instruction, hence the vector size is irrelevant.
+    const Rebind<TA, DN> da;
+    const Rebind<TB, DN> db;
+
+    auto tile_c = MakeTile64B(kRows, kRowBytes);
+    auto tile_a = MakeTile64B(kRows, kRowBytes);
+    auto tile_b = MakeTile64B(kRows, kRowBytes);
+
+    Tile64BLoad(&tile_c, in_c.get(), kRowBytes);
+    Tile64BLoad(&tile_a, in_a.get(), kRowBytes);
+    Tile64BLoad(&tile_b, in_b.get(), kRowBytes);
+    Tile64BMatMul(dn, da, db, &tile_c, &tile_a, &tile_b);
+    Tile64BStore(&tile_c, actual.get(), kRowBytes);
+    Tile64BRelease();
+
+    for (size_t r = 0; r < kRows; ++r) {
+      HWY_ASSERT_VEC_EQ(dn, expected.get() + r * kColsI32,
+                        Load(dn, actual.get() + r * kColsI32));
+    }
+  }
+#endif  // HWY_NATIVE_TILE_64B_MATMUL_I8
+};
+
+HWY_NOINLINE void TestAllTile64BMatMulI8() {
+  // AMX is independent of vector length, hence only test 512.
+  ForGEVectors<512, TestTile64BMatMulI8>()(int32_t());
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -301,6 +400,7 @@ HWY_EXPORT_AND_TEST_P(HwyMatmulOpTest, TestAllPerBlock2x2MatMulInt8);
 HWY_EXPORT_AND_TEST_P(HwyMatmulOpTest, TestAllPerBlock2x2MatMulUint8Int8);
 HWY_EXPORT_AND_TEST_P(HwyMatmulOpTest, TestAllPerBlock2x2MatMulBF16);
 HWY_EXPORT_AND_TEST_P(HwyMatmulOpTest, TestAllTile64BMatMulBF16);
+HWY_EXPORT_AND_TEST_P(HwyMatmulOpTest, TestAllTile64BMatMulI8);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy

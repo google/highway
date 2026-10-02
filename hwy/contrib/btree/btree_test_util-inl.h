@@ -5,8 +5,10 @@
 #include <stdio.h>
 
 #include <algorithm>
+#include <iterator>
 #include <limits>
 #include <set>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -38,7 +40,7 @@ struct IsPairLike : std::false_type {};
 
 template <typename T>
 struct IsPairLike<T, std::void_t<decltype(std::declval<T>().first),
-                                 decltype(std::declval<T>().second)> >
+                                 decltype(std::declval<T>().second)>>
     : std::true_type {};
 
 template <typename T, typename U>
@@ -75,7 +77,7 @@ struct ValueGenerator {
 };
 
 template <typename K, typename V>
-struct ValueGenerator<std::pair<K, V> > {
+struct ValueGenerator<std::pair<K, V>> {
   uint64_t max_val;
   explicit ValueGenerator(uint64_t m) : max_val(m) {}
 
@@ -128,12 +130,12 @@ struct KeyExtractor {
 };
 
 template <typename K, typename V>
-struct KeyExtractor<std::pair<K, V> > {
+struct KeyExtractor<std::pair<K, V>> {
   static const K& Get(const std::pair<K, V>& p) { return p.first; }
 };
 
 template <typename K, typename V>
-struct KeyExtractor<std::pair<const K, V> > {
+struct KeyExtractor<std::pair<const K, V>> {
   static const K& Get(const std::pair<const K, V>& p) { return p.first; }
 };
 
@@ -148,14 +150,14 @@ struct ValueComparator {
 };
 
 template <typename K, typename V>
-struct ValueComparator<std::pair<K, V> > {
+struct ValueComparator<std::pair<K, V>> {
   bool operator()(const std::pair<K, V>& a, const std::pair<K, V>& b) const {
     return a.first < b.first;
   }
 };
 
 template <typename K, typename V>
-struct ValueComparator<std::pair<const K, V> > {
+struct ValueComparator<std::pair<const K, V>> {
   bool operator()(const std::pair<const K, V>& a,
                   const std::pair<const K, V>& b) const {
     return a.first < b.first;
@@ -168,14 +170,14 @@ struct ValueEquality {
 };
 
 template <typename K, typename V>
-struct ValueEquality<std::pair<K, V> > {
+struct ValueEquality<std::pair<K, V>> {
   bool operator()(const std::pair<K, V>& a, const std::pair<K, V>& b) const {
     return a.first == b.first;
   }
 };
 
 template <typename K, typename V>
-struct ValueEquality<std::pair<const K, V> > {
+struct ValueEquality<std::pair<const K, V>> {
   bool operator()(const std::pair<const K, V>& a,
                   const std::pair<const K, V>& b) const {
     return a.first == b.first;
@@ -902,7 +904,7 @@ void DoTypedefsAndObserversTest() {
   static_assert(requires { typename TreeT::const_pointer; });
   static_assert(requires { typename TreeT::allocator_type; });
   static_assert(
-      std::is_same_v<typename TreeT::key_compare, std::less<key_type> >);
+      std::is_same_v<typename TreeT::key_compare, std::less<key_type>>);
 
   // 2. Runtime comparator observer verification (matching absl::btree tests)
   TreeT tree;
@@ -1114,6 +1116,175 @@ void DoExtremeBoundariesTest() {
   DoFullContainerTest<TreeT, StdRefT>(vals, /*seed=*/77777);
 }
 
+// Verifies erase(iterator): the returned iterator must designate the same
+// element as the std:: reference's erase(iterator), across leaf merges, leaf
+// frees, and first_leaf_/last_leaf_ updates. Runs on a dense (8-bit delta)
+// and a sparse (wide delta / raw) key distribution.
+template <typename TreeT, typename StdRefT>
+void DoEraseIteratorTest() {
+  using value_type = typename TreeT::value_type;
+  using key_type = typename TreeT::key_type;
+  using Checker = BTreeChecker<TreeT, StdRefT>;
+
+  // Map iterators yield proxy references (not std::pair), so extract the key
+  // structurally rather than via KeyExtractor.
+  const auto key_of = [](const auto& v) -> key_type {
+    if constexpr (IsPairLike<std::decay_t<decltype(v)>>::value) {
+      return v.first;
+    } else {
+      return v;
+    }
+  };
+
+  const size_t n = AdjustedReps(4000);
+  const std::vector<std::vector<value_type>> datasets = {
+      GenerateValuesWithSeed<value_type>(n, n + n / 4, /*seed=*/4242),
+      GenerateValuesWithSeed<value_type>(n, n * 100000ULL, /*seed=*/4243),
+  };
+
+  for (const auto& values : datasets) {
+    // 1. Single forward pass, erasing every element whose key hash hits a
+    //    predicate. Compare the returned iterator to std::'s at every step.
+    {
+      TreeT tree;
+      StdRefT ref;
+      for (const auto& v : values) {
+        tree.insert(v);
+        ref.insert(v);
+      }
+      Checker::VerifyPhysicalTree(tree);
+
+      auto it = tree.begin();
+      auto ref_it = ref.begin();
+      size_t erased = 0;
+      while (it != tree.end()) {
+        HWY_ASSERT(ref_it != ref.end());
+        VerifyEqualElements(it, ref_it);
+        const uint64_t k = static_cast<uint64_t>(key_of(*it));
+        if ((k * 0x9E3779B97F4A7C15ULL) >> 62 != 0) {  // erase ~75%
+          it = tree.erase(it);
+          ref_it = ref.erase(ref_it);
+          ++erased;
+          HWY_ASSERT_EQ(tree.size(), ref.size());
+          if (it == tree.end()) {
+            HWY_ASSERT(ref_it == ref.end());
+          } else {
+            HWY_ASSERT(ref_it != ref.end());
+            VerifyEqualElements(it, ref_it);
+          }
+          if ((erased & 255) == 0) {
+            Checker::VerifyPhysicalTree(tree);
+          }
+        } else {
+          ++it;
+          ++ref_it;
+        }
+      }
+      HWY_ASSERT(ref_it == ref.end());
+      HWY_ASSERT_EQ(tree.size(), ref.size());
+      Checker::VerifyPhysicalTree(tree);
+      // Remaining elements must match exactly.
+      auto t2 = tree.begin();
+      for (auto r2 = ref.begin(); r2 != ref.end(); ++r2, ++t2) {
+        HWY_ASSERT(t2 != tree.end());
+        VerifyEqualElements(t2, r2);
+      }
+      HWY_ASSERT(t2 == tree.end());
+    }
+
+    // 2. Erase from the front until empty: returned iterator is the new
+    //    begin(); exercises leaf frees and first_leaf_ maintenance.
+    {
+      TreeT tree;
+      StdRefT ref;
+      for (const auto& v : values) {
+        tree.insert(v);
+        ref.insert(v);
+      }
+      size_t steps = 0;
+      while (!tree.empty()) {
+        auto it = tree.erase(tree.begin());
+        ref.erase(ref.begin());
+        HWY_ASSERT(it == tree.begin());
+        HWY_ASSERT_EQ(tree.size(), ref.size());
+        if (tree.empty()) {
+          HWY_ASSERT(it == tree.end());
+        } else {
+          VerifyEqualElements(it, ref.begin());
+        }
+        if ((++steps & 511) == 0) {
+          Checker::VerifyPhysicalTree(tree);
+        }
+      }
+      HWY_ASSERT(tree.begin() == tree.end());
+      HWY_ASSERT(tree.state()->root_ == nullptr);
+    }
+
+    // 3. Erase from the back until empty: returned iterator is always end();
+    //    exercises last_leaf_ maintenance (and thus --end()).
+    {
+      TreeT tree;
+      StdRefT ref;
+      for (const auto& v : values) {
+        tree.insert(v);
+        ref.insert(v);
+      }
+      size_t steps = 0;
+      while (!tree.empty()) {
+        auto last = tree.end();
+        --last;
+        auto it = tree.erase(last);
+        ref.erase(std::prev(ref.end()));
+        HWY_ASSERT(it == tree.end());
+        HWY_ASSERT_EQ(tree.size(), ref.size());
+        if (!tree.empty()) {
+          auto fresh_last = tree.end();
+          --fresh_last;
+          VerifyEqualElements(fresh_last, std::prev(ref.end()));
+        }
+        if ((++steps & 511) == 0) {
+          Checker::VerifyPhysicalTree(tree);
+        }
+      }
+      HWY_ASSERT(tree.state()->root_ == nullptr);
+    }
+
+    // 4. Erase the last key of every leaf: the successor always lives in the
+    //    next leaf, so the re-descent must cross leaf boundaries correctly.
+    {
+      TreeT tree;
+      StdRefT ref;
+      for (const auto& v : values) {
+        tree.insert(v);
+        ref.insert(v);
+      }
+      // Collect last-key-of-leaf positions first (erasing mutates leaves).
+      std::vector<key_type> targets;
+      for (auto it = tree.begin(); it != tree.end(); ++it) {
+        if (it.slot() + 1 == it.leaf()->NumKeys()) {
+          targets.push_back(key_of(*it));
+        }
+      }
+      HWY_ASSERT(targets.size() >= 2);  // multi-leaf tree
+      for (const key_type k : targets) {
+        auto pos = tree.find(k);
+        HWY_ASSERT(pos != tree.end());
+        auto ref_pos = ref.find(k);
+        auto it = tree.erase(pos);
+        auto ref_it = ref.erase(ref_pos);
+        if (ref_it == ref.end()) {
+          HWY_ASSERT(it == tree.end());
+        } else {
+          HWY_ASSERT(it != tree.end());
+          VerifyEqualElements(it, ref_it);
+        }
+      }
+      HWY_ASSERT_EQ(tree.size(), ref.size());
+      Checker::VerifyPhysicalTree(tree);
+    }
+  }
+}
+
 template <typename TreeT, typename StdRefT>
 void RunFullTestSuite() {
   DoTypedefsAndObserversTest<TreeT>();
@@ -1121,6 +1292,7 @@ void RunFullTestSuite() {
   DoBoundarySizeSweep<TreeT, StdRefT>();
   DoDiverseBitModesTest<TreeT>();
   DoExtremeBoundariesTest<TreeT, StdRefT>();
+  DoEraseIteratorTest<TreeT, StdRefT>();
 
   // Multi-level scale across sorted, rsorted, and random orderings (matching
   // absl::btree_test.cc's BtreeTest()). AdjustedReps ensures ASan/MSan/QEMU

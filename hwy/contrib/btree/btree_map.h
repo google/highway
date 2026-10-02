@@ -60,6 +60,8 @@ struct MapDispatch;
     static std::pair<std::pair<Leaf*, size_t>, bool> Insert(                  \
         State* state, KeyT key, StorageValueT value, bool assign_if_exists);  \
     static size_t Erase(State* state, KeyT key);                              \
+    static std::pair<Leaf*, size_t> EraseIter(State* state, const Leaf* leaf, \
+                                              size_t slot);                   \
     static void ContainsBatch(const State* state, const KeyT* keys,           \
                               size_t count, bool* out);                       \
     static void FindBatch(const State* state, const KeyT* keys, size_t count, \
@@ -98,6 +100,20 @@ struct ValueStorageTraits {
   using Type = std::conditional_t<sizeof(ValueT) == 4, uint32_t, uint64_t>;
 };
 
+// SIMD-accelerated ordered map from 32/64-bit integer keys to trivially
+// copyable 32/64-bit values, with an API modelled on std::map /
+// absl::btree_map. Keys are stored delta-compressed in 512-byte leaves; SIMD
+// kernels are selected at runtime via dynamic dispatch.
+//
+// Iterator invalidation: as with absl::btree_map, if an insertion or erasure
+// occurs (insert, insert_or_assign, emplace, operator[], erase, clear, Build,
+// swap, assignment), ALL outstanding iterators, pointers and references may be
+// invalidated, including end() and ValueT& obtained from operator[]/at/
+// FindValue. To continue iterating after a mutation, use the iterator returned
+// by insert() or erase(iterator):
+//   for (auto it = m.begin(); it != m.end();) {
+//     if (ShouldErase(it->second)) it = m.erase(it); else ++it;
+//   }
 template <typename KeyT, typename ValueT>
 class BTreeMap {
  public:
@@ -146,9 +162,11 @@ class BTreeMap {
     return *this;
   }
 
-  // Bulk-builds a tree from sorted keys and values. The contiguous values array
-  // is passed as const void* across dynamic dispatch to avoid strict-aliasing
-  // issues across different types sharing the same 32-bit or 64-bit size.
+  // Bulk-builds a tree from strictly ascending keys and their values. The
+  // contiguous values array is passed as const void* across dynamic dispatch
+  // to avoid strict-aliasing issues across different types sharing the same
+  // 32-bit or 64-bit size. Assigning the result to an existing map invalidates
+  // all of its iterators.
   static BTreeMap Build(const KeyT* sorted_keys, const ValueT* sorted_values,
                         size_t num_keys, float fill_ratio = 1.0f) {
     BTreeMap map;
@@ -157,6 +175,7 @@ class BTreeMap {
     return map;
   }
 
+  // Removes all elements. Invalidates all iterators, pointers and references.
   void clear() { Dispatch::Clear(&state_); }
 
   // ---------------------------------------------------------------------------
@@ -556,6 +575,8 @@ class BTreeMap {
 
   // Inserts key and value. Converts value to StorageValueT via BitCastScalar,
   // preventing strict aliasing issues while compiling down to a register move.
+  // Returns (iterator to the element, whether it was inserted). If an
+  // insertion occurs, all other iterators are invalidated.
   std::pair<iterator, bool> insert(KeyT key, const ValueT& value) {
     StorageValueT s_val = hwy::BitCastScalar<StorageValueT>(value);
     auto res =
@@ -576,7 +597,15 @@ class BTreeMap {
     return {iterator(res.first.first, res.first.second, state_.last_leaf_),
             res.second};
   }
+  // Erases `key` if present. Returns the number of elements erased (0 or 1).
+  // If an erasure occurs, all iterators are invalidated.
   size_t erase(KeyT key) { return Dispatch::Erase(&state_, key); }
+  // Erases the element at `pos` (must not be end()). Returns an iterator to the
+  // following element, or end(). All other iterators are invalidated.
+  iterator erase(const_iterator pos) {
+    auto res = Dispatch::EraseIter(&state_, pos.leaf(), pos.slot());
+    return iterator(res.first, res.second, state_.last_leaf_);
+  }
 
   const LeafT* last_leaf() const { return state_.last_leaf_; }
   LeafT* last_leaf() { return state_.last_leaf_; }

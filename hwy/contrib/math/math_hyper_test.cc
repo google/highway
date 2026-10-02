@@ -92,6 +92,25 @@ struct TestFastTanh {
                              static_cast<T>(-1e305), static_cast<T>(1e305),
                              max_relative_error_double, samples);
     }
+    // Clamping boundary kMax = 6.65f +/- 1 ULP (where y * P3(u) / Q3(u) hits
+    // the endpoint of the rational fit and transitions to 1.0):
+    constexpr uint32_t kTanhWorstCasesBits[] = {
+        0x3C23D709u,  // 0.01f - 1 ULP
+        0x3C23D70Au,  // 0.01f
+        0x40D4CCCCu,  // 6.65f - 1 ULP (right endpoint before kMax clamp)
+        0x40D4CCCDu,  // 6.65f (kMax clamp point)
+        0x40D4CCCEu,  // 6.65f + 1 ULP (clamped to kMax)
+    };
+    for (uint32_t bits : kTanhWorstCasesBits) {
+      for (T sign : {static_cast<T>(1.0), static_cast<T>(-1.0)}) {
+        const T x = sign * static_cast<T>(BitCastScalar<float>(bits));
+        const double expected = std::tanh(static_cast<double>(x));
+        const double actual =
+            static_cast<double>(GetLane(CallFastTanh(d, Set(d, x))));
+        const double rel_err = std::abs(actual - expected) / std::abs(expected);
+        HWY_ASSERT(rel_err <= max_relative_error_float);
+      }
+    }
   }
 };
 

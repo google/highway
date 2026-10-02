@@ -166,6 +166,24 @@ HWY_NOINLINE void TestAllTestBit() {
   ForIntegerTypes(ForPartialVectors<TestTestBit>());
 }
 
+struct TestMaskedAnd {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const MFromD<D> all_true = MaskTrue(d);
+    const auto v1 = Iota(d, 1);
+    const auto v2 = Iota(d, 2);
+
+    HWY_ASSERT_VEC_EQ(d, And(v2, v1), MaskedAnd(all_true, v1, v2));
+
+    const MFromD<D> first_five = FirstN(d, 5);
+    const Vec<D> v0 = Zero(d);
+
+    const Vec<D> v1_exp = IfThenElse(first_five, And(v2, v1), v0);
+
+    HWY_ASSERT_VEC_EQ(d, v1_exp, MaskedAnd(first_five, v1, v2));
+  }
+};
+
 struct TestMaskedOr {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -199,6 +217,24 @@ struct TestMaskedXor {
     const Vec<D> v1_exp = IfThenElse(first_five, Xor(v2, v1), v0);
 
     HWY_ASSERT_VEC_EQ(d, v1_exp, MaskedXor(first_five, v1, v2));
+  }
+};
+
+struct TestMaskedAndOr {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const MFromD<D> all_true = MaskTrue(d);
+    const auto v1 = Iota(d, 1);
+    const auto v2 = Iota(d, 2);
+    const auto v3 = Iota(d, 3);
+
+    HWY_ASSERT_VEC_EQ(d, And(v2, v1), MaskedAndOr(v3, all_true, v1, v2));
+
+    const MFromD<D> first_five = FirstN(d, 5);
+
+    const Vec<D> v1_exp = IfThenElse(first_five, And(v2, v1), v3);
+
+    HWY_ASSERT_VEC_EQ(d, v1_exp, MaskedAndOr(v3, first_five, v1, v2));
   }
 };
 
@@ -239,8 +275,10 @@ struct TestMaskedXorOr {
 };
 
 HWY_NOINLINE void TestAllMaskedLogical() {
+  ForAllTypes(ForPartialVectors<TestMaskedAnd>());
   ForAllTypes(ForPartialVectors<TestMaskedOr>());
   ForAllTypes(ForPartialVectors<TestMaskedXor>());
+  ForAllTypes(ForPartialVectors<TestMaskedAndOr>());
   ForAllTypes(ForPartialVectors<TestMaskedOrOr>());
   ForAllTypes(ForPartialVectors<TestMaskedXorOr>());
 }

@@ -99,6 +99,20 @@ struct MapTraits {
 // Key Decompression & Slot Search Primitives
 // -----------------------------------------------------------------------------
 
+// Packs 4 consecutive masks of DFrom (N lanes each) into a single mask of DTo
+// (4 * N lanes) via two levels of OrderedDemote2MasksTo.
+template <class DTo, class DFrom>
+HWY_INLINE MFromD<DTo> OrderedDemote4MasksTo(DTo d_to, DFrom d_from,
+                                             MFromD<DFrom> m0, MFromD<DFrom> m1,
+                                             MFromD<DFrom> m2,
+                                             MFromD<DFrom> m3) {
+  // Descriptor for an intermediate mask with 2x as many bits as `d_from`.
+  const RepartitionToNarrow<DFrom> d_mid;
+  return OrderedDemote2MasksTo(d_to, d_mid,
+                               OrderedDemote2MasksTo(d_mid, d_from, m0, m1),
+                               OrderedDemote2MasksTo(d_mid, d_from, m2, m3));
+}
+
 // Given an array of compressed offsets, returns
 // the number of elements strictly less than target_val (kLowerBound) or
 // less than or equal to target_val (kUpperBound).
@@ -114,39 +128,205 @@ HWY_INLINE size_t ScanOffsets(const void* HWY_RESTRICT data,
   const auto v_target = Set(d, target_val);
   static_assert(kTotal <= 512 / sizeof(OffsetT));
 
+  const auto is_before = [&](const auto v) HWY_ATTR {
+    if constexpr (kBound == BoundMode::kLowerBound) {
+      return Lt(v, v_target);
+    } else {
+      return Le(v, v_target);
+    }
+  };
+
+  const auto is_before_masked = [&](const auto mask, const auto v) HWY_ATTR {
+    if constexpr (kBound == BoundMode::kLowerBound) {
+      return MaskedLt(mask, v, v_target);
+    } else {
+      return MaskedLe(mask, v, v_target);
+    }
+  };
+
   if constexpr (HWY_NATIVE_MASK) {
     // CountTrue is inexpensive with native mask registers and avoids a
     // horizontal vector reduction.
     size_t count = 0;
     size_t i = 0;
-    for (; i + N <= kTotal; i += N) {
-      const auto v = Load(d, offsets + i);
-      if constexpr (kBound == BoundMode::kLowerBound) {
-        count += CountTrue(d, Lt(v, v_target));
-      } else {
-        count += CountTrue(d, Le(v, v_target));
+
+    // On x86 AVX-512, opmask registers (k0..k7) are 64 bits wide, but comparing
+    // elements wider than 1 byte only populates the low bits of the register:
+    //   - 8-byte offsets (8 lanes/vec)  ->  8-bit mask (56 bits unused)
+    //   - 4-byte offsets (16 lanes/vec) -> 16-bit mask (48 bits unused)
+    //   - 2-byte offsets (32 lanes/vec) -> 32-bit mask (32 bits unused)
+    //
+    // Calling CountTrue on each mask individually is suboptimal on x86 because
+    // each call must move a partially filled mask to a 64-bit scalar register
+    // (KMOV) and run a 64-bit scalar POPCNT.
+    //
+    // However, AVX-512 provides hardware instructions (exposed via
+    // OrderedDemote2MasksTo) that combine two masks into a single mask
+    // register. We can use these instructions to pack multiple masks together
+    // to utilize all 64 bits of the mask register, reducing the number of
+    // CountTrue calls we need to make.
+    //
+    // We guard this with HWY_ARCH_X86 because other HWY_NATIVE_MASK targets
+    // (ARM SVE, RISC-V RVV) do not have single-instruction hardware support for
+    // OrderedDemote2MasksTo (and their CountTrue is already a single native
+    // instruction). For sizeof(OffsetT) >= 2 (since 1-byte offsets already fill
+    // all 64 mask bits), we pack 8, 4, or 2 masks into one 64-bit mask before
+    // calling CountTrue.
+    //
+    // Note on future wider x86 SIMD (e.g., 1024-bit vectors):
+    // 1. No mask register overflow: Packing `sizeof(OffsetT)` masks together
+    //    (8x for 8B, 4x for 4B, 2x for 2B) always produces the exact same
+    //    number of mask bits as a single 1-byte (8-bit) vector of width `d`.
+    //    Thus, as long as the mask registers are wide enough to support 8-bit
+    //    types, packing `sizeof(OffsetT)` masks can never overflow a mask
+    //    register.
+    // 2. Automatic fallback across vector widths and leaf sizes: Because the
+    //    cases cascade through 8, 4 (`>= 4`), 2 (`>= 2`), and finally 1 vector
+    //    outside the block, any smaller vector counts or remainders (whether
+    //    from BTreeMap leaves or wider future vectors where 8*N > kTotal)
+    //    automatically fall through to the largest packing factor that fits.
+    if constexpr (HWY_ARCH_X86 && sizeof(OffsetT) >= 2) {
+      // Descriptor for a mask with 2x as many bits as `d`.
+      const RepartitionToNarrow<decltype(d)> d_pack2;
+
+      // Since 8-byte offsets produce 8-bit masks on AVX-512, we can combine 8
+      // of them into a single 64-bit mask and call CountTrue once.
+      if constexpr (sizeof(OffsetT) == 8) {
+        // Descriptors for masks with 4x and 8x as many bits as `d`.
+        const RepartitionToNarrow<decltype(d_pack2)> d_pack4;
+        const RepartitionToNarrow<decltype(d_pack4)> d_pack8;
+
+        for (; i + 8 * N <= kTotal; i += 8 * N) {
+          const auto m0 = is_before(Load(d, offsets + i + 0 * N));
+          const auto m1 = is_before(Load(d, offsets + i + 1 * N));
+          const auto m2 = is_before(Load(d, offsets + i + 2 * N));
+          const auto m3 = is_before(Load(d, offsets + i + 3 * N));
+          const auto m4 = is_before(Load(d, offsets + i + 4 * N));
+          const auto m5 = is_before(Load(d, offsets + i + 5 * N));
+          const auto m6 = is_before(Load(d, offsets + i + 6 * N));
+          const auto m7 = is_before(Load(d, offsets + i + 7 * N));
+
+          const auto m0123 = OrderedDemote4MasksTo(d_pack4, d, m0, m1, m2, m3);
+          const auto m4567 = OrderedDemote4MasksTo(d_pack4, d, m4, m5, m6, m7);
+          count += CountTrue(
+              d_pack8, OrderedDemote2MasksTo(d_pack8, d_pack4, m0123, m4567));
+        }
+
+        if (i + 7 * N < kTotal) {
+          const size_t tail_rem = kTotal - (i + 7 * N);
+          const auto m0 = is_before(Load(d, offsets + i + 0 * N));
+          const auto m1 = is_before(Load(d, offsets + i + 1 * N));
+          const auto m2 = is_before(Load(d, offsets + i + 2 * N));
+          const auto m3 = is_before(Load(d, offsets + i + 3 * N));
+          const auto m4 = is_before(Load(d, offsets + i + 4 * N));
+          const auto m5 = is_before(Load(d, offsets + i + 5 * N));
+          const auto m6 = is_before(Load(d, offsets + i + 6 * N));
+          const auto m7 = is_before_masked(FirstN(d, tail_rem),
+                                           Load(d, offsets + i + 7 * N));
+
+          const auto m0123 = OrderedDemote4MasksTo(d_pack4, d, m0, m1, m2, m3);
+          const auto m4567 = OrderedDemote4MasksTo(d_pack4, d, m4, m5, m6, m7);
+          count += CountTrue(
+              d_pack8, OrderedDemote2MasksTo(d_pack8, d_pack4, m0123, m4567));
+          return count;
+        }
       }
+
+      // Since 4-byte offsets produce 16-bit masks on AVX-512, we can combine 4
+      // of them into a single 64-bit mask and call CountTrue once.
+      // Note: We use `>= 4` instead of `== 4` to also handle 8-byte BTreeMap
+      // leaf nodes, which store both keys and values inside the 512B leaf and
+      // therefore hold fewer than 8 vectors of keys (e.g., an 8B key, 8B value
+      // Map leaf holds 30 keys = 4 vectors).
+      if constexpr (sizeof(OffsetT) >= 4) {
+        // Descriptor for a mask with 4x as many bits as `d`.
+        const RepartitionToNarrow<decltype(d_pack2)> d_pack4;
+
+        for (; i + 4 * N <= kTotal; i += 4 * N) {
+          const auto m0 = is_before(Load(d, offsets + i + 0 * N));
+          const auto m1 = is_before(Load(d, offsets + i + 1 * N));
+          const auto m2 = is_before(Load(d, offsets + i + 2 * N));
+          const auto m3 = is_before(Load(d, offsets + i + 3 * N));
+
+          count += CountTrue(d_pack4,
+                             OrderedDemote4MasksTo(d_pack4, d, m0, m1, m2, m3));
+        }
+
+        if (i + 3 * N < kTotal) {
+          const size_t tail_rem = kTotal - (i + 3 * N);
+          const auto m4 = is_before(Load(d, offsets + i + 0 * N));
+          const auto m5 = is_before(Load(d, offsets + i + 1 * N));
+          const auto m6 = is_before(Load(d, offsets + i + 2 * N));
+          const auto m7 = is_before_masked(FirstN(d, tail_rem),
+                                           Load(d, offsets + i + 3 * N));
+
+          count += CountTrue(d_pack4,
+                             OrderedDemote4MasksTo(d_pack4, d, m4, m5, m6, m7));
+          return count;
+        }
+      }
+
+      // Since 2-byte offsets produce 32-bit masks on AVX-512, we can combine 2
+      // of them into a single 64-bit mask and call CountTrue once.
+      // Note: We use `>= 2` instead of `== 2` to also handle remaining vectors
+      // from 4-byte or 8-byte BTreeMap leaf nodes that have fewer than 4
+      // vectors left (e.g., a 4B key, 8B value Map leaf holds 40 keys = 3
+      // vectors, so it packs its first 2 vectors here before the 1-vector
+      // fallthrough handles the 3rd).
+      if constexpr (sizeof(OffsetT) >= 2) {
+        for (; i + 2 * N <= kTotal; i += 2 * N) {
+          const auto m0 = is_before(Load(d, offsets + i));
+          const auto m1 = is_before(Load(d, offsets + i + N));
+          count +=
+              CountTrue(d_pack2, OrderedDemote2MasksTo(d_pack2, d, m0, m1));
+        }
+
+        if (i + N < kTotal) {
+          const size_t tail_rem = kTotal - (i + N);
+          const auto m0 = is_before(Load(d, offsets + i));
+          const auto m1 =
+              is_before_masked(FirstN(d, tail_rem), Load(d, offsets + i + N));
+          count +=
+              CountTrue(d_pack2, OrderedDemote2MasksTo(d_pack2, d, m0, m1));
+          return count;
+        }
+      }
+    }
+
+    // Handles:
+    //   1. 1-byte offsets on AVX-512 (where 1 vector = 64 lanes already fills
+    //      all 64 bits of a mask register).
+    //   2. Any single leftover vector on AVX-512 when a BTreeMap leaf has an
+    //      odd number of vectors (e.g., the 3rd vector of a 3-vector Map leaf
+    //      after the 2-vector case above packs the first two).
+    //   3. Non-x86 HWY_NATIVE_MASK targets (ARM SVE, RISC-V RVV).
+    for (; i + N <= kTotal; i += N) {
+      count += CountTrue(d, is_before(Load(d, offsets + i)));
     }
 
     if (i < kTotal) {
       const size_t remaining = kTotal - i;
-      // Safety justification for unmasked LoadU on tail elements:
+      // Safety justification for unmasked aligned Load on tail elements:
       //
       // The Potential Problem (Page Boundary Faults):
       // Because each 512-byte LeafNode is alignas(512), a 4096-byte virtual
       // memory page holds exactly eight nodes. For the 8th node on a page
       // (occupying bytes [3584..4095]), reading past the 512-byte struct
       // boundary would cross into the next virtual memory page (byte 4096+). If
-      // that next page happens to be unmapped, an unmasked LoadU would trigger
-      // a SIGSEGV.
+      // that next page happens to be unmapped, an unmasked full-vector Load
+      // would trigger a SIGSEGV.
       //
-      // Proof that LoadU Never Exceeds the 512-byte Struct (EndByte <= 512):
+      // Proof that Load Is Aligned and Never Exceeds the 512-byte Struct
+      // (StartByte % VectorBytes == 0 and EndByte <= 512):
       //
-      // 1. Element & Byte Boundaries:
-      //    Here, i is the loop counter after the preceding for-loop finishes.
-      //    Because i starts at 0 and advances by N lanes on every iteration,
+      // 1. Alignment & Byte Boundaries:
+      //    Here, i is the loop counter after the preceding for-loops finish.
+      //    Because `offsets` starts at byte 0 of an `alignas(512)` node and i
+      //    starts at 0 and advances by multiples of N lanes on every iteration,
       //    i is always an exact multiple of N: i = x * N (for some integer x
-      //    >= 0). Loading N elements from offsets + i ends at element index:
+      //    >= 0). Thus, the starting byte offset `i * sizeof(OffsetT) = x *
+      //    VectorBytes` is always vector-aligned, making aligned `Load` safe.
+      //    Loading N elements from offsets + i ends at element index:
       //      (i + N) = (x + 1) * N
       //    In memory bytes, the load ends at:
       //      EndByte = (i + N) * sizeof(OffsetT)
@@ -183,26 +363,14 @@ HWY_INLINE size_t ScanOffsets(const void* HWY_RESTRICT data,
       // FirstN mask to ensure comparison correctness.
       //
       // Note: LoadN is much slower on architectures without native masked byte
-      // loads (e.g. AVX2, SSE4) compared to LoadU.
-      const auto v = LoadU(d, offsets + i);
+      // loads (e.g. AVX2, SSE4) compared to Load.
+      const auto v = Load(d, offsets + i);
       const auto mask = FirstN(d, remaining);
-      if constexpr (kBound == BoundMode::kLowerBound) {
-        count += CountTrue(d, MaskedLt(mask, v, v_target));
-      } else {
-        count += CountTrue(d, MaskedLe(mask, v, v_target));
-      }
+      count += CountTrue(d, is_before_masked(mask, v));
     }
 
     return count;
   } else {
-    const auto is_before = [&](const auto v) HWY_ATTR {
-      if constexpr (kBound == BoundMode::kLowerBound) {
-        return Lt(v, v_target);
-      } else {
-        return Le(v, v_target);
-      }
-    };
-
     // Without native mask registers, accumulate comparison masks in vectors
     // and reduce once to avoid repeated vector-to-scalar transfers. The loop
     // is 2x unrolled to shorten the accumulator dependency chain.
@@ -223,8 +391,9 @@ HWY_INLINE size_t ScanOffsets(const void* HWY_RESTRICT data,
 
     if (i < kTotal) {
       const size_t remaining = kTotal - i;
-      // Safe unmasked tail load; see EndByte <= 512 proof in ScanOffsets above.
-      const auto v = LoadU(d, offsets + i);
+      // Safe unmasked aligned tail load; see EndByte <= 512 proof in
+      // ScanOffsets above.
+      const auto v = Load(d, offsets + i);
       const auto mask = FirstN(d, remaining);
       counts0 = Sub(counts0, VecFromMask(d, And(mask, is_before(v))));
     }
@@ -260,8 +429,9 @@ HWY_INLINE bool HasOffset(const void* HWY_RESTRICT data, OffsetT target_val) {
 
   if (i < kTotal) {
     const size_t remaining = kTotal - i;
-    // Safe unmasked tail load; see EndByte <= 512 proof in ScanOffsets above.
-    const auto v = LoadU(d, offsets + i);
+    // Safe unmasked aligned tail load; see EndByte <= 512 proof in ScanOffsets
+    // above.
+    const auto v = Load(d, offsets + i);
     const auto mask = FirstN(d, remaining);
     const auto tail_match = MaskedEq(mask, v, v_target);
     any_match = Or(any_match, tail_match);
@@ -1272,6 +1442,14 @@ void MergeLeaves(MapLeafNode<KeyT, ValueT>* leaf,
 // 2. Adapter Mode (Non-owning): Constructed with an external BTreeState pointer
 //    (e.g., from hwy::BTreeSet). Operates directly on the external state
 //    without copying data, and leaves node deallocation to the external owner.
+//
+// Iterator invalidation: as with absl::btree_*, any mutation (insert, erase,
+// insert_or_assign, operator[], clear, Build, swap, assignment) may invalidate
+// ALL outstanding iterators, pointers and references, including end(). Keys
+// are stored delta-compressed inside 512-byte leaves, so an insert can shift,
+// recompress or split a leaf, and an erase can merge or free one. To continue
+// iterating after a mutation, use the iterator returned by insert() or
+// erase(iterator); do not reuse iterators obtained before the mutation.
 template <typename Traits>
 class BTree {
  public:
@@ -1700,7 +1878,8 @@ class BTree {
   // ---------------------------------------------------------------------------
 
   // Constructs a BTreeSet from an array of pre-sorted, unique keys in
-  // O(N) time.
+  // O(N) time. Assigning the result to an existing tree invalidates all of
+  // that tree's iterators, pointers and references.
   //
   // Example usage:
   //   std::vector<uint32_t> sorted_keys = {10, 20, 30, 40, 50};
@@ -1844,17 +2023,16 @@ class BTree {
   // - Register Pressure (GPR's): Holding 8 query keys and 8 node pointers is
   //   doable on most CPU's without reigster spilling.
   template <typename FoundT>
-  void ContainsBatch(const KeyT* HWY_RESTRICT queries, size_t count,
+  void ContainsBatch(const KeyT* HWY_RESTRICT queries, size_t num_queries,
                      FoundT* HWY_RESTRICT out_found) const {
-    if (count == 0) return;
-    if (HWY_UNLIKELY(state_->root_ == nullptr || state_->num_elements_ == 0)) {
-      std::fill_n(out_found, count, static_cast<FoundT>(0));
+    if (HWY_UNLIKELY(state_->root_ == nullptr)) {
+      std::fill_n(out_found, num_queries, static_cast<FoundT>(0));
       return;
     }
 
     constexpr size_t kBatchSize = 8;
     size_t i = 0;
-    for (; i + kBatchSize <= count; i += kBatchSize) {
+    for (; i + kBatchSize <= num_queries; i += kBatchSize) {
       // Stack scratchpad holding pre-converted storage keys for this 8-way
       // micro-batch.
       StorageKeyT q[kBatchSize];
@@ -1879,7 +2057,7 @@ class BTree {
       }
     }
 
-    for (; i < count; ++i) {
+    for (; i < num_queries; ++i) {
       out_found[i] = static_cast<FoundT>(contains(queries[i]));
     }
   }
@@ -1887,18 +2065,17 @@ class BTree {
   // Executes multiple map value lookups with 8-way pipelined prefetching.
   template <typename V = mapped_type,
             typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
-  void LookupBatch(const KeyT* HWY_RESTRICT queries, size_t count,
+  void LookupBatch(const KeyT* HWY_RESTRICT queries, size_t num_queries,
                    V* HWY_RESTRICT out_values,
                    bool* HWY_RESTRICT out_found) const {
-    if (count == 0) return;
-    if (HWY_UNLIKELY(state_->root_ == nullptr || state_->num_elements_ == 0)) {
-      std::fill_n(out_found, count, false);
+    if (HWY_UNLIKELY(state_->root_ == nullptr)) {
+      std::fill_n(out_found, num_queries, false);
       return;
     }
 
     constexpr size_t kBatchSize = 8;
     size_t i = 0;
-    for (; i + kBatchSize <= count; i += kBatchSize) {
+    for (; i + kBatchSize <= num_queries; i += kBatchSize) {
       // Stack scratchpad holding pre-converted storage keys for this 8-way
       // micro-batch.
       StorageKeyT q[kBatchSize];
@@ -1929,7 +2106,7 @@ class BTree {
       }
     }
 
-    for (; i < count; ++i) {
+    for (; i < num_queries; ++i) {
       const V* val_ptr = FindValue(queries[i]);
       if (val_ptr != nullptr) {
         out_found[i] = true;
@@ -2035,6 +2212,9 @@ class BTree {
   // ---------------------------------------------------------------------------
   // Dynamic Mutations (Insertions & Deletions)
   // ---------------------------------------------------------------------------
+  // If an insertion or erasure occurs, every outstanding iterator, pointer and
+  // reference (including end()) may be invalidated. The returned iterator (if
+  // any) is valid until the next mutation.
 
   // Inserts a key into the Set. Returns pair of (iterator, bool_inserted).
   template <bool IsMap = Traits::kIsMap, typename = std::enable_if_t<!IsMap>>
@@ -2134,10 +2314,30 @@ class BTree {
     return EraseInternal(KeyCodec<KeyT>::ToStorage(key));
   }
 
+  // Erases the element at `pos`, which must be dereferenceable (not end()).
+  // Returns an iterator to the element following the erased one, or end().
+  // Like absl::btree, this is the only safe way to erase while iterating:
+  //   for (auto it = t.begin(); it != t.end();) {
+  //     if (ShouldErase(*it)) it = t.erase(it); else ++it;
+  //   }
+  // Cost is one additional root-to-leaf descent to re-locate the successor,
+  // because erasing may merge or free the leaf that `pos` pointed into.
+  iterator erase(const_iterator pos) {
+    HWY_DASSERT(pos.leaf() != nullptr && pos.slot() < pos.leaf()->NumKeys());
+    const StorageKeyT key = GetLeafKey(pos.leaf(), pos.slot());
+    const size_t erased = EraseInternal(key);
+    HWY_DASSERT(erased == 1);
+    (void)erased;
+    // The key is gone, so lower_bound yields the first element greater than it.
+    return LowerBoundInternal(key);
+  }
+
   // ---------------------------------------------------------------------------
   // Capacity & Iteration
   // ---------------------------------------------------------------------------
 
+  // Removes all elements and frees all nodes. Invalidates all iterators,
+  // pointers and references.
   void clear() {
     DestroySubtree(state_->root_, state_->tree_height_);
     state_->root_ = nullptr;

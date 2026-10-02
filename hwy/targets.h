@@ -383,9 +383,16 @@ struct ChosenTarget {
 HWY_DLLEXPORT ChosenTarget& GetChosenTarget();
 
 // Returns true if the CPU and OS support AMX-TILE and AMX-BF16 instructions
-// (used by Tile64BMatMul). On Linux x86-64, this also requests OS permission
-// for dynamic tile state (XFEATURE_XTILEDATA) via arch_prctl.
+// (used by Tile64BMatMul). AMX-INT8 is also required because `__tile_loadd`
+// requires it. On Linux x86-64, this also requests OS permission for dynamic
+// tile state (XFEATURE_XTILEDATA) via arch_prctl.
 HWY_DLLEXPORT bool HaveTile64BMatMulBF16();
+
+// Returns true if the CPU and OS support AMX-TILE and AMX-INT8 instructions
+// (used by the int8/uint8 overloads of Tile64BMatMul). On Linux x86-64, this
+// also requests OS permission for dynamic tile state (XFEATURE_XTILEDATA) via
+// arch_prctl.
+HWY_DLLEXPORT bool HaveTile64BMatMulI8();
 
 }  // namespace hwy
 

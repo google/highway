@@ -30,8 +30,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <vector>
-
+#include "hwy/aligned_allocator.h"
 #include "hwy/contrib/iguana/ans-inl.h"
 #include "hwy/contrib/iguana/iguana_detail.h"
 #include "hwy/highway.h"
@@ -40,20 +39,19 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
-// Decompresses a block produced by hi::Compress, appending to `out`. The
-// container loop is shared with the scalar path (detail.h); only the entropy
-// stage differs: here it is the vectorized ANS32 decoder for this target.
-// Returns false on malformed input; output matches DecompressScalar.
-HWY_INLINE bool DecompressStatic(const uint8_t* HWY_RESTRICT src,
-                                 size_t src_size, std::vector<uint8_t>& out) {
+// Decompresses a block produced by hi::Compress into pre-allocated `dst`.
+// Returns the number of bytes written, or hwy::iguana::kDecompressFailed on
+// malformed input. Chunks are decoded on `pool`; see DecompressBlockParallel.
+HWY_INLINE size_t DecompressStatic(Span<const uint8_t> src, Span<uint8_t> dst,
+                                   hwy::iguana::IguanaWorkspace& ws,
+                                   ThreadPool& pool) {
   // HWY_ATTR is required here: the lambda is a separate function that calls
   // SIMD code, so it must be compiled for this target too.
-  const auto decode = [](const uint8_t* payload, size_t payload_size,
-                         uint8_t* dst, size_t dst_size) HWY_ATTR {
-    return hwy::iguana_ans::HWY_NAMESPACE::Ans32Decode(payload, payload_size,
-                                                       dst, dst_size);
+  const auto decode = [](Span<const uint8_t> payload,
+                         Span<uint8_t> out) HWY_ATTR {
+    return hwy::iguana_ans::HWY_NAMESPACE::Ans32Decode(payload, out);
   };
-  return hwy::iguana::DecompressBlock(src, src_size, out, decode);
+  return hwy::iguana::DecompressBlockParallel(src, dst, decode, ws, pool);
 }
 
 }  // namespace HWY_NAMESPACE

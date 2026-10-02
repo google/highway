@@ -160,6 +160,14 @@ void MapEraseImpl(TreeState* state, BTREE_KEY_T key, size_t* out_erased) {
   *out_erased = tree.erase(key);
 }
 
+void MapEraseIterImpl(TreeState* state, const TreeLeaf* leaf, size_t slot,
+                      TreeLeaf** out_leaf, size_t* out_slot) {
+  TreeEngine tree(state);
+  auto it = tree.erase(typename TreeEngine::const_iterator(leaf, slot));
+  *out_leaf = it.leaf();
+  *out_slot = it.slot();
+}
+
 void MapContainsBatchImpl(const TreeState* state,
                           const BTREE_KEY_T* HWY_RESTRICT keys, size_t count,
                           bool* HWY_RESTRICT out) {
@@ -219,6 +227,7 @@ HWY_EXPORT(MapFindImpl);
 HWY_EXPORT(MapFindValueImpl);
 HWY_EXPORT(MapInsertImpl);
 HWY_EXPORT(MapEraseImpl);
+HWY_EXPORT(MapEraseIterImpl);
 
 // Defines the dynamic dispatch entry points for MapDispatch<KeyT,
 // StorageValueT>. StorageValueT is strictly uint32_t or uint64_t; user-facing
@@ -304,6 +313,17 @@ size_t MapDispatch<BTREE_KEY_T, BTREE_VALUE_T>::Erase(State* state,
   size_t erased = 0;
   HWY_DYNAMIC_DISPATCH(MapEraseImpl)(state, key, &erased);
   return erased;
+}
+
+std::pair<typename MapDispatch<BTREE_KEY_T, BTREE_VALUE_T>::Leaf*, size_t>
+MapDispatch<BTREE_KEY_T, BTREE_VALUE_T>::EraseIter(State* state,
+                                                   const Leaf* leaf,
+                                                   size_t slot) {
+  Leaf* out_leaf = nullptr;
+  size_t out_slot = 0;
+  HWY_DYNAMIC_DISPATCH(MapEraseIterImpl)(state, leaf, slot, &out_leaf,
+                                         &out_slot);
+  return {out_leaf, out_slot};
 }
 
 void MapDispatch<BTREE_KEY_T, BTREE_VALUE_T>::ContainsBatch(

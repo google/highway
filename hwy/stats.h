@@ -39,7 +39,7 @@ class Bins {
   }
 
   template <typename T>
-  void IncrementBy(T bin, uint32_t count) {
+  void IncrementBy(T bin, BinT count) {
     HWY_ASSERT(T{0} <= bin && bin < static_cast<T>(N));
     counts_[static_cast<int32_t>(bin)] += count;
   }
@@ -54,7 +54,7 @@ class Bins {
     counts_[bin_idx] = 0;
   }
 
-  void Assimilate(const Bins<N>& other) {
+  void Assimilate(const Bins& other) {
     for (size_t i = 0; i < N; ++i) {
       counts_[i] += other.counts_[i];
     }
@@ -83,7 +83,7 @@ class Bins {
   }
 
   size_t ModalBinIdx() const {
-    size_t max = 0;
+    BinT max = 0;
     size_t idx_max = 0;
     for (size_t i = 0; i < N; ++i) {
       if (counts_[i] > max) {
@@ -101,12 +101,12 @@ class Bins {
     if (skip_zero) {
       for (size_t i = first_nonzero; i <= last_nonzero; ++i) {
         if (counts_[i] != 0) {
-          fprintf(stderr, " %3zu: %zu\n", i, counts_[i]);
+          fprintf(stderr, " %3zu: %.0f\n", i, static_cast<double>(counts_[i]));
         }
       }
     } else {
       for (size_t i = first_nonzero; i <= last_nonzero; ++i) {
-        fprintf(stderr, " %3zu: %zu\n", i, counts_[i]);
+        fprintf(stderr, " %3zu: %.0f\n", i, static_cast<double>(counts_[i]));
       }
     }
   }

@@ -33,8 +33,8 @@
 #include <stdint.h>
 
 #include <array>
-#include <vector>
 
+#include "hwy/aligned_allocator.h"  // Span
 #include "hwy/base.h"  // HWY_CONTRIB_DLLEXPORT
 #include "hwy/highway_export.h"
 
@@ -47,9 +47,13 @@ namespace iguana {
 // rest (word/lane layout, serialized-table sizing) is an implementation
 // detail shared by ans.cc/ans-inl.h -- see ans_detail.h.
 
-constexpr uint32_t kAnsWordMBits = 12;
-constexpr uint32_t kAnsWordM = uint32_t{1} << kAnsWordMBits;  // 4096
-constexpr uint32_t kAnsFreqMask = kAnsWordM - 1;
+HWY_INLINE_VAR constexpr uint32_t kAnsWordMBits = 12;  // 4096 symbols
+HWY_INLINE_VAR constexpr uint32_t kAnsWordM = uint32_t{1} << kAnsWordMBits;
+HWY_INLINE_VAR constexpr uint32_t kAnsFreqMask = kAnsWordM - 1;
+
+// Upper bound on AnsStatistics::Serialize's output: 3 control bits per symbol
+// (96 bytes), at most 12 data bits per symbol (384 bytes), and one level byte.
+HWY_INLINE_VAR constexpr size_t kAnsMaxSerializedBytes = 96 + 384 + 1;
 
 // ------------------------------ Frequency model
 
@@ -67,8 +71,10 @@ struct HWY_CONTRIB_DLLEXPORT AnsStatistics {
   // normalization, with the empty-input and single-symbol edge cases).
   static AnsStatistics FromData(const uint8_t* data, size_t size);
 
-  // Appends the serialized table (Iguana "EncodeFull" + a zero level byte).
-  void Serialize(std::vector<uint8_t>& out) const;
+  // Writes the serialized table (Iguana "EncodeFull" + a zero level byte) to
+  // `out`, which must have room for kAnsMaxSerializedBytes. Returns the number
+  // of bytes written.
+  size_t Serialize(uint8_t* out) const;
 };
 
 // 4096-entry rANS decoding table: entry = (sym << 24) | (i << 12) | freq.
@@ -83,25 +89,34 @@ HWY_CONTRIB_DLLEXPORT size_t DeserializeAnsTable(AnsDenseTable& table,
 
 // ------------------------------ ANS32 codec
 
+// Scratch bytes Ans32Encode needs for an input of `size` bytes.
+HWY_CONTRIB_DLLEXPORT size_t Ans32EncodeScratchSize(size_t size);
+
 // Encodes `data` into the 32-way interleaved rANS payload followed by the
-// serialized frequency table (i.e. a complete ANS32 block).
-HWY_CONTRIB_DLLEXPORT std::vector<uint8_t> Ans32Encode(const uint8_t* data,
-                                                       size_t size);
+// serialized frequency table (i.e. a complete ANS32 block), and returns it as
+// a view into `scratch`, which must hold at least Ans32EncodeScratchSize(size)
+// bytes. Returns an empty span if it does not, or if `size` is out of range.
+//
+// The two halves of the interleaved payload are emitted towards each other
+// from the middle of `scratch`, so the result does not start at its
+// beginning; it is however contiguous, and remains valid until the next call
+// that uses the same scratch.
+HWY_CONTRIB_DLLEXPORT Span<const uint8_t> Ans32Encode(const uint8_t* data,
+                                                      size_t size,
+                                                      Span<uint8_t> scratch);
 
-// Scalar reference decoder for a block produced by Ans32Encode. `orig_size` is
-// the decompressed length. Returns false on malformed input. The SIMD decoder
-// (ans-inl.h) produces identical output.
-HWY_CONTRIB_DLLEXPORT bool Ans32DecodeScalar(const uint8_t* src,
-                                             size_t src_size, uint8_t* dst,
-                                             size_t orig_size);
+// Scalar reference decoder for a block produced by Ans32Encode. `dst.size()`
+// is the decompressed length, which the caller knows from its own container
+// format. Returns false on malformed input. The SIMD decoder (ans-inl.h)
+// produces identical output.
+HWY_CONTRIB_DLLEXPORT bool Ans32DecodeScalar(Span<const uint8_t> src,
+                                             Span<uint8_t> dst);
 
-// Same, but the frequency table has already been parsed: `payload` is the rANS
+// Same, but the frequency table has already been parsed: `src` is the rANS
 // data only (DeserializeAnsTable's prefix length), `table` its dense table.
-HWY_CONTRIB_DLLEXPORT bool Ans32DecodePayloadScalar(const uint8_t* payload,
-                                                    size_t payload_size,
+HWY_CONTRIB_DLLEXPORT bool Ans32DecodePayloadScalar(Span<const uint8_t> src,
                                                     const AnsDenseTable& table,
-                                                    uint8_t* dst,
-                                                    size_t orig_size);
+                                                    Span<uint8_t> dst);
 
 }  // namespace iguana
 }  // namespace hwy

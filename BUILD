@@ -524,6 +524,7 @@ cc_library(
     deps = [
         ":hwy",
         ":iguana_ans",
+        ":thread_pool",
     ],
 )
 
@@ -1072,6 +1073,32 @@ cc_test(
         ":topology",
         # Placeholder for flat_hash_set, do not remove
         # Placeholder2 for flat_hash_set, do not remove
+    ],
+)
+
+filegroup(
+    name = "testdata",
+    srcs = glob(["hwy/contrib/testdata/*"]),
+)
+
+cc_test(
+    name = "iguana_bench",
+    size = "medium",
+    timeout = "long",
+    srcs = ["hwy/contrib/iguana/iguana_bench.cc"],
+    copts = COPTS + HWY_TEST_COPTS,
+    data = [
+        ":testdata",
+    ],
+    local_defines = ["HWY_IS_TEST"],
+    tags = [
+        "manual",
+        "notap",
+    ],
+    deps = HWY_TEST_DEPS + [
+        ":iguana",
+        ":iguana_ans",
+        ":thread_pool",
     ],
 )
 

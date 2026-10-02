@@ -3489,7 +3489,7 @@ HWY_API Vec128<int16_t, N> MulFixedPoint15(Vec128<int16_t, N> a,
 
 namespace detail {
 template <typename T, size_t N>
-HWY_API Vec128<T, N> Shl(hwy::UnsignedTag /*tag*/, Vec128<T, N> v,
+HWY_API Vec128<T, N> ShlImpl(hwy::UnsignedTag /*tag*/, Vec128<T, N> v,
                          Vec128<T, N> bits) {
 #if HWY_S390X_HAVE_Z14
   return Vec128<T, N>{v.raw << bits.raw};
@@ -3500,26 +3500,26 @@ HWY_API Vec128<T, N> Shl(hwy::UnsignedTag /*tag*/, Vec128<T, N> v,
 
 // Signed left shift is the same as unsigned.
 template <typename T, size_t N>
-HWY_API Vec128<T, N> Shl(hwy::SignedTag /*tag*/, Vec128<T, N> v,
+HWY_API Vec128<T, N> ShlImpl(hwy::SignedTag /*tag*/, Vec128<T, N> v,
                          Vec128<T, N> bits) {
   const DFromV<decltype(v)> di;
   const RebindToUnsigned<decltype(di)> du;
   return BitCast(di,
-                 Shl(hwy::UnsignedTag(), BitCast(du, v), BitCast(du, bits)));
+                 ShlImpl(hwy::UnsignedTag(), BitCast(du, v), BitCast(du, bits)));
 }
 
 }  // namespace detail
 
 template <typename T, size_t N, HWY_IF_NOT_FLOAT(T)>
 HWY_API Vec128<T, N> operator<<(Vec128<T, N> v, Vec128<T, N> bits) {
-  return detail::Shl(hwy::TypeTag<T>(), v, bits);
+  return detail::ShlImpl(hwy::TypeTag<T>(), v, bits);
 }
 
 // ------------------------------ Shr
 
 namespace detail {
 template <typename T, size_t N>
-HWY_API Vec128<T, N> Shr(hwy::UnsignedTag /*tag*/, Vec128<T, N> v,
+HWY_API Vec128<T, N> ShrImpl(hwy::UnsignedTag /*tag*/, Vec128<T, N> v,
                          Vec128<T, N> bits) {
 #if HWY_S390X_HAVE_Z14
   return Vec128<T, N>{v.raw >> bits.raw};
@@ -3529,7 +3529,7 @@ HWY_API Vec128<T, N> Shr(hwy::UnsignedTag /*tag*/, Vec128<T, N> v,
 }
 
 template <typename T, size_t N>
-HWY_API Vec128<T, N> Shr(hwy::SignedTag /*tag*/, Vec128<T, N> v,
+HWY_API Vec128<T, N> ShrImpl(hwy::SignedTag /*tag*/, Vec128<T, N> v,
                          Vec128<T, N> bits) {
 #if HWY_S390X_HAVE_Z14
   return Vec128<T, N>{v.raw >> bits.raw};
@@ -3544,7 +3544,7 @@ HWY_API Vec128<T, N> Shr(hwy::SignedTag /*tag*/, Vec128<T, N> v,
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, Vec128<T, N> bits) {
-  return detail::Shr(hwy::TypeTag<T>(), v, bits);
+  return detail::ShrImpl(hwy::TypeTag<T>(), v, bits);
 }
 
 // ------------------------------ MulEven/Odd 64x64 (UpperHalf)
@@ -4065,14 +4065,14 @@ namespace detail {
 
 #if HWY_IS_LITTLE_ENDIAN
 template <class D, class V>
-HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteEvenToImpl(hwy::SignedTag /*to_type_tag*/,
                                    hwy::SizeTag<4> /*to_lane_size_tag*/,
                                    hwy::SignedTag /*from_type_tag*/, D /*d_to*/,
                                    V v) {
   return VFromD<D>{vec_signexti(v.raw)};
 }
 template <class D, class V>
-HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteEvenToImpl(hwy::SignedTag /*to_type_tag*/,
                                    hwy::SizeTag<8> /*to_lane_size_tag*/,
                                    hwy::SignedTag /*from_type_tag*/, D /*d_to*/,
                                    V v) {
@@ -4080,14 +4080,14 @@ HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
 }
 #else
 template <class D, class V>
-HWY_INLINE VFromD<D> PromoteOddTo(hwy::SignedTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteOddToImpl(hwy::SignedTag /*to_type_tag*/,
                                   hwy::SizeTag<4> /*to_lane_size_tag*/,
                                   hwy::SignedTag /*from_type_tag*/, D /*d_to*/,
                                   V v) {
   return VFromD<D>{vec_signexti(v.raw)};
 }
 template <class D, class V>
-HWY_INLINE VFromD<D> PromoteOddTo(hwy::SignedTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteOddToImpl(hwy::SignedTag /*to_type_tag*/,
                                   hwy::SizeTag<8> /*to_lane_size_tag*/,
                                   hwy::SignedTag /*from_type_tag*/, D /*d_to*/,
                                   V v) {
@@ -4100,14 +4100,14 @@ HWY_INLINE VFromD<D> PromoteOddTo(hwy::SignedTag /*to_type_tag*/,
 // I32/U32/F32->F64 PromoteEvenTo
 #if HWY_S390X_HAVE_Z14
 template <class D, class V>
-HWY_INLINE VFromD<D> PromoteEvenTo(hwy::FloatTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteEvenToImpl(hwy::FloatTag /*to_type_tag*/,
                                    hwy::SizeTag<8> /*to_lane_size_tag*/,
                                    hwy::FloatTag /*from_type_tag*/, D /*d_to*/,
                                    V v) {
   return VFromD<D>{vec_doublee(v.raw)};
 }
 template <class D, class V, class FromTypeTag, HWY_IF_UI32(TFromV<V>)>
-HWY_INLINE VFromD<D> PromoteEvenTo(hwy::FloatTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteEvenToImpl(hwy::FloatTag /*to_type_tag*/,
                                    hwy::SizeTag<8> /*to_lane_size_tag*/,
                                    FromTypeTag /*from_type_tag*/, D d_to, V v) {
   const Rebind<MakeWide<TFromV<V>>, decltype(d_to)> dw;
@@ -4115,7 +4115,7 @@ HWY_INLINE VFromD<D> PromoteEvenTo(hwy::FloatTag /*to_type_tag*/,
 }
 #else   // VSX
 template <class D, class V, class FromTypeTag>
-HWY_INLINE VFromD<D> PromoteEvenTo(hwy::FloatTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteEvenToImpl(hwy::FloatTag /*to_type_tag*/,
                                    hwy::SizeTag<8> /*to_lane_size_tag*/,
                                    FromTypeTag /*from_type_tag*/, D /*d_to*/,
                                    V v) {
@@ -4125,7 +4125,7 @@ HWY_INLINE VFromD<D> PromoteEvenTo(hwy::FloatTag /*to_type_tag*/,
 
 // F32->I64 PromoteEvenTo
 template <class D, class V>
-HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteEvenToImpl(hwy::SignedTag /*to_type_tag*/,
                                    hwy::SizeTag<8> /*to_lane_size_tag*/,
                                    hwy::FloatTag /*from_type_tag*/, D d_to,
                                    V v) {
@@ -4151,7 +4151,7 @@ HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
 
 // F32->U64 PromoteEvenTo
 template <class D, class V>
-HWY_INLINE VFromD<D> PromoteEvenTo(hwy::UnsignedTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteEvenToImpl(hwy::UnsignedTag /*to_type_tag*/,
                                    hwy::SizeTag<8> /*to_lane_size_tag*/,
                                    hwy::FloatTag /*from_type_tag*/, D d_to,
                                    V v) {
@@ -4178,15 +4178,15 @@ HWY_INLINE VFromD<D> PromoteEvenTo(hwy::UnsignedTag /*to_type_tag*/,
 // I32/U32/F32->F64 PromoteOddTo
 #if HWY_S390X_HAVE_Z14
 template <class D, class V>
-HWY_INLINE VFromD<D> PromoteOddTo(hwy::FloatTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteOddToImpl(hwy::FloatTag /*to_type_tag*/,
                                   hwy::SizeTag<8> /*to_lane_size_tag*/,
                                   hwy::FloatTag /*from_type_tag*/, D d_to,
                                   V v) {
-  return PromoteEvenTo(hwy::FloatTag(), hwy::SizeTag<8>(), hwy::FloatTag(),
+  return PromoteEvenToImpl(hwy::FloatTag(), hwy::SizeTag<8>(), hwy::FloatTag(),
                        d_to, V{vec_sld(v.raw, v.raw, 4)});
 }
 template <class D, class V, class FromTypeTag, HWY_IF_UI32(TFromV<V>)>
-HWY_INLINE VFromD<D> PromoteOddTo(hwy::FloatTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteOddToImpl(hwy::FloatTag /*to_type_tag*/,
                                   hwy::SizeTag<8> /*to_lane_size_tag*/,
                                   FromTypeTag /*from_type_tag*/, D d_to, V v) {
   const Rebind<MakeWide<TFromV<V>>, decltype(d_to)> dw;
@@ -4194,7 +4194,7 @@ HWY_INLINE VFromD<D> PromoteOddTo(hwy::FloatTag /*to_type_tag*/,
 }
 #else
 template <class D, class V, class FromTypeTag>
-HWY_INLINE VFromD<D> PromoteOddTo(hwy::FloatTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteOddToImpl(hwy::FloatTag /*to_type_tag*/,
                                   hwy::SizeTag<8> /*to_lane_size_tag*/,
                                   FromTypeTag /*from_type_tag*/, D /*d_to*/,
                                   V v) {
@@ -4204,7 +4204,7 @@ HWY_INLINE VFromD<D> PromoteOddTo(hwy::FloatTag /*to_type_tag*/,
 
 // F32->I64 PromoteOddTo
 template <class D, class V>
-HWY_INLINE VFromD<D> PromoteOddTo(hwy::SignedTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteOddToImpl(hwy::SignedTag /*to_type_tag*/,
                                   hwy::SizeTag<8> /*to_lane_size_tag*/,
                                   hwy::FloatTag /*from_type_tag*/, D d_to,
                                   V v) {
@@ -4223,14 +4223,14 @@ HWY_INLINE VFromD<D> PromoteOddTo(hwy::SignedTag /*to_type_tag*/,
 #endif
 #else
   const RebindToFloat<decltype(d_to)> df64;
-  return ConvertTo(d_to, PromoteOddTo(hwy::FloatTag(), hwy::SizeTag<8>(),
+  return ConvertTo(d_to, PromoteOddToImpl(hwy::FloatTag(), hwy::SizeTag<8>(),
                                       hwy::FloatTag(), df64, v));
 #endif
 }
 
 // F32->U64 PromoteOddTo
 template <class D, class V>
-HWY_INLINE VFromD<D> PromoteOddTo(hwy::UnsignedTag /*to_type_tag*/,
+HWY_INLINE VFromD<D> PromoteOddToImpl(hwy::UnsignedTag /*to_type_tag*/,
                                   hwy::SizeTag<8> /*to_lane_size_tag*/,
                                   hwy::FloatTag /*from_type_tag*/, D d_to,
                                   V v) {
@@ -4249,7 +4249,7 @@ HWY_INLINE VFromD<D> PromoteOddTo(hwy::UnsignedTag /*to_type_tag*/,
 #endif
 #else
   const RebindToFloat<decltype(d_to)> df64;
-  return ConvertTo(d_to, PromoteOddTo(hwy::FloatTag(), hwy::SizeTag<8>(),
+  return ConvertTo(d_to, PromoteOddToImpl(hwy::FloatTag(), hwy::SizeTag<8>(),
                                       hwy::FloatTag(), df64, v));
 #endif
 }
@@ -6262,7 +6262,7 @@ HWY_INLINE Vec128<int32_t, N / 2> AltivecU16SumsOf2(Vec128<uint16_t, N> v) {
 
 // U16->U32 SumsOf2
 template <class V>
-HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
+HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2Impl(
     hwy::UnsignedTag /*type_tag*/, hwy::SizeTag<2> /*lane_size_tag*/, V v) {
   const DFromV<V> d;
   const RepartitionToWide<decltype(d)> dw;
@@ -6276,14 +6276,14 @@ HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
 
 // I16->I32 SumsOf2
 template <class V>
-HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
+HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2Impl(
     hwy::SignedTag /*type_tag*/, hwy::SizeTag<2> /*lane_size_tag*/, V v) {
   const DFromV<V> d;
   const RepartitionToWide<decltype(d)> dw;
 
 #if HWY_S390X_HAVE_Z14
   const RebindToUnsigned<decltype(d)> du;
-  return BitCast(dw, SumsOf2(hwy::UnsignedTag(), hwy::SizeTag<2>(),
+  return BitCast(dw, SumsOf2Impl(hwy::UnsignedTag(), hwy::SizeTag<2>(),
                              BitCast(du, Xor(v, SignBit(d))))) +
          Set(dw, int32_t{-65536});
 #else
@@ -6294,7 +6294,7 @@ HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
 #if HWY_S390X_HAVE_Z14
 // U32->U64 SumsOf2
 template <class V>
-HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
+HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2Impl(
     hwy::UnsignedTag /*type_tag*/, hwy::SizeTag<4> /*lane_size_tag*/, V v) {
   const DFromV<V> d;
   const RepartitionToWide<decltype(d)> dw;
@@ -6303,13 +6303,13 @@ HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
 
 // I32->I64 SumsOf2
 template <class V>
-HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
+HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2Impl(
     hwy::SignedTag /*type_tag*/, hwy::SizeTag<4> /*lane_size_tag*/, V v) {
   const DFromV<V> d;
   const RepartitionToWide<decltype(d)> dw;
   const RebindToUnsigned<decltype(d)> du;
 
-  return BitCast(dw, SumsOf2(hwy::UnsignedTag(), hwy::SizeTag<4>(),
+  return BitCast(dw, SumsOf2Impl(hwy::UnsignedTag(), hwy::SizeTag<4>(),
                              BitCast(du, Xor(v, SignBit(d))))) +
          Set(dw, int64_t{-4294967296LL});
 }
@@ -6317,7 +6317,7 @@ HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
 
 // U8->U32 SumsOf4
 template <class V>
-HWY_INLINE VFromD<RepartitionToWideX2<DFromV<V>>> SumsOf4(
+HWY_INLINE VFromD<RepartitionToWideX2<DFromV<V>>> SumsOf4Impl(
     hwy::UnsignedTag /*type_tag*/, hwy::SizeTag<1> /*lane_size_tag*/, V v) {
   const DFromV<V> d;
   const RepartitionToWideX2<decltype(d)> dw2;
@@ -6331,14 +6331,14 @@ HWY_INLINE VFromD<RepartitionToWideX2<DFromV<V>>> SumsOf4(
 
 // I8->I32 SumsOf4
 template <class V>
-HWY_INLINE VFromD<RepartitionToWideX2<DFromV<V>>> SumsOf4(
+HWY_INLINE VFromD<RepartitionToWideX2<DFromV<V>>> SumsOf4Impl(
     hwy::SignedTag /*type_tag*/, hwy::SizeTag<1> /*lane_size_tag*/, V v) {
   const DFromV<V> d;
   const RepartitionToWideX2<decltype(d)> dw2;
 
 #if HWY_S390X_HAVE_Z14
   const RebindToUnsigned<decltype(d)> du;
-  return BitCast(dw2, SumsOf4(hwy::UnsignedTag(), hwy::SizeTag<1>(),
+  return BitCast(dw2, SumsOf4Impl(hwy::UnsignedTag(), hwy::SizeTag<1>(),
                               BitCast(du, Xor(v, SignBit(d))))) +
          Set(dw2, int32_t{-512});
 #else
@@ -6348,7 +6348,7 @@ HWY_INLINE VFromD<RepartitionToWideX2<DFromV<V>>> SumsOf4(
 
 // U16->U64 SumsOf4
 template <class V>
-HWY_INLINE VFromD<RepartitionToWideX2<DFromV<V>>> SumsOf4(
+HWY_INLINE VFromD<RepartitionToWideX2<DFromV<V>>> SumsOf4Impl(
     hwy::UnsignedTag /*type_tag*/, hwy::SizeTag<2> /*lane_size_tag*/, V v) {
   const DFromV<V> d;
   const RepartitionToWide<decltype(d)> dw;
@@ -6364,7 +6364,7 @@ HWY_INLINE VFromD<RepartitionToWideX2<DFromV<V>>> SumsOf4(
 
 // I16->I64 SumsOf4
 template <class V>
-HWY_INLINE VFromD<RepartitionToWideX2<DFromV<V>>> SumsOf4(
+HWY_INLINE VFromD<RepartitionToWideX2<DFromV<V>>> SumsOf4Impl(
     hwy::SignedTag /*type_tag*/, hwy::SizeTag<2> /*lane_size_tag*/, V v) {
   const DFromV<V> d;
   const RepartitionToWide<decltype(d)> dw;
@@ -6372,7 +6372,7 @@ HWY_INLINE VFromD<RepartitionToWideX2<DFromV<V>>> SumsOf4(
 
 #if HWY_S390X_HAVE_Z14
   const RebindToUnsigned<decltype(d)> du;
-  return BitCast(dw2, SumsOf4(hwy::UnsignedTag(), hwy::SizeTag<2>(),
+  return BitCast(dw2, SumsOf4Impl(hwy::UnsignedTag(), hwy::SizeTag<2>(),
                               BitCast(du, Xor(v, SignBit(d))))) +
          Set(dw2, int64_t{-131072});
 #else  // VSX
@@ -6456,14 +6456,14 @@ template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_U16_D(D)>
 HWY_API Vec32<uint16_t> SumOfLanes(D du16, Vec32<uint16_t> v) {
   constexpr int kSumLaneIdx = HWY_IS_BIG_ENDIAN;
   return Broadcast<kSumLaneIdx>(
-      BitCast(du16, detail::SumsOf2(hwy::UnsignedTag(), hwy::SizeTag<2>(), v)));
+      BitCast(du16, detail::SumsOf2Impl(hwy::UnsignedTag(), hwy::SizeTag<2>(), v)));
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_U16_D(D)>
 HWY_API Vec64<uint16_t> SumOfLanes(D du16, Vec64<uint16_t> v) {
   constexpr int kSumLaneIdx = HWY_IS_LITTLE_ENDIAN ? 0 : 3;
   return Broadcast<kSumLaneIdx>(
-      BitCast(du16, detail::SumsOf4(hwy::UnsignedTag(), hwy::SizeTag<2>(), v)));
+      BitCast(du16, detail::SumsOf4Impl(hwy::UnsignedTag(), hwy::SizeTag<2>(), v)));
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U16_D(D)>
@@ -6471,7 +6471,7 @@ HWY_API Vec128<uint16_t> SumOfLanes(D du16, Vec128<uint16_t> v) {
   constexpr int kSumLaneIdx = HWY_IS_LITTLE_ENDIAN ? 0 : 7;
 #if HWY_S390X_HAVE_Z14
   return Broadcast<kSumLaneIdx>(
-      BitCast(du16, detail::SumOfU32OrU64LanesAsU128(detail::SumsOf4(
+      BitCast(du16, detail::SumOfU32OrU64LanesAsU128(detail::SumsOf4Impl(
                         hwy::UnsignedTag(), hwy::SizeTag<2>(), v))));
 #else  // VSX
   const auto zero = Zero(Full128<int32_t>());
@@ -6488,7 +6488,7 @@ HWY_API Vec32<int16_t> SumOfLanes(D di16, Vec32<int16_t> v) {
 #else
   constexpr int kSumLaneIdx = HWY_IS_BIG_ENDIAN;
   return Broadcast<kSumLaneIdx>(
-      BitCast(di16, detail::SumsOf2(hwy::SignedTag(), hwy::SizeTag<2>(), v)));
+      BitCast(di16, detail::SumsOf2Impl(hwy::SignedTag(), hwy::SizeTag<2>(), v)));
 #endif
 }
 
@@ -6500,7 +6500,7 @@ HWY_API Vec64<int16_t> SumOfLanes(D di16, Vec64<int16_t> v) {
 #else
   constexpr int kSumLaneIdx = HWY_IS_LITTLE_ENDIAN ? 0 : 3;
   return Broadcast<kSumLaneIdx>(
-      BitCast(di16, detail::SumsOf4(hwy::SignedTag(), hwy::SizeTag<2>(), v)));
+      BitCast(di16, detail::SumsOf4Impl(hwy::SignedTag(), hwy::SizeTag<2>(), v)));
 #endif
 }
 
@@ -6522,7 +6522,7 @@ template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_U8_D(D)>
 HWY_API Vec32<uint8_t> SumOfLanes(D du8, Vec32<uint8_t> v) {
   constexpr int kSumLaneIdx = HWY_IS_LITTLE_ENDIAN ? 0 : 3;
   return Broadcast<kSumLaneIdx>(
-      BitCast(du8, detail::SumsOf4(hwy::UnsignedTag(), hwy::SizeTag<1>(), v)));
+      BitCast(du8, detail::SumsOf4Impl(hwy::UnsignedTag(), hwy::SizeTag<1>(), v)));
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 2), HWY_IF_U8_D(D)>
@@ -6543,7 +6543,7 @@ HWY_API Vec128<uint8_t> SumOfLanes(D du8, Vec128<uint8_t> v) {
 
 #if HWY_S390X_HAVE_Z14
   return Broadcast<kSumLaneIdx>(
-      BitCast(du8, detail::SumOfU32OrU64LanesAsU128(detail::SumsOf4(
+      BitCast(du8, detail::SumOfU32OrU64LanesAsU128(detail::SumsOf4Impl(
                        hwy::UnsignedTag(), hwy::SizeTag<1>(), v))));
 #else
   const Full128<uint32_t> du32;
@@ -6563,7 +6563,7 @@ HWY_API Vec32<int8_t> SumOfLanes(D di8, Vec32<int8_t> v) {
 #else
   constexpr int kSumLaneIdx = HWY_IS_LITTLE_ENDIAN ? 0 : 3;
   return Broadcast<kSumLaneIdx>(
-      BitCast(di8, detail::SumsOf4(hwy::SignedTag(), hwy::SizeTag<1>(), v)));
+      BitCast(di8, detail::SumsOf4Impl(hwy::SignedTag(), hwy::SizeTag<1>(), v)));
 #endif
 }
 
@@ -6603,7 +6603,7 @@ template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_UI32_D(D)>
 HWY_API VFromD<D> SumOfLanes(D d32, VFromD<D> v) {
   const RebindToUnsigned<decltype(d32)> du32;
   return Broadcast<1>(
-      BitCast(d32, detail::SumsOf2(hwy::UnsignedTag(), hwy::SizeTag<4>(),
+      BitCast(d32, detail::SumsOf2Impl(hwy::UnsignedTag(), hwy::SizeTag<4>(),
                                    BitCast(du32, v))));
 }
 

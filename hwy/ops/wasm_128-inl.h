@@ -1952,39 +1952,39 @@ HWY_API VFromD<D> MaskedLoadOr(VFromD<D> v, MFromD<D> m, D d,
 namespace detail {
 
 template <size_t kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
-HWY_INLINE T ExtractLane(const Vec128<T, N> v) {
+HWY_INLINE T ExtractLaneImpl(const Vec128<T, N> v) {
   return static_cast<T>(wasm_i8x16_extract_lane(v.raw, kLane));
 }
 template <size_t kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 2),
           HWY_IF_NOT_SPECIAL_FLOAT(T)>
-HWY_INLINE T ExtractLane(const Vec128<T, N> v) {
+HWY_INLINE T ExtractLaneImpl(const Vec128<T, N> v) {
   const int16_t lane = wasm_i16x8_extract_lane(v.raw, kLane);
   return static_cast<T>(lane);
 }
 template <size_t kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 2),
           HWY_IF_SPECIAL_FLOAT(T)>
-HWY_INLINE T ExtractLane(const Vec128<T, N> v) {
+HWY_INLINE T ExtractLaneImpl(const Vec128<T, N> v) {
   const DFromV<decltype(v)> d;
   const RebindToUnsigned<decltype(d)> du;
 
-  const uint16_t bits = ExtractLane<kLane>(BitCast(du, v));
+  const uint16_t bits = ExtractLaneImpl<kLane>(BitCast(du, v));
   return BitCastScalar<T>(bits);
 }
 template <size_t kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 4)>
-HWY_INLINE T ExtractLane(const Vec128<T, N> v) {
+HWY_INLINE T ExtractLaneImpl(const Vec128<T, N> v) {
   return static_cast<T>(wasm_i32x4_extract_lane(v.raw, kLane));
 }
 template <size_t kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 8)>
-HWY_INLINE T ExtractLane(const Vec128<T, N> v) {
+HWY_INLINE T ExtractLaneImpl(const Vec128<T, N> v) {
   return static_cast<T>(wasm_i64x2_extract_lane(v.raw, kLane));
 }
 
 template <size_t kLane, size_t N>
-HWY_INLINE float ExtractLane(const Vec128<float, N> v) {
+HWY_INLINE float ExtractLaneImpl(const Vec128<float, N> v) {
   return wasm_f32x4_extract_lane(v.raw, kLane);
 }
 template <size_t kLane, size_t N>
-HWY_INLINE double ExtractLane(const Vec128<double, N> v) {
+HWY_INLINE double ExtractLaneImpl(const Vec128<double, N> v) {
   return wasm_f64x2_extract_lane(v.raw, kLane);
 }
 
@@ -2003,7 +2003,7 @@ HWY_API void Store(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT p) {
 
 template <class D, HWY_IF_LANES_D(D, 1)>
 HWY_API void Store(VFromD<D> v, D /* tag */, TFromD<D>* HWY_RESTRICT p) {
-  *p = detail::ExtractLane<0>(v);
+  *p = detail::ExtractLaneImpl<0>(v);
 }
 
 // StoreU == Store.
@@ -2041,7 +2041,7 @@ template <typename T>
 HWY_API T ExtractLane(const Vec128<T, 1> v, size_t i) {
   HWY_DASSERT(i == 0);
   (void)i;
-  return detail::ExtractLane<0>(v);
+  return detail::ExtractLaneImpl<0>(v);
 }
 
 template <typename T>
@@ -2050,9 +2050,9 @@ HWY_API T ExtractLane(const Vec128<T, 2> v, size_t i) {
   if (__builtin_constant_p(i)) {
     switch (i) {
       case 0:
-        return detail::ExtractLane<0>(v);
+        return detail::ExtractLaneImpl<0>(v);
       case 1:
-        return detail::ExtractLane<1>(v);
+        return detail::ExtractLaneImpl<1>(v);
     }
   }
 #endif
@@ -2067,13 +2067,13 @@ HWY_API T ExtractLane(const Vec128<T, 4> v, size_t i) {
   if (__builtin_constant_p(i)) {
     switch (i) {
       case 0:
-        return detail::ExtractLane<0>(v);
+        return detail::ExtractLaneImpl<0>(v);
       case 1:
-        return detail::ExtractLane<1>(v);
+        return detail::ExtractLaneImpl<1>(v);
       case 2:
-        return detail::ExtractLane<2>(v);
+        return detail::ExtractLaneImpl<2>(v);
       case 3:
-        return detail::ExtractLane<3>(v);
+        return detail::ExtractLaneImpl<3>(v);
     }
   }
 #endif
@@ -2088,21 +2088,21 @@ HWY_API T ExtractLane(const Vec128<T, 8> v, size_t i) {
   if (__builtin_constant_p(i)) {
     switch (i) {
       case 0:
-        return detail::ExtractLane<0>(v);
+        return detail::ExtractLaneImpl<0>(v);
       case 1:
-        return detail::ExtractLane<1>(v);
+        return detail::ExtractLaneImpl<1>(v);
       case 2:
-        return detail::ExtractLane<2>(v);
+        return detail::ExtractLaneImpl<2>(v);
       case 3:
-        return detail::ExtractLane<3>(v);
+        return detail::ExtractLaneImpl<3>(v);
       case 4:
-        return detail::ExtractLane<4>(v);
+        return detail::ExtractLaneImpl<4>(v);
       case 5:
-        return detail::ExtractLane<5>(v);
+        return detail::ExtractLaneImpl<5>(v);
       case 6:
-        return detail::ExtractLane<6>(v);
+        return detail::ExtractLaneImpl<6>(v);
       case 7:
-        return detail::ExtractLane<7>(v);
+        return detail::ExtractLaneImpl<7>(v);
     }
   }
 #endif
@@ -2117,37 +2117,37 @@ HWY_API T ExtractLane(const Vec128<T, 16> v, size_t i) {
   if (__builtin_constant_p(i)) {
     switch (i) {
       case 0:
-        return detail::ExtractLane<0>(v);
+        return detail::ExtractLaneImpl<0>(v);
       case 1:
-        return detail::ExtractLane<1>(v);
+        return detail::ExtractLaneImpl<1>(v);
       case 2:
-        return detail::ExtractLane<2>(v);
+        return detail::ExtractLaneImpl<2>(v);
       case 3:
-        return detail::ExtractLane<3>(v);
+        return detail::ExtractLaneImpl<3>(v);
       case 4:
-        return detail::ExtractLane<4>(v);
+        return detail::ExtractLaneImpl<4>(v);
       case 5:
-        return detail::ExtractLane<5>(v);
+        return detail::ExtractLaneImpl<5>(v);
       case 6:
-        return detail::ExtractLane<6>(v);
+        return detail::ExtractLaneImpl<6>(v);
       case 7:
-        return detail::ExtractLane<7>(v);
+        return detail::ExtractLaneImpl<7>(v);
       case 8:
-        return detail::ExtractLane<8>(v);
+        return detail::ExtractLaneImpl<8>(v);
       case 9:
-        return detail::ExtractLane<9>(v);
+        return detail::ExtractLaneImpl<9>(v);
       case 10:
-        return detail::ExtractLane<10>(v);
+        return detail::ExtractLaneImpl<10>(v);
       case 11:
-        return detail::ExtractLane<11>(v);
+        return detail::ExtractLaneImpl<11>(v);
       case 12:
-        return detail::ExtractLane<12>(v);
+        return detail::ExtractLaneImpl<12>(v);
       case 13:
-        return detail::ExtractLane<13>(v);
+        return detail::ExtractLaneImpl<13>(v);
       case 14:
-        return detail::ExtractLane<14>(v);
+        return detail::ExtractLaneImpl<14>(v);
       case 15:
-        return detail::ExtractLane<15>(v);
+        return detail::ExtractLaneImpl<15>(v);
     }
   }
 #endif
@@ -2159,7 +2159,7 @@ HWY_API T ExtractLane(const Vec128<T, 16> v, size_t i) {
 // ------------------------------ GetLane
 template <typename T, size_t N>
 HWY_API T GetLane(const Vec128<T, N> v) {
-  return detail::ExtractLane<0>(v);
+  return detail::ExtractLaneImpl<0>(v);
 }
 
 // ------------------------------ InsertLane
@@ -2167,41 +2167,41 @@ HWY_API T GetLane(const Vec128<T, N> v) {
 namespace detail {
 
 template <size_t kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
-HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
+HWY_INLINE Vec128<T, N> InsertLaneImpl(const Vec128<T, N> v, T t) {
   static_assert(kLane < N, "Lane index out of bounds");
   return Vec128<T, N>{
       wasm_i8x16_replace_lane(v.raw, kLane, static_cast<int8_t>(t))};
 }
 
 template <size_t kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 2)>
-HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
+HWY_INLINE Vec128<T, N> InsertLaneImpl(const Vec128<T, N> v, T t) {
   static_assert(kLane < N, "Lane index out of bounds");
   return Vec128<T, N>{
       wasm_i16x8_replace_lane(v.raw, kLane, BitCastScalar<int16_t>(t))};
 }
 
 template <size_t kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 4)>
-HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
+HWY_INLINE Vec128<T, N> InsertLaneImpl(const Vec128<T, N> v, T t) {
   static_assert(kLane < N, "Lane index out of bounds");
   return Vec128<T, N>{
       wasm_i32x4_replace_lane(v.raw, kLane, static_cast<int32_t>(t))};
 }
 
 template <size_t kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 8)>
-HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
+HWY_INLINE Vec128<T, N> InsertLaneImpl(const Vec128<T, N> v, T t) {
   static_assert(kLane < N, "Lane index out of bounds");
   return Vec128<T, N>{
       wasm_i64x2_replace_lane(v.raw, kLane, static_cast<int64_t>(t))};
 }
 
 template <size_t kLane, size_t N>
-HWY_INLINE Vec128<float, N> InsertLane(const Vec128<float, N> v, float t) {
+HWY_INLINE Vec128<float, N> InsertLaneImpl(const Vec128<float, N> v, float t) {
   static_assert(kLane < N, "Lane index out of bounds");
   return Vec128<float, N>{wasm_f32x4_replace_lane(v.raw, kLane, t)};
 }
 
 template <size_t kLane, size_t N>
-HWY_INLINE Vec128<double, N> InsertLane(const Vec128<double, N> v, double t) {
+HWY_INLINE Vec128<double, N> InsertLaneImpl(const Vec128<double, N> v, double t) {
   static_assert(kLane < 2, "Lane index out of bounds");
   return Vec128<double, N>{wasm_f64x2_replace_lane(v.raw, kLane, t)};
 }
@@ -2224,9 +2224,9 @@ HWY_API Vec128<T, 2> InsertLane(const Vec128<T, 2> v, size_t i, T t) {
   if (__builtin_constant_p(i)) {
     switch (i) {
       case 0:
-        return detail::InsertLane<0>(v, t);
+        return detail::InsertLaneImpl<0>(v, t);
       case 1:
-        return detail::InsertLane<1>(v, t);
+        return detail::InsertLaneImpl<1>(v, t);
     }
   }
 #endif
@@ -2243,13 +2243,13 @@ HWY_API Vec128<T, 4> InsertLane(const Vec128<T, 4> v, size_t i, T t) {
   if (__builtin_constant_p(i)) {
     switch (i) {
       case 0:
-        return detail::InsertLane<0>(v, t);
+        return detail::InsertLaneImpl<0>(v, t);
       case 1:
-        return detail::InsertLane<1>(v, t);
+        return detail::InsertLaneImpl<1>(v, t);
       case 2:
-        return detail::InsertLane<2>(v, t);
+        return detail::InsertLaneImpl<2>(v, t);
       case 3:
-        return detail::InsertLane<3>(v, t);
+        return detail::InsertLaneImpl<3>(v, t);
     }
   }
 #endif
@@ -2266,21 +2266,21 @@ HWY_API Vec128<T, 8> InsertLane(const Vec128<T, 8> v, size_t i, T t) {
   if (__builtin_constant_p(i)) {
     switch (i) {
       case 0:
-        return detail::InsertLane<0>(v, t);
+        return detail::InsertLaneImpl<0>(v, t);
       case 1:
-        return detail::InsertLane<1>(v, t);
+        return detail::InsertLaneImpl<1>(v, t);
       case 2:
-        return detail::InsertLane<2>(v, t);
+        return detail::InsertLaneImpl<2>(v, t);
       case 3:
-        return detail::InsertLane<3>(v, t);
+        return detail::InsertLaneImpl<3>(v, t);
       case 4:
-        return detail::InsertLane<4>(v, t);
+        return detail::InsertLaneImpl<4>(v, t);
       case 5:
-        return detail::InsertLane<5>(v, t);
+        return detail::InsertLaneImpl<5>(v, t);
       case 6:
-        return detail::InsertLane<6>(v, t);
+        return detail::InsertLaneImpl<6>(v, t);
       case 7:
-        return detail::InsertLane<7>(v, t);
+        return detail::InsertLaneImpl<7>(v, t);
     }
   }
 #endif
@@ -2297,37 +2297,37 @@ HWY_API Vec128<T, 16> InsertLane(const Vec128<T, 16> v, size_t i, T t) {
   if (__builtin_constant_p(i)) {
     switch (i) {
       case 0:
-        return detail::InsertLane<0>(v, t);
+        return detail::InsertLaneImpl<0>(v, t);
       case 1:
-        return detail::InsertLane<1>(v, t);
+        return detail::InsertLaneImpl<1>(v, t);
       case 2:
-        return detail::InsertLane<2>(v, t);
+        return detail::InsertLaneImpl<2>(v, t);
       case 3:
-        return detail::InsertLane<3>(v, t);
+        return detail::InsertLaneImpl<3>(v, t);
       case 4:
-        return detail::InsertLane<4>(v, t);
+        return detail::InsertLaneImpl<4>(v, t);
       case 5:
-        return detail::InsertLane<5>(v, t);
+        return detail::InsertLaneImpl<5>(v, t);
       case 6:
-        return detail::InsertLane<6>(v, t);
+        return detail::InsertLaneImpl<6>(v, t);
       case 7:
-        return detail::InsertLane<7>(v, t);
+        return detail::InsertLaneImpl<7>(v, t);
       case 8:
-        return detail::InsertLane<8>(v, t);
+        return detail::InsertLaneImpl<8>(v, t);
       case 9:
-        return detail::InsertLane<9>(v, t);
+        return detail::InsertLaneImpl<9>(v, t);
       case 10:
-        return detail::InsertLane<10>(v, t);
+        return detail::InsertLaneImpl<10>(v, t);
       case 11:
-        return detail::InsertLane<11>(v, t);
+        return detail::InsertLaneImpl<11>(v, t);
       case 12:
-        return detail::InsertLane<12>(v, t);
+        return detail::InsertLaneImpl<12>(v, t);
       case 13:
-        return detail::InsertLane<13>(v, t);
+        return detail::InsertLaneImpl<13>(v, t);
       case 14:
-        return detail::InsertLane<14>(v, t);
+        return detail::InsertLaneImpl<14>(v, t);
       case 15:
-        return detail::InsertLane<15>(v, t);
+        return detail::InsertLaneImpl<15>(v, t);
     }
   }
 #endif
@@ -3160,74 +3160,74 @@ HWY_API VFromD<D> InterleaveLower(D /* tag */, VFromD<D> a, VFromD<D> b) {
 namespace detail {
 
 template <size_t N>
-HWY_API Vec128<uint8_t, N> InterleaveUpper(Vec128<uint8_t, N> a,
+HWY_API Vec128<uint8_t, N> InterleaveUpperImpl(Vec128<uint8_t, N> a,
                                            Vec128<uint8_t, N> b) {
   return Vec128<uint8_t, N>{wasm_i8x16_shuffle(a.raw, b.raw, 8, 24, 9, 25, 10,
                                                26, 11, 27, 12, 28, 13, 29, 14,
                                                30, 15, 31)};
 }
 template <size_t N>
-HWY_API Vec128<uint16_t, N> InterleaveUpper(Vec128<uint16_t, N> a,
+HWY_API Vec128<uint16_t, N> InterleaveUpperImpl(Vec128<uint16_t, N> a,
                                             Vec128<uint16_t, N> b) {
   return Vec128<uint16_t, N>{
       wasm_i16x8_shuffle(a.raw, b.raw, 4, 12, 5, 13, 6, 14, 7, 15)};
 }
 template <size_t N>
-HWY_API Vec128<uint32_t, N> InterleaveUpper(Vec128<uint32_t, N> a,
+HWY_API Vec128<uint32_t, N> InterleaveUpperImpl(Vec128<uint32_t, N> a,
                                             Vec128<uint32_t, N> b) {
   return Vec128<uint32_t, N>{wasm_i32x4_shuffle(a.raw, b.raw, 2, 6, 3, 7)};
 }
 template <size_t N>
-HWY_API Vec128<uint64_t, N> InterleaveUpper(Vec128<uint64_t, N> a,
+HWY_API Vec128<uint64_t, N> InterleaveUpperImpl(Vec128<uint64_t, N> a,
                                             Vec128<uint64_t, N> b) {
   return Vec128<uint64_t, N>{wasm_i64x2_shuffle(a.raw, b.raw, 1, 3)};
 }
 
 template <size_t N>
-HWY_API Vec128<int8_t, N> InterleaveUpper(Vec128<int8_t, N> a,
+HWY_API Vec128<int8_t, N> InterleaveUpperImpl(Vec128<int8_t, N> a,
                                           Vec128<int8_t, N> b) {
   return Vec128<int8_t, N>{wasm_i8x16_shuffle(a.raw, b.raw, 8, 24, 9, 25, 10,
                                               26, 11, 27, 12, 28, 13, 29, 14,
                                               30, 15, 31)};
 }
 template <size_t N>
-HWY_API Vec128<int16_t, N> InterleaveUpper(Vec128<int16_t, N> a,
+HWY_API Vec128<int16_t, N> InterleaveUpperImpl(Vec128<int16_t, N> a,
                                            Vec128<int16_t, N> b) {
   return Vec128<int16_t, N>{
       wasm_i16x8_shuffle(a.raw, b.raw, 4, 12, 5, 13, 6, 14, 7, 15)};
 }
 template <size_t N>
-HWY_API Vec128<int32_t, N> InterleaveUpper(Vec128<int32_t, N> a,
+HWY_API Vec128<int32_t, N> InterleaveUpperImpl(Vec128<int32_t, N> a,
                                            Vec128<int32_t, N> b) {
   return Vec128<int32_t, N>{wasm_i32x4_shuffle(a.raw, b.raw, 2, 6, 3, 7)};
 }
 template <size_t N>
-HWY_API Vec128<int64_t, N> InterleaveUpper(Vec128<int64_t, N> a,
+HWY_API Vec128<int64_t, N> InterleaveUpperImpl(Vec128<int64_t, N> a,
                                            Vec128<int64_t, N> b) {
   return Vec128<int64_t, N>{wasm_i64x2_shuffle(a.raw, b.raw, 1, 3)};
 }
 
 template <size_t N>
-HWY_API Vec128<float16_t, N> InterleaveUpper(Vec128<float16_t, N> a,
+HWY_API Vec128<float16_t, N> InterleaveUpperImpl(Vec128<float16_t, N> a,
                                              Vec128<float16_t, N> b) {
   return Vec128<float16_t, N>{
       wasm_i16x8_shuffle(a.raw, b.raw, 4, 12, 5, 13, 6, 14, 7, 15)};
 }
 template <size_t N>
-HWY_API Vec128<bfloat16_t, N> InterleaveUpper(Vec128<bfloat16_t, N> a,
+HWY_API Vec128<bfloat16_t, N> InterleaveUpperImpl(Vec128<bfloat16_t, N> a,
                                               Vec128<bfloat16_t, N> b) {
   return Vec128<bfloat16_t, N>{
       wasm_i16x8_shuffle(a.raw, b.raw, 4, 12, 5, 13, 6, 14, 7, 15)};
 }
 
 template <size_t N>
-HWY_API Vec128<float, N> InterleaveUpper(Vec128<float, N> a,
+HWY_API Vec128<float, N> InterleaveUpperImpl(Vec128<float, N> a,
                                          Vec128<float, N> b) {
   return Vec128<float, N>{wasm_i32x4_shuffle(a.raw, b.raw, 2, 6, 3, 7)};
 }
 
 template <size_t N>
-HWY_API Vec128<double, N> InterleaveUpper(Vec128<double, N> a,
+HWY_API Vec128<double, N> InterleaveUpperImpl(Vec128<double, N> a,
                                           Vec128<double, N> b) {
   return Vec128<double, N>{wasm_i64x2_shuffle(a.raw, b.raw, 1, 3)};
 }
@@ -3237,7 +3237,7 @@ HWY_API Vec128<double, N> InterleaveUpper(Vec128<double, N> a,
 // Full
 template <class D, typename T = TFromD<D>>
 HWY_API Vec128<T> InterleaveUpper(D /* tag */, Vec128<T> a, Vec128<T> b) {
-  return detail::InterleaveUpper(a, b);
+  return detail::InterleaveUpperImpl(a, b);
 }
 
 // Partial
@@ -3271,7 +3271,7 @@ namespace detail {
 
 template <size_t kIdx3210, size_t kVectSize, class V,
           HWY_IF_LANES_LE(kVectSize, 16)>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
                                   hwy::SizeTag<1> /*lane_size_tag*/,
                                   hwy::SizeTag<kVectSize> /*vect_size_tag*/,
                                   V v) {
@@ -3287,7 +3287,7 @@ HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
 
 template <size_t kIdx3210, size_t kVectSize, class V,
           HWY_IF_LANES_LE(kVectSize, 16)>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
                                   hwy::SizeTag<2> /*lane_size_tag*/,
                                   hwy::SizeTag<kVectSize> /*vect_size_tag*/,
                                   V v) {
@@ -3301,7 +3301,7 @@ HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
 
 template <size_t kIdx3210, size_t kVectSize, class V,
           HWY_IF_LANES_LE(kVectSize, 16)>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
+HWY_INLINE V Per4LaneBlockShuffleImpl(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
                                   hwy::SizeTag<4> /*lane_size_tag*/,
                                   hwy::SizeTag<kVectSize> /*vect_size_tag*/,
                                   V v) {
@@ -3319,7 +3319,7 @@ HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
 namespace detail {
 
 template <class V, HWY_IF_V_SIZE_LE_V(V, 8)>
-HWY_INLINE V SlideUpLanes(V v, size_t amt) {
+HWY_INLINE V SlideUpLanesImpl(V v, size_t amt) {
   const DFromV<decltype(v)> d;
   const Full64<uint64_t> du64;
   const auto vu64 = ResizeBitCast(du64, v);
@@ -3328,7 +3328,7 @@ HWY_INLINE V SlideUpLanes(V v, size_t amt) {
 }
 
 template <class V, HWY_IF_V_SIZE_V(V, 16)>
-HWY_INLINE V SlideUpLanes(V v, size_t amt) {
+HWY_INLINE V SlideUpLanesImpl(V v, size_t amt) {
   const DFromV<decltype(v)> d;
   const Repartition<uint8_t, decltype(d)> du8;
   const auto idx =
@@ -3358,7 +3358,7 @@ HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
   (void)d;
 #endif
 
-  return detail::SlideUpLanes(v, amt);
+  return detail::SlideUpLanesImpl(v, amt);
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 4)>
@@ -3380,7 +3380,7 @@ HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
   (void)d;
 #endif
 
-  return detail::SlideUpLanes(v, amt);
+  return detail::SlideUpLanesImpl(v, amt);
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 8)>
@@ -3410,7 +3410,7 @@ HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
   (void)d;
 #endif
 
-  return detail::SlideUpLanes(v, amt);
+  return detail::SlideUpLanesImpl(v, amt);
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_LANES_D(D, 16)>
@@ -3456,7 +3456,7 @@ HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
   (void)d;
 #endif
 
-  return detail::SlideUpLanes(v, amt);
+  return detail::SlideUpLanesImpl(v, amt);
 }
 
 // ------------------------------ SlideDownLanes
@@ -3464,7 +3464,7 @@ HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
 namespace detail {
 
 template <class V, HWY_IF_V_SIZE_LE_V(V, 8)>
-HWY_INLINE V SlideDownLanes(V v, size_t amt) {
+HWY_INLINE V SlideDownLanesImpl(V v, size_t amt) {
   const DFromV<decltype(v)> d;
   const Repartition<UnsignedFromSize<d.MaxBytes()>, decltype(d)> dv;
   return BitCast(d,
@@ -3473,7 +3473,7 @@ HWY_INLINE V SlideDownLanes(V v, size_t amt) {
 }
 
 template <class V, HWY_IF_V_SIZE_V(V, 16)>
-HWY_INLINE V SlideDownLanes(V v, size_t amt) {
+HWY_INLINE V SlideDownLanesImpl(V v, size_t amt) {
   const DFromV<decltype(v)> d;
   const Repartition<int8_t, decltype(d)> di8;
   auto idx = Iota(di8, static_cast<int8_t>(amt * sizeof(TFromV<V>)));
@@ -3503,7 +3503,7 @@ HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
   (void)d;
 #endif
 
-  return detail::SlideDownLanes(v, amt);
+  return detail::SlideDownLanesImpl(v, amt);
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 4)>
@@ -3525,7 +3525,7 @@ HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
   (void)d;
 #endif
 
-  return detail::SlideDownLanes(v, amt);
+  return detail::SlideDownLanesImpl(v, amt);
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 8)>
@@ -3555,7 +3555,7 @@ HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
   (void)d;
 #endif
 
-  return detail::SlideDownLanes(v, amt);
+  return detail::SlideDownLanesImpl(v, amt);
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_LANES_D(D, 16)>
@@ -3601,7 +3601,7 @@ HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
   (void)d;
 #endif
 
-  return detail::SlideDownLanes(v, amt);
+  return detail::SlideDownLanesImpl(v, amt);
 }
 
 // ================================================== COMBINE
@@ -3832,7 +3832,7 @@ HWY_API Vec128<T, N> DupOdd(const Vec128<T, N> v) {
 namespace detail {
 
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> OddEven(hwy::SizeTag<1> /* tag */, const Vec128<T, N> a,
+HWY_INLINE Vec128<T, N> OddEvenImpl(hwy::SizeTag<1> /* tag */, const Vec128<T, N> a,
                                 const Vec128<T, N> b) {
   const DFromV<decltype(a)> d;
   const Repartition<uint8_t, decltype(d)> d8;
@@ -3841,18 +3841,18 @@ HWY_INLINE Vec128<T, N> OddEven(hwy::SizeTag<1> /* tag */, const Vec128<T, N> a,
   return IfThenElse(MaskFromVec(BitCast(d, Load(d8, mask))), b, a);
 }
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> OddEven(hwy::SizeTag<2> /* tag */, const Vec128<T, N> a,
+HWY_INLINE Vec128<T, N> OddEvenImpl(hwy::SizeTag<2> /* tag */, const Vec128<T, N> a,
                                 const Vec128<T, N> b) {
   return Vec128<T, N>{
       wasm_i16x8_shuffle(a.raw, b.raw, 8, 1, 10, 3, 12, 5, 14, 7)};
 }
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> OddEven(hwy::SizeTag<4> /* tag */, const Vec128<T, N> a,
+HWY_INLINE Vec128<T, N> OddEvenImpl(hwy::SizeTag<4> /* tag */, const Vec128<T, N> a,
                                 const Vec128<T, N> b) {
   return Vec128<T, N>{wasm_i32x4_shuffle(a.raw, b.raw, 4, 1, 6, 3)};
 }
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> OddEven(hwy::SizeTag<8> /* tag */, const Vec128<T, N> a,
+HWY_INLINE Vec128<T, N> OddEvenImpl(hwy::SizeTag<8> /* tag */, const Vec128<T, N> a,
                                 const Vec128<T, N> b) {
   return Vec128<T, N>{wasm_i64x2_shuffle(a.raw, b.raw, 2, 1)};
 }
@@ -3861,7 +3861,7 @@ HWY_INLINE Vec128<T, N> OddEven(hwy::SizeTag<8> /* tag */, const Vec128<T, N> a,
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> OddEven(const Vec128<T, N> a, const Vec128<T, N> b) {
-  return detail::OddEven(hwy::SizeTag<sizeof(T)>(), a, b);
+  return detail::OddEvenImpl(hwy::SizeTag<sizeof(T)>(), a, b);
 }
 template <size_t N>
 HWY_API Vec128<float, N> OddEven(const Vec128<float, N> a,
@@ -4914,7 +4914,7 @@ HWY_API Vec128<int64_t, N / 8> SumsOf8(const Vec128<int8_t, N> v) {
 namespace detail {
 
 template <class D, HWY_IF_T_SIZE_D(D, 1)>
-HWY_INLINE MFromD<D> LoadMaskBits(D d, uint64_t bits) {
+HWY_INLINE MFromD<D> LoadMaskBitsImpl(D d, uint64_t bits) {
   const RebindToUnsigned<decltype(d)> du;
   // Easier than Set(), which would require an >8-bit type, which would not
   // compile for T=uint8_t, N=1.
@@ -4931,7 +4931,7 @@ HWY_INLINE MFromD<D> LoadMaskBits(D d, uint64_t bits) {
 }
 
 template <class D, HWY_IF_T_SIZE_D(D, 2)>
-HWY_INLINE MFromD<D> LoadMaskBits(D d, uint64_t bits) {
+HWY_INLINE MFromD<D> LoadMaskBitsImpl(D d, uint64_t bits) {
   const RebindToUnsigned<decltype(d)> du;
   alignas(16) static constexpr uint16_t kBit[8] = {1, 2, 4, 8, 16, 32, 64, 128};
   return RebindMask(
@@ -4939,7 +4939,7 @@ HWY_INLINE MFromD<D> LoadMaskBits(D d, uint64_t bits) {
 }
 
 template <class D, HWY_IF_T_SIZE_D(D, 4)>
-HWY_INLINE MFromD<D> LoadMaskBits(D d, uint64_t bits) {
+HWY_INLINE MFromD<D> LoadMaskBitsImpl(D d, uint64_t bits) {
   const RebindToUnsigned<decltype(d)> du;
   alignas(16) static constexpr uint32_t kBit[8] = {1, 2, 4, 8};
   return RebindMask(
@@ -4947,7 +4947,7 @@ HWY_INLINE MFromD<D> LoadMaskBits(D d, uint64_t bits) {
 }
 
 template <class D, HWY_IF_T_SIZE_D(D, 8)>
-HWY_INLINE MFromD<D> LoadMaskBits(D d, uint64_t bits) {
+HWY_INLINE MFromD<D> LoadMaskBitsImpl(D d, uint64_t bits) {
   const RebindToUnsigned<decltype(d)> du;
   alignas(16) static constexpr uint64_t kBit[8] = {1, 2};
   return RebindMask(d, TestBit(Set(du, bits), Load(du, kBit)));
@@ -4960,7 +4960,7 @@ template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API MFromD<D> LoadMaskBits(D d, const uint8_t* HWY_RESTRICT bits) {
   uint64_t mask_bits = 0;
   CopyBytes<(MaxLanes(d) + 7) / 8>(bits, &mask_bits);
-  return detail::LoadMaskBits(d, mask_bits);
+  return detail::LoadMaskBitsImpl(d, mask_bits);
 }
 
 // ------------------------------ Dup128MaskFromMaskBits
@@ -4969,7 +4969,7 @@ template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
   constexpr size_t kN = MaxLanes(d);
   if (kN < 8) mask_bits &= (1u << kN) - 1;
-  return detail::LoadMaskBits(d, mask_bits);
+  return detail::LoadMaskBitsImpl(d, mask_bits);
 }
 
 // ------------------------------ Mask
@@ -5128,19 +5128,19 @@ HWY_API bool AllFalse(D d, const MFromD<D> m) {
 // Full vector
 namespace detail {
 template <typename T>
-HWY_INLINE bool AllTrue(hwy::SizeTag<1> /*tag*/, const Mask128<T> m) {
+HWY_INLINE bool AllTrueImpl(hwy::SizeTag<1> /*tag*/, const Mask128<T> m) {
   return wasm_i8x16_all_true(m.raw);
 }
 template <typename T>
-HWY_INLINE bool AllTrue(hwy::SizeTag<2> /*tag*/, const Mask128<T> m) {
+HWY_INLINE bool AllTrueImpl(hwy::SizeTag<2> /*tag*/, const Mask128<T> m) {
   return wasm_i16x8_all_true(m.raw);
 }
 template <typename T>
-HWY_INLINE bool AllTrue(hwy::SizeTag<4> /*tag*/, const Mask128<T> m) {
+HWY_INLINE bool AllTrueImpl(hwy::SizeTag<4> /*tag*/, const Mask128<T> m) {
   return wasm_i32x4_all_true(m.raw);
 }
 template <typename T>
-HWY_INLINE bool AllTrue(hwy::SizeTag<8> /*tag*/, const Mask128<T> m) {
+HWY_INLINE bool AllTrueImpl(hwy::SizeTag<8> /*tag*/, const Mask128<T> m) {
   return wasm_i64x2_all_true(m.raw);
 }
 
@@ -5148,7 +5148,7 @@ HWY_INLINE bool AllTrue(hwy::SizeTag<8> /*tag*/, const Mask128<T> m) {
 
 template <class D, typename T = TFromD<D>>
 HWY_API bool AllTrue(D /* tag */, const Mask128<T> m) {
-  return detail::AllTrue(hwy::SizeTag<sizeof(T)>(), m);
+  return detail::AllTrueImpl(hwy::SizeTag<sizeof(T)>(), m);
 }
 
 // Partial vectors
@@ -5328,7 +5328,7 @@ HWY_API Vec128<T> MulHigh(Vec128<T> a, Vec128<T> b) {
   T hi_0;
   T hi_1;
   Mul128(GetLane(a), GetLane(b), &hi_0);
-  Mul128(detail::ExtractLane<1>(a), detail::ExtractLane<1>(b), &hi_1);
+  Mul128(detail::ExtractLaneImpl<1>(a), detail::ExtractLaneImpl<1>(b), &hi_1);
   return Dup128VecFromValues(Full128<T>(), hi_0, hi_1);
 }
 

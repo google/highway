@@ -410,16 +410,72 @@ HWY_NOINLINE void TestAllHypot() {
 struct TestFastTanRelative {
   template <class T, class D>
   HWY_NOINLINE void operator()(T, D d) {
-    if (sizeof(T) == 4) {
+    if constexpr (sizeof(T) == 4) {
       // Float: [-89.999999, +89.999999] deg
       TestMathRelative<T, D>(
           "FastTan", std::tan, CallFastTan, d, static_cast<T>(-1.570796309),
           static_cast<T>(1.570796309), 0.0000005, 4000, 1e-20);
+      // Float wide range: [-39000, +39000] rads
+      TestMathRelative<T, D>("FastTanWide", std::tan, CallFastTan, d,
+                             static_cast<T>(-39000.0), static_cast<T>(39000.0),
+                             0.0000007, 40000, 1e-20);
+
+      // Deterministic worst-case inputs discovered via exhaustive float32
+      // sweep (Kahan multiples of pi/2 with up to 36 bits of cancellation and
+      // 14-bit quotients |q| > 8192):
+      const uint32_t kWorstCasesBits[] = {
+          0x3FC90FDAu,  // 1.57079625f: float32 immediately below pi/2
+          0x3FC90FDBu,  // 1.57079637f: float32 immediately above pi/2
+          0x437CE5F1u,  // 252.898209f (~80.5*pi): Kahan worst-case pole
+          0x45FA1DD4u,  // 8003.72852f: high-cancellation wide input
+          0x467CE5F1u,  // 16185.48535f (~5152*pi): Kahan 36-bit cancellation
+          0x46CE3A7Au,  // 26397.2383f (~8402.5*pi): 14-bit |q| > 2^13 pole
+          0x46EC45ABu,  // 30242.8340f (~9626.6*pi): 14-bit |q| non-FMA check
+          0x4707315Bu,  // 34609.3555f (~11016.5*pi): global non-FMA worst case
+          0x4707315Du,  // 34609.3633f (~11016.5*pi): worst-case 14-bit |q| pole
+      };
+      for (uint32_t bits : kWorstCasesBits) {
+        for (T sign : {static_cast<T>(1.0), static_cast<T>(-1.0)}) {
+          const T x = sign * BitCastScalar<T>(bits);
+          const double expected = std::tan(static_cast<double>(x));
+          const double actual =
+              static_cast<double>(GetLane(CallFastTan(d, Set(d, x))));
+          HWY_ASSERT((actual > 0.0) == (expected > 0.0));
+          const double rel_err =
+              std::abs(actual - expected) / std::abs(expected);
+          HWY_ASSERT(rel_err <= 0.0000007);
+        }
+      }
     } else {
       // Double: [-89.999999999999, +89.999999999999] deg
       TestMathRelative<T, D>(
           "FastTan", std::tan, CallFastTan, d, static_cast<T>(-1.5707963267948),
           static_cast<T>(1.5707963267948), 0.00000015, 4000, 1e-20);
+      // Double wide range: [-39000, +39000] rads
+      TestMathRelative<T, D>("FastTanWide", std::tan, CallFastTan, d,
+                             static_cast<T>(-39000.0), static_cast<T>(39000.0),
+                             0.0000002, 40000, 1e-20);
+
+      // Deterministic near-asymptote and large-multiple checks for float64:
+      const T kWorstCasesF64[] = {
+          static_cast<T>(1.570796325756847),
+          static_cast<T>(1.5707963267948),
+          static_cast<T>(252.8982086181640625),
+          static_cast<T>(16185.4853515625),
+          static_cast<T>(34609.36328125),
+      };
+      for (T abs_x : kWorstCasesF64) {
+        for (T sign : {static_cast<T>(1.0), static_cast<T>(-1.0)}) {
+          const T x = sign * abs_x;
+          const long double expected = std::tan(static_cast<long double>(x));
+          const long double actual =
+              static_cast<long double>(GetLane(CallFastTan(d, Set(d, x))));
+          HWY_ASSERT((actual > 0.0L) == (expected > 0.0L));
+          const long double rel_err =
+              std::abs(actual - expected) / std::abs(expected);
+          HWY_ASSERT(rel_err <= 0.0000002L);
+        }
+      }
     }
   }
 };
@@ -467,6 +523,24 @@ struct TestFastAtanRelative {
       TestMathRelative<T, D>("FastAtanPositive", std::atan,
                              CallFastAtanPositive, d, static_cast<T>(0),
                              static_cast<T>(1e305), 6e-6, 1000000, 1e-20);
+    }
+    // Reciprocal-reflection boundary |x| = 1.0f +/- 1 ULP (where gt1_mask
+    // switches from poly(x) to pi/2 - poly(1/x) and z = x^2 hits the right
+    // endpoint z = 1.0 of the minimax polynomial):
+    constexpr uint32_t kAtanWorstCasesBits[] = {
+        0x3F7FFFFFu,  // 1.0f - 1 ULP (direct poly right endpoint)
+        0x3F800000u,  // 1.0f (exact pi/4 boundary)
+        0x3F800001u,  // 1.0f + 1 ULP (reciprocal pi/2 - poly(1/x) transition)
+    };
+    for (uint32_t bits : kAtanWorstCasesBits) {
+      for (T sign : {static_cast<T>(1.0), static_cast<T>(-1.0)}) {
+        const T x = sign * static_cast<T>(BitCastScalar<float>(bits));
+        const double expected = std::atan(static_cast<double>(x));
+        const double actual =
+            static_cast<double>(GetLane(CallFastAtan(d, Set(d, x))));
+        const double rel_err = std::abs(actual - expected) / std::abs(expected);
+        HWY_ASSERT(rel_err <= 6e-6);
+      }
     }
   }
 };

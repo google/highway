@@ -1346,6 +1346,12 @@ types, and on SVE/RVV.
 
 *   <code>V **AndNot**(V a, V b)</code>: returns `~a[i] & b[i]`.
 
+*   <code>V **MaskedAndOr**(V no, M m, V a, V b)</code>: returns `a[i] & b[i]` or
+    `no[i]` if `m[i]` is false.
+
+*   <code>V **MaskedAnd**(M m, V a, V b)</code>: returns `a[i] & b[i]` or `0` if
+    `m[i]` is false.
+
 *   <code>V **MaskedOrOr**(V no, M m, V a, V b)</code>: returns `a[i] | b[i]` or
     `no[i]` if `m[i]` is false.
 

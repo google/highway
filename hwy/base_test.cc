@@ -925,6 +925,56 @@ HWY_NOINLINE void TestAllNativeFromLittleEndian() {
           static_cast<uint64_t>(2681831622076265638ULL ^ u64_zero)));
 }
 
+// ScalarLoadULittleEndian must agree with the byte-wise LoadLE16/32/64, and
+// ScalarStoreULittleEndian must be its inverse, at every alignment. This
+// pins the byte order so that a future big-endian port cannot silently
+// diverge: callers rely on these to read/write little-endian file formats.
+HWY_NOINLINE void TestAllScalarLoadStoreULittleEndian() {
+  // Offsets 0..7 so that every load below is also exercised while unaligned.
+  HWY_ALIGN_MAX uint8_t bytes[8 + 8];
+  for (size_t i = 0; i < sizeof(bytes); ++i) {
+    bytes[i] = static_cast<uint8_t>(0x80u | (i * 17u));
+  }
+
+  for (size_t offset = 0; offset < 8; ++offset) {
+    const uint8_t* p = bytes + offset;
+    HWY_ASSERT_EQ(static_cast<uint16_t>(LoadLE16(p)),
+                  ScalarLoadULittleEndian<uint16_t>(p));
+    HWY_ASSERT_EQ(LoadLE32(p), ScalarLoadULittleEndian<uint32_t>(p));
+    HWY_ASSERT_EQ(LoadLE64(p), ScalarLoadULittleEndian<uint64_t>(p));
+
+    // Round-trip: storing what we loaded must reproduce the same bytes.
+    HWY_ALIGN_MAX uint8_t stored[8 + 8] = {};
+    uint8_t* q = stored + offset;
+    ScalarStoreULittleEndian(ScalarLoadULittleEndian<uint64_t>(p), q);
+    for (size_t i = 0; i < 8; ++i) {
+      HWY_ASSERT_EQ(p[i], q[i]);
+    }
+  }
+
+  // Known values, independent of the host byte order: the least significant
+  // byte of the loaded value is the first byte in memory.
+  const uint8_t le[8] = {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF};
+  HWY_ASSERT_EQ(uint16_t{0x2301u}, ScalarLoadULittleEndian<uint16_t>(le));
+  HWY_ASSERT_EQ(uint32_t{0x67452301u}, ScalarLoadULittleEndian<uint32_t>(le));
+  HWY_ASSERT_EQ(uint64_t{0xEFCDAB8967452301ull},
+                ScalarLoadULittleEndian<uint64_t>(le));
+
+  uint8_t out[8];
+  ScalarStoreULittleEndian(uint64_t{0xEFCDAB8967452301ull}, out);
+  for (size_t i = 0; i < 8; ++i) {
+    HWY_ASSERT_EQ(le[i], out[i]);
+  }
+  ScalarStoreULittleEndian(uint32_t{0x67452301u}, out);
+  for (size_t i = 0; i < 4; ++i) {
+    HWY_ASSERT_EQ(le[i], out[i]);
+  }
+  ScalarStoreULittleEndian(uint16_t{0x2301u}, out);
+  for (size_t i = 0; i < 2; ++i) {
+    HWY_ASSERT_EQ(le[i], out[i]);
+  }
+}
+
 struct TestSpecialFloat {
   template <class T>
   static constexpr bool EnableSpecialFloatArithOpTest() {
@@ -1296,6 +1346,7 @@ HWY_EXPORT_AND_TEST_P(BaseTest, TestAllMul128);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllEndian);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllScalarByteSwap);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllNativeFromLittleEndian);
+HWY_EXPORT_AND_TEST_P(BaseTest, TestAllScalarLoadStoreULittleEndian);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllSpecialFloat);
 HWY_AFTER_TEST();
 }  // namespace
