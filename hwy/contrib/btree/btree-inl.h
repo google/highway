@@ -549,7 +549,10 @@ HWY_INLINE size_t FindChild(const InternalNode<KeyT>* HWY_RESTRICT internal,
                             typename InternalNode<KeyT>::StorageKeyT target) {
   using StorageKeyT = typename InternalNode<KeyT>::StorageKeyT;
   constexpr size_t kCapacity = InternalNode<KeyT>::kCapacity;
-  const CappedTag<StorageKeyT, kCapacity> d;
+  // Cap vectors at 64 bytes: InternalNode is only alignas(64), so a wider
+  // vector (possible on scalable targets) would make the aligned Load below
+  // unsafe.
+  const CappedTag<StorageKeyT, 64 / sizeof(StorageKeyT)> d;
   const size_t N = Lanes(d);
   const auto v_target = Set(d, target);
 
