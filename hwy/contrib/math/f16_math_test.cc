@@ -95,9 +95,10 @@ DEFINE_F16_MATH_TEST(LogGamma,
   std::lgamma, CallLogGamma, 0x1p-24f,   +65504.0f,       1)
 // clang-format on
 
-// Sweep every float16 bit pattern against boundary values in both argument
-// positions, then against equal, opposite, and permuted values. This samples
-// the two-input domain, rather than claiming to exhaust all 2^32 pairs.
+// Sweep float16 bit patterns against boundary values in each argument position,
+// then against equal, opposite, and permuted values. AdjustedReps reduces the
+// number of vector batches on slower configurations. This samples the two-input
+// domain, rather than claiming to exhaust all 2^32 pairs.
 template <class D>
 HWY_NOINLINE void TestF16BinaryMath(
     const char* name, double (*fx1)(double, double),
@@ -117,9 +118,15 @@ HWY_NOINLINE void TestF16BinaryMath(
                              0x3800, 0x3BFF, 0x3C00, 0x3C01,
                              0x4000, 0x4200, 0x7BFF};
   constexpr size_t kAnchoredSweeps = 2 * sizeof(anchors) / sizeof(anchors[0]);
+  // Spread the sampled batches across the full input range, keeping consecutive
+  // inputs within each vector to exercise both halves of the promotion adapter.
+  const size_t num_batches = DivCeil(size_t{0x10000}, N);
+  const size_t reps = HWY_MIN(num_batches, AdjustedReps(num_batches));
   uint64_t max_ulp = 0;
   for (size_t sweep = 0; sweep < kAnchoredSweeps + 3; ++sweep) {
-    for (uint32_t base = 0; base <= 0xFFFF; base += static_cast<uint32_t>(N)) {
+    for (size_t rep = 0; rep < reps; ++rep) {
+      const uint32_t base =
+          static_cast<uint32_t>((rep * num_batches / reps) * N);
       for (size_t i = 0; i < N; ++i) {
         const uint32_t bits = base + static_cast<uint32_t>(i);
         uint16_t a_bits = static_cast<uint16_t>(bits);
