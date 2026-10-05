@@ -450,7 +450,62 @@ struct TestF16 {
   }
 };
 
-HWY_NOINLINE void TestAllF16() { ForDemoteVectors<TestF16>()(float()); }
+// Tests that PromoteTo(f32 <- f16) preserves +/-inf and NaNs (issue #3428).
+struct TestF16PromoteSpecial {
+  template <typename TF32, class DF32>
+  HWY_NOINLINE void operator()(TF32 /*t*/, DF32 df32) {
+    using TF16 = hwy::float16_t;
+    const Rebind<TF16, DF32> df16;
+#if HWY_TARGET != HWY_SCALAR
+    const Twice<decltype(df16)> df16t;
+#endif
+    const size_t N = Lanes(df32);
+    HWY_ASSERT(N != 0);
+
+    // Bit patterns for +0, -0, min subnormal, max subnormal, min normal,
+    // 1.0, max normal, +inf, -inf, quiet NaN, and signaling NaN.
+    static constexpr uint16_t kSpecialBits[] = {
+        0x0000, 0x8000, 0x0001, 0x03FF, 0x0400,
+        0x3C00, 0x7BFF, 0x7C00, 0xFC00, 0x7E00, 0x7E01, 0x7C01};
+    constexpr size_t kNumCases = sizeof(kSpecialBits) / sizeof(kSpecialBits[0]);
+    const size_t padded = RoundUpTo(kNumCases, N);
+
+    auto in16 = AllocateAligned<TF16>(padded);
+    auto expected32 = AllocateAligned<float>(padded);
+    HWY_ASSERT(in16 && expected32);
+
+    for (size_t i = 0; i < kNumCases; ++i) {
+      in16[i] = BitCastScalar<TF16>(kSpecialBits[i]);
+      expected32[i] = F32FromF16(in16[i]);
+    }
+    for (size_t i = kNumCases; i < padded; ++i) {
+      in16[i] = BitCastScalar<TF16>(uint16_t{0});
+      expected32[i] = 0.0f;
+    }
+
+    for (size_t i = 0; i < padded; i += N) {
+      const auto v16 = Load(df16, &in16[i]);
+      HWY_ASSERT_VEC_EQ(df32, &expected32[i], PromoteTo(df32, v16));
+
+#if HWY_TARGET == HWY_SCALAR
+      const Vec<decltype(df16)> v16L = v16;
+#else
+      const Vec<decltype(df16t)> v16L = Combine(df16t, Zero(df16), v16);
+#endif
+      HWY_ASSERT_VEC_EQ(df32, &expected32[i], PromoteLowerTo(df32, v16L));
+
+#if HWY_TARGET != HWY_SCALAR
+      const Vec<decltype(df16t)> v16H = Combine(df16t, v16, Zero(df16));
+      HWY_ASSERT_VEC_EQ(df32, &expected32[i], PromoteUpperTo(df32, v16H));
+#endif
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllF16() {
+  ForDemoteVectors<TestF16>()(float());
+  ForDemoteVectors<TestF16PromoteSpecial>()(float());
+}
 
 // This minimal interface is always supported, even if !HWY_HAVE_FLOAT16.
 struct TestF16FromF64 {
