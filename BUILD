@@ -923,11 +923,13 @@ HWY_MALLOC = select({
                 subdir + test + ".cc",
             ],
             copts = COPTS + HWY_TEST_COPTS,
-            # Fixes OOM for matvec_test on RVV.
-            exec_properties = select({
-                "@platforms//cpu:riscv64": {"mem": "16g"},
-                "//conditions:default": None,
-            }),
+            # Fixes OOM for matvec_test on RVV, and f16_math_test on Windows.
+            exec_properties = (
+                {"mem": "16g"} if test in ("f16_math_test",) else select({
+                    "@platforms//cpu:riscv64": {"mem": "16g"},
+                    "//conditions:default": None,
+                })
+            ),
             features = select({
                 "@platforms//cpu:riscv64": ["fully_static_link"],
                 "//conditions:default": [],
