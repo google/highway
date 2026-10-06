@@ -16,8 +16,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "hwy/contrib/sort/vqargsort.h"
-
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/contrib/sort/vqargsort_i64a.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
@@ -30,9 +28,12 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
 
-void PackI64Asc(const int64_t* HWY_RESTRICT keys, size_t num,
-                uint128_t* HWY_RESTRICT packed) {
-  detail::PackAllKeys<SortAscending>(keys, num, packed);
+void ArgSortI64AscImpl(const void* HWY_RESTRICT keys, size_t n, size_t k,
+                       uint64_t* HWY_RESTRICT indices,
+                       uint128_t* HWY_RESTRICT scratch, detail::ArgSortOp op,
+                       bool stable) {
+  detail::ArgSortLibrary<SortAscending>(static_cast<const int64_t*>(keys), n, k,
+                                        indices, scratch, op, stable);
 }
 
 }  // namespace
@@ -44,59 +45,17 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 namespace hwy {
 namespace {
-HWY_EXPORT(PackI64Asc);
-
-void ArgSortI64Asc(const int64_t* HWY_RESTRICT keys, size_t n, size_t k,
-                   uint64_t* HWY_RESTRICT indices,
-                   uint128_t* HWY_RESTRICT scratch, detail::ArgSortOp op,
-                   bool stable) {
-  HWY_DYNAMIC_DISPATCH(PackI64Asc)(keys, n, scratch);
-  detail::ArgSortPacked(scratch, n, k, indices, op, stable);
-}
-
+HWY_EXPORT(ArgSortI64AscImpl);
 }  // namespace
 
-void VQArgSort(const int64_t* HWY_RESTRICT keys, size_t n,
-               uint64_t* HWY_RESTRICT indices, uint128_t* HWY_RESTRICT scratch,
-               SortAscending) {
-  ArgSortI64Asc(keys, n, 0, indices, scratch, detail::ArgSortOp::kSort,
-                /*stable=*/false);
+namespace detail {
+
+void ArgSortI64Asc(const void* keys, size_t n, size_t k, uint64_t* indices,
+                   uint128_t* scratch, ArgSortOp op, bool stable) {
+  HWY_DYNAMIC_DISPATCH(ArgSortI64AscImpl)(keys, n, k, indices, scratch, op,
+                                          stable);
 }
 
-void VQStableArgSort(const int64_t* HWY_RESTRICT keys, size_t n,
-                     uint64_t* HWY_RESTRICT indices,
-                     uint128_t* HWY_RESTRICT scratch, SortAscending) {
-  ArgSortI64Asc(keys, n, 0, indices, scratch, detail::ArgSortOp::kSort,
-                /*stable=*/true);
-}
-
-void VQArgPartialSort(const int64_t* HWY_RESTRICT keys, size_t n, size_t k,
-                      uint64_t* HWY_RESTRICT indices,
-                      uint128_t* HWY_RESTRICT scratch, SortAscending) {
-  ArgSortI64Asc(keys, n, k, indices, scratch, detail::ArgSortOp::kPartialSort,
-                /*stable=*/false);
-}
-
-void VQStableArgPartialSort(const int64_t* HWY_RESTRICT keys, size_t n,
-                            size_t k, uint64_t* HWY_RESTRICT indices,
-                            uint128_t* HWY_RESTRICT scratch, SortAscending) {
-  ArgSortI64Asc(keys, n, k, indices, scratch, detail::ArgSortOp::kPartialSort,
-                /*stable=*/true);
-}
-
-void VQArgSelect(const int64_t* HWY_RESTRICT keys, size_t n, size_t k,
-                 uint64_t* HWY_RESTRICT indices,
-                 uint128_t* HWY_RESTRICT scratch, SortAscending) {
-  ArgSortI64Asc(keys, n, k, indices, scratch, detail::ArgSortOp::kSelect,
-                /*stable=*/false);
-}
-
-void VQStableArgSelect(const int64_t* HWY_RESTRICT keys, size_t n, size_t k,
-                       uint64_t* HWY_RESTRICT indices,
-                       uint128_t* HWY_RESTRICT scratch, SortAscending) {
-  ArgSortI64Asc(keys, n, k, indices, scratch, detail::ArgSortOp::kSelect,
-                /*stable=*/true);
-}
-
+}  // namespace detail
 }  // namespace hwy
 #endif  // HWY_ONCE

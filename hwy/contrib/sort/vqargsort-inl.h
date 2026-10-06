@@ -30,17 +30,28 @@
 #include "hwy/base.h"
 #include "hwy/contrib/sort/order.h"  // SortAscending
 
+#ifndef VQSORT_ONLY_STATIC
+#define VQSORT_ONLY_STATIC 0
+#endif
+#if !VQSORT_ONLY_STATIC
+#include "hwy/contrib/sort/vqsort.h"  // VQSort
+#endif
+
 namespace hwy {
 namespace detail {
 
 enum class ArgSortOp { kSort, kPartialSort, kSelect };
 
-// Defined in vqargsort.cc and called by vqargsort_*.cc after packing: sorts
-// `packed` with the precompiled VQSort etc., then writes the indices.
-void ArgSortPacked(uint64_t* HWY_RESTRICT packed, size_t num, size_t k,
-                   ArgSortOp op, bool stable);
-void ArgSortPacked(uint128_t* HWY_RESTRICT packed, size_t num, size_t k,
-                   uint64_t* HWY_RESTRICT indices, ArgSortOp op, bool stable);
+// Defined in vqargsort_<type><order>.cc and called by vqargsort.cc. 16 and
+// 32-bit keys ignore `scratch`.
+using ArgSortFunc = void(const void* keys, size_t n, size_t k,
+                         uint64_t* indices, uint128_t* scratch, ArgSortOp op,
+                         bool stable);
+ArgSortFunc ArgSortU16Asc, ArgSortU16Desc, ArgSortI16Asc, ArgSortI16Desc,
+    ArgSortF16Asc, ArgSortF16Desc, ArgSortU32Asc, ArgSortU32Desc, ArgSortI32Asc,
+    ArgSortI32Desc, ArgSortF32Asc, ArgSortF32Desc, ArgSortU64Asc,
+    ArgSortU64Desc, ArgSortI64Asc, ArgSortI64Desc, ArgSortF64Asc,
+    ArgSortF64Desc;
 
 }  // namespace detail
 }  // namespace hwy
@@ -113,6 +124,34 @@ HWY_INLINE void PackKeys(D64 d64, const uint64_t* HWY_RESTRICT bits,
   StoreInterleaved2(index, ordered, d64, reinterpret_cast<uint64_t*>(packed));
 }
 
+// As PackKeys, for the first num < Lanes(d64) keys.
+template <typename Key, class Order, class D64>
+HWY_INLINE void PackKeysN(D64 d64, const MakeUnsigned<Key>* HWY_RESTRICT bits,
+                          size_t num, uint64_t* HWY_RESTRICT packed) {
+  const Rebind<MakeUnsigned<Key>, D64> du;
+  const VFromD<decltype(du)> ordered =
+      OrderedKeyBits<Key, Order>(du, LoadN(du, bits, num));
+  StoreN(Or(ShiftLeft<32>(PromoteTo(d64, ordered)), Iota(d64, 0)), d64, packed,
+         num);
+}
+
+template <typename Key, class Order, class D64>
+HWY_INLINE void PackKeysN(D64 d64, const uint64_t* HWY_RESTRICT bits,
+                          size_t num, uint128_t* HWY_RESTRICT packed) {
+  const size_t N = Lanes(d64);
+  const VFromD<D64> ordered =
+      OrderedKeyBits<Key, Order>(d64, LoadN(d64, bits, num));
+  const VFromD<D64> index = Iota(d64, 0);
+  // Same layout as StoreInterleaved2: each index, then its key.
+  uint64_t* HWY_RESTRICT lanes = reinterpret_cast<uint64_t*>(packed);
+  StoreN(InterleaveWholeLower(d64, index, ordered), d64, lanes,
+         HWY_MIN(2 * num, N));
+  if (2 * num > N) {
+    StoreN(InterleaveWholeUpper(d64, index, ordered), d64, lanes + N,
+           2 * num - N);
+  }
+}
+
 template <class Order, typename Key, typename Packed>
 void PackAllKeys(const Key* HWY_RESTRICT keys, size_t num,
                  Packed* HWY_RESTRICT packed) {
@@ -141,11 +180,10 @@ void PackAllKeys(const Key* HWY_RESTRICT keys, size_t num,
     }
     return;
   }
-  const CappedTag<uint64_t, 1> d1;
-  for (size_t i = 0; i < num; ++i) {
-    PackKeys<Key, Order>(d1, bits + i, Set(d1, static_cast<uint64_t>(i)),
-                         packed + i);
-  }
+  // HWY_SCALAR has N = 1, so there is nothing left to pack.
+#if HWY_TARGET != HWY_SCALAR
+  PackKeysN<Key, Order>(d64, bits, num, packed);
+#endif
 }
 
 // Clears the key bits, leaving the index.
@@ -176,13 +214,21 @@ HWY_INLINE void CopyIndices(const uint128_t* HWY_RESTRICT packed, size_t num,
   const uint64_t* HWY_RESTRICT lanes = &packed->lo;
   const ScalableTag<uint64_t> d64;
   const Half<decltype(d64)> dh;
+  const size_t N = Lanes(d64);
   const size_t NH = Lanes(dh);
   size_t i = 0;
-  if (num >= NH) {
-    for (; i <= num - NH; i += NH) {
-      const VFromD<decltype(d64)> v = LoadU(d64, lanes + 2 * i);
-      StoreU(LowerHalf(dh, ConcatEven(d64, v, v)), dh, indices + i);
+  // Two vectors of entries give one full vector of indices.
+  if (num >= N) {
+    for (; i <= num - N; i += N) {
+      const VFromD<decltype(d64)> v0 = LoadU(d64, lanes + 2 * i);
+      const VFromD<decltype(d64)> v1 = LoadU(d64, lanes + 2 * i + N);
+      StoreU(ConcatEven(d64, v1, v0), d64, indices + i);
     }
+  }
+  if (num - i >= NH) {
+    const VFromD<decltype(d64)> v = LoadU(d64, lanes + 2 * i);
+    StoreU(LowerHalf(dh, ConcatEven(d64, v, v)), dh, indices + i);
+    i += NH;
   }
   const size_t remaining = num - i;
   const VFromD<decltype(d64)> v = LoadN(d64, lanes + 2 * i, 2 * remaining);
@@ -190,8 +236,8 @@ HWY_INLINE void CopyIndices(const uint128_t* HWY_RESTRICT packed, size_t num,
 #endif
 }
 
-// Sorts via VQSortStatic etc. on the current target. vqargsort.cc instead
-// calls the precompiled VQSort etc.
+// Sorts via VQSortStatic etc. on the current target. vqargsort_*.cc instead
+// use VQSortLibraryBackend below.
 struct VQSortStaticBackend {
   template <ArgSortOp kOp, typename T>
   static void Run(T* HWY_RESTRICT keys, size_t num, size_t k) {
@@ -275,6 +321,70 @@ void SortAndGetIndices(uint128_t* HWY_RESTRICT packed, size_t num, size_t k,
   SortPacked<kOp, kStable, Backend>(packed, num, k);
   CopyIndices(packed, num, indices);
 }
+
+#if !VQSORT_ONLY_STATIC
+
+// Sorts via the precompiled VQSort etc., so that vqargsort_*.cc do not each
+// compile their own copy of vqsort.
+struct VQSortLibraryBackend {
+  template <ArgSortOp kOp, typename T>
+  static void Run(T* HWY_RESTRICT keys, size_t num, size_t k) {
+    if constexpr (kOp == ArgSortOp::kSort) {
+      (void)k;
+      hwy::VQSort(keys, num, SortAscending());
+    } else if constexpr (kOp == ArgSortOp::kPartialSort) {
+      hwy::VQPartialSort(keys, num, k, SortAscending());
+    } else {
+      hwy::VQSelect(keys, num, k, SortAscending());
+    }
+  }
+};
+
+template <bool kStable, typename Packed>
+HWY_INLINE void SortPackedLibrary(ArgSortOp op, Packed* HWY_RESTRICT packed,
+                                  size_t num, size_t k) {
+  switch (op) {
+    case ArgSortOp::kSort:
+      return SortPacked<ArgSortOp::kSort, kStable, VQSortLibraryBackend>(
+          packed, num, k);
+    case ArgSortOp::kPartialSort:
+      return SortPacked<ArgSortOp::kPartialSort, kStable, VQSortLibraryBackend>(
+          packed, num, k);
+    case ArgSortOp::kSelect:
+      return SortPacked<ArgSortOp::kSelect, kStable, VQSortLibraryBackend>(
+          packed, num, k);
+  }
+}
+
+// Called by vqargsort_*.cc. `op` and `stable` are runtime arguments so that
+// packing and index extraction are compiled once per key type and order.
+template <class Order, typename Key>
+HWY_INLINE void ArgSortLibrary(const Key* HWY_RESTRICT keys, size_t num,
+                               size_t k, uint64_t* HWY_RESTRICT indices,
+                               uint128_t* HWY_RESTRICT scratch, ArgSortOp op,
+                               bool stable) {
+  if (num == 0) return;
+  if constexpr (sizeof(Key) == 8) {
+    PackAllKeys<Order>(keys, num, scratch);
+    if (stable) {
+      SortPackedLibrary<true>(op, scratch, num, k);
+    } else {
+      SortPackedLibrary<false>(op, scratch, num, k);
+    }
+    CopyIndices(scratch, num, indices);
+  } else {
+    (void)scratch;
+    PackAllKeys<Order>(keys, num, indices);
+    if (stable) {
+      SortPackedLibrary<true>(op, indices, num, k);
+    } else {
+      SortPackedLibrary<false>(op, indices, num, k);
+    }
+    KeepIndices(indices, num);
+  }
+}
+
+#endif  // !VQSORT_ONLY_STATIC
 
 // For 16 and 32-bit keys, `indices` also holds the packed integers.
 template <ArgSortOp kOp, bool kStable, class Order, typename Key>

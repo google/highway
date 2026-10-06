@@ -16,8 +16,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "hwy/contrib/sort/vqargsort.h"
-
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/contrib/sort/vqargsort_f32d.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
@@ -30,9 +28,12 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
 
-void PackF32Desc(const float* HWY_RESTRICT keys, size_t num,
-                 uint64_t* HWY_RESTRICT packed) {
-  detail::PackAllKeys<SortDescending>(keys, num, packed);
+void ArgSortF32DescImpl(const void* HWY_RESTRICT keys, size_t n, size_t k,
+                        uint64_t* HWY_RESTRICT indices,
+                        uint128_t* HWY_RESTRICT scratch, detail::ArgSortOp op,
+                        bool stable) {
+  detail::ArgSortLibrary<SortDescending>(static_cast<const float*>(keys), n, k,
+                                         indices, scratch, op, stable);
 }
 
 }  // namespace
@@ -44,52 +45,17 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 namespace hwy {
 namespace {
-HWY_EXPORT(PackF32Desc);
-
-void ArgSortF32Desc(const float* HWY_RESTRICT keys, size_t n, size_t k,
-                    uint64_t* HWY_RESTRICT indices, detail::ArgSortOp op,
-                    bool stable) {
-  HWY_DYNAMIC_DISPATCH(PackF32Desc)(keys, n, indices);
-  detail::ArgSortPacked(indices, n, k, op, stable);
-}
-
+HWY_EXPORT(ArgSortF32DescImpl);
 }  // namespace
 
-void VQArgSort(const float* HWY_RESTRICT keys, size_t n,
-               uint64_t* HWY_RESTRICT indices, SortDescending) {
-  ArgSortF32Desc(keys, n, 0, indices, detail::ArgSortOp::kSort,
-                 /*stable=*/false);
+namespace detail {
+
+void ArgSortF32Desc(const void* keys, size_t n, size_t k, uint64_t* indices,
+                    uint128_t* scratch, ArgSortOp op, bool stable) {
+  HWY_DYNAMIC_DISPATCH(ArgSortF32DescImpl)(keys, n, k, indices, scratch, op,
+                                           stable);
 }
 
-void VQStableArgSort(const float* HWY_RESTRICT keys, size_t n,
-                     uint64_t* HWY_RESTRICT indices, SortDescending) {
-  ArgSortF32Desc(keys, n, 0, indices, detail::ArgSortOp::kSort,
-                 /*stable=*/true);
-}
-
-void VQArgPartialSort(const float* HWY_RESTRICT keys, size_t n, size_t k,
-                      uint64_t* HWY_RESTRICT indices, SortDescending) {
-  ArgSortF32Desc(keys, n, k, indices, detail::ArgSortOp::kPartialSort,
-                 /*stable=*/false);
-}
-
-void VQStableArgPartialSort(const float* HWY_RESTRICT keys, size_t n, size_t k,
-                            uint64_t* HWY_RESTRICT indices, SortDescending) {
-  ArgSortF32Desc(keys, n, k, indices, detail::ArgSortOp::kPartialSort,
-                 /*stable=*/true);
-}
-
-void VQArgSelect(const float* HWY_RESTRICT keys, size_t n, size_t k,
-                 uint64_t* HWY_RESTRICT indices, SortDescending) {
-  ArgSortF32Desc(keys, n, k, indices, detail::ArgSortOp::kSelect,
-                 /*stable=*/false);
-}
-
-void VQStableArgSelect(const float* HWY_RESTRICT keys, size_t n, size_t k,
-                       uint64_t* HWY_RESTRICT indices, SortDescending) {
-  ArgSortF32Desc(keys, n, k, indices, detail::ArgSortOp::kSelect,
-                 /*stable=*/true);
-}
-
+}  // namespace detail
 }  // namespace hwy
 #endif  // HWY_ONCE

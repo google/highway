@@ -31,6 +31,66 @@
 
 namespace hwy {
 
+namespace detail {
+
+// Key types, for the type-erased functions below.
+enum class ArgSortKey : uint8_t {
+  kU16,
+  kI16,
+  kF16,
+  kU32,
+  kI32,
+  kF32,
+  kU64,
+  kI64,
+  kF64
+};
+
+// Only 64-bit keys take `scratch`.
+template <typename Key, bool kHasScratch>
+constexpr ArgSortKey ArgSortKeyOf() {
+  static_assert(
+      sizeof(Key) >= 2 && (IsFloat<Key>() || IsIntegerLaneType<Key>()),
+      "Keys must be 16, 32 or 64-bit integers, float16_t, float or double");
+  static_assert(kHasScratch == (sizeof(Key) == 8),
+                "64-bit keys require scratch, other keys do not take it");
+  if constexpr (IsFloat<Key>()) {
+    return sizeof(Key) == 2   ? ArgSortKey::kF16
+           : sizeof(Key) == 4 ? ArgSortKey::kF32
+                              : ArgSortKey::kF64;
+  } else if constexpr (IsSigned<Key>()) {
+    return sizeof(Key) == 2   ? ArgSortKey::kI16
+           : sizeof(Key) == 4 ? ArgSortKey::kI32
+                              : ArgSortKey::kI64;
+  } else {
+    return sizeof(Key) == 2   ? ArgSortKey::kU16
+           : sizeof(Key) == 4 ? ArgSortKey::kU32
+                              : ArgSortKey::kU64;
+  }
+}
+
+// `scratch` is null for 16 and 32-bit keys.
+HWY_CONTRIB_DLLEXPORT void ArgSortErased(ArgSortKey key,
+                                         const void* HWY_RESTRICT keys,
+                                         size_t n,
+                                         uint64_t* HWY_RESTRICT indices,
+                                         uint128_t* HWY_RESTRICT scratch,
+                                         bool ascending, bool stable);
+HWY_CONTRIB_DLLEXPORT void ArgPartialSortErased(ArgSortKey key,
+                                                const void* HWY_RESTRICT keys,
+                                                size_t n, size_t k,
+                                                uint64_t* HWY_RESTRICT indices,
+                                                uint128_t* HWY_RESTRICT scratch,
+                                                bool ascending, bool stable);
+HWY_CONTRIB_DLLEXPORT void ArgSelectErased(ArgSortKey key,
+                                           const void* HWY_RESTRICT keys,
+                                           size_t n, size_t k,
+                                           uint64_t* HWY_RESTRICT indices,
+                                           uint128_t* HWY_RESTRICT scratch,
+                                           bool ascending, bool stable);
+
+}  // namespace detail
+
 // All functions below write the order of keys[0, n) to `indices` and do not
 // modify `keys`. Every index in [0, n) appears once in indices[0, n).
 // Dispatches to the best available instruction set. Does not allocate memory.
@@ -49,449 +109,115 @@ namespace hwy {
 
 // Argsort: sets indices[0, n) such that keys[indices[0]], keys[indices[1]], ...
 // are in the given order.
-HWY_CONTRIB_DLLEXPORT void VQArgSort(const uint16_t* HWY_RESTRICT keys,
-                                     size_t n, uint64_t* HWY_RESTRICT indices,
-                                     SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgSort(const uint16_t* HWY_RESTRICT keys,
-                                     size_t n, uint64_t* HWY_RESTRICT indices,
-                                     SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQArgSort(const int16_t* HWY_RESTRICT keys, size_t n,
-                                     uint64_t* HWY_RESTRICT indices,
-                                     SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgSort(const int16_t* HWY_RESTRICT keys, size_t n,
-                                     uint64_t* HWY_RESTRICT indices,
-                                     SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQArgSort(const float16_t* HWY_RESTRICT keys,
-                                     size_t n, uint64_t* HWY_RESTRICT indices,
-                                     SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgSort(const float16_t* HWY_RESTRICT keys,
-                                     size_t n, uint64_t* HWY_RESTRICT indices,
-                                     SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQArgSort(const uint32_t* HWY_RESTRICT keys,
-                                     size_t n, uint64_t* HWY_RESTRICT indices,
-                                     SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgSort(const uint32_t* HWY_RESTRICT keys,
-                                     size_t n, uint64_t* HWY_RESTRICT indices,
-                                     SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQArgSort(const int32_t* HWY_RESTRICT keys, size_t n,
-                                     uint64_t* HWY_RESTRICT indices,
-                                     SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgSort(const int32_t* HWY_RESTRICT keys, size_t n,
-                                     uint64_t* HWY_RESTRICT indices,
-                                     SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQArgSort(const float* HWY_RESTRICT keys, size_t n,
-                                     uint64_t* HWY_RESTRICT indices,
-                                     SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgSort(const float* HWY_RESTRICT keys, size_t n,
-                                     uint64_t* HWY_RESTRICT indices,
-                                     SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQArgSort(const uint64_t* HWY_RESTRICT keys,
-                                     size_t n, uint64_t* HWY_RESTRICT indices,
-                                     uint128_t* HWY_RESTRICT scratch,
-                                     SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgSort(const uint64_t* HWY_RESTRICT keys,
-                                     size_t n, uint64_t* HWY_RESTRICT indices,
-                                     uint128_t* HWY_RESTRICT scratch,
-                                     SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQArgSort(const int64_t* HWY_RESTRICT keys, size_t n,
-                                     uint64_t* HWY_RESTRICT indices,
-                                     uint128_t* HWY_RESTRICT scratch,
-                                     SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgSort(const int64_t* HWY_RESTRICT keys, size_t n,
-                                     uint64_t* HWY_RESTRICT indices,
-                                     uint128_t* HWY_RESTRICT scratch,
-                                     SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQArgSort(const double* HWY_RESTRICT keys, size_t n,
-                                     uint64_t* HWY_RESTRICT indices,
-                                     uint128_t* HWY_RESTRICT scratch,
-                                     SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgSort(const double* HWY_RESTRICT keys, size_t n,
-                                     uint64_t* HWY_RESTRICT indices,
-                                     uint128_t* HWY_RESTRICT scratch,
-                                     SortDescending);
+template <typename Key, class Order>
+void VQArgSort(const Key* HWY_RESTRICT keys, size_t n,
+               uint64_t* HWY_RESTRICT indices, Order) {
+  detail::ArgSortErased(detail::ArgSortKeyOf<Key, /*kHasScratch=*/false>(),
+                        keys, n, indices, nullptr, Order::IsAscending(),
+                        /*stable=*/false);
+}
 
-HWY_CONTRIB_DLLEXPORT void VQStableArgSort(const uint16_t* HWY_RESTRICT keys,
-                                           size_t n,
-                                           uint64_t* HWY_RESTRICT indices,
-                                           SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSort(const uint16_t* HWY_RESTRICT keys,
-                                           size_t n,
-                                           uint64_t* HWY_RESTRICT indices,
-                                           SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSort(const int16_t* HWY_RESTRICT keys,
-                                           size_t n,
-                                           uint64_t* HWY_RESTRICT indices,
-                                           SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSort(const int16_t* HWY_RESTRICT keys,
-                                           size_t n,
-                                           uint64_t* HWY_RESTRICT indices,
-                                           SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSort(const float16_t* HWY_RESTRICT keys,
-                                           size_t n,
-                                           uint64_t* HWY_RESTRICT indices,
-                                           SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSort(const float16_t* HWY_RESTRICT keys,
-                                           size_t n,
-                                           uint64_t* HWY_RESTRICT indices,
-                                           SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSort(const uint32_t* HWY_RESTRICT keys,
-                                           size_t n,
-                                           uint64_t* HWY_RESTRICT indices,
-                                           SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSort(const uint32_t* HWY_RESTRICT keys,
-                                           size_t n,
-                                           uint64_t* HWY_RESTRICT indices,
-                                           SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSort(const int32_t* HWY_RESTRICT keys,
-                                           size_t n,
-                                           uint64_t* HWY_RESTRICT indices,
-                                           SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSort(const int32_t* HWY_RESTRICT keys,
-                                           size_t n,
-                                           uint64_t* HWY_RESTRICT indices,
-                                           SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSort(const float* HWY_RESTRICT keys,
-                                           size_t n,
-                                           uint64_t* HWY_RESTRICT indices,
-                                           SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSort(const float* HWY_RESTRICT keys,
-                                           size_t n,
-                                           uint64_t* HWY_RESTRICT indices,
-                                           SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSort(const uint64_t* HWY_RESTRICT keys,
-                                           size_t n,
-                                           uint64_t* HWY_RESTRICT indices,
-                                           uint128_t* HWY_RESTRICT scratch,
-                                           SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSort(const uint64_t* HWY_RESTRICT keys,
-                                           size_t n,
-                                           uint64_t* HWY_RESTRICT indices,
-                                           uint128_t* HWY_RESTRICT scratch,
-                                           SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSort(const int64_t* HWY_RESTRICT keys,
-                                           size_t n,
-                                           uint64_t* HWY_RESTRICT indices,
-                                           uint128_t* HWY_RESTRICT scratch,
-                                           SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSort(const int64_t* HWY_RESTRICT keys,
-                                           size_t n,
-                                           uint64_t* HWY_RESTRICT indices,
-                                           uint128_t* HWY_RESTRICT scratch,
-                                           SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSort(const double* HWY_RESTRICT keys,
-                                           size_t n,
-                                           uint64_t* HWY_RESTRICT indices,
-                                           uint128_t* HWY_RESTRICT scratch,
-                                           SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSort(const double* HWY_RESTRICT keys,
-                                           size_t n,
-                                           uint64_t* HWY_RESTRICT indices,
-                                           uint128_t* HWY_RESTRICT scratch,
-                                           SortDescending);
+template <typename Key, class Order>
+void VQArgSort(const Key* HWY_RESTRICT keys, size_t n,
+               uint64_t* HWY_RESTRICT indices, uint128_t* HWY_RESTRICT scratch,
+               Order) {
+  detail::ArgSortErased(detail::ArgSortKeyOf<Key, /*kHasScratch=*/true>(), keys,
+                        n, indices, scratch, Order::IsAscending(),
+                        /*stable=*/false);
+}
+
+template <typename Key, class Order>
+void VQStableArgSort(const Key* HWY_RESTRICT keys, size_t n,
+                     uint64_t* HWY_RESTRICT indices, Order) {
+  detail::ArgSortErased(detail::ArgSortKeyOf<Key, /*kHasScratch=*/false>(),
+                        keys, n, indices, nullptr, Order::IsAscending(),
+                        /*stable=*/true);
+}
+
+template <typename Key, class Order>
+void VQStableArgSort(const Key* HWY_RESTRICT keys, size_t n,
+                     uint64_t* HWY_RESTRICT indices,
+                     uint128_t* HWY_RESTRICT scratch, Order) {
+  detail::ArgSortErased(detail::ArgSortKeyOf<Key, /*kHasScratch=*/true>(), keys,
+                        n, indices, scratch, Order::IsAscending(),
+                        /*stable=*/true);
+}
 
 // Partial argsort: sets indices[0, k) to the indices of the first k keys in the
 // given order, in that order. indices[k, n) holds the other indices in
 // unspecified order. Requires k <= n. The indices[0, k) of
 // VQStableArgPartialSort match those of VQStableArgSort.
-HWY_CONTRIB_DLLEXPORT void VQArgPartialSort(const uint16_t* HWY_RESTRICT keys,
-                                            size_t n, size_t k,
-                                            uint64_t* HWY_RESTRICT indices,
-                                            SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgPartialSort(const uint16_t* HWY_RESTRICT keys,
-                                            size_t n, size_t k,
-                                            uint64_t* HWY_RESTRICT indices,
-                                            SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQArgPartialSort(const int16_t* HWY_RESTRICT keys,
-                                            size_t n, size_t k,
-                                            uint64_t* HWY_RESTRICT indices,
-                                            SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgPartialSort(const int16_t* HWY_RESTRICT keys,
-                                            size_t n, size_t k,
-                                            uint64_t* HWY_RESTRICT indices,
-                                            SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQArgPartialSort(const float16_t* HWY_RESTRICT keys,
-                                            size_t n, size_t k,
-                                            uint64_t* HWY_RESTRICT indices,
-                                            SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgPartialSort(const float16_t* HWY_RESTRICT keys,
-                                            size_t n, size_t k,
-                                            uint64_t* HWY_RESTRICT indices,
-                                            SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQArgPartialSort(const uint32_t* HWY_RESTRICT keys,
-                                            size_t n, size_t k,
-                                            uint64_t* HWY_RESTRICT indices,
-                                            SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgPartialSort(const uint32_t* HWY_RESTRICT keys,
-                                            size_t n, size_t k,
-                                            uint64_t* HWY_RESTRICT indices,
-                                            SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQArgPartialSort(const int32_t* HWY_RESTRICT keys,
-                                            size_t n, size_t k,
-                                            uint64_t* HWY_RESTRICT indices,
-                                            SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgPartialSort(const int32_t* HWY_RESTRICT keys,
-                                            size_t n, size_t k,
-                                            uint64_t* HWY_RESTRICT indices,
-                                            SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQArgPartialSort(const float* HWY_RESTRICT keys,
-                                            size_t n, size_t k,
-                                            uint64_t* HWY_RESTRICT indices,
-                                            SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgPartialSort(const float* HWY_RESTRICT keys,
-                                            size_t n, size_t k,
-                                            uint64_t* HWY_RESTRICT indices,
-                                            SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQArgPartialSort(const uint64_t* HWY_RESTRICT keys,
-                                            size_t n, size_t k,
-                                            uint64_t* HWY_RESTRICT indices,
-                                            uint128_t* HWY_RESTRICT scratch,
-                                            SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgPartialSort(const uint64_t* HWY_RESTRICT keys,
-                                            size_t n, size_t k,
-                                            uint64_t* HWY_RESTRICT indices,
-                                            uint128_t* HWY_RESTRICT scratch,
-                                            SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQArgPartialSort(const int64_t* HWY_RESTRICT keys,
-                                            size_t n, size_t k,
-                                            uint64_t* HWY_RESTRICT indices,
-                                            uint128_t* HWY_RESTRICT scratch,
-                                            SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgPartialSort(const int64_t* HWY_RESTRICT keys,
-                                            size_t n, size_t k,
-                                            uint64_t* HWY_RESTRICT indices,
-                                            uint128_t* HWY_RESTRICT scratch,
-                                            SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQArgPartialSort(const double* HWY_RESTRICT keys,
-                                            size_t n, size_t k,
-                                            uint64_t* HWY_RESTRICT indices,
-                                            uint128_t* HWY_RESTRICT scratch,
-                                            SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgPartialSort(const double* HWY_RESTRICT keys,
-                                            size_t n, size_t k,
-                                            uint64_t* HWY_RESTRICT indices,
-                                            uint128_t* HWY_RESTRICT scratch,
-                                            SortDescending);
+template <typename Key, class Order>
+void VQArgPartialSort(const Key* HWY_RESTRICT keys, size_t n, size_t k,
+                      uint64_t* HWY_RESTRICT indices, Order) {
+  detail::ArgPartialSortErased(
+      detail::ArgSortKeyOf<Key, /*kHasScratch=*/false>(), keys, n, k, indices,
+      nullptr, Order::IsAscending(), /*stable=*/false);
+}
 
-HWY_CONTRIB_DLLEXPORT void VQStableArgPartialSort(
-    const uint16_t* HWY_RESTRICT keys, size_t n, size_t k,
-    uint64_t* HWY_RESTRICT indices, SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgPartialSort(
-    const uint16_t* HWY_RESTRICT keys, size_t n, size_t k,
-    uint64_t* HWY_RESTRICT indices, SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgPartialSort(
-    const int16_t* HWY_RESTRICT keys, size_t n, size_t k,
-    uint64_t* HWY_RESTRICT indices, SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgPartialSort(
-    const int16_t* HWY_RESTRICT keys, size_t n, size_t k,
-    uint64_t* HWY_RESTRICT indices, SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgPartialSort(
-    const float16_t* HWY_RESTRICT keys, size_t n, size_t k,
-    uint64_t* HWY_RESTRICT indices, SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgPartialSort(
-    const float16_t* HWY_RESTRICT keys, size_t n, size_t k,
-    uint64_t* HWY_RESTRICT indices, SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgPartialSort(
-    const uint32_t* HWY_RESTRICT keys, size_t n, size_t k,
-    uint64_t* HWY_RESTRICT indices, SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgPartialSort(
-    const uint32_t* HWY_RESTRICT keys, size_t n, size_t k,
-    uint64_t* HWY_RESTRICT indices, SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgPartialSort(
-    const int32_t* HWY_RESTRICT keys, size_t n, size_t k,
-    uint64_t* HWY_RESTRICT indices, SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgPartialSort(
-    const int32_t* HWY_RESTRICT keys, size_t n, size_t k,
-    uint64_t* HWY_RESTRICT indices, SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgPartialSort(
-    const float* HWY_RESTRICT keys, size_t n, size_t k,
-    uint64_t* HWY_RESTRICT indices, SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgPartialSort(
-    const float* HWY_RESTRICT keys, size_t n, size_t k,
-    uint64_t* HWY_RESTRICT indices, SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgPartialSort(
-    const uint64_t* HWY_RESTRICT keys, size_t n, size_t k,
-    uint64_t* HWY_RESTRICT indices, uint128_t* HWY_RESTRICT scratch,
-    SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgPartialSort(
-    const uint64_t* HWY_RESTRICT keys, size_t n, size_t k,
-    uint64_t* HWY_RESTRICT indices, uint128_t* HWY_RESTRICT scratch,
-    SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgPartialSort(
-    const int64_t* HWY_RESTRICT keys, size_t n, size_t k,
-    uint64_t* HWY_RESTRICT indices, uint128_t* HWY_RESTRICT scratch,
-    SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgPartialSort(
-    const int64_t* HWY_RESTRICT keys, size_t n, size_t k,
-    uint64_t* HWY_RESTRICT indices, uint128_t* HWY_RESTRICT scratch,
-    SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgPartialSort(
-    const double* HWY_RESTRICT keys, size_t n, size_t k,
-    uint64_t* HWY_RESTRICT indices, uint128_t* HWY_RESTRICT scratch,
-    SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgPartialSort(
-    const double* HWY_RESTRICT keys, size_t n, size_t k,
-    uint64_t* HWY_RESTRICT indices, uint128_t* HWY_RESTRICT scratch,
-    SortDescending);
+template <typename Key, class Order>
+void VQArgPartialSort(const Key* HWY_RESTRICT keys, size_t n, size_t k,
+                      uint64_t* HWY_RESTRICT indices,
+                      uint128_t* HWY_RESTRICT scratch, Order) {
+  detail::ArgPartialSortErased(
+      detail::ArgSortKeyOf<Key, /*kHasScratch=*/true>(), keys, n, k, indices,
+      scratch, Order::IsAscending(), /*stable=*/false);
+}
+
+template <typename Key, class Order>
+void VQStableArgPartialSort(const Key* HWY_RESTRICT keys, size_t n, size_t k,
+                            uint64_t* HWY_RESTRICT indices, Order) {
+  detail::ArgPartialSortErased(
+      detail::ArgSortKeyOf<Key, /*kHasScratch=*/false>(), keys, n, k, indices,
+      nullptr, Order::IsAscending(), /*stable=*/true);
+}
+
+template <typename Key, class Order>
+void VQStableArgPartialSort(const Key* HWY_RESTRICT keys, size_t n, size_t k,
+                            uint64_t* HWY_RESTRICT indices,
+                            uint128_t* HWY_RESTRICT scratch, Order) {
+  detail::ArgPartialSortErased(
+      detail::ArgSortKeyOf<Key, /*kHasScratch=*/true>(), keys, n, k, indices,
+      scratch, Order::IsAscending(), /*stable=*/true);
+}
 
 // Argselect: sets indices[k] to the index of the key at position k of the given
 // order. Keys at indices[0, k) are not ordered after it and keys at
 // indices[k + 1, n) are not ordered before it. Requires k < n. The indices[k]
 // of VQStableArgSelect matches that of VQStableArgSort.
-HWY_CONTRIB_DLLEXPORT void VQArgSelect(const uint16_t* HWY_RESTRICT keys,
-                                       size_t n, size_t k,
-                                       uint64_t* HWY_RESTRICT indices,
-                                       SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgSelect(const uint16_t* HWY_RESTRICT keys,
-                                       size_t n, size_t k,
-                                       uint64_t* HWY_RESTRICT indices,
-                                       SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQArgSelect(const int16_t* HWY_RESTRICT keys,
-                                       size_t n, size_t k,
-                                       uint64_t* HWY_RESTRICT indices,
-                                       SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgSelect(const int16_t* HWY_RESTRICT keys,
-                                       size_t n, size_t k,
-                                       uint64_t* HWY_RESTRICT indices,
-                                       SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQArgSelect(const float16_t* HWY_RESTRICT keys,
-                                       size_t n, size_t k,
-                                       uint64_t* HWY_RESTRICT indices,
-                                       SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgSelect(const float16_t* HWY_RESTRICT keys,
-                                       size_t n, size_t k,
-                                       uint64_t* HWY_RESTRICT indices,
-                                       SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQArgSelect(const uint32_t* HWY_RESTRICT keys,
-                                       size_t n, size_t k,
-                                       uint64_t* HWY_RESTRICT indices,
-                                       SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgSelect(const uint32_t* HWY_RESTRICT keys,
-                                       size_t n, size_t k,
-                                       uint64_t* HWY_RESTRICT indices,
-                                       SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQArgSelect(const int32_t* HWY_RESTRICT keys,
-                                       size_t n, size_t k,
-                                       uint64_t* HWY_RESTRICT indices,
-                                       SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgSelect(const int32_t* HWY_RESTRICT keys,
-                                       size_t n, size_t k,
-                                       uint64_t* HWY_RESTRICT indices,
-                                       SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQArgSelect(const float* HWY_RESTRICT keys, size_t n,
-                                       size_t k, uint64_t* HWY_RESTRICT indices,
-                                       SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgSelect(const float* HWY_RESTRICT keys, size_t n,
-                                       size_t k, uint64_t* HWY_RESTRICT indices,
-                                       SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQArgSelect(const uint64_t* HWY_RESTRICT keys,
-                                       size_t n, size_t k,
-                                       uint64_t* HWY_RESTRICT indices,
-                                       uint128_t* HWY_RESTRICT scratch,
-                                       SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgSelect(const uint64_t* HWY_RESTRICT keys,
-                                       size_t n, size_t k,
-                                       uint64_t* HWY_RESTRICT indices,
-                                       uint128_t* HWY_RESTRICT scratch,
-                                       SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQArgSelect(const int64_t* HWY_RESTRICT keys,
-                                       size_t n, size_t k,
-                                       uint64_t* HWY_RESTRICT indices,
-                                       uint128_t* HWY_RESTRICT scratch,
-                                       SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgSelect(const int64_t* HWY_RESTRICT keys,
-                                       size_t n, size_t k,
-                                       uint64_t* HWY_RESTRICT indices,
-                                       uint128_t* HWY_RESTRICT scratch,
-                                       SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQArgSelect(const double* HWY_RESTRICT keys,
-                                       size_t n, size_t k,
-                                       uint64_t* HWY_RESTRICT indices,
-                                       uint128_t* HWY_RESTRICT scratch,
-                                       SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQArgSelect(const double* HWY_RESTRICT keys,
-                                       size_t n, size_t k,
-                                       uint64_t* HWY_RESTRICT indices,
-                                       uint128_t* HWY_RESTRICT scratch,
-                                       SortDescending);
+template <typename Key, class Order>
+void VQArgSelect(const Key* HWY_RESTRICT keys, size_t n, size_t k,
+                 uint64_t* HWY_RESTRICT indices, Order) {
+  detail::ArgSelectErased(detail::ArgSortKeyOf<Key, /*kHasScratch=*/false>(),
+                          keys, n, k, indices, nullptr, Order::IsAscending(),
+                          /*stable=*/false);
+}
 
-HWY_CONTRIB_DLLEXPORT void VQStableArgSelect(const uint16_t* HWY_RESTRICT keys,
-                                             size_t n, size_t k,
-                                             uint64_t* HWY_RESTRICT indices,
-                                             SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSelect(const uint16_t* HWY_RESTRICT keys,
-                                             size_t n, size_t k,
-                                             uint64_t* HWY_RESTRICT indices,
-                                             SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSelect(const int16_t* HWY_RESTRICT keys,
-                                             size_t n, size_t k,
-                                             uint64_t* HWY_RESTRICT indices,
-                                             SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSelect(const int16_t* HWY_RESTRICT keys,
-                                             size_t n, size_t k,
-                                             uint64_t* HWY_RESTRICT indices,
-                                             SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSelect(const float16_t* HWY_RESTRICT keys,
-                                             size_t n, size_t k,
-                                             uint64_t* HWY_RESTRICT indices,
-                                             SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSelect(const float16_t* HWY_RESTRICT keys,
-                                             size_t n, size_t k,
-                                             uint64_t* HWY_RESTRICT indices,
-                                             SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSelect(const uint32_t* HWY_RESTRICT keys,
-                                             size_t n, size_t k,
-                                             uint64_t* HWY_RESTRICT indices,
-                                             SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSelect(const uint32_t* HWY_RESTRICT keys,
-                                             size_t n, size_t k,
-                                             uint64_t* HWY_RESTRICT indices,
-                                             SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSelect(const int32_t* HWY_RESTRICT keys,
-                                             size_t n, size_t k,
-                                             uint64_t* HWY_RESTRICT indices,
-                                             SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSelect(const int32_t* HWY_RESTRICT keys,
-                                             size_t n, size_t k,
-                                             uint64_t* HWY_RESTRICT indices,
-                                             SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSelect(const float* HWY_RESTRICT keys,
-                                             size_t n, size_t k,
-                                             uint64_t* HWY_RESTRICT indices,
-                                             SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSelect(const float* HWY_RESTRICT keys,
-                                             size_t n, size_t k,
-                                             uint64_t* HWY_RESTRICT indices,
-                                             SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSelect(const uint64_t* HWY_RESTRICT keys,
-                                             size_t n, size_t k,
-                                             uint64_t* HWY_RESTRICT indices,
-                                             uint128_t* HWY_RESTRICT scratch,
-                                             SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSelect(const uint64_t* HWY_RESTRICT keys,
-                                             size_t n, size_t k,
-                                             uint64_t* HWY_RESTRICT indices,
-                                             uint128_t* HWY_RESTRICT scratch,
-                                             SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSelect(const int64_t* HWY_RESTRICT keys,
-                                             size_t n, size_t k,
-                                             uint64_t* HWY_RESTRICT indices,
-                                             uint128_t* HWY_RESTRICT scratch,
-                                             SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSelect(const int64_t* HWY_RESTRICT keys,
-                                             size_t n, size_t k,
-                                             uint64_t* HWY_RESTRICT indices,
-                                             uint128_t* HWY_RESTRICT scratch,
-                                             SortDescending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSelect(const double* HWY_RESTRICT keys,
-                                             size_t n, size_t k,
-                                             uint64_t* HWY_RESTRICT indices,
-                                             uint128_t* HWY_RESTRICT scratch,
-                                             SortAscending);
-HWY_CONTRIB_DLLEXPORT void VQStableArgSelect(const double* HWY_RESTRICT keys,
-                                             size_t n, size_t k,
-                                             uint64_t* HWY_RESTRICT indices,
-                                             uint128_t* HWY_RESTRICT scratch,
-                                             SortDescending);
+template <typename Key, class Order>
+void VQArgSelect(const Key* HWY_RESTRICT keys, size_t n, size_t k,
+                 uint64_t* HWY_RESTRICT indices,
+                 uint128_t* HWY_RESTRICT scratch, Order) {
+  detail::ArgSelectErased(detail::ArgSortKeyOf<Key, /*kHasScratch=*/true>(),
+                          keys, n, k, indices, scratch, Order::IsAscending(),
+                          /*stable=*/false);
+}
+
+template <typename Key, class Order>
+void VQStableArgSelect(const Key* HWY_RESTRICT keys, size_t n, size_t k,
+                       uint64_t* HWY_RESTRICT indices, Order) {
+  detail::ArgSelectErased(detail::ArgSortKeyOf<Key, /*kHasScratch=*/false>(),
+                          keys, n, k, indices, nullptr, Order::IsAscending(),
+                          /*stable=*/true);
+}
+
+template <typename Key, class Order>
+void VQStableArgSelect(const Key* HWY_RESTRICT keys, size_t n, size_t k,
+                       uint64_t* HWY_RESTRICT indices,
+                       uint128_t* HWY_RESTRICT scratch, Order) {
+  detail::ArgSelectErased(detail::ArgSortKeyOf<Key, /*kHasScratch=*/true>(),
+                          keys, n, k, indices, scratch, Order::IsAscending(),
+                          /*stable=*/true);
+}
 
 }  // namespace hwy
 

@@ -275,7 +275,10 @@ void CheckOne(const std::vector<Key>& keys, const std::vector<uint64_t>& ref,
               Order::IsAscending() ? "asc" : "desc", what, i, num, k);
   };
 
-  if (memcmp(in, keys.data(), num * sizeof(Key)) != 0) fail("keys changed", 0);
+  // keys.data() may be null when num == 0, which memcmp does not allow.
+  if (num != 0 && memcmp(in, keys.data(), num * sizeof(Key)) != 0) {
+    fail("keys changed", 0);
+  }
   for (size_t i = 0; i < indices_buf.size(); ++i) {
     const bool inside = indices_buf.data() + i >= indices &&
                         indices_buf.data() + i < indices + num;
