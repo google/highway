@@ -1862,11 +1862,12 @@ HWY_INLINE void MedianOf3InPlace(Traits st, T* HWY_RESTRICT a,
 }
 
 // Scalar introsort fallback for near-sorted inputs on narrow vector targets.
-template <class Traits, typename T>
-void ScalarSort(Traits st, T* HWY_RESTRICT keys, size_t num,
-                size_t max_depth) {
+template <class D, class Traits, typename T>
+void ScalarSort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
+                T* HWY_RESTRICT buf, size_t max_depth) {
   constexpr size_t N1 = st.LanesPerKey();
-  while (num > 16 * N1) {
+  const size_t base_case_num = Constants::BaseCaseNumLanes(Lanes(d));
+  while (num > base_case_num) {
     if (max_depth == 0) {
       HeapSort(st, keys, num);
       return;
@@ -1896,23 +1897,24 @@ void ScalarSort(Traits st, T* HWY_RESTRICT keys, size_t num,
     if (split >= num) split = num - N1;
 
     if (split < num - split) {
-      ScalarSort(st, keys, split, max_depth);
+      ScalarSort(d, st, keys, split, buf, max_depth);
       keys += split;
       num -= split;
     } else {
-      ScalarSort(st, keys + split, num - split, max_depth);
+      ScalarSort(d, st, keys + split, num - split, buf, max_depth);
       num = split;
     }
   }
-  HeapSort(st, keys, num);
+  BaseCase(d, st, keys, num, buf);
 }
 
 // Scalar introselect fallback for near-sorted inputs on narrow vector targets.
-template <class Traits, typename T>
-void ScalarSelect(Traits st, T* HWY_RESTRICT keys, size_t num, size_t k,
-                  size_t max_depth) {
+template <class D, class Traits, typename T>
+void ScalarSelect(D d, Traits st, T* HWY_RESTRICT keys, size_t num, size_t k,
+                  T* HWY_RESTRICT buf, size_t max_depth) {
   constexpr size_t N1 = st.LanesPerKey();
-  while (num > 16 * N1) {
+  const size_t base_case_num = Constants::BaseCaseNumLanes(Lanes(d));
+  while (num > base_case_num) {
     if (max_depth == 0) {
       HeapSelect(st, keys, num, k);
       return;
@@ -1949,7 +1951,7 @@ void ScalarSelect(Traits st, T* HWY_RESTRICT keys, size_t num, size_t k,
       k -= split;
     }
   }
-  HeapSelect(st, keys, num, k);
+  BaseCase(d, st, keys, num, buf);
 }
 
 template <RecurseMode mode, class D, class Traits, typename T>
@@ -2006,20 +2008,24 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
     // second time), but that is a net loss due to the extra comparisons.
   } else {
 #if HWY_MIN_BYTES <= 16
-    if (HWY_UNLIKELY(remaining_levels >= 49 && SampleIsPresorted(st, buf))) {
-      if (IsAlreadySorted(d, st, keys, num)) {
-        return;
-      }
-      HWY_IF_CONSTEXPR(mode == RecurseMode::kSelect) {
-        if (IsAlreadyPartitioned(st, keys, num, k)) {
+    constexpr bool kNarrowVector =
+        (sizeof(T) >= 4) && (MaxLanes(d) / st.LanesPerKey() <= 4);
+    HWY_IF_CONSTEXPR(kNarrowVector) {
+      if (HWY_UNLIKELY(remaining_levels >= 49 && SampleIsPresorted(st, buf))) {
+        if (IsAlreadySorted(d, st, keys, num)) {
           return;
         }
-        ScalarSelect(st, keys, num, k, remaining_levels);
-        return;
-      }
-      HWY_IF_CONSTEXPR(mode == RecurseMode::kSort) {
-        ScalarSort(st, keys, num, remaining_levels);
-        return;
+        HWY_IF_CONSTEXPR(mode == RecurseMode::kSelect) {
+          if (IsAlreadyPartitioned(st, keys, num, k)) {
+            return;
+          }
+          ScalarSelect(d, st, keys, num, k, buf, remaining_levels);
+          return;
+        }
+        HWY_IF_CONSTEXPR(mode == RecurseMode::kSort) {
+          ScalarSort(d, st, keys, num, buf, remaining_levels);
+          return;
+        }
       }
     }
 #endif  // HWY_MIN_BYTES <= 16

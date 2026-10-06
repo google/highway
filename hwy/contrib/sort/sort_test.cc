@@ -105,7 +105,7 @@ void TestAllSortIota() {
 
 template <typename Key>
 void TestPresortedSortAndSelectForType() {
-  for (size_t num : {128, 512, 2048, 10000}) {
+  for (size_t num : {size_t{128}, size_t{512}, size_t{2048}, size_t{10000}}) {
     // 1. Ascending ordered sort
     {
       std::vector<Key> keys(num);
@@ -156,7 +156,7 @@ void TestPresortedSortAndSelectForType() {
     }
 
     // 4. Sorted blocks (e.g. runs of 10, 100)
-    for (size_t block_len : {10, 100}) {
+    for (size_t block_len : {size_t{10}, size_t{100}}) {
       std::vector<Key> sb_keys(num);
       for (size_t i = 0; i < num; ++i) {
         sb_keys[i] = static_cast<Key>(i % block_len);
