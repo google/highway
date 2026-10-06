@@ -305,9 +305,14 @@ AlignedFreeUniquePtr<T[]> RoundTestCases(T /*unused*/, D d, size_t& padded) {
       // +/- 1
       ConvertScalarTo<T>(1), ConvertScalarTo<T>(-1),
       // +/- 0
-      ConvertScalarTo<T>(0), ConvertScalarTo<T>(-0),
-      // near 0
-      ConvertScalarTo<T>(0.4), ConvertScalarTo<T>(-0.4),
+      ConvertScalarTo<T>(0.0), ConvertScalarTo<T>(-0.0),
+      // fractions
+      ConvertScalarTo<T>(0.25), ConvertScalarTo<T>(-0.25),
+      ConvertScalarTo<T>(0.5), ConvertScalarTo<T>(-0.5),
+      ConvertScalarTo<T>(0.75), ConvertScalarTo<T>(-0.75),
+      ConvertScalarTo<T>(0.49999997), ConvertScalarTo<T>(-0.49999997),
+      // epsilon near 0
+      eps, -eps,
       // +/- integer
       ConvertScalarTo<T>(4), ConvertScalarTo<T>(-32),
       // positive near limit
@@ -347,6 +352,27 @@ AlignedFreeUniquePtr<T[]> RoundTestCases(T /*unused*/, D d, size_t& padded) {
   return in;
 }
 
+template <class D, typename T = TFromD<D>>
+HWY_INLINE void AssertVecSignAndValEqual(D d, const T* expected, Vec<D> actual,
+                                        const char* filename, int line) {
+  AssertVecEqual(d, expected, actual, filename, line);
+  const size_t N = Lanes(d);
+  auto actual_lanes = AllocateAligned<T>(N);
+  HWY_ASSERT(actual_lanes);
+  Store(actual, d, actual_lanes.get());
+  for (size_t i = 0; i < N; ++i) {
+    if (!ScalarIsNaN(expected[i])) {
+      const bool exp_sign = ScalarSignBit(expected[i]);
+      const bool act_sign = ScalarSignBit(actual_lanes[i]);
+      if (exp_sign != act_sign) {
+        hwy::Abort(filename, line,
+                   "Sign bit mismatch: lane %d expected %d actual %d",
+                   static_cast<int>(i), exp_sign ? 1 : 0, act_sign ? 1 : 0);
+      }
+    }
+  }
+}
+
 struct TestRound {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T t, D d) {
@@ -368,7 +394,8 @@ struct TestRound {
       expected[i] = ConvertScalarTo<T>(nearbyint(f));
     }
     for (size_t i = 0; i < padded; i += Lanes(d)) {
-      HWY_ASSERT_VEC_EQ(d, &expected[i], Round(Load(d, &in[i])));
+      AssertVecSignAndValEqual(d, &expected[i], Round(Load(d, &in[i])),
+                               __FILE__, __LINE__);
     }
   }
 };
@@ -483,7 +510,8 @@ struct TestTrunc {
       expected[i] = ConvertScalarTo<T>(trunc(ConvertScalarTo<double>(in[i])));
     }
     for (size_t i = 0; i < padded; i += Lanes(d)) {
-      HWY_ASSERT_VEC_EQ(d, &expected[i], Trunc(Load(d, &in[i])));
+      AssertVecSignAndValEqual(d, &expected[i], Trunc(Load(d, &in[i])),
+                               __FILE__, __LINE__);
     }
   }
 };
@@ -524,7 +552,7 @@ struct TestCeil {
     }
     for (size_t i = 0; i < padded; i += Lanes(d)) {
       const auto v = Load(d, &in[i]);
-      HWY_ASSERT_VEC_EQ(d, &expected[i], Ceil(v));
+      AssertVecSignAndValEqual(d, &expected[i], Ceil(v), __FILE__, __LINE__);
       HWY_ASSERT_VEC_EQ(di, &expected_int[i],
                         IfThenZeroElse(RebindMask(di, IsNaN(v)), CeilInt(v)));
     }
@@ -568,7 +596,7 @@ struct TestFloor {
     }
     for (size_t i = 0; i < padded; i += Lanes(d)) {
       const auto v = Load(d, &in[i]);
-      HWY_ASSERT_VEC_EQ(d, &expected[i], Floor(v));
+      AssertVecSignAndValEqual(d, &expected[i], Floor(v), __FILE__, __LINE__);
       HWY_ASSERT_VEC_EQ(di, &expected_int[i],
                         IfThenZeroElse(RebindMask(di, IsNaN(v)), FloorInt(v)));
     }
