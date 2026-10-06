@@ -6606,7 +6606,7 @@ HWY_API V Ceil(const V v) {
   const auto pos1 =
       IfThenElseZero(Lt(int_f, v), Set(df, ConvertScalarTo<T>(1.0)));
 
-  return IfThenElse(detail::UseInt(v), Add(int_f, pos1), v);
+  return IfThenElse(detail::UseInt(v), CopySign(Add(int_f, pos1), v), v);
 }
 
 #endif  // (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL >= 1400) ||
@@ -6653,7 +6653,7 @@ HWY_API V Floor(const V v) {
   const auto neg1 =
       IfThenElseZero(Gt(int_f, v), Set(df, ConvertScalarTo<T>(-1.0)));
 
-  return IfThenElse(detail::UseInt(v), Add(int_f, neg1), v);
+  return IfThenElse(detail::UseInt(v), CopySign(Add(int_f, neg1), v), v);
 }
 
 #endif  // (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL >= 1400) ||

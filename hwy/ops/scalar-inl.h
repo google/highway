@@ -849,7 +849,7 @@ HWY_API Vec1<T> Round(const Vec1<T> v) {
                            ConvertScalarTo<T>(0.5)) {
     offset = v.raw < k0 ? -1 : 1;
   }
-  return Vec1<T>(ConvertScalarTo<T>(rounded - offset));
+  return CopySign(Vec1<T>(ConvertScalarTo<T>(rounded - offset)), v);
 }
 
 // Round-to-nearest even.
@@ -936,7 +936,7 @@ V Ceiling(const V v) {
   // Already an integer.
   if (exponent >= kMantissaBits) return v;
   // |v| <= 1 => 0 or 1.
-  if (exponent < 0) return positive ? V(1) : V(-0.0);
+  if (exponent < 0) return positive ? V(1) : CopySign(V(Float(0.0)), v);
 
   const Bits mantissa_mask = kMantissaMask >> exponent;
   // Already an integer
@@ -968,7 +968,9 @@ V Floor(const V v) {
   // Already an integer.
   if (exponent >= kMantissaBits) return v;
   // |v| <= 1 => -1 or 0.
-  if (exponent < 0) return V(negative ? Float(-1.0) : Float(0.0));
+  if (exponent < 0) {
+    return negative ? V(Float(-1.0)) : CopySign(V(Float(0.0)), v);
+  }
 
   const Bits mantissa_mask = kMantissaMask >> exponent;
   // Already an integer

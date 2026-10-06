@@ -1023,6 +1023,7 @@ template <typename T, size_t N>
 HWY_API Vec128<T, N> Round(Vec128<T, N> v) {
   using TI = MakeSigned<T>;
   const T k0 = ConvertScalarTo<T>(0);
+  const Vec128<T, N> orig = v;
   const Vec128<T, N> a = Abs(v);
   for (size_t i = 0; i < N; ++i) {
     if (!(a.raw[i] < MantissaEnd<T>())) {  // Huge or NaN
@@ -1043,7 +1044,7 @@ HWY_API Vec128<T, N> Round(Vec128<T, N> v) {
     }
     v.raw[i] = rounded_f;
   }
-  return v;
+  return CopySign(v, orig);
 }
 
 // Round-to-nearest even.
@@ -1125,6 +1126,7 @@ HWY_API VFromD<DI32> DemoteToNearestInt(DI32 /*di32*/,
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Trunc(Vec128<T, N> v) {
   using TI = MakeSigned<T>;
+  const Vec128<T, N> orig = v;
   const Vec128<T, N> abs = Abs(v);
   for (size_t i = 0; i < N; ++i) {
     if (!(abs.raw[i] <= MantissaEnd<T>())) {  // Huge or NaN
@@ -1137,7 +1139,7 @@ HWY_API Vec128<T, N> Trunc(Vec128<T, N> v) {
     }
     v.raw[i] = static_cast<T>(truncated);
   }
-  return v;
+  return CopySign(v, orig);
 }
 
 // Toward +infinity, aka ceiling
@@ -1148,6 +1150,7 @@ Vec128<Float, N> Ceil(Vec128<Float, N> v) {
   const Bits kExponentMask = MaxExponentField<Float>();
   const Bits kMantissaMask = MantissaMask<Float>();
   const Bits kBias = kExponentMask / 2;
+  const Vec128<Float, N> orig = v;
 
   for (size_t i = 0; i < N; ++i) {
     const bool positive = v.raw[i] > Float(0.0);
@@ -1174,7 +1177,7 @@ Vec128<Float, N> Ceil(Vec128<Float, N> v) {
 
     v.raw[i] = BitCastScalar<Float>(bits);
   }
-  return v;
+  return CopySign(v, orig);
 }
 
 // Toward -infinity, aka floor
@@ -1185,6 +1188,7 @@ Vec128<Float, N> Floor(Vec128<Float, N> v) {
   const Bits kExponentMask = MaxExponentField<Float>();
   const Bits kMantissaMask = MantissaMask<Float>();
   const Bits kBias = kExponentMask / 2;
+  const Vec128<Float, N> orig = v;
 
   for (size_t i = 0; i < N; ++i) {
     const bool negative = v.raw[i] < Float(0.0);
@@ -1211,7 +1215,7 @@ Vec128<Float, N> Floor(Vec128<Float, N> v) {
 
     v.raw[i] = BitCastScalar<Float>(bits);
   }
-  return v;
+  return CopySign(v, orig);
 }
 
 // ------------------------------ Floating-point classification
