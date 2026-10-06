@@ -1252,27 +1252,12 @@ HWY_INLINE void DrawSamples(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   const uint32_t num_chunks =
       static_cast<uint32_t>(HWY_MIN(num_chunks64, 0xFFFFFFFFull));
 
-  size_t offsets[6];
-  for (size_t i = 0; i < 6; ++i) {
-    offsets[i] = RandomChunkIndex(num_chunks, bits[i]) * kLanesPerChunk;
-  }
-  // Sort offsets so chunks are sampled in non-decreasing address order.
-  for (size_t i = 0; i < 5; ++i) {
-    for (size_t j = i + 1; j < 6; ++j) {
-      if (offsets[i] > offsets[j]) {
-        const size_t tmp = offsets[i];
-        offsets[i] = offsets[j];
-        offsets[j] = tmp;
-      }
-    }
-  }
-
-  const size_t offset0 = offsets[0];
-  const size_t offset1 = offsets[1];
-  const size_t offset2 = offsets[2];
-  const size_t offset3 = offsets[3];
-  const size_t offset4 = offsets[4];
-  const size_t offset5 = offsets[5];
+  const size_t offset0 = RandomChunkIndex(num_chunks, bits[0]) * kLanesPerChunk;
+  const size_t offset1 = RandomChunkIndex(num_chunks, bits[1]) * kLanesPerChunk;
+  const size_t offset2 = RandomChunkIndex(num_chunks, bits[2]) * kLanesPerChunk;
+  const size_t offset3 = RandomChunkIndex(num_chunks, bits[3]) * kLanesPerChunk;
+  const size_t offset4 = RandomChunkIndex(num_chunks, bits[4]) * kLanesPerChunk;
+  const size_t offset5 = RandomChunkIndex(num_chunks, bits[5]) * kLanesPerChunk;
   for (size_t i = 0; i < kLanesPerChunk; i += N) {
     const V v0 = Load(d, keys + offset0 + i);
     const V v1 = Load(d, keys + offset1 + i);
@@ -1790,13 +1775,11 @@ HWY_INLINE bool SampleIsPresorted(Traits st, const T* HWY_RESTRICT buf) {
   constexpr size_t kSampleLanes = Constants::SampleLanes<T>();
   constexpr size_t N1 = st.LanesPerKey();
   size_t inversions = 0;
+  HWY_UNROLL(1)
   for (size_t i = 0; i + N1 < kSampleLanes; i += N1) {
-    if (st.Compare1(buf + i + N1, buf + i)) {
-      ++inversions;
-      if (inversions > 1) return false;
-    }
+    inversions += st.Compare1(buf + i + N1, buf + i);
   }
-  return true;
+  return inversions <= 1;
 }
 
 // Returns true if `keys[0, num)` is already sorted according to `st.Compare`.
@@ -1804,30 +1787,21 @@ template <class D, class Traits, typename T>
 HWY_INLINE bool IsAlreadySorted(D d, Traits st, const T* HWY_RESTRICT keys,
                                 size_t num) {
   constexpr size_t N1 = st.LanesPerKey();
-  if (num <= N1) return true;
+  const size_t N = Lanes(d);
+  HWY_DASSERT(num >= N + N1);
 
-  if constexpr (N1 == 1) {
-    const size_t N = Lanes(d);
-    size_t i = 0;
-    if (HWY_LIKELY(num >= 2 * N + 1)) {
-      for (; i <= num - 2 * N - 1; i += 2 * N) {
-        const auto bad0 =
-            st.Compare(d, LoadU(d, keys + i + 1), LoadU(d, keys + i));
-        const auto bad1 =
-            st.Compare(d, LoadU(d, keys + i + N + 1), LoadU(d, keys + i + N));
-        if (HWY_UNLIKELY(!AllFalse(d, Or(bad0, bad1)))) return false;
-      }
-    }
-    for (; i + 1 < num; ++i) {
-      if (st.Compare1(keys + i + 1, keys + i)) return false;
-    }
-    return true;
-  } else {
-    for (size_t i = 0; i + N1 < num; i += N1) {
-      if (st.Compare1(keys + i + N1, keys + i)) return false;
-    }
-    return true;
+  size_t i = 0;
+  for (; i <= num - N - N1; i += N) {
+    const auto bad =
+        st.Compare(d, LoadU(d, keys + i + N1), LoadU(d, keys + i));
+    if (HWY_UNLIKELY(!AllFalse(d, bad))) return false;
   }
+  if (HWY_LIKELY(i != num - N1)) {
+    const auto bad = st.Compare(d, LoadU(d, keys + num - N),
+                                LoadU(d, keys + num - N - N1));
+    if (HWY_UNLIKELY(!AllFalse(d, bad))) return false;
+  }
+  return true;
 }
 
 // Returns true if `keys` is already partitioned at rank `k`.
@@ -1852,8 +1826,8 @@ HWY_INLINE bool IsAlreadyPartitioned(Traits st, const T* HWY_RESTRICT keys,
 }
 
 template <class Traits, typename T>
-HWY_INLINE void MedianOf3InPlace(Traits st, T* HWY_RESTRICT a,
-                                 T* HWY_RESTRICT b, T* HWY_RESTRICT c) {
+HWY_NOINLINE void MedianOf3InPlace(Traits st, T* HWY_RESTRICT a,
+                                   T* HWY_RESTRICT b, T* HWY_RESTRICT c) {
   if (st.Compare1(b, a)) st.Swap(a, b);
   if (st.Compare1(c, b)) {
     st.Swap(b, c);
@@ -1861,15 +1835,22 @@ HWY_INLINE void MedianOf3InPlace(Traits st, T* HWY_RESTRICT a,
   }
 }
 
-// Scalar introsort fallback for near-sorted inputs on narrow vector targets.
+// Scalar introsort/introselect fallback for near-sorted inputs on narrow vector targets.
+// If k == ~size_t{0}, sorts the entire range; otherwise selects the k-th element.
 template <class D, class Traits, typename T>
-void ScalarSort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
-                T* HWY_RESTRICT buf, size_t max_depth) {
+HWY_NOINLINE void ScalarSortOrSelect(D d, Traits st, T* HWY_RESTRICT keys,
+                                     size_t num, T* HWY_RESTRICT buf,
+                                     size_t max_depth,
+                                     size_t k = ~size_t{0}) {
   constexpr size_t N1 = st.LanesPerKey();
   const size_t base_case_num = Constants::BaseCaseNumLanes(Lanes(d));
   while (num > base_case_num) {
     if (max_depth == 0) {
-      HeapSort(st, keys, num);
+      if (k == ~size_t{0}) {
+        HeapSort(st, keys, num);
+      } else {
+        HeapSelect(st, keys, num, k);
+      }
       return;
     }
     --max_depth;
@@ -1896,62 +1877,59 @@ void ScalarSort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
     if (split == 0) split = N1;
     if (split >= num) split = num - N1;
 
-    if (split < num - split) {
-      ScalarSort(d, st, keys, split, buf, max_depth);
-      keys += split;
-      num -= split;
+    if (k == ~size_t{0}) {
+      if (split < num - split) {
+        ScalarSortOrSelect(d, st, keys, split, buf, max_depth, k);
+        keys += split;
+        num -= split;
+      } else {
+        ScalarSortOrSelect(d, st, keys + split, num - split, buf, max_depth, k);
+        num = split;
+      }
     } else {
-      ScalarSort(d, st, keys + split, num - split, buf, max_depth);
-      num = split;
+      if (k < split) {
+        num = split;
+      } else {
+        keys += split;
+        num -= split;
+        k -= split;
+      }
     }
   }
   BaseCase(d, st, keys, num, buf);
 }
 
-// Scalar introselect fallback for near-sorted inputs on narrow vector targets.
+// Returns true if presortedness was detected and the input was handled
+// (either already sorted/partitioned, or finished via scalar fallback).
 template <class D, class Traits, typename T>
-void ScalarSelect(D d, Traits st, T* HWY_RESTRICT keys, size_t num, size_t k,
-                  T* HWY_RESTRICT buf, size_t max_depth) {
-  constexpr size_t N1 = st.LanesPerKey();
-  const size_t base_case_num = Constants::BaseCaseNumLanes(Lanes(d));
-  while (num > base_case_num) {
-    if (max_depth == 0) {
-      HeapSelect(st, keys, num, k);
-      return;
-    }
-    --max_depth;
-
-    const size_t mid = (num / (2 * N1)) * N1;
-    MedianOf3InPlace(st, keys, keys + mid, keys + num - N1);
-
-    HWY_ALIGN T pivot[2];
-    for (size_t p = 0; p < N1; ++p) pivot[p] = keys[mid + p];
-
-    size_t i = 0;
-    size_t j = num - N1;
-    while (true) {
-      while (i < num - N1 && st.Compare1(keys + i, pivot)) i += N1;
-      while (j > 0 && st.Compare1(pivot, keys + j)) j -= N1;
-      if (i >= j) break;
-      st.Swap(keys + i, keys + j);
-      i += N1;
-      if (j < N1) break;
-      j -= N1;
-    }
-
-    size_t split = (i == j) ? i + N1 : i;
-    if (split == 0) split = N1;
-    if (split >= num) split = num - N1;
-
-    if (k < split) {
-      num = split;
-    } else {
-      keys += split;
-      num -= split;
-      k -= split;
+HWY_NOINLINE bool TryPresorted(D d, Traits st, T* HWY_RESTRICT keys,
+                               size_t num, T* HWY_RESTRICT buf,
+                               size_t remaining_levels,
+                               size_t k = ~size_t{0}) {
+#if HWY_MIN_BYTES <= 16
+  constexpr bool kNarrowVector =
+      (sizeof(T) >= 4) && (MaxLanes(d) / st.LanesPerKey() <= 4);
+  HWY_IF_CONSTEXPR(kNarrowVector) {
+    if (HWY_UNLIKELY(remaining_levels >= 49 && SampleIsPresorted(st, buf))) {
+      if (IsAlreadySorted(d, st, keys, num)) {
+        return true;
+      }
+      if (k != ~size_t{0} && IsAlreadyPartitioned(st, keys, num, k)) {
+        return true;
+      }
+      ScalarSortOrSelect(d, st, keys, num, buf, remaining_levels, k);
+      return true;
     }
   }
-  BaseCase(d, st, keys, num, buf);
+#endif  // HWY_MIN_BYTES <= 16
+  (void)d;
+  (void)st;
+  (void)keys;
+  (void)num;
+  (void)buf;
+  (void)remaining_levels;
+  (void)k;
+  return false;
 }
 
 template <RecurseMode mode, class D, class Traits, typename T>
@@ -2007,28 +1985,10 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
     // tempting to do a 3-way partition (to avoid moving the =pivot keys a
     // second time), but that is a net loss due to the extra comparisons.
   } else {
-#if HWY_MIN_BYTES <= 16
-    constexpr bool kNarrowVector =
-        (sizeof(T) >= 4) && (MaxLanes(d) / st.LanesPerKey() <= 4);
-    HWY_IF_CONSTEXPR(kNarrowVector) {
-      if (HWY_UNLIKELY(remaining_levels >= 49 && SampleIsPresorted(st, buf))) {
-        if (IsAlreadySorted(d, st, keys, num)) {
-          return;
-        }
-        HWY_IF_CONSTEXPR(mode == RecurseMode::kSelect) {
-          if (IsAlreadyPartitioned(st, keys, num, k)) {
-            return;
-          }
-          ScalarSelect(d, st, keys, num, k, buf, remaining_levels);
-          return;
-        }
-        HWY_IF_CONSTEXPR(mode == RecurseMode::kSort) {
-          ScalarSort(d, st, keys, num, buf, remaining_levels);
-          return;
-        }
-      }
+    if (TryPresorted(d, st, keys, num, buf, remaining_levels,
+                     mode == RecurseMode::kSort ? ~size_t{0} : k)) {
+      return;
     }
-#endif  // HWY_MIN_BYTES <= 16
 
     SortSamples(d, st, buf);
 
