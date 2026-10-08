@@ -760,10 +760,14 @@ namespace rvv {
 
 using CapBits = unsigned long;  // NOLINT
 
-static int64_t DetectTargets() {
+// This hardware-specific targets detection function will not set the
+// HWY_SCALAR/HWY_EMU128 bit. It also does not respect
+// HWY_CHOSEN_TARGET_MASK_TARGETS
+template <class Platform>
+static int64_t DetectTargetsImpl(const Platform& platform) {
   int64_t bits = 0;
 
-  const CapBits hw = getauxval(AT_HWCAP);
+  const CapBits hw = platform.GetAuxVal(AT_HWCAP);
 
   if ((hw & COMPAT_HWCAP_ISA_V) == COMPAT_HWCAP_ISA_V) {
     size_t e8m1_vec_len;

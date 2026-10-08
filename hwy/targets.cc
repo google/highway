@@ -93,6 +93,17 @@ static int64_t DetectTargets() {
   return DetectTargetsImpl(platform);
 }
 }  // namespace s390x
+#elif HWY_ARCH_RISCV && HWY_HAVE_RUNTIME_DISPATCH
+namespace rvv {
+class Platform {
+ public:
+  unsigned long GetAuxVal(unsigned long type) const { return getauxval(type); }
+};
+static int64_t DetectTargets() {
+  Platform platform{};
+  return DetectTargetsImpl(platform);
+}
+}  // namespace rvv
 #endif  // HWY_ARCH_*
 
 // Returns targets supported by the CPU, independently of DisableTargets.
