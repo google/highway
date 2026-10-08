@@ -813,9 +813,13 @@ namespace loongarch {
 
 using CapBits = unsigned long;  // NOLINT
 
-static int64_t DetectTargets() {
+// This hardware-specific targets detection function will not set the
+// HWY_SCALAR/HWY_EMU128 bit. It also does not respect
+// HWY_CHOSEN_TARGET_MASK_TARGETS
+template <class Platform>
+static int64_t DetectTargetsImpl(const Platform& platform) {
   int64_t bits = 0;
-  const CapBits hw = getauxval(AT_HWCAP);
+  const CapBits hw = platform.GetAuxVal(AT_HWCAP);
   if (hw & LA_HWCAP_LSX) bits |= HWY_LSX;
   if (hw & LA_HWCAP_LASX) bits |= HWY_LASX;
   return bits;

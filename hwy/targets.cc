@@ -104,6 +104,17 @@ static int64_t DetectTargets() {
   return DetectTargetsImpl(platform);
 }
 }  // namespace rvv
+#elif HWY_ARCH_LOONGARCH && HWY_HAVE_RUNTIME_DISPATCH
+namespace loongarch {
+class Platform {
+ public:
+  unsigned long GetAuxVal(unsigned long type) const { return getauxval(type); }
+};
+static int64_t DetectTargets() {
+  Platform platform{};
+  return DetectTargetsImpl(platform);
+}
+}  // namespace loongarch
 #endif  // HWY_ARCH_*
 
 // Returns targets supported by the CPU, independently of DisableTargets.
