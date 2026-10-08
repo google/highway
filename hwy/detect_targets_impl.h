@@ -681,14 +681,18 @@ static constexpr CapBits kGroupPPC8 =
 static constexpr CapBits kGroupPPC9 = kGroupPPC8 | PPC_FEATURE2_ARCH_3_00;
 static constexpr CapBits kGroupPPC10 = kGroupPPC9 | PPC_FEATURE2_ARCH_3_1;
 
-static int64_t DetectTargets() {
+// This hardware-specific targets detection function will not set the
+// HWY_SCALAR/HWY_EMU128 bit. It also does not respect
+// HWY_CHOSEN_TARGET_MASK_TARGETS
+template <class Platform>
+static int64_t DetectTargetsImpl(HWY_MAYBE_UNUSED const Platform& platform) {
   int64_t bits = 0;  // return value of supported targets.
 
 #if defined(AT_HWCAP) && defined(AT_HWCAP2)
-  const CapBits hw = getauxval(AT_HWCAP);
+  const CapBits hw = platform.GetAuxVal(AT_HWCAP);
 
   if ((hw & kGroupVSX) == kGroupVSX) {
-    const CapBits hw2 = getauxval(AT_HWCAP2);
+    const CapBits hw2 = platform.GetAuxVal(AT_HWCAP2);
     if ((hw2 & kGroupPPC8) == kGroupPPC8) {
       bits |= HWY_PPC8;
     }

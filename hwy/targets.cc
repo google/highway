@@ -71,6 +71,17 @@ static int64_t DetectTargets() {
   return DetectTargetsImpl(platform);
 }
 }  // namespace arm
+#elif HWY_ARCH_PPC && HWY_HAVE_RUNTIME_DISPATCH
+namespace ppc {
+class Platform {
+ public:
+  unsigned long GetAuxVal(unsigned long type) const { return getauxval(type); }
+};
+static int64_t DetectTargets() {
+  Platform platform{};
+  return DetectTargetsImpl(platform);
+}
+}  // namespace ppc
 #endif  // HWY_ARCH_*
 
 // Returns targets supported by the CPU, independently of DisableTargets.
