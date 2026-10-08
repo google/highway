@@ -531,6 +531,9 @@ static int64_t DetectAdditionalSveTargets(int64_t detected_targets) {
 HWY_POP_ATTRIBUTES
 #endif
 
+// This hardware-specific targets detection function will not set the
+// HWY_SCALAR/HWY_EMU128 bit. It also does not respect
+// HWY_CHOSEN_TARGET_MASK_TARGETS
 template <class Platform>
 static int64_t DetectTargetsImpl(const Platform& platform) {
   int64_t bits = 0;  // return value of supported targets.
