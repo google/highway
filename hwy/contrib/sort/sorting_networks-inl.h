@@ -22,6 +22,8 @@
 #define HIGHWAY_HWY_CONTRIB_SORT_SORTING_NETWORKS_TOGGLE
 #endif
 
+#include <stddef.h>
+
 #include "hwy/contrib/sort/shared-inl.h"  // SortConstants
 #include "hwy/highway.h"
 
@@ -893,14 +895,10 @@ HWY_NOINLINE void SortingNetwork(Traits st, T* HWY_RESTRICT buf, size_t cols) {
 template <class Base>
 struct SharedTraits : public Base {};
 
-namespace detail {
-
-// Empty function to avoid a possible -Wpragma-clang-attribute warning if
+// Empty function to avoid a possible `-Wpragma-clang-attribute` warning if
 // compiling with Clang
 static HWY_INLINE HWY_MAYBE_UNUSED void HWY_CONCAT(UnusedSortingNetworksFunc,
                                                    __LINE__)() {}
-
-}  // namespace detail
 
 #endif  // VQSORT_ENABLED
 

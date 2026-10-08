@@ -177,6 +177,64 @@ HWY_NOINLINE void TestAllSlideUpLanes() {
 }
 
 struct TestSlideUpLanesOr {
+  template <class D>
+  static HWY_INLINE void DoTestSlideUpLanesOr(
+      D d, TFromD<D>* HWY_RESTRICT expected,
+      const TFromD<D>* HWY_RESTRICT a_lanes,
+      const TFromD<D>* HWY_RESTRICT b_lanes, VFromD<D> a, VFromD<D> b,
+      const size_t N, const size_t slide_amt) {
+    for (size_t j = 0; j < N; j++) {
+      expected[j] = (j < slide_amt) ? a_lanes[j] : b_lanes[j - slide_amt];
+    }
+    HWY_ASSERT_VEC_EQ(d, expected, SlideUpLanesOr(a, d, b, slide_amt));
+  }
+
+#if !HWY_HAVE_SCALABLE && HWY_TARGET <= HWY_AVX3
+  template <class D>
+  static HWY_NOINLINE void DoTestSlideUpLanesOrWithConstAmt(
+      D d, TFromD<D>* HWY_RESTRICT expected,
+      const TFromD<D>* HWY_RESTRICT a_lanes,
+      const TFromD<D>* HWY_RESTRICT b_lanes, VFromD<D> a, VFromD<D> b,
+      const size_t N) {
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 0);
+    if (N <= 1) return;
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 1);
+    if (N <= 2) return;
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 2);
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 3);
+    if (N <= 4) return;
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 4);
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 5);
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 6);
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 7);
+    if (N <= 8) return;
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 8);
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 9);
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 10);
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 11);
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 12);
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 13);
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 14);
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 15);
+    if (N <= 16) return;
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 16);
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 17);
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 18);
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 20);
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 24);
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 28);
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 31);
+    if (N <= 32) return;
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 32);
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 33);
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 34);
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 36);
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 48);
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 60);
+    DoTestSlideUpLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 63);
+  }
+#endif
+
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
@@ -197,12 +255,18 @@ struct TestSlideUpLanesOr {
     Store(b, d, b_lanes.get());
 
     for (size_t i = 0; i < N; i++) {
-      for (size_t j = 0; j < N; j++) {
-        expected[j] = (j < i) ? a_lanes[j] : b_lanes[j - i];
-      }
-
-      HWY_ASSERT_VEC_EQ(d, expected.get(), SlideUpLanesOr(a, d, b, i));
+      size_t slide_amt = i;
+#if !HWY_COMPILER_MSVC
+      PreventElision(slide_amt);
+#endif
+      DoTestSlideUpLanesOr(d, expected.get(), a_lanes.get(), b_lanes.get(), a,
+                           b, N, slide_amt);
     }
+
+#if !HWY_HAVE_SCALABLE && HWY_TARGET <= HWY_AVX3
+    DoTestSlideUpLanesOrWithConstAmt(d, expected.get(), a_lanes.get(),
+                                     b_lanes.get(), a, b, N);
+#endif
   }
 };
 
@@ -211,6 +275,64 @@ HWY_NOINLINE void TestAllSlideUpLanesOr() {
 }
 
 struct TestSlideDownLanesOr {
+  template <class D>
+  static HWY_INLINE void DoTestSlideDownLanesOr(
+      D d, TFromD<D>* HWY_RESTRICT expected,
+      const TFromD<D>* HWY_RESTRICT a_lanes,
+      const TFromD<D>* HWY_RESTRICT b_lanes, VFromD<D> a, VFromD<D> b,
+      const size_t N, const size_t slide_amt) {
+    for (size_t j = 0; j < N; j++) {
+      expected[j] = (j < N - slide_amt) ? a_lanes[j + slide_amt] : b_lanes[j];
+    }
+    HWY_ASSERT_VEC_EQ(d, expected, SlideDownLanesOr(b, d, a, slide_amt));
+  }
+
+#if !HWY_HAVE_SCALABLE && HWY_TARGET <= HWY_AVX3
+  template <class D>
+  static HWY_NOINLINE void DoTestSlideDownLanesOrWithConstAmt(
+      D d, TFromD<D>* HWY_RESTRICT expected,
+      const TFromD<D>* HWY_RESTRICT a_lanes,
+      const TFromD<D>* HWY_RESTRICT b_lanes, VFromD<D> a, VFromD<D> b,
+      const size_t N) {
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 0);
+    if (N <= 1) return;
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 1);
+    if (N <= 2) return;
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 2);
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 3);
+    if (N <= 4) return;
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 4);
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 5);
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 6);
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 7);
+    if (N <= 8) return;
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 8);
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 9);
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 10);
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 11);
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 12);
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 13);
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 14);
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 15);
+    if (N <= 16) return;
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 16);
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 17);
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 18);
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 20);
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 24);
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 28);
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 31);
+    if (N <= 32) return;
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 32);
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 33);
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 34);
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 36);
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 48);
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 60);
+    DoTestSlideDownLanesOr(d, expected, a_lanes, b_lanes, a, b, N, 63);
+  }
+#endif
+
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
@@ -231,12 +353,18 @@ struct TestSlideDownLanesOr {
     Store(b, d, b_lanes.get());
 
     for (size_t i = 0; i < N; i++) {
-      for (size_t j = 0; j < N; j++) {
-        expected[j] = (j < N - i) ? a_lanes[j + i] : b_lanes[j];
-      }
-
-      HWY_ASSERT_VEC_EQ(d, expected.get(), SlideDownLanesOr(b, d, a, i));
+      size_t slide_amt = i;
+#if !HWY_COMPILER_MSVC
+      PreventElision(slide_amt);
+#endif
+      DoTestSlideDownLanesOr(d, expected.get(), a_lanes.get(), b_lanes.get(), a,
+                             b, N, slide_amt);
     }
+
+#if !HWY_HAVE_SCALABLE && HWY_TARGET <= HWY_AVX3
+    DoTestSlideDownLanesOrWithConstAmt(d, expected.get(), a_lanes.get(),
+                                       b_lanes.get(), a, b, N);
+#endif
   }
 };
 
@@ -520,10 +648,12 @@ class TestSlideBlocks {
 
 #if HWY_MAX_BYTES >= 64
   template <class D, HWY_IF_V_SIZE_LE_D(D, 32)>
-  static HWY_INLINE void DoTestSlideBy2And3Blocks(D /*d*/, size_t /*N*/) {}
+  static HWY_INLINE HWY_MAYBE_UNUSED void DoTestSlideBy2And3Blocks(
+      D /*d*/, size_t /*N*/) {}
 
   template <class D, HWY_IF_V_SIZE_GT_D(D, 32)>
-  static HWY_INLINE void DoTestSlideBy2And3Blocks(D d, size_t N) {
+  static HWY_INLINE HWY_MAYBE_UNUSED void DoTestSlideBy2And3Blocks(D d,
+                                                                   size_t N) {
     if (N < (64 / sizeof(TFromD<D>))) return;
     DoTestSlideByKBlocks<2>(d);
     DoTestSlideByKBlocks<3>(d);
@@ -549,6 +679,84 @@ HWY_NOINLINE void TestAllSlideBlocks() {
   ForAllTypes(ForPartialVectors<TestSlideBlocks>());
 }
 
+#if HWY_TARGET != HWY_SCALAR
+template <size_t kLanes, class D, HWY_IF_LANES_LE(HWY_MAX_LANES_D(D), kLanes)>
+HWY_INLINE void DoTestCombineSlideDownLanes(
+    D /*d*/, const TFromD<D>* HWY_RESTRICT /*lo_lanes*/,
+    const TFromD<D>* HWY_RESTRICT /*hi_lanes*/,
+    TFromD<D>* HWY_RESTRICT /*expected*/, VFromD<D> /*hi*/, VFromD<D> /*lo*/,
+    size_t /*N*/) {}
+
+template <size_t kLanes, class D, HWY_IF_LANES_GT(HWY_MAX_LANES_D(D), kLanes)>
+HWY_NOINLINE void DoTestCombineSlideDownLanes(
+    D d, const TFromD<D>* HWY_RESTRICT lo_lanes,
+    const TFromD<D>* HWY_RESTRICT hi_lanes, TFromD<D>* HWY_RESTRICT expected,
+    VFromD<D> hi, VFromD<D> lo, size_t N) {
+  if (kLanes >= N) return;
+  for (size_t i = 0; i < N; ++i) {
+    expected[i] =
+        (i + kLanes < N) ? lo_lanes[i + kLanes] : hi_lanes[i + kLanes - N];
+  }
+  HWY_ASSERT_VEC_EQ(d, expected, CombineSlideDownLanes<kLanes>(d, hi, lo));
+}
+#endif  // HWY_TARGET != HWY_SCALAR
+
+struct TestCombineSlideDownLanes {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+#if HWY_TARGET != HWY_SCALAR
+    const size_t N = Lanes(d);
+    if (N < 2) return;
+
+    auto lo_lanes = AllocateAligned<T>(N);
+    auto hi_lanes = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(lo_lanes && hi_lanes && expected);
+
+    RandomState rng;
+    for (size_t i = 0; i < N; ++i) {
+      lo_lanes[i] = ConvertScalarTo<T>((Random32(&rng) & 63) + 1);
+      hi_lanes[i] = ConvertScalarTo<T>((Random32(&rng) & 63) + 65);
+    }
+
+    const auto lo = Load(d, lo_lanes.get());
+    const auto hi = Load(d, hi_lanes.get());
+
+    constexpr size_t kLanesPer16B = HWY_MAX(16 / sizeof(T), 2);
+    constexpr size_t kMaxLanes = HWY_MAX(HWY_MAX_LANES_D(D), 2);
+
+    DoTestCombineSlideDownLanes<1>(d, lo_lanes.get(), hi_lanes.get(),
+                                   expected.get(), hi, lo, N);
+    DoTestCombineSlideDownLanes<HWY_MAX(kLanesPer16B / 2, 1)>(
+        d, lo_lanes.get(), hi_lanes.get(), expected.get(), hi, lo, N);
+    DoTestCombineSlideDownLanes<kLanesPer16B - 1>(
+        d, lo_lanes.get(), hi_lanes.get(), expected.get(), hi, lo, N);
+    DoTestCombineSlideDownLanes<kLanesPer16B>(d, lo_lanes.get(), hi_lanes.get(),
+                                              expected.get(), hi, lo, N);
+    DoTestCombineSlideDownLanes<kLanesPer16B + 1>(
+        d, lo_lanes.get(), hi_lanes.get(), expected.get(), hi, lo, N);
+    DoTestCombineSlideDownLanes<2 * kLanesPer16B - 1>(
+        d, lo_lanes.get(), hi_lanes.get(), expected.get(), hi, lo, N);
+    DoTestCombineSlideDownLanes<2 * kLanesPer16B>(
+        d, lo_lanes.get(), hi_lanes.get(), expected.get(), hi, lo, N);
+    DoTestCombineSlideDownLanes<2 * kLanesPer16B + 1>(
+        d, lo_lanes.get(), hi_lanes.get(), expected.get(), hi, lo, N);
+    DoTestCombineSlideDownLanes<3 * kLanesPer16B>(
+        d, lo_lanes.get(), hi_lanes.get(), expected.get(), hi, lo, N);
+    DoTestCombineSlideDownLanes<3 * kLanesPer16B + 1>(
+        d, lo_lanes.get(), hi_lanes.get(), expected.get(), hi, lo, N);
+    DoTestCombineSlideDownLanes<kMaxLanes - 1>(
+        d, lo_lanes.get(), hi_lanes.get(), expected.get(), hi, lo, N);
+#else
+    (void)d;
+#endif
+  }
+};
+
+HWY_NOINLINE void TestAllCombineSlideDownLanes() {
+  ForAllTypesAndSpecial(ForShrinkableVectors<TestCombineSlideDownLanes>());
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -566,6 +774,7 @@ HWY_EXPORT_AND_TEST_P(HwySlideUpDownTest, TestAllSlideDownLanesOr);
 HWY_EXPORT_AND_TEST_P(HwySlideUpDownTest, TestAllSlide1);
 HWY_EXPORT_AND_TEST_P(HwySlideUpDownTest, TestAllSlide1Or);
 HWY_EXPORT_AND_TEST_P(HwySlideUpDownTest, TestAllSlideBlocks);
+HWY_EXPORT_AND_TEST_P(HwySlideUpDownTest, TestAllCombineSlideDownLanes);
 
 HWY_AFTER_TEST();
 }  // namespace

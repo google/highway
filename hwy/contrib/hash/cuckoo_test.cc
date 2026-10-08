@@ -15,7 +15,7 @@
 
 // Tests for static cuckoo hashing.
 
-#define HWY_HAVE_ORTOOLS 0
+#define HWY_HAVE_ORTOOLS 0  // TODO(janwas): re-enable once build issue is fixed
 
 #include <stdint.h>
 #include <stdio.h>
@@ -58,7 +58,9 @@ HWY_NOINLINE void TestAllEpsilonSweep() {}
 HWY_NOINLINE void TestAllOptimizedBuild() {}
 HWY_NOINLINE void TestAllBucketSizeSweep() {}
 HWY_NOINLINE void TestAllNonPow2Buckets() {}
+#if HWY_HAVE_ORTOOLS
 HWY_NOINLINE void TestAllMinCostFlowComparison() {}
+#endif  // HWY_HAVE_ORTOOLS
 #else
 
 // --------------------------------------------------------------------------

@@ -68,7 +68,8 @@ static HWY_INLINE HWY_MAYBE_UNUSED CapBits getauxval(CapBits type) {
   switch (type) {
   case AT_HWCAP:
   case AT_HWCAP2:
-    elf_aux_info((int)type, &hwcap, sizeof(hwcap));
+    if (elf_aux_info((int)type, &hwcap, sizeof(hwcap)) != 0)
+      hwcap = 0;
     return hwcap;
   default:
     return 0;

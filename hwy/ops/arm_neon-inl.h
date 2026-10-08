@@ -5429,7 +5429,8 @@ HWY_API Vec128<float, N> Trunc(const Vec128<float, N> v) {
   const auto integer = ConvertTo(di, v);  // round toward 0
   const auto int_f = ConvertTo(df, integer);
 
-  return IfThenElse(detail::UseInt(v), int_f, v);
+  // Converting -0 to integer and back gives +0, so restore the sign.
+  return IfThenElse(detail::UseInt(v), CopySign(int_f, v), v);
 }
 
 template <size_t N>
@@ -5445,8 +5446,9 @@ HWY_API Vec128<float, N> Round(const Vec128<float, N> v) {
   const auto added = large + v;
   const auto rounded = added - large;
 
-  // Keep original if NaN or the magnitude is large (already an int).
-  return IfThenElse(Abs(v) < max, rounded, v);
+  // Keep original if NaN or the magnitude is large (already an int). The
+  // addition above returns +0 for v in [-0.5, -0], so restore the sign.
+  return IfThenElse(Abs(v) < max, CopySign(rounded, v), v);
 }
 
 template <size_t N>
@@ -5460,7 +5462,8 @@ HWY_API Vec128<float, N> Ceil(const Vec128<float, N> v) {
   // Truncating a positive non-integer ends up smaller; if so, add 1.
   const auto neg1 = ConvertTo(df, VecFromMask(di, RebindMask(di, int_f < v)));
 
-  return IfThenElse(detail::UseInt(v), int_f - neg1, v);
+  // The subtraction returns +0 for v in (-1, -0], so restore the sign.
+  return IfThenElse(detail::UseInt(v), CopySign(int_f - neg1, v), v);
 }
 
 template <size_t N>
@@ -5474,7 +5477,8 @@ HWY_API Vec128<float, N> Floor(const Vec128<float, N> v) {
   // Truncating a negative non-integer ends up larger; if so, subtract 1.
   const auto neg1 = ConvertTo(df, VecFromMask(di, RebindMask(di, int_f > v)));
 
-  return IfThenElse(detail::UseInt(v), int_f + neg1, v);
+  // The addition returns +0 for -0, so restore the sign.
+  return IfThenElse(detail::UseInt(v), CopySign(int_f + neg1, v), v);
 }
 
 #endif

@@ -101,6 +101,96 @@ void TestAllSortIota() {
 #endif  // VQSORT_ENABLED
 }
 
+#if VQSORT_ENABLED
+
+template <typename Key>
+void TestPresortedSortAndSelectForType() {
+  for (size_t num : {size_t{128}, size_t{512}, size_t{2048}, size_t{10000}}) {
+    // 1. Ascending ordered sort
+    {
+      std::vector<Key> keys(num);
+      std::iota(keys.begin(), keys.end(), Key{0});
+      VQSort(keys.data(), num, hwy::SortAscending());
+      for (size_t i = 0; i < num; ++i) {
+        if (keys[i] != static_cast<Key>(i)) {
+          HWY_ABORT(
+              "Ascending ordered mismatch at %zu: got %.0f expected %zu\n", i,
+              static_cast<double>(keys[i]), i);
+        }
+      }
+    }
+
+    // 2. Descending ordered sort
+    {
+      std::vector<Key> keys(num);
+      for (size_t i = 0; i < num; ++i) {
+        keys[i] = static_cast<Key>(num - 1 - i);
+      }
+      VQSort(keys.data(), num, hwy::SortDescending());
+      for (size_t i = 0; i < num; ++i) {
+        if (keys[i] != static_cast<Key>(num - 1 - i)) {
+          HWY_ABORT("Descending ordered mismatch at %zu\n", i);
+        }
+      }
+    }
+
+    // 3. Select on ordered
+    for (size_t k : {size_t{0}, num / 4, num / 2, num - 1}) {
+      std::vector<Key> sel_keys(num);
+      std::iota(sel_keys.begin(), sel_keys.end(), Key{0});
+      VQSelect(sel_keys.data(), num, k, hwy::SortAscending());
+      if (sel_keys[k] != static_cast<Key>(k)) {
+        HWY_ABORT("Ordered select mismatch at k=%zu: got %.0f\n", k,
+                  static_cast<double>(sel_keys[k]));
+      }
+      for (size_t i = 0; i < k; ++i) {
+        if (sel_keys[i] > sel_keys[k]) {
+          HWY_ABORT("Ordered select left partition violation at %zu\n", i);
+        }
+      }
+      for (size_t i = k + 1; i < num; ++i) {
+        if (sel_keys[i] < sel_keys[k]) {
+          HWY_ABORT("Ordered select right partition violation at %zu\n", i);
+        }
+      }
+    }
+
+    // 4. Sorted blocks (e.g. runs of 10, 100)
+    for (size_t block_len : {size_t{10}, size_t{100}}) {
+      std::vector<Key> sb_keys(num);
+      for (size_t i = 0; i < num; ++i) {
+        sb_keys[i] = static_cast<Key>(i % block_len);
+      }
+      VQSort(sb_keys.data(), num, hwy::SortAscending());
+      for (size_t i = 1; i < num; ++i) {
+        if (sb_keys[i - 1] > sb_keys[i]) {
+          HWY_ABORT("Sorted block mismatch at %zu: %.0f > %.0f\n", i,
+                    static_cast<double>(sb_keys[i - 1]),
+                    static_cast<double>(sb_keys[i]));
+        }
+      }
+    }
+  }
+}
+#endif  // VQSORT_ENABLED
+
+void TestAllPresorted() {
+#if VQSORT_ENABLED
+  TestPresortedSortAndSelectForType<uint32_t>();
+  TestPresortedSortAndSelectForType<int32_t>();
+  if (hwy::HaveInteger64()) {
+    TestPresortedSortAndSelectForType<int64_t>();
+    TestPresortedSortAndSelectForType<uint64_t>();
+  }
+  TestPresortedSortAndSelectForType<float>();
+#if HWY_HAVE_FLOAT64
+  if (hwy::VQSortHaveFloat64()) {
+    TestPresortedSortAndSelectForType<double>();
+  }
+#endif  // HWY_HAVE_FLOAT64
+#endif  // VQSORT_ENABLED
+}
+
 // Supports full/partial sort and select.
 template <class Traits>
 void TestAnySort(const std::vector<Algo>& algos, size_t num_lanes) {
@@ -501,6 +591,7 @@ namespace hwy {
 namespace {
 HWY_BEFORE_TEST(SortTest);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllSortIota);
+HWY_EXPORT_AND_TEST_P(SortTest, TestAllPresorted);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllSort);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllSelect);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllPartialSort);

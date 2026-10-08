@@ -1031,14 +1031,21 @@ HWY_API Vec128<T, N> Round(Vec128<T, N> v) {
     const T bias = ConvertScalarTo<T>(v.raw[i] < k0 ? -0.5 : 0.5);
     const TI rounded = ConvertScalarTo<TI>(v.raw[i] + bias);
     if (rounded == 0) {
-      v.raw[i] = v.raw[i] < 0 ? ConvertScalarTo<T>(-0) : k0;
+      // Not `v.raw[i] < 0`: that is false for -0, and `-0` is an integer
+      // literal, hence +0.
+      v.raw[i] = ScalarSignBit(v.raw[i]) ? ConvertScalarTo<T>(-0.0) : k0;
       continue;
     }
     const T rounded_f = ConvertScalarTo<T>(rounded);
     // Round to even
     if ((rounded & 1) &&
         ScalarAbs(rounded_f - v.raw[i]) == ConvertScalarTo<T>(0.5)) {
-      v.raw[i] = ConvertScalarTo<T>(rounded - (v.raw[i] < k0 ? -1 : 1));
+      const T even = ConvertScalarTo<T>(rounded - (v.raw[i] < k0 ? -1 : 1));
+      // Ties away from an odd +-1 reach zero (-0.5 -> -0), which the
+      // integer subtraction above loses the sign of.
+      v.raw[i] = (even == k0 && ScalarSignBit(v.raw[i]))
+                     ? ConvertScalarTo<T>(-0.0)
+                     : even;
       continue;
     }
     v.raw[i] = rounded_f;
@@ -1132,7 +1139,8 @@ HWY_API Vec128<T, N> Trunc(Vec128<T, N> v) {
     }
     const TI truncated = static_cast<TI>(v.raw[i]);
     if (truncated == 0) {
-      v.raw[i] = v.raw[i] < 0 ? -T{0} : T{0};
+      // Not `v.raw[i] < 0`: that is false for -0.
+      v.raw[i] = ScalarSignBit(v.raw[i]) ? -T{0} : T{0};
       continue;
     }
     v.raw[i] = static_cast<T>(truncated);
@@ -1160,7 +1168,13 @@ Vec128<Float, N> Ceil(Vec128<Float, N> v) {
     if (exponent >= kMantissaBits) continue;
     // |v| <= 1 => 0 or 1.
     if (exponent < 0) {
-      v.raw[i] = positive ? Float{1} : Float{-0.0};
+      // Both zeros already carry the right sign; only a negative fraction
+      // becomes -0. `positive` is false for +0, so do not write -0 here.
+      if (positive) {
+        v.raw[i] = Float{1};
+      } else if (v.raw[i] != Float{0}) {
+        v.raw[i] = Float{-0.0};
+      }
       continue;
     }
 
@@ -1197,7 +1211,12 @@ Vec128<Float, N> Floor(Vec128<Float, N> v) {
     if (exponent >= kMantissaBits) continue;
     // |v| <= 1 => -1 or 0.
     if (exponent < 0) {
-      v.raw[i] = negative ? Float(-1.0) : Float(0.0);
+      // -0 is not `negative`, and both zeros already carry the right sign.
+      if (negative) {
+        v.raw[i] = Float(-1.0);
+      } else if (v.raw[i] != Float{0}) {
+        v.raw[i] = Float(0.0);
+      }
       continue;
     }
 

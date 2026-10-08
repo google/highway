@@ -462,7 +462,7 @@ class Results {
       const double avg_concurrency = concurrency.Mean();
       // Avoid division by zero.
       const double concurrency_divisor = HWY_MAX(1.0, avg_concurrency);
-      printf("%s%-40s: %10.0f x %15.0f / %5.1f (%5zu %3zu-%3zu) = %9.6f\n",
+      printf("%s%-40s: %10.0f x %15.0f / %5.1f (%6zu %3zu-%3zu) = %9.6f\n",
              total.zone.IsInclusive() ? "(I)" : "   ", zones.Name(total.zone),
              static_cast<double>(total.num_calls), per_call, avg_concurrency,
              concurrency.Count(), concurrency.Min(), concurrency.Max(),
