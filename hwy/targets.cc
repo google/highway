@@ -78,6 +78,17 @@ static HWY_INLINE HWY_MAYBE_UNUSED CapBits getauxval(CapBits type) {
 #endif  // HWY_ARCH_*
 
 #if HWY_OS_APPLE
+
+#if HWY_ARCH_X86  // this if-else will be removed after apple arm code port
+template <class Platform>
+static HWY_INLINE HWY_MAYBE_UNUSED bool HasCpuFeature(const char* feature_name,
+                                                      Platform& platform) {
+  int result = 0;
+  size_t len = sizeof(int);
+  return (platform.SysctlByName(feature_name, &result, &len, nullptr, 0) == 0 &&
+          result != 0);
+}
+#else
 static HWY_INLINE HWY_MAYBE_UNUSED bool HasCpuFeature(
     const char* feature_name) {
   int result = 0;
@@ -85,6 +96,7 @@ static HWY_INLINE HWY_MAYBE_UNUSED bool HasCpuFeature(
   return (sysctlbyname(feature_name, &result, &len, nullptr, 0) == 0 &&
           result != 0);
 }
+#endif
 
 static HWY_INLINE HWY_MAYBE_UNUSED bool ParseU32(const char*& ptr,
                                                  uint32_t& parsed_val) {
@@ -108,11 +120,12 @@ static HWY_INLINE HWY_MAYBE_UNUSED bool ParseU32(const char*& ptr,
   return (ptr != start_ptr);
 }
 
-static HWY_INLINE HWY_MAYBE_UNUSED bool IsMacOs12_2OrLater() {
+template <class Platform>
+static HWY_INLINE HWY_MAYBE_UNUSED bool IsMacOs12_2OrLater(Platform& platform) {
   utsname uname_buf;
   ZeroBytes(&uname_buf, sizeof(utsname));
 
-  if ((uname(&uname_buf)) != 0) {
+  if ((platform.Uname(&uname_buf)) != 0) {
     return false;
   }
 
@@ -365,7 +378,8 @@ static constexpr uint64_t kGroupAVX10 =
     Bit(FeatureIndex::kVPCLMULQDQ) | Bit(FeatureIndex::kVAES) |
     Bit(FeatureIndex::kGFNI) | kGroupAVX2;
 
-static int64_t DetectTargets() {
+template <class Platform>
+static int64_t DetectTargetsImpl(HWY_MAYBE_UNUSED Platform& platform) {
   int64_t bits = 0;  // return value of supported targets.
   HWY_IF_CONSTEXPR(HWY_ARCH_X86_64) {
     bits |= HWY_SSE2;  // always present in x64
@@ -471,7 +485,8 @@ static int64_t DetectTargets() {
     // HasCpuFeature("hw.optional.avx512f") avoids false negative results
     // on x86_64 CPU's that have AVX3 support.
     const bool have_avx3_xsave_support =
-        IsMacOs12_2OrLater() && HasCpuFeature("hw.optional.avx512f");
+        IsMacOs12_2OrLater(platform) &&
+        HasCpuFeature("hw.optional.avx512f", platform);
 #endif
 
     const uint32_t xcr0 = ReadXCR0();
@@ -805,6 +820,27 @@ static int64_t DetectTargets() {
 }
 }  // namespace loongarch
 #endif  // HWY_ARCH_*
+
+#if HWY_ARCH_X86 && HWY_HAVE_RUNTIME_DISPATCH
+namespace x86 {
+#if HWY_OS_APPLE
+class Platform {
+ public:
+  int Uname(struct utsname* name) const { return uname(name); }
+  int SysctlByName(const char* name, void* oldp, size_t* oldlenp, void* newp,
+                   size_t newlen) const {
+    return sysctlbyname(name, oldp, oldlenp, newp, newlen);
+  }
+};
+#else
+class Platform {};
+#endif
+static int64_t DetectTargets() {
+  Platform platform{};
+  return DetectTargetsImpl(platform);
+}
+}  // namespace x86
+#endif
 
 // Returns targets supported by the CPU, independently of DisableTargets.
 // Factored out of SupportedTargets to make its structure more obvious. Note
