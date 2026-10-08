@@ -361,7 +361,7 @@ static constexpr uint64_t kGroupAVX10 =
     Bit(FeatureIndex::kVPCLMULQDQ) | Bit(FeatureIndex::kVAES) |
     Bit(FeatureIndex::kGFNI) | kGroupAVX2;
 
-// This hardware-specific targets detection function will not set the
+// This ISA-specific targets detection function will not set the
 // HWY_SCALAR/HWY_EMU128 bit. It also does not respect
 // HWY_CHOSEN_TARGET_MASK_TARGETS
 template <class Platform>
@@ -531,7 +531,7 @@ static int64_t DetectAdditionalSveTargets(int64_t detected_targets) {
 HWY_POP_ATTRIBUTES
 #endif
 
-// This hardware-specific targets detection function will not set the
+// This ISA-specific targets detection function will not set the
 // HWY_SCALAR/HWY_EMU128 bit. It also does not respect
 // HWY_CHOSEN_TARGET_MASK_TARGETS
 template <class Platform>
@@ -681,7 +681,7 @@ static constexpr CapBits kGroupPPC8 =
 static constexpr CapBits kGroupPPC9 = kGroupPPC8 | PPC_FEATURE2_ARCH_3_00;
 static constexpr CapBits kGroupPPC10 = kGroupPPC9 | PPC_FEATURE2_ARCH_3_1;
 
-// This hardware-specific targets detection function will not set the
+// This ISA-specific targets detection function will not set the
 // HWY_SCALAR/HWY_EMU128 bit. It also does not respect
 // HWY_CHOSEN_TARGET_MASK_TARGETS
 template <class Platform>
@@ -729,7 +729,7 @@ static constexpr CapBits kGroupZ14 = HWCAP_S390_VX | HWCAP_S390_VXE;
 static constexpr CapBits kGroupZ15 =
     HWCAP_S390_VX | HWCAP_S390_VXE | HWCAP_S390_VXRS_EXT2;
 
-// This hardware-specific targets detection function will not set the
+// This ISA-specific targets detection function will not set the
 // HWY_SCALAR/HWY_EMU128 bit. It also does not respect
 // HWY_CHOSEN_TARGET_MASK_TARGETS
 template <class Platform>
@@ -760,7 +760,7 @@ namespace rvv {
 
 using CapBits = unsigned long;  // NOLINT
 
-// This hardware-specific targets detection function will not set the
+// This ISA-specific targets detection function will not set the
 // HWY_SCALAR/HWY_EMU128 bit. It also does not respect
 // HWY_CHOSEN_TARGET_MASK_TARGETS
 template <class Platform>
@@ -813,7 +813,7 @@ namespace loongarch {
 
 using CapBits = unsigned long;  // NOLINT
 
-// This hardware-specific targets detection function will not set the
+// This ISA-specific targets detection function will not set the
 // HWY_SCALAR/HWY_EMU128 bit. It also does not respect
 // HWY_CHOSEN_TARGET_MASK_TARGETS
 template <class Platform>
