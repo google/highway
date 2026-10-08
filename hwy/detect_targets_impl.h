@@ -17,14 +17,10 @@
 #ifndef HIGHWAY_HWY_DETECT_TARGETS_IMPL_H_
 #define HIGHWAY_HWY_DETECT_TARGETS_IMPL_H_
 
-#include "hwy/targets.h"
-
-#include <stdint.h>
 #include <stdio.h>
 
 #include "hwy/base.h"
 #include "hwy/detect_targets.h"
-#include "hwy/highway.h"
 #include "hwy/x86_cpuid.h"
 
 #if HWY_ARCH_X86

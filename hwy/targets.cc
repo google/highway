@@ -14,7 +14,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "hwy/targets.h"
+
+#include <stdint.h>
+
 #include "hwy/detect_targets_impl.h"
+#include "hwy/highway.h"
 
 namespace hwy {
 
