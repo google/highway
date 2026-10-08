@@ -2151,7 +2151,7 @@ HWY_API Vec256<T> Expand(const Vec256<T> v, const Mask256<T> mask) {
 template <class D, HWY_IF_V_SIZE_D(D, 32)>
 HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
                              const TFromD<D>* HWY_RESTRICT unaligned) {
-  return Expand(LoadU(d, unaligned), mask);
+  return Expand(LoadN(d, unaligned, CountTrue(d, mask)), mask);
 }
 
 // ------------------------------ LoadInterleaved3/4
