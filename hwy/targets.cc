@@ -21,6 +21,14 @@
 #include "hwy/detect_targets_impl.h"
 #include "hwy/highway.h"
 
+#if HWY_ARCH_X86
+#include <xmmintrin.h>
+#if HWY_ARCH_X86_64 && HWY_OS_LINUX
+#include <sys/syscall.h>
+#include <unistd.h>
+#endif
+#endif
+
 namespace hwy {
 
 #if HWY_ARCH_X86 && HWY_HAVE_RUNTIME_DISPATCH

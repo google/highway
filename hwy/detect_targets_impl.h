@@ -23,15 +23,8 @@
 #include "hwy/detect_targets.h"
 #include "hwy/x86_cpuid.h"
 
-#if HWY_ARCH_X86
-#include <xmmintrin.h>
-#if HWY_ARCH_X86_64 && HWY_OS_LINUX
-#include <sys/syscall.h>
-#include <unistd.h>
-#endif
-
-#elif (HWY_ARCH_ARM || HWY_ARCH_PPC || HWY_ARCH_S390X || HWY_ARCH_RISCV || \
-       HWY_ARCH_LOONGARCH) &&                                              \
+#if (HWY_ARCH_ARM || HWY_ARCH_PPC || HWY_ARCH_S390X || HWY_ARCH_RISCV || \
+     HWY_ARCH_LOONGARCH) &&                                              \
     HWY_OS_LINUX
 // sys/auxv.h does not always include asm/hwcap.h, or define HWCAP*, hence we
 // still include this directly. See #1199.
@@ -67,7 +60,7 @@ static HWY_INLINE HWY_MAYBE_UNUSED CapBits getauxval(CapBits type) {
   switch (type) {
   case AT_HWCAP:
   case AT_HWCAP2:
-    elf_aux_info((int)type, &hwcap, sizeof(hwcap));
+    if (elf_aux_info((int)type, &hwcap, sizeof(hwcap)) != 0) hwcap = 0;
     return hwcap;
   default:
     return 0;
@@ -80,8 +73,8 @@ static HWY_INLINE HWY_MAYBE_UNUSED CapBits getauxval(CapBits type) {
 
 #if HWY_ARCH_X86  // this if-else will be removed after apple arm code port
 template <class Platform>
-static HWY_INLINE HWY_MAYBE_UNUSED bool HasCpuFeature(const char* feature_name,
-                                                      Platform& platform) {
+static HWY_INLINE HWY_MAYBE_UNUSED bool HasCpuFeature(
+    const char* feature_name, const Platform& platform) {
   int result = 0;
   size_t len = sizeof(int);
   return (platform.SysctlByName(feature_name, &result, &len, nullptr, 0) == 0 &&
@@ -120,7 +113,8 @@ static HWY_INLINE HWY_MAYBE_UNUSED bool ParseU32(const char*& ptr,
 }
 
 template <class Platform>
-static HWY_INLINE HWY_MAYBE_UNUSED bool IsMacOs12_2OrLater(Platform& platform) {
+static HWY_INLINE HWY_MAYBE_UNUSED bool IsMacOs12_2OrLater(
+    const Platform& platform) {
   utsname uname_buf;
   ZeroBytesInline(&uname_buf, sizeof(utsname));
 
@@ -168,7 +162,7 @@ constexpr HWY_INLINE_VAR uint32_t kXCR0_TILEDATA = 1u << 18;
 
 // Returns the lower 32 bits of extended control register 0.
 // Requires CPU support for "OSXSAVE" (see below). Compare against kXCR0_*.
-static uint32_t ReadXCR0() {
+static uint32_t HWY_MAYBE_UNUSED ReadXCR0() {
 #if HWY_COMPILER_MSVC
   return static_cast<uint32_t>(_xgetbv(0));
 #else   // HWY_COMPILER_MSVC
@@ -181,12 +175,12 @@ static uint32_t ReadXCR0() {
 #endif  // HWY_COMPILER_MSVC
 }
 
-static bool HasYMM(uint32_t xcr0) {
+static bool HWY_MAYBE_UNUSED HasYMM(uint32_t xcr0) {
   constexpr uint32_t kXMM_YMM = kXCR0_XMM | kXCR0_YMM;
   return (xcr0 & kXMM_YMM) == kXMM_YMM;
 }
 
-static bool HasZMM(uint32_t xcr0) {
+static bool HWY_MAYBE_UNUSED HasZMM(uint32_t xcr0) {
   constexpr uint32_t kZMM = kXCR0_OPMASK | kXCR0_ZMM_HI | kXCR0_REGS32;
   return (xcr0 & kZMM) == kZMM;
 }
@@ -255,7 +249,7 @@ static HWY_INLINE constexpr uint64_t Bit(FeatureIndex index) {
 }
 
 // Returns bit array of FeatureIndex from CPUID feature flags.
-static uint64_t FlagsFromCPUID() {
+static uint64_t HWY_MAYBE_UNUSED FlagsFromCPUID() {
   uint64_t flags = 0;  // return value
   uint32_t abcd[4];
   Cpuid(0, 0, abcd);
@@ -377,8 +371,11 @@ static constexpr uint64_t kGroupAVX10 =
     Bit(FeatureIndex::kVPCLMULQDQ) | Bit(FeatureIndex::kVAES) |
     Bit(FeatureIndex::kGFNI) | kGroupAVX2;
 
+// This hardware-specific targets detection function will not set the
+// HWY_SCALAR/HWY_EMU128 bit. It also does not respect
+// HWY_CHOSEN_TARGET_MASK_TARGETS
 template <class Platform>
-static int64_t DetectTargetsImpl(HWY_MAYBE_UNUSED Platform& platform) {
+static int64_t DetectTargetsImpl(HWY_MAYBE_UNUSED const Platform& platform) {
   int64_t bits = 0;  // return value of supported targets.
   HWY_IF_CONSTEXPR(HWY_ARCH_X86_64) {
     bits |= HWY_SSE2;  // always present in x64
@@ -822,4 +819,4 @@ static int64_t DetectTargets() {
 
 }  // namespace hwy
 
-#endif
+#endif  // HIGHWAY_HWY_DETECT_TARGETS_IMPL_H_
