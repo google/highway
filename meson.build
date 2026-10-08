@@ -80,6 +80,7 @@ hwy_headers = files(
     'hwy/cache_control.h',
     'hwy/detect_compiler_arch.h',  # private
     'hwy/detect_targets.h',  # private
+    'hwy/detect_targets_impl.h',
     'hwy/foreach_target.h',
     'hwy/highway_export.h',
     'hwy/highway.h',

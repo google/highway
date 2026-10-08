@@ -163,6 +163,7 @@ cc_library(
     textual_hdrs = [
         # These are textual because config macros influence them:
         "hwy/detect_targets.h",  # private
+        "hwy/detect_targets_impl.h",  # public
         "hwy/targets.h",
         # This .cc file #includes itself through foreach_target.h
         "hwy/per_target.cc",
