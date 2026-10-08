@@ -50,7 +50,7 @@ static int64_t DetectTargets() {
   return DetectTargetsImpl(platform);
 }
 }  // namespace x86
-#endif
+#endif  // HWY_ARCH_*
 
 // Returns targets supported by the CPU, independently of DisableTargets.
 // Factored out of SupportedTargets to make its structure more obvious. Note
