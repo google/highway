@@ -30,6 +30,7 @@
 #include <utility>
 #include <vector>
 
+#include "hwy/aligned_allocator.h"
 #include "hwy/base.h"
 #include "hwy/cache_control.h"
 #include "hwy/contrib/btree/btree_nodes.h"
@@ -42,6 +43,9 @@
 #define HIGHWAY_HWY_CONTRIB_BTREE_BTREE_INL_H_
 #endif
 
+#include "hwy/contrib/algo/find-inl.h"
+#include "hwy/contrib/algo/is_sorted-inl.h"
+#include "hwy/contrib/sort/vqsort-inl.h"
 #include "hwy/highway.h"
 
 static_assert(HWY_CXX_LANG >= 201703L, "requires C++17 or later.");
@@ -52,6 +56,15 @@ static_assert(HWY_CXX_LANG >= 201703L, "requires C++17 or later.");
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+
+// Comparator for IsSorted that checks strict ascending order (in[i] < in[i+1])
+// by flagging any adjacent pair where in[i+1] <= in[i].
+struct IsSortedLessEqual {
+  template <class D, class V>
+  Mask<D> operator()(D /*d*/, V a, V b) const {
+    return Le(a, b);
+  }
+};
 
 // -----------------------------------------------------------------------------
 // Traits Definitions
@@ -1926,60 +1939,146 @@ class BTree {
   //       read-heavy or static lookup workloads.
   //     * 0.75f - 0.85f: Leaves headroom in leaves to accommodate subsequent
   //       dynamic insertions without immediate splits.
-  static BTree Build(const KeyT* sorted_keys, size_t num_keys,
+  static BTree Build(const KeyT* keys, size_t num_keys,
                      float fill_ratio = 1.0f) {
     static_assert(!Traits::kIsMap, "Build with keys only is for Sets");
-    if constexpr (IsSigned<KeyT>()) {
-      // Allocate temporary contiguous storage buffer to encode signed keys
-      // upfront. Although heap-allocated, this buffer is transient (freed
-      // immediately upon Build return), keeping the builder algorithm in
-      // BuildInternal uniform and simple.
-      std::vector<StorageKeyT> ukeys(num_keys);
-      for (size_t i = 0; i < num_keys; ++i) {
-        ukeys[i] = KeyCodec<KeyT>::ToStorage(sorted_keys[i]);
+    if (HWY_UNLIKELY(num_keys == 0)) return BTree();
+    const ScalableTag<KeyT> d_key;
+    if (IsSorted(d_key, keys, num_keys, IsSortedLessEqual())) {
+      if constexpr (IsSigned<KeyT>()) {
+        // Allocate temporary contiguous storage buffer to encode signed keys
+        // upfront. Although heap-allocated, this buffer is transient (freed
+        // immediately upon Build return), keeping the builder algorithm in
+        // BuildInternal uniform and simple.
+        AlignedFreeUniquePtr<StorageKeyT[]> ukeys =
+            AllocateAligned<StorageKeyT>(num_keys);
+        for (size_t i = 0; i < num_keys; ++i) {
+          ukeys[i] = KeyCodec<KeyT>::ToStorage(keys[i]);
+        }
+        return BuildInternal(ukeys.get(),
+                             static_cast<const mapped_type*>(nullptr), num_keys,
+                             fill_ratio);
+      } else {
+        return BuildInternal(keys, static_cast<const mapped_type*>(nullptr),
+                             num_keys, fill_ratio);
       }
-      return BuildInternal(ukeys.data(),
-                           static_cast<const mapped_type*>(nullptr), num_keys,
-                           fill_ratio);
-    } else {
-      return BuildInternal(sorted_keys,
-                           static_cast<const mapped_type*>(nullptr), num_keys,
-                           fill_ratio);
     }
+
+    // Path when input is unsorted and/or contains duplicates.
+    AlignedFreeUniquePtr<StorageKeyT[]> ukeys =
+        AllocateAligned<StorageKeyT>(num_keys);
+    if constexpr (IsSigned<KeyT>()) {
+      for (size_t i = 0; i < num_keys; ++i) {
+        ukeys[i] = KeyCodec<KeyT>::ToStorage(keys[i]);
+      }
+    } else {
+      std::memcpy(ukeys.get(), keys, num_keys * sizeof(StorageKeyT));
+    }
+
+    VQSortStatic(ukeys.get(), num_keys, SortAscending());
+    const ScalableTag<StorageKeyT> d_ukey;
+    const size_t num_unique = Unique(d_ukey, ukeys.get(), num_keys);
+    return BuildInternal(ukeys.get(), static_cast<const mapped_type*>(nullptr),
+                         num_unique, fill_ratio);
   }
 
-  // Constructs a BTreeMap from pre-sorted arrays of unique keys and
-  // values in O(N) time.
+  // Constructs a BTreeMap from arrays of keys and values in O(N) time if
+  // strictly ascending, or O(N log N) time via VQSort if unsorted/duplicates
+  // are present (retaining the first occurrence of each duplicate key).
   //
   // Example usage:
-  //   std::vector<uint32_t> sorted_keys = {10, 20, 30, 40, 50};
-  //   std::vector<uint64_t> sorted_vals = {100, 200, 300, 400, 500};
+  //   std::vector<uint32_t> keys = {10, 20, 30, 40, 50};
+  //   std::vector<uint64_t> vals = {100, 200, 300, 400, 500};
   //   auto map = BTreeMap<uint32_t, uint64_t>::Build(
-  //       sorted_keys.data(), sorted_vals.data(), sorted_keys.size());
+  //       keys.data(), vals.data(), keys.size());
   //   bool found = map.contains(30);
   //
   // Parameters:
-  // - sorted_keys: Pointer to strictly ascending keys.
-  // - sorted_values: Pointer to corresponding values.
+  // - keys: Pointer to keys.
+  // - values: Pointer to corresponding values.
   // - num_keys: Number of key-value pairs.
   // - fill_ratio: Target fill factor per leaf node (between 0.1 and 1.0).
   template <typename V = mapped_type,
             typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
-  static BTree Build(const KeyT* sorted_keys, const V* sorted_values,
-                     size_t num_keys, float fill_ratio = 1.0f) {
-    if constexpr (IsSigned<KeyT>()) {
-      // Allocate temporary contiguous storage buffer to encode signed keys
-      // upfront. Although heap-allocated, this buffer is transient (freed
-      // immediately upon Build return), keeping the builder algorithm in
-      // BuildInternal uniform and simple.
-      std::vector<StorageKeyT> ukeys(num_keys);
-      for (size_t i = 0; i < num_keys; ++i) {
-        ukeys[i] = KeyCodec<KeyT>::ToStorage(sorted_keys[i]);
+  static BTree Build(const KeyT* keys, const V* values, size_t num_keys,
+                     float fill_ratio = 1.0f) {
+    if (HWY_UNLIKELY(num_keys == 0)) return BTree();
+    const ScalableTag<KeyT> d_key;
+    if (IsSorted(d_key, keys, num_keys, IsSortedLessEqual())) {
+      if constexpr (IsSigned<KeyT>()) {
+        // Allocate temporary contiguous storage buffer to encode signed keys
+        // upfront. Although heap-allocated, this buffer is transient (freed
+        // immediately upon Build return), keeping the builder algorithm in
+        // BuildInternal uniform and simple.
+        AlignedFreeUniquePtr<StorageKeyT[]> ukeys =
+            AllocateAligned<StorageKeyT>(num_keys);
+        for (size_t i = 0; i < num_keys; ++i) {
+          ukeys[i] = KeyCodec<KeyT>::ToStorage(keys[i]);
+        }
+        return BuildInternal(ukeys.get(), values, num_keys, fill_ratio);
+      } else {
+        return BuildInternal(keys, values, num_keys, fill_ratio);
       }
-      return BuildInternal(ukeys.data(), sorted_values, num_keys, fill_ratio);
-    } else {
-      return BuildInternal(sorted_keys, sorted_values, num_keys, fill_ratio);
     }
+
+    // Path when input is unsorted and/or contains duplicates.
+    // Pack (StorageKeyT, original_idx) so VQSortStatic sorts by key and
+    // breaks ties by ascending original_idx (first-occurrence wins).
+    AlignedFreeUniquePtr<StorageKeyT[]> ukeys =
+        AllocateAligned<StorageKeyT>(num_keys);
+    AlignedFreeUniquePtr<V[]> uvals = AllocateAligned<V>(num_keys);
+    size_t num_unique = 0;
+
+    if constexpr (sizeof(StorageKeyT) == 4) {
+      if (HWY_LIKELY(num_keys <= std::numeric_limits<uint32_t>::max())) {
+        AlignedFreeUniquePtr<uint64_t[]> packed =
+            AllocateAligned<uint64_t>(num_keys);
+        for (size_t i = 0; i < num_keys; ++i) {
+          const uint64_t sk = KeyCodec<KeyT>::ToStorage(keys[i]);
+          packed[i] = (sk << 32) | static_cast<uint32_t>(i);
+        }
+        VQSortStatic(packed.get(), num_keys, SortAscending());
+
+        StorageKeyT prev_key = static_cast<StorageKeyT>(packed[0] >> 32);
+        ukeys[0] = prev_key;
+        uvals[0] = values[static_cast<uint32_t>(packed[0])];
+        num_unique = 1;
+        for (size_t i = 1; i < num_keys; ++i) {
+          const StorageKeyT k = static_cast<StorageKeyT>(packed[i] >> 32);
+          if (k != prev_key) {
+            prev_key = k;
+            ukeys[num_unique] = k;
+            uvals[num_unique] = values[static_cast<uint32_t>(packed[i])];
+            ++num_unique;
+          }
+        }
+        return BuildInternal(ukeys.get(), uvals.get(), num_unique, fill_ratio);
+      }
+    }
+
+    AlignedFreeUniquePtr<uint128_t[]> packed =
+        AllocateAligned<uint128_t>(num_keys);
+    for (size_t i = 0; i < num_keys; ++i) {
+      packed[i] = uint128_t{
+          .lo = static_cast<uint64_t>(i),
+          .hi = static_cast<uint64_t>(KeyCodec<KeyT>::ToStorage(keys[i]))};
+    }
+    VQSortStatic(packed.get(), num_keys, SortAscending());
+
+    StorageKeyT prev_key = static_cast<StorageKeyT>(packed[0].hi);
+    ukeys[0] = prev_key;
+    uvals[0] = values[packed[0].lo];
+    num_unique = 1;
+    for (size_t i = 1; i < num_keys; ++i) {
+      const StorageKeyT k = static_cast<StorageKeyT>(packed[i].hi);
+      if (k != prev_key) {
+        prev_key = k;
+        ukeys[num_unique] = k;
+        uvals[num_unique] = values[packed[i].lo];
+        ++num_unique;
+      }
+    }
+    return BuildInternal(ukeys.get(), uvals.get(), num_unique, fill_ratio);
   }
 
   // ---------------------------------------------------------------------------

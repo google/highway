@@ -650,6 +650,7 @@ void DoBulkBuildAndBatchTest(size_t n, uint32_t seed) {
   static constexpr bool kIsMap = TreeT::kIsMap;
 
   auto values = GenerateValuesWithSeed<value_type>(n, n * 50, seed);
+  auto unsorted_values = values;
   SortUniqueValues(values);
   n = values.size();
 
@@ -759,6 +760,36 @@ void DoBulkBuildAndBatchTest(size_t n, uint32_t seed) {
           }
         }
       }
+    }
+  }
+
+  // Verify Build with unsorted unique inputs and unsorted duplicate inputs
+  // (ensuring first-occurrence wins for Maps, matching
+  // std::map/absl::btree_map).
+  {
+    auto unsorted_with_dups = unsorted_values;
+    for (size_t i = 0; i < unsorted_values.size(); i += 2) {
+      if constexpr (kIsMap) {
+        using mapped_type = typename TreeT::mapped_type;
+        unsorted_with_dups.push_back(
+            {unsorted_values[i].first,
+             static_cast<mapped_type>(unsorted_values[i].second +
+                                      static_cast<mapped_type>(77))});
+      } else {
+        unsorted_with_dups.push_back(unsorted_values[i]);
+      }
+    }
+
+    for (const auto& input_vec : {unsorted_values, unsorted_with_dups}) {
+      StdRefT dup_ref(input_vec.begin(), input_vec.end());
+      TreeT built = BuildTreeFromValues<TreeT>(input_vec, 1.0f);
+      HWY_ASSERT_EQ(built.size(), dup_ref.size());
+      BTreeChecker<TreeT, StdRefT>::VerifyPhysicalTree(built);
+      auto r_it = dup_ref.begin();
+      for (auto t_it = built.begin(); t_it != built.end(); ++t_it, ++r_it) {
+        VerifyEqualElements(t_it, r_it);
+      }
+      HWY_ASSERT(r_it == dup_ref.end());
     }
   }
 }

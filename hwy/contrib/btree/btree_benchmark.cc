@@ -100,6 +100,7 @@ void RunBenchmarkSuite(size_t num_keys) {
   for (size_t i = 0; i < num_keys; ++i) {
     keys.push_back(static_cast<KeyT>((i + 1) * 10));
   }
+  std::shuffle(keys.begin(), keys.end(), bitgen);
 
   // 1. Build Containers
   const size_t std_before = AllocatedBefore();
@@ -399,9 +400,12 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   for (size_t i = 0; i < num_keys; ++i) {
     KeyT k = static_cast<KeyT>((i + 1) * 10);
     ValueT v = static_cast<ValueT>((i + 1) * 100);
+    kv_pairs.push_back({k, v});
+  }
+  std::shuffle(kv_pairs.begin(), kv_pairs.end(), bitgen);
+  for (const auto& [k, v] : kv_pairs) {
     keys.push_back(k);
     vals.push_back(v);
-    kv_pairs.push_back({k, v});
   }
 
   // 1. Build Containers
@@ -761,7 +765,7 @@ static void PrintBenchmarkLegend() {
       "  * Memory (B/k, B/p) : Total heap allocation measured via TCMalloc "
       "(bytes per key / pair) on the bulk-loaded tree.\n");
   printf(
-      "  * Build (ms)        : Bulk-construction latency from sorted arrays "
+      "  * Build (ms)        : Bulk-construction latency from unsorted arrays "
       "(dense keys with uniform step delta = 10, fill_ratio = 1.0).\n");
   printf(
       "  * Find (ns)         : Serial point lookup latency on the bulk-loaded "
