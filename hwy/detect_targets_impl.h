@@ -71,7 +71,6 @@ static HWY_INLINE HWY_MAYBE_UNUSED CapBits getauxval(CapBits type) {
 
 #if HWY_OS_APPLE
 
-#if HWY_ARCH_X86  // this if-else will be removed after apple arm code port
 template <class Platform>
 static HWY_INLINE HWY_MAYBE_UNUSED bool HasCpuFeature(
     const char* feature_name, const Platform& platform) {
@@ -80,15 +79,6 @@ static HWY_INLINE HWY_MAYBE_UNUSED bool HasCpuFeature(
   return (platform.SysctlByName(feature_name, &result, &len, nullptr, 0) == 0 &&
           result != 0);
 }
-#else
-static HWY_INLINE HWY_MAYBE_UNUSED bool HasCpuFeature(
-    const char* feature_name) {
-  int result = 0;
-  size_t len = sizeof(int);
-  return (sysctlbyname(feature_name, &result, &len, nullptr, 0) == 0 &&
-          result != 0);
-}
-#endif
 
 static HWY_INLINE HWY_MAYBE_UNUSED bool ParseU32(const char*& ptr,
                                                  uint32_t& parsed_val) {
@@ -541,14 +531,15 @@ static int64_t DetectAdditionalSveTargets(int64_t detected_targets) {
 HWY_POP_ATTRIBUTES
 #endif
 
-static int64_t DetectTargets() {
+template <class Platform>
+static int64_t DetectTargetsImpl(const Platform& platform) {
   int64_t bits = 0;  // return value of supported targets.
 
 #if HWY_OS_APPLE
   const CapBits hw = 0UL;
 #else
   // For Android, this has been supported since API 20 (2014).
-  const CapBits hw = getauxval(AT_HWCAP);
+  const CapBits hw = platform.GetAuxVal(AT_HWCAP);
 #endif
   (void)hw;
 
@@ -556,16 +547,16 @@ static int64_t DetectTargets() {
   bits |= HWY_NEON_WITHOUT_AES;  // aarch64 always has NEON and VFPv4..
 
 #if HWY_OS_APPLE
-  if (HasCpuFeature("hw.optional.arm.FEAT_AES")) {
+  if (HasCpuFeature("hw.optional.arm.FEAT_AES", platform)) {
     bits |= HWY_NEON;
 
     // Some macOS versions report AdvSIMD_HPFPCvt under a different key.
     // Check both known variants for compatibility.
-    if ((HasCpuFeature("hw.optional.AdvSIMD_HPFPCvt") ||
-         HasCpuFeature("hw.optional.arm.AdvSIMD_HPFPCvt")) &&
-        HasCpuFeature("hw.optional.arm.FEAT_DotProd") &&
-        HasCpuFeature("hw.optional.arm.FEAT_BF16") &&
-        HasCpuFeature("hw.optional.arm.FEAT_I8MM")) {
+    if ((HasCpuFeature("hw.optional.AdvSIMD_HPFPCvt", platform) ||
+         HasCpuFeature("hw.optional.arm.AdvSIMD_HPFPCvt", platform)) &&
+        HasCpuFeature("hw.optional.arm.FEAT_DotProd", platform) &&
+        HasCpuFeature("hw.optional.arm.FEAT_BF16", platform) &&
+        HasCpuFeature("hw.optional.arm.FEAT_I8MM", platform)) {
       bits |= HWY_NEON_BF16;
     }
   }
@@ -576,7 +567,7 @@ static int64_t DetectTargets() {
     bits |= HWY_NEON;
 
 #if defined(HWCAP_ASIMDHP) && defined(HWCAP_ASIMDDP) && defined(HWCAP2_BF16)
-    const CapBits hw2 = getauxval(AT_HWCAP2);
+    const CapBits hw2 = platform.GetAuxVal(AT_HWCAP2);
     constexpr CapBits kGroupF16Dot = HWCAP_ASIMDHP | HWCAP_ASIMDDP;
     constexpr CapBits kGroupBF16 = HWCAP2_BF16;
     if ((hw & kGroupF16Dot) == kGroupF16Dot &&
@@ -607,7 +598,7 @@ static int64_t DetectTargets() {
 #endif
 
   constexpr CapBits kGroupSVE2 = HWCAP2_SVE2 | HWCAP2_SVEAES;
-  const CapBits hw2 = getauxval(AT_HWCAP2);
+  const CapBits hw2 = platform.GetAuxVal(AT_HWCAP2);
   if ((hw2 & kGroupSVE2) == kGroupSVE2) {
     bits |= HWY_SVE2;
   }

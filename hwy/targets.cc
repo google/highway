@@ -50,6 +50,27 @@ static int64_t DetectTargets() {
   return DetectTargetsImpl(platform);
 }
 }  // namespace x86
+#elif HWY_ARCH_ARM && HWY_HAVE_RUNTIME_DISPATCH
+namespace arm {
+#if HWY_OS_APPLE
+class Platform {
+ public:
+  int SysctlByName(const char* name, void* oldp, size_t* oldlenp, void* newp,
+                   size_t newlen) const {
+    return sysctlbyname(name, oldp, oldlenp, newp, newlen);
+  }
+};
+#else
+class Platform {
+ public:
+  unsigned long GetAuxVal(unsigned long type) const { return getauxval(type); }
+};
+#endif
+static int64_t DetectTargets() {
+  Platform platform{};
+  return DetectTargetsImpl(platform);
+}
+}  // namespace arm
 #endif  // HWY_ARCH_*
 
 // Returns targets supported by the CPU, independently of DisableTargets.
