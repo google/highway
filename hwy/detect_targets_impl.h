@@ -729,11 +729,15 @@ static constexpr CapBits kGroupZ14 = HWCAP_S390_VX | HWCAP_S390_VXE;
 static constexpr CapBits kGroupZ15 =
     HWCAP_S390_VX | HWCAP_S390_VXE | HWCAP_S390_VXRS_EXT2;
 
-static int64_t DetectTargets() {
+// This hardware-specific targets detection function will not set the
+// HWY_SCALAR/HWY_EMU128 bit. It also does not respect
+// HWY_CHOSEN_TARGET_MASK_TARGETS
+template <class Platform>
+static int64_t DetectTargetsImpl(HWY_MAYBE_UNUSED const Platform& platform) {
   int64_t bits = 0;
 
 #if defined(AT_HWCAP)
-  const CapBits hw = getauxval(AT_HWCAP);
+  const CapBits hw = platform.GetAuxVal(AT_HWCAP);
 
   if ((hw & kGroupZ14) == kGroupZ14) {
     bits |= HWY_Z14;
