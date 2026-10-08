@@ -1768,6 +1768,170 @@ HWY_NOINLINE void PrintMinMax(D d, Traits st, const T* HWY_RESTRICT keys,
   }
 }
 
+// Returns true if the concentrated samples in `buf` have at most 1 inversion,
+// indicating ordered or sorted-block input.
+template <class Traits, typename T>
+HWY_INLINE bool SampleIsPresorted(Traits st, const T* HWY_RESTRICT buf) {
+  constexpr size_t kSampleLanes = Constants::SampleLanes<T>();
+  constexpr size_t N1 = st.LanesPerKey();
+  size_t inversions = 0;
+  HWY_UNROLL(1)
+  for (size_t i = 0; i + N1 < kSampleLanes; i += N1) {
+    inversions += st.Compare1(buf + i + N1, buf + i);
+  }
+  return inversions <= 1;
+}
+
+// Returns true if `keys[0, num)` is already sorted according to `st.Compare`.
+template <class D, class Traits, typename T>
+HWY_INLINE bool IsAlreadySorted(D d, Traits st, const T* HWY_RESTRICT keys,
+                                size_t num) {
+  constexpr size_t N1 = st.LanesPerKey();
+  const size_t N = Lanes(d);
+  HWY_DASSERT(num >= N + N1);
+
+  size_t i = 0;
+  for (; i <= num - N - N1; i += N) {
+    const auto bad =
+        st.Compare(d, LoadU(d, keys + i + N1), LoadU(d, keys + i));
+    if (HWY_UNLIKELY(!AllFalse(d, bad))) return false;
+  }
+  if (HWY_LIKELY(i != num - N1)) {
+    const auto bad = st.Compare(d, LoadU(d, keys + num - N),
+                                LoadU(d, keys + num - N - N1));
+    if (HWY_UNLIKELY(!AllFalse(d, bad))) return false;
+  }
+  return true;
+}
+
+// Returns true if `keys` is already partitioned at rank `k`.
+template <class Traits, typename T>
+HWY_INLINE bool IsAlreadyPartitioned(Traits st, const T* HWY_RESTRICT keys,
+                                     size_t num, size_t k) {
+  constexpr size_t N1 = st.LanesPerKey();
+  if (num <= N1 || k >= num) return true;
+  const T* const pivot = keys + k;
+
+  for (size_t i = 0; i < k; i += N1) {
+    if (st.Compare1(pivot, keys + i)) {
+      return false;
+    }
+  }
+  for (size_t i = k + N1; i < num; i += N1) {
+    if (st.Compare1(keys + i, pivot)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+template <class Traits, typename T>
+HWY_NOINLINE void MedianOf3InPlace(Traits st, T* HWY_RESTRICT a,
+                                   T* HWY_RESTRICT b, T* HWY_RESTRICT c) {
+  if (st.Compare1(b, a)) st.Swap(a, b);
+  if (st.Compare1(c, b)) {
+    st.Swap(b, c);
+    if (st.Compare1(b, a)) st.Swap(a, b);
+  }
+}
+
+// Scalar introsort/introselect fallback for near-sorted inputs on narrow vector targets.
+// If k == ~size_t{0}, sorts the entire range; otherwise selects the k-th element.
+template <class D, class Traits, typename T>
+HWY_NOINLINE void ScalarSortOrSelect(D d, Traits st, T* HWY_RESTRICT keys,
+                                     size_t num, T* HWY_RESTRICT buf,
+                                     size_t max_depth,
+                                     size_t k = ~size_t{0}) {
+  constexpr size_t N1 = st.LanesPerKey();
+  const size_t base_case_num = Constants::BaseCaseNumLanes(Lanes(d));
+  while (num > base_case_num) {
+    if (max_depth == 0) {
+      if (k == ~size_t{0}) {
+        HeapSort(st, keys, num);
+      } else {
+        HeapSelect(st, keys, num, k);
+      }
+      return;
+    }
+    --max_depth;
+
+    const size_t mid = (num / (2 * N1)) * N1;
+    MedianOf3InPlace(st, keys, keys + mid, keys + num - N1);
+
+    HWY_ALIGN T pivot[2];
+    for (size_t p = 0; p < N1; ++p) pivot[p] = keys[mid + p];
+
+    size_t i = 0;
+    size_t j = num - N1;
+    while (true) {
+      while (i < num - N1 && st.Compare1(keys + i, pivot)) i += N1;
+      while (j > 0 && st.Compare1(pivot, keys + j)) j -= N1;
+      if (i >= j) break;
+      st.Swap(keys + i, keys + j);
+      i += N1;
+      if (j < N1) break;
+      j -= N1;
+    }
+
+    size_t split = (i == j) ? i + N1 : i;
+    if (split == 0) split = N1;
+    if (split >= num) split = num - N1;
+
+    if (k == ~size_t{0}) {
+      if (split < num - split) {
+        ScalarSortOrSelect(d, st, keys, split, buf, max_depth, k);
+        keys += split;
+        num -= split;
+      } else {
+        ScalarSortOrSelect(d, st, keys + split, num - split, buf, max_depth, k);
+        num = split;
+      }
+    } else {
+      if (k < split) {
+        num = split;
+      } else {
+        keys += split;
+        num -= split;
+        k -= split;
+      }
+    }
+  }
+  BaseCase(d, st, keys, num, buf);
+}
+
+// Returns true if presortedness was detected and the input was handled
+// (either already sorted/partitioned, or finished via scalar fallback).
+template <class D, class Traits, typename T>
+HWY_NOINLINE bool TryPresorted(D d, Traits st, T* HWY_RESTRICT keys,
+                               size_t num, T* HWY_RESTRICT buf,
+                               size_t remaining_levels,
+                               size_t k = ~size_t{0}) {
+#if HWY_MIN_BYTES <= 16
+  constexpr bool kNarrowVector =
+      (sizeof(T) >= 4) && (MaxLanes(d) / st.LanesPerKey() <= 4);
+  HWY_IF_CONSTEXPR(kNarrowVector) {
+    if (HWY_UNLIKELY(remaining_levels >= 49 && SampleIsPresorted(st, buf))) {
+      if (IsAlreadySorted(d, st, keys, num)) {
+        return true;
+      }
+      if (k != ~size_t{0} && IsAlreadyPartitioned(st, keys, num, k)) {
+        return true;
+      }
+      ScalarSortOrSelect(d, st, keys, num, buf, remaining_levels, k);
+      return true;
+    }
+  }
+#endif  // HWY_MIN_BYTES <= 16
+  (void)d;
+  (void)st;
+  (void)keys;
+  (void)num;
+  (void)buf;
+  (void)remaining_levels;
+  (void)k;
+  return false;
+}
+
 template <RecurseMode mode, class D, class Traits, typename T>
 HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
                           const size_t num, T* HWY_RESTRICT buf,
@@ -1821,6 +1985,11 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
     // tempting to do a 3-way partition (to avoid moving the =pivot keys a
     // second time), but that is a net loss due to the extra comparisons.
   } else {
+    if (TryPresorted(d, st, keys, num, buf, remaining_levels,
+                     mode == RecurseMode::kSort ? ~size_t{0} : k)) {
+      return;
+    }
+
     SortSamples(d, st, buf);
 
     // Not supported for key-value types because two 'keys' may be equivalent

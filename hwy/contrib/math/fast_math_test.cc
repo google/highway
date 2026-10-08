@@ -45,11 +45,29 @@ template <class T, class D, class Func>
 HWY_NOINLINE void VerifyWorstCases(D d, double (*ref_fn)(double), Func fast_fn,
                                    const uint32_t* bits_list, size_t count,
                                    double max_rel_err) {
+  if (HWY_MATH_TEST_EXCESS_PRECISION) {
+    return;
+  }
   for (size_t i = 0; i < count; ++i) {
     const T x = static_cast<T>(BitCastScalar<float>(bits_list[i]));
     const double expected = ref_fn(static_cast<double>(x));
+
+    // Skip small inputs and outputs on armv7, it flushes subnormals to zero.
+#if HWY_TARGET <= HWY_NEON_WITHOUT_AES && HWY_ARCH_ARM_V7
+    if ((std::abs(x) < 1e-37f) || (std::abs(expected) < 1e-37f)) {
+      continue;
+    }
+#endif
+
     const double actual = static_cast<double>(GetLane(fast_fn(d, Set(d, x))));
     const double rel_err = std::abs(actual - expected) / std::abs(expected);
+    if (rel_err > max_rel_err) {
+      HWY_WARN(
+          "%s: WorstCase[%zu](%E) expected %E actual %E rel %E max rel "
+          "%E\n",
+          hwy::TypeName(T(), Lanes(d)).c_str(), i, static_cast<double>(x),
+          expected, actual, rel_err, max_rel_err);
+    }
     HWY_ASSERT(rel_err <= max_rel_err);
   }
 }

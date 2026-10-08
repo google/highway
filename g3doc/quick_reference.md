@@ -1515,11 +1515,12 @@ encoding depends on the platform).
     true.
 
 *   <code>M **OrderedDemote2MasksTo**(DTo, DFrom, M2, M2)</code>: returns a mask
-    whose `LowerHalf` is the first argument and whose `UpperHalf` is the second
-    argument; `M2` is `Mask<Half<DFrom>>`; `DTo` is `Repartition<TTo, DFrom>`.
+    whose `LowerHalf` corresponds to the first argument and whose `UpperHalf`
+    corresponds to the second argument; `M2` is `Mask<DFrom>`; `DTo` is
+    `Repartition<TTo, DFrom>`.
 
     OrderedDemote2MasksTo requires that `sizeof(TFromD<DTo>) ==
-    sizeof(TFromD<DFrom>) * 2` be true.
+    sizeof(TFromD<DFrom>) / 2` be true.
 
     `OrderedDemote2MasksTo(d_to, d_from, a, b)` is equivalent to
     `MaskFromVec(BitCast(d_to, OrderedDemote2To(di_to, va, vb)))`, where `va` is
@@ -2565,7 +2566,8 @@ Ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
 *   <code>V **CombineShiftRightLanes**&lt;int&gt;(D, V hi, V lo)</code>: returns
     a vector of *blocks* each the result of shifting two concatenated *blocks*
     `hi[i] || lo[i]` right by `int` lanes \[1, 16/sizeof(T)). `D` is
-    `DFromV<V>`.
+    `DFromV<V>`. For shifting across the whole vector rather than per block, see
+    `CombineSlideDownLanes`.
 
 #### Other fixed-pattern permutations within blocks
 
@@ -2830,6 +2832,16 @@ aligned!
 
     The results of `SlideDownBlocks<kBlocks>(d, v)` is implementation-defined if
     `kBlocks >= Blocks(d)` is true.
+
+*   <code>V **CombineSlideDownLanes**&lt;size_t kLanes&gt;(D d, V hi, V
+    lo)</code>: returns the result of sliding the concatenated vector `hi || lo`
+    down (shifting right) across the whole vector by `kLanes` lanes.
+
+    `kLanes` must be in `[1, MaxLanes(d))`, and `kLanes < Lanes(d)` must hold at
+    runtime. Only available if `HWY_TARGET != HWY_SCALAR`.
+
+    In other words, `result[i] = (i + kLanes < Lanes(d)) ? lo[i + kLanes] :
+    hi[i + kLanes - Lanes(d)]`.
 
 #### Other fixed-pattern across blocks
 
@@ -3130,7 +3142,7 @@ supported for the `HWY_SCALAR` target.
 *   `HWY_REGISTERS` expands to the number of architectural vector registers
     available on the current target.
 
-*   `HWY_MAX_BYTES` is an upper bound on the size of a full vector, suitable for
+*   `HWY_MAX_BYTES` is an upper bound on the size of any vector, suitable for
     use in `#if` expressions. It is equal to the vector size unless
     `HWY_HAVE_SCALABLE` or `HWY_TARGET == HWY_SCALAR`. As with the other macros
     here, beware that this is only an upper bound for the current target. For

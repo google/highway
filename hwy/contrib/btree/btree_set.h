@@ -498,6 +498,9 @@ void swap(BTreeSet<KeyT>& a, BTreeSet<KeyT>& b) noexcept {
   a.swap(b);
 }
 
+template <typename KeyT>
+using btree_set = BTreeSet<KeyT>;
+
 }  // namespace hwy
 
 #endif  // HIGHWAY_HWY_CONTRIB_BTREE_BTREE_SET_H_

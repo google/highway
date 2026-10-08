@@ -659,6 +659,9 @@ void swap(BTreeMap<KeyT, ValueT>& a, BTreeMap<KeyT, ValueT>& b) noexcept {
   a.swap(b);
 }
 
+template <typename KeyT, typename ValueT>
+using btree_map = BTreeMap<KeyT, ValueT>;
+
 }  // namespace hwy
 
 #endif  // HIGHWAY_HWY_CONTRIB_BTREE_BTREE_MAP_H_

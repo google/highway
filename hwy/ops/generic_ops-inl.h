@@ -120,6 +120,52 @@ HWY_API VFromD<D> CombineShiftRightLanes(D d, VFromD<D> hi, VFromD<D> lo) {
 
 #endif
 
+#if (HWY_TARGET != HWY_SCALAR &&                                              \
+     defined(HWY_TOGGLE_COMBINE_SLIDE_DOWN) == defined(HWY_TARGET_TOGGLE)) || \
+    HWY_IDE
+#ifdef HWY_TOGGLE_COMBINE_SLIDE_DOWN
+#undef HWY_TOGGLE_COMBINE_SLIDE_DOWN
+#else
+#define HWY_TOGGLE_COMBINE_SLIDE_DOWN
+#endif
+
+template <size_t kLanes, class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> CombineSlideDownLanes(D d, VFromD<D> hi, VFromD<D> lo) {
+  return CombineShiftRightLanes<kLanes>(d, hi, lo);
+}
+
+#if HWY_TARGET == HWY_AVX2 || HWY_TARGET == HWY_LASX || \
+    HWY_TARGET == HWY_WASM_EMU256
+namespace detail {
+
+template <size_t kBytes, class D, HWY_IF_LANES(kBytes, 16)>
+HWY_INLINE VFromD<D> CombineSlideDown32Bytes(D d, VFromD<D> hi, VFromD<D> lo) {
+  return ConcatLowerUpper(d, hi, lo);
+}
+
+template <size_t kBytes, class D, HWY_IF_LANES_LE(kBytes, 15)>
+HWY_INLINE VFromD<D> CombineSlideDown32Bytes(D d, VFromD<D> hi, VFromD<D> lo) {
+  return CombineShiftRightBytes<kBytes>(d, ConcatLowerUpper(d, hi, lo), lo);
+}
+
+template <size_t kBytes, class D, HWY_IF_LANES_GT(kBytes, 16)>
+HWY_INLINE VFromD<D> CombineSlideDown32Bytes(D d, VFromD<D> hi, VFromD<D> lo) {
+  return CombineShiftRightBytes<kBytes - 16>(d, hi,
+                                             ConcatLowerUpper(d, hi, lo));
+}
+
+}  // namespace detail
+
+template <size_t kLanes, class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> CombineSlideDownLanes(D d, VFromD<D> hi, VFromD<D> lo) {
+  constexpr size_t kBytes = kLanes * sizeof(TFromD<D>);
+  static_assert(0 < kBytes && kBytes < 32, "kLanes out of bounds");
+  return detail::CombineSlideDown32Bytes<kBytes>(d, hi, lo);
+}
+#endif  // HWY_TARGET == HWY_AVX2 || ...
+
+#endif  // HWY_TOGGLE_COMBINE_SLIDE_DOWN
+
 // Returns lanes with the most significant bit set and all other bits zero.
 template <class D>
 HWY_API Vec<D> SignBit(D d) {
@@ -8470,8 +8516,9 @@ HWY_INLINE Vec<D> Lookup64(D d, const T* HWY_RESTRICT table, VI indices) {
 #undef HWY_PREFER_ROTATE
 // Platforms on which RotateRight is likely faster than TableLookupBytes.
 // RVV and SVE anyway have their own implementation of this.
-#if HWY_TARGET == HWY_SSE2 || HWY_TARGET <= HWY_AVX3 || \
-    HWY_TARGET == HWY_WASM || HWY_TARGET == HWY_PPC8
+// Exclude AVX3 because its 16-bit RotateRight is actually 3 instructions, so
+// Reverse2/Reverse4/Reverse8 of 8-bit lanes are a single TableLookupBytes.
+#if HWY_TARGET == HWY_SSE2 || HWY_TARGET == HWY_WASM || HWY_TARGET == HWY_PPC8
 #define HWY_PREFER_ROTATE 1
 #else
 #define HWY_PREFER_ROTATE 0
@@ -8479,8 +8526,7 @@ HWY_INLINE Vec<D> Lookup64(D d, const T* HWY_RESTRICT table, VI indices) {
 
 template <class D, HWY_IF_T_SIZE_D(D, 1)>
 HWY_API VFromD<D> Reverse2(D d, VFromD<D> v) {
-  // Exclude AVX3 because its 16-bit RotateRight is actually 3 instructions.
-#if HWY_PREFER_ROTATE && HWY_TARGET > HWY_AVX3
+#if HWY_PREFER_ROTATE
   const Repartition<uint16_t, decltype(d)> du16;
   return BitCast(d, RotateRight<8>(BitCast(du16, v)));
 #else

@@ -4890,6 +4890,21 @@ HWY_API V CombineShiftRightLanes(const D d, const V hi, V lo) {
   return IfThenElse(is_lo, lo_down, hi_up);
 }
 
+// ------------------------------ CombineSlideDownLanes
+#ifdef HWY_TOGGLE_COMBINE_SLIDE_DOWN
+#undef HWY_TOGGLE_COMBINE_SLIDE_DOWN
+#else
+#define HWY_TOGGLE_COMBINE_SLIDE_DOWN
+#endif
+
+template <size_t kLanes, class D>
+HWY_API VFromD<D> CombineSlideDownLanes(D d, VFromD<D> hi, VFromD<D> lo) {
+  static_assert(0 < kLanes && kLanes < HWY_MAX_LANES_D(D),
+                "kLanes must be in (0, MaxLanes(d))");
+  HWY_DASSERT(kLanes < Lanes(d));
+  return detail::SlideUp(detail::SlideDown(lo, kLanes), hi, Lanes(d) - kLanes);
+}
+
 // ------------------------------ Shuffle2301 (ShiftLeft)
 template <class V>
 HWY_API V Shuffle2301(const V v) {
@@ -6606,7 +6621,8 @@ HWY_API V Ceil(const V v) {
   const auto pos1 =
       IfThenElseZero(Lt(int_f, v), Set(df, ConvertScalarTo<T>(1.0)));
 
-  return IfThenElse(detail::UseInt(v), Add(int_f, pos1), v);
+  // The addition returns +0 for v in (-1, -0], so restore the sign.
+  return IfThenElse(detail::UseInt(v), CopySign(Add(int_f, pos1), v), v);
 }
 
 #endif  // (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL >= 1400) ||
@@ -6653,7 +6669,8 @@ HWY_API V Floor(const V v) {
   const auto neg1 =
       IfThenElseZero(Gt(int_f, v), Set(df, ConvertScalarTo<T>(-1.0)));
 
-  return IfThenElse(detail::UseInt(v), Add(int_f, neg1), v);
+  // The addition returns +0 for -0, so restore the sign.
+  return IfThenElse(detail::UseInt(v), CopySign(Add(int_f, neg1), v), v);
 }
 
 #endif  // (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL >= 1400) ||

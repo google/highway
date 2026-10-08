@@ -5177,8 +5177,50 @@ HWY_API V SaturatedAbs(V v) {
 template <class V, HWY_IF_I64(TFromV<V>)>
 HWY_API V SaturatedAbs(V v) {
   const auto abs_v = Abs(v);
+#if HWY_TARGET <= HWY_AVX3
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, Min(BitCast(du, abs_v),
+                        Set(du, static_cast<uint64_t>(LimitsMax<int64_t>()))));
+#else
   return Add(abs_v, BroadcastSignBit(abs_v));
+#endif
 }
+
+#if HWY_TARGET <= HWY_SSE4
+#ifdef HWY_NATIVE_SATURATED_NEG_8_16_32
+#undef HWY_NATIVE_SATURATED_NEG_8_16_32
+#else
+#define HWY_NATIVE_SATURATED_NEG_8_16_32
+#endif
+
+template <class V, HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2)),
+          HWY_IF_SIGNED_V(V)>
+HWY_API V SaturatedNeg(V v) {
+  const DFromV<decltype(v)> d;
+  return SaturatedSub(Zero(d), v);
+}
+
+template <class V, HWY_IF_I32(TFromV<V>)>
+HWY_API V SaturatedNeg(V v) {
+  const DFromV<decltype(v)> d;
+  return Zero(d) - Max(v, Set(d, -LimitsMax<int32_t>()));
+}
+#endif  // HWY_TARGET <= HWY_SSE4
+
+#if HWY_TARGET <= HWY_AVX3
+#ifdef HWY_NATIVE_SATURATED_NEG_64
+#undef HWY_NATIVE_SATURATED_NEG_64
+#else
+#define HWY_NATIVE_SATURATED_NEG_64
+#endif
+
+template <class V, HWY_IF_I64(TFromV<V>)>
+HWY_API V SaturatedNeg(V v) {
+  const DFromV<decltype(v)> d;
+  return Zero(d) - Max(v, Set(d, -LimitsMax<int64_t>()));
+}
+#endif  // HWY_TARGET <= HWY_AVX3
 
 // GCC <14 and Clang <11 do not follow the Intel documentation for AVX-512VL
 // srli_epi64: the count should be unsigned int. Note that this is not the same
@@ -9967,6 +10009,260 @@ HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
   return detail::SlideUpLanesImpl(v, amt);
 }
 
+// ------------------------------ SlideUpLanesOr, SlideDownLanesOr, Slide1*Or
+
+#if HWY_TARGET <= HWY_AVX3
+
+#ifdef HWY_NATIVE_SLIDE_UP_LANES_OR
+#undef HWY_NATIVE_SLIDE_UP_LANES_OR
+#else
+#define HWY_NATIVE_SLIDE_UP_LANES_OR
+#endif
+
+#ifdef HWY_NATIVE_SLIDE_DOWN_LANES_OR
+#undef HWY_NATIVE_SLIDE_DOWN_LANES_OR
+#else
+#define HWY_NATIVE_SLIDE_DOWN_LANES_OR
+#endif
+
+#ifdef HWY_NATIVE_SLIDE1_UP_DOWN_OR
+#undef HWY_NATIVE_SLIDE1_UP_DOWN_OR
+#else
+#define HWY_NATIVE_SLIDE1_UP_DOWN_OR
+#endif
+
+namespace detail {
+
+template <size_t kLanes, class D, HWY_IF_V_SIZE_LE_D(D, 16),
+          HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2))>
+HWY_INLINE VFromD<D> SlideUpLanesOrConst(VFromD<D> lo, D d, VFromD<D> hi) {
+  HWY_IF_CONSTEXPR(kLanes == 0) { return hi; }
+  HWY_IF_CONSTEXPR(kLanes >= HWY_MAX_LANES_D(D)) { return lo; }
+  constexpr size_t kClampedLanes =
+      (kLanes > 0 && kLanes < HWY_MAX_LANES_D(D)) ? kLanes : 1;
+  constexpr int kBytes = static_cast<int>(kClampedLanes * sizeof(TFromD<D>));
+  constexpr __mmask16 kMask = static_cast<__mmask16>(~((1U << kBytes) - 1));
+  const Full128<uint8_t> du8;
+  const auto hi8 = ResizeBitCast(du8, hi);
+  return ResizeBitCast(
+      d, Vec128<uint8_t>{_mm_mask_alignr_epi8(ResizeBitCast(du8, lo).raw, kMask,
+                                              hi8.raw, hi8.raw, 16 - kBytes)});
+}
+
+template <size_t kLanes, class D, HWY_IF_V_SIZE_LE_D(D, 16),
+          HWY_IF_T_SIZE_D(D, 4)>
+HWY_INLINE VFromD<D> SlideUpLanesOrConst(VFromD<D> lo, D d, VFromD<D> hi) {
+  HWY_IF_CONSTEXPR(kLanes == 0) { return hi; }
+  HWY_IF_CONSTEXPR(kLanes >= HWY_MAX_LANES_D(D)) { return lo; }
+  constexpr size_t kClampedLanes =
+      (kLanes > 0 && kLanes < HWY_MAX_LANES_D(D)) ? kLanes : 1;
+  constexpr __mmask8 kMask =
+      static_cast<__mmask8>(~((1U << kClampedLanes) - 1));
+  const Full128<uint32_t> du32;
+  const auto hi32 = ResizeBitCast(du32, hi);
+  return ResizeBitCast(d, Vec128<uint32_t>{_mm_mask_alignr_epi32(
+                              ResizeBitCast(du32, lo).raw, kMask, hi32.raw,
+                              hi32.raw, static_cast<int>(4 - kClampedLanes))});
+}
+
+template <size_t kLanes, class D, HWY_IF_V_SIZE_LE_D(D, 16),
+          HWY_IF_T_SIZE_D(D, 8)>
+HWY_INLINE VFromD<D> SlideUpLanesOrConst(VFromD<D> lo, D d, VFromD<D> hi) {
+  HWY_IF_CONSTEXPR(kLanes == 0) { return hi; }
+  HWY_IF_CONSTEXPR(kLanes >= HWY_MAX_LANES_D(D)) { return lo; }
+  const Full128<uint64_t> du64;
+  const auto hi64 = ResizeBitCast(du64, hi);
+  return ResizeBitCast(
+      d, Vec128<uint64_t>{_mm_mask_alignr_epi64(
+             ResizeBitCast(du64, lo).raw, __mmask8{2}, hi64.raw, hi64.raw, 1)});
+}
+
+template <size_t kLanes, class D, HWY_IF_V_SIZE_LE_D(D, 16),
+          HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2))>
+HWY_INLINE VFromD<D> SlideDownLanesOrConst(VFromD<D> hi, D d, VFromD<D> lo) {
+  HWY_IF_CONSTEXPR(kLanes == 0) { return lo; }
+  HWY_IF_CONSTEXPR(kLanes >= HWY_MAX_LANES_D(D)) { return hi; }
+  constexpr size_t kClampedLanes =
+      (kLanes > 0 && kLanes < HWY_MAX_LANES_D(D)) ? kLanes : 1;
+  constexpr int kBytes = static_cast<int>(kClampedLanes * sizeof(TFromD<D>));
+  constexpr __mmask16 kMask = static_cast<__mmask16>(
+      (1U << ((HWY_MAX_LANES_D(D) - kClampedLanes) * sizeof(TFromD<D>))) - 1);
+  const Full128<uint8_t> du8;
+  const auto lo8 = ResizeBitCast(du8, lo);
+  return ResizeBitCast(
+      d, Vec128<uint8_t>{_mm_mask_alignr_epi8(ResizeBitCast(du8, hi).raw, kMask,
+                                              lo8.raw, lo8.raw, kBytes)});
+}
+
+template <size_t kLanes, class D, HWY_IF_V_SIZE_LE_D(D, 16),
+          HWY_IF_T_SIZE_D(D, 4)>
+HWY_INLINE VFromD<D> SlideDownLanesOrConst(VFromD<D> hi, D d, VFromD<D> lo) {
+  HWY_IF_CONSTEXPR(kLanes == 0) { return lo; }
+  HWY_IF_CONSTEXPR(kLanes >= HWY_MAX_LANES_D(D)) { return hi; }
+  constexpr size_t kClampedLanes =
+      (kLanes > 0 && kLanes < HWY_MAX_LANES_D(D)) ? kLanes : 1;
+  constexpr __mmask8 kMask =
+      static_cast<__mmask8>((1U << (HWY_MAX_LANES_D(D) - kClampedLanes)) - 1);
+  const Full128<uint32_t> du32;
+  const auto lo32 = ResizeBitCast(du32, lo);
+  return ResizeBitCast(d, Vec128<uint32_t>{_mm_mask_alignr_epi32(
+                              ResizeBitCast(du32, hi).raw, kMask, lo32.raw,
+                              lo32.raw, static_cast<int>(kClampedLanes))});
+}
+
+template <size_t kLanes, class D, HWY_IF_V_SIZE_LE_D(D, 16),
+          HWY_IF_T_SIZE_D(D, 8)>
+HWY_INLINE VFromD<D> SlideDownLanesOrConst(VFromD<D> hi, D d, VFromD<D> lo) {
+  HWY_IF_CONSTEXPR(kLanes == 0) { return lo; }
+  HWY_IF_CONSTEXPR(kLanes >= HWY_MAX_LANES_D(D)) { return hi; }
+  const Full128<uint64_t> du64;
+  const auto lo64 = ResizeBitCast(du64, lo);
+  return ResizeBitCast(
+      d, Vec128<uint64_t>{_mm_mask_alignr_epi64(
+             ResizeBitCast(du64, hi).raw, __mmask8{1}, lo64.raw, lo64.raw, 1)});
+}
+
+}  // namespace detail
+
+template <class D, HWY_IF_LANES_D(D, 1)>
+HWY_API VFromD<D> SlideUpLanesOr(VFromD<D> lo, D /*d*/, VFromD<D> hi,
+                                 size_t amt) {
+  return (amt == 0) ? hi : lo;
+}
+
+template <class D, HWY_IF_LANES_D(D, 1)>
+HWY_API VFromD<D> SlideDownLanesOr(VFromD<D> hi, D /*d*/, VFromD<D> lo,
+                                   size_t amt) {
+  return (amt == 0) ? lo : hi;
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_GT_D(D, 1)>
+HWY_API VFromD<D> SlideUpLanesOr(VFromD<D> lo, D d, VFromD<D> hi, size_t amt) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(amt)) {
+    switch (amt) {
+      case 0:
+        return hi;
+      case 1:
+        return detail::SlideUpLanesOrConst<1>(lo, d, hi);
+      case 2:
+        return detail::SlideUpLanesOrConst<2>(lo, d, hi);
+      case 3:
+        return detail::SlideUpLanesOrConst<3>(lo, d, hi);
+      case 4:
+        return detail::SlideUpLanesOrConst<4>(lo, d, hi);
+      case 5:
+        return detail::SlideUpLanesOrConst<5>(lo, d, hi);
+      case 6:
+        return detail::SlideUpLanesOrConst<6>(lo, d, hi);
+      case 7:
+        return detail::SlideUpLanesOrConst<7>(lo, d, hi);
+      case 8:
+        return detail::SlideUpLanesOrConst<8>(lo, d, hi);
+      case 9:
+        return detail::SlideUpLanesOrConst<9>(lo, d, hi);
+      case 10:
+        return detail::SlideUpLanesOrConst<10>(lo, d, hi);
+      case 11:
+        return detail::SlideUpLanesOrConst<11>(lo, d, hi);
+      case 12:
+        return detail::SlideUpLanesOrConst<12>(lo, d, hi);
+      case 13:
+        return detail::SlideUpLanesOrConst<13>(lo, d, hi);
+      case 14:
+        return detail::SlideUpLanesOrConst<14>(lo, d, hi);
+      case 15:
+        return detail::SlideUpLanesOrConst<15>(lo, d, hi);
+    }
+  }
+#endif
+
+  const Full128<uint8_t> du8;
+  const auto idx =
+      Iota(du8, static_cast<uint8_t>(size_t{0} - amt * sizeof(TFromD<D>)));
+  return IfThenElse(
+      FirstN(d, amt), lo,
+      ResizeBitCast(d, TableLookupBytes(ResizeBitCast(du8, hi), idx)));
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_GT_D(D, 1)>
+HWY_API VFromD<D> SlideDownLanesOr(VFromD<D> hi, D d, VFromD<D> lo,
+                                   size_t amt) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(amt)) {
+    switch (amt) {
+      case 0:
+        return lo;
+      case 1:
+        return detail::SlideDownLanesOrConst<1>(hi, d, lo);
+      case 2:
+        return detail::SlideDownLanesOrConst<2>(hi, d, lo);
+      case 3:
+        return detail::SlideDownLanesOrConst<3>(hi, d, lo);
+      case 4:
+        return detail::SlideDownLanesOrConst<4>(hi, d, lo);
+      case 5:
+        return detail::SlideDownLanesOrConst<5>(hi, d, lo);
+      case 6:
+        return detail::SlideDownLanesOrConst<6>(hi, d, lo);
+      case 7:
+        return detail::SlideDownLanesOrConst<7>(hi, d, lo);
+      case 8:
+        return detail::SlideDownLanesOrConst<8>(hi, d, lo);
+      case 9:
+        return detail::SlideDownLanesOrConst<9>(hi, d, lo);
+      case 10:
+        return detail::SlideDownLanesOrConst<10>(hi, d, lo);
+      case 11:
+        return detail::SlideDownLanesOrConst<11>(hi, d, lo);
+      case 12:
+        return detail::SlideDownLanesOrConst<12>(hi, d, lo);
+      case 13:
+        return detail::SlideDownLanesOrConst<13>(hi, d, lo);
+      case 14:
+        return detail::SlideDownLanesOrConst<14>(hi, d, lo);
+      case 15:
+        return detail::SlideDownLanesOrConst<15>(hi, d, lo);
+    }
+  }
+#endif
+
+  const Full128<uint8_t> du8;
+  const auto idx = Iota(du8, static_cast<uint8_t>(amt * sizeof(TFromD<D>)));
+  return IfThenElse(
+      FirstN(d, HWY_MAX_LANES_D(D) - amt),
+      ResizeBitCast(d, TableLookupBytes(ResizeBitCast(du8, lo), idx)), hi);
+}
+
+template <class D, HWY_IF_LANES_D(D, 1)>
+HWY_API VFromD<D> Slide1UpOr(TFromD<D> no, D d, VFromD<D> /*v*/) {
+  return Set(d, no);
+}
+
+template <class D, HWY_IF_LANES_D(D, 1)>
+HWY_API VFromD<D> Slide1DownOr(TFromD<D> no, D d, VFromD<D> /*v*/) {
+  return Set(d, no);
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_GT_D(D, 1)>
+HWY_API VFromD<D> Slide1UpOr(TFromD<D> no, D d, VFromD<D> v) {
+  const Full128<TFromD<D>> dfull;
+  return ResizeBitCast(d, CombineShiftRightBytes<16 - sizeof(TFromD<D>)>(
+                              dfull, ResizeBitCast(dfull, v), Set(dfull, no)));
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_LANES_GT_D(D, 1)>
+HWY_API VFromD<D> Slide1DownOr(TFromD<D> no, D d, VFromD<D> v) {
+  return CombineShiftRightBytes<sizeof(TFromD<D>)>(d, Set(d, no), v);
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_LANES_GT_D(D, 1)>
+HWY_API VFromD<D> Slide1DownOr(TFromD<D> no, D d, VFromD<D> v) {
+  return detail::SlideDownLanesOrConst<1>(Set(d, no), d, v);
+}
+
+#endif  // HWY_TARGET <= HWY_AVX3
+
 // ================================================== MEMORY (4)
 
 // ------------------------------ StoreN (ExtractLane)
@@ -14060,8 +14356,9 @@ HWY_API Vec128<T, N> Round(const Vec128<T, N> v) {
   const auto large = CopySignToAbs(max, v);
   const auto added = large + v;
   const auto rounded = added - large;
-  // Keep original if NaN or the magnitude is large (already an int).
-  return IfThenElse(Abs(v) < max, rounded, v);
+  // Keep original if NaN or the magnitude is large (already an int). The
+  // addition above returns +0 for v in [-0.5, -0], so restore the sign.
+  return IfThenElse(Abs(v) < max, CopySign(rounded, v), v);
 }
 
 namespace detail {
@@ -14104,7 +14401,8 @@ HWY_API Vec128<T, N> Ceil(const Vec128<T, N> v) {
   // Truncating a positive non-integer ends up smaller; if so, add 1.
   const auto neg1 = ConvertTo(df, VecFromMask(di, RebindMask(di, int_f < v)));
 
-  return IfThenElse(detail::UseInt(v), int_f - neg1, v);
+  // The subtraction returns +0 for v in (-1, -0], so restore the sign.
+  return IfThenElse(detail::UseInt(v), CopySign(int_f - neg1, v), v);
 }
 
 #ifdef HWY_NATIVE_CEIL_FLOOR_INT
@@ -14139,7 +14437,8 @@ HWY_API Vec128<T, N> Floor(const Vec128<T, N> v) {
   // Truncating a negative non-integer ends up larger; if so, subtract 1.
   const auto neg1 = ConvertTo(df, VecFromMask(di, RebindMask(di, int_f > v)));
 
-  return IfThenElse(detail::UseInt(v), int_f + neg1, v);
+  // The addition returns +0 for -0, so restore the sign.
+  return IfThenElse(detail::UseInt(v), CopySign(int_f + neg1, v), v);
 }
 
 template <class V, HWY_IF_FLOAT_V(V)>
@@ -14644,6 +14943,49 @@ HWY_API bool AllTrue(D d, MFromD<D> mask) {
   return mask_bits == (1ull << kN) - 1;
 }
 
+#if HWY_TARGET <= HWY_AVX3
+
+#ifdef HWY_NATIVE_ALLONES
+#undef HWY_NATIVE_ALLONES
+#else
+#define HWY_NATIVE_ALLONES
+#endif
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8)>
+HWY_API bool AllBits1(D d, VFromD<D> v) {
+  const Repartition<UnsignedFromSize<d.MaxBytes()>, decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  return GetLane(BitCast(du, v)) == LimitsMax<TU>();
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16)>
+HWY_API bool AllBits1(D d, VFromD<D> v) {
+  const Repartition<uint64_t, decltype(d)> du64;
+  return AllTrue(du64, BitCast(du64, v) == Set(du64, LimitsMax<uint64_t>()));
+}
+
+#ifdef HWY_NATIVE_ALLZEROS
+#undef HWY_NATIVE_ALLZEROS
+#else
+#define HWY_NATIVE_ALLZEROS
+#endif
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8)>
+HWY_API bool AllBits0(D d, VFromD<D> v) {
+  const Repartition<UnsignedFromSize<d.MaxBytes()>, decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  return GetLane(BitCast(du, v)) == TU{0};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16)>
+HWY_API bool AllBits0(D d, VFromD<D> v) {
+  const Repartition<uint64_t, decltype(d)> du64;
+  const auto vu64 = BitCast(du64, v);
+  return _mm_test_epi64_mask(vu64.raw, vu64.raw) == 0;
+}
+
+#endif  // HWY_TARGET <= HWY_AVX3
+
 // ------------------------------ Compress
 
 // 8-16 bit Compress, CompressStore defined in x86_512 because they use Vec512.
@@ -15104,14 +15446,12 @@ HWY_API Mask128<T, N> SetAtOrBeforeFirst(Mask128<T, N> mask) {
 
 // Nothing fully native, generic_ops-inl defines SumOfLanes and ReduceSum.
 
-// We provide specializations of u8x8 and u8x16 below, and u8x32 in
-// x86_256-inl.h, so exclude those.
+// We provide specializations of u8x8 and u8x16 below, u8x32 in x86_256-inl.h,
+// and u8x64 in x86_512-inl.h, so exclude those.
 #undef HWY_IF_SUM_OF_LANES_D
-#define HWY_IF_SUM_OF_LANES_D(D)                                      \
-  HWY_IF_LANES_GT_D(D, 1),                                            \
-      hwy::EnableIf<!hwy::IsSame<TFromD<D>, uint8_t>() ||             \
-                    (HWY_V_SIZE_D(D) != 8 && HWY_V_SIZE_D(D) != 16 && \
-                     HWY_V_SIZE_D(D) != 32)>* = nullptr
+#define HWY_IF_SUM_OF_LANES_D(D)                                               \
+  HWY_IF_LANES_GT_D(D, 1), hwy::EnableIf<!hwy::IsSame<TFromD<D>, uint8_t>() || \
+                                         HWY_V_SIZE_D(D) < 8>* = nullptr
 
 template <class D, HWY_IF_U8_D(D), HWY_IF_LANES_D(D, 8)>
 HWY_API VFromD<D> SumOfLanes(D d, VFromD<D> v) {

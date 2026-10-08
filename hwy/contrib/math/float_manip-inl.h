@@ -113,9 +113,9 @@ HWY_INLINE VFromD<D> Logb(D d, VFromD<D> x) {
 // sign of x, including for +/-0. modf(+/-inf) writes +/-inf and returns +/-0.
 template <class D, HWY_IF_FLOAT3264_D(D)>
 HWY_INLINE VFromD<D> Modf(D d, VFromD<D> x, VFromD<D>& int_part) {
-  // Trunc keeps +/-inf and NaN unchanged, but may not preserve the sign of a
-  // zero (e.g. HWY_EMU128), which modf must for both outputs.
-  const VFromD<D> ip = CopySign(Trunc(x), x);
+  // Trunc keeps +/-inf and NaN unchanged, and preserves the sign of a zero,
+  // which modf must for both outputs.
+  const VFromD<D> ip = Trunc(x);
   VFromD<D> frac = Sub(x, ip);
   // inf - inf is NaN; the fractional part of +/-inf is defined as +/-0.
   frac = IfThenElse(IsInf(x), Zero(d), frac);

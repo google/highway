@@ -849,7 +849,9 @@ HWY_API Vec1<T> Round(const Vec1<T> v) {
                            ConvertScalarTo<T>(0.5)) {
     offset = v.raw < k0 ? -1 : 1;
   }
-  return Vec1<T>(ConvertScalarTo<T>(rounded - offset));
+  // Ties away from an odd +-1 reach zero (-0.5 -> -0), and the integer
+  // subtraction loses the sign; the rounded magnitude never changes sign.
+  return CopySignToAbs(Vec1<T>(ConvertScalarTo<T>(rounded - offset)), v);
 }
 
 // Round-to-nearest even.
@@ -935,8 +937,11 @@ V Ceiling(const V v) {
       static_cast<int>(((bits >> kMantissaBits) & kExponentMask) - kBias);
   // Already an integer.
   if (exponent >= kMantissaBits) return v;
-  // |v| <= 1 => 0 or 1.
-  if (exponent < 0) return positive ? V(1) : V(-0.0);
+  // |v| <= 1 => 0 or 1. `positive` is false for +0, so return a zero with
+  // the sign of v rather than always -0.
+  if (exponent < 0) {
+    return positive ? V(1) : CopySignToAbs(V(ConvertScalarTo<Float>(0)), v);
+  }
 
   const Bits mantissa_mask = kMantissaMask >> exponent;
   // Already an integer
@@ -967,8 +972,12 @@ V Floor(const V v) {
       static_cast<int>(((bits >> kMantissaBits) & kExponentMask) - kBias);
   // Already an integer.
   if (exponent >= kMantissaBits) return v;
-  // |v| <= 1 => -1 or 0.
-  if (exponent < 0) return V(negative ? Float(-1.0) : Float(0.0));
+  // |v| <= 1 => -1 or 0. -0 is not `negative`, so return a zero with the
+  // sign of v rather than always +0.
+  if (exponent < 0) {
+    return negative ? V(Float(-1.0))
+                    : CopySignToAbs(V(ConvertScalarTo<Float>(0)), v);
+  }
 
   const Bits mantissa_mask = kMantissaMask >> exponent;
   // Already an integer

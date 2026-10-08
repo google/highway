@@ -4866,6 +4866,29 @@ HWY_API V CombineShiftRightBytes(const D d, const V hi, const V lo) {
 #endif
 }
 
+// ------------------------------ CombineSlideDownLanes
+#ifdef HWY_TOGGLE_COMBINE_SLIDE_DOWN
+#undef HWY_TOGGLE_COMBINE_SLIDE_DOWN
+#else
+#define HWY_TOGGLE_COMBINE_SLIDE_DOWN
+#endif
+
+template <size_t kLanes, class D>
+HWY_API VFromD<D> CombineSlideDownLanes(D d, VFromD<D> hi, VFromD<D> lo) {
+  static_assert(0 < kLanes && kLanes < HWY_MAX_LANES_D(D),
+                "kLanes must be in (0, MaxLanes(d))");
+  HWY_DASSERT(kLanes < Lanes(d));
+  const RebindToUnsigned<decltype(d)> du;  // support bfloat16_t
+#if HWY_SVE_IS_POW2
+  if (detail::IsFull(d)) {
+    return BitCast(d, detail::Ext<kLanes>(BitCast(du, hi), BitCast(du, lo)));
+  }
+#endif
+  const auto lo_down = detail::Ext<kLanes>(BitCast(du, lo), BitCast(du, lo));
+  return BitCast(d, detail::Splice(BitCast(du, hi), lo_down,
+                                   FirstN(du, Lanes(d) - kLanes)));
+}
+
 // ------------------------------ Shuffle2301
 template <class V>
 HWY_API V Shuffle2301(const V v) {
