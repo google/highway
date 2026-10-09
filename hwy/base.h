@@ -485,7 +485,7 @@ HWY_API void ZeroBytes(To* to) {
   ZeroBytes(to, kBytes);
 }
 
-// same as ZeroBytes, but guarantees no library call
+// same as ZeroBytes, but guarantees no library memset call
 HWY_API void ZeroBytesInline(void* to, size_t kBytes) {
   volatile unsigned char* p = static_cast<volatile unsigned char*>(to);
   for (size_t i = 0; i < kBytes; ++i) {
