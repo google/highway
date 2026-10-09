@@ -15,7 +15,6 @@
 
 #include "hwy/targets.h"
 
-#include <stddef.h>
 #include <stdint.h>
 
 #include "hwy/detect_targets.h"
