@@ -332,6 +332,9 @@ AlignedFreeUniquePtr<T[]> RoundTestCases(T /*unused*/, D d, size_t& padded) {
       ConvertScalarTo<T>(ConvertScalarTo<T>(-1) - eps),
       // +/- huge (but still fits in float)
       huge, -huge,
+      // +/- 2^31 or 2^63
+      ConvertScalarTo<T>(-static_cast<double>(LimitsMin<MakeSigned<T>>())),
+      ConvertScalarTo<T>(static_cast<double>(LimitsMin<MakeSigned<T>>())),
       // +/- infinity
       GetLane(Inf(d)), GetLane(Neg(Inf(d))),
       // qNaN
