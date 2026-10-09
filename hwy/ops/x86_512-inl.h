@@ -5705,12 +5705,7 @@ HWY_API VFromD<D> SlideUpLanesOr(VFromD<D> lo, D d, VFromD<D> hi, size_t amt) {
   }
 #endif
 
-  const RebindToUnsigned<decltype(d)> du;
-  using TU = TFromD<decltype(du)>;
-  const auto idx = Iota(du, static_cast<TU>(size_t{0} - amt));
-  return IfThenElse(
-      FirstN(d, amt), lo,
-      BitCast(d, TableLookupLanes(BitCast(du, hi), Indices512<TU>{idx.raw})));
+  return IfThenElse(FirstN(d, amt), lo, SlideUpLanes(d, hi, amt));
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 1)>
