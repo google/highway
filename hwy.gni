@@ -10,6 +10,7 @@ hwy_public = [
   "$_hwy/print.h",
 
   # Public, textual
+  "$_hwy/detect_targets_impl.h",
   "$_hwy/foreach_target.h",
   "$_hwy/highway_export.h",
   "$_hwy/highway.h",

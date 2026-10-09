@@ -80,6 +80,7 @@ hwy_headers = files(
     'hwy/cache_control.h',
     'hwy/detect_compiler_arch.h',  # private
     'hwy/detect_targets.h',  # private
+    'hwy/detect_targets_impl.h',
     'hwy/foreach_target.h',
     'hwy/highway_export.h',
     'hwy/highway.h',
@@ -703,7 +704,8 @@ if tests_enabled
             pie: pie,
         )
 
-        test(exe_name, test_exe, protocol:'gtest')
+        test(exe_name, test_exe, protocol:'gtest',
+            env: exe_name == 'targets_test' ? {'LD_BIND_NOW': '1'} : {})
     endforeach
 
     if contrib_enabled

@@ -294,6 +294,7 @@ set(HWY_SOURCES
     hwy/cache_control.h
     hwy/detect_compiler_arch.h  # private
     hwy/detect_targets.h  # private
+    hwy/detect_targets_impl.h
     hwy/foreach_target.h
     hwy/highway_export.h
     hwy/highway.h
@@ -1128,10 +1129,18 @@ foreach (TESTFILE IN LISTS HWY_TEST_FILES)
     set_target_properties(${TESTNAME} PROPERTIES LINK_FLAGS "-s SINGLE_FILE=1")
   endif()
 
+  set(HWY_TEST_PROPERTIES)
+  if(TESTNAME STREQUAL "targets_test")
+    # force ifunc resolve during program init
+    list(APPEND HWY_TEST_PROPERTIES ENVIRONMENT "LD_BIND_NOW=1")
+  endif()
+
   if(${CMAKE_VERSION} VERSION_LESS "3.10.3")
-    gtest_discover_tests(${TESTNAME} TIMEOUT 60)
+    gtest_discover_tests(${TESTNAME} TIMEOUT 60
+      PROPERTIES ${HWY_TEST_PROPERTIES})
   else ()
-    gtest_discover_tests(${TESTNAME} DISCOVERY_TIMEOUT 60)
+    gtest_discover_tests(${TESTNAME} DISCOVERY_TIMEOUT 60
+      PROPERTIES ${HWY_TEST_PROPERTIES})
   endif ()
 endforeach ()
 

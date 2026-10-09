@@ -18,8 +18,21 @@
 #include <stdint.h>
 
 #include "hwy/detect_targets.h"
+#include "hwy/detect_targets_impl.h"
 #include "hwy/tests/hwy_gtest.h"
 #include "hwy/tests/test_util-inl.h"
+
+#define HWY_TEST_HAVE_SYS_IFUNC_H 0
+#if HWY_ARCH_ARM_A64 && HWY_OS_LINUX && defined(__GLIBC__)
+#ifdef __has_include
+#if __has_include(<sys/ifunc.h>)
+#include <stddef.h>
+#include <sys/ifunc.h>
+#undef HWY_TEST_HAVE_SYS_IFUNC_H
+#define HWY_TEST_HAVE_SYS_IFUNC_H 1
+#endif
+#endif
+#endif
 
 // Simulate another project having its own namespace.
 namespace fake {
@@ -165,6 +178,101 @@ class HwyTargetsTest : public testing::Test {};
 // value of the target bits. This is only checked for the targets that are
 // enabled in the current compilation.
 TEST(HwyTargetsTest, ChosenTargetOrderTest) { fake::CheckFakeFunction(); }
+
+// Test the DetectTargetsImpl accept rvalue
+#if HWY_ARCH_X86 && HWY_HAVE_RUNTIME_DISPATCH && !HWY_OS_APPLE
+TEST(HwyTargetsTest, DetectTargetsAcceptsTemporaryPlatform) {
+  struct Platform {};
+  (void)x86::DetectTargetsImpl(Platform{});
+}
+#endif
+
+#if HWY_ARCH_X86 && HWY_OS_LINUX && defined(__GLIBC__) && \
+    HWY_HAVE_RUNTIME_DISPATCH && HWY_HAS_ATTRIBUTE(ifunc) && !HWY_IS_SANITIZER
+// Sanitizer instrumentation may call into its runtime before initialization.
+static int64_t ifunc_detected_targets = 0;
+static bool ifunc_resolver_called = false;
+
+static int64_t ReadIfuncDetectedTargets() { return ifunc_detected_targets; }
+
+using DetectTargetsFunction = int64_t (*)();
+struct IfuncPlatform {};
+
+extern "C" DetectTargetsFunction ResolveTargetsForTest() {
+  ifunc_detected_targets = x86::DetectTargetsImpl(IfuncPlatform{});
+  ifunc_resolver_called = true;
+  return ReadIfuncDetectedTargets;
+}
+
+extern "C" int64_t DetectTargetsViaIfunc()
+    __attribute__((ifunc("ResolveTargetsForTest")));
+
+TEST(HwyTargetsTest, DetectTargetsFromX86IfuncResolver) {
+  // The test runner sets LD_BIND_NOW=1 before starting this executable.
+  HWY_ASSERT(ifunc_resolver_called);
+  HWY_ASSERT_EQ(x86::DetectTargetsImpl(IfuncPlatform{}),
+                DetectTargetsViaIfunc());
+}
+#endif
+
+#if HWY_ARCH_ARM_A64 && HWY_OS_LINUX && defined(__GLIBC__) && \
+    HWY_TEST_HAVE_SYS_IFUNC_H && defined(_IFUNC_ARG_HWCAP) && \
+    HWY_HAVE_RUNTIME_DISPATCH && HWY_HAS_ATTRIBUTE(ifunc) && !HWY_IS_SANITIZER
+// Sanitizer instrumentation may call into its runtime before initialization.
+static int64_t ifunc_detected_targets = 0;
+static bool ifunc_resolver_called = false;
+
+static int64_t ReadIfuncDetectedTargets() { return ifunc_detected_targets; }
+
+using DetectTargetsFunction = int64_t (*)();
+
+class IfuncPlatform {
+ public:
+  // Initialize both scalars directly instead of zeroing an aggregate.
+  IfuncPlatform(unsigned long hwcap, unsigned long hwcap2)
+      : hwcap_(hwcap), hwcap2_(hwcap2) {}
+
+  unsigned long GetAuxVal(unsigned long type) const {
+    return type == AT_HWCAP ? hwcap_ : (type == AT_HWCAP2 ? hwcap2_ : 0);
+  }
+
+ private:
+  const unsigned long hwcap_;
+  const unsigned long hwcap2_;
+};
+
+static unsigned long ifunc_hwcap = 0;
+static unsigned long ifunc_hwcap2 = 0;
+
+extern "C" DetectTargetsFunction ResolveTargetsForTest(
+    uint64_t hwcap, const __ifunc_arg_t* args) {
+  ifunc_hwcap = hwcap & ~_IFUNC_ARG_HWCAP;
+  unsigned long hwcap2 = 0;
+  if ((hwcap & _IFUNC_ARG_HWCAP) && args != nullptr &&
+      args->_size >= offsetof(__ifunc_arg_t, _hwcap2) + sizeof(args->_hwcap2)) {
+    hwcap2 = args->_hwcap2;
+  }
+  ifunc_hwcap2 = hwcap2;
+  const IfuncPlatform platform(ifunc_hwcap, hwcap2);
+  ifunc_detected_targets = arm::DetectTargetsImpl(platform);
+  ifunc_resolver_called = true;
+  return ReadIfuncDetectedTargets;
+}
+
+extern "C" int64_t DetectTargetsViaIfunc()
+    __attribute__((ifunc("ResolveTargetsForTest")));
+
+TEST(HwyTargetsTest, DetectTargetsFromAArch64IfuncResolver) {
+  // The test runner sets LD_BIND_NOW=1 before starting this executable.
+  HWY_ASSERT(ifunc_resolver_called);
+  const unsigned long hwcap = getauxval(AT_HWCAP);
+  const unsigned long hwcap2 = getauxval(AT_HWCAP2);
+  HWY_ASSERT_EQ(hwcap, ifunc_hwcap);
+  HWY_ASSERT_EQ(hwcap2, ifunc_hwcap2);
+  HWY_ASSERT_EQ(arm::DetectTargetsImpl(IfuncPlatform(hwcap, hwcap2)),
+                DetectTargetsViaIfunc());
+}
+#endif
 
 TEST(HwyTargetsTest, DisabledTargetsTest) {
   SetSupportedTargetsForTest(0);
