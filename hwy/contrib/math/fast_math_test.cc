@@ -411,12 +411,21 @@ struct TestFastPow {
         }
       }
 
+      // When HWY_MATH_SWEEP_ALL is enabled, f32 sweeps every exponent bit
+      // pattern (step = 1), whereas f64 uses 10^7 samples per range per base
+      // because an exhaustive 2^64 sweep is computationally infeasible.
+      const bool sweep_all =
+          HWY_MATH_SWEEP_ALL && hwy::IsSame<D, ScalableTag<T>>();
       const UintT kSamplesPerRange =
-          static_cast<UintT>(AdjustedReps(size_t{10'000}));
+          sweep_all ? static_cast<UintT>(10'000'000ULL)
+                    : static_cast<UintT>(AdjustedReps(size_t{10'000}));
       for (int range_index = 0; range_index < range_count; ++range_index) {
         const UintT start = ranges[range_index][0];
         const UintT stop = ranges[range_index][1];
-        const UintT step = HWY_MAX(1, ((stop - start) / kSamplesPerRange));
+        const UintT step =
+            (sweep_all && sizeof(T) == 4)
+                ? 1
+                : HWY_MAX(1, ((stop - start) / kSamplesPerRange));
         for (UintT value_bits = start; value_bits <= stop; value_bits += step) {
           const T exp_val =
               BitCastScalar<T>(HWY_MIN(HWY_MAX(start, value_bits), stop));
