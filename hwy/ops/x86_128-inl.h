@@ -15447,11 +15447,14 @@ HWY_API Mask128<T, N> SetAtOrBeforeFirst(Mask128<T, N> mask) {
 // Nothing fully native, generic_ops-inl defines SumOfLanes and ReduceSum.
 
 // We provide specializations of u8x8 and u8x16 below, u8x32 in x86_256-inl.h,
-// and u8x64 in x86_512-inl.h, so exclude those.
+// and u8x64 in x86_512-inl.h, plus i8 of at least 16 bytes, so exclude those.
 #undef HWY_IF_SUM_OF_LANES_D
-#define HWY_IF_SUM_OF_LANES_D(D)                                               \
-  HWY_IF_LANES_GT_D(D, 1), hwy::EnableIf<!hwy::IsSame<TFromD<D>, uint8_t>() || \
-                                         HWY_V_SIZE_D(D) < 8>* = nullptr
+#define HWY_IF_SUM_OF_LANES_D(D)                                          \
+  HWY_IF_LANES_GT_D(D, 1),                                                \
+      hwy::EnableIf<                                                      \
+          (!hwy::IsSame<TFromD<D>, uint8_t>() || HWY_V_SIZE_D(D) < 8) &&  \
+          (!hwy::IsSame<TFromD<D>, int8_t>() || HWY_V_SIZE_D(D) < 16)>* = \
+          nullptr
 
 template <class D, HWY_IF_U8_D(D), HWY_IF_LANES_D(D, 8)>
 HWY_API VFromD<D> SumOfLanes(D d, VFromD<D> v) {
@@ -15463,6 +15466,13 @@ HWY_API VFromD<D> SumOfLanes(D d, VFromD<D> v) {
   VFromD<decltype(d64)> sums = SumsOf8(v);
   sums = SumOfLanes(d64, sums);
   return Broadcast<0>(BitCast(d, sums));
+}
+
+// The wrapped sum has the same bits for i8 and u8 lanes.
+template <class D, HWY_IF_I8_D(D), HWY_IF_V_SIZE_GT_D(D, 8)>
+HWY_API VFromD<D> SumOfLanes(D d, VFromD<D> v) {
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, SumOfLanes(du, BitCast(du, v)));
 }
 
 #if HWY_TARGET <= HWY_SSE4
