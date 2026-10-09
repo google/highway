@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include "hwy/detect_targets.h"
+#include "hwy/detect_targets_impl.h"
 #include "hwy/tests/hwy_gtest.h"
 #include "hwy/tests/test_util-inl.h"
 
@@ -165,6 +166,14 @@ class HwyTargetsTest : public testing::Test {};
 // value of the target bits. This is only checked for the targets that are
 // enabled in the current compilation.
 TEST(HwyTargetsTest, ChosenTargetOrderTest) { fake::CheckFakeFunction(); }
+
+// Test the DetectTargetsImpl accept rvalue
+#if HWY_ARCH_X86 && HWY_HAVE_RUNTIME_DISPATCH && !HWY_OS_APPLE
+TEST(HwyTargetsTest, DetectTargetsAcceptsTemporaryPlatform) {
+  struct Platform {};
+  (void)x86::DetectTargetsImpl(Platform{});
+}
+#endif
 
 TEST(HwyTargetsTest, DisabledTargetsTest) {
   SetSupportedTargetsForTest(0);
