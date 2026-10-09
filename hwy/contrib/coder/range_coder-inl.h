@@ -189,13 +189,16 @@ HWY_INLINE bool DecodeInterleaved(const uint8_t* HWY_RESTRICT src_start,
 
   // Scalar tail. The vector loop stopped within 32 bytes of the end (or ran out
   // of output), so the remaining input is tiny; copy it into a zero-padded
-  // buffer to keep every read in bounds, then finish byte-by-byte.
+  // buffer, then finish byte-by-byte. DecodeSymbol is bounded by
+  // `tail + tail_avail` so a corrupt stream returns false instead of reading
+  // out of bounds.
   const size_t tail_avail = static_cast<size_t>(src_end - src);
   uint8_t tail[64];
   memset(tail, 0, sizeof(tail));
   if (tail_avail > sizeof(tail)) return false;  // unreachable for valid input
   memcpy(tail, src, tail_avail);
   const uint8_t* tp = tail;
+  const uint8_t* const tp_end = tail + tail_avail;
 
   HWY_ALIGN uint32_t vals[kRangeLanes];
   HWY_ALIGN uint32_t lens[kRangeLanes];
@@ -213,7 +216,9 @@ HWY_INLINE bool DecodeInterleaved(const uint8_t* HWY_RESTRICT src_start,
     const uint32_t s = static_cast<uint32_t>(dst_ofs) & kRangeLaneMask;
     dec.length_ = lens[s];
     dec.value_ = vals[s];
-    dst_start[dst_ofs] = static_cast<uint8_t>(dec.DecodeSymbol(table, tp));
+    uint32_t sym;
+    if (!dec.DecodeSymbol(table, tp, tp_end, &sym)) return false;
+    dst_start[dst_ofs] = static_cast<uint8_t>(sym);
     lens[s] = dec.length_;
     vals[s] = dec.value_;
   }

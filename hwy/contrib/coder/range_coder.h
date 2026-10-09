@@ -159,8 +159,11 @@ class RangeDecoder {
   }
 
   // Decodes one symbol using `table` (see BuildDecodeTable) and consumes 0..2
-  // bytes from `cur`.
-  uint32_t DecodeSymbol(const uint32_t* table, const uint8_t*& cur) {
+  // bytes from `cur`. `end` bounds the input: if renormalization would read
+  // past `end` (truncated/corrupt stream), returns false without reading out
+  // of bounds and `cur` is left unchanged past `end`.
+  bool DecodeSymbol(const uint32_t* table, const uint8_t*& cur,
+                    const uint8_t* end, uint32_t* HWY_RESTRICT sym_out) {
     const uint32_t r = length_ >> kRangeProbBits;
     const uint32_t q = value_ / r;
 
@@ -177,10 +180,12 @@ class RangeDecoder {
     length_ = prob_range * r;
 
     while (length_ < kRangeMinLen) {
+      if (cur >= end) return false;  // truncated/corrupt stream: no OOB read
       value_ = (value_ << 8) | static_cast<uint32_t>(*cur++);
       length_ <<= 8;
     }
-    return sym;
+    *sym_out = sym;
+    return true;
   }
 
   uint32_t length_;

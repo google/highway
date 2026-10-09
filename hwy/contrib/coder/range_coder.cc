@@ -202,14 +202,18 @@ HWY_CONTRIB_DLLEXPORT void EncodeInterleaved(
 HWY_CONTRIB_DLLEXPORT bool DecodeInterleavedScalar(
     const uint8_t* src, size_t comp_size, uint8_t* dst,
     size_t orig_size, const uint32_t* table) {
-  // Decode from a zero-padded copy so a truncated/corrupt stream can never read
-  // out of bounds; a valid stream never reads past `comp_size`.
+  // 16 lanes x 3-byte big-endian header words must be present.
+  if (comp_size < kRangeLanes * 3u) return false;
+  // Decode from a zero-padded copy; a valid stream never reads past
+  // `comp_size`. DecodeSymbol is additionally bounded by `p_end` so a
+  // truncated/corrupt stream returns false instead of reading out of bounds.
   std::vector<uint8_t> buf;
   buf.reserve(comp_size + 16);
   buf.assign(src, src + comp_size);
   buf.resize(comp_size + 16, 0);
 
   const uint8_t* const p_start = buf.data();
+  const uint8_t* const p_end = p_start + comp_size;
   const uint8_t* p = p_start;
 
   uint32_t value[kRangeLanes];
@@ -224,7 +228,9 @@ HWY_CONTRIB_DLLEXPORT bool DecodeInterleavedScalar(
     const uint32_t s = static_cast<uint32_t>(i) & kRangeLaneMask;
     dec.length_ = length[s];
     dec.value_ = value[s];
-    dst[i] = static_cast<uint8_t>(dec.DecodeSymbol(table, p));
+    uint32_t sym;
+    if (!dec.DecodeSymbol(table, p, p_end, &sym)) return false;
+    dst[i] = static_cast<uint8_t>(sym);
     length[s] = dec.length_;
     value[s] = dec.value_;
   }
