@@ -29,6 +29,10 @@
 
 #include "hwy/base.h"
 
+#ifndef HWY_MATH_SWEEP_ALL
+#define HWY_MATH_SWEEP_ALL 0
+#endif
+
 #endif  // HIGHWAY_HWY_CONTRIB_MATH_MATH_TEST_INL_H_
 
 // Per-target
@@ -121,12 +125,19 @@ HWY_NOINLINE void TestMath(const char* name, T (*fx1)(T),
 
   uint64_t max_ulp = 0;
   // Emulation is slower, so cannot afford as many.
-  constexpr UintT kSamplesPerRange =
-      static_cast<UintT>(AdjustedReps(static_cast<size_t>(4000)));
+  // When HWY_MATH_SWEEP_ALL is enabled on the full vector descriptor, f32
+  // sweeps every bit pattern (step = 1), whereas f64 uses 10^8 samples per
+  // range because an exhaustive 2^64 sweep is computationally infeasible.
+  const bool sweep_all = HWY_MATH_SWEEP_ALL && hwy::IsSame<D, ScalableTag<T>>();
+  const UintT kSamplesPerRange =
+      sweep_all ? static_cast<UintT>(100'000'000ULL)
+                : static_cast<UintT>(AdjustedReps(static_cast<size_t>(4000)));
   for (int range_index = 0; range_index < range_count; ++range_index) {
     const UintT start = ranges[range_index][0];
     const UintT stop = ranges[range_index][1];
-    const UintT step = HWY_MAX(1, ((stop - start) / kSamplesPerRange));
+    const UintT step = (sweep_all && sizeof(T) == 4)
+                           ? 1
+                           : HWY_MAX(1, ((stop - start) / kSamplesPerRange));
     for (UintT value_bits = start; value_bits <= stop; value_bits += step) {
       // For reasons unknown, the HWY_MAX is necessary on RVV, otherwise
       // value_bits can be less than start, and thus possibly NaN.
@@ -206,12 +217,20 @@ HWY_NOINLINE void TestMathRelative(const char* name, T (*fx1)(T),
   double sum_rel_error = 0.0;
   uint64_t count = 0;
   // Emulation is slower, so cannot afford as many.
+  // When HWY_MATH_SWEEP_ALL is enabled on the full vector descriptor, f32
+  // sweeps every bit pattern (step = 1), whereas f64 uses 10^8 samples per
+  // range because an exhaustive 2^64 sweep is computationally infeasible.
+  const bool sweep_all = HWY_MATH_SWEEP_ALL && hwy::IsSame<D, ScalableTag<T>>();
   const UintT kSamplesPerRange =
-      static_cast<UintT>(AdjustedReps(static_cast<size_t>(samples)));
+      sweep_all
+          ? static_cast<UintT>(100'000'000ULL)
+          : static_cast<UintT>(AdjustedReps(static_cast<size_t>(samples)));
   for (int range_index = 0; range_index < range_count; ++range_index) {
     const UintT start = ranges[range_index][0];
     const UintT stop = ranges[range_index][1];
-    const UintT step = HWY_MAX(1, ((stop - start) / kSamplesPerRange));
+    const UintT step = (sweep_all && sizeof(T) == 4)
+                           ? 1
+                           : HWY_MAX(1, ((stop - start) / kSamplesPerRange));
     for (UintT value_bits = start; value_bits <= stop; value_bits += step) {
       // For reasons unknown, the HWY_MAX is necessary on RVV, otherwise
       // value_bits can be less than start, and thus possibly NaN.
@@ -400,15 +419,15 @@ HWY_NOINLINE void TestF16Math(const char* name, double (*fx1)(double),
 // which is empty when HWY_HAVE_FLOAT16 is 0: the promote/demote-based f16
 // math functions work on all targets.
 #undef DEFINE_F16_MATH_TEST
-#define DEFINE_F16_MATH_TEST(NAME, Fx1, FxN, F16_MIN, F16_MAX, F16_ERROR)     \
-  struct TestF16##NAME {                                                      \
-    template <class T, class D>                                               \
-    HWY_NOINLINE void operator()(T, D d) {                                    \
-      TestF16Math(HWY_STR(NAME), Fx1, FxN, d, F16_MIN, F16_MAX, F16_ERROR);   \
-    }                                                                         \
-  };                                                                          \
-  HWY_NOINLINE void TestAllF16##NAME() {                                      \
-    ForPartialVectors<TestF16##NAME>()(float16_t());                          \
+#define DEFINE_F16_MATH_TEST(NAME, Fx1, FxN, F16_MIN, F16_MAX, F16_ERROR)   \
+  struct TestF16##NAME {                                                    \
+    template <class T, class D>                                             \
+    HWY_NOINLINE void operator()(T, D d) {                                  \
+      TestF16Math(HWY_STR(NAME), Fx1, FxN, d, F16_MIN, F16_MAX, F16_ERROR); \
+    }                                                                       \
+  };                                                                        \
+  HWY_NOINLINE void TestAllF16##NAME() {                                    \
+    ForPartialVectors<TestF16##NAME>()(float16_t());                        \
   }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
