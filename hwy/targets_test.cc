@@ -26,6 +26,7 @@
 #if HWY_ARCH_ARM_A64 && HWY_OS_LINUX && defined(__GLIBC__)
 #ifdef __has_include
 #if __has_include(<sys/ifunc.h>)
+#include <stddef.h>
 #include <sys/ifunc.h>
 #undef HWY_TEST_HAVE_SYS_IFUNC_H
 #define HWY_TEST_HAVE_SYS_IFUNC_H 1
