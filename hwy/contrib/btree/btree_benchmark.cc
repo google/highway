@@ -277,11 +277,14 @@ void RunBenchmarkSuite(size_t num_keys) {
   const double me_std_1 = hwy::platform::Now();
 
   absl::btree_set<KeyT> absl_dyn_set;
+  const size_t absl_dyn_before = AllocatedBefore();
   const double mi_absl_0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumMutations; ++i) {
     absl_dyn_set.insert(mutation_keys[i]);
   }
   const double mi_absl_1 = hwy::platform::Now();
+  const size_t absl_dyn_bytes = GetAllocatedBytes(absl_dyn_before, 0);
+  const size_t dyn_unique_keys = absl_dyn_set.size();
 
   const double me_absl_0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumErases; ++i) {
@@ -290,11 +293,15 @@ void RunBenchmarkSuite(size_t num_keys) {
   const double me_absl_1 = hwy::platform::Now();
 
   BTreeSet<KeyT> hwy_dyn_set;
+  const size_t hwy_dyn_before = AllocatedBefore();
   const double mi_hwy_0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumMutations; ++i) {
     hwy_dyn_set.insert(mutation_keys[i]);
   }
   const double mi_hwy_1 = hwy::platform::Now();
+  const size_t hwy_dyn_bytes =
+      GetAllocatedBytes(hwy_dyn_before, hwy_dyn_set.AllocatedBytes());
+  HWY_ASSERT(hwy_dyn_set.size() == dyn_unique_keys);
 
   const double me_hwy_0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumErases; ++i) {
@@ -359,6 +366,16 @@ void RunBenchmarkSuite(size_t num_keys) {
   printf(
       "========================================================================"
       "================================================\n");
+
+  const double absl_dyn_bk =
+      static_cast<double>(absl_dyn_bytes) / dyn_unique_keys;
+  const double hwy_dyn_bk =
+      static_cast<double>(hwy_dyn_bytes) / dyn_unique_keys;
+  printf(
+      "  Dynamic Insert Memory (N = %zu keys): absl = %.1f B/k | hwy = %.1f "
+      "B/k (%.1fx smaller)\n",
+      dyn_unique_keys, absl_dyn_bk, hwy_dyn_bk,
+      absl_dyn_bk / (hwy_dyn_bk + 1e-6));
 
   HWY_ASSERT(std_hits == absl_hits);
   HWY_ASSERT(hwy_hits == absl_hits);
@@ -590,11 +607,14 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   const double me_std_1 = hwy::platform::Now();
 
   absl::btree_map<KeyT, ValueT> absl_dyn_map;
+  const size_t absl_dyn_before = AllocatedBefore();
   const double mi_absl_0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumMutations; ++i) {
     absl_dyn_map.insert(mutation_pairs[i]);
   }
   const double mi_absl_1 = hwy::platform::Now();
+  const size_t absl_dyn_bytes = GetAllocatedBytes(absl_dyn_before, 0);
+  const size_t dyn_unique_pairs = absl_dyn_map.size();
 
   const double me_absl_0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumErases; ++i) {
@@ -603,11 +623,15 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   const double me_absl_1 = hwy::platform::Now();
 
   BTreeMap<KeyT, ValueT> hwy_dyn_map;
+  const size_t hwy_dyn_before = AllocatedBefore();
   const double mi_hwy_0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumMutations; ++i) {
     hwy_dyn_map.insert(mutation_pairs[i]);
   }
   const double mi_hwy_1 = hwy::platform::Now();
+  const size_t hwy_dyn_bytes =
+      GetAllocatedBytes(hwy_dyn_before, hwy_dyn_map.AllocatedBytes());
+  HWY_ASSERT(hwy_dyn_map.size() == dyn_unique_pairs);
 
   const double me_hwy_0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumErases; ++i) {
@@ -671,6 +695,16 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   printf(
       "========================================================================"
       "================================================\n");
+
+  const double absl_dyn_bp =
+      static_cast<double>(absl_dyn_bytes) / dyn_unique_pairs;
+  const double hwy_dyn_bp =
+      static_cast<double>(hwy_dyn_bytes) / dyn_unique_pairs;
+  printf(
+      "  Dynamic Insert Memory (N = %zu pairs): absl = %.1f B/p | hwy = %.1f "
+      "B/p (%.1fx smaller)\n",
+      dyn_unique_pairs, absl_dyn_bp, hwy_dyn_bp,
+      absl_dyn_bp / (hwy_dyn_bp + 1e-6));
 
   HWY_ASSERT(std_hits == absl_hits);
   HWY_ASSERT(hwy_hits == absl_hits);
@@ -785,6 +819,10 @@ static void PrintBenchmarkLegend() {
       "  * Dyn Ins/Del (ns)  : Mutation latency starting from an empty tree "
       "(100K random insertions sampled from [0, 20*N], followed by 50K random "
       "erases).\n");
+  printf(
+      "  * Dynamic Insert Mem: Memory usage after 100K random one-by-one "
+      "insert()s sampled uniformly from [0, 20*N] (avg step ~20) into an empty "
+      "tree.\n");
   printf(
       "  * Worst-Case Memory : Heap space on completely uncompressible uniform "
       "random keys with large spread (forcing raw uncompressed mode).\n");
