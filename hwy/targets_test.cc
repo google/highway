@@ -175,6 +175,34 @@ TEST(HwyTargetsTest, DetectTargetsAcceptsTemporaryPlatform) {
 }
 #endif
 
+#if HWY_ARCH_X86 && HWY_OS_LINUX && defined(__GLIBC__) && \
+    HWY_HAVE_RUNTIME_DISPATCH && HWY_HAS_ATTRIBUTE(ifunc) && !HWY_IS_SANITIZER
+// Sanitizer instrumentation may call into its runtime before initialization.
+static int64_t ifunc_detected_targets = 0;
+static bool ifunc_resolver_called = false;
+
+static int64_t ReadIfuncDetectedTargets() { return ifunc_detected_targets; }
+
+using DetectTargetsFunction = int64_t (*)();
+struct IfuncPlatform {};
+
+extern "C" DetectTargetsFunction ResolveTargetsForTest() {
+  ifunc_detected_targets = x86::DetectTargetsImpl(IfuncPlatform{});
+  ifunc_resolver_called = true;
+  return ReadIfuncDetectedTargets;
+}
+
+extern "C" int64_t DetectTargetsViaIfunc()
+    __attribute__((ifunc("ResolveTargetsForTest")));
+
+TEST(HwyTargetsTest, DetectTargetsFromIfuncResolver) {
+  // The test runner sets LD_BIND_NOW=1 before starting this executable.
+  HWY_ASSERT(ifunc_resolver_called);
+  HWY_ASSERT_EQ(x86::DetectTargetsImpl(IfuncPlatform{}),
+                DetectTargetsViaIfunc());
+}
+#endif
+
 TEST(HwyTargetsTest, DisabledTargetsTest) {
   SetSupportedTargetsForTest(0);
   DisableTargets(~0LL);

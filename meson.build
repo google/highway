@@ -704,7 +704,8 @@ if tests_enabled
             pie: pie,
         )
 
-        test(exe_name, test_exe, protocol:'gtest')
+        test(exe_name, test_exe, protocol:'gtest',
+            env: exe_name == 'targets_test' ? {'LD_BIND_NOW': '1'} : {})
     endforeach
 
     if contrib_enabled

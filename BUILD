@@ -924,6 +924,7 @@ HWY_MALLOC = select({
                 subdir + test + ".cc",
             ],
             copts = COPTS + HWY_TEST_COPTS,
+            env = {"LD_BIND_NOW": "1"} if test == "targets_test" else {},
             # Fixes OOM for matvec_test on RVV, and f16_math_test on Windows.
             exec_properties = (
                 {"mem": "16g"} if test in ("f16_math_test",) else select({
