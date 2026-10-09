@@ -514,7 +514,8 @@ namespace arm {
     (HWY_COMPILER_GCC || HWY_COMPILER_CLANG) && \
     ((HWY_TARGETS & HWY_ALL_SVE) != 0)
 HWY_PUSH_ATTRIBUTES("+sve")
-static int64_t DetectAdditionalSveTargets(int64_t detected_targets) {
+static int64_t HWY_MAYBE_UNUSED
+DetectAdditionalSveTargets(int64_t detected_targets) {
   uint64_t sve_vec_len;
 
   // Use inline assembly instead of svcntb_pat(SV_ALL) as GCC or Clang might
