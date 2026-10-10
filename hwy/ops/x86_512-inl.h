@@ -77,7 +77,7 @@ HWY_DIAGNOSTICS_OFF(disable : 4701 4703 6001 26494,
 #if HWY_TARGET <= HWY_AVX3_SPR
 #include <avx512fp16intrin.h>
 #include <avx512vlfp16intrin.h>
-#if HWY_ARCH_X86_64
+#if HWY_ARCH_X86_64 && HWY_COMPILER_CLANG >= 1600
 #include <amxintrin.h>
 #endif
 #endif  // HWY_TARGET <= HWY_AVX3_SPR
