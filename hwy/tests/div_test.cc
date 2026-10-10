@@ -216,6 +216,42 @@ HWY_NOINLINE void TestAllIntegerMod() {
   ForIntegerTypes(ForPartialVectors<TestIntegerMod>());
 }
 
+struct TestFloatDiv {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) const {
+    static_assert(IsFloat<T>(), "Only for floating-point types");
+
+    const T zero = T{0};
+    const T one = T{1};
+    const T pos_inf = PositiveInfOrHighestValue<T>();
+    const T max = HighestValue<T>();
+
+    // IEEE 754 defines x / +/-0 (documented as `returns a[i] / b[i]`).
+    // Comparing values directly on purpose: HWY_ASSERT_VEC_EQ uses ULP <= 1
+    // tolerance for floats, and HighestValue<float>() is exactly 1 ULP below
+    // +Inf, so it would accept a saturated result.
+    const auto quot = [&](T a, T b) {
+      return GetLane(Div(Set(d, a), Set(d, b)));
+    };
+
+    HWY_ASSERT(quot(one, zero) == pos_inf);
+    HWY_ASSERT(quot(one, -zero) == -pos_inf);
+    HWY_ASSERT(quot(-one, zero) == -pos_inf);
+    HWY_ASSERT(quot(-one, -zero) == pos_inf);
+    HWY_ASSERT(quot(max, zero) == pos_inf);
+    HWY_ASSERT(quot(max, -zero) == -pos_inf);
+
+    // 0/0 is NaN. Only the classification is asserted: the sign of a NaN is
+    // implementation-defined and does differ between targets.
+    HWY_ASSERT(ScalarIsNaN(quot(zero, zero)));
+    HWY_ASSERT(ScalarIsNaN(quot(zero, -zero)));
+  }
+};
+
+HWY_NOINLINE void TestAllFloatDiv() {
+  ForFloatTypes(ForPartialVectors<TestFloatDiv>());
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -228,6 +264,7 @@ namespace {
 HWY_BEFORE_TEST(HwyDivTest);
 HWY_EXPORT_AND_TEST_P(HwyDivTest, TestAllIntegerDiv);
 HWY_EXPORT_AND_TEST_P(HwyDivTest, TestAllIntegerMod);
+HWY_EXPORT_AND_TEST_P(HwyDivTest, TestAllFloatDiv);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy
