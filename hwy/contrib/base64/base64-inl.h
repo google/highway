@@ -269,7 +269,12 @@ HWY_INLINE VFromD<D> DecodeBase64Block(D d, const char* HWY_RESTRICT input,
 }  // namespace detail
 
 // Returns the number of output bytes required to encode `input_size` bytes.
+// Aborts if `input_size` would cause `size_t` integer overflow.
 HWY_INLINE size_t Base64EncodedSize(const size_t input_size) {
+  constexpr size_t kMaxInputSize = (SIZE_MAX / 4) * 3;
+  if (HWY_UNLIKELY(input_size > kMaxInputSize)) {
+    HWY_ABORT("Base64EncodedSize overflow: input_size=%zu", input_size);
+  }
   return ((input_size + 2) / 3) * 4;
 }
 
@@ -278,6 +283,10 @@ HWY_INLINE size_t Base64EncodedSize(const size_t input_size) {
 HWY_INLINE size_t Base64Encode(const uint8_t* HWY_RESTRICT input,
                                const size_t input_size,
                                char* HWY_RESTRICT output) {
+  constexpr size_t kMaxInputSize = (SIZE_MAX / 4) * 3;
+  if (HWY_UNLIKELY(input_size > kMaxInputSize)) {
+    HWY_ABORT("Base64Encode overflow: input_size=%zu", input_size);
+  }
   size_t in = 0;
   size_t out = 0;
 #if (HWY_ARCH_ARM_A64 && HWY_TARGET_IS_NEON) || HWY_TARGET <= HWY_AVX3_DL
