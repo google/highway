@@ -475,6 +475,43 @@ void TestSecurityMalformedContainer() {
     HWY_ASSERT(!DecompressStaticVec(Span<const uint8_t>(block), out));
   }
 
+  // A control varint of 10 bytes that overflows 64 bits (> 64 bits).
+  {
+    std::vector<uint8_t> block;
+    block.push_back(0xFF);  // stop bit on the last byte consumed (index 0)
+    for (int i = 0; i < 9; ++i) block.push_back(0x7F);
+    HWY_ASSERT(!DecompressScalarVec(Span<const uint8_t>(block), out));
+    HWY_ASSERT(!DecompressStaticVec(Span<const uint8_t>(block), out));
+  }
+
+  // Valid control varints must decode correctly across full 64-bit range.
+  {
+    const uint64_t values[] = {
+        0, 1, 2, 127, 128, 255, 1000, 65535,
+        uint64_t{1} << 30, (uint64_t{1} << 32) - 1,
+        (uint64_t{1} << 62) + 12345, (uint64_t{1} << 63) - 1,
+        uint64_t{1} << 63, ~uint64_t{0}};
+    for (uint64_t val : values) {
+      std::vector<uint8_t> ctrl;
+      int bit_len = 0;
+      for (uint64_t t = val; t != 0; t >>= 1) ++bit_len;
+      const int count = bit_len / 7 + 1;
+      for (int i = count - 1; i >= 0; --i) {
+        uint32_t x = static_cast<uint32_t>(val >> (i * 7)) & 0x7F;
+        if (i == 0) x |= 0x80;
+        ctrl.push_back(static_cast<uint8_t>(x));
+      }
+      std::vector<uint8_t> block(ctrl.rbegin(), ctrl.rend());
+      bool ok = true;
+      int64_t cursor = static_cast<int64_t>(block.size()) - 1;
+      const uint64_t decoded =
+          hwy::iguana::ReadControlVarUint(block.data(), &cursor, &ok);
+      HWY_ASSERT(ok);
+      HWY_ASSERT(decoded == val);
+      HWY_ASSERT(cursor == -1);
+    }
+  }
+
   // Leftover bytes in an auxiliary stream: the token stream is empty, but the
   // 16-bit offset stream still holds two bytes, so the block is inconsistent.
   {

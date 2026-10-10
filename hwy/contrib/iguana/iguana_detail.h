@@ -209,14 +209,9 @@ HWY_INLINE uint64_t ReadControlVarUint(const uint8_t* src, int64_t* cursor,
   while (*cursor >= 0) {
     const uint8_t v = src[*cursor];
     --*cursor;
-    if (groups == 9) {
-      // 10th byte is the most significant: it may contribute a single bit,
-      // otherwise the shift below would silently drop bits.
-      if ((v & 0x7F) > 1) {
-        *ok = false;
-        return 0;
-      }
-    } else if (groups >= 10) {
+    // Prevent 64-bit integer overflow before shifting and reject varints
+    // exceeding 10 groups (70 bits).
+    if (groups >= 10 || (r >> 57) != 0) {
       *ok = false;
       return 0;
     }
