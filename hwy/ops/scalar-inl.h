@@ -864,7 +864,7 @@ HWY_API Vec1<MakeSigned<T>> NearestInt(const Vec1<T> v) {
 
   if (!(abs < MantissaEnd<T>())) {  // Huge or NaN
     // Check if too large to cast or NaN
-    if (!(abs <= ConvertScalarTo<T>(LimitsMax<TI>()))) {
+    if (!(abs < -ConvertScalarTo<T>(LimitsMin<TI>()))) {
       return Vec1<TI>(is_sign ? LimitsMin<TI>() : LimitsMax<TI>());
     }
     return Vec1<TI>(ConvertScalarTo<TI>(v.raw));
