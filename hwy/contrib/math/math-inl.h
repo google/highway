@@ -1490,19 +1490,24 @@ HWY_INLINE V StirlingLogGamma(D d, V w, V& lo) {
   GammaImpl<T> impl;
   const V kHalf = Set(d, static_cast<T>(0.5));
   const V kZero = Zero(d);
-  const V kHalfLn2PiHi = Set(d, kIsF32 ? static_cast<T>(0.9189385175704956f)
-                                       : static_cast<T>(0.9189385332046728));
-  const V kHalfLn2PiLo =
+  const V kHalfLn2PiMinusHalfHi =
+      Set(d, kIsF32 ? static_cast<T>(0.4189385175704956f)
+                    : static_cast<T>(0.4189385332046728));
+  const V kHalfLn2PiMinusHalfLo =
       Set(d, kIsF32 ? static_cast<T>(1.563417661998301e-8f)
                     : static_cast<T>(-3.8782941580672414e-17));
-  // (w-0.5)*ln(w) - w + 0.5*ln(2pi) + (1/w)*poly(1/w^2).
-  const V inv_w = Div(Set(d, static_cast<T>(1.0)), w);
+  // (w-0.5)*(ln(w)-1) - 0.5 + 0.5*ln(2pi) + (1/w)*poly(1/w^2).
+  const V kOne = Set(d, static_cast<T>(1.0));
+  const V inv_w = Div(kOne, w);
   const V u = Mul(inv_w, inv_w);
   V lnw_lo;
-  const V lnw_hi = DDLog(d, w, lnw_lo);
-  V hi = DDMul1(d, lnw_hi, lnw_lo, Sub(w, kHalf), lo);
-  hi = DDAdd(d, hi, lo, Neg(w), kZero, lo);
-  hi = DDAdd(d, hi, lo, kHalfLn2PiHi, kHalfLn2PiLo, lo);
+  V lnw_hi = DDLog(d, w, lnw_lo);
+  lnw_hi = DDAdd(d, lnw_hi, lnw_lo, Neg(kOne), kZero, lnw_lo);
+  // Halved so the non-FMA DDMul1 cannot overflow.
+  V hi = DDMul1(d, lnw_hi, lnw_lo, Mul(Sub(w, kHalf), kHalf), lo);
+  hi = Add(hi, hi);
+  lo = Add(lo, lo);
+  hi = DDAdd(d, hi, lo, kHalfLn2PiMinusHalfHi, kHalfLn2PiMinusHalfLo, lo);
   const V series = Mul(inv_w, impl.StirlingPoly(d, u));
   return DDAdd(d, hi, lo, series, kZero, lo);
 }
@@ -3014,8 +3019,10 @@ HWY_INLINE V Lgamma(D d, V a) {
 
   // For a < 0.5: logGamma(a) = log(pi) - log|sin(pi*a)| - logGamma(1 - a).
   const V frac = Sub(a, Round(a));
-  const V s_mag = Abs(Sin(d, Mul(kPi, frac)));
-  const V refl = Sub(Sub(kLogPi, impl::Log(d, s_mag)), loggamma_w);
+  const M tiny = Lt(Abs(a), Set(d, SmallestNormal<T>()));
+  const V s_mag = IfThenElse(tiny, Abs(a), Abs(Sin(d, Mul(kPi, frac))));
+  const V refl =
+      Sub(Sub(IfThenZeroElse(tiny, kLogPi), impl::Log(d, s_mag)), loggamma_w);
 
   return IfThenElse(neg, refl, loggamma_w);
 }
@@ -3062,12 +3069,14 @@ HWY_NOINLINE V CallTgamma(const D d, VecArg<V> x) {
  */
 template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V LogGamma(const D d, V x) {
+  using T = TFromD<D>;
   const V kZero = Zero(d);
+  const V kOverflow = Set(
+      d, static_cast<T>(sizeof(T) == 4 ? 4.085003e36 : 2.5599833278516383e305));
   V result = impl::Lgamma(d, x);
 
   const MFromD<D> is_pole = And(Eq(x, Round(x)), Le(x, kZero));
-  result = IfThenElse(is_pole, Inf(d), result);
-  result = IfThenElse(IsInf(x), Inf(d), result);
+  result = IfThenElse(Or(Gt(x, kOverflow), is_pole), Inf(d), result);
   result = IfThenElse(IsNaN(x), x, result);
   return result;
 }
