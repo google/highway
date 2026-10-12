@@ -1443,12 +1443,9 @@ HWY_API VFromD<DTo> PromoteInRangeTo(DTo /* tag */, Vec1<float> from) {
 // so we overload for TFrom=double and TTo={float,int32_t}.
 template <class D, HWY_IF_F32_D(D)>
 HWY_API Vec1<float> DemoteTo(D /* tag */, Vec1<double> from) {
-  // Prevent ubsan errors when converting float to narrower integer/float
-  if (IsInf(from).bits ||
-      Abs(from).raw > static_cast<double>(HighestValue<float>())) {
-    return Vec1<float>(ScalarSignBit(from.raw) ? LowestValue<float>()
-                                               : HighestValue<float>());
-  }
+  // IEEE-754 conversion, same as other targets: values that overflow, and
+  // infinities, become +/-inf. This is not UB because infinity is
+  // representable (UBSan only flags this in Clang < 9).
   return Vec1<float>(static_cast<float>(from.raw));
 }
 template <class D, HWY_IF_UI32_D(D)>

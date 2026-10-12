@@ -2155,9 +2155,12 @@ obtain the `D` that describes the return type.
     (`i64,u32`), (`u16,u8`), (`u32,u8`), (`u64,u8`), (`u32,u16`), (`u64,u16`),
     (`u64,u32`), (`f64,f32`) \
     <code>Vec&lt;D&gt; **DemoteTo**(D, V v)</code>: returns `v[i]` after packing
-    with signed/unsigned saturation to `MakeNarrow<T>`. The possible
-    combinations of source type `V` and destination type `TFromD<D>` are shown
-    below (✅ indicates a supported combination, x indicates not supported):
+    with signed/unsigned saturation to `MakeNarrow<T>`. For (`f64,f32`), there
+    is no saturation: `v[i]` is rounded to nearest (with ties to even), and
+    results that overflow, as well as infinities, become +/- infinity. The
+    possible combinations of source type `V` and destination type `TFromD<D>`
+    are shown below (✅ indicates a supported combination, x indicates not
+    supported):
 
     | From | i8  | i16 | i32 | i64 | u8  | u16 | u32 | u64 | f16 | bf16 | f32 |
     : (V)  :     :     :     :     :     :     :     :     :     :      :     :

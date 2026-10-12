@@ -258,7 +258,12 @@ struct TestDemoteToFloat {
     }
 
     // Check that finite values that are out of the range of ToT are correctly
-    // converted to positive infinity or negative infinity
+    // converted to positive infinity or negative infinity. Compare the bits
+    // because HWY_ASSERT_VEC_EQ allows floats to differ by 1 ULP, and infinity
+    // is adjacent to HighestValue<ToT>().
+    const RebindToUnsigned<decltype(to_d)> to_du;
+    auto expected_bits = AllocateAligned<ToTU>(N);
+    HWY_ASSERT(expected_bits);
     for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
       for (size_t i = 0; i < N; ++i) {
         const T rand_val = RandomFiniteValue<T>(&rng);
@@ -268,13 +273,37 @@ struct TestDemoteToFloat {
 
         from[i] = rand_out_of_range_val;
 
-        expected[i] = BitCastScalar<ToT>(static_cast<ToTU>(
+        expected_bits[i] = static_cast<ToTU>(
             kToTPosInfBits | (static_cast<ToTU>(ScalarSignBit(rand_val))
-                              << (sizeof(ToTU) * 8 - 1))));
+                              << (sizeof(ToTU) * 8 - 1)));
       }
 
-      HWY_ASSERT_VEC_EQ(to_d, expected.get(),
-                        DemoteTo(to_d, Load(from_d, from.get())));
+      HWY_ASSERT_VEC_EQ(
+          to_du, expected_bits.get(),
+          BitCast(to_du, DemoteTo(to_d, Load(from_d, from.get()))));
+    }
+
+    // Check that infinities are preserved, and rounding at the upper end of
+    // the range of ToT: with round to nearest, ties to even, magnitudes from
+    // halfway between HighestValue<ToT>() and the next power of two (whose
+    // mantissa is even) round to infinity, and smaller ones round down to
+    // HighestValue<ToT>().
+    const TU halfway_bits = static_cast<TU>(
+        BitCastScalar<TU>(max_abs) |
+        (TU{1} << (MantissaBits<T>() - MantissaBits<ToT>() - 1)));
+    const TU boundary_from_bits[3] = {ExponentMask<T>(), halfway_bits,
+                                      static_cast<TU>(halfway_bits - 1)};
+    const ToTU boundary_expected_bits[3] = {
+        kToTPosInfBits, kToTPosInfBits, static_cast<ToTU>(kToTPosInfBits - 1)};
+    for (size_t i = 0; i < 3; ++i) {
+      for (int negative = 0; negative <= 1; ++negative) {
+        const T in = BitCastScalar<T>(static_cast<TU>(
+            boundary_from_bits[i] | (negative ? SignMask<T>() : TU{0})));
+        const ToTU expected_out_bits = static_cast<ToTU>(
+            boundary_expected_bits[i] | (negative ? SignMask<ToT>() : ToTU{0}));
+        HWY_ASSERT_VEC_EQ(to_du, Set(to_du, expected_out_bits),
+                          BitCast(to_du, DemoteTo(to_d, Set(from_d, in))));
+      }
     }
   }
 };

@@ -1905,13 +1905,9 @@ template <class D, HWY_IF_F32_D(D)>
 HWY_API VFromD<D> DemoteTo(D d, VFromD<Rebind<double, D>> from) {
   VFromD<D> ret;
   for (size_t i = 0; i < MaxLanes(d); ++i) {
-    // Prevent ubsan errors when converting float to narrower integer/float
-    if (ScalarIsInf(from.raw[i]) ||
-        ScalarAbs(from.raw[i]) > static_cast<double>(HighestValue<float>())) {
-      ret.raw[i] = ScalarSignBit(from.raw[i]) ? LowestValue<float>()
-                                              : HighestValue<float>();
-      continue;
-    }
+    // IEEE-754 conversion, same as other targets: values that overflow, and
+    // infinities, become +/-inf. This is not UB because infinity is
+    // representable (UBSan only flags this in Clang < 9).
     ret.raw[i] = static_cast<float>(from.raw[i]);
   }
   return ret;
