@@ -70,10 +70,9 @@ struct TestBasicDivision {
     using T = TFromD<D>;
     const size_t N = Lanes(d);
 
-    AlignedFreeUniquePtr<T[]> pa =
-        AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
-    AlignedFreeUniquePtr<T[]> expected = AllocateAligned<T>(HWY_MAX(1, count));
-    AlignedFreeUniquePtr<T[]> actual = AllocateAligned<T>(HWY_MAX(1, count));
+    AlignedPtr<T> pa = AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
+    AlignedPtr<T> expected = AllocateAligned<T>(HWY_MAX(1, count));
+    AlignedPtr<T> actual = AllocateAligned<T>(HWY_MAX(1, count));
     HWY_ASSERT(pa && expected && actual);
 
     T* a = pa.get() + misalign_a;
@@ -127,10 +126,9 @@ struct TestPowerOf2Division {
     using T = TFromD<D>;
     const size_t N = Lanes(d);
 
-    AlignedFreeUniquePtr<T[]> pa =
-        AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
-    AlignedFreeUniquePtr<T[]> expected = AllocateAligned<T>(HWY_MAX(1, count));
-    AlignedFreeUniquePtr<T[]> actual = AllocateAligned<T>(HWY_MAX(1, count));
+    AlignedPtr<T> pa = AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
+    AlignedPtr<T> expected = AllocateAligned<T>(HWY_MAX(1, count));
+    AlignedPtr<T> actual = AllocateAligned<T>(HWY_MAX(1, count));
     HWY_ASSERT(pa && expected && actual);
 
     T* a = pa.get() + misalign_a;
@@ -186,10 +184,9 @@ struct TestSignedDivision {
 
     const size_t N = Lanes(d);
 
-    AlignedFreeUniquePtr<T[]> pa =
-        AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
-    AlignedFreeUniquePtr<T[]> expected = AllocateAligned<T>(HWY_MAX(1, count));
-    AlignedFreeUniquePtr<T[]> actual = AllocateAligned<T>(HWY_MAX(1, count));
+    AlignedPtr<T> pa = AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
+    AlignedPtr<T> expected = AllocateAligned<T>(HWY_MAX(1, count));
+    AlignedPtr<T> actual = AllocateAligned<T>(HWY_MAX(1, count));
     HWY_ASSERT(pa && expected && actual);
 
     T* a = pa.get() + misalign_a;
@@ -243,10 +240,9 @@ struct TestFloorDivision {
     using T = TFromD<D>;
     const size_t N = Lanes(d);
 
-    AlignedFreeUniquePtr<T[]> pa =
-        AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
-    AlignedFreeUniquePtr<T[]> expected = AllocateAligned<T>(HWY_MAX(1, count));
-    AlignedFreeUniquePtr<T[]> actual = AllocateAligned<T>(HWY_MAX(1, count));
+    AlignedPtr<T> pa = AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
+    AlignedPtr<T> expected = AllocateAligned<T>(HWY_MAX(1, count));
+    AlignedPtr<T> actual = AllocateAligned<T>(HWY_MAX(1, count));
     HWY_ASSERT(pa && expected && actual);
 
     T* a = pa.get() + misalign_a;
@@ -513,10 +509,9 @@ struct TestConvenienceAPI {
     using T = TFromD<D>;
     const size_t N = Lanes(d);
 
-    AlignedFreeUniquePtr<T[]> pa =
-        AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
-    AlignedFreeUniquePtr<T[]> expected = AllocateAligned<T>(HWY_MAX(1, count));
-    AlignedFreeUniquePtr<T[]> actual = AllocateAligned<T>(HWY_MAX(1, count));
+    AlignedPtr<T> pa = AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
+    AlignedPtr<T> expected = AllocateAligned<T>(HWY_MAX(1, count));
+    AlignedPtr<T> actual = AllocateAligned<T>(HWY_MAX(1, count));
     HWY_ASSERT(pa && expected && actual);
 
     T* a = pa.get() + misalign_a;

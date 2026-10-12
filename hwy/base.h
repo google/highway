@@ -974,6 +974,25 @@ static constexpr bool IsAssignable() {
 #define HWY_IF_ASSIGNABLE(T, From) \
   hwy::EnableIf<IsAssignable<T, From>()>* = nullptr
 
+template <class T>
+HWY_API constexpr bool IsTriviallyDestructible() {
+#if HWY_HAS_BUILTIN(__is_trivially_destructible) || HWY_COMPILER_MSVC >= 1900
+  return __is_trivially_destructible(T);
+#else
+  return __has_trivial_destructor(T);
+#endif
+}
+
+template <class T>
+HWY_API constexpr bool IsTriviallyCopyable() {
+  return __is_trivially_copyable(T);
+}
+
+template <class T>
+HWY_API constexpr bool IsTrivial() {
+  return __is_trivial(T);
+}
+
 // ----------------------------------------------------------------------------
 // IsSpecialFloat
 

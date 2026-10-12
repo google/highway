@@ -180,12 +180,9 @@ class TestMatVecAdd {
     const size_t misalign = 3 * Lanes(d) / 5;
     // Fill matrix and vector with small integer values
     const size_t area = kRows * kCols;
-    AlignedFreeUniquePtr<MatT[]> storage_m =
-        AllocateAligned<MatT>(misalign + area);
-    AlignedFreeUniquePtr<VecT[]> storage_v =
-        AllocateAligned<VecT>(misalign + kCols);
-    AlignedFreeUniquePtr<VecT[]> storage_a =
-        AllocateAligned<VecT>(misalign + kRows);
+    AlignedPtr<MatT> storage_m = AllocateAligned<MatT>(misalign + area);
+    AlignedPtr<VecT> storage_v = AllocateAligned<VecT>(misalign + kCols);
+    AlignedPtr<VecT> storage_a = AllocateAligned<VecT>(misalign + kRows);
     HWY_ASSERT(storage_m && storage_v && storage_a);
     MatT* pm = storage_m.get() + misalign;
     VecT* pv = storage_v.get() + misalign;
@@ -194,18 +191,17 @@ class TestMatVecAdd {
     Generate(dv, pv, kCols, GenerateMod());
     Generate(dv, av, kRows, GenerateMod());
 
-    AlignedFreeUniquePtr<T[]> expected_without_add = AllocateAligned<T>(kRows);
+    AlignedPtr<T> expected_without_add = AllocateAligned<T>(kRows);
     HWY_ASSERT(expected_without_add);
     SimpleMatVecAdd(pm, pv, static_cast<VecT*>(nullptr), kRows, kCols,
                     expected_without_add.get(), pool);
 
-    AlignedFreeUniquePtr<T[]> actual_without_add = AllocateAligned<T>(kRows);
+    AlignedPtr<T> actual_without_add = AllocateAligned<T>(kRows);
     HWY_ASSERT(actual_without_add);
     MatVec<kRows, kCols>(pm, pv, actual_without_add.get(), pool);
 
-    const auto assert_close = [&](const AlignedFreeUniquePtr<T[]>& expected,
-                                  const AlignedFreeUniquePtr<T[]>& actual,
-                                  bool with_add) {
+    const auto assert_close = [&](const AlignedPtr<T>& expected,
+                                  const AlignedPtr<T>& actual, bool with_add) {
       for (size_t i = 0; i < kRows; ++i) {
         const double exp = ConvertScalarTo<double>(expected[i]);
         const double act = ConvertScalarTo<double>(actual[i]);
@@ -229,10 +225,10 @@ class TestMatVecAdd {
 
     assert_close(expected_without_add, actual_without_add, /*with_add=*/false);
 
-    AlignedFreeUniquePtr<T[]> expected_with_add = AllocateAligned<T>(kRows);
+    AlignedPtr<T> expected_with_add = AllocateAligned<T>(kRows);
     SimpleMatVecAdd(pm, pv, av, kRows, kCols, expected_with_add.get(), pool);
 
-    AlignedFreeUniquePtr<T[]> actual_with_add = AllocateAligned<T>(kRows);
+    AlignedPtr<T> actual_with_add = AllocateAligned<T>(kRows);
     MatVecAdd<kRows, kCols>(pm, pv, av, actual_with_add.get(), pool);
 
     assert_close(expected_with_add, actual_with_add, /*with_add=*/true);

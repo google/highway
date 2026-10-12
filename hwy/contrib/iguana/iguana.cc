@@ -711,8 +711,7 @@ HWY_CONTRIB_DLLEXPORT bool IguanaWorkspace::Reserve(size_t max_size,
   // lets a single transparent huge page cover all of it, which costs one TLB
   // entry instead of up to 513. WorkerRegionSize() is a whole number of huge
   // pages, so aligning the base aligns every worker's table.
-  AlignedFreeUniquePtr<uint8_t[]> mem =
-      AllocateAligned<uint8_t>(want + kHugePage - 1);
+  AlignedPtr<uint8_t> mem = AllocateAligned<uint8_t>(want + kHugePage - 1);
   if (mem == nullptr) return false;  // keep the previous, still usable buffer
   base_ = reinterpret_cast<uint8_t*>(
       RoundUpTo(reinterpret_cast<size_t>(mem.get()), kHugePage));

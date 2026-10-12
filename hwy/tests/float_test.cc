@@ -298,7 +298,7 @@ HWY_NOINLINE void TestAllMaskedReciprocalSquareRoot() {
 }
 
 template <typename T, class D>
-AlignedFreeUniquePtr<T[]> RoundTestCases(T /*unused*/, D d, size_t& padded) {
+AlignedPtr<T> RoundTestCases(T /*unused*/, D d, size_t& padded) {
   const T eps = Epsilon<T>();
   const T huge = ConvertScalarTo<T>(sizeof(T) >= 4 ? 1E34 : 3E4);
   const T test_cases[] = {

@@ -50,6 +50,7 @@ constexpr size_t kAlias = kAlignment;
 struct AllocationHeader {
   void* allocated;
   size_t payload_size;
+  void* opaque_ptr;
 };
 #pragma pack(pop)
 
@@ -110,6 +111,7 @@ HWY_DLLEXPORT void* AllocateAlignedBytes(const size_t payload_size,
   HWY_DASSERT(reinterpret_cast<uintptr_t>(header) >= aligned);
   header->allocated = allocated;
   header->payload_size = payload_size;
+  header->opaque_ptr = opaque_ptr;
 
   return HWY_ASSUME_ALIGNED(reinterpret_cast<void*>(payload), kAlignment);
 }
@@ -117,6 +119,7 @@ HWY_DLLEXPORT void* AllocateAlignedBytes(const size_t payload_size,
 HWY_DLLEXPORT void FreeAlignedBytes(const void* aligned_pointer,
                                     FreePtr free_ptr, void* opaque_ptr) {
   if (aligned_pointer == nullptr) return;
+  if (free_ptr == &AlignedFreer::DoNothing) return;
 
   const uintptr_t payload = reinterpret_cast<uintptr_t>(aligned_pointer);
   HWY_DASSERT(payload % kAlignment == 0);
@@ -126,7 +129,8 @@ HWY_DLLEXPORT void FreeAlignedBytes(const void* aligned_pointer,
   if (free_ptr == nullptr) {
     free(header->allocated);
   } else {
-    (*free_ptr)(opaque_ptr, header->allocated);
+    (*free_ptr)(opaque_ptr ? opaque_ptr : header->opaque_ptr,
+                header->allocated);
   }
 }
 
@@ -149,7 +153,8 @@ HWY_DLLEXPORT void AlignedDeleter::DeleteAlignedArray(void* aligned_pointer,
   if (free_ptr == nullptr) {
     free(header->allocated);
   } else {
-    (*free_ptr)(opaque_ptr, header->allocated);
+    (*free_ptr)(opaque_ptr ? opaque_ptr : header->opaque_ptr,
+                header->allocated);
   }
 }
 

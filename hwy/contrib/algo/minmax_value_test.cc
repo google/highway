@@ -113,8 +113,7 @@ struct TestMinValue {
   template <class D>
   void operator()(D d, size_t count, size_t misalign, RandomState& rng) {
     using T = TFromD<D>;
-    AlignedFreeUniquePtr<T[]> storage =
-        AllocateAligned<T>(HWY_MAX(1, misalign + count));
+    AlignedPtr<T> storage = AllocateAligned<T>(HWY_MAX(1, misalign + count));
     HWY_ASSERT(storage);
     T* in = storage.get() + misalign;
     for (size_t i = 0; i < count; ++i) {
@@ -138,8 +137,7 @@ struct TestMaxValue {
   template <class D>
   void operator()(D d, size_t count, size_t misalign, RandomState& rng) {
     using T = TFromD<D>;
-    AlignedFreeUniquePtr<T[]> storage =
-        AllocateAligned<T>(HWY_MAX(1, misalign + count));
+    AlignedPtr<T> storage = AllocateAligned<T>(HWY_MAX(1, misalign + count));
     HWY_ASSERT(storage);
     T* in = storage.get() + misalign;
     for (size_t i = 0; i < count; ++i) {
@@ -163,8 +161,7 @@ struct TestIndexOfMin {
   template <class D>
   void operator()(D d, size_t count, size_t misalign, RandomState& rng) {
     using T = TFromD<D>;
-    AlignedFreeUniquePtr<T[]> storage =
-        AllocateAligned<T>(HWY_MAX(1, misalign + count));
+    AlignedPtr<T> storage = AllocateAligned<T>(HWY_MAX(1, misalign + count));
     HWY_ASSERT(storage);
     T* in = storage.get() + misalign;
     for (size_t i = 0; i < count; ++i) {
@@ -189,8 +186,7 @@ struct TestIndexOfMax {
   template <class D>
   void operator()(D d, size_t count, size_t misalign, RandomState& rng) {
     using T = TFromD<D>;
-    AlignedFreeUniquePtr<T[]> storage =
-        AllocateAligned<T>(HWY_MAX(1, misalign + count));
+    AlignedPtr<T> storage = AllocateAligned<T>(HWY_MAX(1, misalign + count));
     HWY_ASSERT(storage);
     T* in = storage.get() + misalign;
     for (size_t i = 0; i < count; ++i) {
@@ -215,8 +211,7 @@ struct TestMinMaxValue {
   template <class D>
   void operator()(D d, size_t count, size_t misalign, RandomState& rng) {
     using T = TFromD<D>;
-    AlignedFreeUniquePtr<T[]> storage =
-        AllocateAligned<T>(HWY_MAX(1, misalign + count));
+    AlignedPtr<T> storage = AllocateAligned<T>(HWY_MAX(1, misalign + count));
     HWY_ASSERT(storage);
     T* in = storage.get() + misalign;
     for (size_t i = 0; i < count; ++i) {
@@ -246,8 +241,7 @@ struct TestIndexOfMinMax {
   template <class D>
   void operator()(D d, size_t count, size_t misalign, RandomState& rng) {
     using T = TFromD<D>;
-    AlignedFreeUniquePtr<T[]> storage =
-        AllocateAligned<T>(HWY_MAX(1, misalign + count));
+    AlignedPtr<T> storage = AllocateAligned<T>(HWY_MAX(1, misalign + count));
     HWY_ASSERT(storage);
     T* in = storage.get() + misalign;
     for (size_t i = 0; i < count; ++i) {
@@ -280,7 +274,7 @@ struct TestIndexOfExtremeInLongSpan {
     // 8-bit lanes can only count 255 blocks, so this spans more than one
     // segment for them. Wider lanes run it as a single segment.
     const size_t count = 300 * N;
-    AlignedFreeUniquePtr<T[]> storage = AllocateAligned<T>(count);
+    AlignedPtr<T> storage = AllocateAligned<T>(count);
     HWY_ASSERT(storage);
     T* in = storage.get();
 

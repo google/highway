@@ -100,7 +100,7 @@ class IguanaWorkspace {
   uint8_t* Memory() const { return base_; }
 
  private:
-  AlignedFreeUniquePtr<uint8_t[]> mem_;
+  AlignedPtr<uint8_t> mem_;
   // Start of the usable region inside `mem_`, rounded up so the first worker's
   // hash-chain table begins on a huge-page boundary.
   uint8_t* base_ = nullptr;

@@ -193,7 +193,7 @@ class ReferenceSortVerifier {
   }
 
  private:
-  hwy::AlignedFreeUniquePtr<LaneType[]> in_lanes_;
+  hwy::AlignedPtr<LaneType> in_lanes_;
   size_t num_lanes_;
   size_t num_keys_;
 };

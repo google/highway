@@ -1950,8 +1950,7 @@ class BTree {
         // upfront. Although heap-allocated, this buffer is transient (freed
         // immediately upon Build return), keeping the builder algorithm in
         // BuildInternal uniform and simple.
-        AlignedFreeUniquePtr<StorageKeyT[]> ukeys =
-            AllocateAligned<StorageKeyT>(num_keys);
+        AlignedPtr<StorageKeyT> ukeys = AllocateAligned<StorageKeyT>(num_keys);
         for (size_t i = 0; i < num_keys; ++i) {
           ukeys[i] = KeyCodec<KeyT>::ToStorage(keys[i]);
         }
@@ -1965,8 +1964,7 @@ class BTree {
     }
 
     // Path when input is unsorted and/or contains duplicates.
-    AlignedFreeUniquePtr<StorageKeyT[]> ukeys =
-        AllocateAligned<StorageKeyT>(num_keys);
+    AlignedPtr<StorageKeyT> ukeys = AllocateAligned<StorageKeyT>(num_keys);
     if constexpr (IsSigned<KeyT>()) {
       for (size_t i = 0; i < num_keys; ++i) {
         ukeys[i] = KeyCodec<KeyT>::ToStorage(keys[i]);
@@ -2010,8 +2008,7 @@ class BTree {
         // upfront. Although heap-allocated, this buffer is transient (freed
         // immediately upon Build return), keeping the builder algorithm in
         // BuildInternal uniform and simple.
-        AlignedFreeUniquePtr<StorageKeyT[]> ukeys =
-            AllocateAligned<StorageKeyT>(num_keys);
+        AlignedPtr<StorageKeyT> ukeys = AllocateAligned<StorageKeyT>(num_keys);
         for (size_t i = 0; i < num_keys; ++i) {
           ukeys[i] = KeyCodec<KeyT>::ToStorage(keys[i]);
         }
@@ -2024,15 +2021,13 @@ class BTree {
     // Path when input is unsorted and/or contains duplicates.
     // Pack (StorageKeyT, original_idx) so VQSortStatic sorts by key and
     // breaks ties by ascending original_idx (first-occurrence wins).
-    AlignedFreeUniquePtr<StorageKeyT[]> ukeys =
-        AllocateAligned<StorageKeyT>(num_keys);
-    AlignedFreeUniquePtr<V[]> uvals = AllocateAligned<V>(num_keys);
+    AlignedPtr<StorageKeyT> ukeys = AllocateAligned<StorageKeyT>(num_keys);
+    AlignedPtr<V> uvals = AllocateAligned<V>(num_keys);
     size_t num_unique = 0;
 
     if constexpr (sizeof(StorageKeyT) == 4) {
       if (HWY_LIKELY(num_keys <= std::numeric_limits<uint32_t>::max())) {
-        AlignedFreeUniquePtr<uint64_t[]> packed =
-            AllocateAligned<uint64_t>(num_keys);
+        AlignedPtr<uint64_t> packed = AllocateAligned<uint64_t>(num_keys);
         for (size_t i = 0; i < num_keys; ++i) {
           const uint64_t sk = KeyCodec<KeyT>::ToStorage(keys[i]);
           packed[i] = (sk << 32) | static_cast<uint32_t>(i);
@@ -2056,8 +2051,7 @@ class BTree {
       }
     }
 
-    AlignedFreeUniquePtr<uint128_t[]> packed =
-        AllocateAligned<uint128_t>(num_keys);
+    AlignedPtr<uint128_t> packed = AllocateAligned<uint128_t>(num_keys);
     for (size_t i = 0; i < num_keys; ++i) {
       packed[i] = uint128_t{
           .lo = static_cast<uint64_t>(i),

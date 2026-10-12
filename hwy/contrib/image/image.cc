@@ -83,7 +83,7 @@ ImageBase::ImageBase(const size_t xsize, const size_t ysize,
                      const size_t sizeof_t)
     : xsize_(static_cast<uint32_t>(xsize)),
       ysize_(static_cast<uint32_t>(ysize)),
-      bytes_(nullptr, AlignedFreer(&AlignedFreer::DoNothing, nullptr)) {
+      bytes_() {
   HWY_ASSERT(sizeof_t == 1 || sizeof_t == 2 || sizeof_t == 4 || sizeof_t == 8);
   // Validate dimensions fit in uint32_t to prevent silent truncation.
   HWY_ASSERT(xsize <= UINT32_MAX);
@@ -110,8 +110,8 @@ ImageBase::ImageBase(const size_t xsize, const size_t ysize,
     : xsize_(static_cast<uint32_t>(xsize)),
       ysize_(static_cast<uint32_t>(ysize)),
       bytes_per_row_(bytes_per_row),
-      bytes_(static_cast<uint8_t*>(aligned),
-             AlignedFreer(&AlignedFreer::DoNothing, nullptr)) {
+      bytes_(static_cast<uint8_t*>(aligned), ysize * bytes_per_row, nullptr,
+             nullptr) {
   const size_t vec_size = VectorSize();
   HWY_ASSERT(bytes_per_row % vec_size == 0);
   HWY_ASSERT(reinterpret_cast<uintptr_t>(aligned) % vec_size == 0);

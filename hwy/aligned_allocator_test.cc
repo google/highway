@@ -24,6 +24,7 @@
 #include <random>
 #include <set>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "hwy/base.h"
@@ -55,7 +56,7 @@ class SampleObject {
 
 class FakeAllocator {
  public:
-  // static AllocPtr and FreePtr member to be used with the aligned
+  // static `AllocPtr` and FreePtr member to be used with the aligned
   // allocator. These functions calls the private non-static members.
   static void* StaticAlloc(void* opaque, size_t bytes) {
     return reinterpret_cast<FakeAllocator*>(opaque)->Alloc(bytes);
@@ -147,9 +148,18 @@ TEST(AlignedAllocatorTest, TestEmptyAlignedUniquePtr) {
   AlignedUniquePtr<SampleObject<32>[]> arr(nullptr, AlignedDeleter());
 }
 
-TEST(AlignedAllocatorTest, TestEmptyAlignedFreeUniquePtr) {
-  AlignedFreeUniquePtr<std::array<char, 32>> ptr(nullptr, AlignedFreer());
-  AlignedFreeUniquePtr<std::array<char, 32>[]> arr(nullptr, AlignedFreer());
+TEST(AlignedAllocatorTest, TestEmptyAlignedPtr) {
+  AlignedPtr<std::array<char, 32>> ptr;
+  AlignedPtr<std::array<char, 32>> ptr_null(nullptr);
+  HWY_ASSERT(!ptr);
+  HWY_ASSERT(!ptr_null);
+  HWY_ASSERT(ptr == nullptr);
+  HWY_ASSERT(nullptr == ptr);
+  HWY_ASSERT_EQ(0u, ptr.size());
+  HWY_ASSERT_EQ(0u, ptr.size_bytes());
+  HWY_ASSERT(ptr.empty());
+  HWY_ASSERT(ptr.get() == nullptr);
+  HWY_ASSERT(ptr.data() == nullptr);
 }
 
 TEST(AlignedAllocatorTest, TestCustomAlloc) {
@@ -165,6 +175,70 @@ TEST(AlignedAllocatorTest, TestCustomAlloc) {
   HWY_ASSERT_EQ(0U, reinterpret_cast<uintptr_t>(ptr) % HWY_ALIGNMENT);
   FreeAlignedBytes(ptr, &FakeAllocator::StaticFree, &fake_alloc);
   HWY_ASSERT_EQ(0U, fake_alloc.PendingAllocs());
+}
+
+TEST(AlignedAllocatorTest, TestAllocateAlignedWithCustomAlloc) {
+  FakeAllocator fake_alloc;
+  const size_t kItems = 128;
+  {
+    AlignedPtr<uint32_t> ptr =
+        AllocateAligned<uint32_t>(kItems, &FakeAllocator::StaticAlloc,
+                                  &FakeAllocator::StaticFree, &fake_alloc);
+    HWY_ASSERT(ptr != nullptr);
+    HWY_ASSERT_EQ(kItems, ptr.size());
+    HWY_ASSERT_EQ(kItems * sizeof(uint32_t), ptr.size_bytes());
+    HWY_ASSERT_EQ(1U, fake_alloc.PendingAllocs());
+    for (size_t i = 0; i < kItems; ++i) {
+      ptr[i] = static_cast<uint32_t>(i);
+    }
+    Span<const uint32_t> s = ptr;
+    HWY_ASSERT_EQ(kItems, s.size());
+    HWY_ASSERT_EQ(42u, s[42]);
+
+    AlignedPtr<const uint32_t> cptr =
+        std::move(ptr);  // NOLINT(bugprone-use-after-move)
+    HWY_ASSERT(ptr == nullptr);
+    HWY_ASSERT_EQ(0u, ptr.size());
+    HWY_ASSERT_EQ(kItems, cptr.size());
+    HWY_ASSERT_EQ(42u, cptr[42]);
+  }
+  HWY_ASSERT_EQ(0U, fake_alloc.PendingAllocs());
+}
+
+TEST(AlignedAllocatorTest, TestAlignedPtrCustomDeleterAndLegacyConversion) {
+  int free_calls = 0;
+  uint32_t raw[4] = {10, 20, 30, 40};
+  const FreePtr custom_free =
+      +[](void* opaque, void* /*memory*/) { (*static_cast<int*>(opaque))++; };
+  {
+    AlignedPtr<const uint32_t> mapped(raw, 4, custom_free, &free_calls);
+    HWY_ASSERT_EQ(4u, mapped.size());
+    HWY_ASSERT_EQ(30u, mapped[2]);
+    Span<const uint32_t> s = mapped.span();
+    HWY_ASSERT_EQ(4u, s.size());
+    HWY_ASSERT_EQ(10u, s[0]);
+  }
+  HWY_ASSERT_EQ(1, free_calls);
+
+  // Legacy rvalue conversion to AlignedFreeUniquePtr<T[]>
+  AlignedFreeUniquePtr<uint32_t[]> legacy = AllocateAligned<uint32_t>(16);
+  HWY_ASSERT(legacy != nullptr);
+  legacy[0] = 99;
+  HWY_ASSERT_EQ(99u, legacy[0]);
+
+  FakeAllocator fake_alloc;
+  {
+    AlignedFreeUniquePtr<uint32_t[]> legacy_custom =
+        AllocateAligned<uint32_t>(8, &FakeAllocator::StaticAlloc,
+                                  &FakeAllocator::StaticFree, &fake_alloc);
+    HWY_ASSERT(legacy_custom != nullptr);
+    HWY_ASSERT_EQ(1U, fake_alloc.PendingAllocs());
+  }
+  HWY_ASSERT_EQ(0U, fake_alloc.PendingAllocs());
+
+  AlignedFreeUniquePtr<uint32_t[]> legacy_non_owning =
+      AlignedPtr<uint32_t>(raw, 4, &AlignedFreer::DoNothing);
+  HWY_ASSERT(raw == legacy_non_owning.get());
 }
 
 TEST(AlignedAllocatorTest, TestMakeUniqueAlignedDefaultConstructor) {
@@ -207,19 +281,20 @@ TEST(AlignedAllocatorTest, TestMakeUniqueAlignedArray) {
 TEST(AlignedAllocatorTest, TestAllocSingleInt) {
   auto ptr = AllocateAligned<uint32_t>(1);
   HWY_ASSERT(ptr.get() != nullptr);
+  HWY_ASSERT_EQ(1u, ptr.size());
   HWY_ASSERT_EQ(0U, reinterpret_cast<uintptr_t>(ptr.get()) % HWY_ALIGNMENT);
-  // Force delete of the unique_ptr now to check that it doesn't crash.
+  // Force delete of the AlignedPtr now to check that it doesn't crash.
   ptr.reset(nullptr);
   HWY_ASSERT(nullptr == ptr.get());
+  HWY_ASSERT_EQ(0u, ptr.size());
 }
 
 TEST(AlignedAllocatorTest, TestAllocMultipleInt) {
   const size_t kSize = 7777;
   auto ptr = AllocateAligned<uint32_t>(kSize);
   HWY_ASSERT(ptr.get() != nullptr);
+  HWY_ASSERT_EQ(kSize, ptr.size());
   HWY_ASSERT_EQ(0U, reinterpret_cast<uintptr_t>(ptr.get()) % HWY_ALIGNMENT);
-  // ptr[i] is actually (*ptr.get())[i] which will use the operator[] of the
-  // underlying type chosen by AllocateAligned() for the std::unique_ptr.
   HWY_ASSERT(&(ptr[0]) + 1 == &(ptr[1]));
 
   size_t ret = 0;
@@ -257,7 +332,7 @@ TEST(AlignedAllocatorTest, TestDefaultInit) {
   // The test is whether this compiles. Default-init is useful for output params
   // and per-thread storage.
   std::vector<AlignedUniquePtr<int[]>> ptrs;
-  std::vector<AlignedFreeUniquePtr<double[]>> free_ptrs;
+  std::vector<AlignedPtr<double>> free_ptrs;
   ptrs.resize(128);
   free_ptrs.resize(128);
   // The following is to prevent elision of the pointers.

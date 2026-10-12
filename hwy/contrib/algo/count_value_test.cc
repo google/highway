@@ -72,8 +72,7 @@ struct TestCount {
   template <class D>
   void operator()(D d, size_t count, size_t misalign, RandomState& rng) {
     using T = TFromD<D>;
-    AlignedFreeUniquePtr<T[]> storage =
-        AllocateAligned<T>(HWY_MAX(1, misalign + count));
+    AlignedPtr<T> storage = AllocateAligned<T>(HWY_MAX(1, misalign + count));
     HWY_ASSERT(storage);
     T* in = storage.get() + misalign;
     for (size_t i = 0; i < count; ++i) {
@@ -108,8 +107,7 @@ struct TestCountIf {
   template <class D>
   void operator()(D d, size_t count, size_t misalign, RandomState& rng) {
     using T = TFromD<D>;
-    AlignedFreeUniquePtr<T[]> storage =
-        AllocateAligned<T>(HWY_MAX(1, misalign + count));
+    AlignedPtr<T> storage = AllocateAligned<T>(HWY_MAX(1, misalign + count));
     HWY_ASSERT(storage);
     T* in = storage.get() + misalign;
     for (size_t i = 0; i < count; ++i) {
@@ -155,7 +153,7 @@ struct TestLargeMatchingCount {
     const size_t N = Lanes(d);
     if (N < 2) return;
     const size_t count = size_t{32768} * 4 * N;  // one full (pre-fix) cap chunk
-    AlignedFreeUniquePtr<T[]> storage = AllocateAligned<T>(count);
+    AlignedPtr<T> storage = AllocateAligned<T>(count);
     HWY_ASSERT(storage);
     T* in = storage.get();
     const T value = ConvertScalarTo<T>(7);
@@ -180,7 +178,7 @@ struct TestNarrowMatchingCount {
     // More matches per lane than an int8 or int16 accumulator can hold.
     const size_t per_lane = sizeof(T) == 1 ? 300 : 40000;
     const size_t count = per_lane * 4 * N;
-    AlignedFreeUniquePtr<T[]> storage = AllocateAligned<T>(count);
+    AlignedPtr<T> storage = AllocateAligned<T>(count);
     HWY_ASSERT(storage);
     T* in = storage.get();
     const T value = ConvertScalarTo<T>(7);

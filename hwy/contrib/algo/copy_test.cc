@@ -80,9 +80,8 @@ struct TestFill {
                   RandomState& rng) {
     using T = TFromD<D>;
     // HWY_MAX prevents error when misalign == count == 0.
-    AlignedFreeUniquePtr<T[]> pa =
-        AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
-    AlignedFreeUniquePtr<T[]> pb = AllocateAligned<T>(misalign_b + count + 1);
+    AlignedPtr<T> pa = AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
+    AlignedPtr<T> pb = AllocateAligned<T>(misalign_b + count + 1);
     HWY_ASSERT(pa && pb);
     T* expected = pa.get() + misalign_a;
     const T value = Random7Bit<T>(rng);
@@ -112,10 +111,8 @@ struct TestCopy {
                   RandomState& rng) {
     using T = TFromD<D>;
     // Prevents error if size to allocate is zero.
-    AlignedFreeUniquePtr<T[]> pa =
-        AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
-    AlignedFreeUniquePtr<T[]> pb =
-        AllocateAligned<T>(HWY_MAX(1, misalign_b + count));
+    AlignedPtr<T> pa = AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
+    AlignedPtr<T> pb = AllocateAligned<T>(HWY_MAX(1, misalign_b + count));
     HWY_ASSERT(pa && pb);
     T* a = pa.get() + misalign_a;
     for (size_t i = 0; i < count; ++i) {
@@ -144,9 +141,8 @@ struct TestCopyIf {
     using T = TFromD<D>;
 
     // Prevents error if size to allocate is zero.
-    AlignedFreeUniquePtr<T[]> pa =
-        AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
-    AlignedFreeUniquePtr<T[]> expected = AllocateAligned<T>(HWY_MAX(1, count));
+    AlignedPtr<T> pa = AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
+    AlignedPtr<T> expected = AllocateAligned<T>(HWY_MAX(1, count));
     HWY_ASSERT(pa && expected);
 
     T* a = pa.get() + misalign_a;
@@ -160,8 +156,7 @@ struct TestCopyIf {
       }
     }
 
-    AlignedFreeUniquePtr<T[]> pb =
-        AllocateAligned<T>(HWY_MAX(1, misalign_b + num_odd));
+    AlignedPtr<T> pb = AllocateAligned<T>(HWY_MAX(1, misalign_b + num_odd));
     HWY_ASSERT(pb);
 
     T* b = pb.get() + misalign_b;
@@ -201,15 +196,12 @@ struct TestReverseSpan {
   template <class D, typename T = TFromD<D>>
   static void Check(D d, size_t count, size_t misalign, RandomState& rng) {
     // One extra element holds a sentinel, so a store past the end is caught.
-    AlignedFreeUniquePtr<T[]> storage =
-        AllocateAligned<T>(misalign + count + 1);
+    AlignedPtr<T> storage = AllocateAligned<T>(misalign + count + 1);
     // Built by hand rather than with std::reverse over a std::vector: GCC 16
     // cannot bound `count` through that inlining and emits a spurious
     // -Wstringop-overflow for every instantiation.
-    AlignedFreeUniquePtr<T[]> orig =
-        AllocateAligned<T>(HWY_MAX(size_t{1}, count));
-    AlignedFreeUniquePtr<T[]> rev =
-        AllocateAligned<T>(HWY_MAX(size_t{1}, count));
+    AlignedPtr<T> orig = AllocateAligned<T>(HWY_MAX(size_t{1}, count));
+    AlignedPtr<T> rev = AllocateAligned<T>(HWY_MAX(size_t{1}, count));
     HWY_ASSERT(storage && orig && rev);
 
     T* inout = storage.get() + misalign;

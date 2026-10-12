@@ -54,7 +54,7 @@ class TwoArray {
   }
 
  protected:
-  AlignedFreeUniquePtr<float[]> a_;
+  AlignedPtr<float> a_;
   float* b_;
 };
 

@@ -28,10 +28,10 @@ namespace HWY_NAMESPACE {
 namespace {
 
 template <class D>
-static void MulByPow2TestCases(
-    D d, size_t& padded, AlignedFreeUniquePtr<TFromD<D>[]>& out_val,
-    AlignedFreeUniquePtr<MakeSigned<TFromD<D>>[]>& out_exp,
-    AlignedFreeUniquePtr<TFromD<D>[]>& out_expected) {
+static void MulByPow2TestCases(D d, size_t& padded,
+                               AlignedPtr<TFromD<D>>& out_val,
+                               AlignedPtr<MakeSigned<TFromD<D>>>& out_exp,
+                               AlignedPtr<TFromD<D>>& out_expected) {
   using T = TFromD<D>;
   using TI = MakeSigned<T>;
   using TU = MakeUnsigned<T>;
@@ -196,9 +196,9 @@ struct TestMulByPow2 {
     const RebindToSigned<decltype(d)> di;
 
     size_t padded;
-    AlignedFreeUniquePtr<T[]> val_lanes;
-    AlignedFreeUniquePtr<TI[]> exp_lanes;
-    AlignedFreeUniquePtr<T[]> expected;
+    AlignedPtr<T> val_lanes;
+    AlignedPtr<TI> exp_lanes;
+    AlignedPtr<T> expected;
 
     MulByPow2TestCases(d, padded, val_lanes, exp_lanes, expected);
 
@@ -216,10 +216,10 @@ HWY_NOINLINE void TestAllMulByPow2() {
 }
 
 template <class D>
-static void MulByFloorPow2TestCases(
-    D d, size_t& padded, AlignedFreeUniquePtr<TFromD<D>[]>& out_val,
-    AlignedFreeUniquePtr<TFromD<D>[]>& out_exp,
-    AlignedFreeUniquePtr<TFromD<D>[]>& out_expected) {
+static void MulByFloorPow2TestCases(D d, size_t& padded,
+                                    AlignedPtr<TFromD<D>>& out_val,
+                                    AlignedPtr<TFromD<D>>& out_exp,
+                                    AlignedPtr<TFromD<D>>& out_expected) {
   using T = TFromD<D>;
   using TI = MakeSigned<T>;
   using TU = MakeUnsigned<T>;
@@ -552,9 +552,9 @@ struct TestMulByFloorPow2 {
     using TU = MakeUnsigned<T>;
 
     size_t padded;
-    AlignedFreeUniquePtr<T[]> val_lanes;
-    AlignedFreeUniquePtr<T[]> exp_lanes;
-    AlignedFreeUniquePtr<T[]> expected;
+    AlignedPtr<T> val_lanes;
+    AlignedPtr<T> exp_lanes;
+    AlignedPtr<T> expected;
 
     MulByFloorPow2TestCases(d, padded, val_lanes, exp_lanes, expected);
     HWY_ASSERT(padded >= 2);

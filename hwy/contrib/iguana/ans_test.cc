@@ -54,8 +54,7 @@ std::vector<uint8_t> MakeData(size_t n, uint64_t seed, int skew) {
 
 void RoundTrip(const std::vector<uint8_t>& data) {
   const size_t scratch_size = hwy::iguana::Ans32EncodeScratchSize(data.size());
-  AlignedFreeUniquePtr<uint8_t[]> scratch =
-      AllocateAligned<uint8_t>(scratch_size);
+  AlignedPtr<uint8_t> scratch = AllocateAligned<uint8_t>(scratch_size);
   HWY_ASSERT(scratch != nullptr);
   const Span<const uint8_t> enc = hwy::iguana::Ans32Encode(
       data.data(), data.size(), Span<uint8_t>(scratch.get(), scratch_size));

@@ -79,8 +79,8 @@ class TestDot {
 
     const size_t padded =
         (kAssumptions & Dot::kPaddedToVector) ? RoundUpTo(num, N) : num;
-    AlignedFreeUniquePtr<T[]> pa = AllocateAligned<T>(misalign_a + padded);
-    AlignedFreeUniquePtr<T[]> pb = AllocateAligned<T>(misalign_b + padded);
+    AlignedPtr<T> pa = AllocateAligned<T>(misalign_a + padded);
+    AlignedPtr<T> pb = AllocateAligned<T>(misalign_b + padded);
     HWY_ASSERT(pa && pb);
     T* a = pa.get() + misalign_a;
     T* b = pb.get() + misalign_b;
@@ -179,8 +179,8 @@ class TestDotF32BF16 {
 
     const size_t padded =
         (kAssumptions & Dot::kPaddedToVector) ? RoundUpTo(num, N) : num;
-    AlignedFreeUniquePtr<T[]> pa = AllocateAligned<T>(misalign_a + padded);
-    AlignedFreeUniquePtr<T2[]> pb = AllocateAligned<T2>(misalign_b + padded);
+    AlignedPtr<T> pa = AllocateAligned<T>(misalign_a + padded);
+    AlignedPtr<T2> pb = AllocateAligned<T2>(misalign_b + padded);
     HWY_ASSERT(pa && pb);
     T* a = pa.get() + misalign_a;
     T2* b = pb.get() + misalign_b;

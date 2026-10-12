@@ -97,9 +97,9 @@ struct TestPack {
     const size_t num_packed_per_loop = N * kBits;
     const size_t num_packed = num_packed_per_loop * kLoops;
     Checker<T> checker(num);
-    AlignedFreeUniquePtr<T[]> raw = hwy::AllocateAligned<T>(num);
-    AlignedFreeUniquePtr<T[]> raw2 = hwy::AllocateAligned<T>(num);
-    AlignedFreeUniquePtr<T[]> packed = hwy::AllocateAligned<T>(num_packed);
+    AlignedPtr<T> raw = hwy::AllocateAligned<T>(num);
+    AlignedPtr<T> raw2 = hwy::AllocateAligned<T>(num);
+    AlignedPtr<T> packed = hwy::AllocateAligned<T>(num_packed);
     HWY_ASSERT(raw && raw2 && packed);
 
     for (size_t i = 0; i < num; ++i) {

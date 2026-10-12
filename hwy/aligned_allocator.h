@@ -20,11 +20,11 @@
 
 #include <array>
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <initializer_list>
 #include <memory>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -168,7 +168,7 @@ struct AlignedAllocator {
 
   template <class V>
   value_type* allocate(V n) {
-    static_assert(std::is_integral<V>::value,
+    static_assert(IsInteger<V>(),
                   "AlignedAllocator only supports integer types");
     static_assert(sizeof(V) <= sizeof(std::size_t),
                   "V n must be smaller or equal size_t to avoid overflow");
@@ -272,32 +272,229 @@ class AlignedFreer {
 };
 
 // Unique pointer to single POD, or (if T is U[]) an array of POD. For non POD
-// data use AlignedUniquePtr.
+// data use AlignedUniquePtr. Prefer AlignedPtr<T> for new code.
 template <typename T>
 using AlignedFreeUniquePtr = std::unique_ptr<T, AlignedFreer>;
 
-// Allocate an aligned and uninitialized array of POD values as a unique_ptr.
-// Upon destruction of the unique_ptr the aligned array will be freed.
+namespace detail {
+
+// Default deleter for AlignedPtr allocated via AllocateAlignedBytes.
+// `free_fn` holds the custom `FreePtr` (or nullptr for default free), while
+// the user's `opaque_ptr` is stored in AllocationHeader.
+static inline void FreeAlignedMemory(void* free_fn, void* memory) {
+  FreeAlignedBytes(
+      memory, reinterpret_cast<FreePtr>(reinterpret_cast<uintptr_t>(free_fn)),
+      nullptr);
+}
+
+}  // namespace detail
+
 template <typename T>
-AlignedFreeUniquePtr<T[]> AllocateAligned(const size_t items, AllocPtr alloc,
-                                          FreePtr free, void* opaque) {
-  static_assert(std::is_trivially_copyable<T>::value,
+class Span;
+
+// Owning smart pointer to a contiguous array of `size()` trivially destructible
+// elements of type `T`, with bounds-checked indexing and support for custom
+// deleters (e.g. `FreeAlignedMemory` or `munmap`).
+template <typename T>
+class AlignedPtr {
+  static_assert(IsTriviallyDestructible<T>(),
+                "AlignedPtr requires trivially destructible T");
+
+ public:
+  using value_type = T;
+  using pointer = T*;
+
+  constexpr AlignedPtr() noexcept = default;
+  constexpr AlignedPtr(std::nullptr_t) noexcept {}
+
+  // Takes ownership of `[ptr, ptr + size)`. When destroyed, if `ptr != nullptr`
+  // and `free_fn != nullptr`, calls `free_fn(opaque, const_cast<...>(ptr))`.
+  // Passing `free_fn = nullptr` wraps externally-owned memory without freeing.
+  explicit AlignedPtr(T* ptr, size_t size,
+                      FreePtr free_fn = &detail::FreeAlignedMemory,
+                      void* opaque = nullptr) noexcept
+      : ptr_(ptr), size_(ptr ? size : 0), free_(free_fn), opaque_(opaque) {}
+
+  AlignedPtr(const AlignedPtr&) = delete;
+  AlignedPtr& operator=(const AlignedPtr&) = delete;
+
+  AlignedPtr(AlignedPtr&& other) noexcept
+      : ptr_(other.ptr_),
+        size_(other.size_),
+        free_(other.free_),
+        opaque_(other.opaque_) {
+    other.ptr_ = nullptr;
+    other.size_ = 0;
+    other.free_ = nullptr;
+    other.opaque_ = nullptr;
+  }
+
+  AlignedPtr& operator=(AlignedPtr&& other) noexcept {
+    if (this != &other) {
+      reset();
+      ptr_ = other.ptr_;
+      size_ = other.size_;
+      free_ = other.free_;
+      opaque_ = other.opaque_;
+      other.ptr_ = nullptr;
+      other.size_ = 0;
+      other.free_ = nullptr;
+      other.opaque_ = nullptr;
+    }
+    return *this;
+  }
+
+  // Converting move from `AlignedPtr<U>` to `AlignedPtr<const U>`.
+  template <typename U,
+            EnableIf<!IsConst<U>() && IsSame<const U, T>()>* = nullptr>
+  AlignedPtr(AlignedPtr<U>&& other) noexcept
+      : ptr_(other.ptr_),
+        size_(other.size_),
+        free_(other.free_),
+        opaque_(other.opaque_) {
+    other.ptr_ = nullptr;
+    other.size_ = 0;
+    other.free_ = nullptr;
+    other.opaque_ = nullptr;
+  }
+
+  template <typename U,
+            EnableIf<!IsConst<U>() && IsSame<const U, T>()>* = nullptr>
+  AlignedPtr& operator=(AlignedPtr<U>&& other) noexcept {
+    reset();
+    ptr_ = other.ptr_;
+    size_ = other.size_;
+    free_ = other.free_;
+    opaque_ = other.opaque_;
+    other.ptr_ = nullptr;
+    other.size_ = 0;
+    other.free_ = nullptr;
+    other.opaque_ = nullptr;
+    return *this;
+  }
+
+  AlignedPtr& operator=(std::nullptr_t) noexcept {
+    reset();
+    return *this;
+  }
+
+  ~AlignedPtr() { reset(); }
+
+  void reset(std::nullptr_t = nullptr) noexcept {
+    T* ptr = ptr_;
+    FreePtr free_fn = free_;
+    void* opaque = opaque_;
+    ptr_ = nullptr;
+    size_ = 0;
+    free_ = nullptr;
+    opaque_ = nullptr;
+    if (ptr != nullptr && free_fn != nullptr) {
+      void* mutable_ptr = const_cast<RemoveConst<T>*>(ptr);
+      free_fn(opaque, mutable_ptr);
+    }
+  }
+
+  // Releases ownership and returns the raw pointer, resetting `size()` to 0.
+  T* release() noexcept {
+    T* p = ptr_;
+    ptr_ = nullptr;
+    size_ = 0;
+    free_ = nullptr;
+    opaque_ = nullptr;
+    return p;
+  }
+
+  void swap(AlignedPtr& other) noexcept {
+    std::swap(ptr_, other.ptr_);
+    std::swap(size_, other.size_);
+    std::swap(free_, other.free_);
+    std::swap(opaque_, other.opaque_);
+  }
+
+  friend void swap(AlignedPtr& a, AlignedPtr& b) noexcept { a.swap(b); }
+
+  T* get() const noexcept { return ptr_; }
+  T* data() const noexcept { return ptr_; }
+  size_t size() const noexcept { return size_; }
+  size_t size_bytes() const noexcept { return size_ * sizeof(T); }
+  bool empty() const noexcept { return size_ == 0; }
+  explicit operator bool() const noexcept { return ptr_ != nullptr; }
+
+  // Bounds-checked element access.
+  T& operator[](size_t i) const {
+    HWY_DASSERT(i < size_);
+    return ptr_[i];
+  }
+
+  T* begin() const noexcept { return ptr_; }
+  T* end() const noexcept { return ptr_ + size_; }
+  const T* cbegin() const noexcept { return ptr_; }
+  const T* cend() const noexcept { return ptr_ + size_; }
+
+  Span<T> span() const& noexcept;
+  void span() && = delete;
+
+  // Backward-compatible rvalue conversion for callers still using
+  // `AlignedFreeUniquePtr<T[]>`.
+  operator AlignedFreeUniquePtr<RemoveConst<T>[]>() && noexcept {
+    using NonConstT = RemoveConst<T>;
+    FreePtr freer_fn = nullptr;
+    if (free_ == &detail::FreeAlignedMemory) {
+      freer_fn =
+          reinterpret_cast<FreePtr>(reinterpret_cast<uintptr_t>(opaque_));
+    } else if (free_ == nullptr || free_ == &AlignedFreer::DoNothing) {
+      freer_fn = &AlignedFreer::DoNothing;
+    } else {
+      HWY_DASSERT(false &&
+                  "AlignedFreeUniquePtr only supports AllocateAligned memory");
+    }
+    return AlignedFreeUniquePtr<NonConstT[]>(const_cast<NonConstT*>(release()),
+                                             AlignedFreer(freer_fn, nullptr));
+  }
+
+  friend bool operator==(const AlignedPtr& p, std::nullptr_t) noexcept {
+    return p.ptr_ == nullptr;
+  }
+  friend bool operator==(std::nullptr_t, const AlignedPtr& p) noexcept {
+    return p.ptr_ == nullptr;
+  }
+  friend bool operator!=(const AlignedPtr& p, std::nullptr_t) noexcept {
+    return p.ptr_ != nullptr;
+  }
+  friend bool operator!=(std::nullptr_t, const AlignedPtr& p) noexcept {
+    return p.ptr_ != nullptr;
+  }
+
+ private:
+  template <typename U>
+  friend class AlignedPtr;
+
+  T* ptr_ = nullptr;
+  size_t size_ = 0;
+  FreePtr free_ = nullptr;
+  void* opaque_ = nullptr;
+};
+
+// Allocate an aligned and uninitialized array of POD values as an AlignedPtr.
+// Upon destruction of the AlignedPtr the aligned array will be freed.
+template <typename T>
+AlignedPtr<T> AllocateAligned(const size_t items, AllocPtr alloc, FreePtr free,
+                              void* opaque) {
+  static_assert(IsTriviallyCopyable<T>(),
                 "AllocateAligned: requires trivially copyable T");
-  static_assert(std::is_trivially_destructible<T>::value,
+  static_assert(IsTriviallyDestructible<T>(),
                 "AllocateAligned: requires trivially destructible T");
-  return AlignedFreeUniquePtr<T[]>(
-      detail::AllocateAlignedItems<T>(items, alloc, opaque),
-      AlignedFreer(free, opaque));
+  return AlignedPtr<T>(
+      detail::AllocateAlignedItems<T>(items, alloc, opaque), items,
+      &detail::FreeAlignedMemory,
+      reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(free)));
 }
 
 // Same as previous AllocateAligned(), using default allocate/free functions.
 template <typename T>
-AlignedFreeUniquePtr<T[]> AllocateAligned(const size_t items) {
+AlignedPtr<T> AllocateAligned(const size_t items) {
   return AllocateAligned<T>(items, nullptr, nullptr, nullptr);
 }
-
-template <typename T>
-class Span;
 
 namespace detail {
 
@@ -478,6 +675,11 @@ class Span {
   T* data_ = nullptr;
 };
 
+template <typename T>
+Span<T> AlignedPtr<T>::span() const& noexcept {
+  return Span<T>(ptr_, size_);
+}
+
 // Returns a read-only view of the bytes in the span.
 template <typename T>
 Span<const uint8_t> as_bytes(Span<T> s) noexcept {
@@ -512,7 +714,7 @@ Span(const U&) -> Span<const RemoveRef<decltype(*DeclVal<const U&>().data())>>;
 // innermost arrays are aligned.
 template <typename T, size_t axes>
 class AlignedNDArray {
-  static_assert(std::is_trivial<T>::value,
+  static_assert(IsTrivial<T>(),
                 "AlignedNDArray can only contain trivial types");
 
  public:
@@ -594,7 +796,7 @@ class AlignedNDArray {
   std::array<size_t, axes> memory_shape_;
   std::array<size_t, axes + 1> sizes_;
   std::array<size_t, axes + 1> memory_sizes_;
-  hwy::AlignedFreeUniquePtr<T[]> buffer_;
+  hwy::AlignedPtr<T> buffer_;
 
   // Computes offset in the buffer based on the provided indices.
   size_t Offset(std::array<const size_t, axes - 1> indices) const {

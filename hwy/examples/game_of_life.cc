@@ -70,7 +70,7 @@ void InitializeState(uint8_t* HWY_RESTRICT a_byte_1,
   size_t NU64 = hn::Lanes(du64);
   size_t NU8 = hn::Lanes(du8);
   const size_t upp_bound = 1 + ((nx * ny) / (8 * sizeof(uint64_t)));
-  AlignedFreeUniquePtr<uint64_t[]> bits = AllocateAligned<uint64_t>(upp_bound);
+  AlignedPtr<uint64_t> bits = AllocateAligned<uint64_t>(upp_bound);
   hwy::AlignedVector<uint8_t> temp(NU8);
   VectorXoshiro generator{uint64_t{5}};
   size_t i = 0;

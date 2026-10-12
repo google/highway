@@ -361,7 +361,7 @@ HWY_MAYBE_UNUSED bool IsFinite(T /*unused*/) {
 }
 
 template <class D>
-AlignedFreeUniquePtr<float[]> F16TestCases(D d, size_t& padded) {
+AlignedPtr<float> F16TestCases(D d, size_t& padded) {
   const float test_cases[] = {
       // +/- 1
       1.0f, -1.0f,
@@ -535,8 +535,8 @@ HWY_NOINLINE void TestAllF16FromF64() {
 }
 
 template <class D>
-AlignedFreeUniquePtr<float[]> BF16TestCases(
-    D d, size_t& padded, AlignedFreeUniquePtr<float[]>& expected) {
+AlignedPtr<float> BF16TestCases(D d, size_t& padded,
+                                AlignedPtr<float>& expected) {
   const float test_cases[] = {
       // +/- 1
       1.0f, -1.0f,
@@ -585,7 +585,7 @@ struct TestBF16 {
   template <typename TF32, class DF32>
   HWY_NOINLINE void operator()(TF32 /*t*/, DF32 df32) {
     size_t padded;
-    AlignedFreeUniquePtr<float[]> expected;
+    AlignedPtr<float> expected;
     const auto in = BF16TestCases(df32, padded, expected);
     using TBF16 = bfloat16_t;
 #if HWY_TARGET == HWY_SCALAR

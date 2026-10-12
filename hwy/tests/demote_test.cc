@@ -444,7 +444,7 @@ HWY_NOINLINE void TestAllDemoteToBF16() {
 }
 
 template <class D>
-AlignedFreeUniquePtr<float[]> ReorderBF16TestCases(D d, size_t& padded) {
+AlignedPtr<float> ReorderBF16TestCases(D d, size_t& padded) {
   const float test_cases[] = {
       // Same as BF16TestCases:
       // +/- 1

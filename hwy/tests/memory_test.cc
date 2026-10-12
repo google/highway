@@ -615,7 +615,7 @@ struct TestInsertIntoUpper {
     const Vec<D> b = Set(d, 20);
 
     // Generate a generic vector, then extract the pointer to the first entry
-    AlignedFreeUniquePtr<T[]> pa = AllocateAligned<T>(N);
+    AlignedPtr<T> pa = AllocateAligned<T>(N);
     StoreU(b, d, pa.get());
     T* pointer = pa.get();
 

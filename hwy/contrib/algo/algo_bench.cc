@@ -171,7 +171,7 @@ void Bench(Func func, Gen gen, size_t size, BenchSummary& summary) {
   const ScalableTag<T> d;
   const size_t N = Lanes(d);
 
-  std::vector<std::array<AlignedFreeUniquePtr<T[]>, Func::kNumBuffers>> ptrs(inner_reps);
+  std::vector<std::array<AlignedPtr<T>, Func::kNumBuffers>> ptrs(inner_reps);
   std::vector<std::array<T*, Func::kNumBuffers>> aligned(inner_reps);
 
   for (size_t i = 0; i < inner_reps; ++i) {

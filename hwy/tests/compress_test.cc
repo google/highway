@@ -38,10 +38,8 @@ namespace {
 template <class D, class DI, typename T = TFromD<D>, typename TI = TFromD<DI>>
 void CheckStored(D d, DI di, const char* op, size_t expected_pos,
                  size_t actual_pos, size_t num_to_check,
-                 const AlignedFreeUniquePtr<T[]>& in,
-                 const AlignedFreeUniquePtr<TI[]>& mask_lanes,
-                 const AlignedFreeUniquePtr<T[]>& expected, const T* actual_u,
-                 int line) {
+                 const AlignedPtr<T>& in, const AlignedPtr<TI>& mask_lanes,
+                 const AlignedPtr<T>& expected, const T* actual_u, int line) {
   if (expected_pos != actual_pos) {
     hwy::Abort(__FILE__, line,
                "%s: size mismatch for %s: expected %d, actual %d\n", op,

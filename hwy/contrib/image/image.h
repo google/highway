@@ -38,11 +38,7 @@ struct HWY_CONTRIB_DLLEXPORT ImageBase {
   static size_t BytesPerRow(size_t xsize, size_t sizeof_t);
 
   // No allocation (for output params or unused images)
-  ImageBase()
-      : xsize_(0),
-        ysize_(0),
-        bytes_per_row_(0),
-        bytes_(nullptr, AlignedFreer(&AlignedFreer::DoNothing, nullptr)) {}
+  ImageBase() : xsize_(0), ysize_(0), bytes_per_row_(0), bytes_() {}
 
   // Allocates memory (this is the common case)
   ImageBase(size_t xsize, size_t ysize, size_t sizeof_t);
@@ -126,7 +122,7 @@ struct HWY_CONTRIB_DLLEXPORT ImageBase {
   uint32_t xsize_;  // In valid pixels, not including any padding.
   uint32_t ysize_;
   size_t bytes_per_row_;  // Includes padding.
-  AlignedFreeUniquePtr<uint8_t[]> bytes_;
+  AlignedPtr<uint8_t> bytes_;
 };
 
 // Single channel, aligned rows separated by padding. T must be POD.

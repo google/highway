@@ -95,8 +95,8 @@ struct ForeachCountAndMisalign {
 // (when misalignment space is available) and after. Requires an allocation of
 // at least count + misalign + 1 elements.
 template <typename T>
-T* FillRandom(AlignedFreeUniquePtr<T[]>& pa, size_t count, size_t misalign,
-              T sentinel, RandomState& rng) {
+T* FillRandom(AlignedPtr<T>& pa, size_t count, size_t misalign, T sentinel,
+              RandomState& rng) {
   for (size_t i = 0; i < misalign; ++i) {
     pa[i] = sentinel;
   }
@@ -115,8 +115,8 @@ struct TestGenerate {
   void operator()(D d, size_t count, size_t misalign_a, size_t /*misalign_b*/,
                   RandomState& /*rng*/) {
     using T = TFromD<D>;
-    AlignedFreeUniquePtr<T[]> pa = AllocateAligned<T>(misalign_a + count + 1);
-    AlignedFreeUniquePtr<T[]> expected = AllocateAligned<T>(HWY_MAX(1, count));
+    AlignedPtr<T> pa = AllocateAligned<T>(misalign_a + count + 1);
+    AlignedPtr<T> expected = AllocateAligned<T>(HWY_MAX(1, count));
     HWY_ASSERT(pa && expected);
 
     T* actual = pa.get() + misalign_a;
@@ -147,7 +147,7 @@ struct TestForeach {
                   RandomState& /*rng*/) {
     if (misalign_b != 0) return;
     using T = TFromD<D>;
-    AlignedFreeUniquePtr<T[]> pa = AllocateAligned<T>(misalign_a + count + 1);
+    AlignedPtr<T> pa = AllocateAligned<T>(misalign_a + count + 1);
     HWY_ASSERT(pa);
 
     T* actual = pa.get() + misalign_a;
@@ -184,9 +184,8 @@ struct TestTransform {
     if (misalign_b != 0) return;
     using T = TFromD<D>;
     // Prevents error if size to allocate is zero.
-    AlignedFreeUniquePtr<T[]> pa =
-        AllocateAligned<T>(HWY_MAX(1, misalign_a + count + 1));
-    AlignedFreeUniquePtr<T[]> expected = AllocateAligned<T>(HWY_MAX(1, count));
+    AlignedPtr<T> pa = AllocateAligned<T>(HWY_MAX(1, misalign_a + count + 1));
+    AlignedPtr<T> expected = AllocateAligned<T>(HWY_MAX(1, count));
     HWY_ASSERT(pa && expected);
 
     const T sentinel = ConvertScalarTo<T>(-42);
@@ -220,11 +219,9 @@ struct TestTransform1 {
                   RandomState& rng) {
     using T = TFromD<D>;
     // Prevents error if size to allocate is zero.
-    AlignedFreeUniquePtr<T[]> pa =
-        AllocateAligned<T>(HWY_MAX(1, misalign_a + count + 1));
-    AlignedFreeUniquePtr<T[]> pb =
-        AllocateAligned<T>(HWY_MAX(1, misalign_b + count));
-    AlignedFreeUniquePtr<T[]> expected = AllocateAligned<T>(HWY_MAX(1, count));
+    AlignedPtr<T> pa = AllocateAligned<T>(HWY_MAX(1, misalign_a + count + 1));
+    AlignedPtr<T> pb = AllocateAligned<T>(HWY_MAX(1, misalign_b + count));
+    AlignedPtr<T> expected = AllocateAligned<T>(HWY_MAX(1, count));
     HWY_ASSERT(pa && pb && expected);
 
     const T sentinel = ConvertScalarTo<T>(-42);
@@ -258,13 +255,10 @@ struct TestTransform2 {
                   RandomState& rng) {
     using T = TFromD<D>;
     // Prevents error if size to allocate is zero.
-    AlignedFreeUniquePtr<T[]> pa =
-        AllocateAligned<T>(HWY_MAX(1, misalign_a + count + 1));
-    AlignedFreeUniquePtr<T[]> pb =
-        AllocateAligned<T>(HWY_MAX(1, misalign_b + count));
-    AlignedFreeUniquePtr<T[]> pc =
-        AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
-    AlignedFreeUniquePtr<T[]> expected = AllocateAligned<T>(HWY_MAX(1, count));
+    AlignedPtr<T> pa = AllocateAligned<T>(HWY_MAX(1, misalign_a + count + 1));
+    AlignedPtr<T> pb = AllocateAligned<T>(HWY_MAX(1, misalign_b + count));
+    AlignedPtr<T> pc = AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
+    AlignedPtr<T> expected = AllocateAligned<T>(HWY_MAX(1, count));
     HWY_ASSERT(pa && pb && pc && expected);
 
     const T sentinel = ConvertScalarTo<T>(-42);
@@ -313,9 +307,9 @@ struct TestReplace {
     if (misalign_b != 0) return;
     if (count == 0) return;
     using T = TFromD<D>;
-    AlignedFreeUniquePtr<T[]> pa = AllocateAligned<T>(misalign_a + count + 1);
-    AlignedFreeUniquePtr<T[]> pb = AllocateAligned<T>(count);
-    AlignedFreeUniquePtr<T[]> expected = AllocateAligned<T>(count);
+    AlignedPtr<T> pa = AllocateAligned<T>(misalign_a + count + 1);
+    AlignedPtr<T> pb = AllocateAligned<T>(count);
+    AlignedPtr<T> expected = AllocateAligned<T>(count);
     HWY_ASSERT(pa && pb && expected);
 
     const T sentinel = ConvertScalarTo<T>(-42);

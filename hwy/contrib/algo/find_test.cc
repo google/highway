@@ -79,8 +79,7 @@ struct TestFind {
   void operator()(D d, size_t count, size_t misalign, RandomState& rng) {
     using T = TFromD<D>;
     // Must allocate at least one even if count is zero.
-    AlignedFreeUniquePtr<T[]> storage =
-        AllocateAligned<T>(HWY_MAX(1, misalign + count));
+    AlignedPtr<T> storage = AllocateAligned<T>(HWY_MAX(1, misalign + count));
     HWY_ASSERT(storage);
     T* in = storage.get() + misalign;
     for (size_t i = 0; i < count; ++i) {
@@ -127,8 +126,7 @@ struct TestFindIf {
     using T = TFromD<D>;
     using TI = MakeSigned<T>;
     // Must allocate at least one even if count is zero.
-    AlignedFreeUniquePtr<T[]> storage =
-        AllocateAligned<T>(HWY_MAX(1, misalign + count));
+    AlignedPtr<T> storage = AllocateAligned<T>(HWY_MAX(1, misalign + count));
     HWY_ASSERT(storage);
     T* in = storage.get() + misalign;
     for (size_t i = 0; i < count; ++i) {
@@ -186,8 +184,7 @@ struct TestAnyAllNone {
   void operator()(D d, size_t count, size_t misalign, RandomState& rng) {
     using T = TFromD<D>;
     // Must allocate at least one even if count is zero.
-    AlignedFreeUniquePtr<T[]> storage =
-        AllocateAligned<T>(HWY_MAX(1, misalign + count));
+    AlignedPtr<T> storage = AllocateAligned<T>(HWY_MAX(1, misalign + count));
     HWY_ASSERT(storage);
     T* in = storage.get() + misalign;
     for (size_t i = 0; i < count; ++i) {
@@ -252,8 +249,7 @@ struct TestUnique {
     using T = TFromD<D>;
     if (count == 0) return;  // Unique requires count > 0.
 
-    AlignedFreeUniquePtr<T[]> storage =
-        AllocateAligned<T>(HWY_MAX(1, misalign + count));
+    AlignedPtr<T> storage = AllocateAligned<T>(HWY_MAX(1, misalign + count));
     HWY_ASSERT(storage);
     T* in = storage.get() + misalign;
 
@@ -303,7 +299,7 @@ struct TestUniqueBoundary {
     for (size_t extra = 1; extra <= HWY_MIN(N, size_t{4}); ++extra) {
       const size_t count = N + extra;  // crosses at least one boundary
 
-      AlignedFreeUniquePtr<T[]> storage = AllocateAligned<T>(count);
+      AlignedPtr<T> storage = AllocateAligned<T>(count);
       HWY_ASSERT(storage);
       T* in = storage.get();
 
@@ -354,10 +350,8 @@ struct TestEqualSpan {
     using T = TFromD<D>;
     // Two separate allocations: EqualSpan takes HWY_RESTRICT pointers, so the
     // spans must not overlap. Must allocate at least one even if count is zero.
-    AlignedFreeUniquePtr<T[]> storage_a =
-        AllocateAligned<T>(HWY_MAX(1, misalign + count));
-    AlignedFreeUniquePtr<T[]> storage_b =
-        AllocateAligned<T>(HWY_MAX(1, misalign + count));
+    AlignedPtr<T> storage_a = AllocateAligned<T>(HWY_MAX(1, misalign + count));
+    AlignedPtr<T> storage_b = AllocateAligned<T>(HWY_MAX(1, misalign + count));
     HWY_ASSERT(storage_a && storage_b);
     T* a = storage_a.get() + misalign;
     T* b = storage_b.get() + misalign;
@@ -432,8 +426,8 @@ struct TestEqualSpanNaN {
     using T = TFromD<D>;
     if (count == 0) return;
 
-    AlignedFreeUniquePtr<T[]> storage_a = AllocateAligned<T>(misalign + count);
-    AlignedFreeUniquePtr<T[]> storage_b = AllocateAligned<T>(misalign + count);
+    AlignedPtr<T> storage_a = AllocateAligned<T>(misalign + count);
+    AlignedPtr<T> storage_b = AllocateAligned<T>(misalign + count);
     HWY_ASSERT(storage_a && storage_b);
     T* a = storage_a.get() + misalign;
     T* b = storage_b.get() + misalign;

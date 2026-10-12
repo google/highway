@@ -54,10 +54,8 @@ DEFINE_MATH_TEST(Tan,
 // clang-format on
 
 template <typename T, class D>
-void Atan2TestCases(T /*unused*/, D d, size_t& padded,
-                    AlignedFreeUniquePtr<T[]>& out_y,
-                    AlignedFreeUniquePtr<T[]>& out_x,
-                    AlignedFreeUniquePtr<T[]>& out_expected) {
+void Atan2TestCases(T /*unused*/, D d, size_t& padded, AlignedPtr<T>& out_y,
+                    AlignedPtr<T>& out_x, AlignedPtr<T>& out_expected) {
   struct YX {
     T y;
     T x;
@@ -146,7 +144,7 @@ struct TestAtan2 {
     const size_t N = Lanes(d);
 
     size_t padded;
-    AlignedFreeUniquePtr<T[]> in_y, in_x, expected;
+    AlignedPtr<T> in_y, in_x, expected;
     Atan2TestCases(t, d, padded, in_y, in_x, expected);
 
     const Vec<D> tolerance = Set(d, ConvertScalarTo<T>(1E-5));
@@ -194,10 +192,8 @@ HWY_NOINLINE void TestAllAtan2() {
 }
 
 template <typename T, class D>
-void HypotTestCases(T /*unused*/, D d, size_t& padded,
-                    AlignedFreeUniquePtr<T[]>& out_a,
-                    AlignedFreeUniquePtr<T[]>& out_b,
-                    AlignedFreeUniquePtr<T[]>& out_expected) {
+void HypotTestCases(T /*unused*/, D d, size_t& padded, AlignedPtr<T>& out_a,
+                    AlignedPtr<T>& out_b, AlignedPtr<T>& out_expected) {
   using TU = MakeUnsigned<T>;
 
   struct AB {
@@ -335,7 +331,7 @@ struct TestHypot {
     constexpr uint64_t kMaxErrorUlp = 4;
 
     size_t padded;
-    AlignedFreeUniquePtr<T[]> in_a, in_b, expected;
+    AlignedPtr<T> in_a, in_b, expected;
     HypotTestCases(t, d, padded, in_a, in_b, expected);
 
     auto actual1_lanes = AllocateAligned<T>(N);
@@ -556,7 +552,7 @@ struct TestFastAtan2 {
     const size_t N = Lanes(d);
 
     size_t padded;
-    AlignedFreeUniquePtr<T[]> in_y, in_x, expected;
+    AlignedPtr<T> in_y, in_x, expected;
     Atan2TestCases(t, d, padded, in_y, in_x, expected);
 
     // Constants for error checking

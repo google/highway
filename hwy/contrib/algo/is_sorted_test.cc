@@ -112,8 +112,7 @@ struct TestIsSorted {
   template <class D>
   void operator()(D d, size_t count, size_t misalign, RandomState& rng) {
     using T = TFromD<D>;
-    AlignedFreeUniquePtr<T[]> storage =
-        AllocateAligned<T>(HWY_MAX(1, misalign + count));
+    AlignedPtr<T> storage = AllocateAligned<T>(HWY_MAX(1, misalign + count));
     HWY_ASSERT(storage);
     T* in = storage.get() + misalign;
     for (size_t i = 0; i < count; ++i) {
@@ -161,8 +160,7 @@ struct TestIsSortedComp {
   template <class D>
   void operator()(D d, size_t count, size_t misalign, RandomState& rng) {
     using T = TFromD<D>;
-    AlignedFreeUniquePtr<T[]> storage =
-        AllocateAligned<T>(HWY_MAX(1, misalign + count));
+    AlignedPtr<T> storage = AllocateAligned<T>(HWY_MAX(1, misalign + count));
     HWY_ASSERT(storage);
     T* in = storage.get() + misalign;
     for (size_t i = 0; i < count; ++i) {

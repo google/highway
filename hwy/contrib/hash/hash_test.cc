@@ -299,7 +299,7 @@ static HWY_NOINLINE HWY_MAYBE_UNUSED void TestBuckets(const Hash& hash) {
   ThreadPool pool = MakePool();
   const size_t num_workers = pool.NumWorkers();
 
-  AlignedFreeUniquePtr<uint32_t[]> all_buckets =
+  AlignedPtr<uint32_t> all_buckets =
       AllocateAligned<uint32_t>(kNumBuckets * num_workers);
   ZeroBytes(all_buckets.get(), kNumBuckets * num_workers * sizeof(uint32_t));
 
@@ -380,8 +380,7 @@ static HWY_NOINLINE void TestMaskedBuckets(const Hash& hash) {
 
   if constexpr (kBits <= 24) {
     // Exact bijection test via bitset. Fast for small domains.
-    AlignedFreeUniquePtr<uint8_t[]> seen =
-        AllocateAligned<uint8_t>((kNumInputs + 7) / 8);
+    AlignedPtr<uint8_t> seen = AllocateAligned<uint8_t>((kNumInputs + 7) / 8);
     ZeroBytes(seen.get(), (kNumInputs + 7) / 8);
 
     for (uint64_t i = 0; i < kNumInputs; ++i) {
@@ -408,7 +407,7 @@ static HWY_NOINLINE void TestMaskedBuckets(const Hash& hash) {
 
     ThreadPool pool = MakePool();
     const size_t num_workers = pool.NumWorkers();
-    AlignedFreeUniquePtr<uint32_t[]> all_buckets =
+    AlignedPtr<uint32_t> all_buckets =
         AllocateAligned<uint32_t>(kNumBuckets * num_workers);
     ZeroBytes(all_buckets.get(), kNumBuckets * num_workers * sizeof(uint32_t));
 

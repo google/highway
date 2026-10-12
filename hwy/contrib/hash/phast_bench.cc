@@ -143,7 +143,7 @@ MeasureResult Measure(const Func& func) {
   }
 }
 
-HWY_NOINLINE void TestBW() {
+HWY_NOINLINE HWY_MAYBE_UNUSED void TestBW() {
   const ScalableTag<uint8_t> du8;
   using VU8 = Vec<decltype(du8)>;
   HWY_LANES_CONSTEXPR size_t N = Lanes(du8);
@@ -155,7 +155,7 @@ HWY_NOINLINE void TestBW() {
   const size_t kBytesPerWorker = kNumKeys * sizeof(uint32_t);
   const size_t num_bytes = pool.NumWorkers() * kBytesPerWorker;
   // Large array, avoid AlignedVector because it zero-initializes on 1 thread.
-  AlignedFreeUniquePtr<uint8_t[]> bytes = AllocateAligned<uint8_t>(num_bytes);
+  AlignedPtr<uint8_t> bytes = AllocateAligned<uint8_t>(num_bytes);
   pool.Run(0, pool.NumWorkers(), [&](uint64_t task_idx, size_t /*worker*/) {
     FillBytes(&bytes[task_idx * kBytesPerWorker],
               static_cast<uint8_t>(Unpredictable1()), kBytesPerWorker);
@@ -189,7 +189,7 @@ HWY_NOINLINE void TestBW() {
 // NOTE: unlike the others, this does not verify the keys because it is intended
 // to be used alongside PHAST. In real usage, the original u64 should be stored
 // at the slot returned by PHAST for the u32 output of ShardMul.
-HWY_NOINLINE void TestShardMulThroughput(size_t num_keys) {
+HWY_NOINLINE HWY_MAYBE_UNUSED void TestShardMulThroughput(size_t num_keys) {
   // Too slow under MSAN/TSAN.
   if constexpr (HWY_IS_MSAN || HWY_IS_TSAN) return;
   ThreadPool pool = MakePool();
@@ -240,7 +240,7 @@ HWY_NOINLINE void TestShardMulThroughput(size_t num_keys) {
 
 // Benchmarks PHAST + u32 key verification. Stores the full key at each PHAST
 // position, guaranteeing zero false positives (at 4 bytes/key payload).
-HWY_NOINLINE void TestPhastThroughput(size_t num_keys) {
+HWY_NOINLINE HWY_MAYBE_UNUSED void TestPhastThroughput(size_t num_keys) {
   // Too slow under MSAN/TSAN.
   if constexpr (HWY_IS_MSAN || HWY_IS_TSAN) return;
   ThreadPool pool = MakePool();
@@ -334,7 +334,7 @@ HWY_NOINLINE void TestPhastThroughput(size_t num_keys) {
 }
 
 // Benchmarks Cuckoo2x2 used as a set membership test, checking returned masks.
-HWY_NOINLINE void TestCuckoo2x2Throughput(size_t num_keys) {
+HWY_NOINLINE HWY_MAYBE_UNUSED void TestCuckoo2x2Throughput(size_t num_keys) {
   // Too slow under MSAN/TSAN.
   if constexpr (HWY_IS_MSAN || HWY_IS_TSAN) return;
   ThreadPool pool = MakePool();
@@ -390,7 +390,7 @@ HWY_NOINLINE void TestCuckoo2x2Throughput(size_t num_keys) {
 }
 
 // Compare with absl::flat_hash_set - just set membership.
-HWY_NOINLINE void TestAbslThroughput(size_t num_keys) {
+HWY_NOINLINE HWY_MAYBE_UNUSED void TestAbslThroughput(size_t num_keys) {
   // Too slow under MSAN/TSAN.
   if constexpr (HWY_IS_MSAN || HWY_IS_TSAN) return;
 
@@ -447,7 +447,7 @@ HWY_NOINLINE void TestAbslThroughput(size_t num_keys) {
 #endif  // HWY_HAVE_ABSL
 }
 
-HWY_NOINLINE void TestShardMulLatency(size_t num_keys) {
+HWY_NOINLINE HWY_MAYBE_UNUSED void TestShardMulLatency(size_t num_keys) {
   const AlignedVector<uint64_t> keys = GenerateKeys64(num_keys);
   ThreadPool pool = MakePool();
   const ShardMul shard_mul = MakeShardMul(Span(keys), pool);
@@ -460,7 +460,7 @@ HWY_NOINLINE void TestShardMulLatency(size_t num_keys) {
           num_keys, result.ns, result.mad_percent);
 }
 
-HWY_NOINLINE void TestPhastLatency(size_t num_keys) {
+HWY_NOINLINE HWY_MAYBE_UNUSED void TestPhastLatency(size_t num_keys) {
   const AlignedVector<uint32_t> keys = GenerateKeys(num_keys);
   ThreadPool pool = MakePool();
   const Phast phast = MakePhast(Span(keys), 0, pool);
@@ -474,7 +474,7 @@ HWY_NOINLINE void TestPhastLatency(size_t num_keys) {
           num_keys, result.ns, result.mad_percent);
 }
 
-HWY_NOINLINE void TestCuckoo2x2Latency(size_t num_keys) {
+HWY_NOINLINE HWY_MAYBE_UNUSED void TestCuckoo2x2Latency(size_t num_keys) {
   const AlignedVector<uint32_t> keys = GenerateKeys(num_keys);
   ThreadPool pool = MakePool();
   const Cuckoo2x2 set = MakeCuckoo2x2(Span(keys), pool);
@@ -488,7 +488,7 @@ HWY_NOINLINE void TestCuckoo2x2Latency(size_t num_keys) {
           num_keys, result.ns, result.mad_percent);
 }
 
-HWY_NOINLINE void TestAbslLatency(size_t num_keys) {
+HWY_NOINLINE HWY_MAYBE_UNUSED void TestAbslLatency(size_t num_keys) {
 #if HWY_HAVE_ABSL
   const AlignedVector<uint32_t> keys = GenerateKeys(num_keys);
   absl::flat_hash_set<uint32_t> set(keys.begin(), keys.end());
@@ -507,7 +507,7 @@ HWY_NOINLINE void TestAbslLatency(size_t num_keys) {
 }
 
 template <bool kUseU16 = false, bool kPow2 = true>
-HWY_NOINLINE void TestCuckooThroughput(size_t num_keys) {
+HWY_NOINLINE HWY_MAYBE_UNUSED void TestCuckooThroughput(size_t num_keys) {
   const AlignedVector<uint32_t> keys = GenerateKeys(num_keys);
   const size_t before = AllocatedBefore();
   constexpr int kVerbosity = 0;
@@ -584,7 +584,7 @@ HWY_NOINLINE void TestCuckooThroughput(size_t num_keys) {
 }
 
 // Driver functions: sweep across sizes or run once.
-HWY_NOINLINE void TestLatencySweep() {
+HWY_NOINLINE HWY_MAYBE_UNUSED void TestLatencySweep() {
   if (kSweepLatency) {
     // Powers of ten: 100-10K.
     for (size_t n = 100; n <= 10'000; n *= 10) {
@@ -633,7 +633,7 @@ HWY_NOINLINE void TestLatencySweep() {
   }
 }
 
-HWY_NOINLINE void TestThroughputSweep() {
+HWY_NOINLINE HWY_MAYBE_UNUSED void TestThroughputSweep() {
   if (kSweepThroughput) {
     // Powers of ten: 10K-10M.
     for (size_t n = 10'000; n <= 10'000'000; n *= 10) {

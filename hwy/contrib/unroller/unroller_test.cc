@@ -356,9 +356,9 @@ struct TestDot {
     };
 
     for (size_t num : Counts(d)) {
-      AlignedFreeUniquePtr<T[]> pa = AllocateAligned<T>(num);
-      AlignedFreeUniquePtr<T[]> pb = AllocateAligned<T>(num);
-      AlignedFreeUniquePtr<T[]> py = AllocateAligned<T>(num);
+      AlignedPtr<T> pa = AllocateAligned<T>(num);
+      AlignedPtr<T> pb = AllocateAligned<T>(num);
+      AlignedPtr<T> py = AllocateAligned<T>(num);
 
       HWY_ASSERT(pa && pb && py);
       T* a = pa.get();
@@ -415,8 +415,8 @@ struct TestConvert {
     (void)d;
 #else
     for (size_t num : Counts(d)) {
-      AlignedFreeUniquePtr<T[]> pa = AllocateAligned<T>(num);
-      AlignedFreeUniquePtr<int[]> pto = AllocateAligned<int>(num);
+      AlignedPtr<T> pa = AllocateAligned<T>(num);
+      AlignedPtr<int> pto = AllocateAligned<int>(num);
       HWY_ASSERT(pa && pto);
       T* HWY_RESTRICT a = pa.get();
       int* HWY_RESTRICT to = pto.get();
@@ -450,7 +450,7 @@ struct TestFind {
   template <typename T, class D>
   HWY_NOINLINE HWY_MAYBE_UNUSED void operator()(T /*unused*/, D d) {
     for (size_t num : Counts(d)) {
-      AlignedFreeUniquePtr<T[]> pa = AllocateAligned<T>(num);
+      AlignedPtr<T> pa = AllocateAligned<T>(num);
       HWY_ASSERT(pa);
       T* a = pa.get();
 

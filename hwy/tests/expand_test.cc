@@ -36,11 +36,9 @@ namespace {
 #if !HWY_PRINT_TABLES || HWY_IDE
 
 template <class D, class DI, typename T = TFromD<D>, typename TI = TFromD<DI>>
-void CheckExpanded(D d, DI di, const char* op,
-                   const AlignedFreeUniquePtr<T[]>& in,
-                   const AlignedFreeUniquePtr<TI[]>& mask_lanes,
-                   const AlignedFreeUniquePtr<T[]>& expected, const T* actual_u,
-                   int line) {
+void CheckExpanded(D d, DI di, const char* op, const AlignedPtr<T>& in,
+                   const AlignedPtr<TI>& mask_lanes,
+                   const AlignedPtr<T>& expected, const T* actual_u, int line) {
   const size_t N = Lanes(d);
   // Modified from AssertVecEqual to also print mask etc.
   for (size_t i = 0; i < N; ++i) {
