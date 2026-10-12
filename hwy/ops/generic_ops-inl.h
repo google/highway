@@ -120,8 +120,11 @@ HWY_API VFromD<D> CombineShiftRightLanes(D d, VFromD<D> hi, VFromD<D> lo) {
 
 #endif
 
-#if (HWY_TARGET != HWY_SCALAR &&                                              \
-     defined(HWY_TOGGLE_COMBINE_SLIDE_DOWN) == defined(HWY_TARGET_TOGGLE)) || \
+// The toggle must be flipped exactly once per target, including HWY_SCALAR
+// (which lacks this op). Otherwise, it would be out of sync with
+// HWY_TARGET_TOGGLE for all subsequently compiled targets, which includes the
+// static target, because foreach_target.h compiles HWY_SCALAR last.
+#if (defined(HWY_TOGGLE_COMBINE_SLIDE_DOWN) == defined(HWY_TARGET_TOGGLE)) || \
     HWY_IDE
 #ifdef HWY_TOGGLE_COMBINE_SLIDE_DOWN
 #undef HWY_TOGGLE_COMBINE_SLIDE_DOWN
@@ -129,6 +132,7 @@ HWY_API VFromD<D> CombineShiftRightLanes(D d, VFromD<D> hi, VFromD<D> lo) {
 #define HWY_TOGGLE_COMBINE_SLIDE_DOWN
 #endif
 
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
 template <size_t kLanes, class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API VFromD<D> CombineSlideDownLanes(D d, VFromD<D> hi, VFromD<D> lo) {
   return CombineShiftRightLanes<kLanes>(d, hi, lo);
@@ -163,6 +167,7 @@ HWY_API VFromD<D> CombineSlideDownLanes(D d, VFromD<D> hi, VFromD<D> lo) {
   return detail::CombineSlideDown32Bytes<kBytes>(d, hi, lo);
 }
 #endif  // HWY_TARGET == HWY_AVX2 || ...
+#endif  // HWY_TARGET != HWY_SCALAR || HWY_IDE
 
 #endif  // HWY_TOGGLE_COMBINE_SLIDE_DOWN
 
@@ -2647,10 +2652,11 @@ HWY_API V PairwiseSub(D d, V a, V b) {
 
 // Load/StoreInterleaved for special floats. Requires HWY_GENERIC_IF_EMULATED_D
 // is defined such that it is true only for types that actually require these
-// generic implementations.
+// generic implementations. The toggle must be flipped exactly once per target,
+// including those that do not define HWY_GENERIC_IF_EMULATED_D (such as
+// HWY_SCALAR), otherwise it would be out of sync for subsequent targets.
 #if HWY_IDE || (defined(HWY_NATIVE_LOAD_STORE_SPECIAL_FLOAT_INTERLEAVED) == \
-                    defined(HWY_TARGET_TOGGLE) &&                           \
-                defined(HWY_GENERIC_IF_EMULATED_D))
+                defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_LOAD_STORE_SPECIAL_FLOAT_INTERLEAVED
 #undef HWY_NATIVE_LOAD_STORE_SPECIAL_FLOAT_INTERLEAVED
 #else
@@ -2659,6 +2665,8 @@ HWY_API V PairwiseSub(D d, V a, V b) {
 #if HWY_IDE
 #define HWY_GENERIC_IF_EMULATED_D(D) int
 #endif
+
+#ifdef HWY_GENERIC_IF_EMULATED_D
 
 template <class D, HWY_GENERIC_IF_EMULATED_D(D), typename T = TFromD<D>>
 HWY_API void LoadInterleaved2(D d, const T* HWY_RESTRICT unaligned,
@@ -2718,6 +2726,7 @@ HWY_API void StoreInterleaved4(VFromD<D> v0, VFromD<D> v1, VFromD<D> v2,
                     BitCast(du, v3), du, detail::U16LanePointer(unaligned));
 }
 
+#endif  // HWY_GENERIC_IF_EMULATED_D
 #endif  // HWY_NATIVE_LOAD_STORE_SPECIAL_FLOAT_INTERLEAVED
 
 // ------------------------------ LoadN

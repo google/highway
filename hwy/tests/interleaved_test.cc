@@ -61,7 +61,7 @@ struct TestLoadStoreInterleaved2 {
 HWY_NOINLINE void TestAllLoadStoreInterleaved2() {
   ForAllTypes(ForMaxPow2<TestLoadStoreInterleaved2>());
   // Temporarily disable this test for special floats on arm7.
-#ifndef HWY_ARCH_ARM_V7
+#if !HWY_ARCH_ARM_V7
   ForSpecialTypes(ForMaxPow2<TestLoadStoreInterleaved2>());
 #endif
 }
@@ -116,7 +116,7 @@ struct TestLoadStoreInterleaved3 {
 HWY_NOINLINE void TestAllLoadStoreInterleaved3() {
   ForAllTypes(ForMaxPow2<TestLoadStoreInterleaved3>());
   // Temporarily disable this test for special floats on arm7.
-#ifndef HWY_ARCH_ARM_V7
+#if !HWY_ARCH_ARM_V7
   ForSpecialTypes(ForMaxPow2<TestLoadStoreInterleaved3>());
 #endif
 }
@@ -164,7 +164,7 @@ struct TestLoadStoreInterleaved4 {
 HWY_NOINLINE void TestAllLoadStoreInterleaved4() {
   ForAllTypes(ForMaxPow2<TestLoadStoreInterleaved4>());
   // Temporarily disable this test for special floats on arm7.
-#ifndef HWY_ARCH_ARM_V7
+#if !HWY_ARCH_ARM_V7
   ForSpecialTypes(ForMaxPow2<TestLoadStoreInterleaved4>());
 #endif
 }
