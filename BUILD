@@ -551,6 +551,18 @@ cc_library(
 )
 
 cc_library(
+    name = "lemac",
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/hash/lemac-inl.h",
+    ],
+    deps = [
+        ":hwy",
+    ],
+)
+
+cc_library(
     name = "range_coder",
     srcs = [
         "hwy/contrib/coder/range_coder.cc",
@@ -1093,6 +1105,22 @@ cc_test(
     deps = HWY_TEST_DEPS + [
         ":hash",
         ":random",
+    ],
+)
+
+cc_test(
+    name = "lemac_bench",
+    size = "medium",
+    timeout = "long",
+    srcs = ["hwy/contrib/hash/lemac_bench.cc"],
+    copts = COPTS + HWY_TEST_COPTS,
+    local_defines = ["HWY_IS_TEST"],
+    tags = [
+        "manual",
+        "notap",
+    ],
+    deps = HWY_TEST_DEPS + [
+        ":lemac",
     ],
 )
 

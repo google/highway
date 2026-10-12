@@ -139,6 +139,11 @@ HWY_CONTRIB_TESTS = (
     ),
     (
         "hwy/contrib/hash/",
+        "lemac_test",
+        [":lemac"],
+    ),
+    (
+        "hwy/contrib/hash/",
         "phast_test",
         [
             ":algo",
