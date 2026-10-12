@@ -31,6 +31,15 @@ HWY_DIAGNOSTICS_OFF(disable : 4701 4703 6001 26494,
                     ignored "-Wmaybe-uninitialized")
 #endif
 
+// Workaround for Clang 15 bug: immintrin.h includes broken amxintrin.h in
+// C++20 mode when AMX is not enabled.
+#if HWY_COMPILER_CLANG >= 1500 && HWY_COMPILER_CLANG < 1600 && \
+    !defined(__AMX_INT8__)
+#ifndef __AMXINTRIN_H
+#define __AMXINTRIN_H
+#endif
+#endif
+
 #include <immintrin.h>  // AVX2+
 
 #if HWY_COMPILER_CLANGCL
