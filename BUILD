@@ -975,6 +975,52 @@ cc_test(
     ],
 )
 
+[
+    cc_test(
+        name = name + "_sweep_test",
+        size = "large",
+        timeout = "eternal",
+        srcs = ["hwy/contrib/math/" + name + "_test.cc"],
+        copts = COPTS + HWY_TEST_COPTS,
+        linkstatic = True,
+        local_defines = [
+            "HWY_IS_TEST",
+            "HWY_MATH_SWEEP_ALL=1",
+        ],
+        # Placeholder for malloc, do not remove
+        shard_count = 30,
+        tags = [
+            "manual",
+            "notap",
+        ],
+        deps = HWY_TEST_DEPS + [
+            ":math",
+        ],
+    )
+    for name in [
+        "fast_math",
+        "math",
+        "math_tan",
+        "math_hyper",
+        "math_trig",
+    ]
+]
+
+test_suite(
+    name = "math_sweep_tests",
+    tags = [
+        "manual",
+        "notap",
+    ],
+    tests = [
+        ":fast_math_sweep_test",
+        ":math_hyper_sweep_test",
+        ":math_sweep_test",
+        ":math_tan_sweep_test",
+        ":math_trig_sweep_test",
+    ],
+)
+
 cc_test(
     name = "algo_bench",
     size = "medium",

@@ -110,8 +110,11 @@ struct TestPow {
 
     uint64_t max_ulp = 0;
     // Emulation is slower, so cannot afford as many.
+    constexpr bool kSweepAll =
+        HWY_MATH_SWEEP_ALL && hwy::IsSame<D, ScalableTag<T>>();
     constexpr UintT kSamplesPerRange =
-        static_cast<UintT>(AdjustedReps(static_cast<size_t>(32)));
+        kSweepAll ? static_cast<UintT>(1024)
+                  : static_cast<UintT>(AdjustedReps(static_cast<size_t>(32)));
 
     constexpr int kNumOfMantFracBits = MantissaBits<T>();
     static_assert(kNumOfMantFracBits > 0,
