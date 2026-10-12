@@ -120,14 +120,9 @@ HWY_API VFromD<D> CombineShiftRightLanes(D d, VFromD<D> hi, VFromD<D> lo) {
 
 #endif
 
-#if (HWY_TARGET != HWY_SCALAR &&                                              \
-     defined(HWY_TOGGLE_COMBINE_SLIDE_DOWN) == defined(HWY_TARGET_TOGGLE)) || \
+#if (HWY_TARGET != HWY_SCALAR && !(HWY_TARGET & HWY_ALL_SVE) && \
+     HWY_TARGET != HWY_RVV) || \
     HWY_IDE
-#ifdef HWY_TOGGLE_COMBINE_SLIDE_DOWN
-#undef HWY_TOGGLE_COMBINE_SLIDE_DOWN
-#else
-#define HWY_TOGGLE_COMBINE_SLIDE_DOWN
-#endif
 
 template <size_t kLanes, class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API VFromD<D> CombineSlideDownLanes(D d, VFromD<D> hi, VFromD<D> lo) {

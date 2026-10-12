@@ -4867,11 +4867,6 @@ HWY_API V CombineShiftRightBytes(const D d, const V hi, const V lo) {
 }
 
 // ------------------------------ CombineSlideDownLanes
-#ifdef HWY_TOGGLE_COMBINE_SLIDE_DOWN
-#undef HWY_TOGGLE_COMBINE_SLIDE_DOWN
-#else
-#define HWY_TOGGLE_COMBINE_SLIDE_DOWN
-#endif
 
 template <size_t kLanes, class D>
 HWY_API VFromD<D> CombineSlideDownLanes(D d, VFromD<D> hi, VFromD<D> lo) {
