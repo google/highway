@@ -85,7 +85,7 @@ static inline void SetThreadName(const char* format, int thread) {
 // Whether workers should block or spin.
 enum class PoolWaitMode : uint8_t { kBlock = 1, kSpin };
 
-enum class Exit : uint32_t { kNone, kLoop, kThread };
+enum class Exit : uint32_t { kNone, kThread };
 
 // Upper bound on non-empty `ThreadPool` (single-worker pools do not count).
 // Turin has 16 clusters. Add one for the across-cluster pool.
@@ -279,6 +279,11 @@ struct Config {  // 4 bytes
       : spin_type(spin_type_in), wait_type(wait_type_in) {}
   // Workers initially spin until ThreadPool sends them their actual config.
   Config() : Config(SpinType::kPause, WaitType::kSpinSeparate) {}
+
+  bool operator==(const Config& other) const {
+    return spin_type == other.spin_type && wait_type == other.wait_type;
+  }
+  bool operator!=(const Config& other) const { return !(*this == other); }
 
   SpinType spin_type;
   WaitType wait_type;
@@ -1009,6 +1014,9 @@ class Tasks {
     opaque_.store(reinterpret_cast<const void*>(&closure), kRel);
   }
 
+  Config NextConfig() const { return next_config_; }
+  void SetNextConfig(Config next_config) { next_config_ = next_config; }
+
   // Assigns workers their share of `[begin, end)`. Called from the main
   // thread; workers are initializing or waiting for a command.
   // Negligible CPU time.
@@ -1132,8 +1140,9 @@ class Tasks {
   std::atomic<uint64_t> end_;
   std::atomic<RunFunc> func_;
   std::atomic<const void*> opaque_;
+  Config next_config_;
 };
-static_assert(sizeof(Tasks) == 16 + 2 * sizeof(void*), "");
+static_assert(sizeof(Tasks) == 16 + 2 * sizeof(void*) + 8, "");
 
 // ------------------------------ Threads wait, main wakes them
 
@@ -1401,9 +1410,14 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
   // but wastes power when waiting over long intervals. Must not be called
   // concurrently with any `Run`, because this uses the same waiter/barrier.
   void SetWaitMode(PoolWaitMode mode) {
+    SetWaitModeLazy(mode);
+    SendConfig(tasks_.NextConfig());
+  }
+
+  void SetWaitModeLazy(PoolWaitMode mode) {
     wait_mode_ = mode;
-    SendConfig(AutoTuneComplete() ? *AutoTuner().Best()
-                                  : AutoTuner().NextConfig());
+    tasks_.SetNextConfig(AutoTuneComplete() ? *AutoTuner().Best()
+                                            : AutoTuner().NextConfig());
   }
 
   // For printing which is in use.
@@ -1427,8 +1441,10 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
   void Run(uint64_t begin, uint64_t end, pool::Caller caller,
            const Closure& closure) {
     AutoTuneT& auto_tuner = AutoTuner();
-    // Already finished tuning: run without time measurement.
-    if (HWY_LIKELY(auto_tuner.Best())) {
+    // Already finished tuning, or transitioning wait modes: run without time
+    // measurement.
+    if (HWY_LIKELY(auto_tuner.Best()) ||
+        HWY_UNLIKELY(tasks_.NextConfig() != config())) {
       // Don't care whether threads ran, we are done either way.
       (void)RunWithoutAutotune(begin, end, caller, closure);
       return;
@@ -1545,9 +1561,17 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
           stats.NotifyThreadRun(worker.Index(), d_wait, wait_reps, t_before_run,
                                 d_run);
 
+          // Read before `WorkerReached` so the main thread cannot overwrite
+          // `tasks.NextConfig()` before workers observe this epoch's config.
+          const pool::Config next_config = tasks.NextConfig();
+
           // Notify barrier after `WorkerRun`. Note that we cannot send an
           // after-barrier timestamp, see above.
           pool::Barrier().WorkerReached(worker, epoch);
+          if (HWY_UNLIKELY(next_config != worker.NextConfig())) {
+            worker.SetNextConfig(next_config);
+            break;
+          }
           // Check after `WorkerReached`, otherwise the main thread deadlocks.
         } while (worker.GetExit() == Exit::kNone);
       }
@@ -1575,13 +1599,11 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
 
       // Loop termination via `GetExit` is triggered by `~ThreadPool`.
       for (;;) {
-        // Uses the initial config, or the last one set during WorkerRun.
+        // Uses the initial config, or the last one set during WorkerLoop.
         CallWithConfig(worker_.NextConfig(), WorkerLoop(), worker_, tasks_,
                        shared_, stats_);
 
-        // Exit or reset the flag and return to WorkerLoop with a new config.
         if (worker_.GetExit() == Exit::kThread) break;
-        worker_.SetExit(Exit::kNone);
       }
 
       profiler.SetGlobalIdx(~size_t{0});
@@ -1650,8 +1672,11 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
       pool::Tasks::DivideRangeAmongWorkers(begin, end, div_workers_, workers_);
     }
 
+    const pool::Config current_config = config();
+    main.SetNextConfig(tasks_.NextConfig());
+
     // Runs `MainWakeAndBarrier` with the first worker slot.
-    CallWithConfig(config(), MainWakeAndBarrier(), main, tasks_, shared_,
+    CallWithConfig(current_config, MainWakeAndBarrier(), main, tasks_, shared_,
                    stats_);
 
 #if PROFILER_ENABLED
@@ -1672,21 +1697,19 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
 
   // Sends `next_config` to workers:
   // - Main wakes threads using the current config.
-  // - Threads copy `next_config` into their `Worker` during `WorkerRun`.
+  // - Threads copy `next_config` into their `Worker` during `WorkerLoop`.
   // - Threads notify the (same) barrier and already wait for the next wake
   //   using `next_config`.
   HWY_NOINLINE void SendConfig(pool::Config next_config) {
+    tasks_.SetNextConfig(next_config);
+    if (NumWorkers() == 1) {
+      workers_[0].SetNextConfig(next_config);
+      return;
+    }
+    if (next_config == config()) return;
     (void)RunWithoutAutotune(
         0, NumWorkers(), shared_.send_config,
-        [this, next_config](HWY_MAYBE_UNUSED uint64_t task, size_t worker) {
-          HWY_DASSERT(task == worker);  // one task per worker
-          workers_[worker].SetNextConfig(next_config);
-          workers_[worker].SetExit(Exit::kLoop);
-        });
-
-    // All have woken and are, or will be, waiting per `next_config`. Now we
-    // can entirely switch the main thread's config for the next wake.
-    workers_[0].SetNextConfig(next_config);
+        [](HWY_MAYBE_UNUSED uint64_t task, HWY_MAYBE_UNUSED size_t worker) {});
   }
 
   using AutoTuneT = AutoTune<pool::Config, 30>;
