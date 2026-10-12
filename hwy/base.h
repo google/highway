@@ -100,9 +100,11 @@
 
 #define HWY_FUNCTION __FUNCSIG__  // function name + template args
 #define HWY_RESTRICT __restrict
+#define HWY_INLINE_ATTR
 #define HWY_INLINE __forceinline
 #define HWY_NOINLINE __declspec(noinline)
 #define HWY_FLATTEN
+#define HWY_PRESERVE_MOST
 #define HWY_NORETURN __declspec(noreturn)
 #define HWY_LIKELY(expr) (expr)
 #define HWY_UNLIKELY(expr) (expr)
@@ -125,12 +127,19 @@
 // force inlining without optimization enabled creates very inefficient code
 // that can cause compiler timeout
 #ifdef __OPTIMIZE__
-#define HWY_INLINE inline __attribute__((always_inline))
+#define HWY_INLINE_ATTR __attribute__((always_inline))
 #else
-#define HWY_INLINE inline
+#define HWY_INLINE_ATTR
 #endif
+#define HWY_INLINE inline HWY_INLINE_ATTR
 #define HWY_NOINLINE __attribute__((noinline))
 #define HWY_FLATTEN __attribute__((flatten))
+// Clang currently only supports this on x86 and Arm, but more are expected.
+#if HWY_HAS_ATTRIBUTE(preserve_most) && (HWY_ARCH_X86_64 || HWY_ARCH_ARM_A64)
+#define HWY_PRESERVE_MOST __attribute__((preserve_most))
+#else
+#define HWY_PRESERVE_MOST
+#endif
 #define HWY_NORETURN __attribute__((noreturn))
 #define HWY_LIKELY(expr) __builtin_expect(!!(expr), 1)
 #define HWY_UNLIKELY(expr) __builtin_expect(!!(expr), 0)
