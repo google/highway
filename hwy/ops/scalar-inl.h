@@ -707,7 +707,15 @@ HWY_API Vec1<T> operator*(const Vec1<T> a, const Vec1<T> b) {
 
 template <typename T, HWY_IF_FLOAT(T)>
 HWY_API Vec1<T> operator/(const Vec1<T> a, const Vec1<T> b) {
-  return Vec1<T>(a.raw / b.raw);
+  const T den = b.raw;
+  if (den == T{0}) {
+    // x / +-0 is +-Inf with the sign of x * den; 0 / +-0 is NaN. Neither
+    // divides by zero, which sanitizers flag.
+    const T inf = PositiveInfOrHighestValue<T>();
+    return Vec1<T>((a.raw == T{0}) ? (inf * T{0})
+                                   : ScalarCopySign(inf, a.raw * den));
+  }
+  return Vec1<T>(a.raw / den);
 }
 
 // Returns the upper sizeof(T)*8 bits of a * b in each lane.

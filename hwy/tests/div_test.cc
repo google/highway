@@ -226,10 +226,8 @@ struct TestFloatDiv {
     const T pos_inf = PositiveInfOrHighestValue<T>();
     const T max = HighestValue<T>();
 
-    // IEEE 754 defines x / +/-0 (documented as `returns a[i] / b[i]`).
-    // Comparing values directly on purpose: HWY_ASSERT_VEC_EQ uses ULP <= 1
-    // tolerance for floats, and HighestValue<float>() is exactly 1 ULP below
-    // +Inf, so it would accept a saturated result.
+    // Compare directly: HWY_ASSERT_VEC_EQ allows ULP <= 1, and HighestValue<T>()
+    // is 1 ULP below +Inf, so it would accept a saturated result.
     const auto quot = [&](T a, T b) {
       return GetLane(Div(Set(d, a), Set(d, b)));
     };
