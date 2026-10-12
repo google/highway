@@ -18,18 +18,17 @@
 // Highway ops, so a single source runs on every Highway target (x86, NEON,
 // SVE, RVV, PPC, WASM, LoongArch, ...) and returns the frozen golden values.
 //
-// The 256-bit internal state is four u64 lanes {v0, v1, mul0, mul1}, mixed in
-// 128-bit halves (matching the reference SSE4.1 code), so this needs only a
-// 16-byte block and works even on 128-bit-only targets. It does not yet use
-// wider vectors when available; a 256-bit specialization is a possible
-// follow-up.
+// The 256-bit internal state is four u64 lanes for each of {v0, v1, mul0,
+// mul1}. Using CappedTag<uint64_t, 4> with a loop over Lanes(d) processes all
+// four lanes at once on >= 256-bit targets while naturally running two 128-bit
+// iterations on 128-bit targets.
 //
-// The state is stored as a plain uint64_t array; each round loads it into
-// vectors, mixes, and stores it back. On fixed-size targets the compiler keeps
-// it in registers (SROA), so the loads/stores fold away - see the objdump in
-// PR #3334. The scalable targets (SVE, RVV) cannot hold a vector in a struct
-// member or array, which is why the array form is used rather than vector
-// members. Only HWY_SCALAR (1 lane) is excluded.
+// The state is stored as plain uint64_t arrays; each round loads them into
+// vectors, mixes, and stores them back. On fixed-size targets the compiler
+// keeps them in registers (SROA), so the loads/stores fold away - see the
+// objdump in PR #3334. The scalable targets (SVE, RVV) cannot hold a vector in
+// a struct member or array, which is why the array form is used rather than
+// vector members. Only HWY_SCALAR (1 lane) is excluded.
 //
 // Reference: J. Alakuijala, B. Cox, J. Wassenberg, "Fast keyed hash/pseudo-
 // random function using SIMD multiply and permute",
@@ -57,34 +56,17 @@ namespace highwayhash {
 // 32-byte packet; the hash absorbs the message in units of this size.
 static constexpr size_t kPacketSize = 32;
 
-// HighwayHash mixes its 256-bit state in 128-bit halves, so it needs a
-// fixed-size 16-byte block. HWY_SCALAR is 1 lane and cannot provide that.
+// ZipperMerge and ModularReduction operate on 16-byte blocks, so at least 128
+// bits are required. HWY_SCALAR is 1 lane and cannot provide that.
 #if HWY_TARGET != HWY_SCALAR
 
 namespace detail {
 
-using D64 = Full128<uint64_t>;
-using D32 = Full128<uint32_t>;
-using D8 = Full128<uint8_t>;
-// VFromD, not Vec128<>: scalable targets (RVV/SVE) have no Vec128 class, but a
-// Full128 tag still caps operations to a fixed 16-byte block there.
+using D64 = CappedTag<uint64_t, 4>;
+using D32 = Repartition<uint32_t, D64>;
+using D8 = Repartition<uint8_t, D64>;
 using V64 = VFromD<D64>;
 using V8 = VFromD<D8>;
-
-// "Nothing up my sleeve" constants (fractional digits of pi), as 128-bit
-// halves: L = logical lanes {0,1}, H = logical lanes {2,3}.
-HWY_INLINE V64 Init0L(D64 d) {
-  return Dup128VecFromValues(d, 0xdbe6d5d5fe4cce2full, 0xa4093822299f31d0ull);
-}
-HWY_INLINE V64 Init0H(D64 d) {
-  return Dup128VecFromValues(d, 0x13198a2e03707344ull, 0x243f6a8885a308d3ull);
-}
-HWY_INLINE V64 Init1L(D64 d) {
-  return Dup128VecFromValues(d, 0x3bd39e10cb0ef593ull, 0xc0acf169b5f18a8cull);
-}
-HWY_INLINE V64 Init1H(D64 d) {
-  return Dup128VecFromValues(d, 0xbe5466cf34e90c6cull, 0x452821e638d01377ull);
-}
 
 // Swap the two 32-bit halves of each u64 lane (== rotate the u64 by 32).
 HWY_INLINE V64 Rotate64By32(V64 v) {
@@ -123,62 +105,52 @@ HWY_INLINE V64 MulLoHi(V64 lo_src, V64 hi_src) {
 #endif
 }
 
-// The 256-bit state, as eight 16-byte halves (v0/v1/mul0/mul1, each L and H).
-// A plain array so it is a value type on every target, including SVE/RVV where
-// a vector cannot be a struct member. Each round loads it into vectors and
-// stores it back; on fixed-size targets the compiler keeps it in registers.
+// The 256-bit state, as four 4-lane arrays (v0/v1/mul0/mul1).
+// Plain arrays so State is a value type on every target, including SVE/RVV
+// where a vector cannot be a struct member. Each round loads them into vectors
+// and stores them back; on fixed-size targets the compiler keeps them in
+// registers.
 struct State {
-  // 0:v0L 1:v0H 2:v1L 3:v1H 4:mul0L 5:mul0H 6:mul1L 7:mul1H
-  HWY_ALIGN uint64_t half[8][2];
+  HWY_ALIGN uint64_t v0[4];
+  HWY_ALIGN uint64_t v1[4];
+  HWY_ALIGN uint64_t mul0[4];
+  HWY_ALIGN uint64_t mul1[4];
 
-  // Core round. packetL/packetH are logical lanes {0,1}/{2,3}.
-  HWY_INLINE void Update(V64 packetL, V64 packetH) {
+  // Core round for lanes [i, i + Lanes(D64())).
+  HWY_INLINE void Update(V64 pkt, size_t i) {
     const D64 d;
-    V64 v0L = Load(d, half[0]), v0H = Load(d, half[1]), v1L = Load(d, half[2]),
-        v1H = Load(d, half[3]), mul0L = Load(d, half[4]),
-        mul0H = Load(d, half[5]), mul1L = Load(d, half[6]),
-        mul1H = Load(d, half[7]);
+    V64 v0_i = Load(d, v0 + i);
+    V64 v1_i = Load(d, v1 + i);
+    V64 mul0_i = Load(d, mul0 + i);
+    V64 mul1_i = Load(d, mul1 + i);
 
-    v1L = Add(Add(v1L, packetL), mul0L);
-    v1H = Add(Add(v1H, packetH), mul0H);
+    v1_i = Add(Add(v1_i, pkt), mul0_i);
+    mul0_i = Xor(mul0_i, MulLoHi(v1_i, v0_i));
+    v0_i = Add(v0_i, mul1_i);
+    mul1_i = Xor(mul1_i, MulLoHi(v0_i, v1_i));
+    v0_i = Add(v0_i, ZipperMerge(v1_i));
+    v1_i = Add(v1_i, ZipperMerge(v0_i));
 
-    mul0L = Xor(mul0L, MulLoHi(v1L, v0L));
-    mul0H = Xor(mul0H, MulLoHi(v1H, v0H));
-
-    v0L = Add(v0L, mul1L);
-    v0H = Add(v0H, mul1H);
-
-    mul1L = Xor(mul1L, MulLoHi(v0L, v1L));
-    mul1H = Xor(mul1H, MulLoHi(v0H, v1H));
-
-    v0L = Add(v0L, ZipperMerge(v1L));
-    v0H = Add(v0H, ZipperMerge(v1H));
-    v1L = Add(v1L, ZipperMerge(v0L));
-    v1H = Add(v1H, ZipperMerge(v0H));
-
-    Store(v0L, d, half[0]);
-    Store(v0H, d, half[1]);
-    Store(v1L, d, half[2]);
-    Store(v1H, d, half[3]);
-    Store(mul0L, d, half[4]);
-    Store(mul0H, d, half[5]);
-    Store(mul1L, d, half[6]);
-    Store(mul1H, d, half[7]);
+    Store(v0_i, d, v0 + i);
+    Store(v1_i, d, v1 + i);
+    Store(mul0_i, d, mul0 + i);
+    Store(mul1_i, d, mul1 + i);
   }
 
   HWY_INLINE void UpdatePacket(const uint8_t* HWY_RESTRICT packet) {
     const D64 d;
     const D8 d8;
-    // Load as bytes (no aliasing/alignment assumptions on the caller's buffer),
-    // then reinterpret as u64 lanes.
-    V64 lo = BitCast(d, LoadU(d8, packet + 0));
-    V64 hi = BitCast(d, LoadU(d8, packet + 16));
+    const size_t N = Lanes(d);
+    for (size_t i = 0; i < 4; i += N) {
+      // Load as bytes (no aliasing/alignment assumptions on the caller's
+      // buffer), then reinterpret as u64 lanes.
+      V64 pkt = BitCast(d, LoadU(d8, packet + i * sizeof(uint64_t)));
 #if !HWY_IS_LITTLE_ENDIAN
-    // HighwayHash is defined on little-endian lane values.
-    lo = ReverseLaneBytes(lo);
-    hi = ReverseLaneBytes(hi);
+      // HighwayHash is defined on little-endian lane values.
+      pkt = ReverseLaneBytes(pkt);
 #endif
-    Update(lo, hi);
+      Update(pkt, i);
+    }
   }
 
   // Absorb the trailing 1..31 bytes with HighwayHash's frozen length padding.
@@ -186,25 +158,19 @@ struct State {
                                   const size_t size_mod32) {
     const D64 d;
     const D32 d32;
-
-    V64 v0L = Load(d, half[0]), v0H = Load(d, half[1]), v1L = Load(d, half[2]),
-        v1H = Load(d, half[3]);
+    const size_t N = Lanes(d);
 
     // Length padding: inject size_mod32 into every u64 lane as (s<<32)|s.
     const V64 mod32_pair =
         BitCast(d, Set(d32, static_cast<uint32_t>(size_mod32)));
-    v0L = Add(v0L, mod32_pair);
-    v0H = Add(v0H, mod32_pair);
-    // Boost the avalanche of the length: rotate v1's u32 halves left by s.
-    v1L = BitCast(
-        d, RotateLeftSame(BitCast(d32, v1L), static_cast<int>(size_mod32)));
-    v1H = BitCast(
-        d, RotateLeftSame(BitCast(d32, v1H), static_cast<int>(size_mod32)));
-
-    Store(v0L, d, half[0]);
-    Store(v0H, d, half[1]);
-    Store(v1L, d, half[2]);
-    Store(v1H, d, half[3]);
+    for (size_t i = 0; i < 4; i += N) {
+      Store(Add(Load(d, v0 + i), mod32_pair), d, v0 + i);
+      // Boost the avalanche of the length: rotate v1's u32 halves left by s.
+      const V64 v1_i = Load(d, v1 + i);
+      Store(BitCast(d, RotateLeftSame(BitCast(d32, v1_i),
+                                      static_cast<int>(size_mod32))),
+            d, v1 + i);
+    }
 
     // Build the padded 32-byte packet exactly as the reference does.
     HWY_ALIGN uint8_t packet[kPacketSize];
@@ -227,32 +193,42 @@ struct State {
   }
 
   HWY_INLINE void PermuteAndUpdate() {
-    // The reference permutes v0 by lanes {2,3,0,1} and rotates each u64 by 32;
-    // with explicit L/H halves that is: swap L<->H and Rotate64By32 each.
+    // The reference permutes v0 by lanes {2,3,0,1} and rotates each u64 by 32.
+    // For N == 4, ReverseBlocks swaps the two 128-bit halves; for N == 2,
+    // ReverseBlocks is a no-op and i ^ (4 - N) == i ^ 2 swaps the two halves.
     const D64 d;
-    const V64 v0L = Load(d, half[0]), v0H = Load(d, half[1]);
-    Update(Rotate64By32(v0H), Rotate64By32(v0L));
+    const size_t N = Lanes(d);
+    HWY_ALIGN uint64_t permuted[4];
+    for (size_t i = 0; i < 4; i += N) {
+      const V64 v = ReverseBlocks(d, Load(d, v0 + (i ^ (4 - N))));
+      Store(Rotate64By32(v), d, permuted + i);
+    }
+    for (size_t i = 0; i < 4; i += N) {
+      Update(Load(d, permuted + i), i);
+    }
   }
 
   // ---- Finalizers -----------------------------------------------------------
 
   HWY_INLINE uint64_t Finalize64() {
-    for (int i = 0; i < 4; ++i) PermuteAndUpdate();
+    for (int r = 0; r < 4; ++r) PermuteAndUpdate();
     const D64 d;
-    return GetLane(Add(Add(Load(d, half[0]), Load(d, half[4])),
-                       Add(Load(d, half[2]), Load(d, half[6]))));
+    return GetLane(
+        Add(Add(Load(d, v0), Load(d, mul0)), Add(Load(d, v1), Load(d, mul1))));
   }
 
   HWY_INLINE void Finalize128(uint64_t* HWY_RESTRICT out) {
-    for (int i = 0; i < 6; ++i) PermuteAndUpdate();
-    const D64 d;
-    const V64 hash = Add(Add(Load(d, half[0]), Load(d, half[4])),
-                         Add(Load(d, half[3]), Load(d, half[7])));
-    StoreU(hash, d, out);
+    for (int r = 0; r < 6; ++r) PermuteAndUpdate();
+    const Full128<uint64_t> d128;
+    const VFromD<Full128<uint64_t>> hash =
+        Add(Add(Load(d128, v0 + 0), Load(d128, mul0 + 0)),
+            Add(Load(d128, v1 + 2), Load(d128, mul1 + 2)));
+    StoreU(hash, d128, out);
   }
 
-  // Modular reduction by the irreducible polynomial x^128 + x^2 + x, over the
-  // 256-bit value (hi:lo) = (sum1 : sum0). See Lemire 1503.03465.
+  // Modular reduction by the irreducible polynomial x^128 + x^2 + x, over each
+  // 256-bit pair of 128-bit blocks (hi:lo) = (sum1 : sum0). See Lemire
+  // 1503.03465.
   HWY_INLINE V64 ModularReduction(V64 sum1, V64 sum0) {
     const D64 d;
     const V64 sign_bit128 = Dup128VecFromValues(d, 0ull, 0x8000000000000000ull);
@@ -274,30 +250,37 @@ struct State {
   }
 
   HWY_INLINE void Finalize256(uint64_t* HWY_RESTRICT out) {
-    for (int i = 0; i < 10; ++i) PermuteAndUpdate();
+    for (int r = 0; r < 10; ++r) PermuteAndUpdate();
     const D64 d;
-    const V64 hashL = ModularReduction(Add(Load(d, half[2]), Load(d, half[6])),
-                                       Add(Load(d, half[0]), Load(d, half[4])));
-    const V64 hashH = ModularReduction(Add(Load(d, half[3]), Load(d, half[7])),
-                                       Add(Load(d, half[1]), Load(d, half[5])));
-    StoreU(hashL, d, out + 0);
-    StoreU(hashH, d, out + 2);
+    const size_t N = Lanes(d);
+    for (size_t i = 0; i < 4; i += N) {
+      const V64 sum0 = Add(Load(d, v0 + i), Load(d, mul0 + i));
+      const V64 sum1 = Add(Load(d, v1 + i), Load(d, mul1 + i));
+      StoreU(ModularReduction(sum1, sum0), d, out + i);
+    }
   }
 };
 
 HWY_INLINE State ResetState(const uint64_t* HWY_RESTRICT key) {
+  // "Nothing up my sleeve" constants (fractional digits of pi).
+  HWY_ALIGN static constexpr uint64_t kInit0[4] = {
+      0xdbe6d5d5fe4cce2full, 0xa4093822299f31d0ull, 0x13198a2e03707344ull,
+      0x243f6a8885a308d3ull};
+  HWY_ALIGN static constexpr uint64_t kInit1[4] = {
+      0x3bd39e10cb0ef593ull, 0xc0acf169b5f18a8cull, 0xbe5466cf34e90c6cull,
+      0x452821e638d01377ull};
   const D64 d;
-  const V64 keyL = LoadU(d, key + 0);
-  const V64 keyH = LoadU(d, key + 2);
+  const size_t N = Lanes(d);
   State state;
-  Store(Xor(keyL, Init0L(d)), d, state.half[0]);
-  Store(Xor(keyH, Init0H(d)), d, state.half[1]);
-  Store(Xor(Rotate64By32(keyL), Init1L(d)), d, state.half[2]);
-  Store(Xor(Rotate64By32(keyH), Init1H(d)), d, state.half[3]);
-  Store(Init0L(d), d, state.half[4]);
-  Store(Init0H(d), d, state.half[5]);
-  Store(Init1L(d), d, state.half[6]);
-  Store(Init1H(d), d, state.half[7]);
+  for (size_t i = 0; i < 4; i += N) {
+    const V64 key_i = LoadU(d, key + i);
+    const V64 init0 = Load(d, kInit0 + i);
+    const V64 init1 = Load(d, kInit1 + i);
+    Store(Xor(key_i, init0), d, state.v0 + i);
+    Store(Xor(Rotate64By32(key_i), init1), d, state.v1 + i);
+    Store(init0, d, state.mul0 + i);
+    Store(init1, d, state.mul1 + i);
+  }
   return state;
 }
 
