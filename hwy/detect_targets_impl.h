@@ -538,14 +538,15 @@ HWY_POP_ATTRIBUTES
 // HWY_SCALAR/HWY_EMU128 bit. It also does not respect
 // HWY_CHOSEN_TARGET_MASK_TARGETS
 template <class Platform>
-static int64_t HWY_MAYBE_UNUSED DetectTargetsImpl(const Platform& platform) {
+static int64_t HWY_MAYBE_UNUSED
+DetectTargetsImpl(HWY_MAYBE_UNUSED const Platform& platform) {
   int64_t bits = 0;  // return value of supported targets.
 
-#if HWY_OS_APPLE
-  const CapBits hw = 0UL;
-#else
+#if defined(AT_HWCAP) && !HWY_OS_APPLE
   // For Android, this has been supported since API 20 (2014).
   const CapBits hw = platform.GetAuxVal(AT_HWCAP);
+#else
+  const CapBits hw = 0UL;
 #endif
   (void)hw;
 
@@ -572,7 +573,8 @@ static int64_t HWY_MAYBE_UNUSED DetectTargetsImpl(const Platform& platform) {
   if (hw & HWCAP_AES) {
     bits |= HWY_NEON;
 
-#if defined(HWCAP_ASIMDHP) && defined(HWCAP_ASIMDDP) && defined(HWCAP2_BF16)
+#if defined(AT_HWCAP2) && defined(HWCAP_ASIMDHP) && defined(HWCAP_ASIMDDP) && \
+    defined(HWCAP2_BF16)
     const CapBits hw2 = platform.GetAuxVal(AT_HWCAP2);
     constexpr CapBits kGroupF16Dot = HWCAP_ASIMDHP | HWCAP_ASIMDDP;
     constexpr CapBits kGroupBF16 = HWCAP2_BF16;
@@ -580,7 +582,7 @@ static int64_t HWY_MAYBE_UNUSED DetectTargetsImpl(const Platform& platform) {
         (hw2 & kGroupBF16) == kGroupBF16) {
       bits |= HWY_NEON_BF16;
     }
-#endif  // HWCAP_ASIMDHP && HWCAP_ASIMDDP && HWCAP2_BF16
+#endif  // AT_HWCAP2 && HWCAP_ASIMDHP && HWCAP_ASIMDDP && HWCAP2_BF16
   }
 #endif  // HWCAP_AES
 
@@ -604,7 +606,11 @@ static int64_t HWY_MAYBE_UNUSED DetectTargetsImpl(const Platform& platform) {
 #endif
 
   constexpr CapBits kGroupSVE2 = HWCAP2_SVE2 | HWCAP2_SVEAES;
+#if defined(AT_HWCAP2)
   const CapBits hw2 = platform.GetAuxVal(AT_HWCAP2);
+#else
+  const CapBits hw2 = 0UL;
+#endif
   if ((hw2 & kGroupSVE2) == kGroupSVE2) {
     bits |= HWY_SVE2;
   }
@@ -763,9 +769,11 @@ namespace rvv {
 // HWY_SCALAR/HWY_EMU128 bit. It also does not respect
 // HWY_CHOSEN_TARGET_MASK_TARGETS
 template <class Platform>
-static int64_t HWY_MAYBE_UNUSED DetectTargetsImpl(const Platform& platform) {
+static int64_t HWY_MAYBE_UNUSED
+DetectTargetsImpl(HWY_MAYBE_UNUSED const Platform& platform) {
   int64_t bits = 0;
 
+#if defined(AT_HWCAP)
   const CapBits hw = platform.GetAuxVal(AT_HWCAP);
 
   if ((hw & COMPAT_HWCAP_ISA_V) == COMPAT_HWCAP_ISA_V) {
@@ -795,6 +803,7 @@ static int64_t HWY_MAYBE_UNUSED DetectTargetsImpl(const Platform& platform) {
       bits |= HWY_RVV;
     }
   }
+#endif  // defined(AT_HWCAP)
 
   return bits;
 }
@@ -814,11 +823,14 @@ namespace loongarch {
 // HWY_SCALAR/HWY_EMU128 bit. It also does not respect
 // HWY_CHOSEN_TARGET_MASK_TARGETS
 template <class Platform>
-static int64_t HWY_MAYBE_UNUSED DetectTargetsImpl(const Platform& platform) {
+static int64_t HWY_MAYBE_UNUSED
+DetectTargetsImpl(HWY_MAYBE_UNUSED const Platform& platform) {
   int64_t bits = 0;
+#if defined(AT_HWCAP)
   const CapBits hw = platform.GetAuxVal(AT_HWCAP);
   if (hw & LA_HWCAP_LSX) bits |= HWY_LSX;
   if (hw & LA_HWCAP_LASX) bits |= HWY_LASX;
+#endif  // defined(AT_HWCAP)
   return bits;
 }
 }  // namespace loongarch
