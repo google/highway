@@ -387,22 +387,25 @@ void TestPartialSortKEqualsN() {
 
 template <typename T>
 void TestPartialSortKEqualsZeroForType() {
-  const size_t num = 10;
-  std::vector<T> keys(num);
-  std::iota(keys.begin(), keys.end(), T{0});
-  std::reverse(keys.begin(), keys.end());
-  std::vector<T> expected(keys);
+  // Below and above the base case size.
+  for (size_t num : {size_t{10}, size_t{1000}}) {
+    std::vector<T> keys(num);
+    std::iota(keys.begin(), keys.end(), T{0});
+    std::reverse(keys.begin(), keys.end());
+    std::vector<T> expected(keys);
 
-  // k == 0 places no elements; this must return (not hang or overrun) and
-  // preserve the multiset. Exercises the heapsort fallback on !VQSORT_ENABLED
-  // builds, where HeapSelect/HeapSort formerly underflowed (k - N1) for k == 0.
-  hwy::VQPartialSort(keys.data(), num, /*k=*/0, hwy::SortAscending());
+    // k == 0 places no elements; this must return (not hang or overrun) and
+    // preserve the multiset. Exercises the heapsort fallback on !VQSORT_ENABLED
+    // builds, where HeapSelect/HeapSort formerly underflowed (k - N1) for
+    // k == 0.
+    hwy::VQPartialSort(keys.data(), num, /*k=*/0, hwy::SortAscending());
 
-  std::sort(keys.begin(), keys.end());
-  std::sort(expected.begin(), expected.end());
-  for (size_t i = 0; i < num; ++i) {
-    if (keys[i] != expected[i]) {
-      HWY_ABORT("KEqualsZero mismatch at %zu\n", i);
+    std::sort(keys.begin(), keys.end());
+    std::sort(expected.begin(), expected.end());
+    for (size_t i = 0; i < num; ++i) {
+      if (keys[i] != expected[i]) {
+        HWY_ABORT("KEqualsZero mismatch at %zu of %zu\n", i, num);
+      }
     }
   }
 }
