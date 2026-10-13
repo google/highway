@@ -2895,7 +2895,8 @@ HWY_INLINE Vec256<T> OddEven(Vec256<T> a, Vec256<T> b) {
   return Vec256<T>{__lasx_xvpackev_b(c, b.raw)};
 }
 
-template <typename T, HWY_IF_UI16(T)>
+// Also handles f16/bf16, whose raw type is also __m256i.
+template <typename T, HWY_IF_T_SIZE(T, 2)>
 HWY_INLINE Vec256<T> OddEven(Vec256<T> a, Vec256<T> b) {
   __m256i c = __lasx_xvpackod_h(a.raw, a.raw);
   return Vec256<T>{__lasx_xvpackev_h(c, b.raw)};

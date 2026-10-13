@@ -4280,7 +4280,8 @@ HWY_INLINE Vec128<T, N> OddEven(const Vec128<T, N> a, const Vec128<T, N> b) {
   __m128i t0 = __lsx_vpackod_b(a.raw, a.raw);
   return Vec128<T, N>{__lsx_vpackev_b(t0, b.raw)};
 }
-template <typename T, size_t N, HWY_IF_UI16(T)>
+// Also handles f16/bf16, whose raw type is also __m128i.
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 2)>
 HWY_INLINE Vec128<T, N> OddEven(const Vec128<T, N> a, const Vec128<T, N> b) {
   __m128i t0 = __lsx_vpackod_h(a.raw, a.raw);
   return Vec128<T, N>{__lsx_vpackev_h(t0, b.raw)};
