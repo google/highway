@@ -22,8 +22,16 @@
 #include "hwy/tests/hwy_gtest.h"
 #include "hwy/tests/test_util-inl.h"
 
+// Opt in with -DHWY_TEST_ENABLE_IFUNC=1 and run with LD_BIND_NOW=1.
+// Resolver instrumentation (e.g. sanitizers or stack protection) may call into
+// runtime libraries before they are initialized.
+#ifndef HWY_TEST_ENABLE_IFUNC
+#define HWY_TEST_ENABLE_IFUNC 0
+#endif
+
 #define HWY_TEST_HAVE_SYS_IFUNC_H 0
-#if HWY_ARCH_ARM_A64 && HWY_OS_LINUX && defined(__GLIBC__)
+#if HWY_TEST_ENABLE_IFUNC && HWY_ARCH_ARM_A64 && HWY_OS_LINUX && \
+    defined(__GLIBC__)
 #ifdef __has_include
 // clang-format off
 #if __has_include(<sys/ifunc.h>)
@@ -189,8 +197,9 @@ TEST(HwyTargetsTest, DetectTargetsAcceptsTemporaryPlatform) {
 }
 #endif
 
-#if HWY_ARCH_X86 && HWY_OS_LINUX && defined(__GLIBC__) && \
-    HWY_HAVE_RUNTIME_DISPATCH && HWY_HAS_ATTRIBUTE(ifunc) && !HWY_IS_SANITIZER
+#if HWY_TEST_ENABLE_IFUNC && HWY_ARCH_X86 && HWY_OS_LINUX && \
+    defined(__GLIBC__) && HWY_HAVE_RUNTIME_DISPATCH &&       \
+    HWY_HAS_ATTRIBUTE(ifunc) && !HWY_IS_SANITIZER
 // Sanitizer instrumentation may call into its runtime before initialization.
 static int64_t ifunc_detected_targets = 0;
 static bool ifunc_resolver_called = false;
@@ -217,9 +226,10 @@ TEST(HwyTargetsTest, DetectTargetsFromX86IfuncResolver) {
 }
 #endif
 
-#if HWY_ARCH_ARM_A64 && HWY_OS_LINUX && defined(__GLIBC__) && \
-    HWY_TEST_HAVE_SYS_IFUNC_H && defined(_IFUNC_ARG_HWCAP) && \
-    HWY_HAVE_RUNTIME_DISPATCH && HWY_HAS_ATTRIBUTE(ifunc) && !HWY_IS_SANITIZER
+#if HWY_TEST_ENABLE_IFUNC && HWY_ARCH_ARM_A64 && HWY_OS_LINUX && \
+    defined(__GLIBC__) && HWY_TEST_HAVE_SYS_IFUNC_H &&           \
+    defined(_IFUNC_ARG_HWCAP) && HWY_HAVE_RUNTIME_DISPATCH &&    \
+    HWY_HAS_ATTRIBUTE(ifunc) && !HWY_IS_SANITIZER
 // Sanitizer instrumentation may call into its runtime before initialization.
 static int64_t ifunc_detected_targets = 0;
 static bool ifunc_resolver_called = false;
