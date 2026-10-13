@@ -105,8 +105,9 @@ static HWY_INLINE HWY_MAYBE_UNUSED bool ParseU32(const char*& ptr,
 template <class Platform>
 static HWY_INLINE HWY_MAYBE_UNUSED bool IsMacOs12_2OrLater(
     const Platform& platform) {
-  utsname uname_buf;
-  ZeroBytesInline(&uname_buf, sizeof(utsname));
+  // The compiler may emit a memset call for this initialization.
+  // Example: https://godbolt.org/z/Msf8Mq9Y9
+  utsname uname_buf{};
 
   if ((platform.Uname(&uname_buf)) != 0) {
     return false;
