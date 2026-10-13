@@ -667,8 +667,6 @@ namespace ppc {
 #define PPC_FEATURE2_ARCH_3_1 0x00040000
 #endif
 
-using CapBits = unsigned long;  // NOLINT
-
 // For AT_HWCAP, the others are for AT_HWCAP2
 static constexpr CapBits kGroupVSX =
     PPC_FEATURE_HAS_ALTIVEC | PPC_FEATURE_HAS_VSX;
@@ -724,8 +722,6 @@ namespace s390x {
 #define HWCAP_S390_VXRS_EXT2 32768
 #endif
 
-using CapBits = unsigned long;  // NOLINT
-
 static constexpr CapBits kGroupZ14 = HWCAP_S390_VX | HWCAP_S390_VXE;
 static constexpr CapBits kGroupZ15 =
     HWCAP_S390_VX | HWCAP_S390_VXE | HWCAP_S390_VXRS_EXT2;
@@ -758,8 +754,6 @@ namespace rvv {
 #ifndef HWCAP_RVV
 #define COMPAT_HWCAP_ISA_V (1 << ('V' - 'A'))
 #endif
-
-using CapBits = unsigned long;  // NOLINT
 
 // This ISA-specific targets detection function will not set the
 // HWY_SCALAR/HWY_EMU128 bit. It also does not respect
@@ -811,8 +805,6 @@ namespace loongarch {
 #ifndef LA_HWCAP_LASX
 #define LA_HWCAP_LASX (1u << 5)
 #endif
-
-using CapBits = unsigned long;  // NOLINT
 
 // This ISA-specific targets detection function will not set the
 // HWY_SCALAR/HWY_EMU128 bit. It also does not respect
