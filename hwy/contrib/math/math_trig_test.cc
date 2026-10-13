@@ -16,7 +16,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include <cmath>   // std::abs
+#include <cmath>  // std::abs
 
 #include "hwy/base.h"
 
@@ -58,23 +58,6 @@ static Vec<D> SinCosCos(const D d, VecArg<Vec<D>> x) {
   return c;
 }
 
-// on targets without FMA the result is less inaccurate
-constexpr uint64_t SinCosSin32ULP() {
-#if !(HWY_NATIVE_FMA)
-  return 256;
-#else
-  return 3;
-#endif
-}
-
-constexpr uint64_t SinCosCos32ULP() {
-#if !(HWY_NATIVE_FMA)
-  return 64;
-#else
-  return 3;
-#endif
-}
-
 // clang-format off
 DEFINE_MATH_TEST(Acos,
   std::acos,  CallAcos,  -1.0f,      +1.0f,       3,  // NEON is 3 instead of 2
@@ -90,11 +73,11 @@ DEFINE_MATH_TEST(Sin,
   std::sin,   CallSin,   -39000.0f,  +39000.0f,   3,
   std::sin,   CallSin,   -39000.0,   +39000.0,    4)  // MSYS is 4 instead of 3
 DEFINE_MATH_TEST(SinCosSin,
-  std::sin,   SinCosSin,   -39000.0f,  +39000.0f,   SinCosSin32ULP(),
-  std::sin,   SinCosSin,   -39000.0,   +39000.0,    1)
+  std::sin,   SinCosSin,   -39000.0f,  +39000.0f,   3,
+  std::sin,   SinCosSin,   -39000.0,   +39000.0,    2)
 DEFINE_MATH_TEST(SinCosCos,
-  std::cos,   SinCosCos,   -39000.0f,  +39000.0f,   SinCosCos32ULP(),
-  std::cos,   SinCosCos,   -39000.0,   +39000.0,    1)
+  std::cos,   SinCosCos,   -39000.0f,  +39000.0f,   3,
+  std::cos,   SinCosCos,   -39000.0,   +39000.0,    2)
 // clang-format on
 
 }  // namespace

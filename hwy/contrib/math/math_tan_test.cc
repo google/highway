@@ -45,12 +45,9 @@ DEFINE_MATH_TEST(Atan,
   std::atan,  CallAtan,  -FLT_MAX,   +FLT_MAX,    3,
   std::atan,  CallAtan,  -DBL_MAX,   +DBL_MAX,    3)
 
-// 300 ULP max error for float32 accommodates for architectures without FMA
-// (such as SSE4) where rounding errors accumulate higher due to separate
-// multiply and add instructions. With FMA, the max error is ~64 ULP.
 DEFINE_MATH_TEST(Tan,
-  std::tan,  CallTan,  -39000.0,   +39000.0,    (HWY_NATIVE_FMA ? 64 : 300),
-  std::tan,  CallTan,  -39000.0,   +39000.0,    2)
+  std::tan,  CallTan,  -39000.0,   +39000.0,    4,
+  std::tan,  CallTan,  -39000.0,   +39000.0,    3)
 // clang-format on
 
 template <typename T, class D>

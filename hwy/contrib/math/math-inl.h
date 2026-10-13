@@ -1513,8 +1513,8 @@ HWY_INLINE V StirlingLogGamma(D d, V w, V& lo) {
 
 // Third degree poly
 template <class D, class V = VFromD<D>>
-HWY_INLINE void SinCos3(D d, TFromD<D> dp1, TFromD<D> dp2, TFromD<D> dp3, V x,
-                        V& s, V& c) {
+HWY_INLINE void SinCos3(D d, TFromD<D> dp1, TFromD<D> dp2, TFromD<D> dp3,
+                        TFromD<D> dp4, V x, V& s, V& c) {
   using T = TFromD<D>;
   using TI = MakeSigned<T>;
   using DI = Rebind<TI, D>;
@@ -1538,6 +1538,7 @@ HWY_INLINE void SinCos3(D d, TFromD<D> dp1, TFromD<D> dp2, TFromD<D> dp3, V x,
   const V DP1 = Set(d, dp1);
   const V DP2 = Set(d, dp2);
   const V DP3 = Set(d, dp3);
+  const V DP4 = Set(d, dp4);
 
   V xmm1, xmm2, sign_bit_sin, y;
   VI imm0, imm2, imm4;
@@ -1572,10 +1573,11 @@ HWY_INLINE void SinCos3(D d, TFromD<D> dp1, TFromD<D> dp2, TFromD<D> dp3, V x,
   M poly_mask = RebindMask(d, Eq(imm2, ci_0));
 
   /* The magic pass: "Extended precision modular arithmetic"
-  x = ((x - y * DP1) - y * DP2) - y * DP3; */
+  x = (((x - y * DP1) - y * DP2) - y * DP3) - y * DP4; */
   x = MulAdd(y, DP1, x);
   x = MulAdd(y, DP2, x);
   x = MulAdd(y, DP3, x);
+  x = MulAdd(y, DP4, x);
 
   imm4 = Sub(imm4, ci_2);
   imm4 = AndNot(imm4, ci_4);
@@ -1725,8 +1727,9 @@ template <>
 struct SinCosImpl<float> {
   template <class D, class V = VFromD<D>, HWY_IF_F32_D(D)>
   HWY_INLINE void SinCos(D d, V x, V& s, V& c) {
-    SinCos3(d, -0.78515625f, -2.4187564849853515625e-4f,
-            -3.77489497744594108e-8f, x, s, c);
+    SinCos3(d, -0.25f * 3.140625f, -0.25f * 0.0009670257568359375f,
+            -0.25f * 6.2771141529083251953e-7f,
+            -0.25f * 1.2154201256553420762e-10f, x, s, c);
   }
 };
 
@@ -2707,7 +2710,7 @@ HWY_NOINLINE V CallTanh(const D d, VecArg<V> x) {
  * The performance should be around the same as calling Sin.
  *
  * Valid Lane Types: float32, float64
- *        Max Error: ULP = 1
+ *        Max Error: ULP = 3 (float32), 2 (float64)
  *      Valid Range: [-39000, +39000]
  */
 template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
@@ -2726,10 +2729,8 @@ HWY_NOINLINE void CallSinCos(const D d, VecArg<V> x, V& s, V& c) {
  * Highway SIMD version of std::tan(x).
  *
  * Valid Lane Types: float32, float64
- *        Max Error: ULP = ~300 (float32), 2 (float64)
- *                   Note: On float32, error is ~64 ULP on targets with FMA.
- *                   Without FMA (e.g. SSE4), rounding errors accumulate up to
- * ~300 ULP. Valid Range: [-39000, +39000]
+ *        Max Error: ULP = 4 (float32), 3 (float64)
+ *      Valid Range: [-39000, +39000]
  * @return tangent of 'x'
  */
 template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
@@ -2945,8 +2946,7 @@ HWY_INLINE V Gamma(D d, V a) {
   const V frac = Sub(a, ra);
   const V s_mag = Sin(d, Mul(kPi, frac));
   const RebindToSigned<decltype(d)> di;
-  const M odd =
-      RebindMask(d, Ne(And(ConvertTo(di, ra), Set(di, 1)), Zero(di)));
+  const M odd = RebindMask(d, Ne(And(ConvertTo(di, ra), Set(di, 1)), Zero(di)));
   const V s_signed = MaskedXorOr(s_mag, odd, s_mag, SignBit(d));
   const V refl = Div(kPi, Mul(s_signed, gamma_w));
 
