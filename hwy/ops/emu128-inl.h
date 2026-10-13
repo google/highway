@@ -1066,7 +1066,7 @@ HWY_API Vec128<MakeSigned<T>, N> NearestInt(Vec128<T, N> v) {
 
     if (!(abs.raw[i] < MantissaEnd<T>())) {  // Huge or NaN
       // Check if too large to cast or NaN
-      if (!(abs.raw[i] <= ConvertScalarTo<T>(LimitsMax<TI>()))) {
+      if (!(abs.raw[i] < -ConvertScalarTo<T>(LimitsMin<TI>()))) {
         ret.raw[i] = signbit ? LimitsMin<TI>() : LimitsMax<TI>();
         continue;
       }
