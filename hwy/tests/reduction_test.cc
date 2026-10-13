@@ -103,6 +103,35 @@ HWY_NOINLINE void TestAllSumOfLanes() {
   ForAllTypes(ForPartialVectors<TestSumOfLanes>());
 }
 
+template <class D>
+HWY_NOINLINE void CheckSumOfLanes(D d, Vec<D> v) {
+  using T = TFromD<D>;
+  const size_t N = Lanes(d);
+  auto lanes = AllocateAligned<T>(N);
+  HWY_ASSERT(lanes);
+  Store(v, d, lanes.get());
+  T sum = 0;
+  for (size_t i = 0; i < N; ++i) {
+    sum = AddWithWraparound(sum, lanes[i]);
+  }
+  HWY_ASSERT_VEC_EQ(d, Set(d, sum), SumOfLanes(d, v));
+  HWY_ASSERT_EQ(sum, ReduceSum(d, v));
+}
+
+// Sums of the lowest and highest values wrap around.
+struct TestSumOfLanesLimits {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    CheckSumOfLanes(d, Set(d, LimitsMin<T>()));
+    CheckSumOfLanes(d, Set(d, LimitsMax<T>()));
+    CheckSumOfLanes(d, Iota(d, LimitsMax<T>()));
+  }
+};
+
+HWY_NOINLINE void TestAllSumOfLanesLimits() {
+  ForIntegerTypes(ForPartialVectors<TestSumOfLanesLimits>());
+}
+
 struct TestMinOfLanes {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -535,6 +564,7 @@ namespace hwy {
 namespace {
 HWY_BEFORE_TEST(HwyReductionTest);
 HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllSumOfLanes);
+HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllSumOfLanesLimits);
 HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllMinMaxOfLanes);
 HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllSumsOf2);
 HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllSumsOf4);

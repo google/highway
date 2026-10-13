@@ -2973,7 +2973,7 @@ template <class D, typename T = TFromD<D>, HWY_IF_REDUCE_D(D)>
 HWY_API T ReduceSum(D d, VFromD<D> v) {
   T sum = T{0};
   for (size_t i = 0; i < MaxLanes(d); ++i) {
-    sum += v.raw[i];
+    sum = AddWithWraparound(sum, v.raw[i]);
   }
   return sum;
 }
