@@ -402,6 +402,14 @@ static_assert(sizeof(InternalNode<int64_t>) == 320,
 // fixed stack array of 32 elements is guaranteed safe against overflow.
 static constexpr size_t kMaxTreeHeight = 32;
 
+// Upper bound on the number of keys a single leaf can hold at runtime, used to
+// size stack scratch buffers. kMax8 is the physical 8-bit slot count (492 /
+// 488), but keys are unique and strictly increasing with 8-bit offsets in
+// [0, 255], so an 8-bit leaf never holds more than 256 keys; every other mode
+// holds at most kMax16 < 256.
+template <typename Leaf>
+constexpr size_t kMaxLiveLeafKeys = HWY_MIN(Leaf::kMax8, size_t{256});
+
 // -----------------------------------------------------------------------------
 // BTreeState: Shared layout for public container and internal SIMD engine.
 template <typename KeyT,

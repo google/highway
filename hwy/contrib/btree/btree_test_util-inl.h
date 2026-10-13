@@ -596,7 +596,7 @@ void DoFullContainerTest(const std::vector<typename TreeT::value_type>& values,
   }
   checker.verify();
 
-  // 6. Sub-range deletions (matching absl::btree_test.cc: first half, second
+  // 6. Sub-range deletions (similar to absl::btree_test.cc: first half, second
   // half, and middle quarter)
   const size_t n_keys = sorted_keys.size();
   // 6a. First half [0, N/2)
@@ -932,6 +932,195 @@ void DoDiverseBitModesTest() {
   }
 }
 
+// Sibling rebalancing on insert (Tier 2.5): when a leaf is full, keys are
+// redistributed with an adjacent sibling instead of allocating a new leaf.
+// The observable difference between "rebalanced" and "split" is num_leaves_,
+// so every scenario below asserts on it, then re-validates the physical tree.
+template <typename TreeT>
+void DoSiblingRebalanceTest() {
+  using key_type = typename TreeT::key_type;
+  using value_type = typename TreeT::value_type;
+  using StorageKeyT = typename KeyCodec<key_type>::StorageKey;
+  using InternalNodeT = InternalNode<StorageKeyT>;
+  using Checker = BTreeChecker<TreeT, TreeT>;
+  using LeafPtrT = decltype(std::declval<TreeT>().state()->first_leaf_);
+  using LeafT = std::remove_pointer_t<LeafPtrT>;
+
+  const auto make_value = [](key_type k) -> value_type {
+    if constexpr (TreeT::kIsMap) {
+      return {k, static_cast<typename TreeT::mapped_type>(k)};
+    } else {
+      return k;
+    }
+  };
+  const auto leaf_key = [](const LeafT* leaf, size_t slot) -> key_type {
+    return KeyCodec<key_type>::FromStorage(GetLeafKey(leaf, slot));
+  };
+  const auto nth_leaf = [](const TreeT& tree, size_t n) -> LeafPtrT {
+    LeafPtrT leaf = tree.state()->first_leaf_;
+    for (size_t i = 0; i < n; ++i) leaf = leaf->Next();
+    return leaf;
+  };
+  // Separator between two adjacent leaves must satisfy
+  // left.max < sep <= right.min (any such value routes correctly).
+  const auto check_sep = [](StorageKeyT sep, const LeafT* left,
+                            const LeafT* right) {
+    HWY_ASSERT(GetLeafKey(left, left->NumKeys() - 1) < sep);
+    HWY_ASSERT(sep <= right->base_key);
+  };
+
+  // Full 16-bit leaf capacity (the common mode); keys with step 200 force
+  // 16-bit mode after the 3rd key and keep a full leaf's span < 65536.
+  constexpr size_t kCap16 = LeafT::kMax16;
+  constexpr key_type kStep = 200;
+  constexpr key_type kBase = 1000;
+
+  // ---------------------------------------------------------------------------
+  // Scenario 1: rebalance with the right sibling, then with the left sibling,
+  // then the append position bias. Start from 4 leaves under one root:
+  // ascending appends use boundary-biased splits, so L0..L2 are full and L3
+  // holds whatever we add after the 4th leaf appears.
+  // ---------------------------------------------------------------------------
+  {
+    TreeT tree;
+    key_type next_key = kBase;
+    while (tree.state()->num_leaves_ < 4) {
+      tree.insert(make_value(next_key));
+      next_key += kStep;
+    }
+    HWY_ASSERT_EQ(tree.state()->tree_height_, size_t{1});
+    for (size_t i = 0; i < 3; ++i) {
+      HWY_ASSERT_EQ(nth_leaf(tree, i)->NumKeys(), kCap16);
+    }
+    // Grow L3 to about half capacity.
+    while (nth_leaf(tree, 3)->NumKeys() < kCap16 / 2) {
+      tree.insert(make_value(next_key));
+      next_key += kStep;
+    }
+    auto* root = static_cast<const InternalNodeT*>(tree.state()->root_);
+
+    // 1a. Insert into the middle of the full L2. L1 (left) is full, so the
+    // rebalance must use L3 (right): no new leaf, both at ~50/50, and the
+    // separator L2|L3 is valid for the new contents.
+    {
+      LeafPtrT l2 = nth_leaf(tree, 2);
+      LeafPtrT l3 = nth_leaf(tree, 3);
+      const size_t total = l2->NumKeys() + l3->NumKeys() + 1;
+      const key_type probe = leaf_key(l2, 3) + kStep / 2;
+      HWY_ASSERT(tree.insert(make_value(probe)).second);
+      HWY_ASSERT_EQ(tree.state()->num_leaves_, size_t{4});
+      HWY_ASSERT_EQ(l2->NumKeys(), total / 2);
+      HWY_ASSERT_EQ(l3->NumKeys(), total - total / 2);
+      check_sep(root->keys[2], l2, l3);
+      HWY_ASSERT(tree.contains(probe));
+      Checker::VerifyPhysicalTree(tree);
+    }
+
+    // 1b. Fill L3 back up via its gaps, then insert once more into a middle
+    // gap: L3 is full and L2 (left) now has room, so the rebalance must use
+    // the left sibling.
+    {
+      LeafPtrT l2 = nth_leaf(tree, 2);
+      LeafPtrT l3 = nth_leaf(tree, 3);
+      const key_type lo = leaf_key(l3, 0);
+      size_t gap = 0;
+      while (l3->NumKeys() < kCap16) {
+        const key_type k = lo + kStep * static_cast<key_type>(gap) + kStep / 2;
+        HWY_ASSERT(tree.insert(make_value(k)).second);
+        ++gap;
+      }
+      HWY_ASSERT_EQ(tree.state()->num_leaves_, size_t{4});
+      const size_t total = l2->NumKeys() + l3->NumKeys() + 1;
+      const key_type probe = leaf_key(l3, l3->NumKeys() - 2) + kStep / 2;
+      HWY_ASSERT(tree.insert(make_value(probe)).second);
+      HWY_ASSERT_EQ(tree.state()->num_leaves_, size_t{4});
+      HWY_ASSERT_EQ(l2->NumKeys(), total / 2);
+      HWY_ASSERT_EQ(l3->NumKeys(), total - total / 2);
+      check_sep(root->keys[2], l2, l3);
+      HWY_ASSERT(tree.contains(probe));
+      Checker::VerifyPhysicalTree(tree);
+    }
+
+    // 1c. Position bias: thin L2 a little (staying above the erase-merge
+    // threshold), fill L3 by appending at the end, then append once more. The
+    // new key is the maximum of L2 ∪ L3, so instead of a 50/50 cut the left
+    // sibling L2 is packed (strictly more than half) and the free space stays
+    // in L3 where the ascending run continues.
+    {
+      LeafPtrT l2 = nth_leaf(tree, 2);
+      LeafPtrT l3 = nth_leaf(tree, 3);
+      while (l2->NumKeys() > kCap16 * 3 / 5) {
+        HWY_ASSERT_EQ(tree.erase(leaf_key(l2, 1)), size_t{1});
+      }
+      HWY_ASSERT_EQ(tree.state()->num_leaves_, size_t{4});
+      while (l3->NumKeys() < kCap16) {
+        HWY_ASSERT(tree.insert(make_value(next_key)).second);
+        next_key += kStep;
+      }
+      const size_t l2_before = l2->NumKeys();
+      const size_t total = l2_before + l3->NumKeys() + 1;
+      HWY_ASSERT(tree.insert(make_value(next_key)).second);
+      HWY_ASSERT_EQ(tree.state()->num_leaves_, size_t{4});
+      HWY_ASSERT(l2->NumKeys() > total / 2);
+      HWY_ASSERT(l2->NumKeys() > l2_before);
+      HWY_ASSERT(l2->NumKeys() <= kCap16);
+      HWY_ASSERT_EQ(l2->NumKeys() + l3->NumKeys(), total);
+      check_sep(root->keys[2], l2, l3);
+      HWY_ASSERT(tree.contains(next_key));
+      Checker::VerifyPhysicalTree(tree);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Scenario 2: the O(1) pre-check passes but the exact post-check must
+  // reject. A = dense 8-bit leaf (plenty of raw 8-bit slots), B = full 16-bit
+  // leaf far away. Pre-check only looks at A's current-mode capacity and
+  // passes; after decompression, A's half would also contain B's first keys,
+  // whose distance forces 32-bit (or raw 64-bit) mode with a much smaller
+  // capacity, so the rebalance is rejected and B must split instead.
+  // ---------------------------------------------------------------------------
+  {
+    constexpr size_t kDense = kCap16 - 6;  // > kMax32, fits one 8-bit leaf
+    static_assert(kDense <= HWY_MIN(LeafT::kMax8, size_t{256}));
+    static_assert(kDense + 1 > LeafT::kMax32);
+    constexpr key_type kFar = 200000;
+
+    TreeT tree;
+    for (size_t i = 0; i < kDense; ++i) {
+      tree.insert(make_value(static_cast<key_type>(kBase + i)));
+    }
+    HWY_ASSERT_EQ(tree.state()->num_leaves_, size_t{1});
+    // First far key cannot fit A in any mode -> boundary-biased root split:
+    // A keeps all dense keys, B starts with one key.
+    for (size_t i = 0; i < kCap16; ++i) {
+      tree.insert(make_value(kFar + kStep * static_cast<key_type>(i)));
+    }
+    HWY_ASSERT_EQ(tree.state()->num_leaves_, size_t{2});
+    LeafPtrT a = nth_leaf(tree, 0);
+    LeafPtrT b = nth_leaf(tree, 1);
+    HWY_ASSERT_EQ(a->NumKeys(), kDense);
+    HWY_ASSERT_EQ(a->BitMode(), static_cast<uint8_t>(kMode8Bit));
+    HWY_ASSERT_EQ(b->NumKeys(), kCap16);
+    HWY_ASSERT_EQ(b->BitMode(), static_cast<uint8_t>(kMode16Bit));
+
+    // Insert into the middle of full B: B has no right sibling, A is too far
+    // away to share keys -> split (num_leaves_ 2 -> 3), no corruption.
+    const key_type probe =
+        kFar + kStep * static_cast<key_type>(kCap16 / 2) + kStep / 2;
+    HWY_ASSERT(tree.insert(make_value(probe)).second);
+    HWY_ASSERT_EQ(tree.state()->num_leaves_, size_t{3});
+    HWY_ASSERT_EQ(a->NumKeys(), kDense);  // A untouched
+    Checker::VerifyPhysicalTree(tree);
+    for (size_t i = 0; i < kDense; ++i) {
+      HWY_ASSERT(tree.contains(static_cast<key_type>(kBase + i)));
+    }
+    for (size_t i = 0; i < kCap16; ++i) {
+      HWY_ASSERT(tree.contains(kFar + kStep * static_cast<key_type>(i)));
+    }
+    HWY_ASSERT(tree.contains(probe));
+  }
+}
+
 template <typename TreeT>
 void DoTypedefsAndObserversTest() {
   using key_type = typename TreeT::key_type;
@@ -948,7 +1137,7 @@ void DoTypedefsAndObserversTest() {
   static_assert(
       std::is_same_v<typename TreeT::key_compare, std::less<key_type>>);
 
-  // 2. Runtime comparator observer verification (matching absl::btree tests)
+  // 2. Runtime comparator observer verification (similar to absl::btree tests)
   TreeT tree;
   auto comp = tree.key_comp();
   HWY_ASSERT(comp(static_cast<key_type>(1), static_cast<key_type>(2)));
@@ -1458,6 +1647,7 @@ void RunFullTestSuite() {
   DoCopyAndSwapTest<TreeT, StdRefT>();
   DoBoundarySizeSweep<TreeT, StdRefT>();
   DoDiverseBitModesTest<TreeT>();
+  DoSiblingRebalanceTest<TreeT>();
   DoExtremeBoundariesTest<TreeT, StdRefT>();
   DoEraseIteratorTest<TreeT, StdRefT>();
 

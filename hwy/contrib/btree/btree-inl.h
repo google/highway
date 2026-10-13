@@ -1255,6 +1255,22 @@ HWY_INLINE bool TryFastEraseFromLeaf(MapLeafNode<KeyT, ValueT>* leaf,
   }
 }
 
+// Separator key for parent routing between two adjacent leaves after a split
+// or rebalance. Any value in (left_max, right_min] is valid; we use the
+// midpoint of the gap so that a later key falling into the gap routes to the
+// nearer leaf, i.e. the one whose key span (and thus compression mode) it
+// disturbs least. Example: left = [1000 .. 1243], right = [2^32 .. 2^32 + 99],
+// insert 2^32 - 5. With sep = right_min = 2^32 it goes to the left leaf, whose
+// span jumps to ~2^32 (forcing a rebalance or split); with the midpoint
+// (~2^31) it goes to the right leaf, next to its neighbours.
+template <typename KeyT>
+HWY_INLINE KeyT GapMidpointSeparator(KeyT left_max, KeyT right_min) {
+  const KeyT gap = static_cast<KeyT>(right_min - left_max);  // >= 1
+  // Round up (ceil) so that sep > left_max even when gap == 1; computed as
+  // gap / 2 + (gap & 1) because (gap + 1) / 2 overflows when gap == max.
+  return static_cast<KeyT>(left_max + (gap / 2) + (gap & 1));
+}
+
 // Splits a full leaf plus a new key into two balanced leaves and returns the
 // separator key (Set).
 template <typename KeyT>
@@ -1317,9 +1333,10 @@ void SplitLeafNode(LeafNode<KeyT>* leaf, LeafNode<KeyT>* new_leaf, KeyT new_key,
   // Recompress right half (temp[split_point..total-1]) into the new_leaf.
   CompressIntoLeaf(new_leaf, temp + split_point, total - split_point);
 
-  // The first key of right half becomes the separator key for parent
-  // routing.
-  *out_promo_key = new_leaf->base_key;
+  // Separator for parent routing: midpoint of the gap between the halves (see
+  // GapMidpointSeparator).
+  *out_promo_key =
+      GapMidpointSeparator(temp[split_point - 1], temp[split_point]);
 }
 
 // Splits a full leaf plus a new key/value pair into two balanced leaves and
@@ -1373,8 +1390,296 @@ void SplitLeafNode(MapLeafNode<KeyT, ValueT>* leaf,
   CompressIntoLeaf(new_leaf, temp_keys + split_point, temp_values + split_point,
                    total - split_point);
 
-  // The first key of right half becomes the separator key for parent routing.
-  *out_promo_key = temp_keys[split_point];
+  // Separator for parent routing: midpoint of the gap between the halves (see
+  // GapMidpointSeparator).
+  *out_promo_key =
+      GapMidpointSeparator(temp_keys[split_point - 1], temp_keys[split_point]);
+}
+
+template <typename Leaf>
+HWY_INLINE constexpr size_t LeafCapacityForMode(uint8_t mode) {
+  if (mode == kMode16Bit) return Leaf::kMax16;
+  if (mode == kMode8Bit) return Leaf::kMax8;
+  if (mode == kMode32Bit) return Leaf::kMax32;
+  return Leaf::kMax64;
+}
+
+// Free slots a leaf in compression `mode` must keep after a sibling rebalance
+// on insert: about 1/64 of that mode's capacity, at least 1. E.g. 4 for a
+// 16-bit Set leaf (244 slots), 2 for a 32-bit Set leaf (122), 1 for a raw
+// 64-bit Set leaf (61) or a 16-bit BTreeMap<uint32_t, uint64_t> leaf (49).
+// 8-bit leaves hold at most kMaxLiveLeafKeys keys, not kMax8.
+template <typename Leaf>
+HWY_INLINE size_t RebalanceHeadroom(uint8_t mode) {
+  const size_t capacity =
+      HWY_MIN(LeafCapacityForMode<Leaf>(mode), kMaxLiveLeafKeys<Leaf>);
+  return (capacity + 63) / 64;  // ceil(capacity / 64) = (a + b - 1) / b
+}
+
+// O(1) filter run before decompressing two sibling leaves for a rebalance:
+// returns false if the pair clearly has no room for one more key plus
+// RebalanceHeadroom free slots in each leaf, at their current compression
+// modes. It does not depend on where CalculateRebalanceSplitPoint will cut, and
+// it is not exact (modes can change once keys move between the leaves); the
+// exact check runs after the cut is chosen.
+template <typename Leaf>
+HWY_INLINE bool CanRebalanceLeaves(const Leaf* l_leaf, const Leaf* r_leaf) {
+  const size_t l_count = l_leaf->NumKeys();
+  const size_t r_count = r_leaf->NumKeys();
+  // Leaves of a tree with height >= 1 are never empty: an emptied leaf is
+  // always merged away on erase (see CanMergeLeaves).
+  HWY_DASSERT(l_count != 0 && r_count != 0);
+
+  const size_t total = l_count + r_count + 1;
+  const uint8_t l_mode = l_leaf->BitMode();
+  const uint8_t r_mode = r_leaf->BitMode();
+  return total + RebalanceHeadroom<Leaf>(l_mode) +
+             RebalanceHeadroom<Leaf>(r_mode) <=
+         LeafCapacityForMode<Leaf>(l_mode) + LeafCapacityForMode<Leaf>(r_mode);
+}
+
+// Index (kMode8Bit .. kModeRaw64) of the narrowest compression mode whose
+// offsets can represent `span = max_key - min_key`, ignoring the key count.
+template <typename KeyT>
+HWY_INLINE uint8_t NarrowestModeForSpan(uint64_t span) {
+  if (span <= 255) return kMode8Bit;
+  if (span <= 65535) return kMode16Bit;
+  if (sizeof(KeyT) == 4 || span <= 0xFFFFFFFFULL) return kMode32Bit;
+  return kModeRaw64;
+}
+
+// Returns where to cut the sorted keys of two sibling leaves (plus the new key)
+// between them: the left leaf gets keys[0, cut) and the right leaf the rest.
+//
+// The cut is in the middle unless one side should be filled as much as it can
+// hold (minus RebalanceHeadroom):
+//  - Position bias (as in absl::btree::rebalance_or_split): `append_right`
+//    means the leaf new_key was initially routed to is the right one of the
+//    pair and new_key is its new maximum, i.e. an ascending run. Later keys
+//    can keep landing there, so fill the left leaf and leave the room where
+//    the run continues. `prepend_left` is the descending mirror image.
+//  - Mode bias: if the two halves would need different compression modes, fill
+//    the half with the narrower mode, which has more slots. E.g. 237 dense
+//    keys followed by one far key F: a 50/50 cut gives [119 dense] (16-bit,
+//    half full) | [118 dense + F] (32-bit, nearly full); mode bias gives
+//    [237 dense] (16-bit) | [F].
+//
+// How many keys fit in a leaf depends on their span (which sets the mode), so
+// the largest count that fits is found by binary search. If even the 50/50 cut
+// does not fit, it is returned anyway; the caller verifies both sides.
+template <typename Leaf, typename KeyT>
+HWY_INLINE size_t CalculateRebalanceSplitPoint(const KeyT* keys, size_t total,
+                                               bool append_right,
+                                               bool prepend_left) {
+  const size_t half = total / 2;
+  bool fill_left = append_right;
+  bool fill_right = prepend_left;
+  if (!fill_left && !fill_right) {
+    const uint8_t mode_l = NarrowestModeForSpan<KeyT>(
+        static_cast<uint64_t>(keys[half - 1] - keys[0]));
+    const uint8_t mode_r = NarrowestModeForSpan<KeyT>(
+        static_cast<uint64_t>(keys[total - 1] - keys[half]));
+    fill_left = mode_l < mode_r;
+    fill_right = mode_r < mode_l;
+  }
+  if (!fill_left && !fill_right) return half;
+  // Exactly one of fill_left / fill_right is set here; the ':' branches of the
+  // ternaries below handle fill_right.
+  HWY_DASSERT(fill_left != fill_right);
+
+  // n = number of keys on the side being packed. It gets at least its 50/50
+  // share (n_lo) and at most all keys but one, since the other side must keep
+  // at least one key (n_hi).
+  const size_t n_lo = fill_left ? half : total - half;
+  const size_t n_hi = total - 1;
+
+  const auto fits = [&](size_t n) HWY_ATTR {
+    const uint64_t span =
+        fill_left ? static_cast<uint64_t>(keys[n - 1] - keys[0])
+                  : static_cast<uint64_t>(keys[total - 1] - keys[total - n]);
+    const size_t headroom =
+        RebalanceHeadroom<Leaf>(NarrowestModeForSpan<KeyT>(span));
+    return CanLeafFitSpan<Leaf>(n + headroom, span);
+  };
+
+  size_t n = n_lo;
+  if (fits(n_lo)) {
+    // Invariant: fits(lo). Find the largest n in [n_lo, n_hi] with fits(n).
+    size_t lo = n_lo;
+    size_t hi = n_hi;
+    while (lo < hi) {
+      const size_t probe = hi - (hi - lo) / 2;
+      if (fits(probe)) {
+        lo = probe;
+      } else {
+        hi = probe - 1;
+      }
+    }
+    n = lo;
+  }
+  return fill_left ? n : total - n;
+}
+
+// Redistributes keys between the two adjacent leaves parent->children[sep_idx]
+// and parent->children[sep_idx + 1], one of which is `parent->children[c_idx]`,
+// the leaf new_key was initially routed to, and inserts new_key (Set). Returns
+// false, leaving both leaves unchanged, if no cut lets both leaves fit.
+template <typename KeyT>
+bool TryRebalanceAdjacentLeaves(InternalNode<KeyT>* parent, size_t c_idx,
+                                size_t sep_idx, KeyT new_key) {
+  using Leaf = LeafNode<KeyT>;
+  auto* l_leaf = static_cast<Leaf*>(parent->children[sep_idx]);
+  auto* r_leaf = static_cast<Leaf*>(parent->children[sep_idx + 1]);
+  const size_t l_count = l_leaf->NumKeys();
+  const size_t r_count = r_leaf->NumKeys();
+  const size_t total = l_count + r_count + 1;
+
+  KeyT temp[2 * kMaxLiveLeafKeys<Leaf> + 1];
+  if (sep_idx == c_idx - 1) {
+    DecompressLeaf(l_leaf, temp);
+    DecompressAndInsertKey(r_leaf, new_key, temp + l_count);
+  } else {
+    const size_t new_l = DecompressAndInsertKey(l_leaf, new_key, temp);
+    DecompressLeaf(r_leaf, temp + new_l);
+  }
+
+  // Position bias (see CalculateRebalanceSplitPoint): the leaf new_key was
+  // initially routed to (children[c_idx]) is the right one of the pair and
+  // new_key is its new maximum (ascending run), or it is the left one and
+  // new_key is its new minimum (descending run).
+  const bool append_right =
+      (sep_idx == c_idx - 1) && new_key == temp[total - 1];
+  const bool prepend_left = (sep_idx == c_idx) && new_key == temp[0];
+  const size_t split_point = CalculateRebalanceSplitPoint<Leaf>(
+      temp, total, append_right, prepend_left);
+  const size_t right_half = total - split_point;
+
+  const uint64_t l_span =
+      static_cast<uint64_t>(temp[split_point - 1] - temp[0]);
+  const uint64_t r_span =
+      static_cast<uint64_t>(temp[total - 1] - temp[split_point]);
+
+  const size_t l_needed =
+      split_point + RebalanceHeadroom<Leaf>(NarrowestModeForSpan<KeyT>(l_span));
+  const size_t r_needed =
+      right_half + RebalanceHeadroom<Leaf>(NarrowestModeForSpan<KeyT>(r_span));
+  if (!CanLeafFitSpan<Leaf>(l_needed, l_span) ||
+      !CanLeafFitSpan<Leaf>(r_needed, r_span)) {
+    return false;
+  }
+
+  CompressIntoLeaf(l_leaf, temp, split_point);
+  CompressIntoLeaf(r_leaf, temp + split_point, right_half);
+  parent->keys[sep_idx] =
+      GapMidpointSeparator(temp[split_point - 1], temp[split_point]);
+  return true;
+}
+
+// Map counterpart of TryRebalanceAdjacentLeaves above: redistributes key-value
+// pairs between parent->children[sep_idx] and parent->children[sep_idx + 1]
+// and inserts (new_key, new_value). Returns false, leaving both leaves
+// unchanged, if no cut lets both leaves fit.
+template <typename KeyT, typename ValueT>
+bool TryRebalanceAdjacentLeaves(InternalNode<KeyT>* parent, size_t c_idx,
+                                size_t sep_idx, KeyT new_key,
+                                const ValueT& new_value) {
+  using Leaf = MapLeafNode<KeyT, ValueT>;
+  auto* l_leaf = static_cast<Leaf*>(parent->children[sep_idx]);
+  auto* r_leaf = static_cast<Leaf*>(parent->children[sep_idx + 1]);
+  const size_t l_count = l_leaf->NumKeys();
+  const size_t r_count = r_leaf->NumKeys();
+  const size_t total = l_count + r_count + 1;
+
+  KeyT temp_keys[2 * kMaxLiveLeafKeys<Leaf> + 1];
+  ValueT temp_values[2 * kMaxLiveLeafKeys<Leaf> + 1];
+  if (sep_idx == c_idx - 1) {
+    DecompressLeaf(l_leaf, temp_keys, temp_values);
+    DecompressAndInsertMapPair(r_leaf, new_key, new_value, temp_keys + l_count,
+                               temp_values + l_count);
+  } else {
+    const size_t new_l = DecompressAndInsertMapPair(l_leaf, new_key, new_value,
+                                                    temp_keys, temp_values);
+    DecompressLeaf(r_leaf, temp_keys + new_l, temp_values + new_l);
+  }
+
+  // Position bias (see CalculateRebalanceSplitPoint): the leaf new_key was
+  // initially routed to (children[c_idx]) is the right one of the pair and
+  // new_key is its new maximum (ascending run), or it is the left one and
+  // new_key is its new minimum (descending run).
+  const bool append_right =
+      (sep_idx == c_idx - 1) && new_key == temp_keys[total - 1];
+  const bool prepend_left = (sep_idx == c_idx) && new_key == temp_keys[0];
+  const size_t split_point = CalculateRebalanceSplitPoint<Leaf>(
+      temp_keys, total, append_right, prepend_left);
+  const size_t right_half = total - split_point;
+
+  const uint64_t l_span =
+      static_cast<uint64_t>(temp_keys[split_point - 1] - temp_keys[0]);
+  const uint64_t r_span =
+      static_cast<uint64_t>(temp_keys[total - 1] - temp_keys[split_point]);
+
+  const size_t l_needed =
+      split_point + RebalanceHeadroom<Leaf>(NarrowestModeForSpan<KeyT>(l_span));
+  const size_t r_needed =
+      right_half + RebalanceHeadroom<Leaf>(NarrowestModeForSpan<KeyT>(r_span));
+  if (!CanLeafFitSpan<Leaf>(l_needed, l_span) ||
+      !CanLeafFitSpan<Leaf>(r_needed, r_span)) {
+    return false;
+  }
+
+  CompressIntoLeaf(l_leaf, temp_keys, temp_values, split_point);
+  CompressIntoLeaf(r_leaf, temp_keys + split_point, temp_values + split_point,
+                   right_half);
+  parent->keys[sep_idx] =
+      GapMidpointSeparator(temp_keys[split_point - 1], temp_keys[split_point]);
+  return true;
+}
+
+// Attempts to redistribute keys between `leaf` (at `parent->children[c_idx]`),
+// which cannot absorb `new_key` in any compression mode (it is at capacity, or
+// `new_key` would widen its span into a mode with too few slots), and an
+// adjacent sibling in `parent`, so that `new_key` fits without allocating a new
+// leaf node (Set). Returns false if no sibling can take enough keys.
+template <typename KeyT>
+bool TryRebalanceLeafOnInsert(InternalNode<KeyT>* parent, size_t c_idx,
+                              LeafNode<KeyT>* leaf, KeyT new_key) {
+  using Leaf = LeafNode<KeyT>;
+  // Try the left sibling first, then the right one, similar to
+  // absl::btree::rebalance_or_split. If the left attempt is rejected by the
+  // exact check, the right sibling is still tried.
+  if (c_idx > 0 &&
+      CanRebalanceLeaves(static_cast<Leaf*>(parent->children[c_idx - 1]),
+                         leaf) &&
+      TryRebalanceAdjacentLeaves(parent, c_idx, c_idx - 1, new_key)) {
+    return true;
+  }
+  return c_idx + 1 <= parent->num_keys &&
+         CanRebalanceLeaves(leaf,
+                            static_cast<Leaf*>(parent->children[c_idx + 1])) &&
+         TryRebalanceAdjacentLeaves(parent, c_idx, c_idx, new_key);
+}
+
+// Map counterpart of the Set TryRebalanceLeafOnInsert: redistributes key-value
+// pairs between `leaf` (which cannot absorb `new_key` in any compression mode)
+// and an adjacent sibling in `parent` so that `(new_key, new_value)` fits
+// without allocating a new leaf node. Returns false if no sibling can take
+// enough keys.
+template <typename KeyT, typename ValueT>
+bool TryRebalanceLeafOnInsert(InternalNode<KeyT>* parent, size_t c_idx,
+                              MapLeafNode<KeyT, ValueT>* leaf, KeyT new_key,
+                              const ValueT& new_value) {
+  using Leaf = MapLeafNode<KeyT, ValueT>;
+  if (c_idx > 0 &&
+      CanRebalanceLeaves(static_cast<Leaf*>(parent->children[c_idx - 1]),
+                         leaf) &&
+      TryRebalanceAdjacentLeaves(parent, c_idx, c_idx - 1, new_key,
+                                 new_value)) {
+    return true;
+  }
+  return c_idx + 1 <= parent->num_keys &&
+         CanRebalanceLeaves(leaf,
+                            static_cast<Leaf*>(parent->children[c_idx + 1])) &&
+         TryRebalanceAdjacentLeaves(parent, c_idx, c_idx, new_key, new_value);
 }
 
 // Returns true if two adjacent leaves can merge without exceeding leaf
@@ -1918,21 +2223,21 @@ class BTree {
   friend void swap(BTree& a, BTree& b) noexcept { a.swap(b); }
 
   // ---------------------------------------------------------------------------
-  // Bulk Construction from Sorted Keys / Key-Value Pairs
+  // Bulk Construction from Keys / Key-Value Pairs
   // ---------------------------------------------------------------------------
 
-  // Constructs a BTreeSet from an array of pre-sorted, unique keys in
-  // O(N) time. Assigning the result to an existing tree invalidates all of
-  // that tree's iterators, pointers and references.
+  // Constructs a BTreeSet from an array of keys in O(N) time if strictly
+  // ascending, or O(N log N) time via VQSort if unsorted/duplicates are
+  // present (duplicates are dropped). Assigning the result to an existing
+  // tree invalidates all of that tree's iterators, pointers and references.
   //
   // Example usage:
-  //   std::vector<uint32_t> sorted_keys = {10, 20, 30, 40, 50};
-  //   auto tree = BTreeSet<uint32_t>::Build(sorted_keys.data(),
-  //                                               sorted_keys.size());
+  //   std::vector<uint32_t> keys = {30, 10, 50, 20, 40};
+  //   auto tree = BTreeSet<uint32_t>::Build(keys.data(), keys.size());
   //   bool found = tree.contains(30);
   //
   // Parameters:
-  // - keys: Pointer to an array of strictly ascending keys.
+  // - keys: Pointer to keys, in any order; duplicates are allowed.
   // - num_keys: Total number of keys in the array.
   // - fill_ratio: Target fill factor per leaf node (between 0.1 and 1.0).
   //     * 1.0f (default): Maximum memory density and fastest throughput for
@@ -2696,8 +3001,8 @@ class BTree {
 
     if (HWY_UNLIKELY(leaf->NumKeys() <= Leaf::kMax16 / 2)) {
       // Try merging with right sibling (c_idx) first; if unavailable or too
-      // full, fall back to left sibling (c_idx - 1), matching
-      // absl::btree::try_merge_or_rebalance's strategy
+      // full, fall back to left sibling (c_idx - 1). Similar to
+      // absl::btree::try_merge_or_rebalance, which tries the left one first.
       size_t merge_idx = static_cast<size_t>(-1);
       if (c_idx + 1 <= parent->num_keys &&
           CanMergeLeaves(static_cast<Leaf*>(parent->children[c_idx]),
@@ -3098,8 +3403,15 @@ class BTree {
       return {FindInternal(key), true};
     }
 
-    // Tier 3: Leaf split (leaf is full; allocates new leaf and divides keys
-    // 50/50)
+    // Tier 2.5: Spill/rebalance with adjacent sibling before splitting
+    if (TryRebalanceLeafOnInsert(path[1], child_indices[1], leaf, key)) {
+      state_->num_elements_++;
+      return {FindInternal(key), true};
+    }
+
+    // Tier 3: Leaf split (allocates new leaf and splits via SplitLeafNode:
+    // 50/50 by default, boundary-biased for sequential appends/prepends, or
+    // clamped to kMinModeCap if an outlier key forces a mode downgrade)
     auto* new_leaf = new Leaf();
     state_->num_leaves_++;
     StorageKeyT promo_key = 0;
@@ -3227,8 +3539,15 @@ class BTree {
       return {FindInternal(key), true};
     }
 
-    // Tier 3: Leaf split (leaf is full; allocates new leaf and divides
-    // keys/values 50/50)
+    // Tier 2.5: Spill/rebalance with adjacent sibling before splitting
+    if (TryRebalanceLeafOnInsert(path[1], child_indices[1], leaf, key, value)) {
+      state_->num_elements_++;
+      return {FindInternal(key), true};
+    }
+
+    // Tier 3: Leaf split (allocates new leaf and splits via SplitLeafNode:
+    // 50/50 by default, boundary-biased for sequential appends/prepends, or
+    // clamped to kMinModeCap if an outlier key forces a mode downgrade)
     auto* new_leaf = new Leaf();
     state_->num_leaves_++;
     StorageKeyT promo_key = 0;
@@ -3267,8 +3586,10 @@ class BTree {
     tree.state_->num_elements_ = num_keys;
     fill_ratio = std::clamp(fill_ratio, 0.1f, 1.0f);
 
-    const size_t max_keys_8 =
-        std::max<size_t>(1, static_cast<size_t>(Leaf::kMax8 * fill_ratio));
+    // Unique 8-bit offsets (0..255) fit at most 256 keys; trying kMax8 (488+)
+    // keys would always fail the span check below.
+    const size_t max_keys_8 = std::max<size_t>(
+        1, static_cast<size_t>(kMaxLiveLeafKeys<Leaf> * fill_ratio));
     const size_t max_keys_16 =
         std::max<size_t>(1, static_cast<size_t>(Leaf::kMax16 * fill_ratio));
     const size_t max_keys_32 =
@@ -3370,7 +3691,8 @@ class BTree {
       current_level_ptrs.push_back(leaf);
 
       if (key_idx > 0) {
-        separators.push_back(leaf->base_key);
+        separators.push_back(
+            GapMidpointSeparator(sorted_keys[key_idx - 1], leaf->base_key));
       }
 
       key_idx += count;
