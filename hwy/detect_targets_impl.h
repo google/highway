@@ -365,7 +365,8 @@ static constexpr uint64_t kGroupAVX10 =
 // HWY_SCALAR/HWY_EMU128 bit. It also does not respect
 // HWY_CHOSEN_TARGET_MASK_TARGETS
 template <class Platform>
-static int64_t DetectTargetsImpl(HWY_MAYBE_UNUSED const Platform& platform) {
+static int64_t HWY_MAYBE_UNUSED
+DetectTargetsImpl(HWY_MAYBE_UNUSED const Platform& platform) {
   int64_t bits = 0;  // return value of supported targets.
   HWY_IF_CONSTEXPR(HWY_ARCH_X86_64) {
     bits |= HWY_SSE2;  // always present in x64
@@ -536,7 +537,7 @@ HWY_POP_ATTRIBUTES
 // HWY_SCALAR/HWY_EMU128 bit. It also does not respect
 // HWY_CHOSEN_TARGET_MASK_TARGETS
 template <class Platform>
-static int64_t DetectTargetsImpl(const Platform& platform) {
+static int64_t HWY_MAYBE_UNUSED DetectTargetsImpl(const Platform& platform) {
   int64_t bits = 0;  // return value of supported targets.
 
 #if HWY_OS_APPLE
@@ -684,7 +685,8 @@ static constexpr CapBits kGroupPPC10 = kGroupPPC9 | PPC_FEATURE2_ARCH_3_1;
 // HWY_SCALAR/HWY_EMU128 bit. It also does not respect
 // HWY_CHOSEN_TARGET_MASK_TARGETS
 template <class Platform>
-static int64_t DetectTargetsImpl(HWY_MAYBE_UNUSED const Platform& platform) {
+static int64_t HWY_MAYBE_UNUSED
+DetectTargetsImpl(HWY_MAYBE_UNUSED const Platform& platform) {
   int64_t bits = 0;  // return value of supported targets.
 
 #if defined(AT_HWCAP) && defined(AT_HWCAP2)
@@ -730,7 +732,8 @@ static constexpr CapBits kGroupZ15 =
 // HWY_SCALAR/HWY_EMU128 bit. It also does not respect
 // HWY_CHOSEN_TARGET_MASK_TARGETS
 template <class Platform>
-static int64_t DetectTargetsImpl(HWY_MAYBE_UNUSED const Platform& platform) {
+static int64_t HWY_MAYBE_UNUSED
+DetectTargetsImpl(HWY_MAYBE_UNUSED const Platform& platform) {
   int64_t bits = 0;
 
 #if defined(AT_HWCAP)
@@ -759,7 +762,7 @@ namespace rvv {
 // HWY_SCALAR/HWY_EMU128 bit. It also does not respect
 // HWY_CHOSEN_TARGET_MASK_TARGETS
 template <class Platform>
-static int64_t DetectTargetsImpl(const Platform& platform) {
+static int64_t HWY_MAYBE_UNUSED DetectTargetsImpl(const Platform& platform) {
   int64_t bits = 0;
 
   const CapBits hw = platform.GetAuxVal(AT_HWCAP);
@@ -810,7 +813,7 @@ namespace loongarch {
 // HWY_SCALAR/HWY_EMU128 bit. It also does not respect
 // HWY_CHOSEN_TARGET_MASK_TARGETS
 template <class Platform>
-static int64_t DetectTargetsImpl(const Platform& platform) {
+static int64_t HWY_MAYBE_UNUSED DetectTargetsImpl(const Platform& platform) {
   int64_t bits = 0;
   const CapBits hw = platform.GetAuxVal(AT_HWCAP);
   if (hw & LA_HWCAP_LSX) bits |= HWY_LSX;
