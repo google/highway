@@ -249,6 +249,12 @@ namespace hwy {
 #define HWY_DEFAULT_UNROLL
 #endif
 
+#if HWY_COMPILER_CLANG
+#define HWY_DISABLE_AUTOVEC HWY_PRAGMA(clang loop vectorize(disable))
+#else
+#define HWY_DISABLE_AUTOVEC
+#endif
+
 // Tell a compiler that the expression always evaluates to true.
 // The expression should be free from any side effects.
 // Some older compilers may have trouble with complex expressions, therefore
