@@ -209,7 +209,9 @@ static int64_t ReadIfuncDetectedTargets() { return ifunc_detected_targets; }
 using DetectTargetsFunction = int64_t (*)();
 struct IfuncPlatform {};
 
-extern "C" DetectTargetsFunction ResolveTargetsForTest() {
+static DetectTargetsFunction ResolveTargetsForTest() asm(
+    "ResolveTargetsForTest") HWY_MAYBE_UNUSED;
+static DetectTargetsFunction ResolveTargetsForTest() {
   ifunc_detected_targets = x86::DetectTargetsImpl(IfuncPlatform{});
   ifunc_resolver_called = true;
   return ReadIfuncDetectedTargets;
@@ -256,8 +258,11 @@ class IfuncPlatform {
 static unsigned long ifunc_hwcap = 0;
 static unsigned long ifunc_hwcap2 = 0;
 
-extern "C" DetectTargetsFunction ResolveTargetsForTest(
-    uint64_t hwcap, const __ifunc_arg_t* args) {
+static DetectTargetsFunction ResolveTargetsForTest(
+    uint64_t hwcap,
+    const __ifunc_arg_t* args) asm("ResolveTargetsForTest") HWY_MAYBE_UNUSED;
+static DetectTargetsFunction ResolveTargetsForTest(uint64_t hwcap,
+                                                   const __ifunc_arg_t* args) {
   ifunc_hwcap = hwcap & ~_IFUNC_ARG_HWCAP;
   unsigned long hwcap2 = 0;
   if ((hwcap & _IFUNC_ARG_HWCAP) && args != nullptr &&
