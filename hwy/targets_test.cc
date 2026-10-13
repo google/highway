@@ -25,7 +25,9 @@
 #define HWY_TEST_HAVE_SYS_IFUNC_H 0
 #if HWY_ARCH_ARM_A64 && HWY_OS_LINUX && defined(__GLIBC__)
 #ifdef __has_include
+// clang-format off
 #if __has_include(<sys/ifunc.h>)
+// clang-format on
 #include <stddef.h>
 #include <sys/ifunc.h>
 #undef HWY_TEST_HAVE_SYS_IFUNC_H
