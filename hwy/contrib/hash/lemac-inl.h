@@ -51,9 +51,27 @@
 // This is much cheaper than a key per chunk. Use LeMacHash for contiguous
 // inputs, and LeMacHasher for inputs that arrive in multiples of 8 KiB.
 //
-// For detecting non-adversarial corruption, the key can be public. However,
-// a universal hash is not collision-resistant against adversaries who know the
-// key; for that, keep the key secret, or use a cryptographic hash.
+// For detecting accidental corruption, the key can be public, and the
+// reduced-round LeMacFingerprint variant (LeMacFingerprintKey and
+// LeMacFingerprintHasher) is faster for small inputs: it uses the same
+// universal hash and key derivation (10-round AES-128), but 4-round AES in the
+// sum hash (4 vs 10 subkeys per state word, hence a smaller key: 752 vs 1216
+// bytes for x2). Any difference in a state word then still activates at least
+// 25 S-boxes (wide trail theorem), and a collision of the sum requires
+// differences in at least two words. Instead of EWCDM, the fingerprint is
+// sum ^ AES4_k2(nonce): the final encryption would be a permutation and thus
+// not affect collisions, and the nonce encryption alone, without the extra XOR
+// of the nonce, ensures that distinct nonces never collide for equal inputs.
+//
+// WARNING: anyone who knows the key can construct distinct inputs with the same
+// hash, for either variant: the additional rounds of LeMacOriginal only matter
+// for secret keys, i.e. when used as a MAC. Hence with a public key, use either
+// variant only where no adversary chooses the inputs, e.g. for detecting
+// accidental corruption, or deduplication of trusted data. A random per-file
+// key, which may be stored in the file header, prevents precomputed collisions
+// and also protects against adversaries who supply inputs before the key is
+// chosen and never learn it. For integrity or deduplication of untrusted data,
+// keep the key secret and use LeMacOriginal, or use a cryptographic hash.
 //
 // LeMac is fast where Highway's AESRound is native, i.e. x86 starting with
 // HWY_SSE4, Arm NEON (with the crypto extension), SVE2 with AES, and PPC8+.
@@ -82,9 +100,15 @@ namespace HWY_NAMESPACE {
 // AESRound requires vectors of at least 128 bits.
 #if HWY_TARGET != HWY_SCALAR
 
-template <size_t kStripes>
+// Tag classes for the `Variant` template parameter of LeMacKey and LeMacHasher:
+// full LeMac specification, or reduced finalization for non-cryptographic
+// corruption detection.
+struct LeMacOriginal {};
+struct LeMacFingerprint {};
+
+template <size_t kStripes, class Variant>
 class LeMacKey;
-template <size_t kStripes, class D>
+template <size_t kStripes, class D, class Variant>
 class LeMacHasher;
 
 // Sizes of the inputs and output, plus implementation details shared by
@@ -109,9 +133,9 @@ class LeMac {
                                           : kBlockBytes * kStripes>;
 
  private:
-  template <size_t>
-  friend class LeMacKey;
   template <size_t, class>
+  friend class LeMacKey;
+  template <size_t, class, class>
   friend class LeMacHasher;
 
   // Per stripe: state words updated with AES rounds, and words of delayed
@@ -123,20 +147,18 @@ class LeMac {
   // Steps of zero input after the padding, which are required for the last
   // input blocks to pass through the delay words and enough S-boxes.
   static constexpr size_t kDrainSteps = 4;
-  // The finalization encrypts each state word with this many subkeys, plus a
-  // final round with zero key.
-  static constexpr size_t kFinKeys = 10;
-  // AES-128 key schedule.
-  static constexpr size_t kRoundKeys = 11;
-  // Upper bound on the input bytes per pass, see LeMacHasher::AbsorbSteps.
+  // Upper bound on the input bytes per pass, see LeMacHasher::Absorb.
   // Larger passes amortize loading/storing the state; 8 KiB is about 4% faster
   // than 2 KiB on Zen3, and still fits in L1 so that later passes hit.
   static constexpr size_t kPassBytes = 8192;
+  // AES-128 round keys for deriving the key material from the key.
+  static constexpr size_t kDeriveRoundKeys = 11;
 
   using D16 = CappedTag<uint8_t, kBlockBytes>;
 
-  // Returns the AES-128 encryption of `x` with the expanded `round_keys`.
-  template <class D, class V = VFromD<D>>
+  // Returns the AES encryption of `x` with `kRoundKeys` expanded `round_keys`
+  // (11 for AES-128, or 5 for 4-round AES in LeMacFingerprint).
+  template <size_t kRoundKeys, class D, class V = VFromD<D>>
   static HWY_INLINE V
   Encrypt(D d, const uint8_t (*HWY_RESTRICT round_keys)[kBlockBytes], V x) {
     x = Xor(x, Load(d, round_keys[0]));
@@ -159,10 +181,11 @@ class LeMac {
     return Xor(words, assist);
   }
 
-  // AES-128 key schedule.
-  template <class D, class V = VFromD<D>>
+  // AES-128 key schedule for `kRoundKeys` (5 or 11) round keys.
+  template <size_t kRoundKeys, class D, class V = VFromD<D>>
   static HWY_INLINE void ExpandKey(
       D d, V key, uint8_t (*HWY_RESTRICT round_keys)[kBlockBytes]) {
+    static_assert(kRoundKeys == 5 || kRoundKeys == 11, "4 or 10 AES rounds");
     Store(key, d, round_keys[0]);
     key = NextRoundKey<0x01>(d, key);
     Store(key, d, round_keys[1]);
@@ -172,30 +195,37 @@ class LeMac {
     Store(key, d, round_keys[3]);
     key = NextRoundKey<0x08>(d, key);
     Store(key, d, round_keys[4]);
-    key = NextRoundKey<0x10>(d, key);
-    Store(key, d, round_keys[5]);
-    key = NextRoundKey<0x20>(d, key);
-    Store(key, d, round_keys[6]);
-    key = NextRoundKey<0x40>(d, key);
-    Store(key, d, round_keys[7]);
-    key = NextRoundKey<0x80>(d, key);
-    Store(key, d, round_keys[8]);
-    key = NextRoundKey<0x1B>(d, key);
-    Store(key, d, round_keys[9]);
-    key = NextRoundKey<0x36>(d, key);
-    Store(key, d, round_keys[10]);
+    HWY_IF_CONSTEXPR(kRoundKeys > 5) {
+      key = NextRoundKey<0x10>(d, key);
+      Store(key, d, round_keys[5]);
+      key = NextRoundKey<0x20>(d, key);
+      Store(key, d, round_keys[6]);
+      key = NextRoundKey<0x40>(d, key);
+      Store(key, d, round_keys[7]);
+      key = NextRoundKey<0x80>(d, key);
+      Store(key, d, round_keys[8]);
+      key = NextRoundKey<0x1B>(d, key);
+      Store(key, d, round_keys[9]);
+      key = NextRoundKey<0x36>(d, key);
+      Store(key, d, round_keys[10]);
+    }
   }
 
-  // Returns the AES-128 encryption of `{counter, kStripes - 1, 0, ..}`, so that
-  // keys for different `kStripes` are independent.
-  template <size_t kStripes, class D>
+  // Returns the AES-128 encryption of `{counter, (kStripes - 1) + tag, 0, ..}`,
+  // where tag is 16 for LeMacFingerprint, so that keys for different `kStripes`
+  // and `Variant` are independent. Always 10 rounds: fewer would be
+  // distinguishable from random for such structured plaintexts (e.g. integral
+  // or impossible-differential properties), and this is a one-time cost.
+  template <size_t kStripes, class Variant, class D>
   static HWY_INLINE VFromD<D> EncryptCounter(
       D d, const uint8_t (*HWY_RESTRICT round_keys)[kBlockBytes],
       size_t counter) {
     HWY_DASSERT(counter < 256);
+    constexpr uint8_t kTag = static_cast<uint8_t>(
+        (kStripes - 1) + (IsSame<Variant, LeMacFingerprint>() ? 16 : 0));
     HWY_ALIGN uint8_t block[kBlockBytes] = {static_cast<uint8_t>(counter),
-                                            static_cast<uint8_t>(kStripes - 1)};
-    return Encrypt(d, round_keys, Load(d, block));
+                                            kTag};
+    return Encrypt<kDeriveRoundKeys>(d, round_keys, Load(d, block));
   }
 
   // One step of the universal hash, for each stripe in the vectors. `m0` to
@@ -222,55 +252,88 @@ class LeMac {
 };
 
 // Key material derived from a 128-bit key. Immutable and thread-safe; for
-// efficiency, construct once and share.
-template <size_t kStripes = 2>
+// efficiency, construct once and share. `Variant = LeMacOriginal` is the full
+// LeMac specification; `Variant = LeMacFingerprint` uses fewer finalization
+// rounds for non-cryptographic corruption detection.
+template <size_t kStripes = 2, class Variant = LeMacOriginal>
 class HWY_ALIGN LeMacKey {
   static_assert(kStripes == 1 || kStripes == 2, "Only LeMac-x1 or -x2");
+  static_assert(IsSame<Variant, LeMacOriginal>() ||
+                    IsSame<Variant, LeMacFingerprint>(),
+                "Variant must be LeMacOriginal or LeMacFingerprint");
   static constexpr size_t kVecBytes = LeMac::kBlockBytes * kStripes;
   static constexpr size_t kWords = LeMac::kStateWords * kStripes;
 
  public:
-  explicit LeMacKey(const uint8_t key[LeMac::kKeyBytes]) {
+  // Default constructor for LeMacFingerprintKey using the first 16 bytes of the
+  // fractional part of Pi.
+  template <class V = Variant,
+            hwy::EnableIf<IsSame<V, LeMacFingerprint>()>* = nullptr>
+  LeMacKey() {
+    static constexpr uint8_t kPi[LeMac::kKeyBytes] = {
+        0x24, 0x3F, 0x6A, 0x88, 0x85, 0xA3, 0x08, 0xD3,
+        0x13, 0x19, 0x8A, 0x2E, 0x03, 0x70, 0x73, 0x44};
+    Init(kPi);
+  }
+
+  explicit LeMacKey(const uint8_t key[LeMac::kKeyBytes]) { Init(key); }
+
+ private:
+  template <size_t, class, class>
+  friend class LeMacHasher;
+
+  // The finalization encrypts each state word with this many subkeys, plus a
+  // final round with zero key (10 rounds for LeMacOriginal, 4 for
+  // LeMacFingerprint).
+  static constexpr size_t kFinKeys = IsSame<Variant, LeMacOriginal>() ? 10 : 4;
+  // Round keys for the nonce encryption (10 or 4 AES rounds) and, only for
+  // LeMacOriginal, the final encryption.
+  static constexpr size_t kRoundKeys =
+      IsSame<Variant, LeMacOriginal>() ? 11 : 5;
+  static constexpr size_t kEncryptions =
+      IsSame<Variant, LeMacOriginal>() ? 2 : 1;
+  static constexpr size_t kFinRows = LeMac::kStateWords + kFinKeys - 1;
+
+  void Init(const uint8_t key[LeMac::kKeyBytes]) {
     const LeMac::D16 d;
-    HWY_ALIGN uint8_t round_keys[LeMac::kRoundKeys][LeMac::kBlockBytes];
-    LeMac::ExpandKey(d, LoadU(d, key), round_keys);
+    HWY_ALIGN uint8_t round_keys[LeMac::kDeriveRoundKeys][LeMac::kBlockBytes];
+    LeMac::ExpandKey<LeMac::kDeriveRoundKeys>(d, LoadU(d, key), round_keys);
     // Counters [0, kWords) are for the initial state, then kWords + kFinKeys
-    // - 1 subkeys, then k2 and k3. Interleaved by stripe, see LeMacHasher.
+    // - 1 subkeys, then k2 and (for LeMacOriginal) k3. Interleaved by stripe,
+    // see LeMacHasher.
     for (size_t s = 0; s < kStripes; ++s) {
       const size_t offset = s * LeMac::kBlockBytes;
       for (size_t j = 0; j < LeMac::kStateWords; ++j) {
         const size_t counter = s * LeMac::kStateWords + j;
-        Store(LeMac::EncryptCounter<kStripes>(d, round_keys, counter), d,
-              init_[j] + offset);
+        Store(LeMac::EncryptCounter<kStripes, Variant>(d, round_keys, counter),
+              d, init_[j] + offset);
       }
       // State word j of stripe s uses subkeys [9 s + j, 9 s + j + kFinKeys).
       for (size_t t = 0; t < kFinRows; ++t) {
         const size_t counter = kWords + s * LeMac::kStateWords + t;
-        Store(LeMac::EncryptCounter<kStripes>(d, round_keys, counter), d,
-              fin_[t] + offset);
+        Store(LeMac::EncryptCounter<kStripes, Variant>(d, round_keys, counter),
+              d, fin_[t] + offset);
       }
     }
-    const size_t k2 = kWords + kWords + LeMac::kFinKeys - 1;
-    LeMac::ExpandKey(d, LeMac::EncryptCounter<kStripes>(d, round_keys, k2),
-                     nonce_keys_);
-    LeMac::ExpandKey(d, LeMac::EncryptCounter<kStripes>(d, round_keys, k2 + 1),
-                     final_keys_);
+    const size_t k2 = kWords + kWords + kFinKeys - 1;
+    for (size_t e = 0; e < kEncryptions; ++e) {
+      LeMac::ExpandKey<kRoundKeys>(
+          d, LeMac::EncryptCounter<kStripes, Variant>(d, round_keys, k2 + e),
+          enc_keys_ + e * kRoundKeys);
+    }
   }
-
- private:
-  template <size_t, class>
-  friend class LeMacHasher;
-
-  static constexpr size_t kFinRows = LeMac::kStateWords + LeMac::kFinKeys - 1;
 
   // Initial value of state word j for each stripe.
   HWY_ALIGN uint8_t init_[LeMac::kStateWords][kVecBytes];
   // Subkey t of each stripe: state word j uses rows [j, j + kFinKeys).
   HWY_ALIGN uint8_t fin_[kFinRows][kVecBytes];
-  // Round keys for encrypting the nonce (k2), and the final encryption (k3).
-  HWY_ALIGN uint8_t nonce_keys_[LeMac::kRoundKeys][LeMac::kBlockBytes];
-  HWY_ALIGN uint8_t final_keys_[LeMac::kRoundKeys][LeMac::kBlockBytes];
+  // Round keys for encrypting the nonce (k2), followed by those of the final
+  // encryption (k3) for LeMacOriginal.
+  HWY_ALIGN uint8_t enc_keys_[kEncryptions * kRoundKeys][LeMac::kBlockBytes];
 };
+
+template <size_t kStripes = 2>
+using LeMacFingerprintKey = LeMacKey<kStripes, LeMacFingerprint>;
 
 // Hashes inputs that arrive in several pieces: call Update any number of times
 // with whole multiples of kUpdateBytes, then Finalize with the remaining bytes.
@@ -278,8 +341,10 @@ class HWY_ALIGN LeMacKey {
 // LeMacHasher. `D` describes the vectors with which to absorb the input. The
 // result does not depend on it; the default is the most efficient for the
 // current target, and others are useful for testing.
-template <size_t kStripes = 2, class D = LeMac::DefaultD<kStripes>>
+template <size_t kStripes = 2, class D = LeMac::DefaultD<kStripes>,
+          class Variant = LeMacOriginal>
 class HWY_ALIGN LeMacHasher {
+  using Key = LeMacKey<kStripes, Variant>;
   static constexpr size_t kVecBytes = LeMac::kBlockBytes * kStripes;
   // Each step absorbs four input blocks per stripe.
   static constexpr size_t kStepBytes = LeMac::kBlocksPerStep * kVecBytes;
@@ -294,6 +359,7 @@ class HWY_ALIGN LeMacHasher {
   // passes are still correct, and only slightly more expensive.
   static constexpr bool kMultiPass =
       HWY_MAX_LANES_D(D) < kVecBytes || HWY_MIN_BYTES < kVecBytes;
+  enum PassMode { kUpdate, kFinalize };
 
  public:
   // The size passed to Update must be a multiple of this. Chunks of large
@@ -304,7 +370,7 @@ class HWY_ALIGN LeMacHasher {
   static_assert((kUpdateBytes & (kUpdateBytes - 1)) == 0, "Power of two");
 
   // `key` must outlive this LeMacHasher.
-  explicit LeMacHasher(const LeMacKey<kStripes>& key) : key_(&key) { Reset(); }
+  explicit LeMacHasher(const Key& key) : key_(&key) { Reset(); }
 
   void Reset() {
     CopyBytes(key_->init_, state_, sizeof(state_));
@@ -319,12 +385,13 @@ class HWY_ALIGN LeMacHasher {
       // the size of passes such that later passes hit in L1. Note that passes
       // are faster on x86 than holding all stripes in registers.
       for (size_t pos = 0; pos < size; pos += kUpdateBytes) {
-        Absorb<false>(bytes + pos, kUpdateBytes / kStepBytes, nullptr);
+        Absorb<kUpdate>(bytes + pos, kUpdateBytes / kStepBytes, nullptr,
+                        nullptr);
       }
     }
     HWY_IF_CONSTEXPR(!kMultiPass) {
       // All stripes are in registers: a single pass over all input.
-      Absorb<false>(bytes, size / kStepBytes, nullptr);
+      Absorb<kUpdate>(bytes, size / kStepBytes, nullptr, nullptr);
     }
   }
 
@@ -344,27 +411,10 @@ class HWY_ALIGN LeMacHasher {
       CopyBytes(bytes + num_steps * kStepBytes, last, remainder);
     }
     last[remainder] = 1;
-    Absorb<true>(bytes, num_steps, last);
-
-    // Sum hash: XOR of the encryptions of each state word with their subkeys
-    // and a final round (including MixColumns) with a zero key.
-    const D d;
-    const size_t N = Lanes(d);
-    const V zero = Zero(d);
     HWY_ALIGN uint8_t sums[kVecBytes];
-    for (size_t i = 0; i < kVecBytes; i += N) {
-      V sum = zero;
-      for (size_t j = 0; j < LeMac::kStateWords; ++j) {
-        V x = Xor(Load(d, state_[j] + i), Load(d, key_->fin_[j] + i));
-        for (size_t k = 1; k < LeMac::kFinKeys; ++k) {
-          x = AESRound(x, Load(d, key_->fin_[j + k] + i));
-        }
-        sum = Xor(sum, AESRound(x, zero));
-      }
-      Store(sum, d, sums + i);
-    }
+    Absorb<kFinalize>(bytes, num_steps, last, sums);
 
-    // EWCDM, after also XORing the sums of all stripes.
+    // XOR the sums of all stripes, then combine with the nonce.
     const LeMac::D16 d16;
     using V16 = VFromD<LeMac::D16>;
     V16 total = Load(d16, sums);
@@ -372,45 +422,58 @@ class HWY_ALIGN LeMacHasher {
       total = Xor(total, Load(d16, sums + s * LeMac::kBlockBytes));
     }
     const V16 n = LoadU(d16, nonce);
-    total = Xor3(total, n, LeMac::Encrypt(d16, key_->nonce_keys_, n));
-    StoreU(LeMac::Encrypt(d16, key_->final_keys_, total), d16, out);
+    const V16 enc_n = LeMac::Encrypt<Key::kRoundKeys>(d16, key_->enc_keys_, n);
+    HWY_IF_CONSTEXPR(IsSame<Variant, LeMacOriginal>()) {
+      // EWCDM.
+      total = Xor3(total, n, enc_n);
+      StoreU(LeMac::Encrypt<Key::kRoundKeys>(
+                 d16, key_->enc_keys_ + Key::kRoundKeys, total),
+             d16, out);
+    }
+    HWY_IF_CONSTEXPR(IsSame<Variant, LeMacFingerprint>()) {
+      StoreU(Xor(total, enc_n), d16, out);
+    }
   }
 
  private:
-  // Absorbs `num_steps` steps from `bytes`. If `kFinal`, then also absorbs the
-  // padded step `last` and kDrainSteps steps of zero input; otherwise,
-  // `num_steps` must be even. If vectors hold fewer than all stripes, makes one
-  // pass per group of stripes, which is possible because they are independent.
-  template <bool kFinal>
+  // Absorbs `num_steps` steps from `bytes`. If `kPass == kFinalize`, then also
+  // absorbs the padded step `last` and kDrainSteps steps of zero input, and
+  // writes the sum hash of the state words to `sums`; otherwise, `num_steps`
+  // must be even. If vectors hold fewer than all stripes, makes one pass per
+  // group of stripes, which is possible because they are independent.
+  template <PassMode kPass>
   HWY_INLINE void Absorb(const uint8_t* HWY_RESTRICT bytes, size_t num_steps,
-                         const uint8_t* HWY_RESTRICT last) {
+                         const uint8_t* HWY_RESTRICT last,
+                         uint8_t* HWY_RESTRICT sums) {
     const size_t N = Lanes(D());
     HWY_DASSERT(N >= LeMac::kBlockBytes);
     HWY_IF_CONSTEXPR(kMultiPass) {
       for (size_t i = 0; i < kVecBytes; i += N) {
-        OutlinedPass<kFinal>(i, bytes, num_steps, last);
+        OutlinedPass<kPass>(i, bytes, num_steps, last, sums);
       }
     }
     HWY_IF_CONSTEXPR(!kMultiPass) {
       HWY_DASSERT(N == kVecBytes);
-      Pass<kFinal>(0, bytes, num_steps, last);
+      Pass<kPass>(0, bytes, num_steps, last, sums);
     }
   }
 
   // Not inlined because the compiler would otherwise keep the state of all
   // passes in registers, which causes spills in the hot loop on AVX2.
-  template <bool kFinal>
+  template <PassMode kPass>
   HWY_NOINLINE void OutlinedPass(size_t i, const uint8_t* HWY_RESTRICT bytes,
                                  size_t num_steps,
-                                 const uint8_t* HWY_RESTRICT last) {
-    Pass<kFinal>(i, bytes, num_steps, last);
+                                 const uint8_t* HWY_RESTRICT last,
+                                 uint8_t* HWY_RESTRICT sums) {
+    Pass<kPass>(i, bytes, num_steps, last, sums);
   }
 
   // One pass of Absorb for the vectors at byte offset `i` within each state
   // word.
-  template <bool kFinal>
+  template <PassMode kPass>
   HWY_INLINE void Pass(size_t i, const uint8_t* HWY_RESTRICT bytes,
-                       size_t num_steps, const uint8_t* HWY_RESTRICT last) {
+                       size_t num_steps, const uint8_t* HWY_RESTRICT last,
+                       uint8_t* HWY_RESTRICT sums) {
     const D d;
     V s0 = Load(d, state_[0] + i);
     V s1 = Load(d, state_[1] + i);
@@ -438,7 +501,22 @@ class HWY_ALIGN LeMacHasher {
                   LoadU(d, in + 2 * kVecBytes), LoadU(d, in + 3 * kVecBytes),
                   s0, s1, s2, s3, s4, s5, s6, s7, s8, rr, r0, r1, r2);
     }
-    if (kFinal) {
+    HWY_IF_CONSTEXPR(kPass == kUpdate) {
+      Store(s0, d, state_[0] + i);
+      Store(s1, d, state_[1] + i);
+      Store(s2, d, state_[2] + i);
+      Store(s3, d, state_[3] + i);
+      Store(s4, d, state_[4] + i);
+      Store(s5, d, state_[5] + i);
+      Store(s6, d, state_[6] + i);
+      Store(s7, d, state_[7] + i);
+      Store(s8, d, state_[8] + i);
+      Store(rr, d, delay_[0] + i);
+      Store(r0, d, delay_[1] + i);
+      Store(r1, d, delay_[2] + i);
+      Store(r2, d, delay_[3] + i);
+    }
+    HWY_IF_CONSTEXPR(kPass == kFinalize) {
       if (step != num_steps) {  // Odd number of steps.
         const uint8_t* HWY_RESTRICT in = bytes + step * kStepBytes + i;
         LeMac::Step(LoadU(d, in), LoadU(d, in + kVecBytes),
@@ -454,38 +532,64 @@ class HWY_ALIGN LeMacHasher {
         LeMac::Step(zero, zero, zero, zero, s0, s1, s2, s3, s4, s5, s6, s7, s8,
                     rr, r0, r1, r2);
       }
+      // Sum hash while `s0`..`s8` are already in registers: XOR of the
+      // encryptions of each state word with their subkeys and a final round
+      // (including MixColumns) with a zero key.
+      const auto fin = key_->fin_;
+      s0 = Xor(s0, Load(d, fin[0] + i));
+      s1 = Xor(s1, Load(d, fin[1] + i));
+      s2 = Xor(s2, Load(d, fin[2] + i));
+      s3 = Xor(s3, Load(d, fin[3] + i));
+      s4 = Xor(s4, Load(d, fin[4] + i));
+      s5 = Xor(s5, Load(d, fin[5] + i));
+      s6 = Xor(s6, Load(d, fin[6] + i));
+      s7 = Xor(s7, Load(d, fin[7] + i));
+      s8 = Xor(s8, Load(d, fin[8] + i));
+      for (size_t k = 1; k < Key::kFinKeys; ++k) {
+        s0 = AESRound(s0, Load(d, fin[0 + k] + i));
+        s1 = AESRound(s1, Load(d, fin[1 + k] + i));
+        s2 = AESRound(s2, Load(d, fin[2 + k] + i));
+        s3 = AESRound(s3, Load(d, fin[3 + k] + i));
+        s4 = AESRound(s4, Load(d, fin[4 + k] + i));
+        s5 = AESRound(s5, Load(d, fin[5 + k] + i));
+        s6 = AESRound(s6, Load(d, fin[6 + k] + i));
+        s7 = AESRound(s7, Load(d, fin[7 + k] + i));
+        s8 = AESRound(s8, Load(d, fin[8 + k] + i));
+      }
+      s0 = AESRound(s0, zero);
+      s1 = AESRound(s1, zero);
+      s2 = AESRound(s2, zero);
+      s3 = AESRound(s3, zero);
+      s4 = AESRound(s4, zero);
+      s5 = AESRound(s5, zero);
+      s6 = AESRound(s6, zero);
+      s7 = AESRound(s7, zero);
+      s8 = AESRound(s8, zero);
+      s0 = Xor3(s0, s1, s2);
+      s3 = Xor3(s3, s4, s5);
+      s6 = Xor3(s6, s7, s8);
+      Store(Xor3(s0, s3, s6), d, sums + i);
     }
-    Store(s0, d, state_[0] + i);
-    Store(s1, d, state_[1] + i);
-    Store(s2, d, state_[2] + i);
-    Store(s3, d, state_[3] + i);
-    Store(s4, d, state_[4] + i);
-    Store(s5, d, state_[5] + i);
-    Store(s6, d, state_[6] + i);
-    Store(s7, d, state_[7] + i);
-    Store(s8, d, state_[8] + i);
-    Store(rr, d, delay_[0] + i);
-    Store(r0, d, delay_[1] + i);
-    Store(r1, d, delay_[2] + i);
-    Store(r2, d, delay_[3] + i);
   }
 
   // Word j of each stripe, interleaved such that block b of a step is absorbed
   // by stripe b % kStripes.
   HWY_ALIGN uint8_t state_[LeMac::kStateWords][kVecBytes];
   HWY_ALIGN uint8_t delay_[LeMac::kDelayWords][kVecBytes];
-  const LeMacKey<kStripes>* key_;
+  const Key* key_;
 };
 
-// Writes the hash of `size` bytes to `out`. `size` must be nonzero. The
-// `nonce` is for domain separation, e.g. the position within a tree.
-template <size_t kStripes>
-HWY_INLINE void LeMacHash(const LeMacKey<kStripes>& key,
+template <size_t kStripes = 2, class D = LeMac::DefaultD<kStripes>>
+using LeMacFingerprintHasher = LeMacHasher<kStripes, D, LeMacFingerprint>;
+
+// Writes the LeMac or fingerprint (depending on `Variant`) of `size` bytes to
+// `out`. The `nonce` is for domain separation, e.g. the position within a tree.
+template <size_t kStripes, class Variant>
+HWY_INLINE void LeMacHash(const LeMacKey<kStripes, Variant>& key,
                           const uint8_t nonce[LeMac::kNonceBytes],
                           const uint8_t* HWY_RESTRICT bytes, size_t size,
                           uint8_t out[LeMac::kHashBytes]) {
-  HWY_DASSERT(size != 0);
-  using Hasher = LeMacHasher<kStripes>;
+  using Hasher = LeMacHasher<kStripes, LeMac::DefaultD<kStripes>, Variant>;
   Hasher hasher(key);
   const size_t whole = size & ~(Hasher::kUpdateBytes - 1);
   if (whole != 0) hasher.Update(bytes, whole);

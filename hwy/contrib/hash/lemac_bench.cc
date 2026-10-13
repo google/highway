@@ -83,6 +83,8 @@ HWY_NOINLINE void BenchHashes() {
   const uint8_t nonce[LeMac::kNonceBytes] = {1};
   const LeMacKey<1> key1(key_bytes);
   const LeMacKey<2> key2(key_bytes);
+  const LeMacFingerprintKey<1> fp_key1;
+  const LeMacFingerprintKey<2> fp_key2;
 
   for (size_t size : kSizes) {
     Report("LeMac-x1", size, [&](FuncInput input) HWY_ATTR {
@@ -95,6 +97,18 @@ HWY_NOINLINE void BenchHashes() {
       in[0] = static_cast<uint8_t>(input);
       uint8_t hash[LeMac::kHashBytes];
       LeMacHash(key2, nonce, in.get(), size, hash);
+      return static_cast<FuncOutput>(hash[0]);
+    });
+    Report("Fingerprint-x1", size, [&](FuncInput input) HWY_ATTR {
+      in[0] = static_cast<uint8_t>(input);
+      uint8_t hash[LeMac::kHashBytes];
+      LeMacHash(fp_key1, nonce, in.get(), size, hash);
+      return static_cast<FuncOutput>(hash[0]);
+    });
+    Report("Fingerprint-x2", size, [&](FuncInput input) HWY_ATTR {
+      in[0] = static_cast<uint8_t>(input);
+      uint8_t hash[LeMac::kHashBytes];
+      LeMacHash(fp_key2, nonce, in.get(), size, hash);
       return static_cast<FuncOutput>(hash[0]);
     });
   }
