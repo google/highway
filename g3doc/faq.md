@@ -73,7 +73,7 @@ A: See https://github.com/google/highway#examples.
 
 Q1.3: Where do I find documentation for each **platform's intrinsics**?
 
-A: See Intel [guide](https://www.intel.com/content/www/us/en/docs/intrinsics-guide),
+A: See Intel [guide](https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html),
 Arm [guide](https://developer.arm.com/architectures/instruction-sets/intrinsics)
 and [SVE](https://dougallj.github.io/asil/),
 RISC-V V [spec](https://github.com/riscv/riscv-v-spec/blob/master/v-spec.adoc)
