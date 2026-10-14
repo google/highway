@@ -42,7 +42,7 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
-// Emulated AES on EMU128 is slow to compile and not worth benchmarking.
+// LeMac is not available on HWY_SCALAR and HWY_EMU128, see lemac-inl.h.
 #if HWY_TARGET != HWY_SCALAR && HWY_TARGET != HWY_EMU128
 
 // Typical sizes for tree hashing: headers, then chunks of 32 KiB to 256 KiB.
@@ -81,10 +81,10 @@ HWY_NOINLINE void BenchHashes() {
     key_bytes[i] = static_cast<uint8_t>(i * 17 + 1);
   }
   const uint8_t nonce[LeMac::kNonceBytes] = {1};
-  const LeMacKey<1> key1(key_bytes);
-  const LeMacKey<2> key2(key_bytes);
-  const LeMacFingerprintKey<1> fp_key1;
-  const LeMacFingerprintKey<2> fp_key2;
+  const LeMacKey<1> key1 = LeMacMakeKey<1>(key_bytes);
+  const LeMacKey<2> key2 = LeMacMakeKey<2>(key_bytes);
+  const LeMacFingerprintKey<1> fp_key1 = LeMacMakeFingerprintKey<1>();
+  const LeMacFingerprintKey<2> fp_key2 = LeMacMakeFingerprintKey<2>();
 
   for (size_t size : kSizes) {
     Report("LeMac-x1", size, [&](FuncInput input) HWY_ATTR {

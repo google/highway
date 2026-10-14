@@ -144,6 +144,7 @@ hwy_contrib_headers = files(
     'hwy/contrib/iguana/iguana-inl.h',
     'hwy/contrib/hash/hash-inl.h',
     'hwy/contrib/hash/highwayhash-inl.h',
+    'hwy/contrib/hash/lemac.h',
     'hwy/contrib/hash/lemac-inl.h',
     'hwy/contrib/hash/phast.h',
     'hwy/contrib/hash/phast-inl.h',

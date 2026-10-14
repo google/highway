@@ -20,6 +20,13 @@
 #include <array>
 #include <vector>
 
+#ifndef HWY_DISABLED_TARGETS
+// Without AES instructions, emulated AES is slow to compile. The result does
+// not depend on the target, hence the remaining targets suffice for coverage.
+#define HWY_DISABLED_TARGETS \
+  (HWY_SSE2 | HWY_SSSE3 | HWY_NEON_WITHOUT_AES | HWY_SVE)
+#endif  // HWY_DISABLED_TARGETS
+
 // clang-format off
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/contrib/hash/lemac_test.cc"  // NOLINT
@@ -34,7 +41,7 @@ namespace hwy {
 namespace HWY_NAMESPACE {  // required: unique per target
 namespace {
 
-// AESRound requires vectors of at least 128 bits.
+// LeMac is not available on HWY_SCALAR and HWY_EMU128, see lemac-inl.h.
 #if HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128
 
 void TestOfficialVectors() {}
@@ -62,18 +69,18 @@ void FillRandom(uint8_t* bytes, size_t size, uint64_t seed) {
 }
 
 // Hashes `size` bytes (possibly zero) with absorption vectors `D`, using
-// Update for all whole multiples of kUpdateBytes.
-template <size_t kStripes, class D = LeMac::DefaultD<kStripes>,
+// LeMacUpdate for all whole multiples of LeMac::kPassBytes.
+template <size_t kStripes, class D = LeMacDefaultD<kStripes>,
           class Variant = LeMacOriginal>
 HashBytes HashWith(const LeMacKey<kStripes, Variant>& key, const uint8_t* nonce,
                    const uint8_t* in, size_t size) {
-  LeMacHasher<kStripes, D, Variant> hasher(key);
-  constexpr size_t kUpdateBytes =
-      LeMacHasher<kStripes, D, Variant>::kUpdateBytes;
-  const size_t whole = size / kUpdateBytes * kUpdateBytes;
-  if (whole != 0) hasher.Update(in, whole);
+  const D d;
+  LeMacState<kStripes> state;
+  state.Reset(key);
+  const size_t whole = size / LeMac::kPassBytes * LeMac::kPassBytes;
+  LeMacUpdate(d, state, in, whole);
   HashBytes out;
-  hasher.Finalize(in + whole, size - whole, nonce, out.data());
+  LeMacFinalize(d, key, state, in + whole, size - whole, nonce, out.data());
   return out;
 }
 
@@ -93,7 +100,7 @@ void TestOfficialVectors() {
   uint8_t out[kHashBytes];
 
   // All-zero key, nonce and 0 or 16 input bytes.
-  const LeMacKey<1> zero_key(key);
+  const LeMacKey<1> zero_key = LeMacMakeKey<1>(key);
   LeMacHash(zero_key, nonce, in, 0, out);
   HWY_ASSERT_ARRAY_EQ(kExpected[0], out, kHashBytes);
   LeMacHash(zero_key, nonce, in, 16, out);
@@ -103,7 +110,7 @@ void TestOfficialVectors() {
   FillIota(key, LeMac::kKeyBytes);
   FillIota(nonce, LeMac::kNonceBytes);
   FillIota(in, sizeof(in));
-  const LeMacKey<1> iota_key(key);
+  const LeMacKey<1> iota_key = LeMacMakeKey<1>(key);
   LeMacHash(iota_key, nonce, in, sizeof(in), out);
   HWY_ASSERT_ARRAY_EQ(kExpected[2], out, kHashBytes);
 }
@@ -318,7 +325,7 @@ void CheckGolden(const uint8_t (*expected)[kHashBytes]) {
   for (size_t i = 0; i < in.size(); ++i) {
     in[i] = static_cast<uint8_t>(i * 7 + 3);
   }
-  const LeMacKey<kStripes, Variant> lemac_key(key);
+  const auto lemac_key = LeMacMakeKey<kStripes, Variant>(key);
   for (size_t i = 0; i < kNumGolden; ++i) {
     const size_t size = kGoldenSizes[i];
     uint8_t out[kHashBytes];
@@ -342,7 +349,7 @@ void TestGolden() {
   CheckGolden<1, LeMacFingerprint>(kGoldenFpX1);
   CheckGolden<2, LeMacFingerprint>(kGoldenFpX2);
 
-  // Also lock down the default-constructed (Pi) LeMacFingerprintKey.
+  // Also lock down LeMacMakeFingerprintKey (Pi).
   constexpr uint8_t kExpectedPi[2][kHashBytes] = {
       {0x31, 0xBF, 0x83, 0x19, 0xA5, 0x6D, 0xB5, 0x60, 0x96, 0xA5, 0xCD, 0xF4,
        0xEE, 0xAC, 0x91, 0x9F},
@@ -353,51 +360,74 @@ void TestGolden() {
   uint8_t out[kHashBytes];
   FillIota(nonce, LeMac::kNonceBytes);
   FillIota(in, sizeof(in));
-  LeMacHash(LeMacFingerprintKey<1>(), nonce, in, sizeof(in), out);
+  LeMacHash(LeMacMakeFingerprintKey<1>(), nonce, in, sizeof(in), out);
   HWY_ASSERT_ARRAY_EQ(kExpectedPi[0], out, kHashBytes);
-  LeMacHash(LeMacFingerprintKey<2>(), nonce, in, sizeof(in), out);
+  LeMacHash(LeMacMakeFingerprintKey<2>(), nonce, in, sizeof(in), out);
   HWY_ASSERT_ARRAY_EQ(kExpectedPi[1], out, kHashBytes);
 }
 
-// Any sequence of Update calls must match one-shot hashing.
+// Any sequence of LeMacUpdate calls must match one-shot hashing.
 template <size_t kStripes, class Variant>
 void CheckUpdate() {
-  using Hasher = LeMacHasher<kStripes, LeMac::DefaultD<kStripes>, Variant>;
-  constexpr size_t kUpdateBytes = Hasher::kUpdateBytes;
+  using State = LeMacState<kStripes>;
+  constexpr size_t kPassBytes = LeMac::kPassBytes;
   uint8_t key[LeMac::kKeyBytes];
   uint8_t nonce[LeMac::kNonceBytes];
   FillRandom(key, LeMac::kKeyBytes, 123);
   FillRandom(nonce, LeMac::kNonceBytes, 456);
-  const LeMacKey<kStripes, Variant> lemac_key(key);
+  const auto lemac_key = LeMacMakeKey<kStripes, Variant>(key);
   constexpr size_t kBlocks = 5;
-  std::vector<uint8_t> in(kBlocks * kUpdateBytes + 300);
+  std::vector<uint8_t> in(kBlocks * kPassBytes + 300);
   FillRandom(in.data(), in.size(), 789);
 
-  Hasher reused(lemac_key);
+  State reused;
   for (size_t tail : {size_t{0}, size_t{1}, size_t{300}}) {
-    const size_t size = kBlocks * kUpdateBytes + tail;
+    const size_t size = kBlocks * kPassBytes + tail;
     uint8_t expected[kHashBytes];
     LeMacHash(lemac_key, nonce, in.data(), size, expected);
 
-    // Blocks per Update call.
+    // Blocks per LeMacUpdate call.
     for (size_t piece : {size_t{1}, size_t{2}, size_t{3}, kBlocks}) {
-      Hasher hasher(lemac_key);
+      State state;
+      state.Reset(lemac_key);
       for (size_t block = 0; block < kBlocks; block += piece) {
-        hasher.Update(in.data() + block * kUpdateBytes,
-                      HWY_MIN(piece, kBlocks - block) * kUpdateBytes);
+        LeMacUpdate(state, in.data() + block * kPassBytes,
+                    HWY_MIN(piece, kBlocks - block) * kPassBytes);
       }
       uint8_t actual[kHashBytes];
-      hasher.Finalize(in.data() + kBlocks * kUpdateBytes, tail, nonce, actual);
+      LeMacFinalize(lemac_key, state, in.data() + kBlocks * kPassBytes, tail,
+                    nonce, actual);
       HWY_ASSERT_ARRAY_EQ(expected, actual, kHashBytes);
     }
 
-    // Finalize can also absorb whole blocks, and Reset allows reuse.
-    reused.Reset();
-    reused.Update(in.data(), kUpdateBytes);
+    // LeMacFinalize can also absorb whole blocks, and Reset allows reuse.
+    reused.Reset(lemac_key);
+    LeMacUpdate(reused, in.data(), kPassBytes);
     uint8_t actual[kHashBytes];
-    reused.Finalize(in.data() + kUpdateBytes, size - kUpdateBytes, nonce,
-                    actual);
+    LeMacFinalize(lemac_key, reused, in.data() + kPassBytes, size - kPassBytes,
+                  nonce, actual);
     HWY_ASSERT_ARRAY_EQ(expected, actual, kHashBytes);
+
+    // LeMacUpdate accepts arbitrary sizes (buffered in the state), and copies
+    // of the key and state resume from that point. The suffix passed to
+    // LeMacFinalize covers all cases of buffered plus new bytes: less than, or
+    // at least, one unit of kMinUpdateBytes.
+    for (size_t split : {size_t{1}, size_t{63}, State::kMinUpdateBytes - 1,
+                         State::kMinUpdateBytes, State::kMinUpdateBytes + 7}) {
+      for (size_t suffix : {size_t{0}, size_t{1}, State::kMinUpdateBytes - 2,
+                            State::kMinUpdateBytes + 5, size_t{1000}}) {
+        if (split + suffix > size) continue;
+        reused.Reset(lemac_key);
+        LeMacUpdate(reused, in.data(), split);
+        const LeMacKey<kStripes, Variant> key_copy = lemac_key;
+        State state = reused;
+        const size_t middle = size - split - suffix;
+        LeMacUpdate(state, in.data() + split, middle);
+        LeMacFinalize(key_copy, state, in.data() + split + middle, suffix,
+                      nonce, actual);
+        HWY_ASSERT_ARRAY_EQ(expected, actual, kHashBytes);
+      }
+    }
   }
 }
 
@@ -421,7 +451,7 @@ void CheckDistinct() {
   uint8_t nonce[LeMac::kNonceBytes];
   FillRandom(key, LeMac::kKeyBytes, 1234);
   FillRandom(nonce, LeMac::kNonceBytes, 5678);
-  const LeMacKey<kStripes, Variant> lemac_key(key);
+  const auto lemac_key = LeMacMakeKey<kStripes, Variant>(key);
   std::vector<uint8_t> in(300);
   FillRandom(in.data(), in.size(), 9012);
   const HashBytes original = HashWith(lemac_key, nonce, in.data(), in.size());
@@ -467,7 +497,7 @@ void CheckDistinct() {
     nonce[bit / 8] ^= mask;
 
     key[bit / 8] ^= mask;
-    const LeMacKey<kStripes, Variant> other_key(key);
+    const auto other_key = LeMacMakeKey<kStripes, Variant>(key);
     hashes.push_back(HashWith(other_key, nonce, in.data(), in.size()));
     key[bit / 8] ^= mask;
   }

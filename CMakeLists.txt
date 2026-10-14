@@ -242,6 +242,7 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/iguana/iguana-inl.h
     hwy/contrib/hash/hash-inl.h
     hwy/contrib/hash/highwayhash-inl.h
+    hwy/contrib/hash/lemac.h
     hwy/contrib/hash/lemac-inl.h
     hwy/contrib/hash/phast.cc
     hwy/contrib/hash/phast.h

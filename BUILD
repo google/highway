@@ -552,6 +552,9 @@ cc_library(
 
 cc_library(
     name = "lemac",
+    hdrs = [
+        "hwy/contrib/hash/lemac.h",
+    ],
     compatible_with = [],
     copts = COPTS,
     textual_hdrs = [
