@@ -9714,10 +9714,12 @@ HWY_INLINE uint64_t NibblesFromMask(D d, MFromD<D> mask) {
   return nib & ((1ull << (d.MaxBytes() * 4)) - 1);
 }
 
-// Returns the lowest N for the BitsFromMask result.
+// Returns the lowest N for the BitsFromMask result. Always mask even when
+// MaxBytes >= 8 so the compiler knows the range of target intrinsics like
+// vaddvq_u32 and does not emit -fsanitize=array-bounds checks.
 template <class D>
 constexpr uint64_t OnlyActive(D d, uint64_t bits) {
-  return (d.MaxBytes() >= 8) ? bits : (bits & ((1ull << d.MaxLanes()) - 1));
+  return bits & ((1ull << d.MaxLanes()) - 1);
 }
 
 }  // namespace detail
@@ -9736,13 +9738,14 @@ HWY_API uint64_t BitsFromMask(D d, MFromD<D> mask) {
   const uint8x8_t x2 = vget_low_u8(vpaddq_u8(values.raw, values.raw));
   const uint8x8_t x4 = vpadd_u8(x2, x2);
   const uint8x8_t x8 = vpadd_u8(x4, x4);
-  return vget_lane_u64(vreinterpret_u64_u8(x8), 0) & 0xFFFF;
+  return detail::OnlyActive(d, vget_lane_u64(vreinterpret_u64_u8(x8), 0));
 #else
   // Don't have vpaddq, so keep doubling lane size.
   const uint16x8_t x2 = vpaddlq_u8(values.raw);
   const uint32x4_t x4 = vpaddlq_u16(x2);
   const uint64x2_t x8 = vpaddlq_u32(x4);
-  return (vgetq_lane_u64(x8, 1) << 8) | vgetq_lane_u64(x8, 0);
+  return detail::OnlyActive(
+      d, (vgetq_lane_u64(x8, 1) << 8) | vgetq_lane_u64(x8, 0));
 #endif
 }
 
@@ -9849,8 +9852,8 @@ HWY_API uint64_t BitsFromMask(D d, MFromD<D> mask) {
 template <class D, HWY_IF_T_SIZE_D(D, 8), HWY_IF_V_SIZE_LE_D(D, 8)>
 HWY_API uint64_t BitsFromMask(D d, MFromD<D> mask) {
   const RebindToUnsigned<decltype(d)> du;
-  const Vec64<uint64_t> values = BitCast(du, VecFromMask(d, mask)) & Set(du, 1);
-  return vget_lane_u64(values.raw, 0);
+  const Vec64<uint64_t> values = BitCast(du, VecFromMask(d, mask));
+  return detail::OnlyActive(d, vget_lane_u64(values.raw, 0));
 }
 
 namespace detail {
@@ -9868,12 +9871,17 @@ namespace detail {
 template <typename T>
 HWY_INLINE size_t CountTrueImpl(hwy::SizeTag<1> /*tag*/, Mask128<T> mask) {
   const Full128<int8_t> di;
+#if HWY_ARCH_ARM_A64
+  int8x16_t raw = BitCast(di, VecFromMask(Full128<T>(), mask)).raw;
+#if HWY_COMPILER_CLANG
+  // Prevent InstCombine from folding vaddvq(sext <N x i1>) into llvm.ctpop,
+  // which SLPVectorizer packs across unrolled calls into a vector `cnt`.
+  asm("" : "+w"(raw));
+#endif
+  return static_cast<size_t>(-static_cast<int64_t>(vaddvq_s8(raw)));
+#else
   const int8x16_t ones =
       vnegq_s8(BitCast(di, VecFromMask(Full128<T>(), mask)).raw);
-
-#if HWY_ARCH_ARM_A64
-  return static_cast<size_t>(vaddvq_s8(ones));
-#else
   const int16x8_t x2 = vpaddlq_s8(ones);
   const int32x4_t x4 = vpaddlq_s16(x2);
   const int64x2_t x8 = vpaddlq_s32(x4);
@@ -9883,12 +9891,15 @@ HWY_INLINE size_t CountTrueImpl(hwy::SizeTag<1> /*tag*/, Mask128<T> mask) {
 template <typename T>
 HWY_INLINE size_t CountTrueImpl(hwy::SizeTag<2> /*tag*/, Mask128<T> mask) {
   const Full128<int16_t> di;
+#if HWY_ARCH_ARM_A64
+  int16x8_t raw = BitCast(di, VecFromMask(Full128<T>(), mask)).raw;
+#if HWY_COMPILER_CLANG
+  asm("" : "+w"(raw));
+#endif
+  return static_cast<size_t>(-static_cast<int64_t>(vaddvq_s16(raw)));
+#else
   const int16x8_t ones =
       vnegq_s16(BitCast(di, VecFromMask(Full128<T>(), mask)).raw);
-
-#if HWY_ARCH_ARM_A64
-  return static_cast<size_t>(vaddvq_s16(ones));
-#else
   const int32x4_t x2 = vpaddlq_s16(ones);
   const int64x2_t x4 = vpaddlq_s32(x2);
   return static_cast<size_t>(vgetq_lane_s64(x4, 0) + vgetq_lane_s64(x4, 1));
@@ -9898,12 +9909,15 @@ HWY_INLINE size_t CountTrueImpl(hwy::SizeTag<2> /*tag*/, Mask128<T> mask) {
 template <typename T>
 HWY_INLINE size_t CountTrueImpl(hwy::SizeTag<4> /*tag*/, Mask128<T> mask) {
   const Full128<int32_t> di;
+#if HWY_ARCH_ARM_A64
+  int32x4_t raw = BitCast(di, VecFromMask(Full128<T>(), mask)).raw;
+#if HWY_COMPILER_CLANG
+  asm("" : "+w"(raw));
+#endif
+  return static_cast<size_t>(-static_cast<int64_t>(vaddvq_s32(raw)));
+#else
   const int32x4_t ones =
       vnegq_s32(BitCast(di, VecFromMask(Full128<T>(), mask)).raw);
-
-#if HWY_ARCH_ARM_A64
-  return static_cast<size_t>(vaddvq_s32(ones));
-#else
   const int64x2_t x2 = vpaddlq_s32(ones);
   return static_cast<size_t>(vgetq_lane_s64(x2, 0) + vgetq_lane_s64(x2, 1));
 #endif
@@ -9913,9 +9927,11 @@ template <typename T>
 HWY_INLINE size_t CountTrueImpl(hwy::SizeTag<8> /*tag*/, Mask128<T> mask) {
 #if HWY_ARCH_ARM_A64
   const Full128<int64_t> di;
-  const int64x2_t ones =
-      vnegq_s64(BitCast(di, VecFromMask(Full128<T>(), mask)).raw);
-  return static_cast<size_t>(vaddvq_s64(ones));
+  int64x2_t raw = BitCast(di, VecFromMask(Full128<T>(), mask)).raw;
+#if HWY_COMPILER_CLANG
+  asm("" : "+w"(raw));
+#endif
+  return static_cast<size_t>(-vaddvq_s64(raw));
 #else
   const Full128<uint64_t> du;
   const auto mask_u = VecFromMask(du, RebindMask(du, mask));
@@ -11041,7 +11057,7 @@ HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> m, D d,
                                     TFromD<D>* HWY_RESTRICT unaligned) {
   const RebindToUnsigned<decltype(d)> du;
   const uint64_t bits = BitsFromMask(d, m);
-  const size_t count = CountTrue(d, m);
+  const size_t count = PopCount(bits);
   const MFromD<D> store_mask = RebindMask(d, FirstN(du, count));
   const VFromD<decltype(du)> compressed =
       detail::NeonCompress(BitCast(du, v), bits & 255, bits >> 8);

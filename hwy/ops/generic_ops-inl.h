@@ -7852,7 +7852,7 @@ HWY_INLINE Vec128<uint8_t, N> IndicesForExpandFromBits(uint64_t mask_bits) {
       0,   128, 1,   2,   3,   4,   5,   6,    //
       128, 0,   1,   2,   3,   4,   5,   6,    //
       0,   1,   2,   3,   4,   5,   6,   7};
-  return LoadU(du8, table + mask_bits * 8);
+  return LoadU(du8, table + (mask_bits & 255) * 8);
 }
 
 }  // namespace detail
@@ -8175,7 +8175,7 @@ HWY_API Vec128<T, N> Expand(Vec128<T, N> v, Mask128<T, N> mask) {
   // lower half, and we want N u16.
   const Twice<decltype(du8)> du8x2;
   const Vec128<uint8_t, 2 * N> indices8 =
-      ZeroExtendVector(du8x2, Load(du8, table + mask_bits * 8));
+      ZeroExtendVector(du8x2, Load(du8, table + (mask_bits & 255) * 8));
   const Vec128<uint16_t, N> indices16 =
       BitCast(du, InterleaveLower(du8x2, indices8, indices8));
   // TableLookupBytesOr0 operates on bytes. To convert u16 lane indices to byte
@@ -8193,27 +8193,34 @@ HWY_API Vec128<T, N> Expand(Vec128<T, N> v, Mask128<T, N> mask) {
 template <typename T, size_t N, HWY_IF_T_SIZE(T, 4)>
 HWY_API Vec128<T, N> Expand(Vec128<T, N> v, Mask128<T, N> mask) {
   const DFromV<decltype(v)> d;
-  const RebindToUnsigned<decltype(d)> du;
+  const Repartition<uint8_t, decltype(d)> d8;
 
   const uint64_t mask_bits = BitsFromMask(d, mask);
+  HWY_DASSERT(mask_bits < 16);
 
-  alignas(16) static constexpr uint32_t packed_array[16] = {
-      // PrintExpand64x4Nibble - same for 32x4.
-      0x0000ffff, 0x0000fff0, 0x0000ff0f, 0x0000ff10, 0x0000f0ff, 0x0000f1f0,
-      0x0000f10f, 0x0000f210, 0x00000fff, 0x00001ff0, 0x00001f0f, 0x00002f10,
-      0x000010ff, 0x000021f0, 0x0000210f, 0x00003210};
-
-  // For lane i, shift the i-th 4-bit index down to bits [0, 2).
-  const Vec128<uint32_t, N> packed = Set(du, packed_array[mask_bits]);
-  alignas(16) static constexpr uint32_t shifts[4] = {0, 4, 8, 12};
-  Vec128<uint32_t, N> indices = packed >> Load(du, shifts);
-  // AVX2 _mm256_permutexvar_epi32 will ignore upper bits, but IndicesFromVec
-  // checks bounds, so clear the upper bits.
-  indices = And(indices, Set(du, N - 1));
-  const Vec128<uint32_t, N> expand =
-      TableLookupLanes(BitCast(du, v), IndicesFromVec(du, indices));
-  // TableLookupLanes cannot also zero masked-off lanes, so do that now.
-  return IfThenElseZero(mask, BitCast(d, expand));
+  // Only 4 lanes, so we can afford to load the byte index vector directly.
+  alignas(16) static constexpr uint8_t kTable[16 * 16] = {
+      128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128,
+      128, 0,   1,   2,   3,   128, 128, 128, 128, 128, 128, 128, 128, 128, 128,
+      128, 128, 128, 128, 128, 128, 0,   1,   2,   3,   128, 128, 128, 128, 128,
+      128, 128, 128, 0,   1,   2,   3,   4,   5,   6,   7,   128, 128, 128, 128,
+      128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 0,   1,   2,
+      3,   128, 128, 128, 128, 0,   1,   2,   3,   128, 128, 128, 128, 4,   5,
+      6,   7,   128, 128, 128, 128, 128, 128, 128, 128, 0,   1,   2,   3,   4,
+      5,   6,   7,   128, 128, 128, 128, 0,   1,   2,   3,   4,   5,   6,   7,
+      8,   9,   10,  11,  128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128,
+      128, 128, 128, 128, 128, 0,   1,   2,   3,   0,   1,   2,   3,   128, 128,
+      128, 128, 128, 128, 128, 128, 4,   5,   6,   7,   128, 128, 128, 128, 0,
+      1,   2,   3,   128, 128, 128, 128, 4,   5,   6,   7,   0,   1,   2,   3,
+      4,   5,   6,   7,   128, 128, 128, 128, 8,   9,   10,  11,  128, 128, 128,
+      128, 128, 128, 128, 128, 0,   1,   2,   3,   4,   5,   6,   7,   0,   1,
+      2,   3,   128, 128, 128, 128, 4,   5,   6,   7,   8,   9,   10,  11,  128,
+      128, 128, 128, 0,   1,   2,   3,   4,   5,   6,   7,   8,   9,   10,  11,
+      0,   1,   2,   3,   4,   5,   6,   7,   8,   9,   10,  11,  12,  13,  14,
+      15};
+  return BitCast(d,
+                 TableLookupBytesOr0(
+                     v, Load(d8, kTable + 16 * (mask_bits & ((1u << N) - 1)))));
 }
 
 template <typename T, HWY_IF_T_SIZE(T, 8)>
