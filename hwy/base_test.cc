@@ -98,6 +98,104 @@ HWY_NOINLINE void TestAllLimits() {
   HWY_ASSERT(LimitsMax<ptrdiff_t>() > ptrdiff_t{0});
   HWY_ASSERT(LimitsMax<intptr_t>() > intptr_t{0});
   HWY_ASSERT(LimitsMax<uintptr_t>() > uintptr_t{0});
+}
+
+// SumWithin, ScalarFits, SumFits, SafeCast, SafeAdd.
+HWY_NOINLINE void TestAllSafeArith() {
+  constexpr uint64_t kMax64 = LimitsMax<uint64_t>();
+  constexpr uint64_t kMaxI64 = static_cast<uint64_t>(LimitsMax<int64_t>());
+
+  // SumWithin: exact boundary, overflow, zero. Arguments must be unsigned, but
+  // may be of mixed widths.
+  static_assert(SumWithin(0u, 0u, 0u), "0 + 0 <= 0");
+  static_assert(SumWithin(10u, 20u, 30u), "exact max");
+  static_assert(!SumWithin(10u, 21u, 30u), "exceeds max");
+  static_assert(!SumWithin(31u, 0u, 30u), "a alone exceeds max");
+  static_assert(SumWithin(kMax64, 0u, kMax64), "max + 0");
+  static_assert(SumWithin(0u, kMax64, kMax64), "0 + max");
+  static_assert(!SumWithin(kMax64, 1u, kMax64), "wraparound");
+  static_assert(!SumWithin(kMax64, kMax64, kMax64), "double wraparound");
+  static_assert(!SumWithin(1u, kMax64, kMax64 - 1), "b alone exceeds max");
+  static_assert(SumWithin(uint8_t{200}, uint16_t{55}, size_t{255}), "mixed");
+  static_assert(!SumWithin(uint8_t{200}, uint16_t{56}, size_t{255}), "mixed");
+
+  // ScalarFits: unsigned to narrower unsigned.
+  static_assert(ScalarFits<uint8_t>(0u) && ScalarFits<uint8_t>(255u), "u8");
+  static_assert(!ScalarFits<uint8_t>(256u), "u8 overflow");
+  static_assert(ScalarFits<uint16_t>(65535u) && !ScalarFits<uint16_t>(65536u),
+                "u16");
+  static_assert(ScalarFits<uint32_t>(uint64_t{0xFFFFFFFFu}), "u32 max");
+  static_assert(!ScalarFits<uint32_t>(uint64_t{0x100000000u}), "u32 overflow");
+  static_assert(ScalarFits<uint64_t>(kMax64), "u64 identity");
+
+  // ScalarFits: signed sources and signed/unsigned TTo.
+  static_assert(!ScalarFits<uint8_t>(-1), "negative int");
+  static_assert(!ScalarFits<uint64_t>(-1), "negative to u64");
+  static_assert(!ScalarFits<size_t>(LimitsMin<int64_t>()), "i64 min");
+  static_assert(!ScalarFits<uint64_t>(static_cast<int8_t>(-128)), "i8 min");
+  static_assert(ScalarFits<int64_t>(int64_t{-1}), "negative to i64");
+  static_assert(ScalarFits<int64_t>(LimitsMin<int64_t>()), "i64 min to i64");
+  static_assert(!ScalarFits<int32_t>(LimitsMin<int64_t>()), "i64 min to i32");
+  static_assert(ScalarFits<int8_t>(-128) && !ScalarFits<int8_t>(-129),
+                "i8 min");
+  static_assert(ScalarFits<uint8_t>(int8_t{127}), "i8 max to u8");
+  static_assert(ScalarFits<int8_t>(127) && !ScalarFits<int8_t>(128), "i8");
+  static_assert(ScalarFits<int64_t>(LimitsMax<int64_t>()), "i64 max");
+  static_assert(ScalarFits<int64_t>(kMaxI64), "u64 to i64 at max");
+  static_assert(!ScalarFits<int64_t>(kMaxI64 + 1), "u64 to i64 overflow");
+  static_assert(!ScalarFits<int64_t>(kMax64), "u64 max to i64");
+  static_assert(ScalarFits<int32_t>(0x7FFFFFFFu), "u32 to i32 max");
+  static_assert(!ScalarFits<int32_t>(0x80000000u), "u32 to i32 overflow");
+
+  // ScalarFits: platform types (size_t may be 32 or 64 bits).
+  static_assert(ScalarFits<size_t>(LimitsMax<size_t>()), "size_t max");
+  static_assert(ScalarFits<size_t>(uint64_t{0xFFFFFFFFu}),
+                "u32 max always fits size_t");
+  HWY_ASSERT(ScalarFits<size_t>(kMax64) == (sizeof(size_t) == 8));
+  HWY_ASSERT(
+      ScalarFits<ptrdiff_t>(static_cast<uint64_t>(LimitsMax<ptrdiff_t>())));
+  HWY_ASSERT(!ScalarFits<ptrdiff_t>(
+      static_cast<uint64_t>(LimitsMax<ptrdiff_t>()) + 1));
+  static_assert(ScalarFits<unsigned long>(0ul), "ul");        // NOLINT
+  static_assert(ScalarFits<long>(long{0}), "long");           // NOLINT
+  static_assert(!ScalarFits<unsigned long>(long{-1}), "ul");  // NOLINT
+  // cv-qualified and char sources are accepted.
+  constexpr const int kConst = 42;
+  static_assert(ScalarFits<uint8_t>(kConst), "const int");
+  static_assert(ScalarFits<uint8_t>('a'), "char");
+
+  // SumFits: boundary at LimitsMax<TTo>.
+  static_assert(SumFits<uint8_t>(200u, 55u) && !SumFits<uint8_t>(200u, 56u),
+                "SumFits u8");
+  static_assert(SumFits<int64_t>(kMaxI64, 0u), "SumFits i64 max");
+  static_assert(!SumFits<int64_t>(kMaxI64, 1u), "SumFits i64 overflow");
+  static_assert(SumFits<uint64_t>(kMax64, 0u), "SumFits u64 max");
+  static_assert(!SumFits<uint64_t>(kMax64, 1u), "SumFits u64 wraparound");
+  static_assert(!SumFits<size_t>(kMax64, 1u), "SumFits size_t wraparound");
+  HWY_ASSERT(SumFits<size_t>(LimitsMax<size_t>(), 0u));
+  HWY_ASSERT(!SumFits<size_t>(LimitsMax<size_t>(), 1u));
+
+  // SafeCast/SafeAdd: values that fit are returned unchanged. Use
+  // Unpredictable1 so that the checks are not folded away.
+  const uint64_t one = static_cast<uint64_t>(Unpredictable1());
+  const int64_t s_one = static_cast<int64_t>(one);
+  HWY_ASSERT_EQ(size_t{42}, SafeCast<size_t>(42 * one));
+  HWY_ASSERT_EQ(uint8_t{255}, SafeCast<uint8_t>(255 * one));
+  HWY_ASSERT_EQ(int64_t{7}, SafeCast<int64_t>(7 * one));
+  HWY_ASSERT_EQ(int64_t{-7}, SafeCast<int64_t>(-7 * s_one));
+  HWY_ASSERT_EQ(int8_t{-128}, SafeCast<int8_t>(-128 * s_one));
+  HWY_ASSERT_EQ(int32_t{0x7FFFFFFF}, SafeCast<int32_t>(0x7FFFFFFFu * one));
+  HWY_ASSERT_EQ(uint64_t{30}, SafeAdd<uint64_t>(10 * one, 20u));
+  HWY_ASSERT_EQ(int32_t{30}, SafeAdd<int32_t>(10u, 20 * one));
+  HWY_ASSERT_EQ(kMax64, SafeAdd<uint64_t>(kMax64 - one, 1u));
+  HWY_ASSERT_EQ(LimitsMax<int64_t>(), SafeAdd<int64_t>(kMaxI64 - one, 1u));
+  // Mixed argument widths are accepted; the sum is computed in 64 bits.
+  HWY_ASSERT_EQ(size_t{300}, SafeAdd<size_t>(uint8_t{200}, uint16_t{100}));
+  // Also constexpr in C++14 and later.
+#if HWY_CXX_LANG >= 201402L
+  static_assert(SafeCast<uint8_t>(200) == 200, "constexpr SafeCast");
+  static_assert(SafeAdd<uint16_t>(65000u, 535u) == 65535, "constexpr SafeAdd");
+#endif
   HWY_ASSERT(LimitsMax<wchar_t>() > wchar_t{0});
 }
 
@@ -192,6 +290,21 @@ HWY_NOINLINE void TestAllType() {
   static_assert(sizeof(MakeUnsigned<hwy::uint128_t>) == 16, "");
   static_assert(sizeof(MakeWide<uint64_t>) == 16, "Expected uint128_t");
   static_assert(sizeof(MakeNarrow<hwy::uint128_t>) == 8, "Expected uint64_t");
+
+  // IsEnum and UnderlyingType: scoped and unscoped enums, cv/ref qualifiers,
+  // and the `void` fallback for non-enums.
+  enum Unscoped : uint16_t { kUnscoped };
+  enum class Scoped : int8_t { kScoped };
+  static_assert(IsEnum<Unscoped>() && IsEnum<Scoped>(), "IsEnum");
+  static_assert(IsEnum<const Scoped&>() && IsEnum<volatile Unscoped>(),
+                "IsEnum ignores cv/ref");
+  static_assert(!IsEnum<int>() && !IsEnum<uint16_t>() && !IsEnum<float>(),
+                "!IsEnum");
+  static_assert(IsSame<UnderlyingType<Unscoped>, uint16_t>(), "Unscoped");
+  static_assert(IsSame<UnderlyingType<Scoped>, int8_t>(), "Scoped");
+  static_assert(IsSame<UnderlyingType<const Scoped&>, int8_t>(),
+                "UnderlyingType ignores cv/ref");
+  static_assert(IsSame<UnderlyingType<int>, void>(), "non-enum is void");
 }
 
 struct TestIsSame {
@@ -1328,11 +1441,57 @@ TEST(BaseDeathTest, Divisor64Zero) {
       },
       "Assert divisor != 0");
 }
+
+#if HWY_IS_DEBUG_BUILD
+TEST(BaseDeathTest, SafeCastNegative) {
+  const int64_t neg = -static_cast<int64_t>(Unpredictable1());
+  ASSERT_DEATH(
+      {
+        const size_t unused = SafeCast<size_t>(neg);
+        (void)unused;
+      },
+      "ScalarFits");
+  ASSERT_DEATH(
+      {
+        const int8_t unused = SafeCast<int8_t>(129 * neg);
+        (void)unused;
+      },
+      "ScalarFits");
+}
+
+TEST(BaseDeathTest, SafeCastTooLarge) {
+  const uint64_t big = uint64_t{256} * static_cast<uint64_t>(Unpredictable1());
+  ASSERT_DEATH(
+      {
+        const uint8_t unused = SafeCast<uint8_t>(big);
+        (void)unused;
+      },
+      "ScalarFits");
+}
+
+TEST(BaseDeathTest, SafeAddOverflow) {
+  const uint64_t one = static_cast<uint64_t>(Unpredictable1());
+  ASSERT_DEATH(
+      {
+        const uint64_t unused = SafeAdd<uint64_t>(LimitsMax<uint64_t>(), one);
+        (void)unused;
+      },
+      "SumFits");
+  ASSERT_DEATH(
+      {
+        const int64_t unused = SafeAdd<int64_t>(
+            static_cast<uint64_t>(LimitsMax<int64_t>()), one);
+        (void)unused;
+      },
+      "SumFits");
+}
+#endif  // HWY_IS_DEBUG_BUILD
 #endif  // GTEST_HAS_DEATH_TEST
 
 HWY_BEFORE_TEST(BaseTest);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestUnreachable);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllLimits);
+HWY_EXPORT_AND_TEST_P(BaseTest, TestAllSafeArith);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllLowestHighest);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllType);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllIsSame);

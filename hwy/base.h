@@ -158,6 +158,13 @@
 
 #endif  // !HWY_COMPILER_MSVC
 
+// Reduce inlining in sanitizer builds: shorter compile and less stack space.
+#if HWY_IS_ASAN || HWY_IS_HWASAN || HWY_IS_MSAN || HWY_IS_TSAN
+#define HWY_MAYBE_INLINE inline
+#else
+#define HWY_MAYBE_INLINE HWY_INLINE
+#endif
+
 #if (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1200) || \
     (HWY_COMPILER_ICC && !HWY_COMPILER_ICX)
 // The use of __attribute__((unused)) in private class member variables triggers
@@ -226,6 +233,17 @@ namespace hwy {
 
 //------------------------------------------------------------------------------
 // Macros
+
+// Warns if the return value (or an object of the annotated class) is ignored.
+// C++17 [[nodiscard]] is a warning (clang -Wc++17-extensions, MSVC C5051) in
+// C++14 mode, hence fall back to the older function-only attribute.
+#if (HWY_CXX_LANG >= 201703L) && HWY_HAS_CPP_ATTRIBUTE(nodiscard)
+#define HWY_NODISCARD [[nodiscard]]
+#define HWY_NODISCARD_CLASS [[nodiscard]]
+#else
+#define HWY_NODISCARD HWY_MUST_USE_RESULT
+#define HWY_NODISCARD_CLASS
+#endif
 
 // Note: it is safe to remove `static` for users who want to use modules, but
 // that might be a breaking change for some users, hence we do not by default.
@@ -998,6 +1016,29 @@ template <class T>
 HWY_API constexpr bool IsTrivial() {
   return __is_trivial(T);
 }
+
+template <class T>
+HWY_API constexpr bool IsEnum() {
+  return __is_enum(RemoveCvRef<T>);
+}
+
+namespace detail {
+template <class T, bool = IsEnum<T>()>
+struct UnderlyingTypeT {
+  using type = void;
+};
+
+template <class T>
+struct UnderlyingTypeT<T, true> {
+  using type = __underlying_type(T);
+};
+}  // namespace detail
+
+// The underlying integer type of an enum (ignoring cv/ref qualifiers). Unlike
+// `std::underlying_type_t`, which is ill-formed for non-enums, this evaluates
+// to `void` for them so that it can be used in SFINAE-free `IsSame` checks.
+template <class T>
+using UnderlyingType = typename detail::UnderlyingTypeT<RemoveCvRef<T>>::type;
 
 // ----------------------------------------------------------------------------
 // IsSpecialFloat
@@ -2890,6 +2931,75 @@ constexpr size_t RoundUpTo(size_t what, size_t align) {
 // Works for any `align`; if a power of two, compiler emits AND.
 constexpr size_t RoundDownTo(size_t what, size_t align) {
   return what - (what % align);
+}
+
+namespace detail {
+// Integer types other than bool, which is excluded because it is not a size
+// nor an offset, and `LimitsMax<bool>` is not defined.
+template <typename T>
+HWY_API constexpr bool IsSizeLike() {
+  return IsInteger<RemoveCvRef<T>>() && !IsSame<RemoveCvRef<T>, bool>();
+}
+// As above, but also unsigned and at most 64 bits.
+template <typename T>
+HWY_API constexpr bool IsUnsignedSize() {
+  return IsSizeLike<T>() && IsUnsigned<RemoveCvRef<T>>() &&
+         sizeof(RemoveCvRef<T>) <= 8;
+}
+}  // namespace detail
+
+// Returns whether `a + b <= max` without unsigned overflow. Useful for
+// bounds-checking `[offset, offset + size)` against a capacity or file size.
+// All arguments must be unsigned (sizes/offsets); signed values would
+// otherwise silently wrap when converted to `uint64_t`.
+template <typename TA, typename TB, typename TMax>
+HWY_NODISCARD HWY_API constexpr bool SumWithin(TA a, TB b, TMax max) {
+  static_assert(detail::IsUnsignedSize<TA>() && detail::IsUnsignedSize<TB>() &&
+                    detail::IsUnsignedSize<TMax>(),
+                "Arguments must be unsigned integers");
+  return static_cast<uint64_t>(a) <= static_cast<uint64_t>(max) &&
+         static_cast<uint64_t>(b) <=
+             static_cast<uint64_t>(max) - static_cast<uint64_t>(a);
+}
+
+// Returns whether `val` is in `[LimitsMin<TTo>(), LimitsMax<TTo>()]`. Both
+// types must be non-bool integers of at most 64 bits.
+template <typename TTo, typename TFrom,
+          EnableIf<detail::IsSizeLike<TFrom>()>* = nullptr>
+HWY_NODISCARD HWY_API constexpr bool ScalarFits(TFrom val) {
+  static_assert(detail::IsSizeLike<TTo>(), "TTo must be a non-bool integer");
+  static_assert(sizeof(TFrom) <= 8 && sizeof(TTo) <= 8, "At most 64 bits");
+  using TSigned = MakeSigned<MakeLaneTypeIfInteger<RemoveCvRef<TFrom>>>;
+  return (IsSigned<RemoveCvRef<TFrom>>() && static_cast<TSigned>(val) < 0)
+             ? (IsSigned<RemoveCvRef<TTo>>() &&
+                static_cast<int64_t>(static_cast<TSigned>(val)) >=
+                    static_cast<int64_t>(LimitsMin<RemoveCvRef<TTo>>()))
+             : static_cast<uint64_t>(val) <=
+                   static_cast<uint64_t>(LimitsMax<RemoveCvRef<TTo>>());
+}
+
+// Returns whether `a + b` is in `[0, LimitsMax<TTo>()]` without overflow.
+// `a` and `b` must be unsigned.
+template <typename TTo, typename TA, typename TB>
+HWY_NODISCARD HWY_API constexpr bool SumFits(TA a, TB b) {
+  static_assert(detail::IsSizeLike<TTo>(), "TTo must be a non-bool integer");
+  return SumWithin(a, b, static_cast<uint64_t>(LimitsMax<RemoveCvRef<TTo>>()));
+}
+
+// Casts `val` to `TTo` after asserting that `ScalarFits<TTo>(val)`.
+template <typename TTo, typename TFrom,
+          EnableIf<detail::IsSizeLike<TFrom>()>* = nullptr>
+HWY_NODISCARD HWY_API HWY_CXX14_CONSTEXPR TTo SafeCast(TFrom val) {
+  HWY_DASSERT(ScalarFits<TTo>(val));
+  return static_cast<TTo>(val);
+}
+
+// Returns `static_cast<TTo>(a + b)` after asserting that `a + b` fits in `TTo`.
+// `a` and `b` must be unsigned.
+template <typename TTo, typename TA, typename TB>
+HWY_NODISCARD HWY_API HWY_CXX14_CONSTEXPR TTo SafeAdd(TA a, TB b) {
+  HWY_DASSERT(SumFits<TTo>(a, b));
+  return static_cast<TTo>(static_cast<uint64_t>(a) + static_cast<uint64_t>(b));
 }
 
 namespace detail {
