@@ -147,24 +147,24 @@ vector type.
 Adding an op consists of three steps, listed below. As an example, consider
 https://github.com/google/highway/commit/6c285d64ae50e0f48866072ed3a476fc12df5ab6.
 
-1) Document the new op in `g3doc/quick_reference.md` with its function signature
-and a description of what the op does.
+1.  Document the new op in `quick_reference.md` with its function signature and
+    a description of what the op does.
 
-2) Implement the op in each `ops/*-inl.h` header. There are two exceptions,
-detailed in the previous section: first, `generic_ops-inl.h` is not changed in
-the common case where the op has a unique definition for every target. Second,
-if the op's definition would be duplicated in `x86_256-inl.h` and
-`x86_512-inl.h`, it may be expressed as a template in `x86_128-inl.h` with a
-`class V` template argument, e.g. `TableLookupBytesOr0`.
+2.  Implement the op in each `ops/*-inl.h` header. There are two exceptions,
+    detailed in the previous section: first, `generic_ops-inl.h` is not changed
+    in the common case where the op has a unique definition for every target.
+    Second, if the op's definition would be duplicated in `x86_256-inl.h` and
+    `x86_512-inl.h`, it may be expressed as a template in `x86_128-inl.h` with a
+    `class V` template argument, e.g. `TableLookupBytesOr0`.
 
-3) Pick the appropriate `hwy/tests/*_test.cc` and add a test. This is also a
-three step process: first define a functor that implements the test logic (e.g.
-`TestPlusMinus`), then a function (e.g. `TestAllPlusMinus`) that invokes this
-functor for all lane types the op supports, and finally a line near the end of
-the file that invokes the function for all targets:
-`HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllPlusMinus);`. Note the naming
-convention that the function has the same name as the functor except for the
-`TestAll` prefix.
+3.  Pick the appropriate `hwy/tests/*_test.cc` and add a test. This is also a
+    three step process: first define a functor that implements the test logic
+    (e.g. `TestPlusMinus`), then a function (e.g. `TestAllPlusMinus`) that
+    invokes this functor for all lane types the op supports, and finally a line
+    near the end of the file that invokes the function for all targets:
+    `HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllPlusMinus);`. Note the
+    naming convention that the function has the same name as the functor except
+    for the `TestAll` prefix.
 
 ## Reducing the number of overloads via templates
 

@@ -266,8 +266,7 @@ native x86, or QEMU for RISC-V and Arm) and MSVC 2019 (v19.28, running on native
 x86).
 
 Before releases, we also test on x86 with Clang and GCC, and Armv7/8 via GCC
-cross-compile. See the [testing process](g3doc/release_testing_process.md) for
-details.
+cross-compile. See release_testing_process.md for details.
 
 ### Related modules
 
@@ -361,12 +360,11 @@ The highway port in vcpkg is kept up to date by Microsoft team members and commu
 
 You can use the `benchmark` inside examples/ as a starting point.
 
-A [quick-reference page](g3doc/quick_reference.md) briefly lists all operations
-and their parameters, and the [instruction_matrix](g3doc/instruction_matrix.md)
-indicates the number of instructions per operation.
+quick_reference.md briefly lists all operations and their parameters, and
+instruction_matrix.md indicates the number of instructions per operation.
 
-The [FAQ](g3doc/faq.md) answers questions about portability, API design and
-where to find more information.
+faq.md answers questions about portability, API design and where to find more
+information.
 
 We recommend using full SIMD vectors whenever possible for maximum performance
 portability. To obtain them, pass a `ScalableTag<float>` (or equivalently
@@ -407,19 +405,18 @@ target-specific vector types.
 
 *   For static dispatch, `HWY_TARGET` will be the best available target among
     `HWY_BASELINE_TARGETS`, i.e. those allowed for use by the compiler (see
-    [quick-reference](g3doc/quick_reference.md)). Functions inside
-    `HWY_NAMESPACE` can be called using `HWY_STATIC_DISPATCH(func)(args)` within
-    the same module they are defined in. You can call the function from other
-    modules by wrapping it in a regular function and declaring the regular
-    function in a header.
+    quick_reference.md). Functions inside `HWY_NAMESPACE` can be called using
+    `HWY_STATIC_DISPATCH(func)(args)` within the same module they are defined
+    in. You can call the function from other modules by wrapping it in a regular
+    function and declaring the regular function in a header.
 
 *   For dynamic dispatch, a table of function pointers is generated via the
     `HWY_EXPORT` macro that is used by `HWY_DYNAMIC_DISPATCH(func)(args)` to
     call the best function pointer for the current CPU's supported targets. A
     module is automatically compiled for each target in `HWY_TARGETS` (see
-    [quick-reference](g3doc/quick_reference.md)) if `HWY_TARGET_INCLUDE` is
-    defined and `foreach_target.h` is included. Note that the first invocation
-    of `HWY_DYNAMIC_DISPATCH`, or each call to the pointer returned by the first
+    quick_reference.md) if `HWY_TARGET_INCLUDE` is defined and
+    `foreach_target.h` is included. Note that the first invocation of
+    `HWY_DYNAMIC_DISPATCH`, or each call to the pointer returned by the first
     invocation of `HWY_DYNAMIC_POINTER`, involves some CPU detection overhead.
     You can prevent this by calling the following before any invocation of
     `HWY_DYNAMIC_*`: `hwy::GetChosenTarget().Update(hwy::SupportedTargets());`.
@@ -585,10 +582,11 @@ Highway offers several strategies for loop vectorization:
 
 ## Additional resources
 
-*   [Highway introduction (slides)](g3doc/highway_intro.pdf)
-*   [Overview of instructions per operation on different architectures](g3doc/instruction_matrix.md)
-*   [Design philosophy and comparison](g3doc/design_philosophy.md)
-*   [Implementation details](g3doc/impl_details.md)
+*   Highway introduction (slides): highway_intro.pdf
+*   Overview of instructions per operation on different architectures:
+    instruction_matrix.md
+*   Design philosophy and comparison: design_philosophy.md
+*   Implementation details: impl_details.md
 
 ## Acknowledgments
 

@@ -41,7 +41,7 @@ Prepend to debian/changelog and update mentions of the current version in:
 *   CMakeLists.txt
 *   meson.build
 *   MODULE.bazel
-*   g3doc/faq.md
+*   faq.md
 
 ### Signing the release
 

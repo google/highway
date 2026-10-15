@@ -63,9 +63,8 @@ intrinsic?
 A: Search for the intrinsic in (for example)
 [x86_128-inl.h](https://github.com/google/highway/blob/master/hwy/ops/x86_128-inl.h).
 The Highway op is typically the name of the function that calls the intrinsic.
-See also the
-[quick reference](https://github.com/google/highway/blob/master/g3doc/quick_reference.md)
-which lists all of the Highway ops.
+See also the [quick reference](quick_reference.md) which lists all of the
+Highway ops.
 
 Q1.2: Are there **examples of porting intrinsics to Highway**?
 
@@ -73,7 +72,7 @@ A: See https://github.com/google/highway#examples.
 
 Q1.3: Where do I find documentation for each **platform's intrinsics**?
 
-A: See Intel [guide](https://www.intel.com/content/www/us/en/docs/intrinsics-guide),
+A: See Intel [guide](https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html),
 Arm [guide](https://developer.arm.com/architectures/instruction-sets/intrinsics)
 and [SVE](https://dougallj.github.io/asil/),
 RISC-V V [spec](https://github.com/riscv/riscv-v-spec/blob/master/v-spec.adoc)

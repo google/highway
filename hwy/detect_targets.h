@@ -24,7 +24,7 @@
 //------------------------------------------------------------------------------
 // Optional configuration
 
-// See g3doc/quick_reference.md for documentation of these macros.
+// See quick_reference.md for documentation of these macros.
 
 // Uncomment to override the default baseline determined from predefined macros:
 // #define HWY_BASELINE_TARGETS (HWY_SSE4 | HWY_SCALAR)
