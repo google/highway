@@ -169,16 +169,16 @@ static int64_t supported_mask_ = LimitsMax<int64_t>();
 HWY_DLLEXPORT void DisableTargets(int64_t disabled_targets) {
   supported_mask_ = static_cast<int64_t>(~disabled_targets);
   // This will take effect on the next call to SupportedTargets, which is
-  // called right before GetChosenTarget::Update. However, calling Update here
+  // called right before ChosenTarget::Update. However, calling Update here
   // would make it appear that HWY_DYNAMIC_DISPATCH was called, which we want
   // to check in tests. We instead de-initialize such that the next
-  // HWY_DYNAMIC_DISPATCH calls GetChosenTarget::Update via FunctionCache.
-  GetChosenTarget().DeInit();
+  // HWY_DYNAMIC_DISPATCH calls ChosenTarget::Update via FunctionCache.
+  ChosenTargetRef().DeInit();
 }
 
 HWY_DLLEXPORT void SetSupportedTargetsForTest(int64_t targets) {
   supported_targets_for_test_ = targets;
-  GetChosenTarget().DeInit();  // see comment above
+  ChosenTargetRef().DeInit();  // see comment above
 }
 
 HWY_DLLEXPORT int64_t SupportedTargets() {
@@ -193,17 +193,32 @@ HWY_DLLEXPORT int64_t SupportedTargets() {
     // VectorBytes invokes HWY_DYNAMIC_DISPATCH. To prevent infinite recursion,
     // first set up ChosenTarget. No need to Update() again afterwards with the
     // final targets - that will be done by a caller of this function.
-    GetChosenTarget().Update(targets);
+    ChosenTargetRef().Update(targets);
   }
 
   targets &= supported_mask_;
   return targets == 0 ? HWY_STATIC_TARGET : targets;
 }
 
+// ChosenTargetRef() may be called before dynamic initialization, so the global
+// must be constant-initialized and never destroyed.
+static_assert(IsTriviallyDestructible<ChosenTarget>(),
+              "ChosenTarget must remain trivially destructible");
+
+#if defined(_WIN32) && defined(HWY_SHARED_DEFINE)
 HWY_DLLEXPORT ChosenTarget& GetChosenTarget() {
   static ChosenTarget chosen_target;
   return chosen_target;
 }
+#else
+namespace detail {
+HWY_DLLEXPORT ChosenTarget g_chosen_target;
+}  // namespace detail
+
+HWY_DLLEXPORT ChosenTarget& GetChosenTarget() {
+  return detail::g_chosen_target;
+}
+#endif  // defined(_WIN32) && defined(HWY_SHARED_DEFINE)
 
 #if HWY_ARCH_X86_64 && HWY_HAVE_RUNTIME_DISPATCH
 // Returns whether the CPU supports all `required_flags` (AMX feature bits) and

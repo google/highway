@@ -383,14 +383,47 @@ struct AllExports {
 };
 #endif
 
-// Provides a static member function which is what is called during the first
-// HWY_DYNAMIC_DISPATCH, where GetIndex is still zero, and instantiations of
-// this function are the first entry in the tables created by HWY_EXPORT[_T].
+// Provides:
+// - `Caller`, which HWY_DYNAMIC_DISPATCH evaluates to: a lightweight object
+//   that looks up the function for the chosen target in the HWY_EXPORT table,
+//   either when called or when converted to a function pointer.
+// - `ChooseAndCall`, a static member function which is what is called during
+//   the first HWY_DYNAMIC_DISPATCH, where GetIndex is still zero. Its
+//   instantiations are the first entry in the tables created by HWY_EXPORT[_T].
 template <typename RetType, typename... Args>
 struct FunctionCache {
  public:
   typedef RetType(FuncType)(Args...);
   using FuncPtr = FuncType*;
+
+  template <int64_t kMask>
+  struct Caller {
+    const FuncPtr* table;
+
+    // Returns the function pointer for the chosen target; also allows storing
+    // HWY_DYNAMIC_DISPATCH(F) in a variable of function pointer type.
+    HWY_INLINE operator FuncPtr() const {
+      return table[ChosenTargetRef().GetIndex(kMask)];
+    }
+
+    // Same signature as the exported function, so that the usual implicit
+    // argument conversions apply. By-value arguments are forwarded (moved).
+    HWY_INLINE RetType operator()(Args... args) const {
+      FuncPtr fn = *this;
+      // Prevent the compiler from inlining the target-specific function into
+      // this (baseline-target) caller, which can happen after FDO indirect
+      // call promotion and crashes the LLVM inliner due to incompatible
+      // intrinsics. Note that the attribute applies to all calls in the
+      // statement, hence we resolved `fn` above and ensure the statement only
+      // contains the call (and argument moves).
+#if HWY_COMPILER_CLANG >= 1500 && HWY_HAS_CPP_ATTRIBUTE(clang::noinline)
+      [[clang::noinline]]
+#elif HWY_COMPILER_GCC || HWY_COMPILER_CLANG
+      hwy::PreventElision(fn);  // Older Clang/GCC: hide the callee instead.
+#endif
+      return fn(static_cast<Args&&>(args)...);
+    }
+  };
 
   // A template function that when instantiated has the same signature as the
   // function being called. This function initializes the bit array of targets
@@ -401,31 +434,31 @@ struct FunctionCache {
 #if HWY_DISPATCH_MAP
   template <class ExportsKey, uint64_t kHash, int64_t kMask>
   static RetType ChooseAndCall(Args... args) {
-    ChosenTarget& chosen_target = GetChosenTarget();
+    ChosenTarget& chosen_target = ChosenTargetRef();
     chosen_target.Update(SupportedTargets());
 
     const FuncPtr* table = AllExports::template GetRefToExportsPtr<
         FuncPtr, RemoveCvRef<ExportsKey>, kHash>();
     HWY_ASSERT(table);
 
-    return (table[chosen_target.GetIndex(kMask)])(args...);
+    return (table[chosen_target.GetIndex(kMask)])(static_cast<Args&&>(args)...);
   }
 
 #if !HWY_DISPATCH_WORKAROUND
   template <const FuncPtr* table, int64_t kMask>
   static RetType TableChooseAndCall(Args... args) {
-    ChosenTarget& chosen_target = GetChosenTarget();
+    ChosenTarget& chosen_target = ChosenTargetRef();
     chosen_target.Update(SupportedTargets());
-    return (table[chosen_target.GetIndex(kMask)])(args...);
+    return (table[chosen_target.GetIndex(kMask)])(static_cast<Args&&>(args)...);
   }
 #endif  // !HWY_DISPATCH_WORKAROUND
 
 #else   // !HWY_DISPATCH_MAP: zero-overhead, but requires C++17
   template <const FuncPtr* table, int64_t kMask>
   static RetType ChooseAndCall(Args... args) {
-    ChosenTarget& chosen_target = GetChosenTarget();
+    ChosenTarget& chosen_target = ChosenTargetRef();
     chosen_target.Update(SupportedTargets());
-    return (table[chosen_target.GetIndex(kMask)])(args...);
+    return (table[chosen_target.GetIndex(kMask)])(static_cast<Args&&>(args)...);
   }
 #endif  // HWY_DISPATCH_MAP
 };
@@ -434,6 +467,14 @@ struct FunctionCache {
 template <typename RetType, typename... Args>
 FunctionCache<RetType, Args...> DeduceFunctionCache(RetType (*)(Args...)) {
   return FunctionCache<RetType, Args...>();
+}
+
+template <int64_t kMask, typename RetType, typename... Args>
+constexpr HWY_INLINE
+    typename FunctionCache<RetType, Args...>::template Caller<kMask>
+    MakeCaller(RetType (*const* table)(Args...)) {
+  return
+      typename FunctionCache<RetType, Args...>::template Caller<kMask>{table};
 }
 
 #define HWY_DISPATCH_TABLE(FUNC_NAME) \
@@ -561,24 +602,23 @@ struct AddExport {
 // from inside the function template that calls the template we are exporting.
 // TABLE_NAME must match the one passed to HWY_DYNAMIC_DISPATCH_T. This
 // argument allows multiple exports within one function.
-#define HWY_EXPORT_T(TABLE_NAME, FUNC_NAME)                                   \
-  static const struct {                                                       \
-  } HWY_CONCAT(TABLE_NAME, HighwayDispatchExportsKey) = {};                   \
-  static decltype(&HWY_STATIC_DISPATCH(FUNC_NAME)) const HWY_DISPATCH_TABLE(  \
-      TABLE_NAME)[static_cast<size_t>(HWY_MAX_DYNAMIC_TARGETS + 2)] = {       \
-      /* The first entry in the table initializes the global cache and        \
-       * calls the appropriate function. */                                   \
-      &decltype(hwy::DeduceFunctionCache(&HWY_STATIC_DISPATCH(FUNC_NAME)))::  \
-          template ChooseAndCall<decltype(HWY_CONCAT(                         \
-                                     TABLE_NAME, HighwayDispatchExportsKey)), \
-                                 hwy::FNV(#TABLE_NAME),                       \
-                                 HWY_CHOSEN_TARGET_MASK_TARGETS>,             \
-      HWY_CHOOSE_TARGET_LIST(FUNC_NAME),                                      \
-      HWY_CHOOSE_FALLBACK(FUNC_NAME),                                         \
-  };                                                                          \
-  HWY_MAYBE_UNUSED static hwy::AddExport<hwy::FNV(#TABLE_NAME)> HWY_CONCAT(   \
-      HighwayAddTable, __LINE__)(                                             \
-      HWY_CONCAT(TABLE_NAME, HighwayDispatchExportsKey), #TABLE_NAME,         \
+#define HWY_EXPORT_T(TABLE_NAME, FUNC_NAME)                                  \
+  static const struct {                                                      \
+  } HWY_CONCAT(TABLE_NAME, HighwayDispatchExportsKey) = {};                  \
+  static decltype(&HWY_STATIC_DISPATCH(FUNC_NAME)) const HWY_DISPATCH_TABLE( \
+      TABLE_NAME)[static_cast<size_t>(HWY_MAX_DYNAMIC_TARGETS + 2)] = {      \
+      /* The first entry in the table initializes the global cache and       \
+       * calls the appropriate function. */                                  \
+      &decltype(hwy::DeduceFunctionCache(&HWY_STATIC_DISPATCH(FUNC_NAME))):: \
+          template ChooseAndCall<                                            \
+              decltype(HWY_CONCAT(TABLE_NAME, HighwayDispatchExportsKey)),   \
+              hwy::FNV(#TABLE_NAME), HWY_CHOSEN_TARGET_MASK_TARGETS>,        \
+      HWY_CHOOSE_TARGET_LIST(FUNC_NAME),                                     \
+      HWY_CHOOSE_FALLBACK(FUNC_NAME),                                        \
+  };                                                                         \
+  HWY_MAYBE_UNUSED static hwy::AddExport<hwy::FNV(#TABLE_NAME)> HWY_CONCAT(  \
+      HighwayAddTable, __LINE__)(                                            \
+      HWY_CONCAT(TABLE_NAME, HighwayDispatchExportsKey), #TABLE_NAME,        \
       HWY_DISPATCH_TABLE(TABLE_NAME))
 
 // For non-template functions. Not necessarily invoked within a function, hence
@@ -621,29 +661,17 @@ struct AddExport {
 
 // HWY_DISPATCH_MAP only affects how tables are created, not their usage.
 
+// Evaluates to a hwy::FunctionCache::Caller for the chosen target. It can be
+// called directly (`HWY_DYNAMIC_DISPATCH(F)(args)`) or converted to a function
+// pointer.
+#define HWY_DYNAMIC_DISPATCH(FUNC_NAME)             \
+  (hwy::MakeCaller<HWY_CHOSEN_TARGET_MASK_TARGETS>( \
+      HWY_DISPATCH_TABLE(FUNC_NAME)))
+
 // Evaluates to the function pointer for the chosen target.
-#define HWY_DYNAMIC_POINTER(FUNC_NAME)                              \
-  (HWY_DISPATCH_TABLE(FUNC_NAME)[hwy::GetChosenTarget().GetIndex(   \
+#define HWY_DYNAMIC_POINTER(FUNC_NAME)                            \
+  (HWY_DISPATCH_TABLE(FUNC_NAME)[hwy::ChosenTargetRef().GetIndex( \
       HWY_CHOSEN_TARGET_MASK_TARGETS)])
-
-// Calls the function pointer for the chosen target.
-#if HWY_COMPILER_GCC || HWY_COMPILER_CLANG
-
-// On GCC or Clang, we call hwy::PreventElision(...) to work around a compiler
-// crash where the LLVM inliner crashes due to inlining incompatible intrinsics.
-
-#define HWY_DYNAMIC_DISPATCH(FUNC_NAME)         \
-  __extension__({                               \
-    auto HWY_CONCAT(hwy_tmp_, __LINE__) = *(HWY_DYNAMIC_POINTER(FUNC_NAME)); \
-    hwy::PreventElision(HWY_CONCAT(hwy_tmp_, __LINE__));                     \
-    HWY_CONCAT(hwy_tmp_, __LINE__);                                          \
-  })
-
-#else  // !(HWY_COMPILER_GCC || HWY_COMPILER_CLANG)
-
-#define HWY_DYNAMIC_DISPATCH(FUNC_NAME) (*(HWY_DYNAMIC_POINTER(FUNC_NAME)))
-
-#endif  // HWY_COMPILER_GCC || HWY_COMPILER_CLANG
 
 // Same as DISPATCH, but provide a different arg name to clarify usage.
 #define HWY_DYNAMIC_DISPATCH_T(TABLE_NAME) HWY_DYNAMIC_DISPATCH(TABLE_NAME)

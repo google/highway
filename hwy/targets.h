@@ -337,9 +337,16 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(int64_t target) {
 // HWY_TARGETS; the lowest bit governs the first function pointer (which is
 // special in that it calls FunctionCache, then Update, then dispatches to the
 // actual implementation) in the tables created by HWY_EXPORT. Monostate (see
-// GetChosenTarget), thread-safe except on RVV.
+// ChosenTargetRef), thread-safe except on RVV.
+//
+// NOTE: an instance is a namespace-scope global (see below), and dispatch reads
+// it before any dynamic initialization may have run. This is safe only because
+// the constructor is constexpr (constant initialization) and the destructor is
+// trivial; keep it that way when adding members.
 struct ChosenTarget {
  public:
+  constexpr ChosenTarget() = default;
+
   // Reset bits according to `targets` (typically the return value of
   // SupportedTargets()). Postcondition: IsInitialized() == true.
   void Update(int64_t targets) {
@@ -366,21 +373,40 @@ struct ChosenTarget {
   }
 
  private:
+  // Relaxed is sufficient: the mask only selects an index into dispatch tables
+  // that are constant-initialized; it does not publish any other memory.
 #if defined(HWY_NO_LIBCXX)
   int64_t LoadMask() const { return mask_; }
   void StoreMask(int64_t mask) { mask_ = mask; }
 
   int64_t mask_{1};  // Initialized to 1 so GetIndex() returns 0.
 #else
-  int64_t LoadMask() const { return mask_.load(); }
-  void StoreMask(int64_t mask) { mask_.store(mask); }
+  int64_t LoadMask() const { return mask_.load(std::memory_order_relaxed); }
+  void StoreMask(int64_t mask) { mask_.store(mask, std::memory_order_relaxed); }
 
   std::atomic<int64_t> mask_{1};  // Initialized to 1 so GetIndex() returns 0.
-#endif  // HWY_ARCH_RISCV
+#endif  // HWY_NO_LIBCXX
 };
 
-// For internal use (e.g. by FunctionCache and DisableTargets).
+// For internal use (e.g. by DisableTargets). Defined in targets.cc and retained
+// for ABI compatibility; HWY_DYNAMIC_DISPATCH instead uses ChosenTargetRef.
 HWY_DLLEXPORT ChosenTarget& GetChosenTarget();
+
+// On Windows with HWY_SHARED_DEFINE (which Bazel also sets for static builds),
+// __declspec(dllimport) on data breaks static linking and adds an IAT load, so
+// route through the exported function instead.
+#if defined(_WIN32) && defined(HWY_SHARED_DEFINE)
+HWY_INLINE ChosenTarget& ChosenTargetRef() { return GetChosenTarget(); }
+#else
+namespace detail {
+// Constant-initialized (see ChosenTarget), hence safe to access at any time.
+extern HWY_DLLEXPORT ChosenTarget g_chosen_target;
+}  // namespace detail
+
+// Avoids a function call per HWY_DYNAMIC_DISPATCH, which lets the compiler emit
+// a frameless tail-jump through the dispatch table.
+HWY_INLINE ChosenTarget& ChosenTargetRef() { return detail::g_chosen_target; }
+#endif  // defined(_WIN32) && defined(HWY_SHARED_DEFINE)
 
 // Returns true if the CPU and OS support AMX-TILE and AMX-BF16 instructions
 // (used by Tile64BMatMul). AMX-INT8 is also required because `__tile_loadd`
