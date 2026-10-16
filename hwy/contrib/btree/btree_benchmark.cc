@@ -51,7 +51,7 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
-// Set to true to sweep through multiple scale tiers (10K L2, 100K L3, 1M RAM).
+// Set to true to sweep through multiple scale tiers
 HWY_INLINE_VAR constexpr bool kSweepSizes = false;
 
 static size_t AllocatedBefore() {
@@ -89,9 +89,9 @@ void RunBenchmarkSuite(size_t num_keys) {
   printf(
       "========================================================================"
       "================================================\n");
-  printf("%-18s %12s %12s %12s %12s %14s %14s %18s\n", "Container",
-         "Build (ms)", "Find (ns)", "LB (ns)", "UB (ns)", "Batch Find",
-         "Batch LB", "Dyn Ins/Del (ns)");
+  printf("%-17s %11s %10s %10s %10s %10s %12s %12s %18s\n", "Container",
+         "Build (ms)", "Find (ns)", "LB (ns)", "UB (ns)", "Iter Walk",
+         "Batch Find", "Batch LB", "Dyn Ins/Del (ns)");
   printf(
       "------------------------------------------------------------------------"
       "------------------------------------------------\n");
@@ -214,6 +214,41 @@ void RunBenchmarkSuite(size_t num_keys) {
   const double absl_ub_ns = (u2 - u1) * 1e9 / kNumQueries;
   const double hwy_ub_ns = (u3 - u2) * 1e9 / kNumQueries;
 
+  // 4c. Full Ordered Iteration (begin -> end)
+  const size_t kIterPasses =
+      std::max<size_t>(10, (10 * kNumQueries) / num_keys);
+  const size_t kTotalIterSteps = kIterPasses * num_keys;
+  uint64_t hwy_iter_sum = 0, absl_iter_sum = 0, std_iter_sum = 0;
+
+  const double it0 = hwy::platform::Now();
+  for (size_t p = 0; p < kIterPasses; ++p) {
+    for (KeyT k : std_tree) {
+      std_iter_sum += k;
+    }
+  }
+  hwy::PreventElision(std_iter_sum);
+  const double it1 = hwy::platform::Now();
+
+  for (size_t p = 0; p < kIterPasses; ++p) {
+    for (KeyT k : absl_tree) {
+      absl_iter_sum += k;
+    }
+  }
+  hwy::PreventElision(absl_iter_sum);
+  const double it2 = hwy::platform::Now();
+
+  for (size_t p = 0; p < kIterPasses; ++p) {
+    for (KeyT k : hwy_tree) {
+      hwy_iter_sum += k;
+    }
+  }
+  hwy::PreventElision(hwy_iter_sum);
+  const double it3 = hwy::platform::Now();
+
+  const double std_iter_ns = (it1 - it0) * 1e9 / kTotalIterSteps;
+  const double absl_iter_ns = (it2 - it1) * 1e9 / kTotalIterSteps;
+  const double hwy_iter_ns = (it3 - it2) * 1e9 / kTotalIterSteps;
+
   // 5. Batch Point Lookups (ContainsBatch)
   auto batch_found = std::make_unique<bool[]>(kNumQueries);
   const double b0 = hwy::platform::Now();
@@ -313,29 +348,31 @@ void RunBenchmarkSuite(size_t num_keys) {
            hwy_erase_ns);
 
   printf(
-      "%-18s %10.1f ms %10.1f ns %10.1f ns %10.1f ns %12.1f ns "
-      "%12.1f ns %18s\n",
-      "std::set", std_build_ms, std_find_ns, std_lb_ns, std_ub_ns, std_find_ns,
-      std_lb_ns, std_ins_del);
+      "%-17s %8.1f ms %7.1f ns %7.1f ns %7.1f ns %7.2f ns %9.1f ns "
+      "%9.1f ns %18s\n",
+      "std::set", std_build_ms, std_find_ns, std_lb_ns, std_ub_ns, std_iter_ns,
+      std_find_ns, std_lb_ns, std_ins_del);
   printf(
-      "%-18s %10.1f ms %10.1f ns %10.1f ns %10.1f ns %12.1f ns "
-      "%12.1f ns %18s\n",
+      "%-17s %8.1f ms %7.1f ns %7.1f ns %7.1f ns %7.2f ns %9.1f ns "
+      "%9.1f ns %18s\n",
       "absl::btree_set", absl_build_ms, absl_find_ns, absl_lb_ns, absl_ub_ns,
-      absl_find_ns, absl_lb_ns, absl_ins_del);
+      absl_iter_ns, absl_find_ns, absl_lb_ns, absl_ins_del);
   printf(
-      "%-18s %10.1f ms %10.1f ns %10.1f ns %10.1f ns %12.1f ns "
-      "%12.1f ns %18s\n",
+      "%-17s %8.1f ms %7.1f ns %7.1f ns %7.1f ns %7.2f ns %9.1f ns "
+      "%9.1f ns %18s\n",
       "hwy::btree_set", hwy_build_ms, hwy_find_ns, hwy_lb_ns, hwy_ub_ns,
-      hwy_batch_find_ns, hwy_batch_lb_ns, hwy_ins_del);
+      hwy_iter_ns, hwy_batch_find_ns, hwy_batch_lb_ns, hwy_ins_del);
 
-  char build_sp[32], find_sp[32], lb_sp[32], ub_sp[32], bfind_sp[32],
-      blb_sp[32], ins_del_sp[32];
+  char build_sp[32], find_sp[32], lb_sp[32], ub_sp[32], iter_sp[32],
+      bfind_sp[32], blb_sp[32], ins_del_sp[32];
   snprintf(build_sp, sizeof(build_sp), "(%.1fx)",
            absl_build_ms / (hwy_build_ms + 1e-6));
   snprintf(find_sp, sizeof(find_sp), "(%.1fx)",
            absl_find_ns / (hwy_find_ns + 1e-6));
   snprintf(lb_sp, sizeof(lb_sp), "(%.1fx)", absl_lb_ns / (hwy_lb_ns + 1e-6));
   snprintf(ub_sp, sizeof(ub_sp), "(%.1fx)", absl_ub_ns / (hwy_ub_ns + 1e-6));
+  snprintf(iter_sp, sizeof(iter_sp), "(%.1fx)",
+           absl_iter_ns / (hwy_iter_ns + 1e-6));
   snprintf(bfind_sp, sizeof(bfind_sp), "(%.1fx)",
            absl_find_ns / (hwy_batch_find_ns + 1e-6));
   snprintf(blb_sp, sizeof(blb_sp), "(%.1fx)",
@@ -344,8 +381,9 @@ void RunBenchmarkSuite(size_t num_keys) {
            absl_ins_ns / (hwy_ins_ns + 1e-6),
            absl_erase_ns / (hwy_erase_ns + 1e-6));
 
-  printf("%-18s %12s %12s %12s %12s %14s %14s %18s\n", "  faster vs absl",
-         build_sp, find_sp, lb_sp, ub_sp, bfind_sp, blb_sp, ins_del_sp);
+  printf("%-17s %11s %10s %10s %10s %10s %12s %12s %18s\n", "  faster vs absl",
+         build_sp, find_sp, lb_sp, ub_sp, iter_sp, bfind_sp, blb_sp,
+         ins_del_sp);
   printf(
       "========================================================================"
       "================================================\n");
@@ -356,6 +394,8 @@ void RunBenchmarkSuite(size_t num_keys) {
   HWY_ASSERT(std_lb_sum == absl_lb_sum);
   HWY_ASSERT(hwy_lb_sum == absl_lb_sum);
   HWY_ASSERT(batch_lb_sum == absl_lb_sum);
+  HWY_ASSERT(std_iter_sum == absl_iter_sum);
+  HWY_ASSERT(hwy_iter_sum == absl_iter_sum);
 }
 
 template <typename KeyT, typename ValueT>
@@ -374,9 +414,9 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   printf(
       "========================================================================"
       "================================================\n");
-  printf("%-18s %12s %12s %12s %12s %14s %14s %18s\n", "Container",
-         "Build (ms)", "Find (ns)", "LB (ns)", "UB (ns)", "Batch Find",
-         "Batch LB", "Dyn Ins/Del (ns)");
+  printf("%-17s %11s %10s %10s %10s %10s %12s %12s %18s\n", "Container",
+         "Build (ms)", "Find (ns)", "LB (ns)", "UB (ns)", "Iter Walk",
+         "Batch Find", "Batch LB", "Dyn Ins/Del (ns)");
   printf(
       "------------------------------------------------------------------------"
       "------------------------------------------------\n");
@@ -513,6 +553,44 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   const double absl_ub_ns = (u2 - u1) * 1e9 / kNumQueries;
   const double hwy_ub_ns = (u3 - u2) * 1e9 / kNumQueries;
 
+  // 4c. Full Ordered Iteration (begin -> end)
+  const size_t kIterPasses =
+      std::max<size_t>(10, (10 * kNumQueries) / num_keys);
+  const size_t kTotalIterSteps = kIterPasses * num_keys;
+  uint64_t hwy_iter_sum = 0, absl_iter_sum = 0, std_iter_sum = 0;
+
+  const double it0 = hwy::platform::Now();
+  for (size_t p = 0; p < kIterPasses; ++p) {
+    for (const auto& kv : std_map) {
+      std_iter_sum +=
+          static_cast<uint64_t>(kv.first) + static_cast<uint64_t>(kv.second);
+    }
+  }
+  hwy::PreventElision(std_iter_sum);
+  const double it1 = hwy::platform::Now();
+
+  for (size_t p = 0; p < kIterPasses; ++p) {
+    for (const auto& kv : absl_map) {
+      absl_iter_sum +=
+          static_cast<uint64_t>(kv.first) + static_cast<uint64_t>(kv.second);
+    }
+  }
+  hwy::PreventElision(absl_iter_sum);
+  const double it2 = hwy::platform::Now();
+
+  for (size_t p = 0; p < kIterPasses; ++p) {
+    for (const auto& kv : hwy_map) {
+      hwy_iter_sum +=
+          static_cast<uint64_t>(kv.first) + static_cast<uint64_t>(kv.second);
+    }
+  }
+  hwy::PreventElision(hwy_iter_sum);
+  const double it3 = hwy::platform::Now();
+
+  const double std_iter_ns = (it1 - it0) * 1e9 / kTotalIterSteps;
+  const double absl_iter_ns = (it2 - it1) * 1e9 / kTotalIterSteps;
+  const double hwy_iter_ns = (it3 - it2) * 1e9 / kTotalIterSteps;
+
   // 5. Batch Value Lookups (LookupBatch)
   auto batch_found = std::make_unique<bool[]>(kNumQueries);
   std::vector<ValueT> batch_values(kNumQueries);
@@ -614,29 +692,31 @@ void RunMapBenchmarkSuite(size_t num_keys) {
            hwy_erase_ns);
 
   printf(
-      "%-18s %10.1f ms %10.1f ns %10.1f ns %10.1f ns %12.1f ns "
-      "%12.1f ns %18s\n",
-      "std::map", std_build_ms, std_find_ns, std_lb_ns, std_ub_ns, std_find_ns,
-      std_lb_ns, std_ins_del);
+      "%-17s %8.1f ms %7.1f ns %7.1f ns %7.1f ns %7.2f ns %9.1f ns "
+      "%9.1f ns %18s\n",
+      "std::map", std_build_ms, std_find_ns, std_lb_ns, std_ub_ns, std_iter_ns,
+      std_find_ns, std_lb_ns, std_ins_del);
   printf(
-      "%-18s %10.1f ms %10.1f ns %10.1f ns %10.1f ns %12.1f ns "
-      "%12.1f ns %18s\n",
+      "%-17s %8.1f ms %7.1f ns %7.1f ns %7.1f ns %7.2f ns %9.1f ns "
+      "%9.1f ns %18s\n",
       "absl::btree_map", absl_build_ms, absl_find_ns, absl_lb_ns, absl_ub_ns,
-      absl_find_ns, absl_lb_ns, absl_ins_del);
+      absl_iter_ns, absl_find_ns, absl_lb_ns, absl_ins_del);
   printf(
-      "%-18s %10.1f ms %10.1f ns %10.1f ns %10.1f ns %12.1f ns "
-      "%12.1f ns %18s\n",
+      "%-17s %8.1f ms %7.1f ns %7.1f ns %7.1f ns %7.2f ns %9.1f ns "
+      "%9.1f ns %18s\n",
       "hwy::btree_map", hwy_build_ms, hwy_find_ns, hwy_lb_ns, hwy_ub_ns,
-      hwy_batch_find_ns, hwy_batch_lb_ns, hwy_ins_del);
+      hwy_iter_ns, hwy_batch_find_ns, hwy_batch_lb_ns, hwy_ins_del);
 
-  char build_sp[32], find_sp[32], lb_sp[32], ub_sp[32], bfind_sp[32],
-      blb_sp[32], ins_del_sp[32];
+  char build_sp[32], find_sp[32], lb_sp[32], ub_sp[32], iter_sp[32],
+      bfind_sp[32], blb_sp[32], ins_del_sp[32];
   snprintf(build_sp, sizeof(build_sp), "(%.1fx)",
            absl_build_ms / (hwy_build_ms + 1e-6));
   snprintf(find_sp, sizeof(find_sp), "(%.1fx)",
            absl_find_ns / (hwy_find_ns + 1e-6));
   snprintf(lb_sp, sizeof(lb_sp), "(%.1fx)", absl_lb_ns / (hwy_lb_ns + 1e-6));
   snprintf(ub_sp, sizeof(ub_sp), "(%.1fx)", absl_ub_ns / (hwy_ub_ns + 1e-6));
+  snprintf(iter_sp, sizeof(iter_sp), "(%.1fx)",
+           absl_iter_ns / (hwy_iter_ns + 1e-6));
   snprintf(bfind_sp, sizeof(bfind_sp), "(%.1fx)",
            absl_find_ns / (hwy_batch_find_ns + 1e-6));
   snprintf(blb_sp, sizeof(blb_sp), "(%.1fx)",
@@ -645,8 +725,9 @@ void RunMapBenchmarkSuite(size_t num_keys) {
            absl_ins_ns / (hwy_ins_ns + 1e-6),
            absl_erase_ns / (hwy_erase_ns + 1e-6));
 
-  printf("%-18s %12s %12s %12s %12s %14s %14s %18s\n", "  faster vs absl",
-         build_sp, find_sp, lb_sp, ub_sp, bfind_sp, blb_sp, ins_del_sp);
+  printf("%-17s %11s %10s %10s %10s %10s %12s %12s %18s\n", "  faster vs absl",
+         build_sp, find_sp, lb_sp, ub_sp, iter_sp, bfind_sp, blb_sp,
+         ins_del_sp);
   printf(
       "========================================================================"
       "================================================\n");
@@ -656,6 +737,8 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   HWY_ASSERT(std_lb_sum == absl_lb_sum);
   HWY_ASSERT(hwy_lb_sum == absl_lb_sum);
   HWY_ASSERT(batch_lb_sum == absl_lb_sum);
+  HWY_ASSERT(std_iter_sum == absl_iter_sum);
+  HWY_ASSERT(hwy_iter_sum == absl_iter_sum);
 }
 
 // ---------------------------------------------------------------------------
@@ -850,6 +933,8 @@ static void PrintBenchmarkLegend() {
       "tree (1M random queries sampled from [0, 10*N], ~10% hit rate).",
       "  * LB / UB (ns)      : Serial lower_bound / upper_bound range search "
       "latency on the bulk-loaded tree (1M random queries).",
+      "  * Iter Walk (ns)    : Per-element latency during full ordered "
+      "begin()-to-end() traversal of the bulk-loaded tree.",
       "  * Batch Find (ns)   : Time per query when querying a batch of 1M "
       "keys (sequential loop for std/absl, native 8-way pipelined SIMD batch "
       "for hwy).",
@@ -907,7 +992,10 @@ static void RunAll(size_t n) {
 
 HWY_NOINLINE void BenchmarkAll() {
   if constexpr (kSweepSizes) {
-    for (size_t n : {10000, 100000, 1000000}) RunAll(n);
+    for (size_t n : {10000, 20000, 30000, 50000, 70000, 100000, 200000, 300000,
+                     500000, 700000, 1000000, 2000000, 4000000}) {
+      RunAll(n);
+    }
   } else {
     // Standard representative L3-scale (100K keys)
     RunAll(100000);
