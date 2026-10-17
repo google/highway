@@ -15190,6 +15190,20 @@ HWY_INLINE VFromD<D> NativeLoadExpand(MFromD<D> mask, D /* d */,
   return VFromD<D>{_mm_maskz_expandloadu_epi16(mask.raw, unaligned)};
 }
 
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U8_D(D)>
+HWY_INLINE VFromD<D> NativeMaskedLoadExpandOr(
+    VFromD<D> no, MFromD<D> mask, D /* d */,
+    const uint8_t* HWY_RESTRICT unaligned) {
+  return VFromD<D>{_mm_mask_expandloadu_epi8(no.raw, mask.raw, unaligned)};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U16_D(D)>
+HWY_INLINE VFromD<D> NativeMaskedLoadExpandOr(
+    VFromD<D> no, MFromD<D> mask, D /* d */,
+    const uint16_t* HWY_RESTRICT unaligned) {
+  return VFromD<D>{_mm_mask_expandloadu_epi16(no.raw, mask.raw, unaligned)};
+}
+
 #endif  // HWY_TARGET <= HWY_AVX3_DL
 
 template <size_t N>
@@ -15214,6 +15228,20 @@ template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U64_D(D)>
 HWY_INLINE VFromD<D> NativeLoadExpand(MFromD<D> mask, D /* d */,
                                       const uint64_t* HWY_RESTRICT unaligned) {
   return VFromD<D>{_mm_maskz_expandloadu_epi64(mask.raw, unaligned)};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U32_D(D)>
+HWY_INLINE VFromD<D> NativeMaskedLoadExpandOr(
+    VFromD<D> no, MFromD<D> mask, D /* d */,
+    const uint32_t* HWY_RESTRICT unaligned) {
+  return VFromD<D>{_mm_mask_expandloadu_epi32(no.raw, mask.raw, unaligned)};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U64_D(D)>
+HWY_INLINE VFromD<D> NativeMaskedLoadExpandOr(
+    VFromD<D> no, MFromD<D> mask, D /* d */,
+    const uint64_t* HWY_RESTRICT unaligned) {
+  return VFromD<D>{_mm_mask_expandloadu_epi64(no.raw, mask.raw, unaligned)};
 }
 
 }  // namespace detail
@@ -15268,6 +15296,46 @@ HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
   return BitCast(d, detail::NativeLoadExpand(mu, du, pu));
 #else
   return Expand(LoadU(d, unaligned), mask);
+#endif
+}
+
+// ------------------------------ MaskedLoadExpandOr
+
+#ifdef HWY_NATIVE_LOAD_EXPAND_OR
+#undef HWY_NATIVE_LOAD_EXPAND_OR
+#else
+#define HWY_NATIVE_LOAD_EXPAND_OR
+#endif
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16),
+          HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2))>
+HWY_API VFromD<D> MaskedLoadExpandOr(VFromD<D> no, MFromD<D> mask, D d,
+                                     const TFromD<D>* HWY_RESTRICT unaligned) {
+#if HWY_TARGET <= HWY_AVX3_DL  // VBMI2
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  const TU* HWY_RESTRICT pu = reinterpret_cast<const TU*>(unaligned);
+  const MFromD<decltype(du)> mu = RebindMask(du, mask);
+  return BitCast(d,
+                 detail::NativeMaskedLoadExpandOr(BitCast(du, no), mu, du, pu));
+#else
+  return IfThenElse(mask, LoadExpand(mask, d, unaligned), no);
+#endif
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16),
+          HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 4) | (1 << 8))>
+HWY_API VFromD<D> MaskedLoadExpandOr(VFromD<D> no, MFromD<D> mask, D d,
+                                     const TFromD<D>* HWY_RESTRICT unaligned) {
+#if HWY_TARGET <= HWY_AVX3
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  const TU* HWY_RESTRICT pu = reinterpret_cast<const TU*>(unaligned);
+  const MFromD<decltype(du)> mu = RebindMask(du, mask);
+  return BitCast(d,
+                 detail::NativeMaskedLoadExpandOr(BitCast(du, no), mu, du, pu));
+#else
+  return IfThenElse(mask, LoadExpand(mask, d, unaligned), no);
 #endif
 }
 

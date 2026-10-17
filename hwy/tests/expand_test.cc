@@ -69,18 +69,22 @@ struct TestExpand {
       const size_t misalign = static_cast<size_t>(frac) * N / 4;
 
       auto in_lanes = AllocateAligned<T>(N);
+      auto no_lanes = AllocateAligned<T>(N);
       auto mask_lanes = AllocateAligned<TI>(N);
       auto expected = AllocateAligned<T>(N);
+      auto expected_or = AllocateAligned<T>(N);
       auto actual_a = AllocateAligned<T>(misalign + N);
       auto bits = AllocateAligned<uint8_t>(bits_size);
-      HWY_ASSERT(in_lanes && mask_lanes && expected && actual_a && bits);
+      HWY_ASSERT(in_lanes && no_lanes && mask_lanes && expected &&
+                 expected_or && actual_a && bits);
 
       T* actual_u = actual_a.get() + misalign;
       ZeroBytes(bits.get(), bits_size);  // Prevents MSAN error.
 
-      // Random input vector, used in all iterations.
+      // Random input vectors, used in all iterations.
       for (size_t i = 0; i < N; ++i) {
         in_lanes[i] = RandomFiniteValue<T>(&rng);
+        no_lanes[i] = RandomFiniteValue<T>(&rng);
       }
 
       // Each lane should have a chance of having mask=true.
@@ -89,13 +93,17 @@ struct TestExpand {
         for (size_t i = 0; i < N; ++i) {
           mask_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
           if (mask_lanes[i] > 0) {
-            expected[i] = in_lanes[in_pos++];
+            const T val = in_lanes[in_pos++];
+            expected[i] = val;
+            expected_or[i] = val;
           } else {
             expected[i] = ConvertScalarTo<T>(0);
+            expected_or[i] = no_lanes[i];
           }
         }
 
         const auto in = Load(d, in_lanes.get());
+        const auto no = Load(d, no_lanes.get());
         const auto mask =
             RebindMask(d, Gt(Load(di, mask_lanes.get()), Zero(di)));
         StoreMaskBits(d, mask, bits.get());
@@ -111,6 +119,12 @@ struct TestExpand {
         StoreU(LoadExpand(mask, d, in_lanes.get()), d, actual_u);
         CheckExpanded(d, di, "LoadExpand", in_lanes, mask_lanes, expected,
                       actual_u, __LINE__);
+
+        // MaskedLoadExpandOr
+        ZeroBytes(actual_u, N * sizeof(T));
+        StoreU(MaskedLoadExpandOr(no, mask, d, in_lanes.get()), d, actual_u);
+        CheckExpanded(d, di, "MaskedLoadExpandOr", in_lanes, mask_lanes,
+                      expected_or, actual_u, __LINE__);
       }  // rep
     }    // frac
   }      // operator()
