@@ -865,7 +865,9 @@ using RemovePtr = typename RemovePtrT<T>::type;
 
 // Empty struct used as a size tag type.
 template <size_t N>
-struct SizeTag {};
+struct SizeTag {
+  static constexpr size_t value = N;
+};
 
 template <class T>
 class DeclValT {
