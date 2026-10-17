@@ -335,6 +335,8 @@ AlignedPtr<T> RoundTestCases(T /*unused*/, D d, size_t& padded) {
       // +/- 2^31 or 2^63
       ConvertScalarTo<T>(-static_cast<double>(LimitsMin<MakeSigned<T>>())),
       ConvertScalarTo<T>(static_cast<double>(LimitsMin<MakeSigned<T>>())),
+      // just inside the 32-bit limit: rounds to -2147483647, not to INT_MIN
+      ConvertScalarTo<T>(-2147483647.4), ConvertScalarTo<T>(2147483647.4),
       // +/- infinity
       GetLane(Inf(d)), GetLane(Neg(Inf(d))),
       // qNaN
@@ -392,7 +394,7 @@ class TestNearestInt {
     auto expected = AllocateAligned<TI>(padded);
     HWY_ASSERT(expected);
 
-    constexpr double kMax = static_cast<double>(LimitsMax<TI>());
+    constexpr double kMax = -static_cast<double>(LimitsMin<TI>());
     for (size_t i = 0; i < padded; ++i) {
       if (ScalarIsNaN(in[i])) {
         // We replace NaN with 0 below (no_nan)
@@ -442,7 +444,7 @@ struct TestDemoteToNearestInt {
     auto expected = AllocateAligned<TI>(padded);
     HWY_ASSERT(expected);
 
-    constexpr double kMax = static_cast<double>(LimitsMax<TI>());
+    constexpr double kMax = -static_cast<double>(LimitsMin<TI>());
     for (size_t i = 0; i < padded; ++i) {
       if (ScalarIsNaN(in[i])) {
         // We replace NaN with 0 below (no_nan)
