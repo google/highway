@@ -1115,14 +1115,19 @@ HWY_API VFromD<DI32> DemoteToNearestInt(DI32 /*di32*/,
   for (size_t i = 0; i < N; ++i) {
     const bool signbit = ScalarSignBit(v.raw[i]);
 
-    // Check if too large to cast or NaN
-    if (!(abs.raw[i] <= ConvertScalarTo<T>(LimitsMax<TI>()))) {
+    // Out of range if |v| >= 2^31, or NaN. Compare against the exact power of
+    // two: values between LimitsMax and 2^31 still round to an int32.
+    if (!(abs.raw[i] < -ConvertScalarTo<T>(LimitsMin<TI>()))) {
       ret.raw[i] = signbit ? LimitsMin<TI>() : LimitsMax<TI>();
       continue;
     }
 
+    // Clamp so that adding the bias below stays within the int32 range.
+    const T clamped = v.raw[i] < ConvertScalarTo<T>(LimitsMax<TI>())
+                          ? v.raw[i]
+                          : ConvertScalarTo<T>(LimitsMax<TI>());
     const T bias = ConvertScalarTo<T>(v.raw[i] < k0 ? -0.5 : 0.5);
-    const TI rounded = ConvertScalarTo<TI>(v.raw[i] + bias);
+    const TI rounded = ConvertScalarTo<TI>(clamped + bias);
     if (rounded == 0) {
       ret.raw[i] = 0;
       continue;
@@ -1130,7 +1135,7 @@ HWY_API VFromD<DI32> DemoteToNearestInt(DI32 /*di32*/,
     const T rounded_f = ConvertScalarTo<T>(rounded);
     // Round to even
     if ((rounded & 1) &&
-        ScalarAbs(rounded_f - v.raw[i]) == ConvertScalarTo<T>(0.5)) {
+        ScalarAbs(rounded_f - clamped) == ConvertScalarTo<T>(0.5)) {
       ret.raw[i] = rounded - (signbit ? -1 : 1);
       continue;
     }

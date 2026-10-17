@@ -899,18 +899,23 @@ HWY_API VFromD<DI32> DemoteToNearestInt(DI32 /*di32*/, const Vec1<double> v) {
   const T abs = Abs(v).raw;
   const bool is_sign = ScalarSignBit(v.raw);
 
-  // Check if too large to cast or NaN
-  if (!(abs <= ConvertScalarTo<T>(LimitsMax<TI>()))) {
+  // Out of range if |v| >= 2^31, or NaN. Compare against the exact power of
+  // two: values between LimitsMax and 2^31 still round to an int32.
+  if (!(abs < -ConvertScalarTo<T>(LimitsMin<TI>()))) {
     return Vec1<TI>(is_sign ? LimitsMin<TI>() : LimitsMax<TI>());
   }
 
+  // Clamp so that adding the bias below stays within the int32 range.
+  const T clamped = v.raw < ConvertScalarTo<T>(LimitsMax<TI>())
+                        ? v.raw
+                        : ConvertScalarTo<T>(LimitsMax<TI>());
   const T bias =
       ConvertScalarTo<T>(v.raw < ConvertScalarTo<T>(0.0) ? -0.5 : 0.5);
-  const TI rounded = ConvertScalarTo<TI>(v.raw + bias);
+  const TI rounded = ConvertScalarTo<TI>(clamped + bias);
   if (rounded == 0) return Vec1<TI>(0);
   TI offset = 0;
   // Round to even
-  if ((rounded & 1) && ScalarAbs(ConvertScalarTo<T>(rounded) - v.raw) ==
+  if ((rounded & 1) && ScalarAbs(ConvertScalarTo<T>(rounded) - clamped) ==
                            ConvertScalarTo<T>(0.5)) {
     offset = is_sign ? -1 : 1;
   }
