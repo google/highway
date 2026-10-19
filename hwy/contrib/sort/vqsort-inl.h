@@ -2232,7 +2232,7 @@ void PartialSort(D d, Traits st, T* HWY_RESTRICT keys, size_t num, size_t k,
   // lands in the (already-ordered) NaN region, so clamp the range to num_valid.
   const size_t num_valid = num - detail::PartitionNaNToBack(d, st, keys, num);
   const size_t k_valid = (k < num_valid) ? k : num_valid;
-  if (num_valid == 0) return;
+  if (k_valid == 0) return;
 
 #if VQSORT_ENABLED || HWY_IDE
   if (!detail::HandleSpecialCases(d, st, keys, num_valid, buf)) {  // TODO
