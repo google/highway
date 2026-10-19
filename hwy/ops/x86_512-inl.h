@@ -9376,6 +9376,14 @@ HWY_API void Tile64BLoad(__tile1024i* HWY_RESTRICT dst,
 HWY_API void Tile64BStore(const __tile1024i* HWY_RESTRICT src,
                           void* HWY_RESTRICT base, size_t stride_bytes) {
   __tile_stored(base, stride_bytes, *src);
+#if HWY_IS_MSAN
+  // MSAN does not instrument AMX tile stores, so mark the written rows as
+  // initialized to avoid false use-of-uninitialized-value reports.
+  for (size_t r = 0; r < src->row; ++r) {
+    detail::MaybeUnpoison(static_cast<uint8_t*>(base) + r * stride_bytes,
+                          src->col);
+  }
+#endif
 }
 
 // Computes C += A * B where A is [rows x 32] BF16, B is [16 x 32] BF16 in
