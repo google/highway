@@ -15,6 +15,10 @@
 #include "hwy/contrib/btree/btree_nodes.h"
 #include "hwy/tests/test_util-inl.h"
 
+#ifndef HWY_BTREE_SWEEP_ALL
+#define HWY_BTREE_SWEEP_ALL 0
+#endif
+
 // Per-target include guard
 // clang-format off
 #if defined(HIGHWAY_HWY_CONTRIB_BTREE_BTREE_TEST_UTIL_INL_H_) == defined(HWY_TARGET_TOGGLE)  // NOLINT
@@ -214,6 +218,87 @@ TreeT BuildTreeFromValues(const std::vector<ValueT>& values,
 // BTreeChecker: Continuous Invariant and Differential Verification
 // -----------------------------------------------------------------------------
 
+template <typename LeafNodeT>
+void VerifyLeafNode(const LeafNodeT* leaf) {
+  using StorageKeyT = typename LeafNodeT::StorageKeyT;
+  HWY_ASSERT(leaf != nullptr);
+  const size_t count = leaf->NumKeys();
+
+  if (count == 0) {
+    HWY_ASSERT_EQ(leaf->base_key, StorageKeyT{0});
+    for (size_t b = 0; b < LeafNodeT::kDataBytes; ++b) {
+      HWY_ASSERT_EQ(leaf->KeyData()[b], uint8_t{0xFF});
+    }
+    return;
+  }
+
+  const uint8_t mode = leaf->BitMode();
+  if (mode == kMode8Bit) {
+    HWY_ASSERT(count <= HWY_MIN(LeafNodeT::kMax8, size_t{256}));
+    const auto* offsets = HWY_RCAST_ALIGNED(const uint8_t*, leaf->KeyData());
+    HWY_ASSERT_EQ(offsets[0], uint8_t{0});
+    for (size_t k = 1; k < count; ++k) {
+      HWY_ASSERT(offsets[k - 1] < offsets[k]);
+    }
+    HWY_ASSERT(leaf->base_key <=
+               LimitsMax<StorageKeyT>() -
+                   static_cast<StorageKeyT>(offsets[count - 1]));
+    for (size_t k = count; k < LeafNodeT::kMax8; ++k) {
+      HWY_ASSERT_EQ(offsets[k], uint8_t{0xFF});
+    }
+  } else if (mode == kMode16Bit) {
+    HWY_ASSERT(count <= LeafNodeT::kMax16);
+    const auto* offsets = HWY_RCAST_ALIGNED(const uint16_t*, leaf->KeyData());
+    HWY_ASSERT_EQ(offsets[0], uint16_t{0});
+    for (size_t k = 1; k < count; ++k) {
+      HWY_ASSERT(offsets[k - 1] < offsets[k]);
+    }
+    HWY_ASSERT(leaf->base_key <=
+               LimitsMax<StorageKeyT>() -
+                   static_cast<StorageKeyT>(offsets[count - 1]));
+    for (size_t k = count; k < LeafNodeT::kMax16; ++k) {
+      HWY_ASSERT_EQ(offsets[k], uint16_t{0xFFFF});
+    }
+  } else if (mode == kMode32Bit) {
+    HWY_ASSERT(count <= LeafNodeT::kMax32);
+    if constexpr (sizeof(StorageKeyT) == 4) {
+      const auto* raw_keys =
+          HWY_RCAST_ALIGNED(const uint32_t*, leaf->KeyData());
+      HWY_ASSERT_EQ(raw_keys[0], static_cast<uint32_t>(leaf->base_key));
+      for (size_t k = 1; k < count; ++k) {
+        HWY_ASSERT(raw_keys[k - 1] < raw_keys[k]);
+      }
+      for (size_t k = count; k < LeafNodeT::kMax32; ++k) {
+        HWY_ASSERT_EQ(raw_keys[k], uint32_t{0xFFFFFFFFU});
+      }
+    } else {
+      const auto* offsets = HWY_RCAST_ALIGNED(const uint32_t*, leaf->KeyData());
+      HWY_ASSERT_EQ(offsets[0], uint32_t{0});
+      for (size_t k = 1; k < count; ++k) {
+        HWY_ASSERT(offsets[k - 1] < offsets[k]);
+      }
+      HWY_ASSERT(leaf->base_key <=
+                 LimitsMax<StorageKeyT>() -
+                     static_cast<StorageKeyT>(offsets[count - 1]));
+      for (size_t k = count; k < LeafNodeT::kMax32; ++k) {
+        HWY_ASSERT_EQ(offsets[k], uint32_t{0xFFFFFFFFU});
+      }
+    }
+  } else {
+    HWY_ASSERT_EQ(mode, uint8_t{kModeRaw64});
+    HWY_ASSERT_EQ(sizeof(StorageKeyT), size_t{8});
+    HWY_ASSERT(count <= LeafNodeT::kMax64);
+    const auto* raw_keys = HWY_RCAST_ALIGNED(const uint64_t*, leaf->KeyData());
+    HWY_ASSERT_EQ(raw_keys[0], static_cast<uint64_t>(leaf->base_key));
+    for (size_t k = 1; k < count; ++k) {
+      HWY_ASSERT(raw_keys[k - 1] < raw_keys[k]);
+    }
+    for (size_t k = count; k < LeafNodeT::kMax64; ++k) {
+      HWY_ASSERT_EQ(raw_keys[k], uint64_t{0xFFFFFFFFFFFFFFFFULL});
+    }
+  }
+}
+
 template <typename TreeT, typename StdRefT>
 class BTreeChecker {
  public:
@@ -352,7 +437,7 @@ class BTreeChecker {
             HWY_ASSERT(internal->keys[k] >= item.lo);
           }
           if (item.has_hi) {
-            HWY_ASSERT(internal->keys[k] <= item.hi);
+            HWY_ASSERT(internal->keys[k] < item.hi);
           }
         }
 
@@ -394,6 +479,7 @@ class BTreeChecker {
       const auto* leaf =
           static_cast<const std::remove_pointer_t<LeafPtrT>*>(level[i].node);
       HWY_ASSERT(leaf->NumKeys() >= 1);
+      VerifyLeafNode(leaf);
       total_leaf_keys += leaf->NumKeys();
 
       if (i == 0) {
@@ -418,7 +504,7 @@ class BTreeChecker {
           HWY_ASSERT(sk >= level[i].lo);
         }
         if (level[i].has_hi) {
-          HWY_ASSERT(sk <= level[i].hi);
+          HWY_ASSERT(sk < level[i].hi);
         }
       }
     }
@@ -542,7 +628,8 @@ void DoFullContainerTest(const std::vector<typename TreeT::value_type>& values,
   }
   AesCtrEngine engine2(/*deterministic=*/true);
   RngStream q_rng(engine2, seed + 42);
-  const size_t kNumRandomQueries = AdjustedReps(500);
+  const size_t kNumRandomQueries =
+      HWY_BTREE_SWEEP_ALL ? size_t{40000} : AdjustedReps(500);
   for (size_t i = 0; i < kNumRandomQueries; ++i) {
     key_type q =
         static_cast<key_type>((q_rng() % (values.size() * 50 + 10)) + 1);
@@ -797,14 +884,24 @@ void DoBulkBuildAndBatchTest(size_t n, uint32_t seed) {
 template <typename TreeT, typename StdRefT>
 void DoBoundarySizeSweep() {
   using value_type = typename TreeT::value_type;
-  for (size_t n : {size_t{0}, size_t{1}, size_t{2}, size_t{3}, size_t{5},
-                   size_t{16}, size_t{31}, size_t{32}, size_t{63}, size_t{64},
-                   size_t{127}, size_t{128}, size_t{243}, size_t{244},
-                   size_t{245}, size_t{488}, size_t{489}, size_t{500}}) {
+  auto run_for_size = [](size_t n) {
     auto values = GenerateValuesWithSeed<value_type>(
         n, std::max<uint64_t>(100, n * 20), /*seed=*/12345 + n);
     DoFullContainerTest<TreeT, StdRefT>(values, /*seed=*/12345 + n);
     DoBulkBuildAndBatchTest<TreeT, StdRefT>(n, /*seed=*/54321 + n);
+  };
+
+  if constexpr (HWY_BTREE_SWEEP_ALL) {
+    for (size_t n = 0; n <= 800; ++n) {
+      run_for_size(n);
+    }
+  } else {
+    for (size_t n : {size_t{0}, size_t{1}, size_t{2}, size_t{3}, size_t{5},
+                     size_t{16}, size_t{31}, size_t{32}, size_t{63}, size_t{64},
+                     size_t{127}, size_t{128}, size_t{243}, size_t{244},
+                     size_t{245}, size_t{488}, size_t{489}, size_t{500}}) {
+      run_for_size(n);
+    }
   }
 }
 
@@ -815,7 +912,8 @@ void DoDiverseBitModesTest() {
 
   // Dense 8-bit mode
   {
-    const size_t kDenseCount = AdjustedReps(500);
+    const size_t kDenseCount =
+        HWY_BTREE_SWEEP_ALL ? size_t{20000} : AdjustedReps(500);
     std::vector<value_type> dense_vals;
     dense_vals.reserve(kDenseCount);
     for (size_t i = 0; i < kDenseCount; ++i) {
@@ -834,7 +932,8 @@ void DoDiverseBitModesTest() {
 
   // Medium 16-bit mode
   {
-    const size_t kMedCount = AdjustedReps(500);
+    const size_t kMedCount =
+        HWY_BTREE_SWEEP_ALL ? size_t{20000} : AdjustedReps(500);
     std::vector<value_type> med_vals;
     med_vals.reserve(kMedCount);
     for (size_t i = 0; i < kMedCount; ++i) {
@@ -853,14 +952,15 @@ void DoDiverseBitModesTest() {
 
   // Sparse 32-bit / raw 64-bit mode
   {
-    const size_t kSparseCount = AdjustedReps(200);
+    const size_t kSparseCount =
+        HWY_BTREE_SWEEP_ALL ? size_t{20000} : AdjustedReps(200);
     std::vector<value_type> sparse_vals;
     sparse_vals.reserve(kSparseCount);
+    const uint64_t kSparseStep =
+        (sizeof(key_type) == 4) ? 100000ULL : 10000000000ULL;
     for (size_t i = 0; i < kSparseCount; ++i) {
-      key_type k = (sizeof(key_type) == 4)
-                       ? static_cast<key_type>(i * 10000000U + 500)
-                       : static_cast<key_type>(
-                             static_cast<uint64_t>(i) * 10000000000ULL + 500);
+      key_type k =
+          static_cast<key_type>(static_cast<uint64_t>(i) * kSparseStep + 500);
       if constexpr (TreeT::kIsMap) {
         sparse_vals.push_back(
             {k, static_cast<typename TreeT::mapped_type>(i * 3 + 1)});
@@ -928,6 +1028,419 @@ void DoDiverseBitModesTest() {
     }
     for (const auto& v : mixed_vals) {
       HWY_ASSERT(tree.contains(ExtractKey(v)));
+    }
+  }
+}
+
+template <typename TreeT, bool kIsMap = TreeT::kIsMap>
+struct TreeMappedOrByte {
+  using type = uint8_t;
+};
+
+template <typename TreeT>
+struct TreeMappedOrByte<TreeT, true> {
+  using type = typename TreeT::mapped_type;
+};
+
+// Sweeps every leaf compression BitMode and NumKeys (1..256) on a 1-leaf tree
+// (tree_height_ == 0), testing FindLeafSlot (lower_bound / upper_bound),
+// LeafContains (contains / find), TryFastEraseFromLeaf (erase), and
+// TryFastInsertIntoLeaf (insert, including slot == 0 base_key rebase).
+template <typename TreeT>
+void DoExhaustiveLeafKernelSweepTest() {
+  using KeyT = typename TreeT::key_type;
+  using StorageKeyT = typename KeyCodec<KeyT>::StorageKey;
+  static constexpr bool kIsMap = TreeT::kIsMap;
+  using ValT = typename TreeMappedOrByte<TreeT>::type;
+  using LeafNodeT = std::remove_pointer_t<
+      decltype(std::declval<const TreeT>().state()->first_leaf_)>;
+
+  constexpr StorageKeyT kBaseKey =
+      (sizeof(StorageKeyT) == 8) ? static_cast<StorageKeyT>(0x100020000ULL)
+                                 : static_cast<StorageKeyT>(70000U);
+
+  struct ModeSpec {
+    uint8_t mode;
+    size_t capacity;
+    size_t max_count;
+    bool is_raw;
+    uint64_t max_delta;
+    StorageKeyT normal_span;
+    StorageKeyT sentinel_span;
+  };
+
+  std::vector<ModeSpec> specs = {
+      {kMode8Bit, LeafNodeT::kMax8, HWY_MIN(LeafNodeT::kMax8, size_t{256}),
+       false, 255ULL, StorageKeyT{200}, StorageKeyT{255}},
+      {kMode16Bit, LeafNodeT::kMax16, LeafNodeT::kMax16, false, 65535ULL,
+       StorageKeyT{1000}, StorageKeyT{65535}},
+  };
+  if constexpr (sizeof(StorageKeyT) == 4) {
+    specs.push_back(
+        {kMode32Bit, LeafNodeT::kMax32, LeafNodeT::kMax32, true,
+         LimitsMax<StorageKeyT>(), StorageKeyT{100000},
+         static_cast<StorageKeyT>(LimitsMax<StorageKeyT>() - kBaseKey)});
+  } else {
+    specs.push_back({kMode32Bit, LeafNodeT::kMax32, LeafNodeT::kMax32, false,
+                     0xFFFFFFFFULL, StorageKeyT{100000},
+                     static_cast<StorageKeyT>(0xFFFFFFFFULL)});
+    specs.push_back(
+        {kModeRaw64, LeafNodeT::kMax64, LeafNodeT::kMax64, true,
+         LimitsMax<uint64_t>(), static_cast<StorageKeyT>(0x100000100ULL),
+         static_cast<StorageKeyT>(LimitsMax<StorageKeyT>() - kBaseKey)});
+  }
+
+  const auto is_critical_count = [](size_t count, size_t max_count) {
+    if (count <= 18 || count + 1 >= max_count) return true;
+    switch (count) {
+      case 30:
+      case 31:
+      case 32:
+      case 33:
+      case 53:
+      case 54:
+      case 60:
+      case 61:
+      case 63:
+      case 64:
+      case 65:
+      case 121:
+      case 122:
+      case 123:
+      case 127:
+      case 128:
+      case 129:
+      case 243:
+      case 244:
+      case 246:
+      case 255:
+      case 256:
+        return true;
+      default:
+        return false;
+    }
+  };
+
+  StorageKeyT keys[256];
+  KeyT user_keys[256];
+  ValT user_vals[256];
+  std::vector<StorageKeyT> queries;
+  queries.reserve(64);
+
+  const auto build_leaf_tree = [&](const ModeSpec& spec,
+                                   size_t count) -> TreeT {
+    if (count == 1 && spec.mode != kMode8Bit) {
+      // Build a 2-key leaf in spec.mode, then fast-erase slot 1 so count == 1
+      // stays in spec.mode.
+      KeyT tmp_uk[2] = {user_keys[0],
+                        KeyCodec<KeyT>::FromStorage(static_cast<StorageKeyT>(
+                            kBaseKey + spec.normal_span))};
+      TreeT t;
+      if constexpr (kIsMap) {
+        ValT tmp_uv[2] = {user_vals[0], static_cast<ValT>(20)};
+        t = TreeT::Build(tmp_uk, tmp_uv, 2);
+      } else {
+        t = TreeT::Build(tmp_uk, 2);
+      }
+      HWY_ASSERT_EQ(t.state()->first_leaf_->BitMode(), spec.mode);
+      HWY_ASSERT_EQ(t.erase(tmp_uk[1]), size_t{1});
+      return t;
+    }
+    if constexpr (kIsMap) {
+      return TreeT::Build(user_keys, user_vals, count);
+    } else {
+      return TreeT::Build(user_keys, count);
+    }
+  };
+
+  for (const ModeSpec& spec : specs) {
+    for (size_t count = 1; count <= spec.max_count; ++count) {
+      const size_t num_spans = (count == 1) ? 1 : 2;
+      for (size_t span_idx = 0; span_idx < num_spans; ++span_idx) {
+        const StorageKeyT target_span =
+            (span_idx == 0) ? spec.normal_span : spec.sentinel_span;
+
+        if (count == 1) {
+          keys[0] = kBaseKey;
+          user_keys[0] = KeyCodec<KeyT>::FromStorage(keys[0]);
+          user_vals[0] = static_cast<ValT>(7);
+        } else {
+          const StorageKeyT actual_span =
+              HWY_MAX(target_span, static_cast<StorageKeyT>(count - 1));
+          const StorageKeyT max_key =
+              static_cast<StorageKeyT>(kBaseKey + actual_span);
+          keys[0] = kBaseKey;
+          keys[count - 1] = max_key;
+          if (count >= 3) {
+            keys[1] = static_cast<StorageKeyT>(kBaseKey + 1);
+            const StorageKeyT rem_span =
+                static_cast<StorageKeyT>(max_key - (kBaseKey + 1));
+            const StorageKeyT step =
+                static_cast<StorageKeyT>(rem_span / (count - 2));
+            for (size_t i = 2; i + 1 < count; ++i) {
+              keys[i] = static_cast<StorageKeyT>(
+                  (kBaseKey + 1) + step * static_cast<StorageKeyT>(i - 1));
+            }
+          }
+          for (size_t i = 0; i < count; ++i) {
+            user_keys[i] = KeyCodec<KeyT>::FromStorage(keys[i]);
+            user_vals[i] = static_cast<ValT>(i * 13 + 7);
+          }
+        }
+
+        TreeT tree = build_leaf_tree(spec, count);
+        HWY_ASSERT_EQ(tree.state()->tree_height_, size_t{0});
+        HWY_ASSERT_EQ(tree.state()->num_leaves_, size_t{1});
+        const auto* leaf = tree.state()->first_leaf_;
+        HWY_ASSERT_EQ(leaf->BitMode(), spec.mode);
+        HWY_ASSERT_EQ(leaf->NumKeys(), count);
+        VerifyLeafNode(leaf);
+
+        // 1. Read kernels: FindLeafSlot (lower_bound / upper_bound) and
+        // LeafContains (both fast contains path and find slot path).
+        queries.clear();
+        queries.push_back(StorageKeyT{0});
+        queries.push_back(StorageKeyT{1});
+        queries.push_back(static_cast<StorageKeyT>(kBaseKey - 1));
+        queries.push_back(kBaseKey);
+        queries.push_back(static_cast<StorageKeyT>(kBaseKey + 1));
+        queries.push_back(static_cast<StorageKeyT>(keys[count - 1] - 1));
+        queries.push_back(keys[count - 1]);
+        if (keys[count - 1] < LimitsMax<StorageKeyT>()) {
+          queries.push_back(static_cast<StorageKeyT>(keys[count - 1] + 1));
+        }
+        queries.push_back(
+            static_cast<StorageKeyT>(LimitsMax<StorageKeyT>() - 1));
+        queries.push_back(LimitsMax<StorageKeyT>());
+
+        constexpr uint64_t kSentinelDeltas[] = {
+            254ULL,   255ULL,        256ULL,        65534ULL,      65535ULL,
+            65536ULL, 0xFFFFFFFEULL, 0xFFFFFFFFULL, 0x100000000ULL};
+        for (uint64_t d : kSentinelDeltas) {
+          if (d <= static_cast<uint64_t>(LimitsMax<StorageKeyT>() - kBaseKey)) {
+            queries.push_back(static_cast<StorageKeyT>(
+                kBaseKey + static_cast<StorageKeyT>(d)));
+          }
+        }
+
+        const size_t probe_slots[] = {
+            0, (count > 1) ? size_t{1} : size_t{0}, count / 2,
+            (count >= 2) ? (count - 2) : size_t{0}, count - 1};
+        for (size_t s : probe_slots) {
+          const StorageKeyT k = keys[s];
+          queries.push_back(static_cast<StorageKeyT>(k - 1));
+          queries.push_back(k);
+          if (k < LimitsMax<StorageKeyT>()) {
+            queries.push_back(static_cast<StorageKeyT>(k + 1));
+          }
+        }
+
+        for (StorageKeyT q : queries) {
+          const KeyT uq = KeyCodec<KeyT>::FromStorage(q);
+          const size_t expected_lb = static_cast<size_t>(
+              std::lower_bound(keys, keys + count, q) - keys);
+          const size_t expected_ub = static_cast<size_t>(
+              std::upper_bound(keys, keys + count, q) - keys);
+          const bool expected_found =
+              (expected_lb < count && keys[expected_lb] == q);
+
+          const auto lb_it = tree.lower_bound(uq);
+          if (expected_lb < count) {
+            HWY_ASSERT(lb_it != tree.end());
+            HWY_ASSERT_EQ(lb_it.slot(), expected_lb);
+          } else {
+            HWY_ASSERT(lb_it == tree.end());
+          }
+
+          const auto ub_it = tree.upper_bound(uq);
+          if (expected_ub < count) {
+            HWY_ASSERT(ub_it != tree.end());
+            HWY_ASSERT_EQ(ub_it.slot(), expected_ub);
+          } else {
+            HWY_ASSERT(ub_it == tree.end());
+          }
+
+          HWY_ASSERT_EQ(tree.contains(uq), expected_found);
+
+          const auto find_it = tree.find(uq);
+          if (expected_found) {
+            HWY_ASSERT(find_it != tree.end());
+            HWY_ASSERT_EQ(find_it.slot(), expected_lb);
+            if constexpr (kIsMap) {
+              HWY_ASSERT_EQ(find_it->second, user_vals[expected_lb]);
+            }
+          } else {
+            HWY_ASSERT(find_it == tree.end());
+          }
+        }
+
+        const bool sweep_all_slots =
+            HWY_BTREE_SWEEP_ALL || is_critical_count(count, spec.max_count);
+
+        // 2. Erase kernel: TryFastEraseFromLeaf via
+        // tree.erase(user_keys[slot]).
+        for (size_t slot = 0; slot < count; ++slot) {
+          if (!sweep_all_slots && slot != 0 && slot != 1 && slot != count / 2 &&
+              slot + 2 != count && slot + 1 != count) {
+            continue;
+          }
+          TreeT scratch = build_leaf_tree(spec, count);
+          HWY_ASSERT_EQ(scratch.erase(user_keys[slot]), size_t{1});
+          HWY_ASSERT_EQ(scratch.size(), count - 1);
+          if (count == 1) {
+            HWY_ASSERT(scratch.empty());
+            HWY_ASSERT(scratch.state()->root_ == nullptr);
+            HWY_ASSERT_EQ(scratch.state()->num_leaves_, size_t{0});
+          } else {
+            HWY_ASSERT_EQ(scratch.state()->tree_height_, size_t{0});
+            HWY_ASSERT_EQ(scratch.state()->num_leaves_, size_t{1});
+            const auto* s_leaf = scratch.state()->first_leaf_;
+            VerifyLeafNode(s_leaf);
+            HWY_ASSERT_EQ(s_leaf->BitMode(), spec.mode);
+            HWY_ASSERT_EQ(s_leaf->NumKeys(), count - 1);
+            for (size_t j = 0; j < count - 1; ++j) {
+              const size_t src = (j < slot) ? j : (j + 1);
+              HWY_ASSERT_EQ(GetLeafKey(s_leaf, j), keys[src]);
+            }
+            if constexpr (kIsMap) {
+              size_t j = 0;
+              for (auto it = scratch.begin(); it != scratch.end(); ++it, ++j) {
+                const size_t src = (j < slot) ? j : (j + 1);
+                HWY_ASSERT_EQ(it->second, user_vals[src]);
+              }
+              HWY_ASSERT_EQ(j, count - 1);
+            }
+          }
+        }
+
+        // 3. Insert kernel at slot 0 (new_key < base_key, SIMD offset rebase).
+        std::vector<StorageKeyT> slot0_keys = {
+            static_cast<StorageKeyT>(kBaseKey - 1),
+            static_cast<StorageKeyT>(kBaseKey - 7)};
+        if (!spec.is_raw && static_cast<uint64_t>(keys[count - 1] - kBaseKey) <
+                                spec.max_delta) {
+          const StorageKeyT exact_fit_base = static_cast<StorageKeyT>(
+              keys[count - 1] - static_cast<StorageKeyT>(spec.max_delta));
+          if (exact_fit_base > 0 && exact_fit_base < kBaseKey) {
+            slot0_keys.push_back(exact_fit_base);
+            slot0_keys.push_back(static_cast<StorageKeyT>(exact_fit_base - 1));
+          }
+        }
+        for (StorageKeyT new_key : slot0_keys) {
+          const uint64_t new_span =
+              static_cast<uint64_t>(keys[count - 1] - new_key);
+          const bool expected_fits =
+              (count < spec.capacity) &&
+              (spec.is_raw || new_span <= spec.max_delta);
+          const KeyT new_uk = KeyCodec<KeyT>::FromStorage(new_key);
+          const ValT new_uv = static_cast<ValT>(999);
+          TreeT scratch = build_leaf_tree(spec, count);
+          bool inserted = false;
+          size_t ret_slot = ~size_t{0};
+          if constexpr (kIsMap) {
+            auto [it, ok] = scratch.insert(new_uk, new_uv);
+            inserted = ok;
+            ret_slot = it.slot();
+          } else {
+            auto [it, ok] = scratch.insert(new_uk);
+            inserted = ok;
+            ret_slot = it.slot();
+          }
+          HWY_ASSERT(inserted);
+          HWY_ASSERT_EQ(scratch.size(), count + 1);
+          if (expected_fits) {
+            HWY_ASSERT_EQ(scratch.state()->tree_height_, size_t{0});
+            HWY_ASSERT_EQ(scratch.state()->num_leaves_, size_t{1});
+            const auto* s_leaf = scratch.state()->first_leaf_;
+            VerifyLeafNode(s_leaf);
+            HWY_ASSERT_EQ(s_leaf->BitMode(), spec.mode);
+            HWY_ASSERT_EQ(s_leaf->NumKeys(), count + 1);
+            HWY_ASSERT_EQ(s_leaf->base_key, new_key);
+            HWY_ASSERT_EQ(ret_slot, size_t{0});
+            HWY_ASSERT_EQ(GetLeafKey(s_leaf, 0), new_key);
+            for (size_t j = 0; j < count; ++j) {
+              HWY_ASSERT_EQ(GetLeafKey(s_leaf, j + 1), keys[j]);
+            }
+            if constexpr (kIsMap) {
+              auto it = scratch.begin();
+              HWY_ASSERT_EQ(it->second, new_uv);
+              ++it;
+              for (size_t j = 0; j < count; ++j, ++it) {
+                HWY_ASSERT_EQ(it->second, user_vals[j]);
+              }
+            }
+          } else {
+            BTreeChecker<TreeT, TreeT>::VerifyPhysicalTree(scratch);
+            HWY_ASSERT(scratch.state()->num_leaves_ == 2 ||
+                       scratch.state()->first_leaf_->BitMode() > spec.mode);
+            HWY_ASSERT(scratch.contains(new_uk));
+          }
+        }
+
+        // 4. Insert kernel at slots 1..count (new_key > base_key).
+        for (size_t slot = 1; slot <= count; ++slot) {
+          if (!sweep_all_slots && slot != 1 && slot != count / 2 &&
+              slot + 1 != count && slot != count) {
+            continue;
+          }
+          StorageKeyT new_key = 0;
+          if (slot < count) {
+            if (keys[slot - 1] + 1 >= keys[slot]) continue;
+            new_key = static_cast<StorageKeyT>(keys[slot - 1] + 1);
+          } else {
+            if (keys[count - 1] == LimitsMax<StorageKeyT>()) continue;
+            new_key = static_cast<StorageKeyT>(keys[count - 1] + 1);
+          }
+
+          const uint64_t delta = static_cast<uint64_t>(new_key - kBaseKey);
+          const bool expected_fits = (count < spec.capacity) &&
+                                     (spec.is_raw || delta <= spec.max_delta);
+          const KeyT new_uk = KeyCodec<KeyT>::FromStorage(new_key);
+          const ValT new_uv = static_cast<ValT>(slot * 17 + 3);
+          TreeT scratch = build_leaf_tree(spec, count);
+          bool inserted = false;
+          size_t ret_slot = ~size_t{0};
+          if constexpr (kIsMap) {
+            auto [it, ok] = scratch.insert(new_uk, new_uv);
+            inserted = ok;
+            ret_slot = it.slot();
+          } else {
+            auto [it, ok] = scratch.insert(new_uk);
+            inserted = ok;
+            ret_slot = it.slot();
+          }
+          HWY_ASSERT(inserted);
+          HWY_ASSERT_EQ(scratch.size(), count + 1);
+          if (expected_fits) {
+            HWY_ASSERT_EQ(scratch.state()->tree_height_, size_t{0});
+            HWY_ASSERT_EQ(scratch.state()->num_leaves_, size_t{1});
+            const auto* s_leaf = scratch.state()->first_leaf_;
+            VerifyLeafNode(s_leaf);
+            HWY_ASSERT_EQ(s_leaf->BitMode(), spec.mode);
+            HWY_ASSERT_EQ(s_leaf->NumKeys(), count + 1);
+            HWY_ASSERT_EQ(ret_slot, slot);
+            for (size_t j = 0; j < count + 1; ++j) {
+              const StorageKeyT expected_k =
+                  (j < slot) ? keys[j] : (j == slot ? new_key : keys[j - 1]);
+              HWY_ASSERT_EQ(GetLeafKey(s_leaf, j), expected_k);
+            }
+            if constexpr (kIsMap) {
+              auto it = scratch.begin();
+              for (size_t j = 0; j < count + 1; ++j, ++it) {
+                const ValT expected_v =
+                    (j < slot) ? user_vals[j]
+                               : (j == slot ? new_uv : user_vals[j - 1]);
+                HWY_ASSERT_EQ(it->second, expected_v);
+              }
+            }
+          } else {
+            BTreeChecker<TreeT, TreeT>::VerifyPhysicalTree(scratch);
+            HWY_ASSERT(scratch.state()->num_leaves_ == 2 ||
+                       scratch.state()->first_leaf_->BitMode() > spec.mode);
+            HWY_ASSERT(scratch.contains(new_uk));
+          }
+        }
+      }
     }
   }
 }
@@ -1277,9 +1790,10 @@ void DoCopyAndSwapTest() {
 
   // 3. Multi-level tree scale copy test
   {
-    const size_t kLargeScale = AdjustedReps(5000);
+    const size_t kLargeScale =
+        HWY_BTREE_SWEEP_ALL ? size_t{200000} : AdjustedReps(5000);
     auto large_vals =
-        GenerateValuesWithSeed<value_type>(kLargeScale, 100000, 888);
+        GenerateValuesWithSeed<value_type>(kLargeScale, kLargeScale * 20, 888);
     TreeT large_orig;
     for (const auto& v : large_vals) {
       if constexpr (TreeT::kIsMap) {
@@ -1366,10 +1880,13 @@ void DoEraseIteratorTest() {
     }
   };
 
-  const size_t n = AdjustedReps(4000);
+  const size_t n = HWY_BTREE_SWEEP_ALL ? size_t{100000} : AdjustedReps(4000);
+  const uint64_t sparse_max =
+      (sizeof(key_type) == 4) ? std::min<uint64_t>(n * 100000ULL, 2000000000ULL)
+                              : n * 100000ULL;
   const std::vector<std::vector<value_type>> datasets = {
       GenerateValuesWithSeed<value_type>(n, n + n / 4, /*seed=*/4242),
-      GenerateValuesWithSeed<value_type>(n, n * 100000ULL, /*seed=*/4243),
+      GenerateValuesWithSeed<value_type>(n, sparse_max, /*seed=*/4243),
   };
 
   for (const auto& values : datasets) {
@@ -1647,28 +2164,41 @@ void RunFullTestSuite() {
   DoCopyAndSwapTest<TreeT, StdRefT>();
   DoBoundarySizeSweep<TreeT, StdRefT>();
   DoDiverseBitModesTest<TreeT>();
+  DoExhaustiveLeafKernelSweepTest<TreeT>();
   DoSiblingRebalanceTest<TreeT>();
   DoExtremeBoundariesTest<TreeT, StdRefT>();
   DoEraseIteratorTest<TreeT, StdRefT>();
 
   // Multi-level scale across sorted, rsorted, and random orderings (matching
   // absl::btree_test.cc's BtreeTest()). AdjustedReps ensures ASan/MSan/QEMU
-  // builds don't timeout.
-  const size_t kLargeScale = AdjustedReps(5000);
-  auto random_values = GenerateValuesWithSeed<typename TreeT::value_type>(
-      kLargeScale, kLargeScale * 50, /*seed=*/98765);
+  // builds don't timeout; HWY_BTREE_SWEEP_ALL runs a ladder of scales to hit
+  // every tree height (Height 1, 2, 3, and 4) across all test phases.
+  const std::vector<size_t> scales =
+      HWY_BTREE_SWEEP_ALL ? std::vector<size_t>{2500, 15000, 60000, 320000}
+                          : std::vector<size_t>{AdjustedReps(5000)};
 
-  auto sorted_values = random_values;
-  std::sort(sorted_values.begin(), sorted_values.end(),
-            ValueComparator<typename TreeT::value_type>{});
-  DoFullContainerTest<TreeT, StdRefT>(sorted_values, /*seed=*/98765);
+  uint32_t seed_offset = 0;
+  for (size_t scale : scales) {
+    auto random_values = GenerateValuesWithSeed<typename TreeT::value_type>(
+        scale, scale * 50, /*seed=*/98765 + seed_offset);
 
-  auto rsorted_values = sorted_values;
-  std::reverse(rsorted_values.begin(), rsorted_values.end());
-  DoFullContainerTest<TreeT, StdRefT>(rsorted_values, /*seed=*/98766);
+    auto sorted_values = random_values;
+    std::sort(sorted_values.begin(), sorted_values.end(),
+              ValueComparator<typename TreeT::value_type>{});
+    DoFullContainerTest<TreeT, StdRefT>(sorted_values,
+                                        /*seed=*/98765 + seed_offset);
 
-  DoFullContainerTest<TreeT, StdRefT>(random_values, /*seed=*/98767);
-  DoBulkBuildAndBatchTest<TreeT, StdRefT>(kLargeScale, /*seed=*/56789);
+    auto rsorted_values = sorted_values;
+    std::reverse(rsorted_values.begin(), rsorted_values.end());
+    DoFullContainerTest<TreeT, StdRefT>(rsorted_values,
+                                        /*seed=*/98766 + seed_offset);
+
+    DoFullContainerTest<TreeT, StdRefT>(random_values,
+                                        /*seed=*/98767 + seed_offset);
+    DoBulkBuildAndBatchTest<TreeT, StdRefT>(scale,
+                                            /*seed=*/56789 + seed_offset);
+    seed_offset += 100;
+  }
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

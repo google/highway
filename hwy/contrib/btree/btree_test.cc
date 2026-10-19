@@ -42,48 +42,76 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
 #if (HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128) && !HWY_IDE
-HWY_NOINLINE void TestAll() {}
+HWY_NOINLINE void TestAdapterMove() {}
+HWY_NOINLINE void TestBTreeSetU32() {}
+HWY_NOINLINE void TestBTreeSetI32() {}
+HWY_NOINLINE void TestBTreeSetU64() {}
+HWY_NOINLINE void TestBTreeSetI64() {}
+HWY_NOINLINE void TestBTreeMapU32U64() {}
+HWY_NOINLINE void TestBTreeMapI32U64() {}
+HWY_NOINLINE void TestBTreeMapU64U64() {}
+HWY_NOINLINE void TestBTreeMapU64F64() {}
+HWY_NOINLINE void TestBTreeMapI64F64() {}
+HWY_NOINLINE void TestBTreeMapU32F32() {}
 #else
-void TestAll() {
+HWY_NOINLINE void TestAdapterMove() {
   fprintf(stderr, "Running adapter move semantics tests...\n");
   DoAdapterMoveTest<BTreeSet<uint32_t> >();
   DoAdapterMoveTest<BTreeSet<int64_t> >();
   DoAdapterMoveTest<BTreeMap<uint32_t, uint64_t> >();
   DoAdapterMoveTest<BTreeMap<uint64_t, double> >();
+}
 
+HWY_NOINLINE void TestBTreeSetU32() {
   fprintf(stderr, "Running BTreeSet uint32_t tests...\n");
   RunFullTestSuite<BTreeSet<uint32_t>, std::set<uint32_t> >();
+}
 
+HWY_NOINLINE void TestBTreeSetI32() {
   fprintf(stderr, "Running BTreeSet int32_t tests...\n");
   RunFullTestSuite<BTreeSet<int32_t>, std::set<int32_t> >();
+}
 
+HWY_NOINLINE void TestBTreeSetU64() {
   fprintf(stderr, "Running BTreeSet uint64_t tests...\n");
   RunFullTestSuite<BTreeSet<uint64_t>, std::set<uint64_t> >();
+}
 
+HWY_NOINLINE void TestBTreeSetI64() {
   fprintf(stderr, "Running BTreeSet int64_t tests...\n");
   RunFullTestSuite<BTreeSet<int64_t>, std::set<int64_t> >();
+}
 
+HWY_NOINLINE void TestBTreeMapU32U64() {
   fprintf(stderr, "Running BTreeMap uint32_t -> uint64_t tests...\n");
   RunFullTestSuite<BTreeMap<uint32_t, uint64_t>,
                    std::map<uint32_t, uint64_t> >();
+}
 
+HWY_NOINLINE void TestBTreeMapI32U64() {
   fprintf(stderr, "Running BTreeMap int32_t -> uint64_t tests...\n");
   RunFullTestSuite<BTreeMap<int32_t, uint64_t>, std::map<int32_t, uint64_t> >();
+}
 
+HWY_NOINLINE void TestBTreeMapU64U64() {
   fprintf(stderr, "Running BTreeMap uint64_t -> uint64_t tests...\n");
   RunFullTestSuite<BTreeMap<uint64_t, uint64_t>,
                    std::map<uint64_t, uint64_t> >();
+}
 
+HWY_NOINLINE void TestBTreeMapU64F64() {
   fprintf(stderr, "Running BTreeMap uint64_t -> double tests...\n");
   RunFullTestSuite<BTreeMap<uint64_t, double>, std::map<uint64_t, double> >();
+}
 
+HWY_NOINLINE void TestBTreeMapI64F64() {
   fprintf(stderr, "Running BTreeMap int64_t -> double tests...\n");
   RunFullTestSuite<BTreeMap<int64_t, double>, std::map<int64_t, double> >();
+}
 
+HWY_NOINLINE void TestBTreeMapU32F32() {
   fprintf(stderr, "Running BTreeMap uint32_t -> float tests...\n");
   RunFullTestSuite<BTreeMap<uint32_t, float>, std::map<uint32_t, float> >();
-
-  fprintf(stderr, "All unified BTree tests passed successfully!\n");
 }
 
 #endif  // (HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128) && !HWY_IDE
@@ -97,7 +125,17 @@ HWY_AFTER_NAMESPACE();
 
 namespace hwy {
 HWY_BEFORE_TEST(BTreeTest);
-HWY_EXPORT_AND_TEST_P(BTreeTest, TestAll);
+HWY_EXPORT_AND_TEST_P(BTreeTest, TestAdapterMove);
+HWY_EXPORT_AND_TEST_P(BTreeTest, TestBTreeSetU32);
+HWY_EXPORT_AND_TEST_P(BTreeTest, TestBTreeSetI32);
+HWY_EXPORT_AND_TEST_P(BTreeTest, TestBTreeSetU64);
+HWY_EXPORT_AND_TEST_P(BTreeTest, TestBTreeSetI64);
+HWY_EXPORT_AND_TEST_P(BTreeTest, TestBTreeMapU32U64);
+HWY_EXPORT_AND_TEST_P(BTreeTest, TestBTreeMapI32U64);
+HWY_EXPORT_AND_TEST_P(BTreeTest, TestBTreeMapU64U64);
+HWY_EXPORT_AND_TEST_P(BTreeTest, TestBTreeMapU64F64);
+HWY_EXPORT_AND_TEST_P(BTreeTest, TestBTreeMapI64F64);
+HWY_EXPORT_AND_TEST_P(BTreeTest, TestBTreeMapU32F32);
 HWY_AFTER_TEST();
 }  // namespace hwy
 HWY_TEST_MAIN();

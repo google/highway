@@ -24,20 +24,24 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
 
-void TestAll() {
+HWY_NOINLINE void TestBTreeSetU32() {
   fprintf(stderr, "Running Public API BTreeSet uint32_t tests...\n");
   RunFullTestSuite<hwy::BTreeSet<uint32_t>, std::set<uint32_t>>();
+}
 
+HWY_NOINLINE void TestBTreeSetI32() {
   fprintf(stderr, "Running Public API BTreeSet int32_t tests...\n");
   RunFullTestSuite<hwy::BTreeSet<int32_t>, std::set<int32_t>>();
+}
 
+HWY_NOINLINE void TestBTreeSetU64() {
   fprintf(stderr, "Running Public API BTreeSet uint64_t tests...\n");
   RunFullTestSuite<hwy::BTreeSet<uint64_t>, std::set<uint64_t>>();
+}
 
+HWY_NOINLINE void TestBTreeSetI64() {
   fprintf(stderr, "Running Public API BTreeSet int64_t tests...\n");
   RunFullTestSuite<hwy::BTreeSet<int64_t>, std::set<int64_t>>();
-
-  fprintf(stderr, "All Public API unified tests passed successfully!\n");
 }
 
 }  // namespace
@@ -50,7 +54,10 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 namespace {
 HWY_BEFORE_TEST(BTreeSetPublicTest);
-HWY_EXPORT_AND_TEST_P(BTreeSetPublicTest, TestAll);
+HWY_EXPORT_AND_TEST_P(BTreeSetPublicTest, TestBTreeSetU32);
+HWY_EXPORT_AND_TEST_P(BTreeSetPublicTest, TestBTreeSetI32);
+HWY_EXPORT_AND_TEST_P(BTreeSetPublicTest, TestBTreeSetU64);
+HWY_EXPORT_AND_TEST_P(BTreeSetPublicTest, TestBTreeSetI64);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy

@@ -263,39 +263,43 @@ void TestOneCombo() {
   TestMapSpecificSemantics<KeyT, ValueT>();
 }
 
-void TestAll() {
-#define TEST_KEY_COMBOS(KeyT)     \
-  TestOneCombo<KeyT, uint32_t>(); \
-  TestOneCombo<KeyT, int32_t>();  \
-  TestOneCombo<KeyT, uint64_t>(); \
-  TestOneCombo<KeyT, int64_t>();  \
-  TestOneCombo<KeyT, float>();    \
-  TestOneCombo<KeyT, double>();
+#define DEFINE_MAP_KEY_TESTS(KeySuffix, KeyT)        \
+  HWY_NOINLINE void TestBTreeMap##KeySuffix##U32() { \
+    TestOneCombo<KeyT, uint32_t>();                  \
+  }                                                  \
+  HWY_NOINLINE void TestBTreeMap##KeySuffix##I32() { \
+    TestOneCombo<KeyT, int32_t>();                   \
+  }                                                  \
+  HWY_NOINLINE void TestBTreeMap##KeySuffix##U64() { \
+    TestOneCombo<KeyT, uint64_t>();                  \
+  }                                                  \
+  HWY_NOINLINE void TestBTreeMap##KeySuffix##I64() { \
+    TestOneCombo<KeyT, int64_t>();                   \
+  }                                                  \
+  HWY_NOINLINE void TestBTreeMap##KeySuffix##F32() { \
+    TestOneCombo<KeyT, float>();                     \
+  }                                                  \
+  HWY_NOINLINE void TestBTreeMap##KeySuffix##F64() { \
+    TestOneCombo<KeyT, double>();                    \
+  }
 
-  fprintf(stderr, "Running uint32_t key map tests...\n");
-  TEST_KEY_COMBOS(uint32_t);
+DEFINE_MAP_KEY_TESTS(U32, uint32_t)
+DEFINE_MAP_KEY_TESTS(I32, int32_t)
+DEFINE_MAP_KEY_TESTS(U64, uint64_t)
+DEFINE_MAP_KEY_TESTS(I64, int64_t)
 
-  fprintf(stderr, "Running int32_t key map tests...\n");
-  TEST_KEY_COMBOS(int32_t);
+#undef DEFINE_MAP_KEY_TESTS
 
-  fprintf(stderr, "Running uint64_t key map tests...\n");
-  TEST_KEY_COMBOS(uint64_t);
-
-  fprintf(stderr, "Running int64_t key map tests...\n");
-  TEST_KEY_COMBOS(int64_t);
-
-#undef TEST_KEY_COMBOS
-
+HWY_NOINLINE void TestMapCustomValues() {
   fprintf(stderr, "Running Custom32/Custom64 value type tests...\n");
   TestCustomValues();
+}
 
+HWY_NOINLINE void TestMapBatchOperations() {
   fprintf(stderr,
           "Running batch operations tests (float, double, Custom32, "
           "Custom64)...\n");
   TestBatchOperations();
-
-  fprintf(stderr,
-          "All BTreeMap key-value combination tests passed successfully!\n");
 }
 
 }  // namespace
@@ -308,7 +312,21 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 namespace {
 HWY_BEFORE_TEST(BTreeMapPublicTest);
-HWY_EXPORT_AND_TEST_P(BTreeMapPublicTest, TestAll);
+#define EXPORT_MAP_KEY_TESTS(KeySuffix)                                    \
+  HWY_EXPORT_AND_TEST_P(BTreeMapPublicTest, TestBTreeMap##KeySuffix##U32); \
+  HWY_EXPORT_AND_TEST_P(BTreeMapPublicTest, TestBTreeMap##KeySuffix##I32); \
+  HWY_EXPORT_AND_TEST_P(BTreeMapPublicTest, TestBTreeMap##KeySuffix##U64); \
+  HWY_EXPORT_AND_TEST_P(BTreeMapPublicTest, TestBTreeMap##KeySuffix##I64); \
+  HWY_EXPORT_AND_TEST_P(BTreeMapPublicTest, TestBTreeMap##KeySuffix##F32); \
+  HWY_EXPORT_AND_TEST_P(BTreeMapPublicTest, TestBTreeMap##KeySuffix##F64)
+
+EXPORT_MAP_KEY_TESTS(U32);
+EXPORT_MAP_KEY_TESTS(I32);
+EXPORT_MAP_KEY_TESTS(U64);
+EXPORT_MAP_KEY_TESTS(I64);
+#undef EXPORT_MAP_KEY_TESTS
+HWY_EXPORT_AND_TEST_P(BTreeMapPublicTest, TestMapCustomValues);
+HWY_EXPORT_AND_TEST_P(BTreeMapPublicTest, TestMapBatchOperations);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy
