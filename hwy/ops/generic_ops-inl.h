@@ -8251,6 +8251,23 @@ HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
 
 #endif  // HWY_NATIVE_EXPAND
 
+// ------------------------------ MaskedLoadExpandOr
+
+#if (defined(HWY_NATIVE_LOAD_EXPAND_OR) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_LOAD_EXPAND_OR
+#undef HWY_NATIVE_LOAD_EXPAND_OR
+#else
+#define HWY_NATIVE_LOAD_EXPAND_OR
+#endif
+
+template <class D>
+HWY_API VFromD<D> MaskedLoadExpandOr(VFromD<D> no, MFromD<D> mask, D d,
+                                     const TFromD<D>* HWY_RESTRICT unaligned) {
+  return IfThenElse(mask, LoadExpand(mask, d, unaligned), no);
+}
+
+#endif  // HWY_NATIVE_LOAD_EXPAND_OR
+
 // ------------------------------ TwoTablesLookupLanes
 
 template <class D>

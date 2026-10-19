@@ -863,9 +863,11 @@ using RemovePtr = typename RemovePtrT<T>::type;
 #define HWY_IF_LANES_PER_BLOCK(T, N, LANES) \
   hwy::EnableIf<HWY_MIN(sizeof(T) * N, 16) / sizeof(T) == (LANES)>* = nullptr
 
-// Empty struct used as a size tag type.
+// Used as an integral constant, often to replace SFINAE.
 template <size_t N>
-struct SizeTag {};
+struct SizeTag {
+  static constexpr size_t value = N;
+};
 
 template <class T>
 class DeclValT {
