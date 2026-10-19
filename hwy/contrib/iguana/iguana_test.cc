@@ -676,4 +676,5 @@ HWY_EXPORT_AND_TEST_P(IguanaTest, TestSecurityRandomInput);
 HWY_EXPORT_AND_TEST_BEST_P(IguanaTest, TestLongLiteralRunSplit);
 HWY_AFTER_TEST();
 }  // namespace hwy
+HWY_TEST_MAIN();
 #endif
