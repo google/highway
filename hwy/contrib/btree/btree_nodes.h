@@ -40,36 +40,68 @@ enum class BoundMode : uint8_t {
 // Key Codec
 // -----------------------------------------------------------------------------
 
-// Maps signed integer keys (int32_t, int64_t) to/from unsigned integer storage
-// keys (uint32_t, uint64_t) via an order-preserving MSB inversion (XOR).
-// For unsigned keys, this is a zero-cost compile-time identity.
+template <typename KeyT>
+constexpr bool IsPointer() {
+  return !IsSame<RemovePtr<RemoveCvRef<KeyT>>, RemoveCvRef<KeyT>>();
+}
+
+template <typename KeyT>
+constexpr bool IsSupportedKey() {
+  return (IsInteger<KeyT>() || IsPointer<KeyT>() || IsEnum<KeyT>()) &&
+         (sizeof(KeyT) == 4 || sizeof(KeyT) == 8);
+}
+
+template <typename KeyT>
+constexpr bool IsSignedKey() {
+  if constexpr (IsEnum<KeyT>()) {
+    return IsSigned<UnderlyingType<KeyT>>();
+  } else if constexpr (IsPointer<KeyT>()) {
+    return false;
+  } else {
+    return IsSigned<KeyT>();
+  }
+}
+
+// Maps supported 32/64-bit keys (signed/unsigned integers, pointers, and
+// 32/64-bit enums) to/from unsigned integer storage keys (uint32_t, uint64_t).
+// Signed integers and signed-underlying enums use an order-preserving MSB
+// inversion (XOR); unsigned integers, unsigned-underlying enums, and pointers
+// map via a zero-cost compile-time identity / bit-cast.
 template <typename KeyT>
 struct KeyCodec {
-  static_assert(IsInteger<KeyT>(),
-                "Highway BTree only supports integral keys.");
-  static_assert(sizeof(KeyT) == 4 || sizeof(KeyT) == 8,
-                "Highway BTree only supports 32-bit and 64-bit keys.");
+  static_assert(IsSupportedKey<KeyT>(),
+                "Highway BTree only supports 32/64-bit integral, pointer, or "
+                "enum keys.");
 
-  using StorageKey = MakeUnsigned<KeyT>;
+  static constexpr bool kIsSigned = IsSignedKey<KeyT>();
+  using StorageKey = UnsignedFromSize<sizeof(KeyT)>;
+  // Corresponding SIMD integer lane type (int32_t/uint32_t/int64_t/uint64_t)
+  // matching the size and signedness of KeyT.
+  using LaneType = If<kIsSigned, SignedFromSize<sizeof(KeyT)>, StorageKey>;
+
   // Mask for the Most Significant Bit (sign bit: 0x80000000 for 32-bit,
   // 0x8000000000000000 for 64-bit). Inverting this bit bijectively maps signed
   // two's complement integers [kMinSigned, kMaxSigned] to unsigned integers
   // [0, kMaxUnsigned] while strictly preserving relative order
-  static constexpr StorageKey kSignBit = SignMask<KeyT>();
+  static constexpr StorageKey kSignBit = SignMask<StorageKey>();
 
   static HWY_INLINE StorageKey ToStorage(KeyT key) {
-    if constexpr (IsSigned<KeyT>()) {
-      return static_cast<StorageKey>(key) ^ kSignBit;
+    if constexpr (IsPointer<KeyT>()) {
+      return static_cast<StorageKey>(reinterpret_cast<uintptr_t>(key));
+    } else if constexpr (kIsSigned) {
+      return static_cast<StorageKey>(static_cast<LaneType>(key)) ^ kSignBit;
     } else {
-      return key;
+      return static_cast<StorageKey>(key);
     }
   }
 
   static HWY_INLINE KeyT FromStorage(StorageKey key) {
-    if constexpr (IsSigned<KeyT>()) {
-      return static_cast<KeyT>(key ^ kSignBit);
+    if constexpr (IsPointer<KeyT>()) {
+      return reinterpret_cast<KeyT>(static_cast<uintptr_t>(key));
+    } else if constexpr (kIsSigned) {
+      return static_cast<KeyT>(static_cast<LaneType>(key ^ kSignBit));
     } else {
-      return key;
+      return static_cast<KeyT>(key);
     }
   }
 };
@@ -415,10 +447,9 @@ constexpr size_t kMaxLiveLeafKeys = HWY_MIN(Leaf::kMax8, size_t{256});
 template <typename KeyT,
           typename LeafT = LeafNode<typename KeyCodec<KeyT>::StorageKey>>
 struct BTreeState {
-  static_assert(IsInteger<KeyT>(),
-                "Highway BTree only supports integral keys.");
-  static_assert(sizeof(KeyT) == 4 || sizeof(KeyT) == 8,
-                "Highway BTree only supports 32-bit and 64-bit keys.");
+  static_assert(IsSupportedKey<KeyT>(),
+                "Highway BTree only supports 32/64-bit integral, pointer, or "
+                "enum keys.");
 
   void* root_ = nullptr;
   LeafT* first_leaf_ = nullptr;

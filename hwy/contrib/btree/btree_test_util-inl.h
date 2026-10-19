@@ -47,11 +47,32 @@ struct IsPairLike<T, std::void_t<decltype(std::declval<T>().first),
                                  decltype(std::declval<T>().second)>>
     : std::true_type {};
 
+template <typename KeyT>
+typename KeyCodec<KeyT>::LaneType KeyToRaw(KeyT k) {
+  using LaneKeyT = typename KeyCodec<KeyT>::LaneType;
+  if constexpr (IsPointer<KeyT>()) {
+    return static_cast<LaneKeyT>(reinterpret_cast<uintptr_t>(k));
+  } else {
+    return static_cast<LaneKeyT>(k);
+  }
+}
+
+template <typename KeyT>
+KeyT KeyFromRaw(typename KeyCodec<KeyT>::LaneType val) {
+  if constexpr (IsPointer<KeyT>()) {
+    return reinterpret_cast<KeyT>(static_cast<uintptr_t>(val));
+  } else {
+    return static_cast<KeyT>(val);
+  }
+}
+
 template <typename T, typename U>
 void VerifyEqualValues(const T& a, const U& b) {
   if constexpr (IsPairLike<T>::value) {
-    HWY_ASSERT_EQ(a.first, b.first);
-    HWY_ASSERT_EQ(a.second, b.second);
+    VerifyEqualValues(a.first, b.first);
+    VerifyEqualValues(a.second, b.second);
+  } else if constexpr (IsPointer<T>() || IsEnum<T>()) {
+    HWY_ASSERT_EQ(KeyToRaw(a), KeyToRaw(b));
   } else {
     HWY_ASSERT_EQ(a, b);
   }
@@ -62,6 +83,17 @@ void VerifyEqualElements(Iter1 it1, Iter2 it2) {
   VerifyEqualValues(*it1, *it2);
 }
 
+template <typename KeyT>
+KeyT KeyFromRawInt(uint64_t val) {
+  using LaneKeyT = typename KeyCodec<KeyT>::LaneType;
+  return KeyFromRaw<KeyT>(static_cast<LaneKeyT>(val));
+}
+
+template <typename KeyT>
+uint64_t KeyToRawU64(KeyT k) {
+  return static_cast<uint64_t>(KeyToRaw(k));
+}
+
 template <typename ValueT>
 struct ValueGenerator {
   uint64_t max_val;
@@ -70,12 +102,14 @@ struct ValueGenerator {
   ValueT operator()(uint64_t i) const {
     if constexpr (hwy::IsSameEither<ValueT, float, double>()) {
       return static_cast<ValueT>(i) * static_cast<ValueT>(0.5);
-    } else if constexpr (IsSigned<ValueT>()) {
+    } else if constexpr (KeyCodec<ValueT>::kIsSigned) {
       // Shift range from [1, max_val] to [-max_val/2, +max_val/2] to test
       // negative keys.
-      return static_cast<ValueT>(i) - static_cast<ValueT>(max_val / 2);
+      using LaneT = typename KeyCodec<ValueT>::LaneType;
+      return KeyFromRaw<ValueT>(static_cast<LaneT>(i) -
+                                static_cast<LaneT>(max_val / 2));
     } else {
-      return static_cast<ValueT>(i);
+      return KeyFromRawInt<ValueT>(i);
     }
   }
 };
@@ -86,17 +120,12 @@ struct ValueGenerator<std::pair<K, V>> {
   explicit ValueGenerator(uint64_t m) : max_val(m) {}
 
   std::pair<K, V> operator()(uint64_t i) const {
-    K k;
-    if constexpr (IsSigned<K>()) {
-      // Shift range from [1, max_val] to [-max_val/2, +max_val/2] to test
-      // negative keys.
-      k = static_cast<K>(i) - static_cast<K>(max_val / 2);
-    } else {
-      k = static_cast<K>(i);
-    }
+    K k = ValueGenerator<K>(max_val)(i);
     V v;
     if constexpr (hwy::IsSameEither<V, float, double>()) {
       v = static_cast<V>(i) * static_cast<V>(1.5);
+    } else if constexpr (IsPointer<V>() || IsEnum<V>()) {
+      v = KeyFromRawInt<V>(i * 10 + 7);
     } else {
       v = static_cast<V>(i * 10 + 7);
     }
@@ -632,7 +661,7 @@ void DoFullContainerTest(const std::vector<typename TreeT::value_type>& values,
       HWY_BTREE_SWEEP_ALL ? size_t{40000} : AdjustedReps(500);
   for (size_t i = 0; i < kNumRandomQueries; ++i) {
     key_type q =
-        static_cast<key_type>((q_rng() % (values.size() * 50 + 10)) + 1);
+        KeyFromRawInt<key_type>((q_rng() % (values.size() * 50 + 10)) + 1);
     checker.CheckLookup(q);
   }
 
@@ -671,7 +700,7 @@ void DoFullContainerTest(const std::vector<typename TreeT::value_type>& values,
   auto reinsert_key = [&](key_type k) {
     if constexpr (kIsMap) {
       // Compute in uint64_t: extreme signed keys would overflow in key_type.
-      const uint64_t v = static_cast<uint64_t>(k) * 10 + 3;
+      const uint64_t v = KeyToRawU64(k) * 10 + 3;
       checker.insert({k, static_cast<typename TreeT::mapped_type>(v)});
     } else {
       checker.insert(k);
@@ -796,7 +825,7 @@ void DoBulkBuildAndBatchTest(size_t n, uint32_t seed) {
           size_t{16}, size_t{17}, size_t{64}, size_t{256}}) {
       std::vector<key_type> queries(batch_sz);
       for (size_t i = 0; i < batch_sz; ++i) {
-        queries[i] = static_cast<key_type>((q_rng() % (n * 60 + 10)) + 1);
+        queries[i] = KeyFromRawInt<key_type>((q_rng() % (n * 60 + 10)) + 1);
       }
 
       std::vector<uint8_t> found(batch_sz);
@@ -918,10 +947,10 @@ void DoDiverseBitModesTest() {
     dense_vals.reserve(kDenseCount);
     for (size_t i = 0; i < kDenseCount; ++i) {
       if constexpr (TreeT::kIsMap) {
-        dense_vals.push_back({static_cast<key_type>(i * 2 + 10),
+        dense_vals.push_back({KeyFromRawInt<key_type>(i * 2 + 10),
                               static_cast<typename TreeT::mapped_type>(i)});
       } else {
-        dense_vals.push_back(static_cast<key_type>(i * 2 + 10));
+        dense_vals.push_back(KeyFromRawInt<key_type>(i * 2 + 10));
       }
     }
     TreeT tree = BuildTreeFromValues<TreeT>(dense_vals);
@@ -938,10 +967,10 @@ void DoDiverseBitModesTest() {
     med_vals.reserve(kMedCount);
     for (size_t i = 0; i < kMedCount; ++i) {
       if constexpr (TreeT::kIsMap) {
-        med_vals.push_back({static_cast<key_type>(i * 100 + 10),
+        med_vals.push_back({KeyFromRawInt<key_type>(i * 100 + 10),
                             static_cast<typename TreeT::mapped_type>(i)});
       } else {
-        med_vals.push_back(static_cast<key_type>(i * 100 + 10));
+        med_vals.push_back(KeyFromRawInt<key_type>(i * 100 + 10));
       }
     }
     TreeT tree = BuildTreeFromValues<TreeT>(med_vals);
@@ -960,7 +989,7 @@ void DoDiverseBitModesTest() {
         (sizeof(key_type) == 4) ? 100000ULL : 10000000000ULL;
     for (size_t i = 0; i < kSparseCount; ++i) {
       key_type k =
-          static_cast<key_type>(static_cast<uint64_t>(i) * kSparseStep + 500);
+          KeyFromRawInt<key_type>(static_cast<uint64_t>(i) * kSparseStep + 500);
       if constexpr (TreeT::kIsMap) {
         sparse_vals.push_back(
             {k, static_cast<typename TreeT::mapped_type>(i * 3 + 1)});
@@ -983,7 +1012,7 @@ void DoDiverseBitModesTest() {
     mixed_vals.reserve(490);
     // 244 dense keys in [10000 .. 10243]
     for (size_t i = 0; i < 244; ++i) {
-      key_type k = static_cast<key_type>(10000 + i);
+      key_type k = KeyFromRawInt<key_type>(10000 + i);
       if constexpr (TreeT::kIsMap) {
         mixed_vals.push_back(
             {k, static_cast<typename TreeT::mapped_type>(i + 1)});
@@ -992,11 +1021,10 @@ void DoDiverseBitModesTest() {
       }
     }
     // 244 dense keys in [100000000 .. 100000243] to form a second dense leaf
-    const key_type far_base = (sizeof(key_type) == 4)
-                                  ? static_cast<key_type>(100000000U)
-                                  : static_cast<key_type>(10000000000ULL);
+    const uint64_t far_base =
+        (sizeof(key_type) == 4) ? 100000000ULL : 10000000000ULL;
     for (size_t i = 0; i < 244; ++i) {
-      key_type k = static_cast<key_type>(far_base + static_cast<key_type>(i));
+      key_type k = KeyFromRawInt<key_type>(far_base + i);
       if constexpr (TreeT::kIsMap) {
         mixed_vals.push_back(
             {k, static_cast<typename TreeT::mapped_type>(i + 1000)});
@@ -1006,12 +1034,10 @@ void DoDiverseBitModesTest() {
     }
     // Outlier 1: lands at the end of Leaf 0 (forces right-half mode downgrade)
     // Outlier 2: lands at the start of Leaf 1 (forces left-half mode downgrade)
-    const key_type outlier_right = (sizeof(key_type) == 4)
-                                       ? static_cast<key_type>(50000000U)
-                                       : static_cast<key_type>(5000000000ULL);
-    const key_type outlier_left = (sizeof(key_type) == 4)
-                                      ? static_cast<key_type>(90000000U)
-                                      : static_cast<key_type>(9000000000ULL);
+    const key_type outlier_right = KeyFromRawInt<key_type>(
+        (sizeof(key_type) == 4) ? 50000000ULL : 5000000000ULL);
+    const key_type outlier_left = KeyFromRawInt<key_type>(
+        (sizeof(key_type) == 4) ? 90000000ULL : 9000000000ULL);
     for (key_type k : {outlier_right, outlier_left}) {
       if constexpr (TreeT::kIsMap) {
         mixed_vals.push_back(
@@ -1453,21 +1479,24 @@ template <typename TreeT>
 void DoSiblingRebalanceTest() {
   using key_type = typename TreeT::key_type;
   using value_type = typename TreeT::value_type;
+  using LaneKeyT = typename KeyCodec<key_type>::LaneType;
   using StorageKeyT = typename KeyCodec<key_type>::StorageKey;
   using InternalNodeT = InternalNode<StorageKeyT>;
   using Checker = BTreeChecker<TreeT, TreeT>;
   using LeafPtrT = decltype(std::declval<TreeT>().state()->first_leaf_);
   using LeafT = std::remove_pointer_t<LeafPtrT>;
 
-  const auto make_value = [](key_type k) -> value_type {
+  const auto make_value = [](LaneKeyT raw_k) -> value_type {
+    const key_type k = KeyFromRaw<key_type>(raw_k);
     if constexpr (TreeT::kIsMap) {
-      return {k, static_cast<typename TreeT::mapped_type>(k)};
+      return {k, static_cast<typename TreeT::mapped_type>(raw_k)};
     } else {
       return k;
     }
   };
-  const auto leaf_key = [](const LeafT* leaf, size_t slot) -> key_type {
-    return KeyCodec<key_type>::FromStorage(GetLeafKey(leaf, slot));
+  const auto leaf_key = [](const LeafT* leaf, size_t slot) -> LaneKeyT {
+    return KeyToRaw<key_type>(
+        KeyCodec<key_type>::FromStorage(GetLeafKey(leaf, slot)));
   };
   const auto nth_leaf = [](const TreeT& tree, size_t n) -> LeafPtrT {
     LeafPtrT leaf = tree.state()->first_leaf_;
@@ -1485,8 +1514,8 @@ void DoSiblingRebalanceTest() {
   // Full 16-bit leaf capacity (the common mode); keys with step 200 force
   // 16-bit mode after the 3rd key and keep a full leaf's span < 65536.
   constexpr size_t kCap16 = LeafT::kMax16;
-  constexpr key_type kStep = 200;
-  constexpr key_type kBase = 1000;
+  constexpr LaneKeyT kStep = 200;
+  constexpr LaneKeyT kBase = 1000;
 
   // ---------------------------------------------------------------------------
   // Scenario 1: rebalance with the right sibling, then with the left sibling,
@@ -1496,7 +1525,7 @@ void DoSiblingRebalanceTest() {
   // ---------------------------------------------------------------------------
   {
     TreeT tree;
-    key_type next_key = kBase;
+    LaneKeyT next_key = kBase;
     while (tree.state()->num_leaves_ < 4) {
       tree.insert(make_value(next_key));
       next_key += kStep;
@@ -1519,13 +1548,13 @@ void DoSiblingRebalanceTest() {
       LeafPtrT l2 = nth_leaf(tree, 2);
       LeafPtrT l3 = nth_leaf(tree, 3);
       const size_t total = l2->NumKeys() + l3->NumKeys() + 1;
-      const key_type probe = leaf_key(l2, 3) + kStep / 2;
+      const LaneKeyT probe = leaf_key(l2, 3) + kStep / 2;
       HWY_ASSERT(tree.insert(make_value(probe)).second);
       HWY_ASSERT_EQ(tree.state()->num_leaves_, size_t{4});
       HWY_ASSERT_EQ(l2->NumKeys(), total / 2);
       HWY_ASSERT_EQ(l3->NumKeys(), total - total / 2);
       check_sep(root->keys[2], l2, l3);
-      HWY_ASSERT(tree.contains(probe));
+      HWY_ASSERT(tree.contains(KeyFromRaw<key_type>(probe)));
       Checker::VerifyPhysicalTree(tree);
     }
 
@@ -1535,22 +1564,22 @@ void DoSiblingRebalanceTest() {
     {
       LeafPtrT l2 = nth_leaf(tree, 2);
       LeafPtrT l3 = nth_leaf(tree, 3);
-      const key_type lo = leaf_key(l3, 0);
+      const LaneKeyT lo = leaf_key(l3, 0);
       size_t gap = 0;
       while (l3->NumKeys() < kCap16) {
-        const key_type k = lo + kStep * static_cast<key_type>(gap) + kStep / 2;
+        const LaneKeyT k = lo + kStep * static_cast<LaneKeyT>(gap) + kStep / 2;
         HWY_ASSERT(tree.insert(make_value(k)).second);
         ++gap;
       }
       HWY_ASSERT_EQ(tree.state()->num_leaves_, size_t{4});
       const size_t total = l2->NumKeys() + l3->NumKeys() + 1;
-      const key_type probe = leaf_key(l3, l3->NumKeys() - 2) + kStep / 2;
+      const LaneKeyT probe = leaf_key(l3, l3->NumKeys() - 2) + kStep / 2;
       HWY_ASSERT(tree.insert(make_value(probe)).second);
       HWY_ASSERT_EQ(tree.state()->num_leaves_, size_t{4});
       HWY_ASSERT_EQ(l2->NumKeys(), total / 2);
       HWY_ASSERT_EQ(l3->NumKeys(), total - total / 2);
       check_sep(root->keys[2], l2, l3);
-      HWY_ASSERT(tree.contains(probe));
+      HWY_ASSERT(tree.contains(KeyFromRaw<key_type>(probe)));
       Checker::VerifyPhysicalTree(tree);
     }
 
@@ -1563,7 +1592,8 @@ void DoSiblingRebalanceTest() {
       LeafPtrT l2 = nth_leaf(tree, 2);
       LeafPtrT l3 = nth_leaf(tree, 3);
       while (l2->NumKeys() > kCap16 * 3 / 5) {
-        HWY_ASSERT_EQ(tree.erase(leaf_key(l2, 1)), size_t{1});
+        HWY_ASSERT_EQ(tree.erase(KeyFromRaw<key_type>(leaf_key(l2, 1))),
+                      size_t{1});
       }
       HWY_ASSERT_EQ(tree.state()->num_leaves_, size_t{4});
       while (l3->NumKeys() < kCap16) {
@@ -1579,7 +1609,7 @@ void DoSiblingRebalanceTest() {
       HWY_ASSERT(l2->NumKeys() <= kCap16);
       HWY_ASSERT_EQ(l2->NumKeys() + l3->NumKeys(), total);
       check_sep(root->keys[2], l2, l3);
-      HWY_ASSERT(tree.contains(next_key));
+      HWY_ASSERT(tree.contains(KeyFromRaw<key_type>(next_key)));
       Checker::VerifyPhysicalTree(tree);
     }
   }
@@ -1596,17 +1626,17 @@ void DoSiblingRebalanceTest() {
     constexpr size_t kDense = kCap16 - 6;  // > kMax32, fits one 8-bit leaf
     static_assert(kDense <= HWY_MIN(LeafT::kMax8, size_t{256}));
     static_assert(kDense + 1 > LeafT::kMax32);
-    constexpr key_type kFar = 200000;
+    constexpr LaneKeyT kFar = 200000;
 
     TreeT tree;
     for (size_t i = 0; i < kDense; ++i) {
-      tree.insert(make_value(static_cast<key_type>(kBase + i)));
+      tree.insert(make_value(static_cast<LaneKeyT>(kBase + i)));
     }
     HWY_ASSERT_EQ(tree.state()->num_leaves_, size_t{1});
     // First far key cannot fit A in any mode -> boundary-biased root split:
     // A keeps all dense keys, B starts with one key.
     for (size_t i = 0; i < kCap16; ++i) {
-      tree.insert(make_value(kFar + kStep * static_cast<key_type>(i)));
+      tree.insert(make_value(kFar + kStep * static_cast<LaneKeyT>(i)));
     }
     HWY_ASSERT_EQ(tree.state()->num_leaves_, size_t{2});
     LeafPtrT a = nth_leaf(tree, 0);
@@ -1618,19 +1648,21 @@ void DoSiblingRebalanceTest() {
 
     // Insert into the middle of full B: B has no right sibling, A is too far
     // away to share keys -> split (num_leaves_ 2 -> 3), no corruption.
-    const key_type probe =
-        kFar + kStep * static_cast<key_type>(kCap16 / 2) + kStep / 2;
+    const LaneKeyT probe =
+        kFar + kStep * static_cast<LaneKeyT>(kCap16 / 2) + kStep / 2;
     HWY_ASSERT(tree.insert(make_value(probe)).second);
     HWY_ASSERT_EQ(tree.state()->num_leaves_, size_t{3});
     HWY_ASSERT_EQ(a->NumKeys(), kDense);  // A untouched
     Checker::VerifyPhysicalTree(tree);
     for (size_t i = 0; i < kDense; ++i) {
-      HWY_ASSERT(tree.contains(static_cast<key_type>(kBase + i)));
+      HWY_ASSERT(
+          tree.contains(KeyFromRaw<key_type>(static_cast<LaneKeyT>(kBase + i))));
     }
     for (size_t i = 0; i < kCap16; ++i) {
-      HWY_ASSERT(tree.contains(kFar + kStep * static_cast<key_type>(i)));
+      HWY_ASSERT(tree.contains(
+          KeyFromRaw<key_type>(kFar + kStep * static_cast<LaneKeyT>(i))));
     }
-    HWY_ASSERT(tree.contains(probe));
+    HWY_ASSERT(tree.contains(KeyFromRaw<key_type>(probe)));
   }
 }
 
@@ -1653,22 +1685,24 @@ void DoTypedefsAndObserversTest() {
   // 2. Runtime comparator observer verification (similar to absl::btree tests)
   TreeT tree;
   auto comp = tree.key_comp();
-  HWY_ASSERT(comp(static_cast<key_type>(1), static_cast<key_type>(2)));
-  HWY_ASSERT(!comp(static_cast<key_type>(2), static_cast<key_type>(2)));
-  HWY_ASSERT(!comp(static_cast<key_type>(2), static_cast<key_type>(1)));
+  const key_type k1 = KeyFromRawInt<key_type>(1);
+  const key_type k2 = KeyFromRawInt<key_type>(2);
+  HWY_ASSERT(comp(k1, k2));
+  HWY_ASSERT(!comp(k2, k2));
+  HWY_ASSERT(!comp(k2, k1));
 
   auto val_comp = tree.value_comp();
   if constexpr (TreeT::kIsMap) {
     using mapped_type = typename TreeT::mapped_type;
-    value_type v1{static_cast<key_type>(1), mapped_type{10}};
-    value_type v2{static_cast<key_type>(2), mapped_type{20}};
+    value_type v1{k1, mapped_type{10}};
+    value_type v2{k2, mapped_type{20}};
     HWY_ASSERT(val_comp(v1, v2));
     HWY_ASSERT(!val_comp(v2, v2));
     HWY_ASSERT(!val_comp(v2, v1));
   } else {
-    HWY_ASSERT(val_comp(static_cast<key_type>(1), static_cast<key_type>(2)));
-    HWY_ASSERT(!val_comp(static_cast<key_type>(2), static_cast<key_type>(2)));
-    HWY_ASSERT(!val_comp(static_cast<key_type>(2), static_cast<key_type>(1)));
+    HWY_ASSERT(val_comp(k1, k2));
+    HWY_ASSERT(!val_comp(k2, k2));
+    HWY_ASSERT(!val_comp(k2, k1));
   }
 
   // 3. Constructor with comparator argument
@@ -1724,7 +1758,7 @@ void DoCopyAndSwapTest() {
     HWY_ASSERT(it_orig == orig.cend() && it_copy == copied.cend());
 
     // Mutating copy does not affect original
-    key_type non_exist = static_cast<key_type>(999999);
+    key_type non_exist = KeyFromRawInt<key_type>(999999);
     if constexpr (TreeT::kIsMap) {
       copied.insert(non_exist, typename TreeT::mapped_type{1});
     } else {
@@ -1744,10 +1778,10 @@ void DoCopyAndSwapTest() {
     // Copy Assignment Operator overwriting already-populated tree
     TreeT overwriting_tree;
     if constexpr (TreeT::kIsMap) {
-      overwriting_tree.insert(static_cast<key_type>(12345),
+      overwriting_tree.insert(KeyFromRawInt<key_type>(12345),
                               typename TreeT::mapped_type{999});
     } else {
-      overwriting_tree.insert(static_cast<key_type>(12345));
+      overwriting_tree.insert(KeyFromRawInt<key_type>(12345));
     }
     overwriting_tree = orig;
     HWY_ASSERT_EQ(overwriting_tree.size(), orig.size());
@@ -1761,30 +1795,34 @@ void DoCopyAndSwapTest() {
 
     // Member and ADL swap
     TreeT a, b;
+    const key_type k10 = KeyFromRawInt<key_type>(10);
+    const key_type k20 = KeyFromRawInt<key_type>(20);
     if constexpr (TreeT::kIsMap) {
-      a.insert(static_cast<key_type>(10), typename TreeT::mapped_type{100});
-      b.insert(static_cast<key_type>(20), typename TreeT::mapped_type{200});
+      a.insert(k10, typename TreeT::mapped_type{100});
+      b.insert(k20, typename TreeT::mapped_type{200});
     } else {
-      a.insert(static_cast<key_type>(10));
-      b.insert(static_cast<key_type>(20));
+      a.insert(k10);
+      b.insert(k20);
     }
     a.swap(b);
-    HWY_ASSERT(a.contains(static_cast<key_type>(20)));
-    HWY_ASSERT(b.contains(static_cast<key_type>(10)));
+    HWY_ASSERT(a.contains(k20));
+    HWY_ASSERT(b.contains(k10));
 
     using std::swap;
     swap(a, b);
-    HWY_ASSERT(a.contains(static_cast<key_type>(10)));
-    HWY_ASSERT(b.contains(static_cast<key_type>(20)));
+    HWY_ASSERT(a.contains(k10));
+    HWY_ASSERT(b.contains(k20));
 
     // Initializer list assignment
     if constexpr (!TreeT::kIsMap) {
-      a = {static_cast<key_type>(1), static_cast<key_type>(2),
-           static_cast<key_type>(3)};
+      const key_type k1 = KeyFromRawInt<key_type>(1);
+      const key_type k2 = KeyFromRawInt<key_type>(2);
+      const key_type k3 = KeyFromRawInt<key_type>(3);
+      a = {k1, k2, k3};
       HWY_ASSERT_EQ(a.size(), size_t{3});
-      HWY_ASSERT(a.contains(static_cast<key_type>(1)));
-      HWY_ASSERT(a.contains(static_cast<key_type>(2)));
-      HWY_ASSERT(a.contains(static_cast<key_type>(3)));
+      HWY_ASSERT(a.contains(k1));
+      HWY_ASSERT(a.contains(k2));
+      HWY_ASSERT(a.contains(k3));
     }
   }
 
@@ -1818,16 +1856,19 @@ template <typename TreeT, typename StdRefT>
 void DoExtremeBoundariesTest() {
   using key_type = typename TreeT::key_type;
   using value_type = typename TreeT::value_type;
+  using LaneKeyT = typename KeyCodec<key_type>::LaneType;
   static constexpr bool kIsMap = TreeT::kIsMap;
 
   std::vector<key_type> special_keys = {
-      std::numeric_limits<key_type>::min(),
-      static_cast<key_type>(std::numeric_limits<key_type>::min() + 1),
-      static_cast<key_type>(-1),
-      static_cast<key_type>(0),
-      static_cast<key_type>(1),
-      static_cast<key_type>(std::numeric_limits<key_type>::max() - 1),
-      std::numeric_limits<key_type>::max(),
+      KeyFromRaw<key_type>(std::numeric_limits<LaneKeyT>::min()),
+      KeyFromRaw<key_type>(
+          static_cast<LaneKeyT>(std::numeric_limits<LaneKeyT>::min() + 1)),
+      KeyFromRaw<key_type>(static_cast<LaneKeyT>(-1)),
+      KeyFromRaw<key_type>(static_cast<LaneKeyT>(0)),
+      KeyFromRaw<key_type>(static_cast<LaneKeyT>(1)),
+      KeyFromRaw<key_type>(
+          static_cast<LaneKeyT>(std::numeric_limits<LaneKeyT>::max() - 1)),
+      KeyFromRaw<key_type>(std::numeric_limits<LaneKeyT>::max()),
   };
 
   std::vector<value_type> vals;
@@ -1836,7 +1877,7 @@ void DoExtremeBoundariesTest() {
     if (seen.insert(k).second) {
       if constexpr (kIsMap) {
         vals.push_back({k, static_cast<typename TreeT::mapped_type>(
-                               static_cast<uint64_t>(k) & 0xFF)});
+                               KeyToRawU64(k) & 0xFF)});
       } else {
         vals.push_back(k);
       }
@@ -1846,11 +1887,11 @@ void DoExtremeBoundariesTest() {
   // Add 600 intermediate keys to ensure tree height >= 1 and internal node
   // splits.
   for (int64_t i = -300; i <= 300; ++i) {
-    key_type k = static_cast<key_type>(i * 1000);
+    key_type k = KeyFromRaw<key_type>(static_cast<LaneKeyT>(i * 1000));
     if (seen.insert(k).second) {
       if constexpr (kIsMap) {
         vals.push_back({k, static_cast<typename TreeT::mapped_type>(
-                               static_cast<uint64_t>(k) & 0xFF)});
+                               KeyToRawU64(k) & 0xFF)});
       } else {
         vals.push_back(k);
       }
@@ -1907,7 +1948,7 @@ void DoEraseIteratorTest() {
       while (it != tree.end()) {
         HWY_ASSERT(ref_it != ref.end());
         VerifyEqualElements(it, ref_it);
-        const uint64_t k = static_cast<uint64_t>(key_of(*it));
+        const uint64_t k = KeyToRawU64(key_of(*it));
         if ((k * 0x9E3779B97F4A7C15ULL) >> 62 != 0) {  // erase ~75%
           it = tree.erase(it);
           ref_it = ref.erase(ref_it);
@@ -2044,7 +2085,7 @@ void DoAdapterMoveTest() {
 
   const auto insert_range = [](TreeT& tree, size_t first, size_t count) {
     for (size_t i = first; i < first + count; ++i) {
-      const key_type k = static_cast<key_type>(i);
+      const key_type k = KeyFromRawInt<key_type>(i);
       if constexpr (TreeT::kIsMap) {
         tree.insert(k, typename TreeT::mapped_type{});
       } else {
@@ -2055,7 +2096,7 @@ void DoAdapterMoveTest() {
   const auto contains_range = [](const TreeT& tree, size_t first,
                                  size_t count) {
     for (size_t i = first; i < first + count; ++i) {
-      HWY_ASSERT(tree.contains(static_cast<key_type>(i)));
+      HWY_ASSERT(tree.contains(KeyFromRawInt<key_type>(i)));
     }
   };
 
@@ -2091,7 +2132,7 @@ void DoAdapterMoveTest() {
     TreeT check(&ext);
     HWY_ASSERT_EQ(size_t{kN}, check.size());
     contains_range(check, 0, kN);
-    HWY_ASSERT(!check.contains(static_cast<key_type>(1000)));
+    HWY_ASSERT(!check.contains(KeyFromRawInt<key_type>(1000)));
     check.clear();
   }
 
@@ -2131,7 +2172,7 @@ void DoAdapterMoveTest() {
     }
     HWY_ASSERT_EQ(size_t{0}, ext.num_elements_);
     HWY_ASSERT_EQ(size_t{kN}, dst.size());
-    HWY_ASSERT(!dst.contains(static_cast<key_type>(7777)));
+    HWY_ASSERT(!dst.contains(KeyFromRawInt<key_type>(7777)));
   }
 
   // Moving or copying between two adapters of the same external state is a

@@ -2248,9 +2248,11 @@ class BTree {
                      float fill_ratio = 1.0f) {
     static_assert(!Traits::kIsMap, "Build with keys only is for Sets");
     if (HWY_UNLIKELY(num_keys == 0)) return BTree();
-    const ScalableTag<KeyT> d_key;
-    if (IsSorted(d_key, keys, num_keys, IsSortedLessEqual())) {
-      if constexpr (IsSigned<KeyT>()) {
+    using LaneKeyT = typename KeyCodec<KeyT>::LaneType;
+    const ScalableTag<LaneKeyT> d_key;
+    if (IsSorted(d_key, HWY_RCAST_ALIGNED(const LaneKeyT*, keys), num_keys,
+                 IsSortedLessEqual())) {
+      if constexpr (KeyCodec<KeyT>::kIsSigned) {
         // Allocate temporary contiguous storage buffer to encode signed keys
         // upfront. Although heap-allocated, this buffer is transient (freed
         // immediately upon Build return), keeping the builder algorithm in
@@ -2263,14 +2265,15 @@ class BTree {
                              static_cast<const mapped_type*>(nullptr), num_keys,
                              fill_ratio);
       } else {
-        return BuildInternal(keys, static_cast<const mapped_type*>(nullptr),
-                             num_keys, fill_ratio);
+        return BuildInternal(HWY_RCAST_ALIGNED(const StorageKeyT*, keys),
+                             static_cast<const mapped_type*>(nullptr), num_keys,
+                             fill_ratio);
       }
     }
 
     // Path when input is unsorted and/or contains duplicates.
     AlignedPtr<StorageKeyT> ukeys = AllocateAligned<StorageKeyT>(num_keys);
-    if constexpr (IsSigned<KeyT>()) {
+    if constexpr (KeyCodec<KeyT>::kIsSigned) {
       for (size_t i = 0; i < num_keys; ++i) {
         ukeys[i] = KeyCodec<KeyT>::ToStorage(keys[i]);
       }
@@ -2306,9 +2309,11 @@ class BTree {
   static BTree Build(const KeyT* keys, const V* values, size_t num_keys,
                      float fill_ratio = 1.0f) {
     if (HWY_UNLIKELY(num_keys == 0)) return BTree();
-    const ScalableTag<KeyT> d_key;
-    if (IsSorted(d_key, keys, num_keys, IsSortedLessEqual())) {
-      if constexpr (IsSigned<KeyT>()) {
+    using LaneKeyT = typename KeyCodec<KeyT>::LaneType;
+    const ScalableTag<LaneKeyT> d_key;
+    if (IsSorted(d_key, HWY_RCAST_ALIGNED(const LaneKeyT*, keys), num_keys,
+                 IsSortedLessEqual())) {
+      if constexpr (KeyCodec<KeyT>::kIsSigned) {
         // Allocate temporary contiguous storage buffer to encode signed keys
         // upfront. Although heap-allocated, this buffer is transient (freed
         // immediately upon Build return), keeping the builder algorithm in
@@ -2319,7 +2324,8 @@ class BTree {
         }
         return BuildInternal(ukeys.get(), values, num_keys, fill_ratio);
       } else {
-        return BuildInternal(keys, values, num_keys, fill_ratio);
+        return BuildInternal(HWY_RCAST_ALIGNED(const StorageKeyT*, keys),
+                             values, num_keys, fill_ratio);
       }
     }
 

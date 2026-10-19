@@ -41,25 +41,36 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
+
+enum UnscopedSignedEnum32 : int32_t {};
+enum class ScopedUnsignedEnum32 : uint32_t {};
+enum class ScopedSignedEnum64 : int64_t {};
+enum class ScopedUnsignedEnum64 : uint64_t {};
+
 #if (HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128) && !HWY_IDE
 HWY_NOINLINE void TestAdapterMove() {}
 HWY_NOINLINE void TestBTreeSetU32() {}
 HWY_NOINLINE void TestBTreeSetI32() {}
 HWY_NOINLINE void TestBTreeSetU64() {}
 HWY_NOINLINE void TestBTreeSetI64() {}
+HWY_NOINLINE void TestBTreeSetPtrAndEnum() {}
 HWY_NOINLINE void TestBTreeMapU32U64() {}
 HWY_NOINLINE void TestBTreeMapI32U64() {}
 HWY_NOINLINE void TestBTreeMapU64U64() {}
 HWY_NOINLINE void TestBTreeMapU64F64() {}
 HWY_NOINLINE void TestBTreeMapI64F64() {}
 HWY_NOINLINE void TestBTreeMapU32F32() {}
+HWY_NOINLINE void TestBTreeMapPtrAndEnum() {}
 #else
 HWY_NOINLINE void TestAdapterMove() {
   fprintf(stderr, "Running adapter move semantics tests...\n");
   DoAdapterMoveTest<BTreeSet<uint32_t> >();
   DoAdapterMoveTest<BTreeSet<int64_t> >();
+  DoAdapterMoveTest<BTreeSet<void*> >();
+  DoAdapterMoveTest<BTreeSet<ScopedSignedEnum64> >();
   DoAdapterMoveTest<BTreeMap<uint32_t, uint64_t> >();
   DoAdapterMoveTest<BTreeMap<uint64_t, double> >();
+  DoAdapterMoveTest<BTreeMap<const uint64_t*, uint64_t> >();
 }
 
 HWY_NOINLINE void TestBTreeSetU32() {
@@ -80,6 +91,21 @@ HWY_NOINLINE void TestBTreeSetU64() {
 HWY_NOINLINE void TestBTreeSetI64() {
   fprintf(stderr, "Running BTreeSet int64_t tests...\n");
   RunFullTestSuite<BTreeSet<int64_t>, std::set<int64_t> >();
+}
+
+HWY_NOINLINE void TestBTreeSetPtrAndEnum() {
+  fprintf(stderr, "Running BTreeSet pointer and enum tests...\n");
+  RunFullTestSuite<BTreeSet<uint64_t*>, std::set<uint64_t*> >();
+  RunFullTestSuite<BTreeSet<const uint32_t*>, std::set<const uint32_t*> >();
+  RunFullTestSuite<BTreeSet<void*>, std::set<void*> >();
+  RunFullTestSuite<BTreeSet<UnscopedSignedEnum32>,
+                   std::set<UnscopedSignedEnum32> >();
+  RunFullTestSuite<BTreeSet<ScopedUnsignedEnum32>,
+                   std::set<ScopedUnsignedEnum32> >();
+  RunFullTestSuite<BTreeSet<ScopedSignedEnum64>,
+                   std::set<ScopedSignedEnum64> >();
+  RunFullTestSuite<BTreeSet<ScopedUnsignedEnum64>,
+                   std::set<ScopedUnsignedEnum64> >();
 }
 
 HWY_NOINLINE void TestBTreeMapU32U64() {
@@ -114,6 +140,23 @@ HWY_NOINLINE void TestBTreeMapU32F32() {
   RunFullTestSuite<BTreeMap<uint32_t, float>, std::map<uint32_t, float> >();
 }
 
+HWY_NOINLINE void TestBTreeMapPtrAndEnum() {
+  fprintf(stderr, "Running BTreeMap pointer and enum key tests...\n");
+  RunFullTestSuite<BTreeMap<uint64_t*, uint64_t>,
+                   std::map<uint64_t*, uint64_t> >();
+  RunFullTestSuite<BTreeMap<const uint32_t*, double>,
+                   std::map<const uint32_t*, double> >();
+  RunFullTestSuite<BTreeMap<void*, uint32_t>, std::map<void*, uint32_t> >();
+  RunFullTestSuite<BTreeMap<UnscopedSignedEnum32, uint64_t>,
+                   std::map<UnscopedSignedEnum32, uint64_t> >();
+  RunFullTestSuite<BTreeMap<ScopedUnsignedEnum32, float>,
+                   std::map<ScopedUnsignedEnum32, float> >();
+  RunFullTestSuite<BTreeMap<ScopedSignedEnum64, double>,
+                   std::map<ScopedSignedEnum64, double> >();
+  RunFullTestSuite<BTreeMap<ScopedUnsignedEnum64, uint64_t>,
+                   std::map<ScopedUnsignedEnum64, uint64_t> >();
+}
+
 #endif  // (HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128) && !HWY_IDE
 
 }  // namespace
@@ -130,12 +173,14 @@ HWY_EXPORT_AND_TEST_P(BTreeTest, TestBTreeSetU32);
 HWY_EXPORT_AND_TEST_P(BTreeTest, TestBTreeSetI32);
 HWY_EXPORT_AND_TEST_P(BTreeTest, TestBTreeSetU64);
 HWY_EXPORT_AND_TEST_P(BTreeTest, TestBTreeSetI64);
+HWY_EXPORT_AND_TEST_P(BTreeTest, TestBTreeSetPtrAndEnum);
 HWY_EXPORT_AND_TEST_P(BTreeTest, TestBTreeMapU32U64);
 HWY_EXPORT_AND_TEST_P(BTreeTest, TestBTreeMapI32U64);
 HWY_EXPORT_AND_TEST_P(BTreeTest, TestBTreeMapU64U64);
 HWY_EXPORT_AND_TEST_P(BTreeTest, TestBTreeMapU64F64);
 HWY_EXPORT_AND_TEST_P(BTreeTest, TestBTreeMapI64F64);
 HWY_EXPORT_AND_TEST_P(BTreeTest, TestBTreeMapU32F32);
+HWY_EXPORT_AND_TEST_P(BTreeTest, TestBTreeMapPtrAndEnum);
 HWY_AFTER_TEST();
 }  // namespace hwy
 HWY_TEST_MAIN();
