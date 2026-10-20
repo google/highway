@@ -52,7 +52,17 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 
 using TreeEngine = HWY_NAMESPACE::BTree<HWY_NAMESPACE::SetTraits<BTREE_KEY_T>>;
-using TreeState = hwy::BTreeState<BTREE_KEY_T>;
+using TreeState = typename TreeEngine::State;
+using TreeLeaf = typename TreeEngine::Leaf;
+
+static_assert(
+    sizeof(typename TreeEngine::const_iterator) ==
+        sizeof(typename hwy::BTreeSet<BTREE_KEY_T>::const_iterator),
+    "TreeEngine::const_iterator must match BTreeSet::const_iterator size");
+static_assert(
+    alignof(typename TreeEngine::const_iterator) ==
+        alignof(typename hwy::BTreeSet<BTREE_KEY_T>::const_iterator),
+    "TreeEngine::const_iterator must match BTreeSet::const_iterator alignment");
 
 // The *Impl functions below wrap a short-lived engine adapter around the
 // BTreeSet's state and run the corresponding engine operation on it. Engine
@@ -99,37 +109,33 @@ bool SetContainsImpl(const TreeState* state, BTREE_KEY_T key) {
   return tree.contains(key);
 }
 
-typename hwy::BTreeSet<BTREE_KEY_T>::const_iterator SetLowerBoundImpl(
-    const TreeState* state, BTREE_KEY_T key) {
+std::pair<const TreeLeaf*, size_t> SetLowerBoundImpl(const TreeState* state,
+                                                     BTREE_KEY_T key) {
   TreeEngine tree(const_cast<TreeState*>(state));
   auto it = tree.lower_bound(key);
-  return typename hwy::BTreeSet<BTREE_KEY_T>::const_iterator(
-      it.leaf(), it.slot(), state->last_leaf_);
+  return {it.leaf(), it.slot()};
 }
 
-typename hwy::BTreeSet<BTREE_KEY_T>::const_iterator SetUpperBoundImpl(
-    const TreeState* state, BTREE_KEY_T key) {
+std::pair<const TreeLeaf*, size_t> SetUpperBoundImpl(const TreeState* state,
+                                                     BTREE_KEY_T key) {
   TreeEngine tree(const_cast<TreeState*>(state));
   auto it = tree.upper_bound(key);
-  return typename hwy::BTreeSet<BTREE_KEY_T>::const_iterator(
-      it.leaf(), it.slot(), state->last_leaf_);
+  return {it.leaf(), it.slot()};
 }
 
-typename hwy::BTreeSet<BTREE_KEY_T>::const_iterator SetFindImpl(
-    const TreeState* state, BTREE_KEY_T key) {
+std::pair<const TreeLeaf*, size_t> SetFindImpl(const TreeState* state,
+                                               BTREE_KEY_T key) {
   TreeEngine tree(const_cast<TreeState*>(state));
   auto it = tree.find(key);
-  return typename hwy::BTreeSet<BTREE_KEY_T>::const_iterator(
-      it.leaf(), it.slot(), state->last_leaf_);
+  return {it.leaf(), it.slot()};
 }
 
-void SetInsertImpl(TreeState* state, BTREE_KEY_T key,
-                   typename hwy::BTreeSet<BTREE_KEY_T>::iterator* out_it,
-                   bool* out_inserted) {
+void SetInsertImpl(TreeState* state, BTREE_KEY_T key, TreeLeaf** out_leaf,
+                   size_t* out_slot, bool* out_inserted) {
   TreeEngine tree(state);
   auto res = tree.insert(key);
-  *out_it = typename hwy::BTreeSet<BTREE_KEY_T>::iterator(
-      res.first.leaf(), res.first.slot(), state->last_leaf_);
+  *out_leaf = res.first.leaf();
+  *out_slot = res.first.slot();
   *out_inserted = res.second;
 }
 
@@ -138,13 +144,12 @@ void SetEraseImpl(TreeState* state, BTREE_KEY_T key, size_t* out_erased) {
   *out_erased = tree.erase(key);
 }
 
-void SetEraseIterImpl(TreeState* state, const typename TreeEngine::Leaf* leaf,
-                      size_t slot,
-                      typename hwy::BTreeSet<BTREE_KEY_T>::iterator* out_it) {
+void SetEraseIterImpl(TreeState* state, const TreeLeaf* leaf, size_t slot,
+                      TreeLeaf** out_leaf, size_t* out_slot) {
   TreeEngine tree(state);
   auto it = tree.erase(typename TreeEngine::const_iterator(leaf, slot));
-  *out_it = typename hwy::BTreeSet<BTREE_KEY_T>::iterator(it.leaf(), it.slot(),
-                                                          state->last_leaf_);
+  *out_leaf = it.leaf();
+  *out_slot = it.slot();
 }
 
 void SetContainsBatchImpl(const TreeState* state,
@@ -154,22 +159,18 @@ void SetContainsBatchImpl(const TreeState* state,
   tree.ContainsBatch(keys, count, out);
 }
 
-void SetFindBatchImpl(
-    const TreeState* state, const BTREE_KEY_T* HWY_RESTRICT keys, size_t count,
-    typename hwy::BTreeSet<BTREE_KEY_T>::const_iterator* HWY_RESTRICT out) {
+void SetFindBatchImpl(const TreeState* state,
+                      const BTREE_KEY_T* HWY_RESTRICT keys, size_t count,
+                      void* HWY_RESTRICT out) {
   TreeEngine tree(const_cast<TreeState*>(state));
-  static_assert(sizeof(typename TreeEngine::const_iterator) ==
-                sizeof(typename hwy::BTreeSet<BTREE_KEY_T>::const_iterator));
   tree.FindBatch(keys, count,
                  reinterpret_cast<typename TreeEngine::const_iterator*>(out));
 }
 
-void SetLowerBoundBatchImpl(
-    const TreeState* state, const BTREE_KEY_T* HWY_RESTRICT keys, size_t count,
-    typename hwy::BTreeSet<BTREE_KEY_T>::const_iterator* HWY_RESTRICT out) {
+void SetLowerBoundBatchImpl(const TreeState* state,
+                            const BTREE_KEY_T* HWY_RESTRICT keys, size_t count,
+                            void* HWY_RESTRICT out) {
   TreeEngine tree(const_cast<TreeState*>(state));
-  static_assert(sizeof(typename TreeEngine::const_iterator) ==
-                sizeof(typename hwy::BTreeSet<BTREE_KEY_T>::const_iterator));
   tree.LowerBoundBatch(
       keys, count, reinterpret_cast<typename TreeEngine::const_iterator*>(out));
 }
@@ -201,120 +202,100 @@ HWY_EXPORT(SetInsertImpl);
 HWY_EXPORT(SetEraseImpl);
 HWY_EXPORT(SetEraseIterImpl);
 
-template <>
-void BTreeSet<BTREE_KEY_T>::clear() {
-  HWY_DYNAMIC_DISPATCH(SetClearImpl)(&state_);
+// Defines the dynamic dispatch entry points for SetDispatch<KeyT>.
+// KeyT is strictly uint32_t, int32_t, uint64_t, or int64_t; user-facing
+// BTreeSet<KeyT> delegates to these implementations via BitCastScalar and
+// pointer reinterpretation.
+namespace detail {
+
+void SetDispatch<BTREE_KEY_T>::Clear(State* state) {
+  HWY_DYNAMIC_DISPATCH(SetClearImpl)(state);
 }
 
-template <>
-BTreeSet<BTREE_KEY_T>::BTreeSet(const BTreeSet& other) {
-  HWY_DYNAMIC_DISPATCH(SetCopyConstructImpl)(&state_, &other.state_);
+void SetDispatch<BTREE_KEY_T>::CopyConstruct(State* dst, const State* src) {
+  HWY_DYNAMIC_DISPATCH(SetCopyConstructImpl)(dst, src);
 }
 
-template <>
-BTreeSet<BTREE_KEY_T>& BTreeSet<BTREE_KEY_T>::operator=(const BTreeSet& other) {
-  if (this != &other) {
-    HWY_DYNAMIC_DISPATCH(SetCopyAssignImpl)(&state_, &other.state_);
-  }
-  return *this;
+void SetDispatch<BTREE_KEY_T>::CopyAssign(State* dst, const State* src) {
+  HWY_DYNAMIC_DISPATCH(SetCopyAssignImpl)(dst, src);
 }
 
-template <>
-BTreeSet<BTREE_KEY_T>::BTreeSet(BTreeSet&& other) noexcept {
-  HWY_DYNAMIC_DISPATCH(SetMoveConstructImpl)(&state_, &other.state_);
+void SetDispatch<BTREE_KEY_T>::MoveConstruct(State* dst, State* src) {
+  HWY_DYNAMIC_DISPATCH(SetMoveConstructImpl)(dst, src);
 }
 
-template <>
-BTreeSet<BTREE_KEY_T>& BTreeSet<BTREE_KEY_T>::operator=(
-    BTreeSet&& other) noexcept {
-  if (this != &other) {
-    HWY_DYNAMIC_DISPATCH(SetMoveAssignImpl)(&state_, &other.state_);
-  }
-  return *this;
+void SetDispatch<BTREE_KEY_T>::MoveAssign(State* dst, State* src) {
+  HWY_DYNAMIC_DISPATCH(SetMoveAssignImpl)(dst, src);
 }
 
-template <>
-BTreeSet<BTREE_KEY_T>::~BTreeSet() {
-  clear();
+void SetDispatch<BTREE_KEY_T>::Build(const BTREE_KEY_T* keys, size_t count,
+                                     float fill, State* out_state) {
+  HWY_DYNAMIC_DISPATCH(SetBuildImpl)(keys, count, fill, out_state);
 }
 
-template <>
-BTreeSet<BTREE_KEY_T> BTreeSet<BTREE_KEY_T>::Build(
-    const BTREE_KEY_T* sorted_keys, size_t num_keys, float fill_ratio) {
-  BTreeSet<BTREE_KEY_T> tree;
-  HWY_DYNAMIC_DISPATCH(SetBuildImpl)(sorted_keys, num_keys, fill_ratio,
-                                     &tree.state_);
-  return tree;
+bool SetDispatch<BTREE_KEY_T>::Contains(const State* state, BTREE_KEY_T key) {
+  return HWY_DYNAMIC_DISPATCH(SetContainsImpl)(state, key);
 }
 
-template <>
-BTreeSet<BTREE_KEY_T>::const_iterator BTreeSet<BTREE_KEY_T>::lower_bound(
-    BTREE_KEY_T key) const {
-  return HWY_DYNAMIC_DISPATCH(SetLowerBoundImpl)(&state_, key);
+std::pair<const typename SetDispatch<BTREE_KEY_T>::Leaf*, size_t>
+SetDispatch<BTREE_KEY_T>::LowerBound(const State* state, BTREE_KEY_T key) {
+  return HWY_DYNAMIC_DISPATCH(SetLowerBoundImpl)(state, key);
 }
 
-template <>
-BTreeSet<BTREE_KEY_T>::const_iterator BTreeSet<BTREE_KEY_T>::upper_bound(
-    BTREE_KEY_T key) const {
-  return HWY_DYNAMIC_DISPATCH(SetUpperBoundImpl)(&state_, key);
+std::pair<const typename SetDispatch<BTREE_KEY_T>::Leaf*, size_t>
+SetDispatch<BTREE_KEY_T>::UpperBound(const State* state, BTREE_KEY_T key) {
+  return HWY_DYNAMIC_DISPATCH(SetUpperBoundImpl)(state, key);
 }
 
-template <>
-BTreeSet<BTREE_KEY_T>::const_iterator BTreeSet<BTREE_KEY_T>::find(
-    BTREE_KEY_T key) const {
-  return HWY_DYNAMIC_DISPATCH(SetFindImpl)(&state_, key);
+std::pair<const typename SetDispatch<BTREE_KEY_T>::Leaf*, size_t>
+SetDispatch<BTREE_KEY_T>::Find(const State* state, BTREE_KEY_T key) {
+  return HWY_DYNAMIC_DISPATCH(SetFindImpl)(state, key);
 }
 
-template <>
-std::pair<typename BTreeSet<BTREE_KEY_T>::iterator, bool>
-BTreeSet<BTREE_KEY_T>::insert(BTREE_KEY_T key) {
-  BTreeSet<BTREE_KEY_T>::iterator it;
+std::pair<std::pair<typename SetDispatch<BTREE_KEY_T>::Leaf*, size_t>, bool>
+SetDispatch<BTREE_KEY_T>::Insert(State* state, BTREE_KEY_T key) {
+  Leaf* leaf = nullptr;
+  size_t slot = 0;
   bool inserted = false;
-  HWY_DYNAMIC_DISPATCH(SetInsertImpl)(&state_, key, &it, &inserted);
-  return {it, inserted};
+  HWY_DYNAMIC_DISPATCH(SetInsertImpl)(state, key, &leaf, &slot, &inserted);
+  return {{leaf, slot}, inserted};
 }
 
-template <>
-size_t BTreeSet<BTREE_KEY_T>::erase(BTREE_KEY_T key) {
+size_t SetDispatch<BTREE_KEY_T>::Erase(State* state, BTREE_KEY_T key) {
   size_t erased = 0;
-  HWY_DYNAMIC_DISPATCH(SetEraseImpl)(&state_, key, &erased);
+  HWY_DYNAMIC_DISPATCH(SetEraseImpl)(state, key, &erased);
   return erased;
 }
 
-template <>
-BTreeSet<BTREE_KEY_T>::iterator BTreeSet<BTREE_KEY_T>::erase(
-    const_iterator pos) {
-  BTreeSet<BTREE_KEY_T>::iterator it;
-  HWY_DYNAMIC_DISPATCH(SetEraseIterImpl)(&state_, pos.leaf(), pos.slot(), &it);
-  return it;
+std::pair<typename SetDispatch<BTREE_KEY_T>::Leaf*, size_t>
+SetDispatch<BTREE_KEY_T>::EraseIter(State* state, const Leaf* leaf,
+                                    size_t slot) {
+  Leaf* out_leaf = nullptr;
+  size_t out_slot = 0;
+  HWY_DYNAMIC_DISPATCH(SetEraseIterImpl)(state, leaf, slot, &out_leaf,
+                                         &out_slot);
+  return {out_leaf, out_slot};
 }
 
-template <>
-bool BTreeSet<BTREE_KEY_T>::Contains(BTREE_KEY_T key) const {
-  return HWY_DYNAMIC_DISPATCH(SetContainsImpl)(&state_, key);
+void SetDispatch<BTREE_KEY_T>::ContainsBatch(const State* state,
+                                             const BTREE_KEY_T* keys,
+                                             size_t count, bool* out) {
+  HWY_DYNAMIC_DISPATCH(SetContainsBatchImpl)(state, keys, count, out);
 }
 
-template <>
-void BTreeSet<BTREE_KEY_T>::ContainsBatch(const BTREE_KEY_T* keys, size_t count,
-                                          bool* out) const {
-  HWY_DYNAMIC_DISPATCH(SetContainsBatchImpl)(&state_, keys, count, out);
+void SetDispatch<BTREE_KEY_T>::FindBatch(const State* state,
+                                         const BTREE_KEY_T* keys, size_t count,
+                                         void* out) {
+  HWY_DYNAMIC_DISPATCH(SetFindBatchImpl)(state, keys, count, out);
 }
 
-template <>
-void BTreeSet<BTREE_KEY_T>::FindBatch(const BTREE_KEY_T* keys, size_t count,
-                                      const_iterator* out) const {
-  HWY_DYNAMIC_DISPATCH(SetFindBatchImpl)(&state_, keys, count, out);
+void SetDispatch<BTREE_KEY_T>::LowerBoundBatch(const State* state,
+                                               const BTREE_KEY_T* keys,
+                                               size_t count, void* out) {
+  HWY_DYNAMIC_DISPATCH(SetLowerBoundBatchImpl)(state, keys, count, out);
 }
 
-template <>
-void BTreeSet<BTREE_KEY_T>::LowerBoundBatch(const BTREE_KEY_T* keys,
-                                            size_t count,
-                                            const_iterator* out) const {
-  HWY_DYNAMIC_DISPATCH(SetLowerBoundBatchImpl)(&state_, keys, count, out);
-}
-
-template class HWY_CONTRIB_DLLEXPORT BTreeSet<BTREE_KEY_T>;
-
+}  // namespace detail
 }  // namespace hwy
 #endif  // HWY_ONCE
 

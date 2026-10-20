@@ -25,9 +25,64 @@
 
 namespace hwy {
 
-// SIMD-accelerated ordered set of 32/64-bit integer keys with an API modelled
-// on std::set / absl::btree_set. Keys are stored delta-compressed in 512-byte
-// leaves; SIMD kernels are selected at runtime via dynamic dispatch.
+// Keys are partially type-erased via KeyCodec<KeyT>::LaneType so that any
+// supported 32/64-bit integer, pointer (T*), or 32/64-bit enum key maps to one
+// of the four pre-compiled SIMD dispatch instantiations (uint32_t, int32_t,
+// uint64_t, int64_t).
+namespace detail {
+
+template <typename LaneKeyT>
+struct SetDispatch;
+
+#define HWY_BTREE_SET_DISPATCH_DECLARE(LaneKeyT)                              \
+  template <>                                                                 \
+  struct HWY_CONTRIB_DLLEXPORT SetDispatch<LaneKeyT> {                        \
+    using StorageKeyT = typename KeyCodec<LaneKeyT>::StorageKey;              \
+    using Leaf = LeafNode<StorageKeyT>;                                       \
+    using State = BTreeState<LaneKeyT, Leaf>;                                 \
+                                                                              \
+    static void Clear(State* state);                                          \
+    static void CopyConstruct(State* dst, const State* src);                  \
+    static void CopyAssign(State* dst, const State* src);                     \
+    static void MoveConstruct(State* dst, State* src);                        \
+    static void MoveAssign(State* dst, State* src);                           \
+    static void Build(const LaneKeyT* keys, size_t count, float fill,         \
+                      State* out_state);                                      \
+    static bool Contains(const State* state, LaneKeyT key);                   \
+    static std::pair<const Leaf*, size_t> LowerBound(const State* state,      \
+                                                     LaneKeyT key);           \
+    static std::pair<const Leaf*, size_t> UpperBound(const State* state,      \
+                                                     LaneKeyT key);           \
+    static std::pair<const Leaf*, size_t> Find(const State* state,            \
+                                               LaneKeyT key);                 \
+    static std::pair<std::pair<Leaf*, size_t>, bool> Insert(State* state,     \
+                                                            LaneKeyT key);    \
+    static size_t Erase(State* state, LaneKeyT key);                          \
+    static std::pair<Leaf*, size_t> EraseIter(State* state, const Leaf* leaf, \
+                                              size_t slot);                   \
+    static void ContainsBatch(const State* state, const LaneKeyT* keys,       \
+                              size_t count, bool* out);                       \
+    static void FindBatch(const State* state, const LaneKeyT* keys,           \
+                          size_t count, void* out);                           \
+    static void LowerBoundBatch(const State* state, const LaneKeyT* keys,     \
+                                size_t count, void* out);                     \
+  }
+
+HWY_BTREE_SET_DISPATCH_DECLARE(uint32_t);
+HWY_BTREE_SET_DISPATCH_DECLARE(int32_t);
+HWY_BTREE_SET_DISPATCH_DECLARE(uint64_t);
+HWY_BTREE_SET_DISPATCH_DECLARE(int64_t);
+
+#undef HWY_BTREE_SET_DISPATCH_DECLARE
+
+}  // namespace detail
+
+// SIMD-accelerated ordered set of 32/64-bit integer, pointer, or enum keys with
+// an API modelled on std::set / absl::btree_set. Keys are stored
+// delta-compressed in 512-byte leaves; SIMD kernels are selected at runtime via
+// dynamic dispatch. Keys are always ordered by their numeric, address, or
+// underlying enum value; custom operator< overloads and key_compare functors
+// are ignored.
 //
 // Iterator invalidation: as with absl::btree_set, if an insertion or erasure
 // occurs (insert, emplace, erase, clear, Build, swap, assignment), ALL
@@ -47,6 +102,7 @@ class BTreeSet {
   using key_compare = std::less<KeyT>;
   using allocator_type = std::allocator<KeyT>;
 
+  using LaneKeyT = typename KeyCodec<KeyT>::LaneType;
   using StorageKeyT = typename KeyCodec<KeyT>::StorageKey;
   using LeafT = LeafNode<StorageKeyT>;
 
@@ -56,25 +112,48 @@ class BTreeSet {
   explicit BTreeSet(const key_compare& comp,
                     const allocator_type& alloc = allocator_type()) {}
   explicit BTreeSet(const allocator_type& alloc) {}
-  ~BTreeSet();
+  ~BTreeSet() { clear(); }
 
-  BTreeSet(const BTreeSet& other);
-  BTreeSet& operator=(const BTreeSet& other);
-  BTreeSet(BTreeSet&& other) noexcept;
-  BTreeSet& operator=(BTreeSet&& other) noexcept;
+  BTreeSet(const BTreeSet& other) {
+    Dispatch::CopyConstruct(&state_, &other.state_);
+  }
+  BTreeSet& operator=(const BTreeSet& other) {
+    if (this != &other) {
+      Dispatch::CopyAssign(&state_, &other.state_);
+    }
+    return *this;
+  }
+  BTreeSet(BTreeSet&& other) noexcept {
+    Dispatch::MoveConstruct(&state_, &other.state_);
+  }
+  BTreeSet& operator=(BTreeSet&& other) noexcept {
+    if (this != &other) {
+      Dispatch::MoveAssign(&state_, &other.state_);
+    }
+    return *this;
+  }
   BTreeSet& operator=(std::initializer_list<value_type> ilist) {
     clear();
     for (auto v : ilist) insert(v);
     return *this;
   }
 
-  // Bulk-builds a set from `num_keys` strictly ascending keys in O(N).
-  // Assigning the result to an existing set invalidates all of its iterators.
-  static BTreeSet Build(const KeyT* sorted_keys, size_t num_keys,
-                        float fill_ratio = 1.0f);
+  // Bulk-builds a set from `num_keys` keys in O(N) time if strictly ascending,
+  // or O(N log N) time via VQSort if unsorted or duplicate keys are present.
+  // Reinterpreting `keys` as `const LaneKeyT*` is safe because it crosses an
+  // opaque function-pointer dispatch table into `btree-inl.h`, which itself
+  // treats key arrays as `const LaneKeyT*`. Assigning the result to an existing
+  // set invalidates all of its iterators.
+  static BTreeSet Build(const KeyT* keys, size_t num_keys,
+                        float fill_ratio = 1.0f) {
+    BTreeSet tree;
+    Dispatch::Build(reinterpret_cast<const LaneKeyT*>(keys), num_keys,
+                    fill_ratio, &tree.state_);
+    return tree;
+  }
 
   // Removes all elements. Invalidates all iterators, pointers and references.
-  void clear();
+  void clear() { Dispatch::Clear(&state_); }
 
   // ---------------------------------------------------------------------------
   // Bidirectional Iterators
@@ -386,9 +465,18 @@ class BTreeSet {
   // ---------------------------------------------------------------------------
   // Range Queries & Mutation
   // ---------------------------------------------------------------------------
-  const_iterator lower_bound(KeyT key) const;
-  const_iterator upper_bound(KeyT key) const;
-  const_iterator find(KeyT key) const;
+  const_iterator lower_bound(KeyT key) const {
+    auto res = Dispatch::LowerBound(&state_, hwy::BitCastScalar<LaneKeyT>(key));
+    return const_iterator(res.first, res.second, state_.last_leaf_);
+  }
+  const_iterator upper_bound(KeyT key) const {
+    auto res = Dispatch::UpperBound(&state_, hwy::BitCastScalar<LaneKeyT>(key));
+    return const_iterator(res.first, res.second, state_.last_leaf_);
+  }
+  const_iterator find(KeyT key) const {
+    auto res = Dispatch::Find(&state_, hwy::BitCastScalar<LaneKeyT>(key));
+    return const_iterator(res.first, res.second, state_.last_leaf_);
+  }
 
   iterator lower_bound(KeyT key) {
     auto it = static_cast<const BTreeSet*>(this)->lower_bound(key);
@@ -408,90 +496,66 @@ class BTreeSet {
 
   // Inserts `key`. Returns (iterator to the element, whether it was inserted).
   // If an insertion occurs, all other iterators are invalidated.
-  std::pair<iterator, bool> insert(KeyT key);
+  std::pair<iterator, bool> insert(KeyT key) {
+    auto res = Dispatch::Insert(&state_, hwy::BitCastScalar<LaneKeyT>(key));
+    return {iterator(res.first.first, res.first.second, state_.last_leaf_),
+            res.second};
+  }
   template <typename... Args>
   std::pair<iterator, bool> emplace(Args&&... args) {
     return insert(KeyT(std::forward<Args>(args)...));
   }
   // Erases `key` if present. Returns the number of elements erased (0 or 1).
   // If an erasure occurs, all iterators are invalidated.
-  size_t erase(KeyT key);
+  size_t erase(KeyT key) {
+    return Dispatch::Erase(&state_, hwy::BitCastScalar<LaneKeyT>(key));
+  }
   // Erases the element at `pos` (must not be end()). Returns an iterator to the
   // following element, or end(). All other iterators are invalidated.
-  iterator erase(const_iterator pos);
+  iterator erase(const_iterator pos) {
+    auto res = Dispatch::EraseIter(&state_, pos.leaf(), pos.slot());
+    return iterator(res.first, res.second, state_.last_leaf_);
+  }
 
   const LeafT* last_leaf() const { return state_.last_leaf_; }
   LeafT* last_leaf() { return state_.last_leaf_; }
-  const BTreeState<KeyT, LeafT>* state() const { return &state_; }
+  const BTreeState<LaneKeyT, LeafT>* state() const { return &state_; }
 
   // Batch Query (Amortizes dynamic dispatch overhead)
   bool contains(KeyT key) const { return Contains(key); }
-  bool Contains(KeyT key) const;
-  void ContainsBatch(const KeyT* keys, size_t count, bool* out) const;
-  void FindBatch(const KeyT* keys, size_t count, const_iterator* out) const;
+  bool Contains(KeyT key) const {
+    return Dispatch::Contains(&state_, hwy::BitCastScalar<LaneKeyT>(key));
+  }
+  void ContainsBatch(const KeyT* keys, size_t count, bool* out) const {
+    Dispatch::ContainsBatch(&state_, reinterpret_cast<const LaneKeyT*>(keys),
+                            count, out);
+  }
+  void FindBatch(const KeyT* keys, size_t count, const_iterator* out) const {
+    static_assert(sizeof(const_iterator) == 3 * sizeof(void*));
+    Dispatch::FindBatch(&state_, reinterpret_cast<const LaneKeyT*>(keys), count,
+                        reinterpret_cast<void*>(out));
+  }
   void LowerBoundBatch(const KeyT* keys, size_t count,
-                       const_iterator* out) const;
+                       const_iterator* out) const {
+    static_assert(sizeof(const_iterator) == 3 * sizeof(void*));
+    Dispatch::LowerBoundBatch(&state_, reinterpret_cast<const LaneKeyT*>(keys),
+                              count, reinterpret_cast<void*>(out));
+  }
 
  private:
-  BTreeState<KeyT, LeafT> state_;
+  using Dispatch = detail::SetDispatch<LaneKeyT>;
+
+  BTreeState<LaneKeyT, LeafT> state_;
 };
 
-#define HWY_BTREE_SET_DECLARE(KeyT)                                          \
-  template <>                                                                \
-  HWY_CONTRIB_DLLEXPORT BTreeSet<KeyT>::~BTreeSet();                         \
-  template <>                                                                \
-  HWY_CONTRIB_DLLEXPORT BTreeSet<KeyT>::BTreeSet(const BTreeSet& other);     \
-  template <>                                                                \
-  HWY_CONTRIB_DLLEXPORT BTreeSet<KeyT>& BTreeSet<KeyT>::operator=(           \
-      const BTreeSet& other);                                                \
-  template <>                                                                \
-  HWY_CONTRIB_DLLEXPORT BTreeSet<KeyT>::BTreeSet(BTreeSet&& other) noexcept; \
-  template <>                                                                \
-  HWY_CONTRIB_DLLEXPORT BTreeSet<KeyT>& BTreeSet<KeyT>::operator=(           \
-      BTreeSet&& other) noexcept;                                            \
-  template <>                                                                \
-  HWY_CONTRIB_DLLEXPORT void BTreeSet<KeyT>::clear();                        \
-  template <>                                                                \
-  HWY_CONTRIB_DLLEXPORT BTreeSet<KeyT> BTreeSet<KeyT>::Build(                \
-      const KeyT* sorted_keys, size_t num_keys, float fill_ratio);           \
-  template <>                                                                \
-  HWY_CONTRIB_DLLEXPORT BTreeSet<KeyT>::const_iterator                       \
-  BTreeSet<KeyT>::lower_bound(KeyT key) const;                               \
-  template <>                                                                \
-  HWY_CONTRIB_DLLEXPORT BTreeSet<KeyT>::const_iterator                       \
-  BTreeSet<KeyT>::upper_bound(KeyT key) const;                               \
-  template <>                                                                \
-  HWY_CONTRIB_DLLEXPORT BTreeSet<KeyT>::const_iterator BTreeSet<KeyT>::find( \
-      KeyT key) const;                                                       \
-  template <>                                                                \
-  HWY_CONTRIB_DLLEXPORT std::pair<BTreeSet<KeyT>::iterator, bool>            \
-  BTreeSet<KeyT>::insert(KeyT key);                                          \
-  template <>                                                                \
-  HWY_CONTRIB_DLLEXPORT size_t BTreeSet<KeyT>::erase(KeyT key);              \
-  template <>                                                                \
-  HWY_CONTRIB_DLLEXPORT BTreeSet<KeyT>::iterator BTreeSet<KeyT>::erase(      \
-      const_iterator pos);                                                   \
-  template <>                                                                \
-  HWY_CONTRIB_DLLEXPORT bool BTreeSet<KeyT>::Contains(KeyT key) const;       \
-  template <>                                                                \
-  HWY_CONTRIB_DLLEXPORT void BTreeSet<KeyT>::ContainsBatch(                  \
-      const KeyT* keys, size_t count, bool* out) const;                      \
-  template <>                                                                \
-  HWY_CONTRIB_DLLEXPORT void BTreeSet<KeyT>::FindBatch(                      \
-      const KeyT* keys, size_t count, const_iterator* out) const;            \
-  template <>                                                                \
-  HWY_CONTRIB_DLLEXPORT void BTreeSet<KeyT>::LowerBoundBatch(                \
-      const KeyT* keys, size_t count, const_iterator* out) const;            \
-  extern template class HWY_CONTRIB_DLLEXPORT BTreeSet<KeyT>;                \
-  static_assert(sizeof(BTreeSet<KeyT>) == sizeof(BTreeState<KeyT>),          \
-                "BTreeSet must have the exact same size as BTreeState")
-
-HWY_BTREE_SET_DECLARE(uint32_t);
-HWY_BTREE_SET_DECLARE(int32_t);
-HWY_BTREE_SET_DECLARE(uint64_t);
-HWY_BTREE_SET_DECLARE(int64_t);
-
-#undef HWY_BTREE_SET_DECLARE
+static_assert(sizeof(BTreeSet<uint32_t>) == sizeof(BTreeState<uint32_t>),
+              "BTreeSet must have the exact same size as BTreeState");
+static_assert(sizeof(BTreeSet<int32_t>) == sizeof(BTreeState<int32_t>),
+              "BTreeSet must have the exact same size as BTreeState");
+static_assert(sizeof(BTreeSet<uint64_t>) == sizeof(BTreeState<uint64_t>),
+              "BTreeSet must have the exact same size as BTreeState");
+static_assert(sizeof(BTreeSet<int64_t>) == sizeof(BTreeState<int64_t>),
+              "BTreeSet must have the exact same size as BTreeState");
 
 template <typename KeyT>
 void swap(BTreeSet<KeyT>& a, BTreeSet<KeyT>& b) noexcept {
