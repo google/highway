@@ -1118,7 +1118,32 @@ foreach (TESTFILE IN LISTS HWY_TEST_FILES)
   endif()
   target_compile_features(${TESTNAME} PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
 
-  target_link_libraries(${TESTNAME} PRIVATE ${HWY_TEST_LIBS} ${HWY_GTEST_LIBS})
+  set(HWY_TARGET_TEST_LIBS ${HWY_TEST_LIBS})
+  # Avoid relinking these tests when an unused static library changes.
+  if(NOT BUILD_SHARED_LIBS AND
+     "${HWY_TEST_LIBS}" STREQUAL "hwy;hwy_test;hwy_contrib" AND
+     "${HWY_GTEST_LIBS}" STREQUAL "gtest;gtest_main")
+    set(HWY_TESTS_WITHOUT_HWY_CONTRIB
+      abort_test algo_bench aligned_allocator_test arithmetic_test
+      base64_test base_test bit_pack_test bit_permute_test
+      bit_set_test blockwise_combine_test blockwise_shift_test blockwise_test
+      cast_test combine_test compare_128_test compare_test
+      complex_arithmetic_test compress_test concat_test convert_test
+      copy_test count_test count_value_test crc_test
+      crypto_test demote_test div_test dot_test
+      dup128_vec_test expand_test f16_math_test fast_math_test
+    )
+    if(TESTNAME IN_LIST HWY_TESTS_WITHOUT_HWY_CONTRIB)
+      list(REMOVE_ITEM HWY_TARGET_TEST_LIBS hwy_contrib)
+    endif()
+    set(HWY_TESTS_WITHOUT_HWY_TEST
+      ans_test bench_sort cuckoo2x2_test
+    )
+    if(TESTNAME IN_LIST HWY_TESTS_WITHOUT_HWY_TEST)
+      list(REMOVE_ITEM HWY_TARGET_TEST_LIBS hwy_test)
+    endif()
+  endif()
+  target_link_libraries(${TESTNAME} PRIVATE ${HWY_TARGET_TEST_LIBS} ${HWY_GTEST_LIBS})
   # For GCC __atomic_store_8, see #887
   target_link_libraries(${TESTNAME} PRIVATE ${ATOMICS_LIBRARIES})
 
