@@ -155,8 +155,13 @@ HWY_INLINE bool DecodeInterleaved(const uint8_t* HWY_RESTRICT src_start,
   HWY_ALIGN uint8_t hdr[64];
   memset(hdr, 0, sizeof(hdr));
   memcpy(hdr, src_start, kRangeLanes * 3u);
+#if HWY_IS_BIG_ENDIAN
+  const VFromD<decltype(d8)> be24 = Dup128VecFromValues(
+      d8, 0x80, 0, 1, 2, 0x80, 3, 4, 5, 0x80, 6, 7, 8, 0x80, 9, 10, 11);
+#else
   const VFromD<decltype(d8)> be24 = Dup128VecFromValues(
       d8, 2, 1, 0, 0x80, 5, 4, 3, 0x80, 8, 7, 6, 0x80, 11, 10, 9, 0x80);
+#endif
 
   VFromD<decltype(d)> value0 =
       BitCast(d, TableLookupBytesOr0(LoadU(d8, hdr + 0), be24));

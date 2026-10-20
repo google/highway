@@ -94,16 +94,25 @@ HWY_INLINE uint64_t Fold(uint64_t state, const uint8_t* data, size_t size) {
   const V k = Dup128VecFromValues(d64, RefXn63(128), RefXn63(64));
 
   V acc = BitCast(d64, LoadU(d8, data));
+#if HWY_IS_BIG_ENDIAN
+  acc = ReverseLaneBytes(acc);
+#endif
   acc = Xor(acc, Dup128VecFromValues(d64, state, 0));
 
   size_t pos = 16;
   for (; pos + 16 <= size; pos += 16) {
-    const V next = BitCast(d64, LoadU(d8, data + pos));
+    V next = BitCast(d64, LoadU(d8, data + pos));
+#if HWY_IS_BIG_ENDIAN
+    next = ReverseLaneBytes(next);
+#endif
     acc = Xor3(CLMulLower(acc, k), CLMulUpper(acc, k), next);
   }
 
   // acc (reflected, 128-bit) is now congruent to the processed prefix mod P.
   // Bitwise() over its 16 bytes yields prefix * x^64 mod P == the raw CRC.
+#if HWY_IS_BIG_ENDIAN
+  acc = ReverseLaneBytes(acc);
+#endif
   uint8_t bytes[16];
   StoreU(BitCast(d8, acc), d8, bytes);
   uint64_t crc = Bitwise(0, bytes, 16);

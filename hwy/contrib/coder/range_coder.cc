@@ -258,15 +258,29 @@ HWY_CONTRIB_DLLEXPORT const RangeShuffleTables& GetRangeShuffleTables() {
       for (uint32_t j = 0; j < 4; ++j) {
         uint8_t* x = &t.shift[i][j * 4];
         if ((i >> j) & 0x10) {
+#if HWY_IS_BIG_ENDIAN
+          x[0] = static_cast<uint8_t>(j * 4 + 2);
+          x[1] = static_cast<uint8_t>(j * 4 + 3);
+          x[2] = 0x80;
+          x[3] = 0x80;
+#else
           x[0] = 0x80;
           x[1] = 0x80;
           x[2] = static_cast<uint8_t>(j * 4 + 0);
           x[3] = static_cast<uint8_t>(j * 4 + 1);
+#endif
         } else if ((i >> j) & 1) {
+#if HWY_IS_BIG_ENDIAN
+          x[0] = static_cast<uint8_t>(j * 4 + 1);
+          x[1] = static_cast<uint8_t>(j * 4 + 2);
+          x[2] = static_cast<uint8_t>(j * 4 + 3);
+          x[3] = 0x80;
+#else
           x[0] = 0x80;
           x[1] = static_cast<uint8_t>(j * 4 + 0);
           x[2] = static_cast<uint8_t>(j * 4 + 1);
           x[3] = static_cast<uint8_t>(j * 4 + 2);
+#endif
         } else {
           x[0] = static_cast<uint8_t>(j * 4 + 0);
           x[1] = static_cast<uint8_t>(j * 4 + 1);
@@ -280,16 +294,30 @@ HWY_CONTRIB_DLLEXPORT const RangeShuffleTables& GetRangeShuffleTables() {
       for (uint32_t j = 0; j < 4; ++j) {
         uint8_t* x = &t.dist[i][j * 4];
         if ((i >> j) & 0x10) {
+#if HWY_IS_BIG_ENDIAN
+          x[0] = 0x80;
+          x[1] = 0x80;
+          x[2] = static_cast<uint8_t>(src_ofs);
+          x[3] = static_cast<uint8_t>(src_ofs + 1);
+#else
           x[0] = static_cast<uint8_t>(src_ofs + 1);
           x[1] = static_cast<uint8_t>(src_ofs);
           x[2] = 0x80;
           x[3] = 0x80;
+#endif
           src_ofs += 2;
         } else if ((i >> j) & 1) {
+#if HWY_IS_BIG_ENDIAN
+          x[0] = 0x80;
+          x[1] = 0x80;
+          x[2] = 0x80;
+          x[3] = static_cast<uint8_t>(src_ofs++);
+#else
           x[0] = static_cast<uint8_t>(src_ofs++);
           x[1] = 0x80;
           x[2] = 0x80;
           x[3] = 0x80;
+#endif
         } else {
           x[0] = 0x80;
           x[1] = 0x80;
