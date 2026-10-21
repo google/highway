@@ -249,6 +249,70 @@ HWY_NOINLINE void TestAllSignedZero() {
   ForFloat3264Types(ForPartialVectors<TestSignedZero>());
 }
 
+struct TestExpm1Boundaries {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T, D d) {
+    const T vals[] = {
+        static_cast<T>(0.0),
+        static_cast<T>(-0.0),
+        static_cast<T>(1e-7),
+        static_cast<T>(-1e-7),
+        static_cast<T>(0.346573590279972654708616),
+        static_cast<T>(-0.346573590279972654708616),
+        static_cast<T>(0.346574),
+        static_cast<T>(-0.346574),
+        static_cast<T>(-103.9),
+        static_cast<T>(-104.0),
+        static_cast<T>(-104.1),
+        static_cast<T>(88.0),
+        static_cast<T>(sizeof(T) == 4 ? -FLT_MAX : -DBL_MAX),
+        static_cast<T>(sizeof(T) == 4 ? 88.7f : 706.0),
+    };
+    for (T v : vals) {
+      const T actual = GetLane(CallExpm1(d, Set(d, v)));
+      const T expected = std::expm1(v);
+      const auto ulp = hwy::detail::ComputeUlpDelta(actual, expected);
+      HWY_ASSERT(ulp <= 4);
+    }
+
+    // Odd/even exponent boundaries, subnormal powers of 2, and NaN propagation.
+    const T exp2_vals[] = {
+        static_cast<T>(0.0),
+        static_cast<T>(-0.0),
+        static_cast<T>(0.5),
+        static_cast<T>(-0.5),
+        static_cast<T>(1.0),
+        static_cast<T>(-1.0),
+        static_cast<T>(3.0),
+        static_cast<T>(-3.0),
+        static_cast<T>(sizeof(T) == 4 ? -126.0f : -1022.0),
+        static_cast<T>(sizeof(T) == 4 ? -127.0f : -1023.0),
+        static_cast<T>(sizeof(T) == 4 ? -149.0f : -1074.0),
+        static_cast<T>(sizeof(T) == 4 ? -150.0f : -1075.0),
+        static_cast<T>(sizeof(T) == 4 ? 127.0f : 1023.0),
+        static_cast<T>(sizeof(T) == 4 ? -FLT_MAX : -DBL_MAX),
+    };
+    for (T v : exp2_vals) {
+      const T actual = GetLane(CallExp2(d, Set(d, v)));
+      const T expected = std::exp2(v);
+      const auto ulp = hwy::detail::ComputeUlpDelta(actual, expected);
+      HWY_ASSERT(ulp <= 2);
+    }
+
+    const auto nan_v = NaN(d);
+    HWY_ASSERT(AllTrue(d, IsNaN(CallExpm1(d, nan_v))));
+    HWY_ASSERT(AllTrue(d, IsNaN(CallSinh(d, nan_v))));
+    HWY_ASSERT(AllTrue(d, IsNaN(CallCosh(d, nan_v))));
+    HWY_ASSERT(AllTrue(d, IsNaN(CallTanh(d, nan_v))));
+    HWY_ASSERT_EQ(static_cast<T>(1.0), GetLane(CallCosh(d, Set(d, T{0.0}))));
+    HWY_ASSERT_EQ(static_cast<T>(1.0), GetLane(CallCosh(d, Set(d, T{-0.0}))));
+  }
+};
+
+HWY_NOINLINE void TestAllExpm1Boundaries() {
+  ForFloat3264Types(ForPartialVectors<TestExpm1Boundaries>());
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -274,6 +338,7 @@ HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLogGammaOverflow);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllPow);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExpm1SignedZero);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSignedZero);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExpm1Boundaries);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy

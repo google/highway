@@ -969,17 +969,12 @@ struct ExpImpl<float> {
   template <class D, class V = VFromD<D>, HWY_IF_F32_D(D)>
   HWY_INLINE V LoadExpShortRange(D d, V x, V e) {
     const RebindToSigned<D> di;
-#if defined(__ASSOCIATIVE_MATH__)
-    const V y = Round(Mul(e, Set(d, 0.5f)));
-#else
-    const V kMagic = Set(d, 12582912.0f);  // 1.5 * (1 << 23)
-    const V y = Sub(MulAdd(e, Set(d, 0.5f), kMagic), kMagic);
-#endif
-    const V kExpMagic = Set(d, 8388735.0f);  // 127.0f + (1 << 23)
-    const V ey = Sub(e, y);
-    const V pow2_y = BitCast(d, ShiftLeft<23>(BitCast(di, Add(y, kExpMagic))));
-    const V pow2_ey =
-        BitCast(d, ShiftLeft<23>(BitCast(di, Add(ey, kExpMagic))));
+    // 1.5 * (1 << 23) + 254 places the unsigned biased exponent sum e + 254 in
+    // the low mantissa bits; the magic bits shift out at << 23.
+    const auto bits = BitCast(di, Add(e, Set(d, 12583166.0f)));
+    const auto half = ShiftRight<1>(bits);
+    const V pow2_y = BitCast(d, ShiftLeft<23>(half));
+    const V pow2_ey = BitCast(d, ShiftLeft<23>(Sub(bits, half)));
     return Mul(Mul(x, pow2_y), pow2_ey);
   }
 
@@ -1013,6 +1008,13 @@ struct ExpImpl<float> {
             HWY_IF_F32_D(D)>
   HWY_INLINE V Exp2Reduce(D d, V x, VI32 q) {
     const V x_frac = Sub(x, ConvertTo(d, q));
+    return MulAdd(x_frac, Set(d, 0.193147182464599609375f),
+                  Mul(x_frac, Set(d, 0.5f)));
+  }
+
+  template <class D, class V = VFromD<D>, HWY_IF_F32_D(D)>
+  HWY_INLINE V Exp2Reduce(D d, V x, V q) {
+    const V x_frac = Sub(x, q);
     return MulAdd(x_frac, Set(d, 0.193147182464599609375f),
                   Mul(x_frac, Set(d, 0.5f)));
   }
@@ -1118,17 +1120,12 @@ struct ExpImpl<double> {
   template <class D, class V = VFromD<D>, HWY_IF_F64_D(D)>
   HWY_INLINE V LoadExpShortRange(D d, V x, V e) {
     const RebindToSigned<D> di;
-#if defined(__ASSOCIATIVE_MATH__)
-    const V y = Round(Mul(e, Set(d, 0.5)));
-#else
-    const V kMagic = Set(d, 6755399441055744.0);  // 1.5 * (1ull << 52)
-    const V y = Sub(MulAdd(e, Set(d, 0.5), kMagic), kMagic);
-#endif
-    const V kExpMagic = Set(d, 4503599627371519.0);  // 1023.0 + (1ull << 52)
-    const V ey = Sub(e, y);
-    const V pow2_y = BitCast(d, ShiftLeft<52>(BitCast(di, Add(y, kExpMagic))));
-    const V pow2_ey =
-        BitCast(d, ShiftLeft<52>(BitCast(di, Add(ey, kExpMagic))));
+    // 1.5 * (1ull << 52) + 2046 places the unsigned biased exponent sum
+    // e + 2046 in the low mantissa bits; the magic bits shift out at << 52.
+    const auto bits = BitCast(di, Add(e, Set(d, 6755399441057790.0)));
+    const auto half = ShiftRight<1>(bits);
+    const V pow2_y = BitCast(d, ShiftLeft<52>(half));
+    const V pow2_ey = BitCast(d, ShiftLeft<52>(Sub(bits, half)));
     return Mul(Mul(x, pow2_y), pow2_ey);
   }
 
@@ -1162,6 +1159,13 @@ struct ExpImpl<double> {
             HWY_IF_F64_D(D)>
   HWY_INLINE V Exp2Reduce(D d, V x, VI32 q) {
     const V x_frac = Sub(x, PromoteTo(d, q));
+    return MulAdd(x_frac, Set(d, 0.1931471805599453139823396),
+                  Mul(x_frac, Set(d, 0.5)));
+  }
+
+  template <class D, class V = VFromD<D>, HWY_IF_F64_D(D)>
+  HWY_INLINE V Exp2Reduce(D d, V x, V q) {
+    const V x_frac = Sub(x, q);
     return MulAdd(x_frac, Set(d, 0.1931471805599453139823396),
                   Mul(x_frac, Set(d, 0.5)));
   }
@@ -2285,8 +2289,13 @@ HWY_INLINE V Exp2(const D d, V x) {
 
   impl::ExpImpl<T> impl;
 
-  // q = static_cast<int32_t>(std::lrint(x))
-  const auto q = impl.ToNearestInt32(d, x);
+#if defined(__ASSOCIATIVE_MATH__)
+  const V q = Round(x);
+#else
+  const V kMagic =
+      Set(d, static_cast<T>(sizeof(T) == 4 ? 12582912.0 : 6755399441055744.0));
+  const V q = Sub(Add(x, kMagic), kMagic);
+#endif
 
   // Reduce, approximate, and then reconstruct.
   const V y = impl.LoadExpShortRange(
@@ -2311,20 +2320,26 @@ template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Expm1(const D d, V x) {
   using T = TFromD<D>;
 
-  const V kHalf = Set(d, static_cast<T>(+0.5));
   const V kLowerBound =
       Set(d, static_cast<T>((sizeof(T) == 4 ? -104.0 : -1000.0)));
   const V kLn2Over2 = Set(d, static_cast<T>(+0.346573590279972654708616));
   const V kNegOne = Set(d, static_cast<T>(-1.0));
-  const V kNegZero = Set(d, static_cast<T>(-0.0));
   const V kOne = Set(d, static_cast<T>(+1.0));
   const V kOneOverLog2 = Set(d, static_cast<T>(+1.442695040888963407359924681));
 
   impl::ExpImpl<T> impl;
 
-  // q = static_cast<int32>((x / log(2)) + ((x < 0) ? -0.5 : +0.5))
-  const auto q =
-      impl.ToInt32(d, MulAdd(x, kOneOverLog2, Or(kHalf, And(x, kNegZero))));
+#if defined(__ASSOCIATIVE_MATH__)
+  const V q = Round(Mul(x, kOneOverLog2));
+#else
+  const V kMagic =
+      Set(d, static_cast<T>(sizeof(T) == 4 ? 12582912.0 : 6755399441055744.0));
+
+  // q = round(x / log(2)), by adding a large value such that x + kMagic has no
+  // fractional bits in the mantissa. This works here because x is small, or if
+  // it isn't, the result will be inf or -1 anyways.
+  const V q = Sub(MulAdd(x, kOneOverLog2, kMagic), kMagic);
+#endif
 
   // Reduce, approximate, and then reconstruct.
   const V y = impl.ExpPoly(d, impl.ExpReduce(d, x, q));
@@ -2628,6 +2643,53 @@ HWY_NOINLINE V CallSin(const D d, VecArg<V> x) {
   return Sin(d, x);
 }
 
+namespace impl {
+
+// Evaluates exp(x) for x >= +0.0 (or NaN), omitting underflow clamping.
+template <class D, class V>
+HWY_INLINE V ExpNonNeg(const D d, V x) {
+  using T = TFromD<D>;
+  const V kOne = Set(d, static_cast<T>(+1.0));
+  const V kOneOverLog2 = Set(d, static_cast<T>(+1.442695040888963407359924681));
+  ExpImpl<T> impl;
+
+#if defined(__ASSOCIATIVE_MATH__)
+  const V q = Round(Mul(x, kOneOverLog2));
+#else
+  const V kMagic =
+      Set(d, static_cast<T>(sizeof(T) == 4 ? 12582912.0 : 6755399441055744.0));
+  const V q = Sub(MulAdd(x, kOneOverLog2, kMagic), kMagic);
+#endif
+
+  return impl.LoadExpShortRange(
+      d, Add(impl.ExpPoly(d, impl.ExpReduce(d, x, q)), kOne), q);
+}
+
+// Evaluates expm1(x) for x >= +0.0 (or NaN), omitting negative-zero CopySign
+// and negative underflow clamping.
+template <class D, class V>
+HWY_INLINE V Expm1NonNeg(const D d, V x) {
+  using T = TFromD<D>;
+  const V kLn2Over2 = Set(d, static_cast<T>(+0.346573590279972654708616));
+  const V kOne = Set(d, static_cast<T>(+1.0));
+  const V kOneOverLog2 = Set(d, static_cast<T>(+1.442695040888963407359924681));
+  ExpImpl<T> impl;
+
+#if defined(__ASSOCIATIVE_MATH__)
+  const V q = Round(Mul(x, kOneOverLog2));
+#else
+  const V kMagic =
+      Set(d, static_cast<T>(sizeof(T) == 4 ? 12582912.0 : 6755399441055744.0));
+  const V q = Sub(MulAdd(x, kOneOverLog2, kMagic), kMagic);
+#endif
+
+  const V y = impl.ExpPoly(d, impl.ExpReduce(d, x, q));
+  return IfThenElse(Lt(x, kLn2Over2), y,
+                    Sub(impl.LoadExpShortRange(d, Add(y, kOne), q), kOne));
+}
+
+}  // namespace impl
+
 /**
  * Highway SIMD version of std::sinh(x).
  *
@@ -2645,7 +2707,7 @@ HWY_INLINE V Sinh(const D d, V x) {
 
   const V sign = And(SignBit(d), x);  // Extract the sign bit
   const V abs_x = Xor(x, sign);
-  const V y = Expm1(d, abs_x);
+  const V y = impl::Expm1NonNeg(d, abs_x);
   const V z = Mul(Div(Add(y, kTwo), Add(y, kOne)), Mul(y, kHalf));
   return Xor(z, sign);  // Reapply the sign bit
 }
@@ -2667,14 +2729,8 @@ template <class D, class V, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE V Cosh(const D d, V x) {
   using T = TFromD<D>;
   const V kHalf = Set(d, static_cast<T>(+0.5));
-  const V kOne = Set(d, static_cast<T>(+1.0));
-  const V kTwo = Set(d, static_cast<T>(+2.0));
-
-  const V y = Expm1(d, Abs(x));
-  const V z = Mul(Div(Add(y, kTwo), Add(y, kOne)), Mul(y, kHalf));
-
-  // cosh(x) == cosh(|x|) == (expm1(|x|) - sinh(|x|)) + 1 == (y - z) + 1
-  return Add(Sub(y, z), kOne);
+  const V t = impl::ExpNonNeg(d, Abs(x));
+  return MulAdd(t, kHalf, Div(kHalf, t));
 }
 
 template <class D, class V>
@@ -2699,7 +2755,7 @@ HWY_INLINE V Tanh(const D d, V x) {
 
   const V sign = And(SignBit(d), x);  // Extract the sign bit
   const V abs_x = Xor(x, sign);
-  const V y = Expm1(d, Mul(abs_x, kTwo));
+  const V y = impl::Expm1NonNeg(d, Mul(abs_x, kTwo));
   const V z = IfThenElse(Gt(abs_x, kLimit), kOne, Div(y, Add(y, kTwo)));
   return Xor(z, sign);  // Reapply the sign bit
 }
