@@ -207,6 +207,11 @@ struct TestZeroIfNegative {
     HWY_ASSERT_VEC_EQ(d, v0, ZeroIfNegative(v0));
     HWY_ASSERT_VEC_EQ(d, vp, ZeroIfNegative(vp));
 
+    // Positive lanes with the MSB set in a lower byte (16-bit and wider ints)
+    const auto vhigh =
+        Set(d, ConvertScalarTo<T>((sizeof(T) >= 2) ? 1000 : 100));
+    HWY_ASSERT_VEC_EQ(d, vhigh, ZeroIfNegative(vhigh));
+
     // Negative are all replaced with zero
     HWY_ASSERT_VEC_EQ(d, v0, ZeroIfNegative(vn));
   }
