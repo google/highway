@@ -491,9 +491,8 @@ HWY_API Vec256<T> IfThenZeroElse(Mask256<T> mask, Vec256<T> no) {
   return AndNot(VecFromMask(mask), no);
 }
 
-template <typename T>
+template <typename T, HWY_IF_FLOAT3264(T)>
 HWY_API Vec256<T> ZeroIfNegative(Vec256<T> v) {
-  static_assert(IsSigned<T>(), "Only for float");
   const DFromV<decltype(v)> d;
   const auto zero = Zero(d);
   return IfThenElse(v < zero, zero, v);
