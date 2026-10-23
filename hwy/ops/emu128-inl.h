@@ -845,11 +845,14 @@ HWY_API Vec128<T, N> operator/(Vec128<T, N> a, Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
     const T den = b.raw[i];
     if (den == T{0}) {
-      // x / +-0 is +-Inf with the sign of x * den; 0 / +-0 is NaN. Neither
-      // divides by zero, which sanitizers flag.
-      a.raw[i] = (a.raw[i] == T{0})
-                     ? (inf * T{0})
-                     : ScalarCopySign(inf, a.raw[i] * den);
+      // 0 / +-0 and NaN / +-0 are NaN; x / +-0 is +-Inf with sign(x) ^ sign(den).
+      // Neither divides by zero, which sanitizers flag.
+      if (ScalarIsNaN(a.raw[i]) || a.raw[i] == T{0}) {
+        a.raw[i] = a.raw[i] + (inf * T{0});
+      } else {
+        const bool sign = ScalarSignBit(a.raw[i]) ^ ScalarSignBit(den);
+        a.raw[i] = sign ? -inf : inf;
+      }
     } else {
       a.raw[i] = a.raw[i] / den;
     }
