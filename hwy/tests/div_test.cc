@@ -238,11 +238,23 @@ struct TestFloatDiv {
     HWY_ASSERT(quot(-one, -zero) == pos_inf);
     HWY_ASSERT(quot(max, zero) == pos_inf);
     HWY_ASSERT(quot(max, -zero) == -pos_inf);
+    HWY_ASSERT(quot(pos_inf, zero) == pos_inf);
+    HWY_ASSERT(quot(pos_inf, -zero) == -pos_inf);
+    HWY_ASSERT(quot(-pos_inf, zero) == -pos_inf);
+    HWY_ASSERT(quot(-pos_inf, -zero) == pos_inf);
 
-    // 0/0 is NaN. Only the classification is asserted: the sign of a NaN is
-    // implementation-defined and does differ between targets.
+    // 0/0 and NaN/0 are NaN. Only the classification is asserted: the sign of
+    // a NaN is implementation-defined and does differ between targets.
     HWY_ASSERT(ScalarIsNaN(quot(zero, zero)));
     HWY_ASSERT(ScalarIsNaN(quot(zero, -zero)));
+    HWY_ASSERT(ScalarIsNaN(quot(-zero, zero)));
+    HWY_ASSERT(ScalarIsNaN(quot(-zero, -zero)));
+
+    const T nan = GetLane(NaN(d));
+    HWY_ASSERT(ScalarIsNaN(quot(nan, zero)));
+    HWY_ASSERT(ScalarIsNaN(quot(nan, -zero)));
+    HWY_ASSERT(ScalarIsNaN(quot(-nan, zero)));
+    HWY_ASSERT(ScalarIsNaN(quot(-nan, -zero)));
   }
 };
 
