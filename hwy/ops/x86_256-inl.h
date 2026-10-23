@@ -1260,9 +1260,8 @@ HWY_API Vec256<T> IfThenZeroElse(Mask256<T> mask, Vec256<T> no) {
   return AndNot(VecFromMask(d, mask), no);
 }
 
-template <typename T>
+template <typename T, HWY_IF_FLOAT3264(T)>
 HWY_API Vec256<T> ZeroIfNegative(Vec256<T> v) {
-  static_assert(IsSigned<T>(), "Only for float");
   const DFromV<decltype(v)> d;
   const auto zero = Zero(d);
   // AVX2 IfThenElse only looks at the MSB for 32/64-bit lanes
