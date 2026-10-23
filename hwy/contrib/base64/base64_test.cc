@@ -169,6 +169,13 @@ HWY_NOINLINE void TestBase64Invalid() {
   }
 }
 
+HWY_NOINLINE void TestBase64OverflowBounds() {
+  constexpr size_t kMaxInputSize = (SIZE_MAX / 4) * 3;
+  // Largest representable input size must compute without size_t overflow.
+  const size_t max_encoded = Base64EncodedSize(kMaxInputSize);
+  HWY_ASSERT_EQ(max_encoded, (SIZE_MAX / 4) * 4);
+}
+
 }  // namespace
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -181,6 +188,7 @@ HWY_BEFORE_TEST(HwyBase64Test);
 HWY_EXPORT_AND_TEST_P(HwyBase64Test, TestBase64KnownVectors);
 HWY_EXPORT_AND_TEST_P(HwyBase64Test, TestBase64Lengths);
 HWY_EXPORT_AND_TEST_P(HwyBase64Test, TestBase64Invalid);
+HWY_EXPORT_AND_TEST_P(HwyBase64Test, TestBase64OverflowBounds);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy
