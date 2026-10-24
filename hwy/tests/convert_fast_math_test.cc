@@ -26,6 +26,7 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
 
+#if HWY_HAVE_FLOAT64 && HWY_HAVE_INTEGER64
 HWY_NOINLINE double ScalarConvert(int64_t value) {
   return static_cast<double>(value);
 }
@@ -76,6 +77,7 @@ struct TestI64ToDouble {
     }
   }
 };
+#endif
 
 HWY_NOINLINE void TestAllI64ToDouble() {
 #if HWY_HAVE_FLOAT64 && HWY_HAVE_INTEGER64
