@@ -267,6 +267,7 @@ HWY_TESTS = HWY_CONTRIB_TESTS + (
     ("hwy/tests/", "compress_test", []),
     ("hwy/tests/", "complex_arithmetic_test", []),
     ("hwy/tests/", "concat_test", []),
+    ("hwy/tests/", "convert_fast_math_test", []),
     ("hwy/tests/", "convert_test", []),
     ("hwy/tests/", "count_test", []),
     ("hwy/tests/", "crypto_test", []),

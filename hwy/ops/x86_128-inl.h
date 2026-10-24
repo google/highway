@@ -13519,7 +13519,23 @@ HWY_API VFromD<D> ConvertTo(D dd, VFromD<Rebind<int64_t, D>> v) {
   const auto v_lower = BitCast(dd, OddEven(k52, BitCast(d32, v)));
 
   const auto k84_63_52 = BitCast(dd, Set(d64, 0x4530000080100000ULL));
+#if HWY_COMPILER_CLANG
+  {
+#pragma clang fp reassociate(off)
+    // Raw arithmetic keeps the local FP policy through inlining of Vec operators.
+    return VFromD<D>{(v_upper.raw - k84_63_52.raw) + v_lower.raw};
+  }
+#elif HWY_HAS_BUILTIN(__builtin_assoc_barrier)
+  const auto upper = __builtin_assoc_barrier((v_upper - k84_63_52).raw);
+  return VFromD<D>{upper} + v_lower;
+#elif HWY_COMPILER_GCC_ACTUAL && \
+    (defined(__FAST_MATH__) || defined(__ASSOCIATIVE_MATH__))
+  // Older GCC needs a rounded intermediate even under -ffast-math.
+  volatile auto upper = (v_upper - k84_63_52).raw;
+  return VFromD<D>{upper} + v_lower;
+#else
   return (v_upper - k84_63_52) + v_lower;  // order matters!
+#endif
 }
 
 namespace detail {

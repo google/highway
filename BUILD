@@ -1,9 +1,9 @@
+load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
-load("@bazel_skylib//lib:selects.bzl", "selects")
-load("//:hwy_tests.bzl", "HWY_TESTS")
 load("@rules_license//rules:license.bzl", "license")
+load("//:hwy_tests.bzl", "HWY_TESTS")
 
 package(
     default_applicable_licenses = [":license"],
@@ -938,7 +938,11 @@ HWY_MALLOC = select({
             srcs = [
                 subdir + test + ".cc",
             ],
-            copts = COPTS + HWY_TEST_COPTS,
+            copts = COPTS + HWY_TEST_COPTS + (select({
+                ":compiler_msvc": ["/fp:fast"],
+                ":compiler_clangcl": ["/fp:fast"],
+                "//conditions:default": ["-ffast-math"],
+            }) if test == "convert_fast_math_test" else []),
             env = {"LD_BIND_NOW": "1"} if test == "targets_test" else {},
             # Fixes OOM for matvec_test on RVV, and f16_math_test on Windows.
             exec_properties = (
