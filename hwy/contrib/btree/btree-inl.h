@@ -587,6 +587,13 @@ template <typename KeyT>
 HWY_INLINE size_t FindChild(const InternalNode<KeyT>* HWY_RESTRICT internal,
                             typename InternalNode<KeyT>::StorageKeyT target) {
   using StorageKeyT = typename InternalNode<KeyT>::StorageKeyT;
+  // Inactive separator slots are padded with LimitsMax, so Le(LimitsMax,
+  // target) is false whenever target < LimitsMax. Handling target == LimitsMax
+  // upfront avoids loading internal->num_keys from a separate cache line and
+  // removes the need to do a std::min at the end
+  if (HWY_UNLIKELY(target == LimitsMax<StorageKeyT>())) {
+    return internal->num_keys;
+  }
   constexpr size_t kCapacity = InternalNode<KeyT>::kCapacity;
   // Cap vectors at 64 bytes: InternalNode is only alignas(64), so a wider
   // vector (possible on scalable targets) would make the aligned Load below
@@ -603,7 +610,7 @@ HWY_INLINE size_t FindChild(const InternalNode<KeyT>* HWY_RESTRICT internal,
     const auto v_keys = Load(d, internal->keys + i);
     count += CountTrue(d, Le(v_keys, v_target));
   }
-  return std::min<size_t>(count, internal->num_keys);
+  return count;
 }
 
 // -----------------------------------------------------------------------------
