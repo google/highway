@@ -426,22 +426,26 @@ struct TestLoadNOr {
     const size_t load_buf_len = (3 * N) + 4;
 
     auto load_buf = AllocateAligned<T>(load_buf_len);
+    auto no_lanes = AllocateAligned<T>(N);
     auto expected = AllocateAligned<T>(N);
-    HWY_ASSERT(load_buf && expected);
+    HWY_ASSERT(load_buf && no_lanes && expected);
 
     for (size_t i = 0; i < load_buf_len; i++) {
       load_buf[i] = GenerateOtherValue<kNo, T>(i + 1);
     }
-    const Vec<D> no = Set(d, ConvertScalarTo<T>(kNo));
-
+    // Distinct per lane, so that taking the wrong lane of `no` is detected.
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = ConvertScalarTo<T>(kNo);
+      no_lanes[i] = GenerateOtherValue<kNo, T>(load_buf_len + i + 1);
     }
+    const Vec<D> no = Load(d, no_lanes.get());
+
+    CopyBytes(no_lanes.get(), expected.get(), N * sizeof(T));
     // Without Load(), the vector type for special floats might not match.
     HWY_ASSERT_VEC_EQ(d, Load(d, expected.get()),
                       LoadNOr(no, d, load_buf.get(), 0));
 
-    for (size_t i = 0; i <= lpb; i++) {
+    for (size_t i = 0; i <= N; i++) {
+      CopyBytes(no_lanes.get(), expected.get(), N * sizeof(T));
       CopyBytes(load_buf.get(), expected.get(), i * sizeof(T));
       const VFromD<D> actual_1 = LoadNOr(no, d, load_buf.get(), i);
       HWY_ASSERT_VEC_EQ(d, Load(d, expected.get()), actual_1);
@@ -457,6 +461,7 @@ struct TestLoadNOr {
       const size_t expected_num_of_lanes_loaded =
           HWY_MIN(max_num_of_lanes_to_load, N);
 
+      CopyBytes(no_lanes.get(), expected.get(), N * sizeof(T));
       CopyBytes(load_buf.get(), expected.get(),
                 expected_num_of_lanes_loaded * sizeof(T));
       const VFromD<D> actual_1 =
