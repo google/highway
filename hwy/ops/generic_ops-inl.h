@@ -2790,11 +2790,8 @@ template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 2),
           HWY_IF_NOT_BF16_D(D)>
 HWY_API VFromD<D> LoadNOr(VFromD<D> no, D d, const TFromD<D>* HWY_RESTRICT p,
                           size_t num_lanes) {
-  const FixedTag<TFromD<D>, 1> d1;
-
   if (num_lanes >= 2) return LoadU(d, p);
-  if (num_lanes == 0) return no;
-  return InterleaveLower(ResizeBitCast(d, LoadU(d1, p)), no);
+  return (num_lanes == 0) ? no : InsertLane(no, 0, p[0]);
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 4),
@@ -2865,44 +2862,6 @@ HWY_API VFromD<D> LoadN(D d, const TFromD<D>* HWY_RESTRICT p,
   }
 }
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 8),
-          HWY_IF_NOT_BF16_D(D)>
-HWY_API VFromD<D> LoadNOr(VFromD<D> no, D d, const TFromD<D>* HWY_RESTRICT p,
-                          size_t num_lanes) {
-  const FixedTag<TFromD<D>, 4> d4;
-  const Half<decltype(d4)> d2;
-  const Half<decltype(d2)> d1;
-
-  if (num_lanes >= 8) return LoadU(d, p);
-  if (num_lanes == 0) return no;
-  if (num_lanes == 1) return InsertLane(no, 0, p[0]);
-
-  const size_t leading_len = num_lanes & 4;
-  VFromD<decltype(d4)> v_trailing = ResizeBitCast(d4, no);
-
-  if ((num_lanes & 2) != 0) {
-    const VFromD<decltype(d2)> v_trailing_lo2 = LoadU(d2, p + leading_len);
-    if ((num_lanes & 1) != 0) {
-      v_trailing = Combine(
-          d4,
-          InterleaveLower(ResizeBitCast(d2, LoadU(d1, p + leading_len + 2)),
-                          ResizeBitCast(d2, no)),
-          v_trailing_lo2);
-    } else {
-      v_trailing = ConcatUpperLower(d4, ResizeBitCast(d4, no),
-                                    ResizeBitCast(d4, v_trailing_lo2));
-    }
-  } else if ((num_lanes & 1) != 0) {
-    v_trailing = InsertLane(ResizeBitCast(d4, no), 0, p[leading_len]);
-  }
-
-  if (leading_len != 0) {
-    return Combine(d, v_trailing, LoadU(d4, p));
-  } else {
-    return ConcatUpperLower(d, no, ResizeBitCast(d, v_trailing));
-  }
-}
-
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 16),
           HWY_IF_NOT_BF16_D(D)>
 HWY_API VFromD<D> LoadN(D d, const TFromD<D>* HWY_RESTRICT p,
@@ -2949,58 +2908,11 @@ HWY_API VFromD<D> LoadN(D d, const TFromD<D>* HWY_RESTRICT p,
   }
 }
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 16),
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_GT_D(D, 4),
           HWY_IF_NOT_BF16_D(D)>
 HWY_API VFromD<D> LoadNOr(VFromD<D> no, D d, const TFromD<D>* HWY_RESTRICT p,
                           size_t num_lanes) {
-  const FixedTag<TFromD<D>, 8> d8;
-  const Half<decltype(d8)> d4;
-  const Half<decltype(d4)> d2;
-  const Half<decltype(d2)> d1;
-
-  if (num_lanes >= 16) return LoadU(d, p);
-  if (num_lanes == 0) return no;
-  if (num_lanes == 1) return InsertLane(no, 0, p[0]);
-
-  const size_t leading_len = num_lanes & 12;
-  VFromD<decltype(d4)> v_trailing = ResizeBitCast(d4, no);
-
-  if ((num_lanes & 2) != 0) {
-    const VFromD<decltype(d2)> v_trailing_lo2 = LoadU(d2, p + leading_len);
-    if ((num_lanes & 1) != 0) {
-      v_trailing = Combine(
-          d4,
-          InterleaveLower(ResizeBitCast(d2, LoadU(d1, p + leading_len + 2)),
-                          ResizeBitCast(d2, no)),
-          v_trailing_lo2);
-    } else {
-      v_trailing = ConcatUpperLower(d4, ResizeBitCast(d4, no),
-                                    ResizeBitCast(d4, v_trailing_lo2));
-    }
-  } else if ((num_lanes & 1) != 0) {
-    v_trailing = InsertLane(ResizeBitCast(d4, no), 0, p[leading_len]);
-  }
-
-  if (leading_len != 0) {
-    if (leading_len >= 8) {
-      const VFromD<decltype(d8)> v_hi7 =
-          ((leading_len & 4) != 0)
-              ? Combine(d8, v_trailing, LoadU(d4, p + 8))
-              : ConcatUpperLower(d8, ResizeBitCast(d8, no),
-                                 ResizeBitCast(d8, v_trailing));
-      return Combine(d, v_hi7, LoadU(d8, p));
-    } else {
-      return ConcatUpperLower(
-          d, ResizeBitCast(d, no),
-          ResizeBitCast(d, Combine(d8, v_trailing, LoadU(d4, p))));
-    }
-  } else {
-    const Repartition<uint32_t, D> du32;
-    // lowest 4 bytes from v_trailing, next 4 from no.
-    const VFromD<decltype(du32)> lo8 =
-        InterleaveLower(ResizeBitCast(du32, v_trailing), BitCast(du32, no));
-    return ConcatUpperLower(d, ResizeBitCast(d, no), ResizeBitCast(d, lo8));
-  }
+  return IfThenElse(FirstN(d, num_lanes), LoadN(d, p, num_lanes), no);
 }
 
 #if HWY_MAX_BYTES >= 32
@@ -3035,7 +2947,7 @@ HWY_API VFromD<D> LoadNOr(VFromD<D> no, D d, const TFromD<D>* HWY_RESTRICT p,
   } else {
     const VFromD<decltype(dh)> v_lo = LoadU(dh, p);
     const VFromD<decltype(dh)> v_hi =
-        LoadNOr(no_h, dh, p + half_N, num_lanes - half_N);
+        LoadNOr(UpperHalf(dh, no), dh, p + half_N, num_lanes - half_N);
     return Combine(d, v_hi, v_lo);
   }
 }
