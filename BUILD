@@ -947,10 +947,6 @@ HWY_MALLOC = select({
                     "//conditions:default": None,
                 })
             ),
-            features = select({
-                "@platforms//cpu:riscv64": ["fully_static_link"],
-                "//conditions:default": [],
-            }),
             linkopts = select({
                 ":compiler_emscripten": [
                     "-s ASSERTIONS=2",
