@@ -606,11 +606,37 @@ HWY_INLINE size_t FindChild(const InternalNode<KeyT>* HWY_RESTRICT internal,
   // in ScanOffsets for non-native mask architectures: with such a small element
   // count, we cannot amortize that cost, making direct CountTrue faster here.
   size_t count = 0;
-  for (size_t i = 0; i < kCapacity; i += N) {
-    const auto v_keys = Load(d, internal->keys + i);
-    count += CountTrue(d, Le(v_keys, v_target));
+  if constexpr (!HWY_NATIVE_MASK && HWY_ARCH_X86) {
+    // x86 AVX2/SSE4/SSE2 do not have a native unsigned Le() (<=) or Gt() (>)
+    // instruction. Highway emulates unsigned Le(a, b) as Not(Gt(a, b)), where
+    // Gt(a, b) flips the sign bit (XOR 0x8000...) of both operands to use
+    // signed vpcmpgt, and Not() inverts the resulting bitmask (XOR after every
+    // vmovmsk inside CountTrue).
+    if constexpr (sizeof(StorageKeyT) == 4) {
+      // 32-bit unsigned Max (vpmaxud) is native: express a <= b as
+      // max(a, b) == b to avoid both the sign-bit XOR and Not() inversion.
+      for (size_t i = 0; i < kCapacity; i += N) {
+        const auto v_keys = Load(d, internal->keys + i);
+        count += CountTrue(d, Eq(Max(v_keys, v_target), v_target));
+      }
+      return count;
+    } else {
+      // 64-bit lacks native unsigned Max: count Gt() directly and subtract
+      // from kCapacity once to avoid the per-vector Not() inversion.
+      for (size_t i = 0; i < kCapacity; i += N) {
+        const auto v_keys = Load(d, internal->keys + i);
+        count += CountTrue(d, Gt(v_keys, v_target));
+      }
+      return kCapacity - count;
+    }
+  } else {
+    // Unsigned Le() is a native instruction on these architectures.
+    for (size_t i = 0; i < kCapacity; i += N) {
+      const auto v_keys = Load(d, internal->keys + i);
+      count += CountTrue(d, Le(v_keys, v_target));
+    }
+    return count;
   }
-  return count;
 }
 
 // -----------------------------------------------------------------------------
