@@ -412,13 +412,26 @@ HWY_INLINE size_t ScanOffsets(const void* HWY_RESTRICT data,
     }
 
     const auto counts = Add(counts0, counts1);
-    if constexpr (sizeof(OffsetT) == 1) {
-      // For 8-bit offsets, lanes can overflow if summed directly. SumsOf8 sums
-      // groups of 8 consecutive byte counters into 64-bit integers to prevent
-      // overflow. Repartition reinterprets the vector lanes as uint64_t before
-      // performing the horizontal ReduceSum across the vector register.
+    if constexpr (sizeof(OffsetT) == 1 ||
+                  (HWY_ARCH_X86 && sizeof(OffsetT) == 2)) {
+      // For 8-bit offsets, lanes can overflow if summed directly, so SumsOf8
+      // sums groups of 8 bytes into 64-bit lanes before ReduceSum.
+      //
+      // We also use SumsOf8 for 16-bit offsets on x86 only:
+      // - Even on 128-bit (16B) vectors, a 512B leaf spans at most
+      //   512B / 16B = 32 iterations, so each 16-bit lane counter is <= 32
+      //   (well below 255). Thus its high byte is always 0, and summing 8
+      //   bytes sums four 16-bit lanes into one 64-bit lane.
+      // - Why x86 only: x86 has single-instruction VPSADBW for SumsOf8, whereas
+      //   16-bit ReduceSum requires multi-stage VPSHUFB with memory constant
+      //   loads (unlike ARM NEON, which has single-instruction 16-bit ADDV and
+      //   emulates SumsOf8 with 3 widening adds).
+      // - Why not sizeof(OffsetT) > 2: 32-bit ReduceSum on x86 already uses
+      //   fast immediate VPSHUFD shuffles, and for 64-bit lanes (8 bytes)
+      //   SumsOf8 is a no-op.
+      const Repartition<uint8_t, decltype(d)> d8;
       const Repartition<uint64_t, decltype(d)> d64;
-      return static_cast<size_t>(ReduceSum(d64, SumsOf8(counts)));
+      return static_cast<size_t>(ReduceSum(d64, SumsOf8(BitCast(d8, counts))));
     } else {
       return static_cast<size_t>(ReduceSum(d, counts));
     }
@@ -462,6 +475,12 @@ HWY_INLINE size_t FindLeafSlot(const LeafNode* HWY_RESTRICT leaf, KeyT target) {
   HWY_DASSERT(leaf->NumKeys() > 0);
   if constexpr (kBound == BoundMode::kLowerBound) {
     if (HWY_UNLIKELY(target <= leaf->base_key)) return 0;
+    // On AVX2 (and SSE4), unsigned Le() is faster than unsigned Lt() because
+    // Le(v, t) uses native unsigned min + eq (vpminu + vpcmpeq), whereas Lt()
+    // must flip sign bits (vpxor) on every vector to use signed vpcmpgt.
+    // Since target > base_key >= 0, we can decrement target and always invoke
+    // ScanOffsets with kUpperBound (Le) below.
+    --target;
   } else {
     if (HWY_UNLIKELY(target < leaf->base_key)) return 0;
   }
@@ -470,43 +489,31 @@ HWY_INLINE size_t FindLeafSlot(const LeafNode* HWY_RESTRICT leaf, KeyT target) {
   const uint8_t mode = leaf->BitMode();
 
   if (HWY_LIKELY(mode == kMode16Bit)) {
-    if constexpr (kBound == BoundMode::kUpperBound) {
-      // 0xFFFF also fills inactive slots, so Le() would count them too.
-      if (HWY_UNLIKELY(delta >= 65535)) return leaf->NumKeys();
-    } else {
-      if (HWY_UNLIKELY(delta > 65535)) return leaf->NumKeys();
-    }
-    return ScanOffsets<kBound, uint16_t, Node::kMax16>(
+    // 0xFFFF also fills inactive slots, so Le() would count them too.
+    if (HWY_UNLIKELY(delta >= 65535)) return leaf->NumKeys();
+    return ScanOffsets<BoundMode::kUpperBound, uint16_t, Node::kMax16>(
         leaf->KeyData(), static_cast<uint16_t>(delta));
   } else if (mode == kMode8Bit) {
-    if constexpr (kBound == BoundMode::kUpperBound) {
-      if (HWY_UNLIKELY(delta >= 255)) return leaf->NumKeys();
-    } else {
-      if (HWY_UNLIKELY(delta > 255)) return leaf->NumKeys();
-    }
-    return ScanOffsets<kBound, uint8_t, Node::kMax8>(
+    if (HWY_UNLIKELY(delta >= 255)) return leaf->NumKeys();
+    return ScanOffsets<BoundMode::kUpperBound, uint8_t, Node::kMax8>(
         leaf->KeyData(), static_cast<uint8_t>(delta));
   } else if (mode == kMode32Bit) {
     if constexpr (sizeof(KeyT) == 4) {
       if constexpr (kBound == BoundMode::kUpperBound) {
         if (HWY_UNLIKELY(target == LimitsMax<KeyT>())) return leaf->NumKeys();
       }
-      return ScanOffsets<kBound, uint32_t, Node::kMax32>(
+      return ScanOffsets<BoundMode::kUpperBound, uint32_t, Node::kMax32>(
           leaf->KeyData(), static_cast<uint32_t>(target));
     } else {
-      if constexpr (kBound == BoundMode::kUpperBound) {
-        if (HWY_UNLIKELY(delta >= 0xFFFFFFFFULL)) return leaf->NumKeys();
-      } else {
-        if (HWY_UNLIKELY(delta > 0xFFFFFFFFULL)) return leaf->NumKeys();
-      }
-      return ScanOffsets<kBound, uint32_t, Node::kMax32>(
+      if (HWY_UNLIKELY(delta >= 0xFFFFFFFFULL)) return leaf->NumKeys();
+      return ScanOffsets<BoundMode::kUpperBound, uint32_t, Node::kMax32>(
           leaf->KeyData(), static_cast<uint32_t>(delta));
     }
   } else {
     if constexpr (kBound == BoundMode::kUpperBound) {
       if (HWY_UNLIKELY(target == LimitsMax<KeyT>())) return leaf->NumKeys();
     }
-    return ScanOffsets<kBound, uint64_t, Node::kMax64>(
+    return ScanOffsets<BoundMode::kUpperBound, uint64_t, Node::kMax64>(
         leaf->KeyData(), static_cast<uint64_t>(target));
   }
 }
@@ -2920,10 +2927,10 @@ class BTree {
     }
     auto* leaf = static_cast<Leaf*>(curr);
     size_t slot = FindLeafSlot<BoundMode::kUpperBound>(leaf, target);
-    if (slot < leaf->NumKeys()) {
+    if (HWY_LIKELY(slot < leaf->NumKeys())) {
       return const_iterator(leaf, slot, state_->last_leaf_);
     }
-    if (leaf->Next() != nullptr) {
+    if (HWY_LIKELY(leaf->Next() != nullptr)) {
       return const_iterator(leaf->Next(), 0, state_->last_leaf_);
     }
     return end();
@@ -2939,10 +2946,10 @@ class BTree {
     }
     auto* leaf = static_cast<Leaf*>(curr);
     size_t slot = FindLeafSlot<BoundMode::kUpperBound>(leaf, target);
-    if (slot < leaf->NumKeys()) {
+    if (HWY_LIKELY(slot < leaf->NumKeys())) {
       return iterator(leaf, slot, state_->last_leaf_);
     }
-    if (leaf->Next() != nullptr) {
+    if (HWY_LIKELY(leaf->Next() != nullptr)) {
       return iterator(leaf->Next(), 0, state_->last_leaf_);
     }
     return end();
