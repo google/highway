@@ -1274,7 +1274,14 @@ HWY_API HWY_BITCASTSCALAR_CONSTEXPR To BitCastScalar(const From& val) {
 // Compiler supports __fp16 and load/store/conversion NEON intrinsics, which are
 // included in Armv8 and VFPv4 (except with MSVC). On Armv7 Clang requires
 // __ARM_FP & 2 whereas Armv7 GCC requires -mfp16-format=ieee.
-#if (HWY_ARCH_ARM_A64 && !HWY_COMPILER_MSVC) ||                    \
+// The CUDA device pass (__CUDA_ARCH__) on an Arm host sees the host macros, but
+// NVPTX does not allow __fp16 parameters and return values. Only NEON/SVE
+// require __fp16, and those targets are disabled in the device pass (see
+// HWY_BROKEN_CUDA_DEVICE_ARM in detect_targets.h). float16_t then wraps
+// _Float16 if HWY_ARM_HAVE_FLOAT16_TYPE, as in the device pass on x86 hosts.
+#if defined(__CUDA_ARCH__)
+#define HWY_ARM_HAVE_FP16 0
+#elif (HWY_ARCH_ARM_A64 && !HWY_COMPILER_MSVC) ||                  \
     (HWY_COMPILER_CLANG && defined(__ARM_FP) && (__ARM_FP & 2)) || \
     (HWY_COMPILER_GCC_ACTUAL && defined(__ARM_FP16_FORMAT_IEEE))
 #define HWY_ARM_HAVE_FP16 1

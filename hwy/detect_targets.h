@@ -387,16 +387,30 @@
 #endif  // HWY_ARCH_S390X
 #endif  // HWY_BROKEN_Z14
 
+#ifndef HWY_BROKEN_CUDA_DEVICE_ARM  // allow override
+// The CUDA device pass (__CUDA_ARCH__ is only defined there) for an Arm host
+// still sees the host's __aarch64__ and __ARM_NEON, but NVPTX cannot compile
+// the NEON/SVE intrinsics, which also require passing __fp16 by value. Highway
+// SIMD does not run on the GPU, so only compile EMU128 in the device pass. The
+// host pass is unaffected, so it remains identical for .cu and .cc files.
+#if defined(__CUDA_ARCH__) && HWY_ARCH_ARM
+#define HWY_BROKEN_CUDA_DEVICE_ARM (HWY_ALL_NEON | HWY_ALL_SVE)
+#else
+#define HWY_BROKEN_CUDA_DEVICE_ARM 0
+#endif
+#endif  // HWY_BROKEN_CUDA_DEVICE_ARM
+
 // Allow the user to override this without any guarantee of success.
 #ifndef HWY_BROKEN_TARGETS
 
-#define HWY_BROKEN_TARGETS                                                 \
-  (HWY_BROKEN_CLANG6 | HWY_BROKEN_32BIT | HWY_BROKEN_MSVC |                \
-   HWY_BROKEN_AVX10_2 | HWY_BROKEN_AVX3_DL_ZEN4 | HWY_BROKEN_AVX3_SPR |    \
-   HWY_BROKEN_ARM7_BIG_ENDIAN | HWY_BROKEN_ARM7_WITHOUT_VFP4 |             \
-   HWY_BROKEN_NEON_BF16 | HWY_BROKEN_SVE | HWY_BROKEN_SVE2 |               \
-   HWY_BROKEN_SVE2_128 | HWY_BROKEN_PPC10 | HWY_BROKEN_PPC_32BIT |         \
-   HWY_BROKEN_RVV | HWY_BROKEN_LOONGARCH | HWY_BROKEN_Z14)
+#define HWY_BROKEN_TARGETS                                              \
+  (HWY_BROKEN_CLANG6 | HWY_BROKEN_32BIT | HWY_BROKEN_MSVC |             \
+   HWY_BROKEN_AVX10_2 | HWY_BROKEN_AVX3_DL_ZEN4 | HWY_BROKEN_AVX3_SPR | \
+   HWY_BROKEN_ARM7_BIG_ENDIAN | HWY_BROKEN_ARM7_WITHOUT_VFP4 |          \
+   HWY_BROKEN_NEON_BF16 | HWY_BROKEN_SVE | HWY_BROKEN_SVE2 |            \
+   HWY_BROKEN_SVE2_128 | HWY_BROKEN_PPC10 | HWY_BROKEN_PPC_32BIT |      \
+   HWY_BROKEN_RVV | HWY_BROKEN_LOONGARCH | HWY_BROKEN_Z14 |             \
+   HWY_BROKEN_CUDA_DEVICE_ARM)
 
 #endif  // HWY_BROKEN_TARGETS
 
