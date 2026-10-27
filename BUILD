@@ -938,7 +938,11 @@ HWY_MALLOC = select({
             srcs = [
                 subdir + test + ".cc",
             ],
-            copts = COPTS + HWY_TEST_COPTS,
+            # :compiler_clangcl uses the clang driver (not clang-cl), which takes -ffast-math.
+            copts = COPTS + HWY_TEST_COPTS + (select({
+                ":compiler_msvc": ["/fp:fast"],
+                "//conditions:default": ["-ffast-math"],
+            }) if test == "convert_fast_math_test" else []),
             env = {"LD_BIND_NOW": "1"} if test == "targets_test" else {},
             # Fixes OOM for matvec_test on RVV, and f16_math_test on Windows.
             exec_properties = (
@@ -947,6 +951,8 @@ HWY_MALLOC = select({
                     "//conditions:default": None,
                 })
             ),
+            # Precompiled header modules conflict with -ffast-math (-fno-math-errno).
+            features = ["-use_header_modules"] if test == "convert_fast_math_test" else [],
             linkopts = select({
                 ":compiler_emscripten": [
                     "-s ASSERTIONS=2",

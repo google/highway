@@ -992,6 +992,7 @@ set(HWY_TEST_FILES
   hwy/tests/complex_arithmetic_test.cc
   hwy/tests/compress_test.cc
   hwy/tests/concat_test.cc
+  hwy/tests/convert_fast_math_test.cc
   hwy/tests/convert_test.cc
   hwy/tests/count_test.cc
   hwy/tests/crypto_test.cc
@@ -1113,6 +1114,13 @@ foreach (TESTFILE IN LISTS HWY_TEST_FILES)
   get_filename_component(TESTNAME ${TESTFILE} NAME_WE)
   add_executable(${TESTNAME} ${TESTFILE})
   target_compile_options(${TESTNAME} PRIVATE ${HWY_FLAGS} ${HWY_THREAD_FLAGS})
+  if(TESTNAME STREQUAL "convert_fast_math_test")
+    if(MSVC)
+      target_compile_options(${TESTNAME} PRIVATE /fp:fast)
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+      target_compile_options(${TESTNAME} PRIVATE -ffast-math)
+    endif()
+  endif()
   # Test all targets, not just the best/baseline. This changes the default
   # policy to all-attainable; note that setting -DHWY_COMPILE_* directly can
   # cause compile errors because only one may be set, and other CMakeLists.txt

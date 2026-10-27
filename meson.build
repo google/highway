@@ -641,6 +641,7 @@ if tests_enabled
         'hwy/tests/complex_arithmetic_test.cc',
         'hwy/tests/compress_test.cc',
         'hwy/tests/concat_test.cc',
+        'hwy/tests/convert_fast_math_test.cc',
         'hwy/tests/convert_test.cc',
         'hwy/tests/count_test.cc',
         'hwy/tests/crypto_test.cc',
@@ -714,6 +715,10 @@ if tests_enabled
         endif
 
         extra_defines = []
+        if exe_name == 'convert_fast_math_test'
+            fast_math_arg = cpp.get_argument_syntax() == 'msvc' ? '/fp:fast' : '-ffast-math'
+            extra_defines += cpp.get_supported_arguments(fast_math_arg)
+        endif
         if exe_name == 'auto_tune_test'
             extra_defines += '-DHWY_AUTOTUNE_STDSORT'
         endif
