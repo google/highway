@@ -5057,27 +5057,61 @@ namespace detail {
 template <int kScale, typename T, HWY_IF_UI32(T)>
 HWY_INLINE Vec256<T> NativeGather256(const T* HWY_RESTRICT base,
                                      Vec256<int32_t> indices) {
+#if HWY_COMPILER_GCC_ACTUAL
+  // As in NativeGather128, hide the mask to retain destination initialization.
+  // TODO: restrict this workaround once the fixed GCC version is known.
+  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=127946
+  __m256i mask = _mm256_set1_epi32(-1);
+  __asm__("" : "+x"(mask));
+  return Vec256<T>{_mm256_mask_i32gather_epi32(
+      _mm256_setzero_si256(), reinterpret_cast<const int32_t*>(base),
+      indices.raw, mask, kScale)};
+#else
   return Vec256<T>{_mm256_i32gather_epi32(
       reinterpret_cast<const int32_t*>(base), indices.raw, kScale)};
+#endif
 }
 
 template <int kScale, typename T, HWY_IF_UI64(T)>
 HWY_INLINE Vec256<T> NativeGather256(const T* HWY_RESTRICT base,
                                      Vec256<int64_t> indices) {
+#if HWY_COMPILER_GCC_ACTUAL
+  __m256d mask = _mm256_castsi256_pd(_mm256_set1_epi32(-1));
+  __asm__("" : "+x"(mask));
+  // Match NativeMaskedGatherOr256's workaround for the integer intrinsic.
+  return Vec256<T>{_mm256_castpd_si256(_mm256_mask_i64gather_pd(
+      _mm256_setzero_pd(), reinterpret_cast<const double*>(base), indices.raw,
+      mask, kScale))};
+#else
   return Vec256<T>{_mm256_i64gather_epi64(
       reinterpret_cast<const GatherIndex64*>(base), indices.raw, kScale)};
+#endif
 }
 
 template <int kScale>
 HWY_API Vec256<float> NativeGather256(const float* HWY_RESTRICT base,
                                       Vec256<int32_t> indices) {
+#if HWY_COMPILER_GCC_ACTUAL
+  __m256 mask = _mm256_castsi256_ps(_mm256_set1_epi32(-1));
+  __asm__("" : "+x"(mask));
+  return Vec256<float>{_mm256_mask_i32gather_ps(_mm256_setzero_ps(), base,
+                                                indices.raw, mask, kScale)};
+#else
   return Vec256<float>{_mm256_i32gather_ps(base, indices.raw, kScale)};
+#endif
 }
 
 template <int kScale>
 HWY_API Vec256<double> NativeGather256(const double* HWY_RESTRICT base,
                                        Vec256<int64_t> indices) {
+#if HWY_COMPILER_GCC_ACTUAL
+  __m256d mask = _mm256_castsi256_pd(_mm256_set1_epi32(-1));
+  __asm__("" : "+x"(mask));
+  return Vec256<double>{_mm256_mask_i64gather_pd(_mm256_setzero_pd(), base,
+                                                 indices.raw, mask, kScale)};
+#else
   return Vec256<double>{_mm256_i64gather_pd(base, indices.raw, kScale)};
+#endif
 }
 
 }  // namespace detail

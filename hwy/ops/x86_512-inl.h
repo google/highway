@@ -4620,25 +4620,56 @@ namespace detail {
 template <int kScale, typename T, HWY_IF_UI32(T)>
 HWY_INLINE Vec512<T> NativeGather512(const T* HWY_RESTRICT base,
                                      Vec512<int32_t> indices) {
+#if HWY_COMPILER_GCC_ACTUAL
+  // As in NativeGather128, hide the mask to retain destination initialization.
+  // TODO: restrict this workaround once the fixed GCC version is known.
+  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=127946
+  __mmask16 mask = 0xFFFF;
+  __asm__("" : "+k"(mask));
+  return Vec512<T>{_mm512_mask_i32gather_epi32(_mm512_setzero_si512(), mask,
+                                               indices.raw, base, kScale)};
+#else
   return Vec512<T>{_mm512_i32gather_epi32(indices.raw, base, kScale)};
+#endif
 }
 
 template <int kScale, typename T, HWY_IF_UI64(T)>
 HWY_INLINE Vec512<T> NativeGather512(const T* HWY_RESTRICT base,
                                      Vec512<int64_t> indices) {
+#if HWY_COMPILER_GCC_ACTUAL
+  __mmask8 mask = 0xFF;
+  __asm__("" : "+k"(mask));
+  return Vec512<T>{_mm512_mask_i64gather_epi64(_mm512_setzero_si512(), mask,
+                                               indices.raw, base, kScale)};
+#else
   return Vec512<T>{_mm512_i64gather_epi64(indices.raw, base, kScale)};
+#endif
 }
 
 template <int kScale>
 HWY_INLINE Vec512<float> NativeGather512(const float* HWY_RESTRICT base,
                                          Vec512<int32_t> indices) {
+#if HWY_COMPILER_GCC_ACTUAL
+  __mmask16 mask = 0xFFFF;
+  __asm__("" : "+k"(mask));
+  return Vec512<float>{_mm512_mask_i32gather_ps(_mm512_setzero_ps(), mask,
+                                                indices.raw, base, kScale)};
+#else
   return Vec512<float>{_mm512_i32gather_ps(indices.raw, base, kScale)};
+#endif
 }
 
 template <int kScale>
 HWY_INLINE Vec512<double> NativeGather512(const double* HWY_RESTRICT base,
                                           Vec512<int64_t> indices) {
+#if HWY_COMPILER_GCC_ACTUAL
+  __mmask8 mask = 0xFF;
+  __asm__("" : "+k"(mask));
+  return Vec512<double>{_mm512_mask_i64gather_pd(_mm512_setzero_pd(), mask,
+                                                 indices.raw, base, kScale)};
+#else
   return Vec512<double>{_mm512_i64gather_pd(indices.raw, base, kScale)};
+#endif
 }
 
 template <int kScale, typename T, HWY_IF_UI32(T)>
