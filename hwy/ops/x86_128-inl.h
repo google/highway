@@ -8127,67 +8127,6 @@ HWY_API void MaskedScatterIndex(VFromD<D> v, MFromD<D> m, D d,
 namespace detail {
 
 template <int kScale, typename T, size_t N, HWY_IF_UI32(T)>
-HWY_INLINE Vec128<T, N> NativeGather128(const T* HWY_RESTRICT base,
-                                        Vec128<int32_t, N> indices) {
-#if HWY_COMPILER_GCC_ACTUAL
-  // Hide the all-ones mask so GCC keeps the zero merge source, breaking the
-  // gather's false dependency on the previous destination value. No memory
-  // clobber is needed: the intrinsic describes the memory access.
-  // TODO: restrict this workaround once the fixed GCC version is known.
-  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=127946
-  __m128i mask = _mm_set1_epi32(-1);
-  __asm__("" : "+x"(mask));
-  return Vec128<T, N>{_mm_mask_i32gather_epi32(
-      _mm_setzero_si128(), reinterpret_cast<const int32_t*>(base), indices.raw,
-      mask, kScale)};
-#else
-  return Vec128<T, N>{_mm_i32gather_epi32(
-      reinterpret_cast<const int32_t*>(base), indices.raw, kScale)};
-#endif
-}
-
-template <int kScale, typename T, size_t N, HWY_IF_UI64(T)>
-HWY_INLINE Vec128<T, N> NativeGather128(const T* HWY_RESTRICT base,
-                                        Vec128<int64_t, N> indices) {
-#if HWY_COMPILER_GCC_ACTUAL
-  __m128i mask = _mm_set1_epi32(-1);
-  __asm__("" : "+x"(mask));
-  return Vec128<T, N>{_mm_mask_i64gather_epi64(
-      _mm_setzero_si128(), reinterpret_cast<const GatherIndex64*>(base),
-      indices.raw, mask, kScale)};
-#else
-  return Vec128<T, N>{_mm_i64gather_epi64(
-      reinterpret_cast<const GatherIndex64*>(base), indices.raw, kScale)};
-#endif
-}
-
-template <int kScale, size_t N>
-HWY_INLINE Vec128<float, N> NativeGather128(const float* HWY_RESTRICT base,
-                                            Vec128<int32_t, N> indices) {
-#if HWY_COMPILER_GCC_ACTUAL
-  __m128 mask = _mm_castsi128_ps(_mm_set1_epi32(-1));
-  __asm__("" : "+x"(mask));
-  return Vec128<float, N>{
-      _mm_mask_i32gather_ps(_mm_setzero_ps(), base, indices.raw, mask, kScale)};
-#else
-  return Vec128<float, N>{_mm_i32gather_ps(base, indices.raw, kScale)};
-#endif
-}
-
-template <int kScale, size_t N>
-HWY_INLINE Vec128<double, N> NativeGather128(const double* HWY_RESTRICT base,
-                                             Vec128<int64_t, N> indices) {
-#if HWY_COMPILER_GCC_ACTUAL
-  __m128d mask = _mm_castsi128_pd(_mm_set1_epi32(-1));
-  __asm__("" : "+x"(mask));
-  return Vec128<double, N>{
-      _mm_mask_i64gather_pd(_mm_setzero_pd(), base, indices.raw, mask, kScale)};
-#else
-  return Vec128<double, N>{_mm_i64gather_pd(base, indices.raw, kScale)};
-#endif
-}
-
-template <int kScale, typename T, size_t N, HWY_IF_UI32(T)>
 HWY_INLINE Vec128<T, N> NativeMaskedGatherOr128(Vec128<T, N> no,
                                                 Mask128<T, N> m,
                                                 const T* HWY_RESTRICT base,
@@ -8244,6 +8183,53 @@ HWY_INLINE Vec128<double, N> NativeMaskedGatherOr128(
       _mm_mask_i64gather_pd(no.raw, base, indices.raw, m.raw, kScale)};
 #endif
 }
+
+#if !HWY_COMPILER_GCC_ACTUAL || defined(HWY_DISABLE_GCC_GATHER_WORKAROUND)
+template <int kScale, typename T, size_t N, HWY_IF_UI32(T)>
+HWY_INLINE Vec128<T, N> NativeGather128(const T* HWY_RESTRICT base,
+                                        Vec128<int32_t, N> indices) {
+  return Vec128<T, N>{_mm_i32gather_epi32(
+      reinterpret_cast<const int32_t*>(base), indices.raw, kScale)};
+}
+
+template <int kScale, typename T, size_t N, HWY_IF_UI64(T)>
+HWY_INLINE Vec128<T, N> NativeGather128(const T* HWY_RESTRICT base,
+                                        Vec128<int64_t, N> indices) {
+  return Vec128<T, N>{_mm_i64gather_epi64(
+      reinterpret_cast<const GatherIndex64*>(base), indices.raw, kScale)};
+}
+
+template <int kScale, size_t N>
+HWY_INLINE Vec128<float, N> NativeGather128(const float* HWY_RESTRICT base,
+                                            Vec128<int32_t, N> indices) {
+  return Vec128<float, N>{_mm_i32gather_ps(base, indices.raw, kScale)};
+}
+
+template <int kScale, size_t N>
+HWY_INLINE Vec128<double, N> NativeGather128(const double* HWY_RESTRICT base,
+                                             Vec128<int64_t, N> indices) {
+  return Vec128<double, N>{_mm_i64gather_pd(base, indices.raw, kScale)};
+}
+#else
+template <int kScale, typename T, size_t N>
+HWY_INLINE Vec128<T, N> NativeGather128(const T* HWY_RESTRICT base,
+                                        Vec128<MakeSigned<T>, N> indices) {
+  const DFromV<Vec128<T, N>> d;
+  const auto zero = Zero(d);
+  auto mask = SetMask(d, true);
+  // Hide the all-true mask so GCC keeps the zero merge source, breaking the
+  // gather's false dependency on the previous destination value. No memory
+  // clobber is needed: the intrinsic describes the memory access.
+  // TODO: restrict this workaround once the fixed GCC version is known.
+  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=127946
+#if HWY_TARGET <= HWY_AVX3
+  __asm__("" : "+k"(mask.raw));
+#else
+  __asm__("" : "+x"(mask.raw));
+#endif
+  return NativeMaskedGatherOr128<kScale>(zero, mask, base, indices);
+}
+#endif
 
 }  // namespace detail
 

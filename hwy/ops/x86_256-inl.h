@@ -5055,84 +5055,6 @@ HWY_API void MaskedScatterIndex(VFromD<D> v, MFromD<D> m, D /* tag */,
 namespace detail {
 
 template <int kScale, typename T, HWY_IF_UI32(T)>
-HWY_INLINE Vec256<T> NativeGather256(const T* HWY_RESTRICT base,
-                                     Vec256<int32_t> indices) {
-#if HWY_COMPILER_GCC_ACTUAL
-  // As in NativeGather128, hide the mask to retain destination initialization.
-  // TODO: restrict this workaround once the fixed GCC version is known.
-  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=127946
-  __m256i mask = _mm256_set1_epi32(-1);
-  __asm__("" : "+x"(mask));
-  return Vec256<T>{_mm256_mask_i32gather_epi32(
-      _mm256_setzero_si256(), reinterpret_cast<const int32_t*>(base),
-      indices.raw, mask, kScale)};
-#else
-  return Vec256<T>{_mm256_i32gather_epi32(
-      reinterpret_cast<const int32_t*>(base), indices.raw, kScale)};
-#endif
-}
-
-template <int kScale, typename T, HWY_IF_UI64(T)>
-HWY_INLINE Vec256<T> NativeGather256(const T* HWY_RESTRICT base,
-                                     Vec256<int64_t> indices) {
-#if HWY_COMPILER_GCC_ACTUAL
-  __m256d mask = _mm256_castsi256_pd(_mm256_set1_epi32(-1));
-  __asm__("" : "+x"(mask));
-  // Match NativeMaskedGatherOr256's workaround for the integer intrinsic.
-  return Vec256<T>{_mm256_castpd_si256(_mm256_mask_i64gather_pd(
-      _mm256_setzero_pd(), reinterpret_cast<const double*>(base), indices.raw,
-      mask, kScale))};
-#else
-  return Vec256<T>{_mm256_i64gather_epi64(
-      reinterpret_cast<const GatherIndex64*>(base), indices.raw, kScale)};
-#endif
-}
-
-template <int kScale>
-HWY_API Vec256<float> NativeGather256(const float* HWY_RESTRICT base,
-                                      Vec256<int32_t> indices) {
-#if HWY_COMPILER_GCC_ACTUAL
-  __m256 mask = _mm256_castsi256_ps(_mm256_set1_epi32(-1));
-  __asm__("" : "+x"(mask));
-  return Vec256<float>{_mm256_mask_i32gather_ps(_mm256_setzero_ps(), base,
-                                                indices.raw, mask, kScale)};
-#else
-  return Vec256<float>{_mm256_i32gather_ps(base, indices.raw, kScale)};
-#endif
-}
-
-template <int kScale>
-HWY_API Vec256<double> NativeGather256(const double* HWY_RESTRICT base,
-                                       Vec256<int64_t> indices) {
-#if HWY_COMPILER_GCC_ACTUAL
-  __m256d mask = _mm256_castsi256_pd(_mm256_set1_epi32(-1));
-  __asm__("" : "+x"(mask));
-  return Vec256<double>{_mm256_mask_i64gather_pd(_mm256_setzero_pd(), base,
-                                                 indices.raw, mask, kScale)};
-#else
-  return Vec256<double>{_mm256_i64gather_pd(base, indices.raw, kScale)};
-#endif
-}
-
-}  // namespace detail
-
-template <class D, HWY_IF_V_SIZE_D(D, 32)>
-HWY_API VFromD<D> GatherOffset(D /*d*/, const TFromD<D>* HWY_RESTRICT base,
-                               VFromD<RebindToSigned<D>> offsets) {
-  return detail::NativeGather256<1>(base, offsets);
-}
-
-template <class D, HWY_IF_V_SIZE_D(D, 32)>
-HWY_API VFromD<D> GatherIndex(D /*d*/, const TFromD<D>* HWY_RESTRICT base,
-                              VFromD<RebindToSigned<D>> indices) {
-  return detail::NativeGather256<sizeof(TFromD<D>)>(base, indices);
-}
-
-// ------------------------------ MaskedGatherIndexOr
-
-namespace detail {
-
-template <int kScale, typename T, HWY_IF_UI32(T)>
 HWY_INLINE Vec256<T> NativeMaskedGatherOr256(Vec256<T> no, Mask256<T> m,
                                              const T* HWY_RESTRICT base,
                                              Vec256<int32_t> indices) {
@@ -5194,7 +5116,72 @@ HWY_API Vec256<double> NativeMaskedGatherOr256(Vec256<double> no,
 #endif
 }
 
+#if !HWY_COMPILER_GCC_ACTUAL || defined(HWY_DISABLE_GCC_GATHER_WORKAROUND)
+template <int kScale, typename T, HWY_IF_UI32(T)>
+HWY_INLINE Vec256<T> NativeGather256(const T* HWY_RESTRICT base,
+                                     Vec256<int32_t> indices) {
+  return Vec256<T>{_mm256_i32gather_epi32(
+      reinterpret_cast<const int32_t*>(base), indices.raw, kScale)};
+}
+
+template <int kScale, typename T, HWY_IF_UI64(T)>
+HWY_INLINE Vec256<T> NativeGather256(const T* HWY_RESTRICT base,
+                                     Vec256<int64_t> indices) {
+  return Vec256<T>{_mm256_i64gather_epi64(
+      reinterpret_cast<const GatherIndex64*>(base), indices.raw, kScale)};
+}
+
+template <int kScale>
+HWY_API Vec256<float> NativeGather256(const float* HWY_RESTRICT base,
+                                      Vec256<int32_t> indices) {
+  return Vec256<float>{_mm256_i32gather_ps(base, indices.raw, kScale)};
+}
+
+template <int kScale>
+HWY_API Vec256<double> NativeGather256(const double* HWY_RESTRICT base,
+                                       Vec256<int64_t> indices) {
+  return Vec256<double>{_mm256_i64gather_pd(base, indices.raw, kScale)};
+}
+#else
+template <int kScale, typename T>
+HWY_INLINE Vec256<T> NativeGather256(const T* HWY_RESTRICT base,
+                                     Vec256<MakeSigned<T>> indices) {
+  const DFromV<Vec256<T>> d;
+  const auto zero = Zero(d);
+  auto mask = SetMask(d, true);
+  // As in NativeGather128, hide the mask to retain destination initialization.
+#if HWY_TARGET <= HWY_AVX3
+  __asm__("" : "+k"(mask.raw));
+#else
+  // Match the helper's double gather mask for 64-bit lanes before the asm.
+  // Casting to double afterwards can leave an extra mask copy (GCC PR 128233).
+  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=128233
+  const Rebind<If<sizeof(T) == 8, double, T>, decltype(d)> dm;
+  auto native_mask = RebindMask(dm, mask);
+  __asm__("" : "+x"(native_mask.raw));
+  // The helper requires a mask matching T. For 64-bit integer lanes, this
+  // bitcast and the helper's bitcast back to double cancel out.
+  mask = RebindMask(d, native_mask);
+#endif
+  return NativeMaskedGatherOr256<kScale>(zero, mask, base, indices);
+}
+#endif
+
 }  // namespace detail
+
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> GatherOffset(D /*d*/, const TFromD<D>* HWY_RESTRICT base,
+                               VFromD<RebindToSigned<D>> offsets) {
+  return detail::NativeGather256<1>(base, offsets);
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> GatherIndex(D /*d*/, const TFromD<D>* HWY_RESTRICT base,
+                              VFromD<RebindToSigned<D>> indices) {
+  return detail::NativeGather256<sizeof(TFromD<D>)>(base, indices);
+}
+
+// ------------------------------ MaskedGatherIndexOr
 
 template <class D, HWY_IF_V_SIZE_D(D, 32)>
 HWY_API VFromD<D> MaskedGatherIndexOr(VFromD<D> no, MFromD<D> m, D /*d*/,
