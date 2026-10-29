@@ -994,6 +994,25 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "math_gbench",
+    size = "medium",
+    timeout = "long",
+    srcs = ["hwy/contrib/math/math_gbench.cc"],
+    copts = COPTS + HWY_TEST_COPTS,
+    local_defines = ["HWY_IS_TEST"],
+    tags = [
+        "benchmark",
+        "manual",
+        "notap",
+    ],
+    deps = [
+        ":hwy",
+        ":math",
+        "//third_party/benchmark:benchmark_main",
+    ],
+)
+
 [
     cc_test(
         name = name + "_sweep_test",

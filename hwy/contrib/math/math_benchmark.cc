@@ -46,6 +46,9 @@ extern const char* g_fxn2;
 
 #define HWY_MATH_BENCHMARKS(V) \
   V(Exp)                       \
+  V(Expm1)                     \
+  V(Sinh)                      \
+  V(Cosh)                      \
   V(FastExp)                   \
   V(FastExpNormal)             \
   V(Exp2)                      \
@@ -147,6 +150,12 @@ hwy::FuncOutput SafeCast(Val v) {
 
 // Exp / FastExp
 DEFINE_MATH_BENCH(CallExp, hn::CallExp(d, v),
+                  -10.0 + static_cast<double>(in) * (20.0 / 15.0))
+DEFINE_MATH_BENCH(CallExpm1, hn::CallExpm1(d, v),
+                  -10.0 + static_cast<double>(in) * (20.0 / 15.0))
+DEFINE_MATH_BENCH(CallSinh, hn::CallSinh(d, v),
+                  -10.0 + static_cast<double>(in) * (20.0 / 15.0))
+DEFINE_MATH_BENCH(CallCosh, hn::CallCosh(d, v),
                   -10.0 + static_cast<double>(in) * (20.0 / 15.0))
 DEFINE_MATH_BENCH(CallFastExp, hn::CallFastExp(d, v),
                   -10.0 + static_cast<double>(in) * (20.0 / 15.0))
