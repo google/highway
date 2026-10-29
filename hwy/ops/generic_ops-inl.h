@@ -1525,11 +1525,11 @@ HWY_API VFromD<RebindToSigned<DFromV<V>>> FloorInt(V v) {
 
 // ------------------------------ MulByPow2/MulByFloorPow2
 
-#if (defined(HWY_NATIVE_MUL_BY_POW2) == defined(HWY_TARGET_TOGGLE))
-#ifdef HWY_NATIVE_MUL_BY_POW2
-#undef HWY_NATIVE_MUL_BY_POW2
+#if (defined(HWY_NATIVE_MUL_BY_POW2_TOGGLE) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MUL_BY_POW2_TOGGLE
+#undef HWY_NATIVE_MUL_BY_POW2_TOGGLE
 #else
-#define HWY_NATIVE_MUL_BY_POW2
+#define HWY_NATIVE_MUL_BY_POW2_TOGGLE
 #endif
 
 template <class V, HWY_IF_FLOAT_V(V)>
@@ -1656,7 +1656,7 @@ HWY_API V MulByFloorPow2(V v, V exp) {
                     MulByPow2(v, FloorInt(exp)));
 }
 
-#endif  // HWY_NATIVE_MUL_BY_POW2
+#endif  // HWY_NATIVE_MUL_BY_POW2_TOGGLE
 
 // ------------------------------ GetBiasedExponent
 #if (defined(HWY_NATIVE_GET_BIASED_EXPONENT) == defined(HWY_TARGET_TOGGLE))

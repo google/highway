@@ -968,24 +968,24 @@ struct ExpImpl<float> {
 
   template <class D, class V = VFromD<D>, HWY_IF_F32_D(D)>
   HWY_INLINE V LoadExpShortRange(D d, V x, V e) {
-#ifdef HWY_NATIVE_MUL_BY_POW2
-    (void)d;
-    return MulByFloorPow2(x, e);
-#else
-    const RebindToSigned<D> di;
+    if constexpr (HWY_NATIVE_MUL_BY_POW2) {
+      return MulByFloorPow2(x, e);
+    } else {
+      const RebindToSigned<D> di;
 #if defined(__ASSOCIATIVE_MATH__)
-    const V y = Round(Mul(e, Set(d, 0.5f)));
+      const V y = Round(Mul(e, Set(d, 0.5f)));
 #else
-    const V kMagic = Set(d, 12582912.0f);  // 1.5 * (1 << 23)
-    const V y = Sub(MulAdd(e, Set(d, 0.5f), kMagic), kMagic);
+      const V kMagic = Set(d, 12582912.0f);  // 1.5 * (1 << 23)
+      const V y = Sub(MulAdd(e, Set(d, 0.5f), kMagic), kMagic);
 #endif
-    const V kExpMagic = Set(d, 8388735.0f);  // 127.0f + (1 << 23)
-    const V ey = Sub(e, y);
-    const V pow2_y = BitCast(d, ShiftLeft<23>(BitCast(di, Add(y, kExpMagic))));
-    const V pow2_ey =
-        BitCast(d, ShiftLeft<23>(BitCast(di, Add(ey, kExpMagic))));
-    return Mul(Mul(x, pow2_y), pow2_ey);
-#endif  // HWY_NATIVE_MUL_BY_POW2
+      const V kExpMagic = Set(d, 8388735.0f);  // 127.0f + (1 << 23)
+      const V ey = Sub(e, y);
+      const V pow2_y =
+          BitCast(d, ShiftLeft<23>(BitCast(di, Add(y, kExpMagic))));
+      const V pow2_ey =
+          BitCast(d, ShiftLeft<23>(BitCast(di, Add(ey, kExpMagic))));
+      return Mul(Mul(x, pow2_y), pow2_ey);
+    }
   }
 
   template <class D, class V = VFromD<D>, class VI32 = Vec<Rebind<int32_t, D>>,
@@ -1122,24 +1122,24 @@ struct ExpImpl<double> {
 
   template <class D, class V = VFromD<D>, HWY_IF_F64_D(D)>
   HWY_INLINE V LoadExpShortRange(D d, V x, V e) {
-#ifdef HWY_NATIVE_MUL_BY_POW2
-    (void)d;
-    return MulByFloorPow2(x, e);
-#else
-    const RebindToSigned<D> di;
+    if constexpr (HWY_NATIVE_MUL_BY_POW2) {
+      return MulByFloorPow2(x, e);
+    } else {
+      const RebindToSigned<D> di;
 #if defined(__ASSOCIATIVE_MATH__)
-    const V y = Round(Mul(e, Set(d, 0.5)));
+      const V y = Round(Mul(e, Set(d, 0.5)));
 #else
-    const V kMagic = Set(d, 6755399441055744.0);  // 1.5 * (1ull << 52)
-    const V y = Sub(MulAdd(e, Set(d, 0.5), kMagic), kMagic);
+      const V kMagic = Set(d, 6755399441055744.0);  // 1.5 * (1ull << 52)
+      const V y = Sub(MulAdd(e, Set(d, 0.5), kMagic), kMagic);
 #endif
-    const V kExpMagic = Set(d, 4503599627371519.0);  // 1023.0 + (1ull << 52)
-    const V ey = Sub(e, y);
-    const V pow2_y = BitCast(d, ShiftLeft<52>(BitCast(di, Add(y, kExpMagic))));
-    const V pow2_ey =
-        BitCast(d, ShiftLeft<52>(BitCast(di, Add(ey, kExpMagic))));
-    return Mul(Mul(x, pow2_y), pow2_ey);
-#endif  // HWY_NATIVE_MUL_BY_POW2
+      const V kExpMagic = Set(d, 4503599627371519.0);  // 1023.0 + (1ull << 52)
+      const V ey = Sub(e, y);
+      const V pow2_y =
+          BitCast(d, ShiftLeft<52>(BitCast(di, Add(y, kExpMagic))));
+      const V pow2_ey =
+          BitCast(d, ShiftLeft<52>(BitCast(di, Add(ey, kExpMagic))));
+      return Mul(Mul(x, pow2_y), pow2_ey);
+    }
   }
 
   template <class D, class V = VFromD<D>, class VI32 = Vec<Rebind<int32_t, D>>,
