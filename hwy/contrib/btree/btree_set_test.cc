@@ -4,7 +4,9 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include <limits>
 #include <set>
+#include <vector>
 
 // clang-format off
 #undef HWY_TARGET_INCLUDE
@@ -86,6 +88,67 @@ HWY_NOINLINE void TestBTreeSetPtrAndEnum() {
   HWY_ASSERT(it == default_enum_set.end());
 }
 
+template <typename SignedKeyT>
+void VerifySignedSetBoundaries() {
+  constexpr SignedKeyT kMin = std::numeric_limits<SignedKeyT>::min();
+  constexpr SignedKeyT kMax = std::numeric_limits<SignedKeyT>::max();
+  const SignedKeyT sorted_keys[] = {kMin, -1000, -1, 0, 1, 1000, kMax};
+  constexpr size_t kNumKeys = sizeof(sorted_keys) / sizeof(sorted_keys[0]);
+
+  auto set_sorted = hwy::BTreeSet<SignedKeyT>::Build(sorted_keys, kNumKeys);
+  HWY_ASSERT_EQ(kNumKeys, set_sorted.size());
+
+  const SignedKeyT unsorted_dups[] = {kMax, 0,    kMin, -1,    0,
+                                      1,    kMin, 1000, -1000, kMax};
+  auto set_unsorted = hwy::BTreeSet<SignedKeyT>::Build(
+      unsorted_dups, sizeof(unsorted_dups) / sizeof(unsorted_dups[0]));
+  HWY_ASSERT_EQ(kNumKeys, set_unsorted.size());
+
+  // Exercise CopyConstruct and CopyAssign on signed storage-erased sets.
+  hwy::BTreeSet<SignedKeyT> copied(set_sorted);
+  hwy::BTreeSet<SignedKeyT> assigned;
+  assigned = set_unsorted;
+
+  for (const auto* s : {&set_sorted, &set_unsorted, &copied, &assigned}) {
+    size_t idx = 0;
+    for (SignedKeyT k : *s) {
+      HWY_ASSERT_EQ(sorted_keys[idx++], k);
+    }
+    HWY_ASSERT_EQ(kNumKeys, idx);
+
+    // 11 queries = 8-way SIMD micro-batch + 3-element scalar tail.
+    const SignedKeyT queries[11] = {kMin, -2000, -1000, -2,   -1,  0,
+                                    1,    2,     1000,  2000, kMax};
+    const bool expected_found[11] = {true, false, true, false, true, true,
+                                     true, false, true, false, true};
+
+    // Test both < 8 tail-only (count = 5) and >= 8 pipelined + tail (11).
+    for (size_t count : {size_t{5}, size_t{11}}) {
+      bool found[11] = {};
+      s->ContainsBatch(queries, count, found);
+      typename hwy::BTreeSet<SignedKeyT>::const_iterator find_it[11] = {};
+      s->FindBatch(queries, count, find_it);
+      typename hwy::BTreeSet<SignedKeyT>::const_iterator lb_it[11] = {};
+      s->LowerBoundBatch(queries, count, lb_it);
+
+      for (size_t i = 0; i < count; ++i) {
+        HWY_ASSERT_EQ(expected_found[i], found[i]);
+        HWY_ASSERT_EQ(expected_found[i], find_it[i] != s->end());
+        if (expected_found[i]) {
+          HWY_ASSERT_EQ(queries[i], *find_it[i]);
+        }
+        auto scalar_lb = s->lower_bound(queries[i]);
+        HWY_ASSERT(lb_it[i] == scalar_lb);
+      }
+    }
+  }
+}
+
+HWY_NOINLINE void TestBTreeSetSignedBoundaries() {
+  VerifySignedSetBoundaries<int32_t>();
+  VerifySignedSetBoundaries<int64_t>();
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -101,6 +164,7 @@ HWY_EXPORT_AND_TEST_P(BTreeSetPublicTest, TestBTreeSetI32);
 HWY_EXPORT_AND_TEST_P(BTreeSetPublicTest, TestBTreeSetU64);
 HWY_EXPORT_AND_TEST_P(BTreeSetPublicTest, TestBTreeSetI64);
 HWY_EXPORT_AND_TEST_P(BTreeSetPublicTest, TestBTreeSetPtrAndEnum);
+HWY_EXPORT_AND_TEST_P(BTreeSetPublicTest, TestBTreeSetSignedBoundaries);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy

@@ -4,7 +4,9 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include <limits>
 #include <map>
+#include <vector>
 
 #include "hwy/base.h"
 
@@ -354,6 +356,84 @@ HWY_NOINLINE void TestMapBatchOperations() {
   TestBatchOperations();
 }
 
+template <typename SignedKeyT, typename ValueT>
+void VerifySignedMapBoundaries() {
+  constexpr SignedKeyT kMin = std::numeric_limits<SignedKeyT>::min();
+  constexpr SignedKeyT kMax = std::numeric_limits<SignedKeyT>::max();
+  const SignedKeyT sorted_keys[] = {kMin, -1000, -1, 0, 1, 1000, kMax};
+  const ValueT sorted_vals[] = {10, 20, 30, 40, 50, 60, 70};
+  constexpr size_t kNumKeys = sizeof(sorted_keys) / sizeof(sorted_keys[0]);
+
+  auto map_sorted = hwy::BTreeMap<SignedKeyT, ValueT>::Build(
+      sorted_keys, sorted_vals, kNumKeys);
+  HWY_ASSERT_EQ(kNumKeys, map_sorted.size());
+
+  // Unsorted with duplicates: first occurrence of each key must win.
+  const SignedKeyT unsorted_keys[] = {kMax, 0,    kMin, -1,    0,
+                                      1,    kMin, 1000, -1000, kMax};
+  const ValueT unsorted_vals[] = {70, 40, 10, 30, 999, 50, 888, 60, 20, 777};
+  auto map_unsorted = hwy::BTreeMap<SignedKeyT, ValueT>::Build(
+      unsorted_keys, unsorted_vals,
+      sizeof(unsorted_keys) / sizeof(unsorted_keys[0]));
+  HWY_ASSERT_EQ(kNumKeys, map_unsorted.size());
+
+  // Exercise CopyConstruct and CopyAssign on signed storage-erased maps.
+  hwy::BTreeMap<SignedKeyT, ValueT> copied(map_sorted);
+  hwy::BTreeMap<SignedKeyT, ValueT> assigned;
+  assigned = map_unsorted;
+
+  for (const auto* m : {&map_sorted, &map_unsorted, &copied, &assigned}) {
+    size_t idx = 0;
+    for (auto kv : *m) {
+      HWY_ASSERT_EQ(sorted_keys[idx], kv.first);
+      HWY_ASSERT_EQ(sorted_vals[idx], kv.second);
+      ++idx;
+    }
+    HWY_ASSERT_EQ(kNumKeys, idx);
+
+    // 11 queries = 8-way SIMD micro-batch + 3-element scalar tail.
+    const SignedKeyT queries[11] = {kMin, -2000, -1000, -2,   -1,  0,
+                                    1,    2,     1000,  2000, kMax};
+    const bool expected_found[11] = {true, false, true, false, true, true,
+                                     true, false, true, false, true};
+    const ValueT expected_vals[11] = {10, 0, 20, 0, 30, 40, 50, 0, 60, 0, 70};
+
+    // Test both < 8 tail-only (count = 5) and >= 8 pipelined + tail (11).
+    for (size_t count : {size_t{5}, size_t{11}}) {
+      bool found[11] = {};
+      m->ContainsBatch(queries, count, found);
+      ValueT out_vals[11] = {};
+      bool lookup_found[11] = {};
+      m->LookupBatch(queries, count, out_vals, lookup_found);
+      typename hwy::BTreeMap<SignedKeyT, ValueT>::const_iterator find_it[11] =
+          {};
+      m->FindBatch(queries, count, find_it);
+      typename hwy::BTreeMap<SignedKeyT, ValueT>::const_iterator lb_it[11] = {};
+      m->LowerBoundBatch(queries, count, lb_it);
+
+      for (size_t i = 0; i < count; ++i) {
+        HWY_ASSERT_EQ(expected_found[i], found[i]);
+        HWY_ASSERT_EQ(expected_found[i], lookup_found[i]);
+        HWY_ASSERT_EQ(expected_found[i], find_it[i] != m->end());
+        if (expected_found[i]) {
+          HWY_ASSERT_EQ(expected_vals[i], out_vals[i]);
+          HWY_ASSERT_EQ(queries[i], find_it[i]->first);
+          HWY_ASSERT_EQ(expected_vals[i], find_it[i]->second);
+        }
+        auto scalar_lb = m->lower_bound(queries[i]);
+        HWY_ASSERT(lb_it[i] == scalar_lb);
+      }
+    }
+  }
+}
+
+HWY_NOINLINE void TestMapSignedBoundaries() {
+  VerifySignedMapBoundaries<int32_t, uint32_t>();
+  VerifySignedMapBoundaries<int32_t, uint64_t>();
+  VerifySignedMapBoundaries<int64_t, uint32_t>();
+  VerifySignedMapBoundaries<int64_t, uint64_t>();
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -380,6 +460,7 @@ EXPORT_MAP_KEY_TESTS(I64);
 HWY_EXPORT_AND_TEST_P(BTreeMapPublicTest, TestBTreeMapPtrAndEnum);
 HWY_EXPORT_AND_TEST_P(BTreeMapPublicTest, TestMapCustomValues);
 HWY_EXPORT_AND_TEST_P(BTreeMapPublicTest, TestMapBatchOperations);
+HWY_EXPORT_AND_TEST_P(BTreeMapPublicTest, TestMapSignedBoundaries);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy

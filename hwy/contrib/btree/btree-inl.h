@@ -2284,28 +2284,31 @@ class BTree {
   //       read-heavy or static lookup workloads.
   //     * 0.75f - 0.85f: Leaves headroom in leaves to accommodate subsequent
   //       dynamic insertions without immediate splits.
-  static BTree Build(const KeyT* keys, size_t num_keys,
-                     float fill_ratio = 1.0f) {
+  static BTree Build(const KeyT* keys, size_t num_keys, float fill_ratio = 1.0f,
+                     StorageKeyT sign_mask = KeyCodec<KeyT>::kSignMask) {
     static_assert(!Traits::kIsMap, "Build with keys only is for Sets");
     if (HWY_UNLIKELY(num_keys == 0)) return BTree();
-    using LaneKeyT = typename KeyCodec<KeyT>::LaneType;
-    const ScalableTag<LaneKeyT> d_key;
-    if (IsSorted(d_key, HWY_RCAST_ALIGNED(const LaneKeyT*, keys), num_keys,
-                 IsSortedLessEqual())) {
-      if constexpr (KeyCodec<KeyT>::kIsSigned) {
+    if (sign_mask == 0) {
+      const ScalableTag<StorageKeyT> d;
+      const StorageKeyT* ukeys = HWY_RCAST_ALIGNED(const StorageKeyT*, keys);
+      if (IsSorted(d, ukeys, num_keys, IsSortedLessEqual())) {
+        return BuildInternal(ukeys, static_cast<const mapped_type*>(nullptr),
+                             num_keys, fill_ratio);
+      }
+    } else {
+      using SignedKeyT = SignedFromSize<sizeof(StorageKeyT)>;
+      const ScalableTag<SignedKeyT> d;
+      const SignedKeyT* skeys = HWY_RCAST_ALIGNED(const SignedKeyT*, keys);
+      if (IsSorted(d, skeys, num_keys, IsSortedLessEqual())) {
         // Allocate temporary contiguous storage buffer to encode signed keys
         // upfront. Although heap-allocated, this buffer is transient (freed
         // immediately upon Build return), keeping the builder algorithm in
         // BuildInternal uniform and simple.
         AlignedPtr<StorageKeyT> ukeys = AllocateAligned<StorageKeyT>(num_keys);
         for (size_t i = 0; i < num_keys; ++i) {
-          ukeys[i] = KeyCodec<KeyT>::ToStorage(keys[i]);
+          ukeys[i] = BitCastScalar<StorageKeyT>(keys[i]) ^ sign_mask;
         }
         return BuildInternal(ukeys.get(),
-                             static_cast<const mapped_type*>(nullptr), num_keys,
-                             fill_ratio);
-      } else {
-        return BuildInternal(HWY_RCAST_ALIGNED(const StorageKeyT*, keys),
                              static_cast<const mapped_type*>(nullptr), num_keys,
                              fill_ratio);
       }
@@ -2313,9 +2316,9 @@ class BTree {
 
     // Path when input is unsorted and/or contains duplicates.
     AlignedPtr<StorageKeyT> ukeys = AllocateAligned<StorageKeyT>(num_keys);
-    if constexpr (KeyCodec<KeyT>::kIsSigned) {
+    if (sign_mask != 0) {
       for (size_t i = 0; i < num_keys; ++i) {
-        ukeys[i] = KeyCodec<KeyT>::ToStorage(keys[i]);
+        ukeys[i] = BitCastScalar<StorageKeyT>(keys[i]) ^ sign_mask;
       }
     } else {
       std::memcpy(ukeys.get(), keys, num_keys * sizeof(StorageKeyT));
@@ -2347,25 +2350,29 @@ class BTree {
   template <typename V = mapped_type,
             typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
   static BTree Build(const KeyT* keys, const V* values, size_t num_keys,
-                     float fill_ratio = 1.0f) {
+                     float fill_ratio = 1.0f,
+                     StorageKeyT sign_mask = KeyCodec<KeyT>::kSignMask) {
     if (HWY_UNLIKELY(num_keys == 0)) return BTree();
-    using LaneKeyT = typename KeyCodec<KeyT>::LaneType;
-    const ScalableTag<LaneKeyT> d_key;
-    if (IsSorted(d_key, HWY_RCAST_ALIGNED(const LaneKeyT*, keys), num_keys,
-                 IsSortedLessEqual())) {
-      if constexpr (KeyCodec<KeyT>::kIsSigned) {
+    if (sign_mask == 0) {
+      const ScalableTag<StorageKeyT> d;
+      const StorageKeyT* ukeys = HWY_RCAST_ALIGNED(const StorageKeyT*, keys);
+      if (IsSorted(d, ukeys, num_keys, IsSortedLessEqual())) {
+        return BuildInternal(ukeys, values, num_keys, fill_ratio);
+      }
+    } else {
+      using SignedKeyT = SignedFromSize<sizeof(StorageKeyT)>;
+      const ScalableTag<SignedKeyT> d;
+      const SignedKeyT* skeys = HWY_RCAST_ALIGNED(const SignedKeyT*, keys);
+      if (IsSorted(d, skeys, num_keys, IsSortedLessEqual())) {
         // Allocate temporary contiguous storage buffer to encode signed keys
         // upfront. Although heap-allocated, this buffer is transient (freed
         // immediately upon Build return), keeping the builder algorithm in
         // BuildInternal uniform and simple.
         AlignedPtr<StorageKeyT> ukeys = AllocateAligned<StorageKeyT>(num_keys);
         for (size_t i = 0; i < num_keys; ++i) {
-          ukeys[i] = KeyCodec<KeyT>::ToStorage(keys[i]);
+          ukeys[i] = BitCastScalar<StorageKeyT>(keys[i]) ^ sign_mask;
         }
         return BuildInternal(ukeys.get(), values, num_keys, fill_ratio);
-      } else {
-        return BuildInternal(HWY_RCAST_ALIGNED(const StorageKeyT*, keys),
-                             values, num_keys, fill_ratio);
       }
     }
 
@@ -2380,7 +2387,7 @@ class BTree {
       if (HWY_LIKELY(num_keys <= std::numeric_limits<uint32_t>::max())) {
         AlignedPtr<uint64_t> packed = AllocateAligned<uint64_t>(num_keys);
         for (size_t i = 0; i < num_keys; ++i) {
-          const uint64_t sk = KeyCodec<KeyT>::ToStorage(keys[i]);
+          const uint64_t sk = BitCastScalar<StorageKeyT>(keys[i]) ^ sign_mask;
           packed[i] = (sk << 32) | static_cast<uint32_t>(i);
         }
         VQSortStatic(packed.get(), num_keys, SortAscending());
@@ -2404,9 +2411,10 @@ class BTree {
 
     AlignedPtr<uint128_t> packed = AllocateAligned<uint128_t>(num_keys);
     for (size_t i = 0; i < num_keys; ++i) {
-      packed[i] = uint128_t{
-          .lo = static_cast<uint64_t>(i),
-          .hi = static_cast<uint64_t>(KeyCodec<KeyT>::ToStorage(keys[i]))};
+      packed[i] =
+          uint128_t{.lo = static_cast<uint64_t>(i),
+                    .hi = static_cast<uint64_t>(
+                        BitCastScalar<StorageKeyT>(keys[i]) ^ sign_mask)};
     }
     VQSortStatic(packed.get(), num_keys, SortAscending());
 
@@ -2499,7 +2507,8 @@ class BTree {
   //   doable on most CPU's without reigster spilling.
   template <typename FoundT>
   void ContainsBatch(const KeyT* HWY_RESTRICT queries, size_t num_queries,
-                     FoundT* HWY_RESTRICT out_found) const {
+                     FoundT* HWY_RESTRICT out_found,
+                     StorageKeyT sign_mask = KeyCodec<KeyT>::kSignMask) const {
     if (HWY_UNLIKELY(state_->root_ == nullptr)) {
       std::fill_n(out_found, num_queries, static_cast<FoundT>(0));
       return;
@@ -2513,7 +2522,7 @@ class BTree {
       StorageKeyT q[kBatchSize];
       void* curr[kBatchSize];
       for (size_t b = 0; b < kBatchSize; ++b) {
-        q[b] = KeyCodec<KeyT>::ToStorage(queries[i + b]);
+        q[b] = BitCastScalar<StorageKeyT>(queries[i + b]) ^ sign_mask;
         curr[b] = state_->root_;
       }
 
@@ -2533,7 +2542,8 @@ class BTree {
     }
 
     for (; i < num_queries; ++i) {
-      out_found[i] = static_cast<FoundT>(contains(queries[i]));
+      out_found[i] = static_cast<FoundT>(
+          ContainsInternal(BitCastScalar<StorageKeyT>(queries[i]) ^ sign_mask));
     }
   }
 
@@ -2541,8 +2551,8 @@ class BTree {
   template <typename V = mapped_type,
             typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
   void LookupBatch(const KeyT* HWY_RESTRICT queries, size_t num_queries,
-                   V* HWY_RESTRICT out_values,
-                   bool* HWY_RESTRICT out_found) const {
+                   V* HWY_RESTRICT out_values, bool* HWY_RESTRICT out_found,
+                   StorageKeyT sign_mask = KeyCodec<KeyT>::kSignMask) const {
     if (HWY_UNLIKELY(state_->root_ == nullptr)) {
       std::fill_n(out_found, num_queries, false);
       return;
@@ -2556,7 +2566,7 @@ class BTree {
       StorageKeyT q[kBatchSize];
       void* curr[kBatchSize];
       for (size_t b = 0; b < kBatchSize; ++b) {
-        q[b] = KeyCodec<KeyT>::ToStorage(queries[i + b]);
+        q[b] = BitCastScalar<StorageKeyT>(queries[i + b]) ^ sign_mask;
         curr[b] = state_->root_;
       }
 
@@ -2582,7 +2592,8 @@ class BTree {
     }
 
     for (; i < num_queries; ++i) {
-      const V* val_ptr = FindValue(queries[i]);
+      const V* val_ptr =
+          FindValueInternal(BitCastScalar<StorageKeyT>(queries[i]) ^ sign_mask);
       if (val_ptr != nullptr) {
         out_found[i] = true;
         out_values[i] = *val_ptr;
@@ -2594,7 +2605,8 @@ class BTree {
 
   // Executes multiple find queries with 8-way pipelined prefetching.
   void FindBatch(const KeyT* HWY_RESTRICT targets, size_t num_queries,
-                 const_iterator* HWY_RESTRICT results) const {
+                 const_iterator* HWY_RESTRICT results,
+                 StorageKeyT sign_mask = KeyCodec<KeyT>::kSignMask) const {
     if (HWY_UNLIKELY(state_->root_ == nullptr)) {
       for (size_t k = 0; k < num_queries; ++k) results[k] = end();
       return;
@@ -2608,7 +2620,7 @@ class BTree {
       StorageKeyT q[kBatchSize];
       void* curr[kBatchSize];
       for (size_t b = 0; b < kBatchSize; ++b) {
-        q[b] = KeyCodec<KeyT>::ToStorage(targets[i + b]);
+        q[b] = BitCastScalar<StorageKeyT>(targets[i + b]) ^ sign_mask;
         curr[b] = state_->root_;
       }
 
@@ -2633,13 +2645,16 @@ class BTree {
     }
 
     for (; i < num_queries; ++i) {
-      results[i] = find(targets[i]);
+      results[i] =
+          FindInternal(BitCastScalar<StorageKeyT>(targets[i]) ^ sign_mask);
     }
   }
 
   // Executes multiple lower_bound queries with 8-way pipelined prefetching.
-  void LowerBoundBatch(const KeyT* HWY_RESTRICT targets, size_t num_queries,
-                       const_iterator* HWY_RESTRICT results) const {
+  void LowerBoundBatch(
+      const KeyT* HWY_RESTRICT targets, size_t num_queries,
+      const_iterator* HWY_RESTRICT results,
+      StorageKeyT sign_mask = KeyCodec<KeyT>::kSignMask) const {
     if (HWY_UNLIKELY(state_->root_ == nullptr)) {
       for (size_t k = 0; k < num_queries; ++k) results[k] = end();
       return;
@@ -2653,7 +2668,7 @@ class BTree {
       StorageKeyT q[kBatchSize];
       void* curr[kBatchSize];
       for (size_t b = 0; b < kBatchSize; ++b) {
-        q[b] = KeyCodec<KeyT>::ToStorage(targets[i + b]);
+        q[b] = BitCastScalar<StorageKeyT>(targets[i + b]) ^ sign_mask;
         curr[b] = state_->root_;
       }
 
@@ -2680,7 +2695,8 @@ class BTree {
     }
 
     for (; i < num_queries; ++i) {
-      results[i] = lower_bound(targets[i]);
+      results[i] = LowerBoundInternal(BitCastScalar<StorageKeyT>(targets[i]) ^
+                                      sign_mask);
     }
   }
 

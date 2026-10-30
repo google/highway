@@ -51,6 +51,10 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
+static_assert(
+    !IsSigned<BTREE_KEY_T>(),
+    "BTREE_KEY_T must be an unsigned StorageKeyT (uint32_t or uint64_t)");
+
 using TreeEngine = HWY_NAMESPACE::BTree<HWY_NAMESPACE::SetTraits<BTREE_KEY_T>>;
 using TreeState = typename TreeEngine::State;
 using TreeLeaf = typename TreeEngine::Leaf;
@@ -99,9 +103,9 @@ void SetMoveConstructImpl(TreeState* dst_state, TreeState* src_state) {
 }
 
 void SetBuildImpl(const BTREE_KEY_T* HWY_RESTRICT keys, size_t count,
-                  float fill, TreeState* out_state) {
+                  float fill, BTREE_KEY_T sign_mask, TreeState* out_state) {
   TreeEngine out(out_state);
-  out = TreeEngine::Build(keys, count, fill);
+  out = TreeEngine::Build(keys, count, fill, sign_mask);
 }
 
 bool SetContainsImpl(const TreeState* state, BTREE_KEY_T key) {
@@ -154,25 +158,27 @@ void SetEraseIterImpl(TreeState* state, const TreeLeaf* leaf, size_t slot,
 
 void SetContainsBatchImpl(const TreeState* state,
                           const BTREE_KEY_T* HWY_RESTRICT keys, size_t count,
-                          bool* HWY_RESTRICT out) {
+                          BTREE_KEY_T sign_mask, bool* HWY_RESTRICT out) {
   TreeEngine tree(const_cast<TreeState*>(state));
-  tree.ContainsBatch(keys, count, out);
+  tree.ContainsBatch(keys, count, out, sign_mask);
 }
 
 void SetFindBatchImpl(const TreeState* state,
                       const BTREE_KEY_T* HWY_RESTRICT keys, size_t count,
-                      void* HWY_RESTRICT out) {
+                      BTREE_KEY_T sign_mask, void* HWY_RESTRICT out) {
   TreeEngine tree(const_cast<TreeState*>(state));
   tree.FindBatch(keys, count,
-                 reinterpret_cast<typename TreeEngine::const_iterator*>(out));
+                 reinterpret_cast<typename TreeEngine::const_iterator*>(out),
+                 sign_mask);
 }
 
 void SetLowerBoundBatchImpl(const TreeState* state,
                             const BTREE_KEY_T* HWY_RESTRICT keys, size_t count,
-                            void* HWY_RESTRICT out) {
+                            BTREE_KEY_T sign_mask, void* HWY_RESTRICT out) {
   TreeEngine tree(const_cast<TreeState*>(state));
   tree.LowerBoundBatch(
-      keys, count, reinterpret_cast<typename TreeEngine::const_iterator*>(out));
+      keys, count, reinterpret_cast<typename TreeEngine::const_iterator*>(out),
+      sign_mask);
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
@@ -202,10 +208,10 @@ HWY_EXPORT(SetInsertImpl);
 HWY_EXPORT(SetEraseImpl);
 HWY_EXPORT(SetEraseIterImpl);
 
-// Defines the dynamic dispatch entry points for SetDispatch<KeyT>.
-// KeyT is strictly uint32_t, int32_t, uint64_t, or int64_t; user-facing
-// BTreeSet<KeyT> delegates to these implementations via BitCastScalar and
-// pointer reinterpretation.
+// Defines the dynamic dispatch entry points for SetDispatch<StorageKeyT>.
+// StorageKeyT is strictly uint32_t or uint64_t; user-facing BTreeSet<KeyT>
+// delegates to these implementations via KeyCodec<KeyT>::ToStorage and
+// kSignMask.
 namespace detail {
 
 void SetDispatch<BTREE_KEY_T>::Clear(State* state) {
@@ -229,8 +235,9 @@ void SetDispatch<BTREE_KEY_T>::MoveAssign(State* dst, State* src) {
 }
 
 void SetDispatch<BTREE_KEY_T>::Build(const BTREE_KEY_T* keys, size_t count,
-                                     float fill, State* out_state) {
-  HWY_DYNAMIC_DISPATCH(SetBuildImpl)(keys, count, fill, out_state);
+                                     float fill, BTREE_KEY_T sign_mask,
+                                     State* out_state) {
+  HWY_DYNAMIC_DISPATCH(SetBuildImpl)(keys, count, fill, sign_mask, out_state);
 }
 
 bool SetDispatch<BTREE_KEY_T>::Contains(const State* state, BTREE_KEY_T key) {
@@ -279,20 +286,25 @@ SetDispatch<BTREE_KEY_T>::EraseIter(State* state, const Leaf* leaf,
 
 void SetDispatch<BTREE_KEY_T>::ContainsBatch(const State* state,
                                              const BTREE_KEY_T* keys,
-                                             size_t count, bool* out) {
-  HWY_DYNAMIC_DISPATCH(SetContainsBatchImpl)(state, keys, count, out);
+                                             size_t count,
+                                             BTREE_KEY_T sign_mask, bool* out) {
+  HWY_DYNAMIC_DISPATCH(SetContainsBatchImpl)(state, keys, count, sign_mask,
+                                             out);
 }
 
 void SetDispatch<BTREE_KEY_T>::FindBatch(const State* state,
                                          const BTREE_KEY_T* keys, size_t count,
-                                         void* out) {
-  HWY_DYNAMIC_DISPATCH(SetFindBatchImpl)(state, keys, count, out);
+                                         BTREE_KEY_T sign_mask, void* out) {
+  HWY_DYNAMIC_DISPATCH(SetFindBatchImpl)(state, keys, count, sign_mask, out);
 }
 
 void SetDispatch<BTREE_KEY_T>::LowerBoundBatch(const State* state,
                                                const BTREE_KEY_T* keys,
-                                               size_t count, void* out) {
-  HWY_DYNAMIC_DISPATCH(SetLowerBoundBatchImpl)(state, keys, count, out);
+                                               size_t count,
+                                               BTREE_KEY_T sign_mask,
+                                               void* out) {
+  HWY_DYNAMIC_DISPATCH(SetLowerBoundBatchImpl)(state, keys, count, sign_mask,
+                                               out);
 }
 
 }  // namespace detail

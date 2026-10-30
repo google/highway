@@ -823,9 +823,10 @@ void DoBulkBuildAndBatchTest(size_t n, uint32_t seed) {
     for (size_t batch_sz :
          {size_t{0}, size_t{1}, size_t{7}, size_t{8}, size_t{9}, size_t{15},
           size_t{16}, size_t{17}, size_t{64}, size_t{256}}) {
+      const ValueGenerator<key_type> q_gen(n * 60 + 10);
       std::vector<key_type> queries(batch_sz);
       for (size_t i = 0; i < batch_sz; ++i) {
-        queries[i] = KeyFromRawInt<key_type>((q_rng() % (n * 60 + 10)) + 1);
+        queries[i] = q_gen((q_rng() % (n * 60 + 10)) + 1);
       }
 
       std::vector<uint8_t> found(batch_sz);
@@ -1655,8 +1656,8 @@ void DoSiblingRebalanceTest() {
     HWY_ASSERT_EQ(a->NumKeys(), kDense);  // A untouched
     Checker::VerifyPhysicalTree(tree);
     for (size_t i = 0; i < kDense; ++i) {
-      HWY_ASSERT(
-          tree.contains(KeyFromRaw<key_type>(static_cast<LaneKeyT>(kBase + i))));
+      HWY_ASSERT(tree.contains(
+          KeyFromRaw<key_type>(static_cast<LaneKeyT>(kBase + i))));
     }
     for (size_t i = 0; i < kCap16; ++i) {
       HWY_ASSERT(tree.contains(

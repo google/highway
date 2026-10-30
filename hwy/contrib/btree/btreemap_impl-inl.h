@@ -58,6 +58,10 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
+static_assert(
+    !IsSigned<BTREE_KEY_T>(),
+    "BTREE_KEY_T must be an unsigned StorageKeyT (uint32_t or uint64_t)");
+
 using TreeEngine =
     HWY_NAMESPACE::BTree<HWY_NAMESPACE::MapTraits<BTREE_KEY_T, BTREE_VALUE_T>>;
 using TreeState = typename TreeEngine::State;
@@ -110,10 +114,10 @@ void MapMoveConstructImpl(TreeState* dst_state, TreeState* src_state) {
 
 void MapBuildImpl(const BTREE_KEY_T* HWY_RESTRICT keys,
                   const void* HWY_RESTRICT values, size_t count, float fill,
-                  TreeState* out_state) {
+                  BTREE_KEY_T sign_mask, TreeState* out_state) {
   TreeEngine out(out_state);
   out = TreeEngine::Build(keys, static_cast<const BTREE_VALUE_T*>(values),
-                          count, fill);
+                          count, fill, sign_mask);
 }
 
 bool MapContainsImpl(const TreeState* state, BTREE_KEY_T key) {
@@ -173,34 +177,36 @@ void MapEraseIterImpl(TreeState* state, const TreeLeaf* leaf, size_t slot,
 
 void MapContainsBatchImpl(const TreeState* state,
                           const BTREE_KEY_T* HWY_RESTRICT keys, size_t count,
-                          bool* HWY_RESTRICT out) {
+                          BTREE_KEY_T sign_mask, bool* HWY_RESTRICT out) {
   TreeEngine tree(const_cast<TreeState*>(state));
-  tree.ContainsBatch(keys, count, out);
+  tree.ContainsBatch(keys, count, out, sign_mask);
 }
 
 void MapFindBatchImpl(const TreeState* state,
                       const BTREE_KEY_T* HWY_RESTRICT keys, size_t count,
-                      void* HWY_RESTRICT out) {
+                      BTREE_KEY_T sign_mask, void* HWY_RESTRICT out) {
   TreeEngine tree(const_cast<TreeState*>(state));
   tree.FindBatch(keys, count,
-                 reinterpret_cast<typename TreeEngine::const_iterator*>(out));
+                 reinterpret_cast<typename TreeEngine::const_iterator*>(out),
+                 sign_mask);
 }
 
 void MapLowerBoundBatchImpl(const TreeState* state,
                             const BTREE_KEY_T* HWY_RESTRICT keys, size_t count,
-                            void* HWY_RESTRICT out) {
+                            BTREE_KEY_T sign_mask, void* HWY_RESTRICT out) {
   TreeEngine tree(const_cast<TreeState*>(state));
   tree.LowerBoundBatch(
-      keys, count, reinterpret_cast<typename TreeEngine::const_iterator*>(out));
+      keys, count, reinterpret_cast<typename TreeEngine::const_iterator*>(out),
+      sign_mask);
 }
 
 void MapLookupBatchImpl(const TreeState* state,
                         const BTREE_KEY_T* HWY_RESTRICT keys, size_t count,
-                        void* HWY_RESTRICT out_values,
+                        BTREE_KEY_T sign_mask, void* HWY_RESTRICT out_values,
                         bool* HWY_RESTRICT out_found) {
   TreeEngine tree(const_cast<TreeState*>(state));
   tree.LookupBatch(keys, count, static_cast<BTREE_VALUE_T*>(out_values),
-                   out_found);
+                   out_found, sign_mask);
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
@@ -232,10 +238,11 @@ HWY_EXPORT(MapInsertImpl);
 HWY_EXPORT(MapEraseImpl);
 HWY_EXPORT(MapEraseIterImpl);
 
-// Defines the dynamic dispatch entry points for MapDispatch<KeyT,
-// StorageValueT>. StorageValueT is strictly uint32_t or uint64_t; user-facing
-// BTreeMap<KeyT, ValueT> delegates to these implementations via BitCastScalar
-// and pointer reinterpretation.
+// Defines the dynamic dispatch entry points for MapDispatch<StorageKeyT,
+// StorageValueT>. StorageKeyT and StorageValueT are each strictly uint32_t or
+// uint64_t; user-facing BTreeMap<KeyT, ValueT> delegates to these
+// implementations via KeyCodec<KeyT>::ToStorage, kSignMask, BitCastScalar, and
+// pointer reinterpretation.
 namespace detail {
 
 void MapDispatch<BTREE_KEY_T, BTREE_VALUE_T>::Clear(State* state) {
@@ -265,8 +272,10 @@ void MapDispatch<BTREE_KEY_T, BTREE_VALUE_T>::MoveAssign(State* dst,
 void MapDispatch<BTREE_KEY_T, BTREE_VALUE_T>::Build(const BTREE_KEY_T* keys,
                                                     const void* values,
                                                     size_t count, float fill,
+                                                    BTREE_KEY_T sign_mask,
                                                     State* out_state) {
-  HWY_DYNAMIC_DISPATCH(MapBuildImpl)(keys, values, count, fill, out_state);
+  HWY_DYNAMIC_DISPATCH(MapBuildImpl)(keys, values, count, fill, sign_mask,
+                                     out_state);
 }
 
 bool MapDispatch<BTREE_KEY_T, BTREE_VALUE_T>::Contains(const State* state,
@@ -330,27 +339,32 @@ MapDispatch<BTREE_KEY_T, BTREE_VALUE_T>::EraseIter(State* state,
 }
 
 void MapDispatch<BTREE_KEY_T, BTREE_VALUE_T>::ContainsBatch(
-    const State* state, const BTREE_KEY_T* keys, size_t count, bool* out) {
-  HWY_DYNAMIC_DISPATCH(MapContainsBatchImpl)(state, keys, count, out);
+    const State* state, const BTREE_KEY_T* keys, size_t count,
+    BTREE_KEY_T sign_mask, bool* out) {
+  HWY_DYNAMIC_DISPATCH(MapContainsBatchImpl)(state, keys, count, sign_mask,
+                                             out);
 }
 
 void MapDispatch<BTREE_KEY_T, BTREE_VALUE_T>::FindBatch(const State* state,
                                                         const BTREE_KEY_T* keys,
                                                         size_t count,
+                                                        BTREE_KEY_T sign_mask,
                                                         void* out) {
-  HWY_DYNAMIC_DISPATCH(MapFindBatchImpl)(state, keys, count, out);
+  HWY_DYNAMIC_DISPATCH(MapFindBatchImpl)(state, keys, count, sign_mask, out);
 }
 
 void MapDispatch<BTREE_KEY_T, BTREE_VALUE_T>::LowerBoundBatch(
-    const State* state, const BTREE_KEY_T* keys, size_t count, void* out) {
-  HWY_DYNAMIC_DISPATCH(MapLowerBoundBatchImpl)(state, keys, count, out);
+    const State* state, const BTREE_KEY_T* keys, size_t count,
+    BTREE_KEY_T sign_mask, void* out) {
+  HWY_DYNAMIC_DISPATCH(MapLowerBoundBatchImpl)(state, keys, count, sign_mask,
+                                               out);
 }
 
 void MapDispatch<BTREE_KEY_T, BTREE_VALUE_T>::LookupBatch(
-    const State* state, const BTREE_KEY_T* keys, size_t count, void* out_values,
-    bool* out_found) {
-  HWY_DYNAMIC_DISPATCH(MapLookupBatchImpl)(state, keys, count, out_values,
-                                           out_found);
+    const State* state, const BTREE_KEY_T* keys, size_t count,
+    BTREE_KEY_T sign_mask, void* out_values, bool* out_found) {
+  HWY_DYNAMIC_DISPATCH(MapLookupBatchImpl)(state, keys, count, sign_mask,
+                                           out_values, out_found);
 }
 
 }  // namespace detail

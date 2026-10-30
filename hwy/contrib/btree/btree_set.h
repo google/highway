@@ -25,53 +25,50 @@
 
 namespace hwy {
 
-// Keys are partially type-erased via KeyCodec<KeyT>::LaneType so that any
-// supported 32/64-bit integer, pointer (T*), or 32/64-bit enum key maps to one
-// of the four pre-compiled SIMD dispatch instantiations (uint32_t, int32_t,
-// uint64_t, int64_t).
+// Keys are type-erased via KeyCodec<KeyT>::StorageKey so that any supported
+// 32/64-bit integer, pointer (T*), or 32/64-bit enum key maps to one of the
+// two pre-compiled SIMD dispatch instantiations (uint32_t, uint64_t).
 namespace detail {
 
-template <typename LaneKeyT>
+template <typename StorageKeyT>
 struct SetDispatch;
 
-#define HWY_BTREE_SET_DISPATCH_DECLARE(LaneKeyT)                              \
-  template <>                                                                 \
-  struct HWY_CONTRIB_DLLEXPORT SetDispatch<LaneKeyT> {                        \
-    using StorageKeyT = typename KeyCodec<LaneKeyT>::StorageKey;              \
-    using Leaf = LeafNode<StorageKeyT>;                                       \
-    using State = BTreeState<LaneKeyT, Leaf>;                                 \
-                                                                              \
-    static void Clear(State* state);                                          \
-    static void CopyConstruct(State* dst, const State* src);                  \
-    static void CopyAssign(State* dst, const State* src);                     \
-    static void MoveConstruct(State* dst, State* src);                        \
-    static void MoveAssign(State* dst, State* src);                           \
-    static void Build(const LaneKeyT* keys, size_t count, float fill,         \
-                      State* out_state);                                      \
-    static bool Contains(const State* state, LaneKeyT key);                   \
-    static std::pair<const Leaf*, size_t> LowerBound(const State* state,      \
-                                                     LaneKeyT key);           \
-    static std::pair<const Leaf*, size_t> UpperBound(const State* state,      \
-                                                     LaneKeyT key);           \
-    static std::pair<const Leaf*, size_t> Find(const State* state,            \
-                                               LaneKeyT key);                 \
-    static std::pair<std::pair<Leaf*, size_t>, bool> Insert(State* state,     \
-                                                            LaneKeyT key);    \
-    static size_t Erase(State* state, LaneKeyT key);                          \
-    static std::pair<Leaf*, size_t> EraseIter(State* state, const Leaf* leaf, \
-                                              size_t slot);                   \
-    static void ContainsBatch(const State* state, const LaneKeyT* keys,       \
-                              size_t count, bool* out);                       \
-    static void FindBatch(const State* state, const LaneKeyT* keys,           \
-                          size_t count, void* out);                           \
-    static void LowerBoundBatch(const State* state, const LaneKeyT* keys,     \
-                                size_t count, void* out);                     \
+#define HWY_BTREE_SET_DISPATCH_DECLARE(StorageKeyT)                            \
+  template <>                                                                  \
+  struct HWY_CONTRIB_DLLEXPORT SetDispatch<StorageKeyT> {                      \
+    using Leaf = LeafNode<StorageKeyT>;                                        \
+    using State = BTreeState<StorageKeyT, Leaf>;                               \
+                                                                               \
+    static void Clear(State* state);                                           \
+    static void CopyConstruct(State* dst, const State* src);                   \
+    static void CopyAssign(State* dst, const State* src);                      \
+    static void MoveConstruct(State* dst, State* src);                         \
+    static void MoveAssign(State* dst, State* src);                            \
+    static void Build(const StorageKeyT* keys, size_t count, float fill,       \
+                      StorageKeyT sign_mask, State* out_state);                \
+    static bool Contains(const State* state, StorageKeyT key);                 \
+    static std::pair<const Leaf*, size_t> LowerBound(const State* state,       \
+                                                     StorageKeyT key);         \
+    static std::pair<const Leaf*, size_t> UpperBound(const State* state,       \
+                                                     StorageKeyT key);         \
+    static std::pair<const Leaf*, size_t> Find(const State* state,             \
+                                               StorageKeyT key);               \
+    static std::pair<std::pair<Leaf*, size_t>, bool> Insert(State* state,      \
+                                                            StorageKeyT key);  \
+    static size_t Erase(State* state, StorageKeyT key);                        \
+    static std::pair<Leaf*, size_t> EraseIter(State* state, const Leaf* leaf,  \
+                                              size_t slot);                    \
+    static void ContainsBatch(const State* state, const StorageKeyT* keys,     \
+                              size_t count, StorageKeyT sign_mask, bool* out); \
+    static void FindBatch(const State* state, const StorageKeyT* keys,         \
+                          size_t count, StorageKeyT sign_mask, void* out);     \
+    static void LowerBoundBatch(const State* state, const StorageKeyT* keys,   \
+                                size_t count, StorageKeyT sign_mask,           \
+                                void* out);                                    \
   }
 
 HWY_BTREE_SET_DISPATCH_DECLARE(uint32_t);
-HWY_BTREE_SET_DISPATCH_DECLARE(int32_t);
 HWY_BTREE_SET_DISPATCH_DECLARE(uint64_t);
-HWY_BTREE_SET_DISPATCH_DECLARE(int64_t);
 
 #undef HWY_BTREE_SET_DISPATCH_DECLARE
 
@@ -102,9 +99,9 @@ class BTreeSet {
   using key_compare = std::less<KeyT>;
   using allocator_type = std::allocator<KeyT>;
 
-  using LaneKeyT = typename KeyCodec<KeyT>::LaneType;
   using StorageKeyT = typename KeyCodec<KeyT>::StorageKey;
   using LeafT = LeafNode<StorageKeyT>;
+  static constexpr StorageKeyT kSignMask = KeyCodec<KeyT>::kSignMask;
 
   static constexpr bool kIsMap = false;
 
@@ -140,15 +137,15 @@ class BTreeSet {
 
   // Bulk-builds a set from `num_keys` keys in O(N) time if strictly ascending,
   // or O(N log N) time via VQSort if unsorted or duplicate keys are present.
-  // Reinterpreting `keys` as `const LaneKeyT*` is safe because it crosses an
-  // opaque function-pointer dispatch table into `btree-inl.h`, which itself
-  // treats key arrays as `const LaneKeyT*`. Assigning the result to an existing
-  // set invalidates all of its iterators.
+  // Reinterpreting `keys` as `const StorageKeyT*` is safe because it crosses an
+  // opaque function-pointer dispatch table into `btree-inl.h`, which reads
+  // elements via `HWY_RCAST_ALIGNED` / `BitCastScalar` and applies `kSignMask`.
+  // Assigning the result to an existing set invalidates all of its iterators.
   static BTreeSet Build(const KeyT* keys, size_t num_keys,
                         float fill_ratio = 1.0f) {
     BTreeSet tree;
-    Dispatch::Build(reinterpret_cast<const LaneKeyT*>(keys), num_keys,
-                    fill_ratio, &tree.state_);
+    Dispatch::Build(reinterpret_cast<const StorageKeyT*>(keys), num_keys,
+                    fill_ratio, kSignMask, &tree.state_);
     return tree;
   }
 
@@ -466,15 +463,15 @@ class BTreeSet {
   // Range Queries & Mutation
   // ---------------------------------------------------------------------------
   const_iterator lower_bound(KeyT key) const {
-    auto res = Dispatch::LowerBound(&state_, hwy::BitCastScalar<LaneKeyT>(key));
+    auto res = Dispatch::LowerBound(&state_, KeyCodec<KeyT>::ToStorage(key));
     return const_iterator(res.first, res.second, state_.last_leaf_);
   }
   const_iterator upper_bound(KeyT key) const {
-    auto res = Dispatch::UpperBound(&state_, hwy::BitCastScalar<LaneKeyT>(key));
+    auto res = Dispatch::UpperBound(&state_, KeyCodec<KeyT>::ToStorage(key));
     return const_iterator(res.first, res.second, state_.last_leaf_);
   }
   const_iterator find(KeyT key) const {
-    auto res = Dispatch::Find(&state_, hwy::BitCastScalar<LaneKeyT>(key));
+    auto res = Dispatch::Find(&state_, KeyCodec<KeyT>::ToStorage(key));
     return const_iterator(res.first, res.second, state_.last_leaf_);
   }
 
@@ -497,7 +494,7 @@ class BTreeSet {
   // Inserts `key`. Returns (iterator to the element, whether it was inserted).
   // If an insertion occurs, all other iterators are invalidated.
   std::pair<iterator, bool> insert(KeyT key) {
-    auto res = Dispatch::Insert(&state_, hwy::BitCastScalar<LaneKeyT>(key));
+    auto res = Dispatch::Insert(&state_, KeyCodec<KeyT>::ToStorage(key));
     return {iterator(res.first.first, res.first.second, state_.last_leaf_),
             res.second};
   }
@@ -508,7 +505,7 @@ class BTreeSet {
   // Erases `key` if present. Returns the number of elements erased (0 or 1).
   // If an erasure occurs, all iterators are invalidated.
   size_t erase(KeyT key) {
-    return Dispatch::Erase(&state_, hwy::BitCastScalar<LaneKeyT>(key));
+    return Dispatch::Erase(&state_, KeyCodec<KeyT>::ToStorage(key));
   }
   // Erases the element at `pos` (must not be end()). Returns an iterator to the
   // following element, or end(). All other iterators are invalidated.
@@ -519,33 +516,36 @@ class BTreeSet {
 
   const LeafT* last_leaf() const { return state_.last_leaf_; }
   LeafT* last_leaf() { return state_.last_leaf_; }
-  const BTreeState<LaneKeyT, LeafT>* state() const { return &state_; }
+  const BTreeState<StorageKeyT, LeafT>* state() const { return &state_; }
 
   // Batch Query (Amortizes dynamic dispatch overhead)
   bool contains(KeyT key) const { return Contains(key); }
   bool Contains(KeyT key) const {
-    return Dispatch::Contains(&state_, hwy::BitCastScalar<LaneKeyT>(key));
+    return Dispatch::Contains(&state_, KeyCodec<KeyT>::ToStorage(key));
   }
   void ContainsBatch(const KeyT* keys, size_t count, bool* out) const {
-    Dispatch::ContainsBatch(&state_, reinterpret_cast<const LaneKeyT*>(keys),
-                            count, out);
+    Dispatch::ContainsBatch(&state_, reinterpret_cast<const StorageKeyT*>(keys),
+                            count, kSignMask, out);
   }
   void FindBatch(const KeyT* keys, size_t count, const_iterator* out) const {
     static_assert(sizeof(const_iterator) == 3 * sizeof(void*));
-    Dispatch::FindBatch(&state_, reinterpret_cast<const LaneKeyT*>(keys), count,
-                        reinterpret_cast<void*>(out));
+    static_assert(IsTriviallyCopyable<const_iterator>());
+    Dispatch::FindBatch(&state_, reinterpret_cast<const StorageKeyT*>(keys),
+                        count, kSignMask, reinterpret_cast<void*>(out));
   }
   void LowerBoundBatch(const KeyT* keys, size_t count,
                        const_iterator* out) const {
     static_assert(sizeof(const_iterator) == 3 * sizeof(void*));
-    Dispatch::LowerBoundBatch(&state_, reinterpret_cast<const LaneKeyT*>(keys),
-                              count, reinterpret_cast<void*>(out));
+    static_assert(IsTriviallyCopyable<const_iterator>());
+    Dispatch::LowerBoundBatch(&state_,
+                              reinterpret_cast<const StorageKeyT*>(keys), count,
+                              kSignMask, reinterpret_cast<void*>(out));
   }
 
  private:
-  using Dispatch = detail::SetDispatch<LaneKeyT>;
+  using Dispatch = detail::SetDispatch<StorageKeyT>;
 
-  BTreeState<LaneKeyT, LeafT> state_;
+  BTreeState<StorageKeyT, LeafT> state_;
 };
 
 static_assert(sizeof(BTreeSet<uint32_t>) == sizeof(BTreeState<uint32_t>),

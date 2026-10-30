@@ -8,7 +8,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <type_traits>
 
 #include "hwy/base.h"
 
@@ -84,6 +83,10 @@ struct KeyCodec {
   // two's complement integers [kMinSigned, kMaxSigned] to unsigned integers
   // [0, kMaxUnsigned] while strictly preserving relative order
   static constexpr StorageKey kSignBit = SignMask<StorageKey>();
+  // Sign-bit mask to XOR when encoding KeyT to StorageKey: kSignBit for signed
+  // keys, 0 (identity under XOR) for unsigned integers, unsigned enums, and
+  // pointers.
+  static constexpr StorageKey kSignMask = kIsSigned ? kSignBit : StorageKey{0};
 
   static HWY_INLINE StorageKey ToStorage(KeyT key) {
     if constexpr (IsPointer<KeyT>()) {
@@ -247,7 +250,7 @@ struct alignas(512) MapLeafNode {
   using StorageKeyT = typename KeyCodec<KeyT>::StorageKey;
   using mapped_type = ValueT;
 
-  static_assert(std::is_trivially_copyable_v<ValueT>,
+  static_assert(IsTriviallyCopyable<ValueT>(),
                 "ValueT must be trivially copyable");
 
   static constexpr size_t kNodeBytes = 512;
