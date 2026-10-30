@@ -2407,6 +2407,12 @@ HWY_API svbool_t IsFinite(const V v) {
 
 // ------------------------------ MulByPow2/MulByFloorPow2
 
+#ifdef HWY_NATIVE_MUL_BY_POW2_TOGGLE
+#undef HWY_NATIVE_MUL_BY_POW2_TOGGLE
+#else
+#define HWY_NATIVE_MUL_BY_POW2_TOGGLE
+#endif
+
 #define HWY_SVE_MUL_BY_POW2(BASE, CHAR, BITS, HALF, NAME, OP)      \
   HWY_API HWY_SVE_V(BASE, BITS)                                    \
       NAME(HWY_SVE_V(BASE, BITS) v, HWY_SVE_V(int, BITS) exp) {    \
