@@ -445,6 +445,19 @@ for comparisons, for example `Lt` instead of `operator<`.
     128-bit block and `tK` in the most-significant (highest-indexed) lane of
     each 128-bit block: `{t0, t1, ..., tK}`
 
+    For example, with 64-bit lanes (`T = int64_t`, `K = 1`) on a 256-bit target (`Lanes(d) == 4`):
+
+    ```cpp
+    const ScalableTag<int64_t> d;
+    const auto v = Dup128VecFromValues(d, 100, 200);
+    // Result across lanes [0..3]: [100, 200, 100, 200]
+    ```
+
+    | Lane | 0 | 1 | 2 | 3 |
+    | :--- | :--- | :--- | :--- | :--- |
+    | **128-bit Block** | Block 0 | Block 0 | Block 1 | Block 1 |
+    | **Value** | `t0` (100) | `t1` (200) | `t0` (100) | `t1` (200) |
+
 *   <code>V **MaskedSetOr**(V no, M m, T a)</code>: returns N-lane vector with
     lane `i` equal to `a` if `m[i]` is true else `no[i]`.
 
