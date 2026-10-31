@@ -270,89 +270,72 @@ struct FastExpImpl {};
 
 template <>
 struct FastExpImpl<float> {
-  // Rounds float toward zero and returns as int32_t.
-  template <class D, class V = VFromD<D>, HWY_IF_F32_D(D)>
-  HWY_INLINE Vec<Rebind<int32_t, D>> ToInt32(D /*unused*/, V x) {
-    return ConvertInRangeTo(Rebind<int32_t, D>(), x);
-  }
-
   // Computes 2^x, where x is an integer.
-  template <class D, class VI32 = Vec<Rebind<int32_t, D>>, HWY_IF_F32_D(D)>
-  HWY_INLINE Vec<D> Pow2I(D d, VI32 x) {
-    const Rebind<int32_t, D> di32;
-    const VI32 kOffset = Set(di32, 0x7F);
-    return BitCast(d, ShiftLeft<23>(Add(x, kOffset)));
+  template <class D, class V = VFromD<D>, HWY_IF_F32_D(D)>
+  HWY_INLINE V Pow2I(D d, V x) {
+    const RebindToSigned<D> di;
+    const V kExpMagic = Set(d, 8388735.0f);  // 127.0f + (1 << 23)
+    return BitCast(d, ShiftLeft<23>(BitCast(di, Add(x, kExpMagic))));
   }
 
   // Sets the exponent of 'x' to 2^e.
-  template <class D, class V = VFromD<D>, class VI32 = Vec<Rebind<int32_t, D>>,
-            HWY_IF_F32_D(D)>
-  HWY_INLINE V LoadExpShortRange(D d, V x, VI32 e) {
-    const VI32 y = ShiftRight<1>(e);
-    return Mul(Mul(x, Pow2I(d, y)), Pow2I(d, Sub(e, y)));
+  template <class D, class V = VFromD<D>, HWY_IF_F32_D(D)>
+  HWY_INLINE V LoadExpShortRange(D d, V x, V e) {
+    if constexpr (HWY_NATIVE_MUL_BY_POW2) {
+      return MulByFloorPow2(x, e);
+    } else {
+#if defined(__ASSOCIATIVE_MATH__)
+      const V y = Round(Mul(e, Set(d, 0.5f)));
+#else
+      const V kMagic = Set(d, 12582912.0f);  // 1.5 * (1 << 23)
+      const V y = Sub(MulAdd(e, Set(d, 0.5f), kMagic), kMagic);
+#endif
+      const V ey = Sub(e, y);
+      return Mul(Mul(x, Pow2I(d, y)), Pow2I(d, ey));
+    }
   }
 
-  template <class D, class V = VFromD<D>, class VI32 = Vec<Rebind<int32_t, D>>,
-            HWY_IF_F32_D(D)>
-  HWY_INLINE V ExpReduce(D d, V x, VI32 q) {
+  template <class D, class V = VFromD<D>, HWY_IF_F32_D(D)>
+  HWY_INLINE V ExpReduce(D d, V x, V q) {
     // kMinusLn2 ~= -ln(2)
     const V kMinusLn2 = Set(d, -0.69314718056f);
-
-    // Extended precision modular arithmetic.
-    const V qf = ConvertTo(d, q);
-    return MulAdd(qf, kMinusLn2, x);
-  }
-
-  template <class D, class V = VFromD<D>, class VI32 = Vec<Rebind<int32_t, D>>,
-            HWY_IF_F32_D(D)>
-  HWY_INLINE V Exp2Reduce(D d, V x, VI32 q) {
-    const V qf = ConvertTo(d, q);
-    return Sub(x, qf);
+    return MulAdd(q, kMinusLn2, x);
   }
 };
 
 #if HWY_HAVE_FLOAT64 && HWY_HAVE_INTEGER64
 template <>
 struct FastExpImpl<double> {
-  // Rounds double toward zero and returns as int32_t.
-  template <class D, class V = VFromD<D>, HWY_IF_F64_D(D)>
-  HWY_INLINE Vec<Rebind<int32_t, D>> ToInt32(D /*unused*/, V x) {
-    return DemoteInRangeTo(Rebind<int32_t, D>(), x);
-  }
-
   // Computes 2^x, where x is an integer.
-  template <class D, class VI32 = Vec<Rebind<int32_t, D>>, HWY_IF_F64_D(D)>
-  HWY_INLINE Vec<D> Pow2I(D d, VI32 x) {
-    const Rebind<int32_t, D> di32;
-    const Rebind<int64_t, D> di64;
-    const VI32 kOffset = Set(di32, 0x3FF);
-    return BitCast(d, ShiftLeft<52>(PromoteTo(di64, Add(x, kOffset))));
+  template <class D, class V = VFromD<D>, HWY_IF_F64_D(D)>
+  HWY_INLINE V Pow2I(D d, V x) {
+    const RebindToSigned<D> di;
+    const V kExpMagic = Set(d, 4503599627371519.0);  // 1023.0 + (1ull << 52)
+    return BitCast(d, ShiftLeft<52>(BitCast(di, Add(x, kExpMagic))));
   }
 
   // Sets the exponent of 'x' to 2^e.
-  template <class D, class V = VFromD<D>, class VI32 = Vec<Rebind<int32_t, D>>,
-            HWY_IF_F64_D(D)>
-  HWY_INLINE V LoadExpShortRange(D d, V x, VI32 e) {
-    const VI32 y = ShiftRight<1>(e);
-    return Mul(Mul(x, Pow2I(d, y)), Pow2I(d, Sub(e, y)));
+  template <class D, class V = VFromD<D>, HWY_IF_F64_D(D)>
+  HWY_INLINE V LoadExpShortRange(D d, V x, V e) {
+    if constexpr (HWY_NATIVE_MUL_BY_POW2) {
+      return MulByFloorPow2(x, e);
+    } else {
+#if defined(__ASSOCIATIVE_MATH__)
+      const V y = Round(Mul(e, Set(d, 0.5)));
+#else
+      const V kMagic = Set(d, 6755399441055744.0);  // 1.5 * (1ull << 52)
+      const V y = Sub(MulAdd(e, Set(d, 0.5), kMagic), kMagic);
+#endif
+      const V ey = Sub(e, y);
+      return Mul(Mul(x, Pow2I(d, y)), Pow2I(d, ey));
+    }
   }
 
-  template <class D, class V = VFromD<D>, class VI32 = Vec<Rebind<int32_t, D>>,
-            HWY_IF_F64_D(D)>
-  HWY_INLINE V ExpReduce(D d, V x, VI32 q) {
+  template <class D, class V = VFromD<D>, HWY_IF_F64_D(D)>
+  HWY_INLINE V ExpReduce(D d, V x, V q) {
     // kMinusLn2 ~= -ln(2)
     const V kMinusLn2 = Set(d, -0.6931471805599453);
-
-    // Extended precision modular arithmetic.
-    const V qf = PromoteTo(d, q);
-    return MulAdd(qf, kMinusLn2, x);
-  }
-
-  template <class D, class V = VFromD<D>, class VI32 = Vec<Rebind<int32_t, D>>,
-            HWY_IF_F64_D(D)>
-  HWY_INLINE V Exp2Reduce(D d, V x, VI32 q) {
-    const V qf = PromoteTo(d, q);
-    return Sub(x, qf);
+    return MulAdd(q, kMinusLn2, x);
   }
 };
 #endif
@@ -983,26 +966,25 @@ HWY_INLINE V FastExp(D d, V x) {
   }
   const V kLowerBound = Set(d, static_cast<T>(lower_bound_val));
 
-  const V kHalf = Set(d, static_cast<T>(+0.5));
-  const V kNegZero = Set(d, static_cast<T>(-0.0));
-
   const V kOneOverLog2 = Set(d, static_cast<T>(+1.442695040888963407359924681));
-
-  using TI = MakeSigned<T>;
-  const Rebind<TI, D> di;
 
   V x_clamped = x;
   if constexpr (!kHandleSubnormals) {
     x_clamped = Max(x, kLowerBound);
   }
 
-  const auto rounded_offs = BitCast(
-      d,
-      OrAnd(BitCast(di, kHalf), BitCast(di, x_clamped), BitCast(di, kNegZero)));
+#if defined(__ASSOCIATIVE_MATH__)
+  const V q = Round(Mul(x_clamped, kOneOverLog2));
+#else
+  const V kMagic =
+      Set(d, static_cast<T>(sizeof(T) == 4 ? 12582912.0 : 6755399441055744.0));
 
-  const auto q = impl.ToInt32(d, MulAdd(x_clamped, kOneOverLog2, rounded_offs));
+  // q = round(x / log(2)), by adding a large value such that x + kMagic has no
+  // fractional bits in the mantissa.
+  const V q = Sub(MulAdd(x_clamped, kOneOverLog2, kMagic), kMagic);
+#endif
 
-  const auto x_red = impl.ExpReduce(d, x_clamped, q);
+  const V x_red = impl.ExpReduce(d, x_clamped, q);
 
   // Degree 4 polynomial approximation of e^x on [-ln2/2, ln2/2]
   // Generated via Caratheodory-Fejer approximation.
@@ -1063,27 +1045,16 @@ HWY_INLINE V FastExp2(D d, V x) {
   }
   const V kLowerBound = Set(d, static_cast<T>(lower_bound_val));
 
-  const V kHalf = Set(d, static_cast<T>(+0.5));
-  const V kNegZero = Set(d, static_cast<T>(-0.0));
-
-  using TI = MakeSigned<T>;
-  const Rebind<TI, D> di;
-
   V x_clamped = x;
   if constexpr (!kHandleSubnormals) {
     x_clamped = Max(x, kLowerBound);
   }
 
-  const auto rounded_offs = BitCast(
-      d,
-      OrAnd(BitCast(di, kHalf), BitCast(di, x_clamped), BitCast(di, kNegZero)));
-
-  // FastExp calculates q = ToInt32(x * (1/ln(2)) + rounded_offs)
   // FastExp2 does not need the (1/ln(2)) scaling factor since the input is
   // already in base 2.
-  const auto q = impl.ToInt32(d, Add(x_clamped, rounded_offs));
+  const V q = Round(x_clamped);
 
-  const auto x_red = impl.Exp2Reduce(d, x_clamped, q);
+  const V x_red = Sub(x_clamped, q);
 
   // Degree 4 polynomial approximation of 2^x on [-1/2, 1/2]
   // Derived from FastExp coefficients by pre-absorbing ln2:
@@ -1130,51 +1101,13 @@ HWY_INLINE V FastExp2(D d, V x) {
  */
 template <class D, class V>
 HWY_INLINE V FastExpMinusOrZero(D d, V x) {
-  using T = TFromD<D>;
-  impl::FastExpImpl<T> impl;
-
-  const V kHalfMinus = Set(d, static_cast<T>(-0.5));
-  const V kLowerBound =
-      Set(d, static_cast<T>((sizeof(T) == 4 ? -88.0 : -709.0)));
-
-  const V kOneOverLog2 = Set(d, static_cast<T>(+1.442695040888963407359924681));
-
-  // Optimization for x <= 0:
-  // FastExp computes `rounded_offs = sign(x) ? -0.5 : 0.5` to round the
-  // multiplied argument towards zero. Since x <= 0, we avoid the dynamic
-  // calculation and simply use a constant -0.5 (kHalfMinus).
-  //
-  // We clamp x to be >= kLowerBound. For x < kLowerBound, the remapped
-  // exponent q becomes -127 (f32) or -1023 (f64), which Pow2I converts to
-  // exactly 0.0. This avoids subnormals and the need for a final mask.
-  const auto x_clamped = Max(x, kLowerBound);
-  const auto q = impl.ToInt32(d, MulAdd(x_clamped, kOneOverLog2, kHalfMinus));
-
-  const auto x_red = impl.ExpReduce(d, x_clamped, q);
-
-  // Degree 4 polynomial approximation of e^x on [-ln2/2, ln2/2]
-  // Generated via Caratheodory-Fejer approximation.
-  const auto c0 = Set(d, static_cast<T>(1.0000001510806224569));
-  const auto c1 = Set(d, static_cast<T>(0.99996228117046825901));
-  const auto c2 = Set(d, static_cast<T>(0.49998365704575670199));
-  const auto c3 = Set(d, static_cast<T>(0.16792157982876812494));
-  const auto c4 = Set(d, static_cast<T>(0.041959439862987071845));
-
-  // Estrin's scheme
-  const auto x2 = Mul(x_red, x_red);
-  // term0 = c1*x + c0
-  const auto term0 = MulAdd(c1, x_red, c0);
-  // term1 = c3*x + c2
-  const auto term1 = MulAdd(c3, x_red, c2);
-  // term2 = c4*x^2 + term1
-  const auto term2 = MulAdd(c4, x2, term1);
-  // approx = term2 * x^2 + term0
-  const auto approx = MulAdd(term2, x2, term0);
-
-  // Since inputs < -88.0 (f32) and < -709.0 (f64) are flushed to zero,
-  // we do not generate subnormals. Therefore, q is guaranteed to be >= -127
-  // and we can use Pow2I directly without splitting the exponent computation.
-  return Mul(approx, impl.Pow2I(d, q));
+  // Historical note: Previously, FastExp rounded `x / ln(2)` to int32 by
+  // dynamically selecting `+0.5` or `-0.5` based on the sign bit of `x`, so
+  // FastExpMinusOrZero existed as a faster specialization for `x <= 0`. Now
+  // that FastExp uses sign-agnostic floating-point rounding (`kMagic` /
+  // `Round`), `x <= 0` no longer requires separate logic, and this function is
+  // equivalent to FastExp</*kHandleSubnormals=*/false>.
+  return FastExp</*kHandleSubnormals=*/false>(d, x);
 }
 
 /**

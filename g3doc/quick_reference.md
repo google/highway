@@ -3147,6 +3147,9 @@ supported for the `HWY_SCALAR` target.
 *   `HWY_NATIVE_MUL64` expands to 1 if u64 `Mul` and `MulHigh` use native
     instructions.
 
+*   `HWY_NATIVE_MUL_BY_POW2` expands to 1 if `MulByPow2` and `MulByFloorPow2`
+    use native instructions.
+
 *   `HWY_IS_LITTLE_ENDIAN` expands to 1 on little-endian targets and to 0 on
     big-endian targets.
 
