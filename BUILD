@@ -151,6 +151,7 @@ cc_library(
         "hwy/abort.h",
         "hwy/aligned_allocator.h",
         "hwy/base.h",
+        "hwy/base_c.h",
         "hwy/cache_control.h",
         "hwy/detect_compiler_arch.h",  # private
         "hwy/print.h",
@@ -848,11 +849,27 @@ cc_library(
     ],
 )
 
+# Macro-only C99/C++ subset of base.h without C++ sources or runtime deps.
+cc_library(
+    name = "base_c",
+    hdrs = [
+        "hwy/base_c.h",
+        "hwy/detect_compiler_arch.h",  # private
+    ],
+    compatible_with = [],
+    copts = COPTS,
+    defines = DEFINES,
+    textual_hdrs = [
+        "hwy/highway_export.h",  # public
+    ],
+)
+
 cc_library(
     name = "abort_header_only",
     hdrs = [
         "hwy/abort.h",
         "hwy/base.h",
+        "hwy/base_c.h",
         "hwy/detect_compiler_arch.h",  # private
         "hwy/highway_export.h",  # public
     ],
@@ -881,6 +898,35 @@ cc_test(
         ":hwy",
         ":timer",
     ],
+)
+
+# Verifies that base_c.h compiles as C without linking Highway's C++ runtime.
+cc_test(
+    name = "base_c_test",
+    size = "small",
+    srcs = ["hwy/base_c_test.c"],
+    copts = select({
+        ":compiler_msvc": [],
+        "//conditions:default": [
+            "-Wcast-qual",
+            "-Wstrict-prototypes",
+            "-Wundef",
+        ],
+    }) + select({
+        ":compiler_msvc": [],
+        ":compiler_gcc": [],
+        ":compiler_clangcl": [],
+        "//conditions:default": [
+            "--no-system-header-prefix=third_party/highway",
+        ],
+    }),
+    linkopts = select({
+        ":compiler_emscripten": ["-s FORCE_FILESYSTEM=1"],
+        "//conditions:default": [],
+    }),
+    linkstatic = True,
+    tags = ["hwy_ops_test"],
+    deps = [":base_c"],
 )
 
 cc_test(

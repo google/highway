@@ -37,7 +37,7 @@ Check libjxl build actions at https://github.com/libjxl/libjxl/pull/2269. (As of
 
 Prepend to debian/changelog and update mentions of the current version in:
 
-*   base.h
+*   base_c.h
 *   CMakeLists.txt
 *   meson.build
 *   MODULE.bazel

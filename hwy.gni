@@ -5,6 +5,7 @@ hwy_public = [
   "$_hwy/abort.h",
   "$_hwy/aligned_allocator.h",
   "$_hwy/base.h",
+  "$_hwy/base_c.h",
   "$_hwy/cache_control.h",
   "$_hwy/per_target.h",
   "$_hwy/print.h",

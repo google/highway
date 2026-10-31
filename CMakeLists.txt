@@ -36,7 +36,7 @@ if(POLICY CMP0128)
   cmake_policy(SET CMP0128 NEW)
 endif()
 
-project(hwy VERSION 1.4.0)  # Keep in sync with base.h version
+project(hwy VERSION 1.4.0)  # Keep in sync with base_c.h version
 # `hwy` is lowercase to handle find_package() in Config mode:
 set(namespace "${PROJECT_NAME}::")
 
@@ -296,6 +296,7 @@ set(HWY_SOURCES
     hwy/aligned_allocator.h
     hwy/auto_tune.h
     hwy/base.h
+    hwy/base_c.h
     hwy/bit_set.h
     hwy/cache_control.h
     hwy/detect_compiler_arch.h  # private
@@ -1188,6 +1189,35 @@ endforeach ()
 # The skeleton test uses the skeleton library code.
 target_sources(skeleton_test PRIVATE hwy/examples/skeleton.cc)
 target_compile_definitions(skeleton_test PRIVATE hwy_EXPORTS)
+
+# Verifies that base_c.h compiles as C.
+add_executable(base_c_test hwy/base_c_test.c)
+target_include_directories(base_c_test PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+target_compile_definitions(base_c_test PRIVATE "${DLLEXPORT_TO_DEFINE}")
+set(HWY_C_FLAGS)
+if (MSVC)
+  if (HWY_WARNINGS_ARE_ERRORS)
+    list(APPEND HWY_C_FLAGS /WX)
+  endif()
+else()
+  list(APPEND HWY_C_FLAGS -Wall -Wextra -Wcast-qual -Wstrict-prototypes -Wundef)
+  if (HWY_WARNINGS_ARE_ERRORS)
+    list(APPEND HWY_C_FLAGS -Werror)
+  endif()
+endif()
+target_compile_options(base_c_test PRIVATE ${HWY_C_FLAGS})
+# Explicit C_STANDARD 99 + C_EXTENSIONS OFF passes -std=c99 on GCC/Clang
+# (whereas c_std_99 only sets a minimum and leaves modern compilers at C17/C23,
+# or gnu99 without C_EXTENSIONS OFF), while decaying cleanly on MSVC.
+set_target_properties(base_c_test PROPERTIES
+  C_STANDARD 99
+  C_EXTENSIONS OFF
+  RUNTIME_OUTPUT_DIRECTORY "tests"
+)
+if (HWY_EMSCRIPTEN)
+  set_target_properties(base_c_test PROPERTIES LINK_FLAGS "-s SINGLE_FILE=1")
+endif()
+add_test(NAME base_c_test COMMAND base_c_test)
 
 endif()  # BUILD_TESTING
 endif()  # HWY_ENABLE_TESTS

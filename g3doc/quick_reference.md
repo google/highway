@@ -93,6 +93,11 @@ The public headers are:
 *   hwy/base.h: included from headers that only need compiler/platform-dependent
     definitions (e.g. `PopCount`) without the full highway.h.
 
+*   hwy/base_c.h: macro-only subset of base.h (e.g. `HWY_MUST_USE_RESULT`,
+    `HWY_RESTRICT`, `HWY_DLLEXPORT`, compiler/arch detection) that is also
+    usable from C, e.g. in `extern "C"` library interfaces. Included by base.h;
+    pure-C Bazel targets can depend on `:base_c` to avoid linking C++.
+
 *   hwy/foreach_target.h: re-includes the translation unit (specified by
     `HWY_TARGET_INCLUDE`) once per enabled target to generate code from the same
     source code. highway.h must still be included.

@@ -76,6 +76,7 @@ hwy_headers = files(
     'hwy/aligned_allocator.h',
     'hwy/auto_tune.h',
     'hwy/base.h',
+    'hwy/base_c.h',
     'hwy/bit_set.h',
     'hwy/cache_control.h',
     'hwy/detect_compiler_arch.h',  # private
@@ -794,5 +795,24 @@ if tests_enabled
 
             test(exe_name, test_exe, protocol:'gtest', suite:'contrib', timeout: (exe_name == 'sort_test')? 90 : 30)
         endforeach
+    endif
+
+    if add_languages('c', native: false, required: false)
+        cc = meson.get_compiler('c')
+        base_c_args = hwy_dep_args + cc.get_supported_arguments([
+            '-Wcast-qual',
+            '-Wstrict-prototypes',
+            '-Wundef',
+        ])
+        base_c_test_exe = executable(
+            'base_c_test',
+            'hwy/base_c_test.c',
+            c_args: base_c_args,
+            include_directories: hwy_include_dir,
+            link_args: test_exe_link_args,
+            pie: pie,
+            override_options: ['c_std=c99'],
+        )
+        test('base_c_test', base_c_test_exe)
     endif
 endif

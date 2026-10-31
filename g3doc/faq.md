@@ -204,10 +204,11 @@ hwy/ops/*.
 
 Q3.5: **Why is base.h separate** from highway.h?
 
-A: It can be useful for files that just want compiler-dependent macros, for
-example `HWY_RESTRICT` in public headers. This avoids the expense of including
-the full `highway.h`, which can be large because some platform headers declare
-thousands of intrinsics.
+A: It can be useful for files that just want compiler-dependent definitions, for
+example `HWY_RESTRICT` or `HWY_DLLEXPORT` in public headers (use `base_c.h` for
+C99 or `extern "C"` headers, and `base.h` when C++ helpers like `PopCount` are
+also needed). This avoids the expense of including the full `highway.h`, which
+can be large because some platform headers declare thousands of intrinsics.
 
 Q3.6: What are **restrict pointers** and when to use `HWY_RESTRICT`?
 
