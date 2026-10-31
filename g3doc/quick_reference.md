@@ -3204,6 +3204,14 @@ least one baseline target which `HWY_EXPORT` can use.
 *   `HWY_DISABLE_BMI2_FMA` prevents emitting BMI/BMI2/FMA instructions. This
     allows using AVX2 in VMs that do not support the other instructions, but
     only if defined for all translation units.
+*   `HWY_DISABLE_GCC_GATHER_WORKAROUND` restores the original x86 `GatherIndex`
+    and `GatherOffset` intrinsic implementations when compiling with GCC.
+    The workaround is enabled by default to break false dependencies on gather
+    destinations ([GCC bug 127946](https://gcc.gnu.org/bugzilla/show_bug.cgi?id=127946)).
+    Define this macro before including Highway headers, for example with
+    `-DHWY_DISABLE_GCC_GATHER_WORKAROUND`, to opt out when using a newer GCC with
+    an older Highway release. Its presence disables the workaround even if
+    defined as `0`. Other compilers and explicitly masked gathers are unaffected.
 
 The following `*_TARGETS` are zero or more `HWY_Target` bits and can be defined
 as an expression, e.g. `-DHWY_DISABLED_TARGETS=(HWY_SSE4|HWY_AVX3)`.
