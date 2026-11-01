@@ -15616,13 +15616,15 @@ HWY_API VFromD<D> SumOfLanes(D d, VFromD<D> v) {
 }
 
 #if HWY_TARGET <= HWY_SSE4
-// We provide specializations of u8x8, u8x16, and u16x8, so exclude those.
+// We provide specializations of u8x8, u8x16, i8x16, u16x8, and i16x8, so
+// exclude those.
 #undef HWY_IF_MINMAX_OF_LANES_D
 #define HWY_IF_MINMAX_OF_LANES_D(D)                                        \
   HWY_IF_LANES_GT_D(D, 1),                                                 \
       hwy::EnableIf<(!hwy::IsSame<TFromD<D>, uint8_t>() ||                 \
                      ((HWY_V_SIZE_D(D) < 8) || (HWY_V_SIZE_D(D) > 16))) && \
-                    (!hwy::IsSame<TFromD<D>, uint16_t>() ||                \
+                    ((!hwy::IsSame<TFromD<D>, uint16_t>() &&               \
+                      !hwy::IsSameEither<TFromD<D>, int8_t, int16_t>()) || \
                      (HWY_V_SIZE_D(D) != 16))>* = nullptr
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U16_D(D)>
@@ -15643,10 +15645,11 @@ HWY_API Vec64<uint8_t> MinOfLanes(D d, Vec64<uint8_t> v) {
 }
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U8_D(D)>
 HWY_API Vec128<uint8_t> MinOfLanes(D d, Vec128<uint8_t> v) {
-  const Half<decltype(d)> dh;
-  Vec64<uint8_t> result =
-      Min(MinOfLanes(dh, UpperHalf(dh, v)), MinOfLanes(dh, LowerHalf(dh, v)));
-  return Combine(d, result, result);
+  const RepartitionToWide<decltype(d)> d16;
+  // Each u16 lane holds the minimum of its two bytes, zero-extended.
+  const Vec128<uint8_t> pairs =
+      Min(v, BitCast(d, ShiftRight<8>(BitCast(d16, v))));
+  return Broadcast<0>(Vec128<uint8_t>{_mm_minpos_epu16(pairs.raw)});
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_U8_D(D)>
@@ -15658,6 +15661,23 @@ template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U8_D(D)>
 HWY_API Vec128<uint8_t> MaxOfLanes(D d, Vec128<uint8_t> v) {
   const Vec128<uint8_t> m(Set(d, LimitsMax<uint8_t>()));
   return m - MinOfLanes(d, m - v);
+}
+
+// Flipping the sign bit maps signed order onto unsigned order. Flipping all
+// other bits instead maps it onto reversed unsigned order.
+template <class D, HWY_IF_SIGNED_D(D), HWY_IF_T_SIZE_LE_D(D, 2),
+          HWY_IF_V_SIZE_D(D, 16)>
+HWY_API VFromD<D> MinOfLanes(D d, VFromD<D> v) {
+  const RebindToUnsigned<decltype(d)> du;
+  const VFromD<decltype(du)> k = SignBit(du);
+  return BitCast(d, Xor(MinOfLanes(du, Xor(BitCast(du, v), k)), k));
+}
+template <class D, HWY_IF_SIGNED_D(D), HWY_IF_T_SIZE_LE_D(D, 2),
+          HWY_IF_V_SIZE_D(D, 16)>
+HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
+  const RebindToUnsigned<decltype(d)> du;
+  const VFromD<decltype(du)> k = BitCast(du, Set(d, LimitsMax<TFromD<D>>()));
+  return BitCast(d, Xor(MinOfLanes(du, Xor(BitCast(du, v), k)), k));
 }
 
 #endif  // HWY_TARGET <= HWY_SSE4
