@@ -11443,29 +11443,25 @@ HWY_INLINE V AVX2ShlU8Vec128(V v, V bits) {
   const Rebind<uint16_t, decltype(d)> du16;
   return TruncateTo(d, PromoteTo(du16, v) << PromoteTo(du16, bits));
 }
-#elif HWY_TARGET <= HWY_AVX2
-template <class V, HWY_IF_V_SIZE_LE_V(V, 8)>
-HWY_INLINE V AVX2ShlU8Vec128(V v, V bits) {
+#elif HWY_TARGET <= HWY_SSSE3
+// Also used for Vec256 on AVX2.
+template <class V>
+HWY_INLINE V SSSE3ShlU8(V v, V bits) {
   const DFromV<decltype(v)> d;
-  const Rebind<uint32_t, decltype(d)> du32;
-  return TruncateTo(d, PromoteTo(du32, v) << PromoteTo(du32, bits));
-}
-template <class V, HWY_IF_V_SIZE_V(V, 16)>
-HWY_INLINE V AVX2ShlU8Vec128(V v, V bits) {
-  const DFromV<decltype(v)> d;
-  const Half<decltype(d)> dh;
-  const Rebind<uint16_t, decltype(d)> du16;
-  const Rebind<uint32_t, decltype(dh)> dh_u32;
-
-  const VFromD<decltype(dh_u32)> lo_shl_result =
-      PromoteTo(dh_u32, LowerHalf(dh, v))
-      << PromoteTo(dh_u32, LowerHalf(dh, bits));
-  const VFromD<decltype(dh_u32)> hi_shl_result =
-      PromoteTo(dh_u32, UpperHalf(dh, v))
-      << PromoteTo(dh_u32, UpperHalf(dh, bits));
-  const VFromD<decltype(du16)> u16_shl_result = ConcatEven(
-      du16, BitCast(du16, hi_shl_result), BitCast(du16, lo_shl_result));
-  return TruncateTo(d, u16_shl_result);
+  const Repartition<uint16_t, decltype(d)> dw;
+  using VW = VFromD<decltype(dw)>;
+  // pow2[i] = 1 << bits[i], or 0 if bits[i] >= 8.
+  const V pow2_table = Dup128VecFromValues(d, 1, 2, 4, 8, 0x10, 0x20, 0x40,
+                                           0x80, 0, 0, 0, 0, 0, 0, 0, 0);
+  const VW pow2 =
+      BitCast(dw, TableLookupBytes(pow2_table, Min(bits, Set(d, 8))));
+  const VW vw = BitCast(dw, v);
+  // The low byte of a 16-bit product depends only on the low bytes of its
+  // inputs, so it is already the even lane's result.
+  const VW evens = Mul(vw, pow2);
+  // Isolate the odd lane in the high byte and multiply by its own 1 << bits.
+  const VW odds = Mul(And(vw, Set(dw, 0xFF00)), ShiftRight<8>(pow2));
+  return BitCast(d, OrAnd(odds, evens, Set(dw, 0x00FF)));
 }
 #endif  // HWY_TARGET <= HWY_AVX3
 
@@ -11486,10 +11482,14 @@ HWY_API Vec128<uint8_t, N> ShlImpl(hwy::UnsignedTag tag, Vec128<uint8_t, N> v,
   const VFromD<decltype(d)> mul =
       TableLookupBytes(Load(Full64<uint8_t>(), kShl), bits);
   return VFromD<decltype(d)>{_mm_gf2p8mul_epi8(v.raw, mul.raw)};
-#elif HWY_TARGET <= HWY_AVX2
+#elif HWY_TARGET <= HWY_AVX3
   (void)tag;
   (void)d;
   return AVX2ShlU8Vec128(v, bits);
+#elif HWY_TARGET <= HWY_SSSE3
+  (void)tag;
+  (void)d;
+  return SSSE3ShlU8(v, bits);
 #else
   const Repartition<uint16_t, decltype(d)> dw;
   using VW = VFromD<decltype(dw)>;

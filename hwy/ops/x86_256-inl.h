@@ -7644,6 +7644,10 @@ HWY_API Vec256<uint8_t> ShlImpl(hwy::UnsignedTag tag, Vec256<uint8_t> v,
   v = And(v, TableLookupBytes(masks, bits));
   const VFromD<decltype(d)> mul = TableLookupBytes(shl, bits);
   return VFromD<decltype(d)>{_mm256_gf2p8mul_epi8(v.raw, mul.raw)};
+#elif HWY_TARGET > HWY_AVX3
+  (void)tag;
+  (void)d;
+  return SSSE3ShlU8(v, bits);
 #else
   const Repartition<uint16_t, decltype(d)> dw;
   using VW = VFromD<decltype(dw)>;
