@@ -11429,11 +11429,10 @@ HWY_INLINE V SSSE3ShlU8(V v, V bits) {
   const DFromV<decltype(v)> d;
   const Repartition<uint16_t, decltype(d)> dw;
   using VW = VFromD<decltype(dw)>;
-  // pow2[i] = 1 << bits[i], or 0 if bits[i] >= 8.
+  // pow2[i] = 1 << bits[i]. Counts >= 8 are implementation-defined.
   const V pow2_table = Dup128VecFromValues(d, 1, 2, 4, 8, 0x10, 0x20, 0x40,
                                            0x80, 0, 0, 0, 0, 0, 0, 0, 0);
-  const VW pow2 =
-      BitCast(dw, TableLookupBytes(pow2_table, Min(bits, Set(d, 8))));
+  const VW pow2 = BitCast(dw, TableLookupBytes(pow2_table, bits));
   const VW vw = BitCast(dw, v);
   const VW even_mask = Set(dw, 0x00FF);
   // The low byte of a 16-bit product depends only on the low bytes of its
