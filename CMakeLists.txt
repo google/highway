@@ -1146,12 +1146,33 @@ foreach (TESTFILE IN LISTS HWY_TEST_FILES)
       copy_test count_test count_value_test crc_test
       crypto_test demote_test div_test dot_test
       dup128_vec_test expand_test f16_math_test fast_math_test
+      find_test float_manip_test float_test fma_test
+      foreach_vec_test highway_test highwayhash_test if_test
+      in_range_float_to_int_conv_test intdiv_test interleaved_test is_sorted_test
+      lemac_test logical_test mask_combine_test mask_convert_test
+      mask_mem_test mask_set_test mask_slide_test mask_test
+      masked_arithmetic_test masked_compare_test masked_minmax_test math_hyper_test
+      math_tan_test math_test math_trig_test matmul_op_test
+      memory_test minmax128_test minmax_magnitude_test minmax_number_test
+      minmax_test minmax_value_test mul_by_pow2_test mul_pairwise_test
+      mul_test nanobenchmark_test neg_test perf_counters_test
+      random_test reduction_test resize_test reverse_test
+      rotate_test saturated_test shift_test shuffle4_test
+      sign_test skeleton_test slide_up_down_test stats_test
+      sums_abs_diff_test swizzle_block_test swizzle_test table_test
+      targets_test test_util_test transform_test truncate_test
+      tuple_test unroller_test widen_mul_test
     )
     if(TESTNAME IN_LIST HWY_TESTS_WITHOUT_HWY_CONTRIB)
       list(REMOVE_ITEM HWY_TARGET_TEST_LIBS hwy_contrib)
     endif()
     set(HWY_TESTS_WITHOUT_HWY_TEST
       ans_test bench_sort cuckoo2x2_test
+      abort_test algo_bench bit_pack_test bit_set_test
+      dot_test fast_math_test foreach_vec_test hash_test
+      iguana_test is_sorted_test math_hyper_test math_trig_test
+      matvec_test nanobenchmark_test perf_counters_test random_test
+      range_coder_test sort_test spin_test topology_test
     )
     if(TESTNAME IN_LIST HWY_TESTS_WITHOUT_HWY_TEST)
       list(REMOVE_ITEM HWY_TARGET_TEST_LIBS hwy_test)
