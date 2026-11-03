@@ -350,25 +350,30 @@ struct TestVariableSignedRightShifts {
 };
 
 // 8-bit Shl is emulated on several targets: check every value with every valid
-// shift count, in both even and odd lanes.
+// shift count, in both even and odd lanes. Odd lanes are xor-ed with random
+// bits so that they are independent of their even neighbour.
 struct TestVariableLeftShifts8 {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     using TU = MakeUnsigned<T>;
+    const RebindToUnsigned<D> du;
     const size_t N = Lanes(d);
+    auto in = AllocateAligned<TU>(N);
     auto expected = AllocateAligned<T>(N);
-    HWY_ASSERT(expected);
+    HWY_ASSERT(in && expected);
+    RandomState rng;
 
     for (size_t first_value = 0; first_value < 256; ++first_value) {
       for (size_t first_shift = 0; first_shift < 8; ++first_shift) {
-        const Vec<D> values =
-            BitCast(d, Iota(RebindToUnsigned<D>(), first_value));
         const Vec<D> shifts = And(Iota(d, first_shift), Set(d, T{7}));
         for (size_t i = 0; i < N; ++i) {
-          const TU value = static_cast<TU>(first_value + i);
+          TU value = static_cast<TU>(first_value + i);
+          if (i & 1) value = static_cast<TU>(value ^ Random32(&rng));
+          in[i] = value;
           const size_t shift = (first_shift + i) & 7;
           expected[i] = static_cast<T>(static_cast<TU>(value << shift));
         }
+        const Vec<D> values = BitCast(d, Load(du, in.get()));
         HWY_ASSERT_VEC_EQ(d, expected.get(), Shl(values, shifts));
       }
     }
