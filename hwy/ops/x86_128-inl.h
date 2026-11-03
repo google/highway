@@ -11435,12 +11435,13 @@ HWY_INLINE V SSSE3ShlU8(V v, V bits) {
   const VW pow2 =
       BitCast(dw, TableLookupBytes(pow2_table, Min(bits, Set(d, 8))));
   const VW vw = BitCast(dw, v);
+  const VW even_mask = Set(dw, 0x00FF);
   // The low byte of a 16-bit product depends only on the low bytes of its
   // inputs, so it is already the even lane's result.
   const VW evens = Mul(vw, pow2);
   // Isolate the odd lane in the high byte and multiply by its own 1 << bits.
-  const VW odds = Mul(And(vw, Set(dw, 0xFF00)), ShiftRight<8>(pow2));
-  return BitCast(d, OrAnd(odds, evens, Set(dw, 0x00FF)));
+  const VW odds = Mul(AndNot(even_mask, vw), ShiftRight<8>(pow2));
+  return BitCast(d, OrAnd(odds, evens, even_mask));
 }
 
 #if HWY_TARGET == HWY_AVX2
