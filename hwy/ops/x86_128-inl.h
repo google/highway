@@ -11442,6 +11442,20 @@ HWY_INLINE V SSSE3ShlU8(V v, V bits) {
   const VW odds = Mul(And(vw, Set(dw, 0xFF00)), ShiftRight<8>(pow2));
   return BitCast(d, OrAnd(odds, evens, Set(dw, 0x00FF)));
 }
+
+#if HWY_TARGET == HWY_AVX2
+// Promoting to u32 still fits in one XMM, which is cheaper than two Mul.
+template <class V, HWY_IF_V_SIZE_LE_V(V, 4)>
+HWY_INLINE V AVX2ShlU8Vec128(V v, V bits) {
+  const DFromV<decltype(v)> d;
+  const Rebind<uint32_t, decltype(d)> du32;
+  return TruncateTo(d, PromoteTo(du32, v) << PromoteTo(du32, bits));
+}
+template <class V, HWY_IF_V_SIZE_GT_V(V, 4)>
+HWY_INLINE V AVX2ShlU8Vec128(V v, V bits) {
+  return SSSE3ShlU8(v, bits);
+}
+#endif  // HWY_TARGET == HWY_AVX2
 #endif  // HWY_TARGET <= HWY_AVX3
 
 // 8-bit: may use the Shl overload for uint16_t.
@@ -11461,7 +11475,7 @@ HWY_API Vec128<uint8_t, N> ShlImpl(hwy::UnsignedTag tag, Vec128<uint8_t, N> v,
   const VFromD<decltype(d)> mul =
       TableLookupBytes(Load(Full64<uint8_t>(), kShl), bits);
   return VFromD<decltype(d)>{_mm_gf2p8mul_epi8(v.raw, mul.raw)};
-#elif HWY_TARGET <= HWY_AVX3
+#elif HWY_TARGET <= HWY_AVX2
   (void)tag;
   (void)d;
   return AVX2ShlU8Vec128(v, bits);
