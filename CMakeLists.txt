@@ -85,6 +85,7 @@ set(HWY_CMAKE_HEADER_ONLY OFF CACHE BOOL "Change to header-only?")
 set(HWY_ENABLE_CONTRIB ON CACHE BOOL "Include contrib/")
 set(HWY_ENABLE_EXAMPLES ON CACHE BOOL "Build examples")
 set(HWY_ENABLE_INSTALL ON CACHE BOOL "Install library")
+set(HWY_ENABLE_IO ON CACHE BOOL "Build the hwy_io file I/O library")
 set(HWY_ENABLE_TESTS ON CACHE BOOL "Enable HWY tests")
 
 # CMake 3.21 introduces PROJECT_IS_TOP_LEVEL / <PROJECT-NAME>_IS_TOP_LEVEL
@@ -330,6 +331,7 @@ set(HWY_SOURCES
     hwy/profiler.h
     hwy/robust_statistics.h
     hwy/stats.h
+    hwy/status.h
     hwy/targets.h
     hwy/timer-inl.h
     hwy/timer.h
@@ -352,6 +354,30 @@ if (NOT HWY_CMAKE_HEADER_ONLY)
     hwy/timer.cc
   )
 endif()
+
+# Separate library so that users of core hwy do not pull in file I/O.
+set(HWY_IO_SOURCES
+    hwy/io/file.cc
+    hwy/io/file.h
+    hwy/io/file_system.cc
+    hwy/io/file_system.h
+    hwy/io/file_util.cc
+    hwy/io/file_util.h
+    hwy/io/file_view.cc
+    hwy/io/file_view.h
+    hwy/io/io_batch.cc
+    hwy/io/io_batch.h
+    hwy/io/io_internal.h
+    hwy/io/io_span.h
+    hwy/io/memory_file.cc
+    hwy/io/memory_file.h
+    hwy/io/path.cc
+    hwy/io/path.h
+    hwy/io/posix_file.cc
+    hwy/io/stream_file.cc
+    hwy/io/stream_file.h
+    hwy/io/windows_file.cc
+)
 
 set(HWY_TEST_SOURCES
     hwy/tests/hwy_gtest.h
@@ -604,8 +630,8 @@ set_target_properties(hwy PROPERTIES VERSION ${LIBRARY_VERSION} SOVERSION ${LIBR
 target_include_directories(hwy PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-target_compile_features(hwy PUBLIC cxx_std_11)
-if (NOT HWY_CXX_STD_TGT_COMPILE_FEATURE STREQUAL "cxx_std_11")
+target_compile_features(hwy PUBLIC cxx_std_14)
+if (NOT HWY_CXX_STD_TGT_COMPILE_FEATURE STREQUAL "cxx_std_14")
   target_compile_features(hwy PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
 endif()
 set_target_properties(hwy PROPERTIES
@@ -618,6 +644,30 @@ if(UNIX AND NOT APPLE)
     LINK_FLAGS " -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version")
 endif()
 
+# hwy_io is a compiled library and depends on aligned_allocator.cc, which is
+# omitted from hwy when HWY_CMAKE_HEADER_ONLY is enabled.
+if (HWY_ENABLE_IO AND NOT HWY_CMAKE_HEADER_ONLY)
+add_library(hwy_io ${HWY_LIBRARY_TYPE} ${HWY_IO_SOURCES})
+target_link_libraries(hwy_io PUBLIC hwy PRIVATE ${ATOMICS_LIBRARIES})
+target_compile_options(hwy_io PRIVATE ${HWY_FLAGS})
+set_property(TARGET hwy_io PROPERTY POSITION_INDEPENDENT_CODE ON)
+set_target_properties(hwy_io PROPERTIES VERSION ${LIBRARY_VERSION} SOVERSION ${LIBRARY_SOVERSION})
+target_include_directories(hwy_io PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+target_compile_features(hwy_io PUBLIC cxx_std_14)
+if (NOT HWY_CXX_STD_TGT_COMPILE_FEATURE STREQUAL "cxx_std_14")
+  target_compile_features(hwy_io PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
+endif()
+set_target_properties(hwy_io PROPERTIES
+  LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version)
+# not supported by MSVC/Clang, safe to skip (we use DLLEXPORT annotations)
+if(UNIX AND NOT APPLE)
+  set_property(TARGET hwy_io APPEND_STRING PROPERTY
+    LINK_FLAGS " -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version")
+endif()
+endif()  # HWY_ENABLE_IO
+
 if (HWY_ENABLE_CONTRIB)
 add_library(hwy_contrib ${HWY_LIBRARY_TYPE} ${HWY_CONTRIB_SOURCES})
 target_link_libraries(hwy_contrib PUBLIC hwy)
@@ -627,8 +677,8 @@ set_target_properties(hwy_contrib PROPERTIES VERSION ${LIBRARY_VERSION} SOVERSIO
 target_include_directories(hwy_contrib PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-target_compile_features(hwy_contrib PUBLIC cxx_std_11)
-if (NOT HWY_CXX_STD_TGT_COMPILE_FEATURE STREQUAL "cxx_std_11")
+target_compile_features(hwy_contrib PUBLIC cxx_std_14)
+if (NOT HWY_CXX_STD_TGT_COMPILE_FEATURE STREQUAL "cxx_std_14")
   target_compile_features(hwy_contrib PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
 endif()
 set_target_properties(hwy_contrib PROPERTIES
@@ -659,8 +709,8 @@ set_target_properties(hwy_test PROPERTIES VERSION ${LIBRARY_VERSION} SOVERSION $
 target_include_directories(hwy_test PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-target_compile_features(hwy_test PUBLIC cxx_std_11)
-if (NOT HWY_CXX_STD_TGT_COMPILE_FEATURE STREQUAL "cxx_std_11")
+target_compile_features(hwy_test PUBLIC cxx_std_14)
+if (NOT HWY_CXX_STD_TGT_COMPILE_FEATURE STREQUAL "cxx_std_14")
   target_compile_features(hwy_test PRIVATE ${HWY_CXX_STD_TGT_COMPILE_FEATURE})
 endif()
 set_target_properties(hwy_test PROPERTIES
@@ -713,6 +763,24 @@ foreach (source ${HWY_SOURCES})
   endif()
 endforeach()
 
+if (HWY_ENABLE_IO AND NOT HWY_CMAKE_HEADER_ONLY)
+install(TARGETS hwy_io EXPORT hwy_targets
+  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+install(FILES
+  hwy/io/file.h
+  hwy/io/file_system.h
+  hwy/io/file_util.h
+  hwy/io/file_view.h
+  hwy/io/io_batch.h
+  hwy/io/io_span.h
+  hwy/io/memory_file.h
+  hwy/io/path.h
+  hwy/io/stream_file.h
+  DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/hwy/io")
+endif()  # HWY_ENABLE_IO
+
 if (HWY_ENABLE_CONTRIB)
 install(TARGETS hwy_contrib EXPORT hwy_targets
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
@@ -761,6 +829,9 @@ else()
   set(HWY_PC_WIN32_SYNCHRONIZATION_LIBS "")
 endif()
 
+if (HWY_ENABLE_IO AND NOT HWY_CMAKE_HEADER_ONLY)
+list(APPEND HWY_PC_FILES libhwy-io.pc)
+endif()  # HWY_ENABLE_IO
 if (HWY_ENABLE_CONTRIB)
 list(APPEND HWY_PC_FILES libhwy-contrib.pc)
 endif()  # HWY_ENABLE_CONTRIB
@@ -1048,6 +1119,19 @@ set(HWY_TEST_FILES
 
 set(HWY_TEST_LIBS hwy hwy_test)
 
+if (HWY_ENABLE_IO AND NOT HWY_CMAKE_HEADER_ONLY)
+list(APPEND HWY_TEST_FILES
+  hwy/io/file_system_test.cc
+  hwy/io/file_test.cc
+  hwy/io/file_util_test.cc
+  hwy/io/file_view_test.cc
+  hwy/io/io_batch_test.cc
+  hwy/io/memory_file_test.cc
+  hwy/io/path_test.cc
+  hwy/io/stream_file_test.cc
+)
+endif()  # HWY_ENABLE_IO
+
 if (HWY_ENABLE_CONTRIB)
 list(APPEND HWY_TEST_LIBS hwy_contrib)
 
@@ -1176,6 +1260,16 @@ foreach (TESTFILE IN LISTS HWY_TEST_FILES)
     )
     if(TESTNAME IN_LIST HWY_TESTS_WITHOUT_HWY_TEST)
       list(REMOVE_ITEM HWY_TARGET_TEST_LIBS hwy_test)
+    endif()
+  endif()
+  set(HWY_IO_TESTS
+    file_system_test file_test file_util_test file_view_test
+    io_batch_test memory_file_test path_test stream_file_test
+  )
+  if(TESTNAME IN_LIST HWY_IO_TESTS)
+    list(APPEND HWY_TARGET_TEST_LIBS hwy_io)
+    if(NOT HWY_ENABLE_CONTRIB)
+      target_compile_definitions(${TESTNAME} PRIVATE HWY_IO_TEST_NO_CONTRIB=1)
     endif()
   endif()
   target_link_libraries(${TESTNAME} PRIVATE ${HWY_TARGET_TEST_LIBS} ${HWY_GTEST_LIBS})

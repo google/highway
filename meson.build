@@ -110,6 +110,7 @@ hwy_headers = files(
     'hwy/profiler.h',
     'hwy/robust_statistics.h',
     'hwy/stats.h',
+    'hwy/status.h',
     'hwy/targets.h',
     'hwy/timer-inl.h',
     'hwy/timer.h',
@@ -444,6 +445,62 @@ pkg.generate(
     extra_cflags: hwy_dep_args,
 )
 
+# Optional file I/O, a separate compiled library (requires compiled hwy_lib for
+# aligned_allocator.cc, so skipped in header_only mode).
+if not hwy_hdr_only
+    hwy_io_headers = files(
+        'hwy/io/file.h',
+        'hwy/io/file_system.h',
+        'hwy/io/file_util.h',
+        'hwy/io/file_view.h',
+        'hwy/io/io_batch.h',
+        'hwy/io/io_span.h',
+        'hwy/io/memory_file.h',
+        'hwy/io/path.h',
+        'hwy/io/stream_file.h',
+    )
+    hwy_io_sources = files(
+        'hwy/io/file.cc',
+        'hwy/io/file_system.cc',
+        'hwy/io/file_util.cc',
+        'hwy/io/file_view.cc',
+        'hwy/io/io_batch.cc',
+        'hwy/io/memory_file.cc',
+        'hwy/io/path.cc',
+        'hwy/io/posix_file.cc',
+        'hwy/io/stream_file.cc',
+        'hwy/io/windows_file.cc',
+    )
+
+    hwy_io_lib = library(
+        'hwy_io',
+        hwy_io_sources,
+        dependencies: hwy_dep,
+        cpp_shared_args: hwy_shared_import_args + ['-Dhwy_io_EXPORTS'],
+        cpp_static_args: hwy_static_args,
+        link_args: lib_link_args,
+        install: true,
+        pic: static_pic,
+        version: meson.project_version(),
+        link_depends: hwy_link_depends,
+        gnu_symbol_visibility: 'inlineshidden',
+    )
+
+    hwy_io_dep = declare_dependency(
+        link_with: hwy_io_lib,
+        dependencies: hwy_dep,
+    )
+
+    install_headers(hwy_io_headers, preserve_path:true)
+
+    pkg.generate(
+        hwy_io_lib,
+        description: 'Highway file I/O',
+        name: 'libhwy-io',
+        extra_cflags: hwy_dep_args,
+    )
+endif
+
 if contrib_enabled
     # these dependencies look to be only required if enable_contrib
     contrib_deps = [hwy_dep]
@@ -539,9 +596,7 @@ if get_option('test_standalone')
     gtest_dep = dependency('', required: false)
 else
     cpp_std = get_option('cpp_std')
-    if '11' in cpp_std
-        gtest_req_ver = '<=1.12.1'
-    elif '14' in cpp_std
+    if '14' in cpp_std
         gtest_req_ver = '<=1.16.0'
     else
         gtest_req_ver = []
@@ -694,18 +749,42 @@ if tests_enabled
         'hwy/tests/widen_mul_test.cc',
     )
 
+    if not hwy_hdr_only
+        hwy_test_files += files(
+            'hwy/io/file_system_test.cc',
+            'hwy/io/file_test.cc',
+            'hwy/io/file_util_test.cc',
+            'hwy/io/file_view_test.cc',
+            'hwy/io/io_batch_test.cc',
+            'hwy/io/memory_file_test.cc',
+            'hwy/io/path_test.cc',
+            'hwy/io/stream_file_test.cc',
+        )
+    endif
+
     if not contrib_enabled
-        hwy_test_files += files(           
+        hwy_test_files += files(
             'hwy/auto_tune_test.cc',
         )
     endif
 
     test_exe_args = ['-DHWY_IS_TEST=1']
-    
+
     test_exe_link_args = []
     if have_emscripten
         test_exe_link_args += ['-s', 'SINGLE_FILE=1']
     endif
+
+    hwy_io_test_names = [
+        'file_system_test',
+        'file_test',
+        'file_util_test',
+        'file_view_test',
+        'io_batch_test',
+        'memory_file_test',
+        'path_test',
+        'stream_file_test',
+    ]
 
     foreach test_src : hwy_test_files
         exe_name = fs.stem(test_src)
@@ -715,7 +794,20 @@ if tests_enabled
             test_srcs += files('hwy/examples/skeleton.cc')
         endif
 
+        test_deps = [hwy_test_dep, gtest_main_dep]
         extra_defines = []
+        if exe_name in hwy_io_test_names
+            test_deps += [hwy_io_dep]
+            if not have_emscripten
+                test_deps += [dependency('threads', required: contrib_enabled)]
+            endif
+            if contrib_enabled
+                test_deps += [hwy_contrib_dep]
+            else
+                extra_defines += '-DHWY_IO_TEST_NO_CONTRIB=1'
+            endif
+        endif
+
         if exe_name == 'convert_fast_math_test'
             fast_math_arg = cpp.get_argument_syntax() == 'msvc' ? '/fp:fast' : '-ffast-math'
             extra_defines += cpp.get_supported_arguments(fast_math_arg)
@@ -728,7 +820,7 @@ if tests_enabled
             exe_name,
             test_srcs,
             cpp_args: test_exe_args + extra_defines,
-            dependencies: [hwy_test_dep, gtest_main_dep],
+            dependencies: test_deps,
             link_args: test_exe_link_args,
             pie: pie,
         )

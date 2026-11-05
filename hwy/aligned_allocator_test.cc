@@ -195,8 +195,8 @@ TEST(AlignedAllocatorTest, TestAllocateAlignedWithCustomAlloc) {
     HWY_ASSERT_EQ(kItems, s.size());
     HWY_ASSERT_EQ(42u, s[42]);
 
-    AlignedPtr<const uint32_t> cptr =
-        std::move(ptr);  // NOLINT(bugprone-use-after-move)
+    // NOLINTNEXTLINE(bugprone-use-after-move)
+    AlignedPtr<const uint32_t> cptr = std::move(ptr);
     HWY_ASSERT(ptr == nullptr);
     HWY_ASSERT_EQ(0u, ptr.size());
     HWY_ASSERT_EQ(kItems, cptr.size());

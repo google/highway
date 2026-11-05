@@ -243,6 +243,70 @@ HWY_TESTS = HWY_CONTRIB_TESTS + (
         [":bit_set"],
     ),
     ("hwy/", "highway_test", []),
+    (
+        "hwy/io/",
+        "file_system_test",
+        [
+            ":io",
+            ":io_test_util",
+        ],
+    ),
+    (
+        "hwy/io/",
+        "file_test",
+        [
+            ":io",
+            ":io_test_util",
+            ":profiler",
+        ],
+    ),
+    (
+        "hwy/io/",
+        "file_util_test",
+        [
+            ":io",
+            ":io_test_util",
+        ],
+    ),
+    (
+        "hwy/io/",
+        "file_view_test",
+        [
+            ":io",
+            ":io_test_util",
+        ],
+    ),
+    (
+        "hwy/io/",
+        "io_batch_test",
+        [
+            ":io",
+            ":io_test_util",
+        ],
+    ),
+    (
+        "hwy/io/",
+        "memory_file_test",
+        [
+            ":io",
+            ":io_test_util",
+        ],
+    ),
+    (
+        "hwy/io/",
+        "stream_file_test",
+        [
+            ":io",
+            ":io_test_util",
+        ],
+    ),
+    (
+        "hwy/io/",
+        "path_test",
+        [
+            ":io",
+        ],
+    ),
     ("hwy/", "nanobenchmark_test", []),
     (
         "hwy/",

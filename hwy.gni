@@ -9,6 +9,8 @@ hwy_public = [
   "$_hwy/cache_control.h",
   "$_hwy/per_target.h",
   "$_hwy/print.h",
+  "$_hwy/profiler.h",
+  "$_hwy/status.h",
 
   # Public, textual
   "$_hwy/detect_targets_impl.h",
@@ -43,6 +45,33 @@ hwy_sources = [
   "$_hwy/per_target.cc",
   "$_hwy/print.cc",
   "$_hwy/targets.cc",
+]
+
+# Optional file I/O, a separate library.
+hwy_io_public = [
+  "$_hwy/io/file.h",
+  "$_hwy/io/file_system.h",
+  "$_hwy/io/file_util.h",
+  "$_hwy/io/file_view.h",
+  "$_hwy/io/io_batch.h",
+  "$_hwy/io/io_span.h",
+  "$_hwy/io/memory_file.h",
+  "$_hwy/io/path.h",
+  "$_hwy/io/stream_file.h",
+]
+
+hwy_io_sources = [
+  "$_hwy/io/file.cc",
+  "$_hwy/io/file_system.cc",
+  "$_hwy/io/file_util.cc",
+  "$_hwy/io/file_view.cc",
+  "$_hwy/io/io_batch.cc",
+  "$_hwy/io/io_internal.h",
+  "$_hwy/io/memory_file.cc",
+  "$_hwy/io/path.cc",
+  "$_hwy/io/posix_file.cc",
+  "$_hwy/io/stream_file.cc",
+  "$_hwy/io/windows_file.cc",
 ]
 
 hwy_contrib_public = [

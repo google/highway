@@ -155,6 +155,7 @@ cc_library(
         "hwy/cache_control.h",
         "hwy/detect_compiler_arch.h",  # private
         "hwy/print.h",
+        "hwy/status.h",
         "hwy/x86_cpuid.h",
     ],
     compatible_with = [],
@@ -258,6 +259,60 @@ cc_library(
     copts = COPTS,
     deps = [
         ":hwy",  # HWY_DASSERT
+    ],
+)
+
+# Portable file I/O. Additional file systems can register via AddFileSystem.
+# Keep those (e.g. network file systems) out of this target's deps so that
+# sandboxed binaries can link only OS + in-memory files; host binaries add the
+# registration library if needed.
+cc_library(
+    name = "io",
+    srcs = [
+        "hwy/io/file.cc",
+        "hwy/io/file_system.cc",
+        "hwy/io/file_util.cc",
+        "hwy/io/file_view.cc",
+        "hwy/io/io_batch.cc",
+        "hwy/io/io_internal.h",
+        "hwy/io/memory_file.cc",
+        "hwy/io/path.cc",
+        "hwy/io/posix_file.cc",
+        "hwy/io/stream_file.cc",
+        "hwy/io/windows_file.cc",
+    ],
+    hdrs = [
+        # Freestanding (no OS file support required):
+        "hwy/io/file.h",
+        "hwy/io/file_view.h",
+        "hwy/io/io_batch.h",
+        "hwy/io/io_span.h",
+        "hwy/io/memory_file.h",
+        "hwy/io/path.h",
+        "hwy/io/stream_file.h",  # OpenStdin/OpenStdout require OS support.
+        # OS and other file systems:
+        "hwy/io/file_system.h",
+        "hwy/io/file_util.h",
+    ],
+    compatible_with = [],
+    copts = COPTS,
+    local_defines = ["hwy_io_EXPORTS"],
+    deps = [
+        ":hwy",
+        ":profiler",
+    ],
+)
+
+cc_library(
+    name = "io_test_util",
+    testonly = True,
+    hdrs = ["hwy/io/io_test_util.h"],
+    compatible_with = [],
+    copts = COPTS,
+    deps = [
+        ":hwy",
+        ":io",
+        ":topology",
     ],
 )
 
@@ -872,6 +927,7 @@ cc_library(
         "hwy/base_c.h",
         "hwy/detect_compiler_arch.h",  # private
         "hwy/highway_export.h",  # public
+        "hwy/status.h",
     ],
     compatible_with = [],
     copts = COPTS,

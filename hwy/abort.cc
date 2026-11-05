@@ -13,6 +13,7 @@
 #include <string>
 
 #include "hwy/base.h"
+#include "hwy/status.h"
 
 #if HWY_IS_ASAN || HWY_IS_MSAN || HWY_IS_TSAN
 #include "sanitizer/common_interface_defs.h"  // __sanitizer_print_stack_trace
@@ -31,6 +32,10 @@ std::atomic<AbortFunc>& AtomicAbortFunc() {
   static std::atomic<AbortFunc> func;
   return func;
 }
+
+// Constant-initialized, hence safe to call SetModuleCodeNameFunc from static
+// initializers regardless of TU initialization order.
+std::atomic<Status::CodeNameFunc> g_module_code_names[Status::kNumModules] = {};
 
 std::string GetBaseName(std::string const& file_name) {
   auto last_slash = file_name.find_last_of("/\\");
@@ -62,6 +67,32 @@ HWY_DLLEXPORT WarnFunc SetWarnFunc(WarnFunc func) {
 HWY_DLLEXPORT AbortFunc SetAbortFunc(AbortFunc func) {
   return AtomicAbortFunc().exchange(func);
 }
+
+#if !defined(HWY_HEADER_ONLY)
+HWY_DLLEXPORT Status::CodeNameFunc Status::SetModuleCodeNameFunc(
+    Module module, CodeNameFunc func) {
+  const size_t idx = static_cast<size_t>(module);
+  if (idx >= kNumModules) return nullptr;
+  return g_module_code_names[idx].exchange(func, std::memory_order_acq_rel);
+}
+
+HWY_DLLEXPORT const char* Status::CodeName(Code code) {
+  const char* general = GeneralCodeName(code);
+  if (general != nullptr) return general;
+  const Code id = static_cast<Code>(code & kMaxCode);
+  if (id >= kFirstModuleCode && id < kFirstAppCode) {
+    const size_t idx =
+        static_cast<size_t>(id - kFirstModuleCode) / size_t{kCodesPerModule};
+    const CodeNameFunc func =
+        g_module_code_names[idx].load(std::memory_order_acquire);
+    if (func != nullptr) {
+      const char* name = func(code);
+      if (name != nullptr) return name;
+    }
+  }
+  return "(module/app code)";
+}
+#endif  // !HWY_HEADER_ONLY
 
 HWY_DLLEXPORT void HWY_FORMAT(3, 4)
     Warn(const char* file, int line, const char* format, ...) {
