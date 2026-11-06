@@ -56,6 +56,17 @@
 #include "hwy/bit_set.h"
 #endif
 
+// Whether C++ exceptions are enabled, in which case the `ThreadPool` ctor
+// cleans up if spawning a thread throws.
+#ifndef HWY_POOL_EXCEPTIONS
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || \
+    defined(_CPPUNWIND) || defined(HWY_EXCEPTIONS_ENABLED)
+#define HWY_POOL_EXCEPTIONS 1
+#else
+#define HWY_POOL_EXCEPTIONS 0
+#endif
+#endif  // HWY_POOL_EXCEPTIONS
+
 namespace hwy {
 
 // Sets the name of the current thread to the format string `format`, which must
@@ -1355,16 +1366,31 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
           pool::Config::AllCandidates(mode));
     }
 
-    // Skip empty pools because they do not update stats anyway.
-    if (num_threads_ > 0) {
-      Profiler::Get().AddFunc(this, [this]() { PrintStats(); });
-    }
+#if HWY_POOL_EXCEPTIONS
+    // If spawning a thread throws (e.g. `std::system_error` when the OS limit
+    // is reached), unwinding would destroy joinable `std::thread` and thus
+    // call `std::terminate`. Instead, stop the threads spawned so far.
+    try {
+#endif
+      threads_.reserve(num_threads_);
+      for (size_t thread = 0; thread < num_threads_; ++thread) {
+        threads_.emplace_back(
+            ThreadFunc(workers_[1 + thread], tasks_, shared_, stats_));
+      }
 
-    threads_.reserve(num_threads_);
-    for (size_t thread = 0; thread < num_threads_; ++thread) {
-      threads_.emplace_back(
-          ThreadFunc(workers_[1 + thread], tasks_, shared_, stats_));
+      // Skip empty pools because they do not update stats anyway. Only
+      // registered after all threads are spawned, because `PrintStats` runs
+      // on all workers.
+      if (num_threads_ > 0) {
+        Profiler::Get().AddFunc(this, [this]() { PrintStats(); });
+      }
+#if HWY_POOL_EXCEPTIONS
+    } catch (...) {
+      ExitSpawnedThreads();
+      pool::WorkerLifecycle::Destroy(workers_, num_threads_);
+      throw;
     }
+#endif
 
     // Threads' `Config` defaults to spinning. Change to `kBlock` (see above).
     // This also ensures all threads have started before we return, so that
@@ -1711,6 +1737,39 @@ class alignas(HWY_ALIGNMENT) ThreadPool {
         0, NumWorkers(), shared_.send_config,
         [](HWY_MAYBE_UNUSED uint64_t task, HWY_MAYBE_UNUSED size_t worker) {});
   }
+
+#if HWY_POOL_EXCEPTIONS
+  // Called via `CallWithConfig`. Wakes all worker threads, without a barrier.
+  struct WakeForExit {
+    template <class Spin, class Wait>
+    void operator()(const Spin& /*spin*/, const Wait& wait,
+                    pool::Worker* workers) const {
+      wait.WakeWorkers(workers, workers[0].AdvanceWorkerEpoch());
+    }
+  };
+
+  // Only called if the ctor failed to spawn all threads. Unlike `~ThreadPool`,
+  // we cannot use `Run` because it waits for all `NumWorkers()`. Instead,
+  // requests the already spawned threads to exit, wakes and joins them.
+  void ExitSpawnedThreads() {
+    if (threads_.empty()) return;
+    // No tasks, but `WorkerRun` loads them. Outlives the threads.
+    const auto no_tasks = [](HWY_MAYBE_UNUSED uint64_t task,
+                             HWY_MAYBE_UNUSED size_t worker) {};
+    tasks_.Set(0, 0, no_tasks);
+    for (size_t thread = 0; thread < threads_.size(); ++thread) {
+      // Published by the store-release in `WakeWorkers`.
+      workers_[1 + thread].SetExit(Exit::kThread);
+    }
+    // Threads still use the initial config because `SendConfig` has not been
+    // called yet. Unspawned workers ignore the wake.
+    pool::CallWithConfig(workers_[0].NextConfig(), WakeForExit(), workers_);
+    for (std::thread& thread : threads_) {
+      thread.join();
+    }
+    threads_.clear();
+  }
+#endif  // HWY_POOL_EXCEPTIONS
 
   using AutoTuneT = AutoTune<pool::Config, 30>;
   AutoTuneT& AutoTuner() {
