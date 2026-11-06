@@ -5627,6 +5627,12 @@ HWY_API Vec64<double> operator*(const Vec64<double> a, const Vec64<double> b) {
 #define HWY_NATIVE_MUL_BY_POW2_TOGGLE
 #endif
 
+#ifdef HWY_NATIVE_MUL_BY_FLOOR_POW2_TOGGLE
+#undef HWY_NATIVE_MUL_BY_FLOOR_POW2_TOGGLE
+#else
+#define HWY_NATIVE_MUL_BY_FLOOR_POW2_TOGGLE
+#endif
+
 #if HWY_HAVE_FLOAT16
 template <size_t N>
 HWY_API Vec128<float16_t, N> MulByFloorPow2(Vec128<float16_t, N> a,
