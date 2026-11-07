@@ -344,6 +344,14 @@ class HWY_IO_DLLEXPORT File {
   // non-terminal character devices) and after `Close()`.
   virtual bool IsTerminal() const { return false; }
 
+  // Returns the OS handle (POSIX file descriptor, or Windows `HANDLE` cast to
+  // `intptr_t`) of OS files and standard streams, e.g. to pass it to another
+  // process (such as a sandboxee), which can then call `MaybeOpenHandle`.
+  // The handle remains owned by this `File`. Returns -1 for other `File`s
+  // (e.g. `MemoryFile`, `FileView`, which may cover only part of a file) and
+  // after `Close()`.
+  virtual intptr_t Handle() const { return -1; }
+
   // ---------------------------------------------------------------------------
   // Resizing and preallocation
 

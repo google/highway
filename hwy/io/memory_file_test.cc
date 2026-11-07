@@ -48,6 +48,7 @@ TEST(MemoryFileTest, TestMemoryFileReadWriteMaybeSpanMap) {
   HWY_ASSERT(empty_span.data() != nullptr);
   HWY_ASSERT(empty_span.empty());
   HWY_ASSERT(empty_file.MaybeSpan(0, 1).data() == nullptr);
+  HWY_ASSERT(empty_file.Handle() == -1);  // not an OS file
   HWY_ASSERT(empty_file.MaybeSpan(1, 0).data() == nullptr);
   HWY_ASSERT(empty_file.MaybeSpanForWrite(0, 0).data() == nullptr);
   // Reading past the end of an empty file is kTruncated with 0 bytes read.

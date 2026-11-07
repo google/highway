@@ -352,6 +352,11 @@ class FileWin : public File {
 
   FileCaps Capabilities() const override { return WinFileCaps(); }
 
+  intptr_t Handle() const override {
+    return hFile_ == INVALID_HANDLE_VALUE ? -1
+                                          : reinterpret_cast<intptr_t>(hFile_);
+  }
+
   Status Advise(uint64_t offset, uint64_t size,
                 AccessHint /*hint*/) const override {
     const Status s = CheckOpen();
@@ -947,6 +952,10 @@ class StreamFileWin final : public StreamFile {
     DWORD mode;
     detail::RecordSyscall();
     return GetConsoleMode(handle_, &mode) != 0;
+  }
+
+  intptr_t Handle() const override {
+    return IsClosed() ? -1 : reinterpret_cast<intptr_t>(handle_);
   }
 
  protected:

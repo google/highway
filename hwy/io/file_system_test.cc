@@ -865,6 +865,27 @@ TEST(FileSystemTest, TestOpenFd) {
   HWY_ASSERT(file->MapImmutable(wr_map).Is(IOCode::kWrongMode));
   file.reset();
 
+  // Handle() returns the descriptor, which MaybeOpenHandle accepts (as in a
+  // sandboxee receiving it), and -1 after Close or for non-OS files.
+  {
+    std::unique_ptr<File> owner;
+    HWY_ASSERT(MaybeOpenFile(path, FileMode::kRead, owner).ok());
+    const intptr_t handle = owner->Handle();
+    HWY_ASSERT(handle >= 0);
+    std::unique_ptr<File> borrowed;
+    HWY_ASSERT(MaybeOpenHandle(handle, FileMode::kRead,
+                               HandleOwnership::kBorrow, borrowed)
+                   .ok());
+    HWY_ASSERT(borrowed->Handle() == handle);
+    HWY_ASSERT(borrowed->Read(0, WritableByteSpan(buf, 4)) == Status(4));
+    HWY_ASSERT_ARRAY_EQ(kBytes, buf, 4);
+    HWY_ASSERT(borrowed->Close().ok());
+    HWY_ASSERT(borrowed->Handle() == -1);
+    HWY_ASSERT(IsOpenFd(static_cast<int>(handle)));  // borrowed
+    HWY_ASSERT(owner->Close().ok());
+    HWY_ASSERT(owner->Handle() == -1);
+  }
+
   // Directories are rejected.
   const int dir = open(TempDir().c_str(), O_RDONLY | O_CLOEXEC);
   HWY_ASSERT(dir >= 0);

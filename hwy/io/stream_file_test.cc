@@ -275,9 +275,11 @@ TEST(StreamFileTest, TestStdinStdout) {
   HWY_ASSERT(OpenStdin(file).ok());
   HWY_ASSERT(file->Capabilities().Empty());
   HWY_ASSERT(!file->IsTerminal());  // Pipe.
+  HWY_ASSERT(file->Handle() == STDIN_FILENO);
   const Status read_status = file->Read(0, WritableByteSpan(buf, sizeof(buf)));
   const Status write_status = file->Write(0, ByteSpan(buf, 1));
   HWY_ASSERT(file->Close().ok());  // Does not close STDIN_FILENO.
+  HWY_ASSERT(file->Handle() == -1);
   HWY_ASSERT(dup2(saved_stdin, STDIN_FILENO) == STDIN_FILENO);
   HWY_ASSERT_EQ(0, close(saved_stdin));
   HWY_ASSERT_EQ(0, close(fds[0]));

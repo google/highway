@@ -403,6 +403,8 @@ class FilePosix : public File {
              FileCap::kMapWritable);
   }
 
+  intptr_t Handle() const override { return fd_; }  // -1 after Close
+
   Status Size() const override {
     const Status open_status = CheckOpen();
     if (!open_status.ok()) return open_status;
@@ -1144,6 +1146,8 @@ class StreamFilePosix final : public StreamFile {
     detail::RecordSyscall();
     return isatty(fd_) == 1;
   }
+
+  intptr_t Handle() const override { return IsClosed() ? -1 : fd_; }
 
  protected:
   Status ReadSome(Span<uint8_t> to) const override {
