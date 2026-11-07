@@ -162,6 +162,16 @@ void MapInsertImpl(TreeState* state, BTREE_KEY_T key,
   *out_inserted = res.second;
 }
 
+std::pair<TreeLeaf*, size_t> MapInsertHintImpl(
+    TreeState* state, const TreeLeaf* hint_leaf, size_t hint_slot,
+    BTREE_KEY_T key, BTREE_VALUE_T value, bool assign_if_exists) {
+  TreeEngine tree(state);
+  typename TreeEngine::const_iterator hint(hint_leaf, hint_slot);
+  auto it = assign_if_exists ? tree.insert_or_assign(hint, key, value)
+                             : tree.insert(hint, key, value);
+  return {it.leaf(), it.slot()};
+}
+
 void MapEraseImpl(TreeState* state, BTREE_KEY_T key, size_t* out_erased) {
   TreeEngine tree(state);
   *out_erased = tree.erase(key);
@@ -235,6 +245,7 @@ HWY_EXPORT(MapUpperBoundImpl);
 HWY_EXPORT(MapFindImpl);
 HWY_EXPORT(MapFindValueImpl);
 HWY_EXPORT(MapInsertImpl);
+HWY_EXPORT(MapInsertHintImpl);
 HWY_EXPORT(MapEraseImpl);
 HWY_EXPORT(MapEraseIterImpl);
 
@@ -318,6 +329,14 @@ MapDispatch<BTREE_KEY_T, BTREE_VALUE_T>::Insert(State* state, BTREE_KEY_T key,
   HWY_DYNAMIC_DISPATCH(MapInsertImpl)(state, key, value, assign_if_exists,
                                       &leaf, &slot, &inserted);
   return {{leaf, slot}, inserted};
+}
+
+std::pair<typename MapDispatch<BTREE_KEY_T, BTREE_VALUE_T>::Leaf*, size_t>
+MapDispatch<BTREE_KEY_T, BTREE_VALUE_T>::InsertHint(
+    State* state, const Leaf* hint_leaf, size_t hint_slot, BTREE_KEY_T key,
+    BTREE_VALUE_T value, bool assign_if_exists) {
+  return HWY_DYNAMIC_DISPATCH(MapInsertHintImpl)(state, hint_leaf, hint_slot,
+                                                 key, value, assign_if_exists);
 }
 
 size_t MapDispatch<BTREE_KEY_T, BTREE_VALUE_T>::Erase(State* state,

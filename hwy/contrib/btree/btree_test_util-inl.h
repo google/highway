@@ -2074,6 +2074,180 @@ void DoEraseIteratorTest() {
   }
 }
 
+// Verifies hinted insertions: insert(hint, ...), emplace_hint(hint, ...), and
+// insert_or_assign(hint, ...) across ascending end() hints, chained predecessor
+// hints (it = insert(it, v)), descending begin() hints, intra-leaf hints,
+// inter-leaf midpoint-separator gap hints, duplicate hints, and inaccurate
+// hints.
+template <typename TreeT, typename StdRefT>
+void DoInsertHintTest() {
+  using value_type = typename TreeT::value_type;
+  using key_type = typename TreeT::key_type;
+  using Checker = BTreeChecker<TreeT, StdRefT>;
+  static constexpr bool kIsMap = TreeT::kIsMap;
+
+  const size_t n = HWY_BTREE_SWEEP_ALL ? size_t{50000} : AdjustedReps(2000);
+  const uint64_t sparse_max =
+      (sizeof(key_type) == 4) ? std::min<uint64_t>(n * 100000ULL, 2000000000ULL)
+                              : n * 100000ULL;
+  const std::vector<std::vector<value_type>> datasets = {
+      GenerateValuesWithSeed<value_type>(n, n + n / 4, /*seed=*/5151),
+      GenerateValuesWithSeed<value_type>(n, sparse_max, /*seed=*/5152),
+  };
+
+  for (const auto& raw_values : datasets) {
+    auto sorted = raw_values;
+    SortUniqueValues(sorted);
+
+    // 1. Ascending insert with end() hint + duplicate checks at end().
+    {
+      TreeT tree;
+      StdRefT ref;
+      for (size_t i = 0; i < sorted.size(); ++i) {
+        auto it = tree.insert(tree.end(), sorted[i]);
+        auto ref_it = ref.insert(ref.end(), sorted[i]);
+        VerifyEqualElements(it, ref_it);
+        // Re-inserting the current max with end() hint must hit duplicate path.
+        auto dup_it = tree.insert(tree.end(), sorted[i]);
+        VerifyEqualElements(dup_it, ref_it);
+        HWY_ASSERT_EQ(tree.size(), ref.size());
+      }
+      Checker::VerifyPhysicalTree(tree);
+    }
+
+    // 2. Ascending insert chaining returned iterator (`it = tree.insert(it,
+    // v)`)
+    //    and `emplace_hint`.
+    {
+      TreeT tree;
+      StdRefT ref;
+      auto it = tree.end();
+      auto ref_it = ref.end();
+      for (size_t i = 0; i < sorted.size(); ++i) {
+        if ((i & 1) == 0) {
+          it = tree.insert(it, sorted[i]);
+        } else {
+          if constexpr (kIsMap) {
+            it = tree.emplace_hint(it, sorted[i].first, sorted[i].second);
+          } else {
+            it = tree.emplace_hint(it, sorted[i]);
+          }
+        }
+        ref_it = ref.insert(ref_it, sorted[i]);
+        VerifyEqualElements(it, ref_it);
+        // Duplicate at the exact hinted iterator `it`.
+        auto dup_it = tree.insert(it, sorted[i]);
+        VerifyEqualElements(dup_it, ref_it);
+      }
+      HWY_ASSERT_EQ(tree.size(), ref.size());
+      Checker::VerifyPhysicalTree(tree);
+    }
+
+    // 3. Descending insert with begin() / chained iterator hint.
+    {
+      TreeT tree;
+      StdRefT ref;
+      auto it = tree.begin();
+      auto ref_it = ref.begin();
+      for (size_t i = sorted.size(); i > 0; --i) {
+        it = tree.insert(it, sorted[i - 1]);
+        ref_it = ref.insert(ref_it, sorted[i - 1]);
+        HWY_ASSERT(it == tree.begin());
+        VerifyEqualElements(it, ref_it);
+      }
+      HWY_ASSERT_EQ(tree.size(), ref.size());
+      Checker::VerifyPhysicalTree(tree);
+    }
+
+    // 4. Interleaved intra-leaf, inter-leaf boundary gap, and bad hints.
+    //    First insert every 2nd sorted element, then fill in the odd slots
+    //    using successor (lower_bound), predecessor (prev(lower_bound)), and
+    //    deliberately wrong hints (begin() / end()).
+    {
+      TreeT tree;
+      StdRefT ref;
+      for (size_t i = 0; i < sorted.size(); i += 2) {
+        tree.insert(tree.end(), sorted[i]);
+        ref.insert(ref.end(), sorted[i]);
+      }
+      Checker::VerifyPhysicalTree(tree);
+
+      for (size_t i = 1; i < sorted.size(); i += 2) {
+        const key_type k = ExtractKey(sorted[i]);
+        typename TreeT::const_iterator hint;
+        switch ((i / 2) & 3) {
+          case 0:  // Exact C++11 successor hint (includes slot 0 leaf boundary)
+            hint = tree.lower_bound(k);
+            break;
+          case 1: {  // Predecessor hint (includes slot == count - 1 boundary)
+            auto lb = tree.lower_bound(k);
+            hint = (lb == tree.begin()) ? lb : std::prev(lb);
+            break;
+          }
+          case 2:  // Deliberately inaccurate hint: begin()
+            hint = tree.begin();
+            break;
+          default:  // Deliberately inaccurate hint: end()
+            hint = tree.end();
+            break;
+        }
+        typename TreeT::iterator it;
+        if constexpr (kIsMap) {
+          it = (((i / 2) & 4) == 0)
+                   ? tree.insert(hint, sorted[i])
+                   : tree.insert_or_assign(hint, k, sorted[i].second);
+        } else {
+          it = tree.insert(hint, sorted[i]);
+        }
+        auto ref_it = ref.insert(ref.end(), sorted[i]);
+        VerifyEqualElements(it, ref_it);
+
+        // Verify duplicate detection via successor and predecessor hints.
+        auto next_it = std::next(it);
+        auto dup_via_next = tree.insert(next_it, sorted[i]);
+        VerifyEqualElements(dup_via_next, ref_it);
+        if (it != tree.begin()) {
+          auto prev_it = std::prev(it);
+          auto dup_via_prev = tree.insert(prev_it, sorted[i]);
+          VerifyEqualElements(dup_via_prev, ref_it);
+        }
+
+        if constexpr (kIsMap) {
+          using mapped_type = typename TreeT::mapped_type;
+          const mapped_type updated_val = sorted[0].second;
+          // insert(hint, key, val) must NOT overwrite existing value.
+          auto no_assign_it = tree.insert(it, k, updated_val);
+          VerifyEqualElements(no_assign_it, ref_it);
+          // insert_or_assign(hint, key, val) MUST overwrite existing value
+          // across exact (it), successor (next_it), predecessor (prev_it), and
+          // inaccurate (begin / end) hints.
+          auto assign_it = tree.insert_or_assign(it, k, updated_val);
+          ref[k] = updated_val;
+          VerifyEqualElements(assign_it, ref.find(k));
+
+          assign_it = tree.insert_or_assign(next_it, k, sorted[i].second);
+          ref[k] = sorted[i].second;
+          VerifyEqualElements(assign_it, ref.find(k));
+
+          if (it != tree.begin()) {
+            assign_it =
+                tree.insert_or_assign(std::prev(it), k, sorted[0].second);
+            ref[k] = sorted[0].second;
+            VerifyEqualElements(assign_it, ref.find(k));
+          }
+
+          auto bad_hint = ((i & 2) == 0) ? tree.begin() : tree.end();
+          assign_it = tree.insert_or_assign(bad_hint, k, sorted[i - 1].second);
+          ref[k] = sorted[i - 1].second;
+          VerifyEqualElements(assign_it, ref.find(k));
+        }
+      }
+      HWY_ASSERT_EQ(tree.size(), ref.size());
+      Checker::VerifyPhysicalTree(tree);
+    }
+  }
+}
+
 // Engine-only: moves must transfer contents through an adapter's external
 // state, matching copy-assignment and swap. Not part of RunFullTestSuite
 // because the dynamic-dispatch wrappers (hwy::BTreeSet / hwy::BTreeMap) have no
@@ -2210,6 +2384,7 @@ void RunFullTestSuite() {
   DoSiblingRebalanceTest<TreeT>();
   DoExtremeBoundariesTest<TreeT, StdRefT>();
   DoEraseIteratorTest<TreeT, StdRefT>();
+  DoInsertHintTest<TreeT, StdRefT>();
 
   // Multi-level scale across sorted, rsorted, and random orderings (matching
   // absl::btree_test.cc's BtreeTest()). AdjustedReps ensures ASan/MSan/QEMU

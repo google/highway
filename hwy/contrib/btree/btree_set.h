@@ -55,6 +55,10 @@ struct SetDispatch;
                                                StorageKeyT key);               \
     static std::pair<std::pair<Leaf*, size_t>, bool> Insert(State* state,      \
                                                             StorageKeyT key);  \
+    static std::pair<Leaf*, size_t> InsertHint(State* state,                   \
+                                               const Leaf* hint_leaf,          \
+                                               size_t hint_slot,               \
+                                               StorageKeyT key);               \
     static size_t Erase(State* state, StorageKeyT key);                        \
     static std::pair<Leaf*, size_t> EraseIter(State* state, const Leaf* leaf,  \
                                               size_t slot);                    \
@@ -501,6 +505,18 @@ class BTreeSet {
   template <typename... Args>
   std::pair<iterator, bool> emplace(Args&&... args) {
     return insert(KeyT(std::forward<Args>(args)...));
+  }
+  // Inserts `key` using `hint` as a suggestion for the insertion position.
+  // Returns an iterator to the inserted or existing element. If an insertion
+  // occurs, all other iterators are invalidated.
+  iterator insert(const_iterator hint, KeyT key) {
+    auto res = Dispatch::InsertHint(&state_, hint.leaf(), hint.slot(),
+                                    KeyCodec<KeyT>::ToStorage(key));
+    return iterator(res.first, res.second, state_.last_leaf_);
+  }
+  template <typename... Args>
+  iterator emplace_hint(const_iterator hint, Args&&... args) {
+    return insert(hint, KeyT(std::forward<Args>(args)...));
   }
   // Erases `key` if present. Returns the number of elements erased (0 or 1).
   // If an erasure occurs, all iterators are invalidated.

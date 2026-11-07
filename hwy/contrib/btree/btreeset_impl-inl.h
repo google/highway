@@ -143,6 +143,16 @@ void SetInsertImpl(TreeState* state, BTREE_KEY_T key, TreeLeaf** out_leaf,
   *out_inserted = res.second;
 }
 
+std::pair<TreeLeaf*, size_t> SetInsertHintImpl(TreeState* state,
+                                               const TreeLeaf* hint_leaf,
+                                               size_t hint_slot,
+                                               BTREE_KEY_T key) {
+  TreeEngine tree(state);
+  auto it = tree.insert(
+      typename TreeEngine::const_iterator(hint_leaf, hint_slot), key);
+  return {it.leaf(), it.slot()};
+}
+
 void SetEraseImpl(TreeState* state, BTREE_KEY_T key, size_t* out_erased) {
   TreeEngine tree(state);
   *out_erased = tree.erase(key);
@@ -205,6 +215,7 @@ HWY_EXPORT(SetLowerBoundImpl);
 HWY_EXPORT(SetUpperBoundImpl);
 HWY_EXPORT(SetFindImpl);
 HWY_EXPORT(SetInsertImpl);
+HWY_EXPORT(SetInsertHintImpl);
 HWY_EXPORT(SetEraseImpl);
 HWY_EXPORT(SetEraseIterImpl);
 
@@ -266,6 +277,13 @@ SetDispatch<BTREE_KEY_T>::Insert(State* state, BTREE_KEY_T key) {
   bool inserted = false;
   HWY_DYNAMIC_DISPATCH(SetInsertImpl)(state, key, &leaf, &slot, &inserted);
   return {{leaf, slot}, inserted};
+}
+
+std::pair<typename SetDispatch<BTREE_KEY_T>::Leaf*, size_t>
+SetDispatch<BTREE_KEY_T>::InsertHint(State* state, const Leaf* hint_leaf,
+                                     size_t hint_slot, BTREE_KEY_T key) {
+  return HWY_DYNAMIC_DISPATCH(SetInsertHintImpl)(state, hint_leaf, hint_slot,
+                                                 key);
 }
 
 size_t SetDispatch<BTREE_KEY_T>::Erase(State* state, BTREE_KEY_T key) {

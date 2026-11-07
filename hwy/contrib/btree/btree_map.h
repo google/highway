@@ -64,6 +64,9 @@ struct MapDispatch;
     static std::pair<std::pair<Leaf*, size_t>, bool> Insert(                   \
         State* state, StorageKeyT key, StorageValueT value,                    \
         bool assign_if_exists);                                                \
+    static std::pair<Leaf*, size_t> InsertHint(                                \
+        State* state, const Leaf* hint_leaf, size_t hint_slot,                 \
+        StorageKeyT key, StorageValueT value, bool assign_if_exists);          \
     static size_t Erase(State* state, StorageKeyT key);                        \
     static std::pair<Leaf*, size_t> EraseIter(State* state, const Leaf* leaf,  \
                                               size_t slot);                    \
@@ -621,6 +624,31 @@ class BTreeMap {
                                 /*assign_if_exists=*/true);
     return {iterator(res.first.first, res.first.second, state_.last_leaf_),
             res.second};
+  }
+  // Inserts key and value using `hint` as a suggestion for the insertion
+  // position. Returns an iterator to the inserted or existing element. If an
+  // insertion occurs, all other iterators are invalidated.
+  iterator insert(const_iterator hint, KeyT key, const ValueT& value) {
+    StorageValueT s_val = hwy::BitCastScalar<StorageValueT>(value);
+    auto res = Dispatch::InsertHint(&state_, hint.leaf(), hint.slot(),
+                                    KeyCodec<KeyT>::ToStorage(key), s_val,
+                                    /*assign_if_exists=*/false);
+    return iterator(res.first, res.second, state_.last_leaf_);
+  }
+  iterator insert(const_iterator hint, const value_type& kv) {
+    return insert(hint, kv.first, kv.second);
+  }
+  template <typename... Args>
+  iterator emplace_hint(const_iterator hint, KeyT key, Args&&... args) {
+    return insert(hint, key, ValueT(std::forward<Args>(args)...));
+  }
+  iterator insert_or_assign(const_iterator hint, KeyT key,
+                            const ValueT& value) {
+    StorageValueT s_val = hwy::BitCastScalar<StorageValueT>(value);
+    auto res = Dispatch::InsertHint(&state_, hint.leaf(), hint.slot(),
+                                    KeyCodec<KeyT>::ToStorage(key), s_val,
+                                    /*assign_if_exists=*/true);
+    return iterator(res.first, res.second, state_.last_leaf_);
   }
   // Erases `key` if present. Returns the number of elements erased (0 or 1).
   // If an erasure occurs, all iterators are invalidated.

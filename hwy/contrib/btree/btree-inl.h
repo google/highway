@@ -2756,6 +2756,60 @@ class BTree {
     return insert(KeyT(std::forward<Args>(args)...));
   }
 
+  // Inserts a key into the Set using `hint` as a suggestion for the insertion
+  // position. Returns an iterator to the inserted or existing element.
+  template <bool IsMap = Traits::kIsMap, typename = std::enable_if_t<!IsMap>>
+  iterator insert(const_iterator hint, KeyT key) {
+    return InsertHintSetInternal(hint, KeyCodec<KeyT>::ToStorage(key));
+  }
+
+  // Inserts a key-value pair into the Map using `hint` as a suggestion for the
+  // insertion position. Returns an iterator to the inserted or existing
+  // element.
+  template <typename V = mapped_type,
+            typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
+  iterator insert(const_iterator hint, const std::pair<KeyT, V>& kv) {
+    return InsertHintMapInternal(hint, KeyCodec<KeyT>::ToStorage(kv.first),
+                                 static_cast<mapped_type>(kv.second),
+                                 /*assign_if_exists=*/false);
+  }
+
+  // Inserts a key and value into the Map using `hint` as a suggestion for the
+  // insertion position. Returns an iterator to the inserted or existing
+  // element.
+  template <typename V = mapped_type,
+            typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
+  iterator insert(const_iterator hint, KeyT key, const V& value) {
+    return InsertHintMapInternal(hint, KeyCodec<KeyT>::ToStorage(key),
+                                 static_cast<mapped_type>(value),
+                                 /*assign_if_exists=*/false);
+  }
+
+  // Inserts a key-value pair or updates an existing key's value using `hint`
+  // as a suggestion for the insertion position.
+  template <typename V = mapped_type,
+            typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
+  iterator insert_or_assign(const_iterator hint, KeyT key, const V& value) {
+    return InsertHintMapInternal(hint, KeyCodec<KeyT>::ToStorage(key),
+                                 static_cast<mapped_type>(value),
+                                 /*assign_if_exists=*/true);
+  }
+
+  // Emplaces a key-value pair into the Map using `hint` (does not overwrite if
+  // key exists).
+  template <typename V = mapped_type, typename... Args,
+            typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
+  iterator emplace_hint(const_iterator hint, KeyT key, Args&&... args) {
+    return insert(hint, key, V(std::forward<Args>(args)...));
+  }
+
+  // Emplaces a key into the Set using `hint`.
+  template <typename... Args, bool IsMap = Traits::kIsMap,
+            typename = std::enable_if_t<!IsMap>>
+  iterator emplace_hint(const_iterator hint, Args&&... args) {
+    return insert(hint, KeyT(std::forward<Args>(args)...));
+  }
+
   // Subscript operator for Map: inserts default value if key not present.
   template <typename V = mapped_type,
             typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
@@ -3367,6 +3421,139 @@ class BTree {
     return 1;
   }
 
+  // Validates `hint` in O(1) by checking if `key` fits immediately to the left
+  // or right of the hinted slot.
+  HWY_INLINE bool CheckInsertHint(const_iterator hint, StorageKeyT key,
+                                  Leaf** HWY_RESTRICT out_leaf,
+                                  size_t* HWY_RESTRICT out_slot,
+                                  bool* HWY_RESTRICT out_duplicate) {
+    if (HWY_UNLIKELY(state_->root_ == nullptr)) return false;
+
+    Leaf* leaf = const_cast<Leaf*>(hint.leaf());
+    size_t h_slot = hint.slot();
+    // end() has leaf == nullptr; normalize it to the last element in the tree
+    // so appending at end() is simply inserting to the right of h_slot.
+    if (leaf == nullptr) {
+      leaf = state_->last_leaf_;
+      h_slot = leaf->NumKeys() - 1;
+    }
+
+    const size_t count = leaf->NumKeys();
+    HWY_DASSERT(h_slot < count);
+    const StorageKeyT hint_key = GetLeafKey(leaf, h_slot);
+
+    if (HWY_UNLIKELY(key == hint_key)) {
+      *out_leaf = leaf;
+      *out_slot = h_slot;
+      *out_duplicate = true;
+      return true;
+    }
+
+    // Check left of h_slot: does `key` go immediately before `h_slot`?
+    if (key < hint_key) {
+      if (HWY_LIKELY(h_slot > 0)) {
+        const StorageKeyT prev_key = GetLeafKey(leaf, h_slot - 1);
+        if (HWY_LIKELY(prev_key < key)) {
+          *out_leaf = leaf;
+          *out_slot = h_slot;
+          *out_duplicate = false;
+          return true;
+        }
+        if (prev_key == key) {
+          *out_leaf = leaf;
+          *out_slot = h_slot - 1;
+          *out_duplicate = true;
+          return true;
+        }
+        return false;
+      }
+      // Why h_slot == 0 requires checking `leaf == state_->first_leaf_`:
+      // Between any two adjacent leaves (prev_leaf, curr_leaf), the parent
+      // internal node stores a midpoint separator key `sep` in
+      // (prev_max, curr_min] (see GapMidpointSeparator): keys < sep route to
+      // prev_leaf, while keys >= sep route to curr_leaf. Because leaves do not
+      // have parent pointers, a hinted insert cannot see `sep` to decide which
+      // leaf a key in the gap (prev_max, curr_min) belongs to.
+      // When `leaf == state_->first_leaf_`, there is no prev_leaf (and no
+      // separator to the left), so `key` unconditionally goes at slot 0.
+      if (leaf == state_->first_leaf_) {
+        *out_leaf = leaf;
+        *out_slot = 0;
+        *out_duplicate = false;
+        return true;
+      }
+      return false;
+    }
+
+    // Check right of h_slot: does `key` go immediately after `h_slot`?
+    if (HWY_LIKELY(h_slot + 1 < count)) {
+      const StorageKeyT next_key = GetLeafKey(leaf, h_slot + 1);
+      if (HWY_LIKELY(key < next_key)) {
+        *out_leaf = leaf;
+        *out_slot = h_slot + 1;
+        *out_duplicate = false;
+        return true;
+      }
+      if (key == next_key) {
+        *out_leaf = leaf;
+        *out_slot = h_slot + 1;
+        *out_duplicate = true;
+        return true;
+      }
+      return false;
+    }
+    // Same midpoint separator constraint at the right boundary (h_slot ==
+    // count - 1): only safe without a root walkdown if `leaf == last_leaf_`
+    // (no next_leaf to the right).
+    if (leaf == state_->last_leaf_) {
+      *out_leaf = leaf;
+      *out_slot = count;
+      *out_duplicate = false;
+      return true;
+    }
+    return false;
+  }
+
+  // Attempts an in-place leaf insertion at `slot` via Tier 1 (no recompression)
+  // or Tier 2 (mode widening) (Set). Returns true if inserted, or false if the
+  // leaf is full and requires rebalancing or splitting (Tier 2.5 / Tier 3).
+  HWY_INLINE bool TryInsertInPlace(Leaf* leaf, size_t slot, StorageKeyT key) {
+    // Tier 1: Fast-path in-place insert without recompression
+    if (HWY_LIKELY(TryFastInsertIntoLeaf<Traits>(leaf, key, slot))) {
+      state_->num_elements_++;
+      return true;
+    }
+    // Tier 2: Slow-path mode widening (upgrades compression mode if leaf has
+    // capacity)
+    if (CanLeafFitInsert(leaf, key)) {
+      InsertIntoLeaf(leaf, key);
+      state_->num_elements_++;
+      return true;
+    }
+    return false;
+  }
+
+  // Attempts an in-place leaf insertion at `slot` via Tier 1 (no recompression)
+  // or Tier 2 (mode widening) (Map). Returns true if inserted, or false if the
+  // leaf is full and requires rebalancing or splitting (Tier 2.5 / Tier 3).
+  template <typename V>
+  HWY_INLINE bool TryInsertInPlace(Leaf* leaf, size_t slot, StorageKeyT key,
+                                   const V& value) {
+    // Tier 1: Fast-path in-place insert without recompression
+    if (HWY_LIKELY(TryFastInsertIntoLeaf<Traits>(leaf, key, value, slot))) {
+      state_->num_elements_++;
+      return true;
+    }
+    // Tier 2: Slow-path mode widening (upgrades compression mode if leaf has
+    // capacity)
+    if (CanLeafFitInsert(leaf, key)) {
+      InsertIntoLeaf(leaf, key, value);
+      state_->num_elements_++;
+      return true;
+    }
+    return false;
+  }
+
   std::pair<iterator, bool> InsertSetInternal(StorageKeyT key) {
     // Handle empty tree initialization
     if (HWY_UNLIKELY(state_->root_ == nullptr)) {
@@ -3388,18 +3575,9 @@ class BTree {
         return {iterator(leaf, slot, state_->last_leaf_), false};
       }
 
-      // Tier 1: Fast-path in-place insert without recompression
-      if (HWY_LIKELY(TryFastInsertIntoLeaf<Traits>(leaf, key, slot))) {
-        state_->num_elements_++;
+      // Tier 1 & Tier 2: In-place insert (fast path or mode widening)
+      if (HWY_LIKELY(TryInsertInPlace(leaf, slot, key))) {
         return {iterator(leaf, slot, state_->last_leaf_), true};
-      }
-
-      // Tier 2: Slow-path mode widening (upgrades compression mode if leaf has
-      // capacity)
-      if (CanLeafFitInsert(leaf, key)) {
-        InsertIntoLeaf(leaf, key);
-        state_->num_elements_++;
-        return {FindInternal(key), true};
       }
 
       // Tier 3: Root leaf split (allocates new leaf and creates root internal
@@ -3451,18 +3629,9 @@ class BTree {
       return {iterator(leaf, slot, state_->last_leaf_), false};
     }
 
-    // Tier 1: Fast-path in-place insert without recompression
-    if (HWY_LIKELY(TryFastInsertIntoLeaf<Traits>(leaf, key, slot))) {
-      state_->num_elements_++;
+    // Tier 1 & Tier 2: In-place insert (fast path or mode widening)
+    if (HWY_LIKELY(TryInsertInPlace(leaf, slot, key))) {
       return {iterator(leaf, slot, state_->last_leaf_), true};
-    }
-
-    // Tier 2: Slow-path mode widening (upgrades compression mode if leaf has
-    // capacity)
-    if (CanLeafFitInsert(leaf, key)) {
-      InsertIntoLeaf(leaf, key);
-      state_->num_elements_++;
-      return {FindInternal(key), true};
     }
 
     // Tier 2.5: Spill/rebalance with adjacent sibling before splitting
@@ -3495,6 +3664,21 @@ class BTree {
     return {FindInternal(key), true};
   }
 
+  iterator InsertHintSetInternal(const_iterator hint, StorageKeyT key) {
+    Leaf* leaf = nullptr;
+    size_t slot = 0;
+    bool duplicate = false;
+    if (HWY_LIKELY(CheckInsertHint(hint, key, &leaf, &slot, &duplicate))) {
+      if (HWY_UNLIKELY(duplicate)) {
+        return iterator(leaf, slot, state_->last_leaf_);
+      }
+      if (HWY_LIKELY(TryInsertInPlace(leaf, slot, key))) {
+        return iterator(leaf, slot, state_->last_leaf_);
+      }
+    }
+    return InsertSetInternal(key).first;
+  }
+
   template <typename V>
   std::pair<iterator, bool> InsertMapInternal(StorageKeyT key, const V& value,
                                               bool assign_if_exists) {
@@ -3521,18 +3705,9 @@ class BTree {
         return {iterator(leaf, slot, state_->last_leaf_), false};
       }
 
-      // Tier 1: Fast-path in-place insert without recompression
-      if (HWY_LIKELY(TryFastInsertIntoLeaf<Traits>(leaf, key, value, slot))) {
-        state_->num_elements_++;
+      // Tier 1 & Tier 2: In-place insert (fast path or mode widening)
+      if (HWY_LIKELY(TryInsertInPlace(leaf, slot, key, value))) {
         return {iterator(leaf, slot, state_->last_leaf_), true};
-      }
-
-      // Tier 2: Slow-path mode widening (upgrades compression mode if leaf has
-      // capacity)
-      if (CanLeafFitInsert(leaf, key)) {
-        InsertIntoLeaf(leaf, key, value);
-        state_->num_elements_++;
-        return {FindInternal(key), true};
       }
 
       // Tier 3: Root leaf split (allocates new leaf and creates root internal
@@ -3587,18 +3762,9 @@ class BTree {
       return {iterator(leaf, slot, state_->last_leaf_), false};
     }
 
-    // Tier 1: Fast-path in-place insert without recompression
-    if (HWY_LIKELY(TryFastInsertIntoLeaf<Traits>(leaf, key, value, slot))) {
-      state_->num_elements_++;
+    // Tier 1 & Tier 2: In-place insert (fast path or mode widening)
+    if (HWY_LIKELY(TryInsertInPlace(leaf, slot, key, value))) {
       return {iterator(leaf, slot, state_->last_leaf_), true};
-    }
-
-    // Tier 2: Slow-path mode widening (upgrades compression mode if leaf has
-    // capacity)
-    if (CanLeafFitInsert(leaf, key)) {
-      InsertIntoLeaf(leaf, key, value);
-      state_->num_elements_++;
-      return {FindInternal(key), true};
     }
 
     // Tier 2.5: Spill/rebalance with adjacent sibling before splitting
@@ -3629,6 +3795,26 @@ class BTree {
     PropagateSplit(promo_key, new_leaf, path, child_indices);
 
     return {FindInternal(key), true};
+  }
+
+  template <typename V>
+  iterator InsertHintMapInternal(const_iterator hint, StorageKeyT key,
+                                 const V& value, bool assign_if_exists) {
+    Leaf* leaf = nullptr;
+    size_t slot = 0;
+    bool duplicate = false;
+    if (HWY_LIKELY(CheckInsertHint(hint, key, &leaf, &slot, &duplicate))) {
+      if (HWY_UNLIKELY(duplicate)) {
+        if (assign_if_exists) {
+          leaf->Values()[slot] = value;
+        }
+        return iterator(leaf, slot, state_->last_leaf_);
+      }
+      if (HWY_LIKELY(TryInsertInPlace(leaf, slot, key, value))) {
+        return iterator(leaf, slot, state_->last_leaf_);
+      }
+    }
+    return InsertMapInternal(key, value, assign_if_exists).first;
   }
 
   template <typename V>
