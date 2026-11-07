@@ -1,8 +1,10 @@
 name: docs_pages_workflow
 
-# execute this workflow automatically when a we push to master
+# execute this workflow automatically when we push to master
 on:
   push:
+    branches:
+      - master
 permissions:
   contents: write
   pages: write
