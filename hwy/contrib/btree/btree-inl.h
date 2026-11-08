@@ -819,17 +819,13 @@ HWY_INLINE bool CanLeafFitInsert(const LeafNode* leaf, KeyT new_key) {
 }
 
 // Decompresses all existing leaf keys into the caller-provided out_keys buffer,
-// inserts new_key into out_keys at its sorted position, and returns the new
-// key count.
+// inserts new_key into out_keys at `slot`, and returns the new key count.
 template <typename KeyT>
 HWY_INLINE size_t DecompressAndInsertKey(const LeafNode<KeyT>* leaf,
-                                         KeyT new_key, KeyT* out_keys) {
+                                         size_t slot, KeyT new_key,
+                                         KeyT* out_keys) {
   DecompressLeaf(leaf, out_keys);
   const size_t count = leaf->NumKeys();
-  size_t slot = 0;
-  while (slot < count && out_keys[slot] < new_key) {
-    slot++;
-  }
   if (count > slot) {
     // Shifts existing keys right to open up slot for new_key.
     std::memmove(out_keys + slot + 1, out_keys + slot,
@@ -840,18 +836,14 @@ HWY_INLINE size_t DecompressAndInsertKey(const LeafNode<KeyT>* leaf,
 }
 
 // Decompresses all existing pairs from a map leaf into caller-provided out_keys
-// and out_values buffers, inserts (new_key, new_value) in sorted order, and
-// returns the new count.
+// and out_values buffers, inserts (new_key, new_value) at `slot`, and returns
+// the new count.
 template <typename KeyT, typename ValueT>
 HWY_INLINE size_t DecompressAndInsertMapPair(
-    const MapLeafNode<KeyT, ValueT>* leaf, KeyT new_key,
+    const MapLeafNode<KeyT, ValueT>* leaf, size_t slot, KeyT new_key,
     const ValueT& new_value, KeyT* out_keys, ValueT* out_values) {
   DecompressLeaf(leaf, out_keys, out_values);
   const size_t count = leaf->NumKeys();
-  size_t slot = 0;
-  while (slot < count && out_keys[slot] < new_key) {
-    slot++;
-  }
   // Shifts existing keys and values right to open up slot for the new pair.
   std::memmove(out_keys + slot + 1, out_keys + slot,
                (count - slot) * sizeof(KeyT));
@@ -862,33 +854,34 @@ HWY_INLINE size_t DecompressAndInsertMapPair(
   return count + 1;
 }
 
-// Decompresses a leaf, inserts the new key in sorted order, and recompresses
-// the leaf (Set).
+// Decompresses a leaf, inserts the new key at `slot`, and recompresses the
+// leaf (Set).
 template <typename KeyT>
-HWY_INLINE void InsertIntoLeaf(LeafNode<KeyT>* leaf, KeyT new_key) {
+HWY_INLINE void InsertIntoLeaf(LeafNode<KeyT>* leaf, size_t slot,
+                               KeyT new_key) {
   // Temporary scratch buffer on the stack to hold decompressed keys.
   KeyT temp[512];
 
-  // Decompress existing keys and insert new_key in sorted order.
-  const size_t new_count = DecompressAndInsertKey(leaf, new_key, temp);
+  // Decompress existing keys and insert new_key at `slot`.
+  const size_t new_count = DecompressAndInsertKey(leaf, slot, new_key, temp);
 
   // Recompress the sorted array back into the leaf node.
   CompressIntoLeaf(leaf, temp, new_count);
 }
 
-// Decompresses a leaf, inserts the new key-value pair in sorted order, and
+// Decompresses a leaf, inserts the new key-value pair at `slot`, and
 // recompresses the leaf (Map).
 template <typename KeyT, typename ValueT>
-HWY_INLINE void InsertIntoLeaf(MapLeafNode<KeyT, ValueT>* leaf, KeyT new_key,
-                               const ValueT& new_value) {
+HWY_INLINE void InsertIntoLeaf(MapLeafNode<KeyT, ValueT>* leaf, size_t slot,
+                               KeyT new_key, const ValueT& new_value) {
   // Temporary scratch buffers on the stack to hold decompressed keys and
   // values.
   KeyT temp_keys[512];
   ValueT temp_values[512];
 
-  // Decompress existing pairs and insert (new_key, new_val) in sorted order.
-  const size_t new_count = DecompressAndInsertMapPair(leaf, new_key, new_value,
-                                                      temp_keys, temp_values);
+  // Decompress existing pairs and insert (new_key, new_val) at `slot`.
+  const size_t new_count = DecompressAndInsertMapPair(
+      leaf, slot, new_key, new_value, temp_keys, temp_values);
 
   // Recompress the sorted arrays back into the leaf node.
   CompressIntoLeaf(leaf, temp_keys, temp_values, new_count);
@@ -1311,18 +1304,17 @@ HWY_INLINE KeyT GapMidpointSeparator(KeyT left_max, KeyT right_min) {
   return static_cast<KeyT>(left_max + (gap / 2) + (gap & 1));
 }
 
-// Splits a full leaf plus a new key into two balanced leaves and returns the
-// separator key (Set).
+// Splits a full leaf plus a new key at `slot` into two balanced leaves and
+// returns the separator key (Set).
 template <typename KeyT>
-void SplitLeafNode(LeafNode<KeyT>* leaf, LeafNode<KeyT>* new_leaf, KeyT new_key,
-                   KeyT* out_promo_key) {
+void SplitLeafNode(LeafNode<KeyT>* leaf, LeafNode<KeyT>* new_leaf, size_t slot,
+                   KeyT new_key, KeyT* out_promo_key) {
   using Leaf = LeafNode<KeyT>;
   // Stack storage to avoid heap allocation.
   KeyT temp[512];
 
-  // Decompress all existing keys from leaf and insert new_key in sorted
-  // order.
-  const size_t total = DecompressAndInsertKey(leaf, new_key, temp);
+  // Decompress all existing keys from leaf and insert new_key at `slot`.
+  const size_t total = DecompressAndInsertKey(leaf, slot, new_key, temp);
 
   // Position-biased split (inspired by absl::btree, but restricted to tree
   // boundaries to avoid creating underfilled interior leaves on random
@@ -1379,21 +1371,21 @@ void SplitLeafNode(LeafNode<KeyT>* leaf, LeafNode<KeyT>* new_leaf, KeyT new_key,
       GapMidpointSeparator(temp[split_point - 1], temp[split_point]);
 }
 
-// Splits a full leaf plus a new key/value pair into two balanced leaves and
-// returns the separator key (Map).
+// Splits a full leaf plus a new key/value pair at `slot` into two balanced
+// leaves and returns the separator key (Map).
 template <typename KeyT, typename ValueT>
 void SplitLeafNode(MapLeafNode<KeyT, ValueT>* leaf,
-                   MapLeafNode<KeyT, ValueT>* new_leaf, KeyT new_key,
-                   const ValueT& new_value, KeyT* out_promo_key) {
+                   MapLeafNode<KeyT, ValueT>* new_leaf, size_t slot,
+                   KeyT new_key, const ValueT& new_value, KeyT* out_promo_key) {
   using Leaf = MapLeafNode<KeyT, ValueT>;
   // Stack storage to avoid heap allocation.
   KeyT temp_keys[512];
   ValueT temp_values[512];
 
-  // Decompress all existing pairs from leaf and insert (new_key, new_value) in
-  // sorted order.
-  const size_t total = DecompressAndInsertMapPair(leaf, new_key, new_value,
-                                                  temp_keys, temp_values);
+  // Decompress all existing pairs from leaf and insert (new_key, new_value) at
+  // `slot`.
+  const size_t total = DecompressAndInsertMapPair(
+      leaf, slot, new_key, new_value, temp_keys, temp_values);
 
   // Position-biased split (inspired by absl::btree, but restricted to tree
   // boundaries to avoid creating underfilled interior leaves on random
@@ -1562,11 +1554,12 @@ HWY_INLINE size_t CalculateRebalanceSplitPoint(const KeyT* keys, size_t total,
 
 // Redistributes keys between the two adjacent leaves parent->children[sep_idx]
 // and parent->children[sep_idx + 1], one of which is `parent->children[c_idx]`,
-// the leaf new_key was initially routed to, and inserts new_key (Set). Returns
-// false, leaving both leaves unchanged, if no cut lets both leaves fit.
+// the leaf new_key was initially routed to, and inserts new_key at `slot`
+// within that leaf (Set). Returns false, leaving both leaves unchanged, if no
+// cut lets both leaves fit.
 template <typename KeyT>
 bool TryRebalanceAdjacentLeaves(InternalNode<KeyT>* parent, size_t c_idx,
-                                size_t sep_idx, KeyT new_key) {
+                                size_t sep_idx, size_t slot, KeyT new_key) {
   using Leaf = LeafNode<KeyT>;
   auto* l_leaf = static_cast<Leaf*>(parent->children[sep_idx]);
   auto* r_leaf = static_cast<Leaf*>(parent->children[sep_idx + 1]);
@@ -1577,9 +1570,9 @@ bool TryRebalanceAdjacentLeaves(InternalNode<KeyT>* parent, size_t c_idx,
   KeyT temp[2 * kMaxLiveLeafKeys<Leaf> + 1];
   if (sep_idx == c_idx - 1) {
     DecompressLeaf(l_leaf, temp);
-    DecompressAndInsertKey(r_leaf, new_key, temp + l_count);
+    DecompressAndInsertKey(r_leaf, slot, new_key, temp + l_count);
   } else {
-    const size_t new_l = DecompressAndInsertKey(l_leaf, new_key, temp);
+    const size_t new_l = DecompressAndInsertKey(l_leaf, slot, new_key, temp);
     DecompressLeaf(r_leaf, temp + new_l);
   }
 
@@ -1617,11 +1610,11 @@ bool TryRebalanceAdjacentLeaves(InternalNode<KeyT>* parent, size_t c_idx,
 
 // Map counterpart of TryRebalanceAdjacentLeaves above: redistributes key-value
 // pairs between parent->children[sep_idx] and parent->children[sep_idx + 1]
-// and inserts (new_key, new_value). Returns false, leaving both leaves
-// unchanged, if no cut lets both leaves fit.
+// and inserts (new_key, new_value) at `slot` within `parent->children[c_idx]`.
+// Returns false, leaving both leaves unchanged, if no cut lets both leaves fit.
 template <typename KeyT, typename ValueT>
 bool TryRebalanceAdjacentLeaves(InternalNode<KeyT>* parent, size_t c_idx,
-                                size_t sep_idx, KeyT new_key,
+                                size_t sep_idx, size_t slot, KeyT new_key,
                                 const ValueT& new_value) {
   using Leaf = MapLeafNode<KeyT, ValueT>;
   auto* l_leaf = static_cast<Leaf*>(parent->children[sep_idx]);
@@ -1634,11 +1627,11 @@ bool TryRebalanceAdjacentLeaves(InternalNode<KeyT>* parent, size_t c_idx,
   ValueT temp_values[2 * kMaxLiveLeafKeys<Leaf> + 1];
   if (sep_idx == c_idx - 1) {
     DecompressLeaf(l_leaf, temp_keys, temp_values);
-    DecompressAndInsertMapPair(r_leaf, new_key, new_value, temp_keys + l_count,
-                               temp_values + l_count);
+    DecompressAndInsertMapPair(r_leaf, slot, new_key, new_value,
+                               temp_keys + l_count, temp_values + l_count);
   } else {
-    const size_t new_l = DecompressAndInsertMapPair(l_leaf, new_key, new_value,
-                                                    temp_keys, temp_values);
+    const size_t new_l = DecompressAndInsertMapPair(
+        l_leaf, slot, new_key, new_value, temp_keys, temp_values);
     DecompressLeaf(r_leaf, temp_keys + new_l, temp_values + new_l);
   }
 
@@ -1678,11 +1671,12 @@ bool TryRebalanceAdjacentLeaves(InternalNode<KeyT>* parent, size_t c_idx,
 // Attempts to redistribute keys between `leaf` (at `parent->children[c_idx]`),
 // which cannot absorb `new_key` in any compression mode (it is at capacity, or
 // `new_key` would widen its span into a mode with too few slots), and an
-// adjacent sibling in `parent`, so that `new_key` fits without allocating a new
-// leaf node (Set). Returns false if no sibling can take enough keys.
+// adjacent sibling in `parent`, so that `new_key` (at `slot` in `leaf`) fits
+// without allocating a new leaf node (Set). Returns false if no sibling can
+// take enough keys.
 template <typename KeyT>
 bool TryRebalanceLeafOnInsert(InternalNode<KeyT>* parent, size_t c_idx,
-                              LeafNode<KeyT>* leaf, KeyT new_key) {
+                              LeafNode<KeyT>* leaf, size_t slot, KeyT new_key) {
   using Leaf = LeafNode<KeyT>;
   // Try the left sibling first, then the right one, similar to
   // absl::btree::rebalance_or_split. If the left attempt is rejected by the
@@ -1690,36 +1684,37 @@ bool TryRebalanceLeafOnInsert(InternalNode<KeyT>* parent, size_t c_idx,
   if (c_idx > 0 &&
       CanRebalanceLeaves(static_cast<Leaf*>(parent->children[c_idx - 1]),
                          leaf) &&
-      TryRebalanceAdjacentLeaves(parent, c_idx, c_idx - 1, new_key)) {
+      TryRebalanceAdjacentLeaves(parent, c_idx, c_idx - 1, slot, new_key)) {
     return true;
   }
   return c_idx + 1 <= parent->num_keys &&
          CanRebalanceLeaves(leaf,
                             static_cast<Leaf*>(parent->children[c_idx + 1])) &&
-         TryRebalanceAdjacentLeaves(parent, c_idx, c_idx, new_key);
+         TryRebalanceAdjacentLeaves(parent, c_idx, c_idx, slot, new_key);
 }
 
 // Map counterpart of the Set TryRebalanceLeafOnInsert: redistributes key-value
 // pairs between `leaf` (which cannot absorb `new_key` in any compression mode)
-// and an adjacent sibling in `parent` so that `(new_key, new_value)` fits
-// without allocating a new leaf node. Returns false if no sibling can take
-// enough keys.
+// and an adjacent sibling in `parent` so that `(new_key, new_value)` (at `slot`
+// in `leaf`) fits without allocating a new leaf node. Returns false if no
+// sibling can take enough keys.
 template <typename KeyT, typename ValueT>
 bool TryRebalanceLeafOnInsert(InternalNode<KeyT>* parent, size_t c_idx,
-                              MapLeafNode<KeyT, ValueT>* leaf, KeyT new_key,
-                              const ValueT& new_value) {
+                              MapLeafNode<KeyT, ValueT>* leaf, size_t slot,
+                              KeyT new_key, const ValueT& new_value) {
   using Leaf = MapLeafNode<KeyT, ValueT>;
   if (c_idx > 0 &&
       CanRebalanceLeaves(static_cast<Leaf*>(parent->children[c_idx - 1]),
                          leaf) &&
-      TryRebalanceAdjacentLeaves(parent, c_idx, c_idx - 1, new_key,
+      TryRebalanceAdjacentLeaves(parent, c_idx, c_idx - 1, slot, new_key,
                                  new_value)) {
     return true;
   }
   return c_idx + 1 <= parent->num_keys &&
          CanRebalanceLeaves(leaf,
                             static_cast<Leaf*>(parent->children[c_idx + 1])) &&
-         TryRebalanceAdjacentLeaves(parent, c_idx, c_idx, new_key, new_value);
+         TryRebalanceAdjacentLeaves(parent, c_idx, c_idx, slot, new_key,
+                                    new_value);
 }
 
 // Returns true if two adjacent leaves can merge without exceeding leaf
@@ -3526,7 +3521,7 @@ class BTree {
     // Tier 2: Slow-path mode widening (upgrades compression mode if leaf has
     // capacity)
     if (CanLeafFitInsert(leaf, key)) {
-      InsertIntoLeaf(leaf, key);
+      InsertIntoLeaf(leaf, slot, key);
       state_->num_elements_++;
       return true;
     }
@@ -3547,7 +3542,7 @@ class BTree {
     // Tier 2: Slow-path mode widening (upgrades compression mode if leaf has
     // capacity)
     if (CanLeafFitInsert(leaf, key)) {
-      InsertIntoLeaf(leaf, key, value);
+      InsertIntoLeaf(leaf, slot, key, value);
       state_->num_elements_++;
       return true;
     }
@@ -3585,7 +3580,7 @@ class BTree {
       auto* new_leaf = new Leaf();
       state_->num_leaves_++;
       StorageKeyT promo_key = 0;
-      SplitLeafNode(leaf, new_leaf, key, &promo_key);
+      SplitLeafNode(leaf, new_leaf, slot, key, &promo_key);
 
       new_leaf->SetNext(leaf->Next());
       new_leaf->SetPrev(leaf);
@@ -3635,7 +3630,7 @@ class BTree {
     }
 
     // Tier 2.5: Spill/rebalance with adjacent sibling before splitting
-    if (TryRebalanceLeafOnInsert(path[1], child_indices[1], leaf, key)) {
+    if (TryRebalanceLeafOnInsert(path[1], child_indices[1], leaf, slot, key)) {
       state_->num_elements_++;
       return {FindInternal(key), true};
     }
@@ -3646,7 +3641,7 @@ class BTree {
     auto* new_leaf = new Leaf();
     state_->num_leaves_++;
     StorageKeyT promo_key = 0;
-    SplitLeafNode(leaf, new_leaf, key, &promo_key);
+    SplitLeafNode(leaf, new_leaf, slot, key, &promo_key);
 
     new_leaf->SetNext(leaf->Next());
     new_leaf->SetPrev(leaf);
@@ -3715,7 +3710,7 @@ class BTree {
       auto* new_leaf = new Leaf();
       state_->num_leaves_++;
       StorageKeyT promo_key = 0;
-      SplitLeafNode(leaf, new_leaf, key, value, &promo_key);
+      SplitLeafNode(leaf, new_leaf, slot, key, value, &promo_key);
 
       new_leaf->SetNext(leaf->Next());
       new_leaf->SetPrev(leaf);
@@ -3768,7 +3763,8 @@ class BTree {
     }
 
     // Tier 2.5: Spill/rebalance with adjacent sibling before splitting
-    if (TryRebalanceLeafOnInsert(path[1], child_indices[1], leaf, key, value)) {
+    if (TryRebalanceLeafOnInsert(path[1], child_indices[1], leaf, slot, key,
+                                 value)) {
       state_->num_elements_++;
       return {FindInternal(key), true};
     }
@@ -3779,7 +3775,7 @@ class BTree {
     auto* new_leaf = new Leaf();
     state_->num_leaves_++;
     StorageKeyT promo_key = 0;
-    SplitLeafNode(leaf, new_leaf, key, value, &promo_key);
+    SplitLeafNode(leaf, new_leaf, slot, key, value, &promo_key);
 
     new_leaf->SetNext(leaf->Next());
     new_leaf->SetPrev(leaf);
