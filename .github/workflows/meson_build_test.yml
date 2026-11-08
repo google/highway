@@ -1,9 +1,13 @@
 permissions: read-all
 name: Meson build / test
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - master
+  pull_request:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 env:
   meson_setup_args: -Dwarning_level=2 -Dbuildtype=debugoptimized -Dgtest:cpp_eh=default
 
