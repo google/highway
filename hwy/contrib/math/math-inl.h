@@ -1629,8 +1629,8 @@ HWY_INLINE void SinCos3(D d, TFromD<D> dp1, TFromD<D> dp2, TFromD<D> dp3,
 
 // Sixth degree poly
 template <class D, class V = VFromD<D>>
-HWY_INLINE void SinCos6(D d, TFromD<D> dp1, TFromD<D> dp2, TFromD<D> dp3, V x,
-                        V& s, V& c) {
+HWY_INLINE void SinCos6(D d, TFromD<D> dp1, TFromD<D> dp2, TFromD<D> dp3,
+                        TFromD<D> dp4, V x, V& s, V& c) {
   using T = TFromD<D>;
   using TI = MakeSigned<T>;
   using DI = Rebind<TI, D>;
@@ -1661,6 +1661,7 @@ HWY_INLINE void SinCos6(D d, TFromD<D> dp1, TFromD<D> dp2, TFromD<D> dp3, V x,
   const V DP1 = Set(d, dp1);
   const V DP2 = Set(d, dp2);
   const V DP3 = Set(d, dp3);
+  const V DP4 = Set(d, dp4);
 
   V xmm1, xmm2, sign_bit_sin, y;
   VI imm0, imm2, imm4;
@@ -1695,10 +1696,11 @@ HWY_INLINE void SinCos6(D d, TFromD<D> dp1, TFromD<D> dp2, TFromD<D> dp3, V x,
   M poly_mask = RebindMask(d, Eq(imm2, ci_0));
 
   /* The magic pass: "Extended precision modular arithmetic"
-    x = ((x - y * DP1) - y * DP2) - y * DP3; */
+    x = (((x - y * DP1) - y * DP2) - y * DP3) - y * DP4; */
   x = MulAdd(y, DP1, x);
   x = MulAdd(y, DP2, x);
   x = MulAdd(y, DP3, x);
+  x = MulAdd(y, DP4, x);
 
   imm4 = Sub(imm4, ci_2);
   imm4 = AndNot(imm4, ci_4);
@@ -1753,8 +1755,9 @@ template <>
 struct SinCosImpl<double> {
   template <class D, class V = VFromD<D>, HWY_IF_F64_D(D)>
   HWY_INLINE void SinCos(D d, V x, V& s, V& c) {
-    SinCos6(d, -7.85398125648498535156E-1, -3.77489470793079817668E-8,
-            -2.69515142907905952645E-15, x, s, c);
+    SinCos6(d, -0.25 * 3.1415926218032836914, -0.25 * 3.1786509424591713469e-8,
+            -0.25 * 1.2246467864107188502e-16,
+            -0.25 * 1.2736634327021899816e-24, x, s, c);
   }
 };
 #endif

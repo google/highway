@@ -50,6 +50,42 @@ DEFINE_MATH_TEST(Tan,
   std::tan,  CallTan,  -39000.0,   +39000.0,    3)
 // clang-format on
 
+// Near multiples of pi/2, range reduction errors are no longer hidden by the
+// magnitude of the result. Uniform sampling rarely lands here.
+struct TestTanNearHalfPiMultiples {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T, D d) {
+    constexpr uint64_t kMaxErrorUlp = sizeof(T) == 4 ? 4 : 3;
+    // 24828 * pi/2 is just below 39000. Odd step to visit odd and even k.
+    const int step = static_cast<int>(49656 / AdjustedReps(49656)) | 1;
+    uint64_t max_ulp = 0;
+    T worst_x = ConvertScalarTo<T>(0);
+    for (int k = -24828; k <= 24828; k += step) {
+      const T x = ConvertScalarTo<T>(k * 1.5707963267948966);
+      const T actual = GetLane(CallTan(d, Set(d, x)));
+      const uint64_t ulp = hwy::detail::ComputeUlpDelta(actual, std::tan(x));
+      if (ulp > max_ulp) {
+        max_ulp = ulp;
+        worst_x = x;
+      }
+    }
+    if (max_ulp > kMaxErrorUlp) {
+      fprintf(
+          stderr, "%s: Tan(%.17g) expected %E actual %E ulp %g max ulp %u\n",
+          hwy::TypeName(T(), Lanes(d)).c_str(), static_cast<double>(worst_x),
+          static_cast<double>(std::tan(worst_x)),
+          static_cast<double>(GetLane(CallTan(d, Set(d, worst_x)))),
+          static_cast<double>(max_ulp), static_cast<uint32_t>(kMaxErrorUlp));
+    }
+    HWY_ASSERT(max_ulp <= kMaxErrorUlp);
+  }
+};
+
+HWY_NOINLINE void TestAllTanNearHalfPiMultiples() {
+  if (HWY_MATH_TEST_EXCESS_PRECISION) return;
+  ForFloat3264Types(ForPartialVectors<TestTanNearHalfPiMultiples>());
+}
+
 template <typename T, class D>
 void Atan2TestCases(T /*unused*/, D d, size_t& padded, AlignedPtr<T>& out_y,
                     AlignedPtr<T>& out_x, AlignedPtr<T>& out_expected) {
@@ -618,6 +654,7 @@ namespace hwy {
 namespace {
 HWY_BEFORE_TEST(HwyMathTanTest);
 HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllTan);
+HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllTanNearHalfPiMultiples);
 HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllAtan);
 HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllAtan2);
 HWY_EXPORT_AND_TEST_P(HwyMathTanTest, TestAllHypot);
