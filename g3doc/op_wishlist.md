@@ -36,8 +36,6 @@ fmod, nexttoward
 
 *   In-place Remove / RemoveIf, like CopyIf, but in-place.
 
-*   FindLast / FindLastIf (in find-inl.h) - can use FindLastTrue.
-
 *   index-returning Mismatch(d, a, b, count) (in find-inl.h) - like EqualSpan,
     but returns the first mismatched index.
 
@@ -174,6 +172,7 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~Document Reduce/Min NaN behavior~~
 *   ~~IndexOfMin/Max~~ (algo)
 *   ~~AllOf / AnyOf / NoneOf~~ (algo)
+*   ~~FindLast / FindLastIf~~ (algo)
 *   ~~EqualSpan~~ (algo)
 *   ~~ReverseSpan~~ (algo)
 *   ~~NEON dot product~~
