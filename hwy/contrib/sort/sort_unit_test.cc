@@ -472,6 +472,34 @@ static HWY_NOINLINE void TestPartition() {
 #define HWY_BROKEN_U128 0
 #endif
 
+HWY_NOINLINE void TestSignedZeroPartition() {
+  const CappedTag<float, 16> d;
+  const SharedTraits<TraitsLane<OrderAscending<float>>> st;
+  HWY_ALIGN float buf[16] = {};
+  for (bool from_right : {false, true}) {
+    for (size_t num : {size_t{128}, size_t{129}}) {
+      float keys[129] = {};
+      keys[num / 2] = 1.0f;
+      // Encounter -0 at the end of the scan, in a full or partial vector.
+      keys[from_right ? 0 : num - 1] = -0.0f;
+      auto third = Zero(d);
+      if (from_right) {
+        detail::MaybePartitionTwoValueR(d, st, keys, num, Zero(d), Set(d, 1.0f),
+                                        third, buf);
+      } else {
+        detail::MaybePartitionTwoValue(d, st, keys, num, Zero(d), Set(d, 1.0f),
+                                       third, buf);
+      }
+      size_t negative_zeros = 0;
+      for (size_t i = 0; i < num; ++i) {
+        negative_zeros += BitCastScalar<uint32_t>(keys[i]) ==
+                          BitCastScalar<uint32_t>(-0.0f);
+      }
+      HWY_ASSERT_EQ(size_t{1}, negative_zeros);
+    }
+  }
+}
+
 HWY_NOINLINE void TestAllPartition() {
   TestPartition<TraitsLane<OtherOrder<int32_t> > >();
 
@@ -551,6 +579,7 @@ static void TestAllFloatInf() {}
 static void TestAllMedian() {}
 static void TestAllBaseCase() {}
 static void TestAllPartition() {}
+static void TestSignedZeroPartition() {}
 static void TestAllGenerator() {}
 #endif  // VQSORT_ENABLED
 
@@ -569,6 +598,7 @@ HWY_EXPORT_AND_TEST_P(SortTest, TestAllFloatInf);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllMedian);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllBaseCase);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllPartition);
+HWY_EXPORT_AND_TEST_P(SortTest, TestSignedZeroPartition);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllGenerator);
 HWY_AFTER_TEST();
 }  // namespace
