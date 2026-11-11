@@ -309,6 +309,27 @@ static HWY_NOINLINE void TestBaseCase() {
   TestBaseCase01<Traits>();
 }
 
+template <class Traits>
+static HWY_NOINLINE void TestBaseCaseSignedZero() {
+  using T = typename Traits::LaneType;
+  const SortTag<T> d;
+  const size_t num = SortConstants::BaseCaseNumLanes(Lanes(d));
+  auto keys = hwy::AllocateAligned<T>(num);
+  auto buf = hwy::AllocateAligned<T>(SortConstants::BufNum<T>(Lanes(d)));
+  HWY_ASSERT(keys && buf);
+  // Two keys exercise one compare-exchange. The full network also compares
+  // lanes within the same vector; place the negative zero on either side.
+  for (size_t len : {size_t{2}, num}) {
+    for (size_t pos = 0; pos < len; ++pos) {
+      for (size_t i = 0; i < len; ++i) keys[i] = i == pos ? -T{0} : T{0};
+      detail::BaseCase(d, SharedTraits<Traits>(), keys.get(), len, buf.get());
+      size_t count = 0;
+      for (size_t i = 0; i < len; ++i) count += ScalarSignBit(keys[i]);
+      HWY_ASSERT_EQ(size_t{1}, count);
+    }
+  }
+}
+
 HWY_NOINLINE void TestAllBaseCase() {
   // Workaround for stack overflow on MSVC debug.
 #if defined(_MSC_VER)
@@ -317,6 +338,10 @@ HWY_NOINLINE void TestAllBaseCase() {
 
   TestBaseCase<TraitsLane<OrderAscending<int32_t> > >();
   TestBaseCase<TraitsLane<OtherOrder<int64_t> > >();
+  TestBaseCaseSignedZero<TraitsLane<OrderAscending<float>>>();
+#if HWY_HAVE_FLOAT64
+  TestBaseCaseSignedZero<TraitsLane<detail::OrderDescending<double>>>();
+#endif
 #if !HAVE_INTEL
   TestBaseCase<Traits128<OrderAscending128> >();
   TestBaseCase<Traits128<OrderDescending128> >();

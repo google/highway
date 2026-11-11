@@ -494,7 +494,7 @@ struct Traits128 : public Base {
     return v;
   }
 
-  template <class D, HWY_IF_U64_D(D)>
+  template <bool /*kMirror*/ = false, class D, HWY_IF_U64_D(D)>
   HWY_INLINE void Sort2(D d, Vec<D>& a, Vec<D>& b) const {
     const Base* base = static_cast<const Base*>(this);
 
