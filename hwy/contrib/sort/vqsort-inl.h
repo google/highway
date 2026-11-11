@@ -933,6 +933,18 @@ HWY_INLINE size_t Partition(D d, Traits st, T* const keys, const size_t num,
   return writeL + bufL;
 }
 
+// A two-value partition overwrites keys with copies of its representatives.
+// Floating-point equality alone would allow replacing -0 with +0 or vice versa.
+template <class D, class Traits>
+HWY_INLINE Mask<D> EqualForPartitionFill(D d, Traits st, Vec<D> a, Vec<D> b) {
+  if constexpr (IsFloat<TFromD<D>>()) {
+    const RebindToUnsigned<D> du;
+    return RebindMask(d, Eq(BitCast(du, a), BitCast(du, b)));
+  } else {
+    return st.EqualKeys(d, a, b);
+  }
+}
+
 // Returns true and partitions if [keys, keys + num) contains only {valueL,
 // valueR}. Otherwise, sets third to the first differing value; keys may have
 // been reordered and a regular Partition is still necessary.
@@ -957,8 +969,8 @@ HWY_NOINLINE bool MaybePartitionTwoValue(D d, Traits st, T* HWY_RESTRICT keys,
       // comparisons are true, but here we want *either*. Comparing the unsigned
       // min of differences to zero works, but is expensive for u64 prior to
       // AVX3.
-      const Mask<D> eqL = st.EqualKeys(d, v, valueL);
-      const Mask<D> eqR = st.EqualKeys(d, v, valueR);
+      const Mask<D> eqL = EqualForPartitionFill(d, st, v, valueL);
+      const Mask<D> eqR = EqualForPartitionFill(d, st, v, valueR);
       // At least one other value present; will require a regular partition.
       // On AVX-512, Or + AllTrue are folded into a single kortest if we are
       // careful with the FindKnownFirstTrue argument, see below.
@@ -994,8 +1006,8 @@ HWY_NOINLINE bool MaybePartitionTwoValue(D d, Traits st, T* HWY_RESTRICT keys,
   SafeCopyN(remaining, d, keys + i, buf);
   const Vec<D> v = Load(d, buf);
   const Mask<D> valid = FirstN(d, remaining);
-  const Mask<D> eqL = And(st.EqualKeys(d, v, valueL), valid);
-  const Mask<D> eqR = st.EqualKeys(d, v, valueR);
+  const Mask<D> eqL = And(EqualForPartitionFill(d, st, v, valueL), valid);
+  const Mask<D> eqR = EqualForPartitionFill(d, st, v, valueR);
   // Invalid lanes are considered equal.
   const Mask<D> eq = Or(Or(eqL, eqR), Not(valid));
   // At least one other value present; will require a regular partition.
@@ -1053,8 +1065,8 @@ HWY_INLINE bool MaybePartitionTwoValueR(D d, Traits st, T* HWY_RESTRICT keys,
     // It is not clear how to apply OrXor here - that can check if *both*
     // comparisons are true, but here we want *either*. Comparing the unsigned
     // min of differences to zero works, but is expensive for u64 prior to AVX3.
-    const Mask<D> eqL = st.EqualKeys(d, v, valueL);
-    const Mask<D> eqR = st.EqualKeys(d, v, valueR);
+    const Mask<D> eqL = EqualForPartitionFill(d, st, v, valueL);
+    const Mask<D> eqR = EqualForPartitionFill(d, st, v, valueR);
     // If there is a third value, stop and undo what we've done. On AVX-512,
     // Or + AllTrue are folded into a single kortest, but only if we are
     // careful with the FindKnownFirstTrue argument - see prior comment on that.
@@ -1088,8 +1100,8 @@ HWY_INLINE bool MaybePartitionTwoValueR(D d, Traits st, T* HWY_RESTRICT keys,
   HWY_DASSERT(remaining <= N);
   const Vec<D> v = LoadU(d, keys);  // Safe because num >= N.
   const Mask<D> valid = FirstN(d, remaining);
-  const Mask<D> eqL = st.EqualKeys(d, v, valueL);
-  const Mask<D> eqR = And(st.EqualKeys(d, v, valueR), valid);
+  const Mask<D> eqL = EqualForPartitionFill(d, st, v, valueL);
+  const Mask<D> eqR = And(EqualForPartitionFill(d, st, v, valueR), valid);
   // Invalid lanes are considered equal.
   const Mask<D> eq = Or(Or(eqL, eqR), Not(valid));
   // At least one other value present; will require a regular partition.
@@ -1142,8 +1154,8 @@ HWY_INLINE bool MaybePartitionTwoValueR(D d, Traits st, T* HWY_RESTRICT keys,
 
 // `idx_second` is `first_mismatch` from `AllEqual` and thus the index of the
 // second key. This is the first path into `MaybePartitionTwoValue`, called
-// when all samples are equal. Returns false if there are at least a third
-// value and sets `third`. Otherwise, partitions the array and returns true.
+// when all samples are equal. Returns false and sets `third` if a key cannot
+// be replaced by either representative. Otherwise, partitions the array.
 template <class D, class Traits, typename T>
 HWY_INLINE bool PartitionIfTwoKeys(D d, Traits st, const Vec<D> pivot,
                                    T* HWY_RESTRICT keys, size_t num,
@@ -1686,12 +1698,13 @@ HWY_INLINE Vec<D> ChoosePivotForEqualSamples(D d, Traits st,
     // Check if pivot is between two known values. If so, it is not the first
     // nor the last and we can avoid scanning.
     st.Sort2(d, second, third);
-    HWY_DASSERT(AllTrue(d, st.Compare(d, second, third)));
+    // A third bit pattern can be the opposite sign of a zero second key.
+    HWY_DASSERT(AllTrue(d, st.Compare(d, second, third)) ||
+                (IsFloat<T>() && AllTrue(d, Eq(second, Zero(d))) &&
+                 AllTrue(d, Eq(third, Zero(d)))));
     const bool before = !AllFalse(d, st.Compare(d, second, pivot));
     const bool after = !AllFalse(d, st.Compare(d, pivot, third));
-    // Only reached if there are three keys, which means pivot is either first,
-    // last, or in between. Thus there is another key that comes before or
-    // after.
+    // AllEqual found a second key that compares unequal to the pivot.
     HWY_DASSERT(before || after);
     if (HWY_UNLIKELY(before)) {
       // Neither first nor last.
