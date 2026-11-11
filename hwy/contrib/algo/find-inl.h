@@ -31,20 +31,6 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
-namespace detail {
-
-template <class T>
-struct FindEqualTo {
-  T value;
-
-  template <class D, class V>
-  Mask<D> operator()(D d, V v) const {
-    return Eq(Set(d, value), v);
-  }
-};
-
-}  // namespace detail
-
 // Returns index of the first element equal to `value` in `in[0, count)`, or
 // `count` if not found.
 template <class D, typename T = TFromD<D>>
@@ -166,7 +152,10 @@ size_t FindLastIf(D d, const T* HWY_RESTRICT in, size_t count,
 // `count` if not found.
 template <class D, typename T = TFromD<D>>
 size_t FindLast(D d, T value, const T* HWY_RESTRICT in, size_t count) {
-  return FindLastIf(d, in, count, detail::FindEqualTo<T>{value});
+  const auto equal = [value](const auto d2, const auto v) HWY_ATTR {
+    return Eq(Set(d2, value), v);
+  };
+  return FindLastIf(d, in, count, equal);
 }
 
 // AnyOf/AllOf/NoneOf unroll 4x, matching AllUnique below rather than the 2x in
