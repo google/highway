@@ -477,7 +477,7 @@ HWY_NOINLINE void TestSignedZeroPartition() {
   const SharedTraits<TraitsLane<OrderAscending<float>>> st;
   HWY_ALIGN float buf[16] = {};
   for (bool from_right : {false, true}) {
-    for (size_t num : {128, 129}) {
+    for (size_t num : {size_t{128}, size_t{129}}) {
       float keys[129] = {};
       keys[num / 2] = 1.0f;
       // Encounter -0 at the end of the scan, in a full or partial vector.
