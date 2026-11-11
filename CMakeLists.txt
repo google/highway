@@ -346,7 +346,6 @@ if (NOT HWY_CMAKE_HEADER_ONLY)
     hwy/nanobenchmark.cc
     hwy/os_rng.cc
     hwy/per_target.cc
-    hwy/perf_counters.cc
     hwy/print.cc
     hwy/profiler.cc
     hwy/stats.cc
@@ -1304,6 +1303,10 @@ endforeach ()
 # The skeleton test uses the skeleton library code.
 target_sources(skeleton_test PRIVATE hwy/examples/skeleton.cc)
 target_compile_definitions(skeleton_test PRIVATE hwy_EXPORTS)
+
+# perf_counters code is only used by its test.
+target_sources(perf_counters_test PRIVATE hwy/perf_counters.cc)
+target_compile_definitions(perf_counters_test PRIVATE hwy_EXPORTS)
 
 # Verifies that base_c.h compiles as C.
 add_executable(base_c_test hwy/base_c_test.c)
