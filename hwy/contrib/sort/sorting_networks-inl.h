@@ -51,7 +51,7 @@ struct SharedTraits : public Base {
   HWY_INLINE Vec<D> SortPairsDistance2(D d, Vec<D> v) const {
     const Base* base = static_cast<const Base*>(this);
     Vec<D> swapped = base->SwapAdjacentPairs(d, v);
-    base->template Sort2<true>(d, v, swapped);
+    base->template Sort2<PairLayout::kMirrored>(d, v, swapped);
     return base->OddEvenPairs(d, swapped, v);
   }
 
@@ -60,7 +60,7 @@ struct SharedTraits : public Base {
   HWY_INLINE Vec<D> SortPairsReverse8(D d, Vec<D> v) const {
     const Base* base = static_cast<const Base*>(this);
     Vec<D> swapped = base->ReverseKeys8(d, v);
-    base->template Sort2<true>(d, v, swapped);
+    base->template Sort2<PairLayout::kMirrored>(d, v, swapped);
     return base->OddEvenQuads(d, swapped, v);
   }
 
@@ -70,7 +70,7 @@ struct SharedTraits : public Base {
     const Base* base = static_cast<const Base*>(this);
     static_assert(Constants::kMaxCols <= 16, "Need actual Reverse16");
     Vec<D> swapped = base->ReverseKeys(d, v);
-    base->template Sort2<true>(d, v, swapped);
+    base->template Sort2<PairLayout::kMirrored>(d, v, swapped);
     return ConcatUpperLower(d, swapped, v);  // 8 = half of the vector
   }
 };

@@ -165,6 +165,10 @@ static_assert(SortConstants::MaxBufBytes<2>(64) <= 1664, "Unexpectedly high");
 namespace hwy {
 namespace HWY_NAMESPACE {
 
+namespace detail {
+enum class PairLayout { kIndependent, kMirrored };
+}  // namespace detail
+
 // Default tag / vector width selector.
 #if HWY_TARGET == HWY_RVV
 // Use LMUL = 1/2; for SEW=64 this ends up emulated via VSETVLI.
