@@ -108,6 +108,56 @@ size_t FindIf(D d, const T* HWY_RESTRICT in, size_t count, const Func& func) {
   return count;  // not found
 }
 
+// Returns index of the last element in `in[0, count)` for which `func(d, vec)`
+// returns true, or `count` if no element matches.
+template <class D, class Func, typename T = TFromD<D>>
+size_t FindLastIf(D d, const T* HWY_RESTRICT in, size_t count,
+                  const Func& func) {
+  HWY_LANES_CONSTEXPR size_t N = Lanes(d);
+  size_t remaining = count;
+
+  // Visit pairs of vectors from the end so the highest matching index wins.
+  if (HWY_LIKELY(remaining >= 2 * N)) {
+    for (; remaining >= 2 * N; remaining -= 2 * N) {
+      const size_t i = remaining - 2 * N;
+      const Mask<D> match0 = func(d, LoadU(d, in + i));
+      const Mask<D> match1 = func(d, LoadU(d, in + i + N));
+      if (AllFalse(d, Or(match0, match1))) continue;
+      const intptr_t pos1 = FindLastTrue(d, match1);
+      if (pos1 >= 0) return i + N + static_cast<size_t>(pos1);
+      return i + FindKnownLastTrue(d, match0);
+    }
+  }
+
+  if (remaining >= N) {
+    const size_t i = remaining - N;
+    const Mask<D> match = func(d, LoadU(d, in + i));
+    const intptr_t pos = FindLastTrue(d, match);
+    if (pos >= 0) return i + static_cast<size_t>(pos);
+    remaining -= N;
+  }
+
+  HWY_DASSERT(remaining < N);
+  if (remaining != 0) {
+    const Mask<D> valid = FirstN(d, remaining);
+    const Mask<D> match = And(valid, func(d, LoadN(d, in, remaining)));
+    const intptr_t pos = FindLastTrue(d, match);
+    if (pos >= 0) return static_cast<size_t>(pos);
+  }
+
+  return count;  // not found
+}
+
+// Returns index of the last element equal to `value` in `in[0, count)`, or
+// `count` if not found.
+template <class D, typename T = TFromD<D>>
+size_t FindLast(D d, T value, const T* HWY_RESTRICT in, size_t count) {
+  const auto equal = [value](const auto d2, const auto v) HWY_ATTR {
+    return Eq(Set(d2, value), v);
+  };
+  return FindLastIf(d, in, count, equal);
+}
+
 // AnyOf/AllOf/NoneOf unroll 4x, matching AllUnique below rather than the 2x in
 // Find/FindIf: none of them needs the position of a match, so an iteration is
 // just the loads, the predicate and one mask test, with no loop-carried state.

@@ -89,6 +89,15 @@ struct TestFind {
     // For each position, search for that element (which we know is there)
     for (size_t pos = 0; pos < count; ++pos) {
       const size_t actual = Find(d, in[pos], in, count);
+      const size_t actual_last = FindLast(d, in[pos], in, count);
+      size_t expected_last = count;
+      for (size_t i = count; i != 0; --i) {
+        if (IsEqual(in[i - 1], in[pos])) {
+          expected_last = i - 1;
+          break;
+        }
+      }
+      HWY_ASSERT_EQ(expected_last, actual_last);
 
       // We may have found an earlier occurrence of the same value; ensure the
       // value is the same, and that it is the first.
@@ -113,6 +122,8 @@ struct TestFind {
     // Also search for values we know not to be present (out of range)
     HWY_ASSERT_EQ(count, Find(d, ConvertScalarTo<T>(9), in, count));
     HWY_ASSERT_EQ(count, Find(d, ConvertScalarTo<T>(-9), in, count));
+    HWY_ASSERT_EQ(count, FindLast(d, ConvertScalarTo<T>(9), in, count));
+    HWY_ASSERT_EQ(count, FindLast(d, ConvertScalarTo<T>(-9), in, count));
   }
 };
 
@@ -148,6 +159,7 @@ struct TestFindIf {
         return Gt(v, Set(d2, ConvertScalarTo<T>(val)));
       };
       const size_t actual = FindIf(d, in, count, greater);
+      const size_t actual_last = FindLastIf(d, in, count, greater);
       found_any |= actual < count;
       not_found_any |= actual == count;
 
@@ -163,6 +175,15 @@ struct TestFindIf {
                                 0, count);
         HWY_ASSERT(false);
       }
+
+      size_t expected_last = count;
+      for (size_t i = count; i != 0; --i) {
+        if (in[i - 1] > ConvertScalarTo<T>(val)) {
+          expected_last = i - 1;
+          break;
+        }
+      }
+      HWY_ASSERT_EQ(expected_last, actual_last);
     }
 
     // We will always not-find something due to val=9.
@@ -172,6 +193,16 @@ struct TestFindIf {
     if (count != 0 && in[0] != ConvertScalarTo<T>(0)) {
       HWY_ASSERT(found_any);
     }
+
+    const auto always = [](const auto /*d2*/, const auto v) HWY_ATTR {
+      return Eq(v, v);
+    };
+    const auto never = [](const auto /*d2*/, const auto v) HWY_ATTR {
+      return Ne(v, v);
+    };
+    HWY_ASSERT_EQ(count == 0 ? count : count - 1,
+                  FindLastIf(d, in, count, always));
+    HWY_ASSERT_EQ(count, FindLastIf(d, in, count, never));
   }
 };
 
