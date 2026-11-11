@@ -550,15 +550,17 @@ struct TraitsLane : public Base {
   // according to Base.
   // Corresponds to a conditional swap, which is one "node" of a sorting
   // network. Min/Max are cheaper than compare + blend at least for integers.
-  template <class D>
+  template <PairLayout kLayout = PairLayout::kIndependent, class D>
   HWY_INLINE void Sort2(D d, Vec<D>& a, Vec<D>& b) const {
     const Base* base = static_cast<const Base*>(this);
 
     const Vec<D> a_copy = a;
-    // Prior to AVX3, there is no native 64-bit Min/Max, so they compile to 4
-    // instructions. We can reduce it to a compare + 2 IfThenElse.
+    // Prior to AVX3 there is no native 64-bit integer Min/Max. Use a compare
+    // and two blends, except for mirrored floats: selecting opposite inputs
+    // on a tie there would duplicate one zero after the lanes are merged.
 #if HWY_AVX3 < HWY_TARGET && HWY_TARGET <= HWY_SSSE3
-    if (sizeof(TFromD<D>) == 8) {
+    if (sizeof(TFromD<D>) == 8 &&
+        !(kLayout == PairLayout::kMirrored && IsFloat<TFromD<D>>())) {
       const Mask<D> cmp = base->Compare(d, a, b);
       a = IfThenElse(cmp, a, b);
       b = IfThenElse(cmp, b, a_copy);
@@ -566,7 +568,14 @@ struct TraitsLane : public Base {
     }
 #endif
     a = base->First(d, a, b);
-    b = base->Last(d, a_copy, b);
+    // Some floating-point Min/Max instructions both choose the second operand
+    // for equal zeros. Keep one of each input. Mirrored lanes already compare
+    // the same pair in opposite orders before selecting one result per lane.
+    if constexpr (kLayout == PairLayout::kIndependent && IsFloat<TFromD<D>>()) {
+      b = base->Last(d, b, a_copy);
+    } else {
+      b = base->Last(d, a_copy, b);
+    }
   }
 
   // Conditionally swaps even-numbered lanes with their odd-numbered neighbor.
@@ -580,7 +589,7 @@ struct TraitsLane : public Base {
     const Vec<D> cmp = VecFromMask(d, base->Compare(d, v, swapped));
     return IfVecThenElse(DupOdd(cmp), swapped, v);
 #else
-    Sort2(d, v, swapped);
+    Sort2<PairLayout::kMirrored>(d, v, swapped);
     return base->OddEvenKeys(swapped, v);
 #endif
   }
@@ -590,7 +599,7 @@ struct TraitsLane : public Base {
   HWY_INLINE Vec<D> SortPairsDistance1(D d, Vec<D> v) const {
     const Base* base = static_cast<const Base*>(this);
     Vec<D> swapped = base->ReverseKeys2(d, v);
-    Sort2(d, v, swapped);
+    Sort2<PairLayout::kMirrored>(d, v, swapped);
     return base->OddEvenKeys(swapped, v);
   }
 
@@ -599,7 +608,7 @@ struct TraitsLane : public Base {
   HWY_INLINE Vec<D> SortPairsReverse4(D d, Vec<D> v) const {
     const Base* base = static_cast<const Base*>(this);
     Vec<D> swapped = base->ReverseKeys4(d, v);
-    Sort2(d, v, swapped);
+    Sort2<PairLayout::kMirrored>(d, v, swapped);
     return base->OddEvenPairs(d, swapped, v);
   }
 
@@ -610,7 +619,7 @@ struct TraitsLane : public Base {
     Vec<D> swapped = base->SwapAdjacentQuads(d, v);
     // Only used in Merge16, so this will not be used on AVX2 (which only has 4
     // u64 lanes), so skip the above optimization for 64-bit AVX2.
-    Sort2(d, v, swapped);
+    Sort2<PairLayout::kMirrored>(d, v, swapped);
     return base->OddEvenQuads(d, swapped, v);
   }
 };
