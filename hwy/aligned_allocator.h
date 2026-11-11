@@ -255,7 +255,7 @@ AlignedUniquePtr<T[]> MakeUniqueAlignedArray(size_t items, Args&&... args) {
 class AlignedFreer {
  public:
   // Pass address of this to ctor to skip deleting externally-owned memory.
-  static void DoNothing(void* /*opaque*/, void* /*aligned_pointer*/) {}
+  HWY_DLLEXPORT static void DoNothing(void* opaque, void* aligned_pointer);
 
   AlignedFreer() : free_(nullptr), opaque_ptr_(nullptr) {}
   AlignedFreer(FreePtr free_ptr, void* opaque_ptr)
@@ -281,11 +281,7 @@ namespace detail {
 // Default deleter for AlignedPtr allocated via AllocateAlignedBytes.
 // `free_fn` holds the custom `FreePtr` (or nullptr for default free), while
 // the user's `opaque_ptr` is stored in AllocationHeader.
-static inline void FreeAlignedMemory(void* free_fn, void* memory) {
-  FreeAlignedBytes(
-      memory, reinterpret_cast<FreePtr>(reinterpret_cast<uintptr_t>(free_fn)),
-      nullptr);
-}
+HWY_DLLEXPORT void FreeAlignedMemory(void* free_fn, void* memory);
 
 }  // namespace detail
 

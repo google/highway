@@ -185,6 +185,7 @@ TEST(AlignedAllocatorTest, TestAllocateAlignedWithCustomAlloc) {
         AllocateAligned<uint32_t>(kItems, &FakeAllocator::StaticAlloc,
                                   &FakeAllocator::StaticFree, &fake_alloc);
     HWY_ASSERT(ptr != nullptr);
+    HWY_ASSERT(&detail::FreeAlignedMemory == ptr.free_fn());
     HWY_ASSERT_EQ(kItems, ptr.size());
     HWY_ASSERT_EQ(kItems * sizeof(uint32_t), ptr.size_bytes());
     HWY_ASSERT_EQ(1U, fake_alloc.PendingAllocs());
@@ -235,6 +236,12 @@ TEST(AlignedAllocatorTest, TestAlignedPtrCustomDeleterAndLegacyConversion) {
     HWY_ASSERT_EQ(1U, fake_alloc.PendingAllocs());
   }
   HWY_ASSERT_EQ(0U, fake_alloc.PendingAllocs());
+
+  {
+    AlignedPtr<uint32_t> non_owning(raw, 4, &AlignedFreer::DoNothing);
+    HWY_ASSERT(raw == non_owning.get());
+    HWY_ASSERT(&AlignedFreer::DoNothing == non_owning.free_fn());
+  }
 
   AlignedFreeUniquePtr<uint32_t[]> legacy_non_owning =
       AlignedPtr<uint32_t>(raw, 4, &AlignedFreer::DoNothing);
