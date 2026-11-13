@@ -2899,15 +2899,14 @@ HWY_NOINLINE V CallHypot(const D d, VecArg<V> a, VecArg<V> b) {
 
 namespace impl {
 
-// Computes signed Gamma(a). For a < 0.5 uses w = 1 - a; then a [2, 3)
-// polynomial below kStirlingLimit, Stirling above.
+// Computes signed Gamma(a). For negative and subnormal a uses w = 1 - a; then
+// a [2, 3) polynomial below kStirlingLimit, Stirling above.
 template <class D, class V = VFromD<D>, class M = MFromD<D>>
 HWY_INLINE V Gamma(D d, V a) {
   using T = TFromD<D>;
   static_assert(IsFloat<T>(), "Only makes sense for floating-point");
   GammaImpl<T> impl;
 
-  const V kHalf = Set(d, static_cast<T>(0.5));
   const V kOne = Set(d, static_cast<T>(1.0));
   const V kZero = Zero(d);
   const V kPi = Set(d, static_cast<T>(+3.14159265358979323846264));
@@ -2915,8 +2914,12 @@ HWY_INLINE V Gamma(D d, V a) {
   const V kThree = Set(d, static_cast<T>(3.0));
   const V kStirlingLimit = impl.StirlingLimit(d);
 
-  // Reduce to w >= 0.5: w = 1 - a when a < 0.5.
-  const M neg = Lt(a, kHalf);
+  // Reflect (w = 1 - a) only where a < SmallestNormal: negative a, and
+  // subnormal a, for which Gamma(a) may overflow. Positive normal a < 0.5 take
+  // the upward recurrence below, which is more accurate than the reflection
+  // (whose Sin, Mul and Div errors add to that of Gamma(1 - a)), and cannot
+  // overflow or divide by a subnormal.
+  const M neg = Lt(a, Set(d, SmallestNormal<T>()));
   V w = MaskedSubOr(a, neg, kOne, a);
 
   // Shift w into [2, 3) via Gamma(x+1) = x*Gamma(x).
@@ -2956,7 +2959,7 @@ HWY_INLINE V Gamma(D d, V a) {
 
   const V gamma_w = IfThenElse(Lt(w, kStirlingLimit), gamma_a, gamma_b);
 
-  // For a < 0.5: Gamma(a) = pi / (sin(pi*a) * Gamma(w)).
+  // For reflected a: Gamma(a) = pi / (sin(pi*a) * Gamma(w)).
   const V ra = Round(a);
   const V frac = Sub(a, ra);
   const V s_mag = Sin(d, Mul(kPi, frac));

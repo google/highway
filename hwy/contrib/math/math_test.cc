@@ -197,6 +197,39 @@ HWY_NOINLINE void TestAllPow() {
   ForFloat3264Types(ForPartialVectors<TestPow>());
 }
 
+// Tgamma is documented as accurate to 6 ULP for float32 in (0, 35], but
+// TestAllTgamma above starts at 0.5. These inputs just below 0.5 were 7 ULP
+// off when Gamma used the reflection formula for all a < 0.5.
+struct TestTgammaBelowHalf {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T, D d) {
+    if (HWY_MATH_TEST_EXCESS_PRECISION) {
+      return;
+    }
+
+    static constexpr float kInputs[] = {0.443517119f, 0.443602949f,
+                                        0.445062071f, 0.445074946f,
+                                        0.446806341f, 0.448704153f};
+    for (const float x : kInputs) {
+      const float expected =
+          static_cast<float>(std::tgamma(static_cast<double>(x)));
+      const float actual = GetLane(CallTgamma(d, Set(d, x)));
+      const auto ulp = hwy::detail::ComputeUlpDelta(actual, expected);
+      if (ulp > 6) {
+        fprintf(stderr, "%s: Tgamma(%.9g) expected %.9g actual %.9g ulp %g\n",
+                hwy::TypeName(T(), Lanes(d)).c_str(), static_cast<double>(x),
+                static_cast<double>(expected), static_cast<double>(actual),
+                static_cast<double>(ulp));
+      }
+      HWY_ASSERT(ulp <= 6);
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllTgammaBelowHalf() {
+  ForPartialVectors<TestTgammaBelowHalf>()(float());
+}
+
 // expm1(+/-0) must preserve the sign of zero (C11 F.10.3.3). The ULP comparator
 // used by the other math tests treats +0 == -0, so check the bit pattern.
 struct TestExpm1SignedZero {
@@ -269,6 +302,7 @@ HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog1p);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog2);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllCbrt);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllTgamma);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllTgammaBelowHalf);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLogGamma);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLogGammaOverflow);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllPow);
