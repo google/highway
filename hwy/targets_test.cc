@@ -56,6 +56,10 @@ namespace {
     HWY_MAYBE_UNUSED int64_t FakeFunctionT(T) {                              \
       return HWY_##TGT;                                                      \
     }                                                                        \
+    template <int I, int J>                                                  \
+    HWY_MAYBE_UNUSED void FakeFunctionPair(int64_t* result) {                \
+      *result = HWY_##TGT ^ (10 * I + J);                                    \
+    }                                                                        \
   }
 
 DECLARE_FUNCTION(AVX10_2)
@@ -107,6 +111,13 @@ int64_t FakeFunctionDispatcher(T value) {
                                 HWY_DYNAMIC_DISPATCH_T(FakeFunction2)(true));
 }
 
+template <int I, int J>
+int64_t DispatchPair() {
+  int64_t result;
+  HWY_EXPORT_AND_DYNAMIC_DISPATCH_T(FakeFunctionPair<I, J>)(&result);
+  return result;
+}
+
 void CallFunctionForTarget(int64_t target, int /*line*/) {
   if ((HWY_TARGETS & target) == 0) return;
   hwy::SetSupportedTargetsForTest(target);
@@ -132,6 +143,14 @@ void CallFunctionForTarget(int64_t target, int /*line*/) {
 
   // Second call uses the cached value from the previous call.
   HWY_ASSERT_EQ(target, HWY_DYNAMIC_DISPATCH(FakeFunction)(42));
+
+  // Each specialization must select its own function, cold and cached.
+  hwy::GetChosenTarget().DeInit();
+  HWY_ASSERT_EQ(target ^ 12, (DispatchPair<1, 2>()));
+  HWY_ASSERT_EQ(target ^ 21, (DispatchPair<2, 1>()));
+  hwy::GetChosenTarget().DeInit();
+  HWY_ASSERT_EQ(target ^ 21, (DispatchPair<2, 1>()));
+  HWY_ASSERT_EQ(target ^ 12, (DispatchPair<1, 2>()));
 }
 
 void CheckFakeFunction() {

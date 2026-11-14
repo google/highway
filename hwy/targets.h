@@ -225,6 +225,9 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(int64_t target) {
 #define HWY_CHOSEN_TARGET_MASK_TARGETS \
   (HWY_CHOSEN_TARGET_SHIFT(HWY_TARGETS) | HWY_CHOSEN_TARGET_MASK_SCALAR | 1LL)
 
+// Pass a template-id containing commas as one argument to a target selector.
+#define HWY_DISPATCH_NAME(...) __VA_ARGS__
+
 #if HWY_ARCH_X86
 // Maximum number of dynamic targets, changing this value is an ABI incompatible
 // change
@@ -235,96 +238,99 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(int64_t target) {
 // HWY_MAX_DYNAMIC_TARGETS) bit. This list must contain exactly
 // HWY_MAX_DYNAMIC_TARGETS elements and does not include SCALAR. The first entry
 // corresponds to the best target. Don't include a "," at the end of the list.
-#define HWY_CHOOSE_TARGET_LIST(func_name)                     \
-  nullptr,                             /* reserved */         \
-      nullptr,                         /* reserved */         \
-      nullptr,                         /* reserved */         \
-      HWY_CHOOSE_AVX10_2(func_name),   /* AVX10_2 */          \
-      HWY_CHOOSE_AVX3_SPR(func_name),  /* AVX3_SPR */         \
-      nullptr,                         /* reserved */         \
-      HWY_CHOOSE_AVX3_ZEN4(func_name), /* AVX3_ZEN4 */        \
-      HWY_CHOOSE_AVX3_DL(func_name),   /* AVX3_DL */          \
-      HWY_CHOOSE_AVX3(func_name),      /* AVX3 */             \
-      HWY_CHOOSE_AVX2(func_name),      /* AVX2 */             \
-      nullptr,                         /* AVX */              \
-      HWY_CHOOSE_SSE4(func_name),      /* SSE4 */             \
-      HWY_CHOOSE_SSSE3(func_name),     /* SSSE3 */            \
-      nullptr,                         /* reserved - SSE3? */ \
-      HWY_CHOOSE_SSE2(func_name)       /* SSE2 */
+#define HWY_CHOOSE_TARGET_LIST(...)                                          \
+  nullptr,                                                  /* reserved */   \
+      nullptr,                                              /* reserved */   \
+      nullptr,                                              /* reserved */   \
+      HWY_CHOOSE_AVX10_2(HWY_DISPATCH_NAME(__VA_ARGS__)),   /* AVX10_2 */    \
+      HWY_CHOOSE_AVX3_SPR(HWY_DISPATCH_NAME(__VA_ARGS__)),  /* AVX3_SPR */   \
+      nullptr,                                              /* reserved */   \
+      HWY_CHOOSE_AVX3_ZEN4(HWY_DISPATCH_NAME(__VA_ARGS__)), /* AVX3_ZEN4 */  \
+      HWY_CHOOSE_AVX3_DL(HWY_DISPATCH_NAME(__VA_ARGS__)),   /* AVX3_DL */    \
+      HWY_CHOOSE_AVX3(HWY_DISPATCH_NAME(__VA_ARGS__)),      /* AVX3 */       \
+      HWY_CHOOSE_AVX2(HWY_DISPATCH_NAME(__VA_ARGS__)),      /* AVX2 */       \
+      nullptr,                                              /* AVX */        \
+      HWY_CHOOSE_SSE4(HWY_DISPATCH_NAME(__VA_ARGS__)),      /* SSE4 */       \
+      HWY_CHOOSE_SSSE3(HWY_DISPATCH_NAME(__VA_ARGS__)),     /* SSSE3 */      \
+      nullptr,                                        /* reserved - SSE3? */ \
+      HWY_CHOOSE_SSE2(HWY_DISPATCH_NAME(__VA_ARGS__)) /* SSE2 */
 
 #elif HWY_ARCH_ARM
 // See HWY_ARCH_X86 above for details.
 #define HWY_MAX_DYNAMIC_TARGETS 15
 #define HWY_HIGHEST_TARGET_BIT HWY_HIGHEST_TARGET_BIT_ARM
-#define HWY_CHOOSE_TARGET_LIST(func_name)                              \
-  nullptr,                                   /* reserved */            \
-      nullptr,                               /* reserved */            \
-      nullptr,                               /* reserved */            \
-      HWY_CHOOSE_SVE2_128(func_name),        /* SVE2 128-bit */        \
-      HWY_CHOOSE_SVE_256(func_name),         /* SVE 256-bit */         \
-      nullptr,                               /* reserved */            \
-      nullptr,                               /* reserved */            \
-      nullptr,                               /* reserved */            \
-      HWY_CHOOSE_SVE2(func_name),            /* SVE2 */                \
-      HWY_CHOOSE_SVE(func_name),             /* SVE */                 \
-      nullptr,                               /* reserved */            \
-      HWY_CHOOSE_NEON_BF16(func_name),       /* NEON + f16/dot/bf16 */ \
-      nullptr,                               /* reserved */            \
-      HWY_CHOOSE_NEON(func_name),            /* NEON */                \
-      HWY_CHOOSE_NEON_WITHOUT_AES(func_name) /* NEON without AES */
+#define HWY_CHOOSE_TARGET_LIST(...)                                           \
+  nullptr,                                                 /* reserved */     \
+      nullptr,                                             /* reserved */     \
+      nullptr,                                             /* reserved */     \
+      HWY_CHOOSE_SVE2_128(HWY_DISPATCH_NAME(__VA_ARGS__)), /* SVE2 128-bit */ \
+      HWY_CHOOSE_SVE_256(HWY_DISPATCH_NAME(__VA_ARGS__)),  /* SVE 256-bit */  \
+      nullptr,                                             /* reserved */     \
+      nullptr,                                             /* reserved */     \
+      nullptr,                                             /* reserved */     \
+      HWY_CHOOSE_SVE2(HWY_DISPATCH_NAME(__VA_ARGS__)),     /* SVE2 */         \
+      HWY_CHOOSE_SVE(HWY_DISPATCH_NAME(__VA_ARGS__)),      /* SVE */          \
+      nullptr,                                             /* reserved */     \
+      HWY_CHOOSE_NEON_BF16(                                                   \
+          HWY_DISPATCH_NAME(__VA_ARGS__)), /* NEON + f16/dot/bf16 */          \
+      nullptr,                             /* reserved */                     \
+      HWY_CHOOSE_NEON(HWY_DISPATCH_NAME(__VA_ARGS__)), /* NEON */             \
+      HWY_CHOOSE_NEON_WITHOUT_AES(                                            \
+          HWY_DISPATCH_NAME(__VA_ARGS__)) /* NEON without AES */
 
 #elif HWY_ARCH_RISCV
 // See HWY_ARCH_X86 above for details.
 #define HWY_MAX_DYNAMIC_TARGETS 9
 #define HWY_HIGHEST_TARGET_BIT HWY_HIGHEST_TARGET_BIT_RVV
-#define HWY_CHOOSE_TARGET_LIST(func_name)       \
-  nullptr,                       /* reserved */ \
-      nullptr,                   /* reserved */ \
-      nullptr,                   /* reserved */ \
-      nullptr,                   /* reserved */ \
-      nullptr,                   /* reserved */ \
-      nullptr,                   /* reserved */ \
-      nullptr,                   /* reserved */ \
-      HWY_CHOOSE_RVV(func_name), /* RVV */      \
-      nullptr                    /* reserved */
+#define HWY_CHOOSE_TARGET_LIST(...)                                  \
+  nullptr,                                            /* reserved */ \
+      nullptr,                                        /* reserved */ \
+      nullptr,                                        /* reserved */ \
+      nullptr,                                        /* reserved */ \
+      nullptr,                                        /* reserved */ \
+      nullptr,                                        /* reserved */ \
+      nullptr,                                        /* reserved */ \
+      HWY_CHOOSE_RVV(HWY_DISPATCH_NAME(__VA_ARGS__)), /* RVV */      \
+      nullptr                                         /* reserved */
 
 #elif HWY_ARCH_PPC || HWY_ARCH_S390X
 // See HWY_ARCH_X86 above for details.
 #define HWY_MAX_DYNAMIC_TARGETS 9
 #define HWY_HIGHEST_TARGET_BIT HWY_HIGHEST_TARGET_BIT_PPC
-#define HWY_CHOOSE_TARGET_LIST(func_name)         \
-  nullptr,                         /* reserved */ \
-      nullptr,                     /* reserved */ \
-      nullptr,                     /* reserved */ \
-      nullptr,                     /* reserved */ \
-      HWY_CHOOSE_PPC10(func_name), /* PPC10 */    \
-      HWY_CHOOSE_PPC9(func_name),  /* PPC9 */     \
-      HWY_CHOOSE_PPC8(func_name),  /* PPC8 */     \
-      HWY_CHOOSE_Z15(func_name),   /* Z15 */      \
-      HWY_CHOOSE_Z14(func_name)    /* Z14 */
+#define HWY_CHOOSE_TARGET_LIST(...)                                    \
+  nullptr,                                              /* reserved */ \
+      nullptr,                                          /* reserved */ \
+      nullptr,                                          /* reserved */ \
+      nullptr,                                          /* reserved */ \
+      HWY_CHOOSE_PPC10(HWY_DISPATCH_NAME(__VA_ARGS__)), /* PPC10 */    \
+      HWY_CHOOSE_PPC9(HWY_DISPATCH_NAME(__VA_ARGS__)),  /* PPC9 */     \
+      HWY_CHOOSE_PPC8(HWY_DISPATCH_NAME(__VA_ARGS__)),  /* PPC8 */     \
+      HWY_CHOOSE_Z15(HWY_DISPATCH_NAME(__VA_ARGS__)),   /* Z15 */      \
+      HWY_CHOOSE_Z14(HWY_DISPATCH_NAME(__VA_ARGS__))    /* Z14 */
 
 #elif HWY_ARCH_WASM
 // See HWY_ARCH_X86 above for details.
 #define HWY_MAX_DYNAMIC_TARGETS 9
 #define HWY_HIGHEST_TARGET_BIT HWY_HIGHEST_TARGET_BIT_WASM
-#define HWY_CHOOSE_TARGET_LIST(func_name)                  \
-  nullptr,                               /* reserved */    \
-      nullptr,                           /* reserved */    \
-      nullptr,                           /* reserved */    \
-      nullptr,                           /* reserved */    \
-      nullptr,                           /* reserved */    \
-      nullptr,                           /* reserved */    \
-      HWY_CHOOSE_WASM_EMU256(func_name), /* WASM_EMU256 */ \
-      HWY_CHOOSE_WASM(func_name),        /* WASM */        \
-      nullptr                            /* reserved */
+#define HWY_CHOOSE_TARGET_LIST(...)                                      \
+  nullptr,     /* reserved */                                            \
+      nullptr, /* reserved */                                            \
+      nullptr, /* reserved */                                            \
+      nullptr, /* reserved */                                            \
+      nullptr, /* reserved */                                            \
+      nullptr, /* reserved */                                            \
+      HWY_CHOOSE_WASM_EMU256(                                            \
+          HWY_DISPATCH_NAME(__VA_ARGS__)),             /* WASM_EMU256 */ \
+      HWY_CHOOSE_WASM(HWY_DISPATCH_NAME(__VA_ARGS__)), /* WASM */        \
+      nullptr                                          /* reserved */
 
 #elif HWY_ARCH_LOONGARCH
 #define HWY_MAX_DYNAMIC_TARGETS 3
 #define HWY_HIGHEST_TARGET_BIT HWY_HIGHEST_TARGET_BIT_LOONGARCH
-#define HWY_CHOOSE_TARGET_LIST(func_name)        \
-  nullptr,                        /* reserved */ \
-      HWY_CHOOSE_LASX(func_name), /* LASX */     \
-      HWY_CHOOSE_LSX(func_name)   /* LSX */
+#define HWY_CHOOSE_TARGET_LIST(...)                                   \
+  nullptr,                                             /* reserved */ \
+      HWY_CHOOSE_LASX(HWY_DISPATCH_NAME(__VA_ARGS__)), /* LASX */     \
+      HWY_CHOOSE_LSX(HWY_DISPATCH_NAME(__VA_ARGS__))   /* LSX */
 
 #else
 // Unknown architecture, will use HWY_SCALAR without dynamic dispatch, though

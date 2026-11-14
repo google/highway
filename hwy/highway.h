@@ -133,7 +133,7 @@ namespace hwy {
 
 // `HWY_STATIC_DISPATCH(FUNC_NAME)` is the namespace-qualified FUNC_NAME for
 // `HWY_STATIC_TARGET`, and can be used to deduce the return type of Choose*.
-#define HWY_STATIC_DISPATCH(FUNC_NAME) HWY_STATIC_NAMESPACE::FUNC_NAME
+#define HWY_STATIC_DISPATCH(...) HWY_STATIC_NAMESPACE::__VA_ARGS__
 
 // `HWY_CHOOSE_*(FUNC_NAME)` expands to the function pointer for that target or
 // nullptr if that target was not compiled.
@@ -506,7 +506,7 @@ constexpr HWY_INLINE
 //   }
 //   }  // namespace skeleton
 //
-// For templated code with a single type parameter, instead use HWY_EXPORT_T and
+// For templated code, use HWY_EXPORT_T and
 // its HWY_DYNAMIC_DISPATCH_T counterpart:
 //
 //   template <typename T>
@@ -536,9 +536,9 @@ constexpr HWY_INLINE
 
 // We use a table to provide the same compile error conditions as with the
 // non-simplified case, but the table only has a single entry.
-#define HWY_EXPORT_T(TABLE_NAME, FUNC_NAME)                               \
-  HWY_MAYBE_UNUSED static decltype(&HWY_STATIC_DISPATCH(FUNC_NAME)) const \
-  HWY_DISPATCH_TABLE(TABLE_NAME)[1] = {&HWY_STATIC_DISPATCH(FUNC_NAME)}
+#define HWY_EXPORT_T(TABLE_NAME, ...)                                       \
+  HWY_MAYBE_UNUSED static decltype(&HWY_STATIC_DISPATCH(__VA_ARGS__)) const \
+  HWY_DISPATCH_TABLE(TABLE_NAME)[1] = {&HWY_STATIC_DISPATCH(__VA_ARGS__)}
 
 // Use the table, not just STATIC_DISPATCH as in DYNAMIC_DISPATCH, because
 // TABLE_NAME might not match the function name.
@@ -602,23 +602,23 @@ struct AddExport {
 // from inside the function template that calls the template we are exporting.
 // TABLE_NAME must match the one passed to HWY_DYNAMIC_DISPATCH_T. This
 // argument allows multiple exports within one function.
-#define HWY_EXPORT_T(TABLE_NAME, FUNC_NAME)                                  \
-  static const struct {                                                      \
-  } HWY_CONCAT(TABLE_NAME, HighwayDispatchExportsKey) = {};                  \
-  static decltype(&HWY_STATIC_DISPATCH(FUNC_NAME)) const HWY_DISPATCH_TABLE( \
-      TABLE_NAME)[static_cast<size_t>(HWY_MAX_DYNAMIC_TARGETS + 2)] = {      \
-      /* The first entry in the table initializes the global cache and       \
-       * calls the appropriate function. */                                  \
-      &decltype(hwy::DeduceFunctionCache(&HWY_STATIC_DISPATCH(FUNC_NAME))):: \
-          template ChooseAndCall<                                            \
-              decltype(HWY_CONCAT(TABLE_NAME, HighwayDispatchExportsKey)),   \
-              hwy::FNV(#TABLE_NAME), HWY_CHOSEN_TARGET_MASK_TARGETS>,        \
-      HWY_CHOOSE_TARGET_LIST(FUNC_NAME),                                     \
-      HWY_CHOOSE_FALLBACK(FUNC_NAME),                                        \
-  };                                                                         \
-  HWY_MAYBE_UNUSED static hwy::AddExport<hwy::FNV(#TABLE_NAME)> HWY_CONCAT(  \
-      HighwayAddTable, __LINE__)(                                            \
-      HWY_CONCAT(TABLE_NAME, HighwayDispatchExportsKey), #TABLE_NAME,        \
+#define HWY_EXPORT_T(TABLE_NAME, ...)                                          \
+  static const struct {                                                        \
+  } HWY_CONCAT(TABLE_NAME, HighwayDispatchExportsKey) = {};                    \
+  static decltype(&HWY_STATIC_DISPATCH(__VA_ARGS__)) const HWY_DISPATCH_TABLE( \
+      TABLE_NAME)[static_cast<size_t>(HWY_MAX_DYNAMIC_TARGETS + 2)] = {        \
+      /* The first entry in the table initializes the global cache and         \
+       * calls the appropriate function. */                                    \
+      &decltype(hwy::DeduceFunctionCache(&HWY_STATIC_DISPATCH(__VA_ARGS__))):: \
+          template ChooseAndCall<                                              \
+              decltype(HWY_CONCAT(TABLE_NAME, HighwayDispatchExportsKey)),     \
+              hwy::FNV(#TABLE_NAME), HWY_CHOSEN_TARGET_MASK_TARGETS>,          \
+      HWY_CHOOSE_TARGET_LIST(__VA_ARGS__),                                     \
+      HWY_CHOOSE_FALLBACK(HWY_DISPATCH_NAME(__VA_ARGS__)),                     \
+  };                                                                           \
+  HWY_MAYBE_UNUSED static hwy::AddExport<hwy::FNV(#TABLE_NAME)> HWY_CONCAT(    \
+      HighwayAddTable, __LINE__)(                                              \
+      HWY_CONCAT(TABLE_NAME, HighwayDispatchExportsKey), #TABLE_NAME,          \
       HWY_DISPATCH_TABLE(TABLE_NAME))
 
 // For non-template functions. Not necessarily invoked within a function, hence
@@ -643,16 +643,16 @@ struct AddExport {
 
 // Zero-overhead, but requires C++17 for non-type template arguments without
 // linkage, because HWY_EXPORT_T tables are local static variables.
-#define HWY_EXPORT_T(TABLE_NAME, FUNC_NAME)                                  \
-  static decltype(&HWY_STATIC_DISPATCH(FUNC_NAME)) const HWY_DISPATCH_TABLE( \
-      TABLE_NAME)[static_cast<size_t>(HWY_MAX_DYNAMIC_TARGETS + 2)] = {      \
-      /* The first entry in the table initializes the global cache and       \
-       * calls the appropriate function. */                                  \
-      &decltype(hwy::DeduceFunctionCache(&HWY_STATIC_DISPATCH(FUNC_NAME))):: \
-          template ChooseAndCall<HWY_DISPATCH_TABLE(TABLE_NAME),             \
-                                 HWY_CHOSEN_TARGET_MASK_TARGETS>,            \
-      HWY_CHOOSE_TARGET_LIST(FUNC_NAME),                                     \
-      HWY_CHOOSE_FALLBACK(FUNC_NAME),                                        \
+#define HWY_EXPORT_T(TABLE_NAME, ...)                                          \
+  static decltype(&HWY_STATIC_DISPATCH(__VA_ARGS__)) const HWY_DISPATCH_TABLE( \
+      TABLE_NAME)[static_cast<size_t>(HWY_MAX_DYNAMIC_TARGETS + 2)] = {        \
+      /* The first entry in the table initializes the global cache and         \
+       * calls the appropriate function. */                                    \
+      &decltype(hwy::DeduceFunctionCache(&HWY_STATIC_DISPATCH(__VA_ARGS__))):: \
+          template ChooseAndCall<HWY_DISPATCH_TABLE(TABLE_NAME),               \
+                                 HWY_CHOSEN_TARGET_MASK_TARGETS>,              \
+      HWY_CHOOSE_TARGET_LIST(__VA_ARGS__),                                     \
+      HWY_CHOOSE_FALLBACK(HWY_DISPATCH_NAME(__VA_ARGS__)),                     \
   }
 
 #define HWY_EXPORT(FUNC_NAME) HWY_EXPORT_T(FUNC_NAME, FUNC_NAME)
@@ -684,8 +684,9 @@ struct AddExport {
 #define HWY_DISPATCH_TABLE_T() HWY_CONCAT(HighwayDispatchTableT, __LINE__)
 
 // For templated code, combines export and dispatch using an anonymous table.
-#define HWY_EXPORT_AND_DYNAMIC_DISPATCH_T(FUNC_NAME) \
-  HWY_EXPORT_T(HWY_DISPATCH_TABLE_T(), FUNC_NAME);   \
+// A template-id may contain commas, so forward it as variadic macro arguments.
+#define HWY_EXPORT_AND_DYNAMIC_DISPATCH_T(...)       \
+  HWY_EXPORT_T(HWY_DISPATCH_TABLE_T(), __VA_ARGS__); \
   HWY_DYNAMIC_DISPATCH_T(HWY_DISPATCH_TABLE_T())
 
 // DEPRECATED names; please use HWY_HAVE_* instead.
