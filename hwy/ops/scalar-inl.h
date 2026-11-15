@@ -303,6 +303,17 @@ HWY_API Mask1<T> FirstN(D /*tag*/, size_t n) {
   return Mask1<T>::FromBool(n != 0);
 }
 
+#ifdef HWY_NATIVE_AFTER_N
+#undef HWY_NATIVE_AFTER_N
+#else
+#define HWY_NATIVE_AFTER_N
+#endif
+
+template <class D, HWY_IF_LANES_D(D, 1), typename T = TFromD<D>>
+HWY_API Mask1<T> AfterN(D /*tag*/, size_t n) {
+  return Mask1<T>::FromBool(n == 0);
+}
+
 #ifdef HWY_NATIVE_SET_MASK
 #undef HWY_NATIVE_SET_MASK
 #else

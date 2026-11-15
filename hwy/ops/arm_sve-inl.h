@@ -360,6 +360,38 @@ svbool_t FirstN(D /* tag */, size_t count) {
 
 #undef HWY_SVE_FIRSTN
 
+// ------------------------------ AfterN
+
+#if HWY_SVE_HAVE_2
+#ifdef HWY_NATIVE_AFTER_N
+#undef HWY_NATIVE_AFTER_N
+#else
+#define HWY_NATIVE_AFTER_N
+#endif
+
+#define HWY_SVE_AFTERN(BASE, CHAR, BITS, HALF, NAME, OP)                       \
+  template <size_t N, int kPow2>                                               \
+  HWY_API svbool_t NAME(HWY_SVE_D(BASE, BITS, N, kPow2) d, size_t count) {     \
+    const size_t last = detail::AllHardwareLanes<HWY_SVE_T(BASE, BITS)>() - 1; \
+    const svbool_t m = sv##OP##_b##BITS##_s64(static_cast<int64_t>(last),      \
+                                              static_cast<int64_t>(count));    \
+    if (detail::IsFull(d)) return m;                                           \
+    const svbool_t valid = FirstN(d, Lanes(d));                                \
+    return svand_b_z(valid, m, valid);                                         \
+  }
+HWY_SVE_FOREACH(HWY_SVE_AFTERN, AfterN, whilege)
+#if HWY_SVE_HAVE_BF16_FEATURE || HWY_SVE_HAVE_BF16_VEC
+HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SVE_AFTERN, AfterN, whilege)
+#endif
+
+template <class D, HWY_SVE_IF_EMULATED_D(D)>
+svbool_t AfterN(D /* tag */, size_t count) {
+  return AfterN(RebindToUnsigned<D>(), count);
+}
+
+#undef HWY_SVE_AFTERN
+#endif  // HWY_SVE_HAVE_2
+
 template <class D>
 using MFromD = svbool_t;
 

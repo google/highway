@@ -39,10 +39,6 @@ fmod, nexttoward
 *   index-returning Mismatch(d, a, b, count) (in find-inl.h) - like EqualSpan,
     but returns the first mismatched index.
 
-### AfterN
-
-= Not(FirstN()), replaces several instances. WHILEGE on SVE.
-
 ### RVV codegen
 
 *   Use new mask<->vec cast instruction, possibly for OddEven, ExpandLoad
@@ -182,3 +178,4 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~NeUnordered~~
 *   ~~MinMaxValue, IndexOfMinMax~~ (algo)
 *   ~~_mm512_getmant (f32/f64)~~
+*   ~~AfterN~~

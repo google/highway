@@ -1458,6 +1458,13 @@ encoding depends on the platform).
     Useful for implementing "masked" stores by loading `prev` followed by
     `IfThenElse(FirstN(d, N), what_to_store, prev)`.
 
+*   <code>M **AfterN**(D, size_t N)</code>: returns mask with all but the first
+    `N` lanes (those with index `>= N`) true. `N >= Lanes(D())` results in an
+    all-false mask. `N` must not exceed
+    `LimitsMax<SignedFromSize<HWY_MIN(sizeof(size_t), sizeof(TFromD<D>))>>()`.
+    Useful for skipping lanes already handled by a previous, overlapping vector
+    via `IfThenElseZero(AfterN(d, N), v)`. Equivalent to `Not(FirstN(d, N))`.
+
 *   <code>M **MaskFromVec**(V v)</code>: returns false in lane `i` if `v[i] ==
     0`, or true if `v[i]` has all bits set. The result is
     *implementation-defined* if `v[i]` is neither zero nor all bits set.

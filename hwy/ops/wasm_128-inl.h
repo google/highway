@@ -1535,6 +1535,21 @@ HWY_API MFromD<D> FirstN(D d, size_t num) {
   return RebindMask(d, Iota(di, 0) < Set(di, static_cast<TI>(num)));
 }
 
+// ------------------------------ AfterN (Iota, Ge)
+
+#ifdef HWY_NATIVE_AFTER_N
+#undef HWY_NATIVE_AFTER_N
+#else
+#define HWY_NATIVE_AFTER_N
+#endif
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API MFromD<D> AfterN(D d, size_t num) {
+  const RebindToSigned<decltype(d)> di;
+  using TI = TFromD<decltype(di)>;
+  return RebindMask(d, Iota(di, 0) >= Set(di, static_cast<TI>(num)));
+}
+
 // ================================================== LOGICAL
 
 // ------------------------------ Not

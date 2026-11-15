@@ -897,6 +897,16 @@ HWY_API M FirstN(const D d, size_t n) {
   return RebindMask(d, detail::Iota0(di) < Set(di, static_cast<TI>(n)));
 }
 
+// ------------------------------ AfterN (Iota, Ge)
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), class M = MFromD<D>>
+HWY_API M AfterN(const D d, size_t n) {
+  n = HWY_MIN(n, MaxLanes(d));
+  const RebindToSigned<decltype(d)> di;
+  using TI = TFromD<decltype(di)>;
+  return RebindMask(d, detail::Iota0(di) >= Set(di, static_cast<TI>(n)));
+}
+
 // ================================================== ARITHMETIC
 
 // ------------------------------ Addition
