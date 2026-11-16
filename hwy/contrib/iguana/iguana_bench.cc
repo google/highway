@@ -56,14 +56,14 @@ FILE* OpenDataFile(const char* rel_path) {
   char candidate[1024];
   const char* test_srcdir = getenv("TEST_SRCDIR");
   if (test_srcdir != nullptr) {
-    snprintf(candidate, sizeof(candidate), "%s/google3/%s", test_srcdir,
+    snprintf(candidate, sizeof(candidate), "%s/_main/%s", test_srcdir,
              rel_path);
     f = fopen(candidate, "rb");
     if (f != nullptr) return f;
   }
   const char* runfiles_dir = getenv("RUNFILES_DIR");
   if (runfiles_dir != nullptr) {
-    snprintf(candidate, sizeof(candidate), "%s/google3/%s", runfiles_dir,
+    snprintf(candidate, sizeof(candidate), "%s/_main/%s", runfiles_dir,
              rel_path);
     f = fopen(candidate, "rb");
     if (f != nullptr) return f;
@@ -115,7 +115,7 @@ HWY_NOINLINE void TestIguanaThroughput() {
   if constexpr (HWY_IS_MSAN || HWY_IS_TSAN) return;
 
   AlignedVector<uint8_t> input =
-      ReadFile("third_party/highway/hwy/contrib/testdata/silesia_dickens.txt");
+      ReadFile("hwy/contrib/testdata/silesia_dickens.txt");
   if constexpr (HWY_IS_DEBUG_BUILD) {
     if (input.size() > (size_t{256} << 10)) {
       input.resize(size_t{256} << 10);
