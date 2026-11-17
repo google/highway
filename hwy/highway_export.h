@@ -1,3 +1,7 @@
+// Copyright 2026 Google LLC
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: BSD-3-Clause
+
 // Pseudo-generated file to handle both cmake & bazel build system.
 
 // Initial generation done using cmake code:

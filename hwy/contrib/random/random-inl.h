@@ -1,5 +1,6 @@
 // Copyright 2024 Google LLC
-// SPDX-License-Identifier: Apache-2.0 OR BSD-3-Clause
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: BSD-3-Clause
 //
 // See the LICENSE file in the project root for the full license text.
 

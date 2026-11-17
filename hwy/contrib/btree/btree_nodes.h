@@ -1,5 +1,6 @@
 // Copyright 2026 Google LLC
 // SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: BSD-3-Clause
 
 #ifndef HIGHWAY_HWY_CONTRIB_BTREE_BTREE_NODES_H_
 #define HIGHWAY_HWY_CONTRIB_BTREE_BTREE_NODES_H_
