@@ -11818,7 +11818,8 @@ template <class DF32, HWY_IF_F32_D(DF32), HWY_IF_V_SIZE_D(DF32, 16)>
 HWY_API VFromD<DF32> PerBlock2x2MatMul(
     DF32 /* d */, VFromD<Repartition<hwy::bfloat16_t, DF32>> a,
     VFromD<Repartition<hwy::bfloat16_t, DF32>> b, VFromD<DF32> c) {
-  return VFromD<DF32>{vbfmmlaq_f32(c.raw, a.raw, b.raw)};
+  return VFromD<DF32>{vbfmmlaq_f32(c.raw, detail::BitCastToRawNeonBF16(a.raw),
+                                    detail::BitCastToRawNeonBF16(b.raw))};
 }
 #endif
 
