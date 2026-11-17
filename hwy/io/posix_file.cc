@@ -48,6 +48,7 @@
 #include <stdint.h>
 
 #include <memory>
+#include <new>  // std::nothrow
 #include <string>
 #include <utility>
 #include <vector>
@@ -100,7 +101,29 @@
 #define HWY_IO_FALLOCATE 0
 #endif
 
+#if HWY_OS_APPLE && defined(__MAC_10_12) &&          \
+    ((defined(__MAC_OS_X_VERSION_MIN_REQUIRED) &&    \
+      __MAC_OS_X_VERSION_MIN_REQUIRED >= 101200) ||  \
+     (defined(__IPHONE_OS_VERSION_MIN_REQUIRED) &&   \
+      __IPHONE_OS_VERSION_MIN_REQUIRED >= 100000) || \
+     (defined(__TV_OS_VERSION_MIN_REQUIRED) &&       \
+      __TV_OS_VERSION_MIN_REQUIRED >= 100000) ||     \
+     (defined(__WATCH_OS_VERSION_MIN_REQUIRED) &&    \
+      __WATCH_OS_VERSION_MIN_REQUIRED >= 30000) ||   \
+     defined(__VISION_OS_VERSION_MIN_REQUIRED))
+#define HWY_IO_RENAMEX_NP 1
+#else
+#define HWY_IO_RENAMEX_NP 0
+#endif
+
 #if HWY_HAVE_POSIX_IO
+
+#if HWY_OS_LINUX
+#include <sys/syscall.h>  // __NR_fstat, __NR_renameat2
+#ifndef RENAME_NOREPLACE
+#define RENAME_NOREPLACE (1u << 0)  // from <linux/fs.h>
+#endif
+#endif
 
 #if HWY_IO_PREADV
 #include <sys/uio.h>  // preadv
@@ -119,6 +142,10 @@
 
 #if HWY_IO_FALLOCATE && !defined(FALLOC_FL_KEEP_SIZE)
 #define FALLOC_FL_KEEP_SIZE 0x01  // from <linux/falloc.h>
+#endif
+
+#if HWY_OS_LINUX && !defined(AT_EMPTY_PATH)
+#define AT_EMPTY_PATH 0x1000  // from <linux/fcntl.h>
 #endif
 
 #endif  // HWY_HAVE_POSIX_IO
@@ -340,12 +367,82 @@ enum class FdAccess : uint8_t { kReadOnly, kWriteOnly, kReadWrite };
 
 bool IsWriteMode(FileMode mode) { return mode != FileMode::kRead; }
 
+// Queries `st` for an open descriptor `fd`. On 64-bit LP64 Linux (x86_64,
+// aarch64, riscv64, excluding llvm-libc whose `struct stat` has a custom
+// layout), libc's `struct stat` matches the kernel `newfstat` layout, so invoke
+// `__NR_fstat` directly to bypass glibc 2.33..2.37's `newfstatat(fd, "", ...,
+// AT_EMPTY_PATH)` wrapper. Note: this covers only x86_64, aarch64, and riscv64;
+// on i386, arm32, ppc64le, s390x, and loongarch64, libc still calls
+// `newfstatat`/`statx` (or `fstat64`), so multi-arch seccomp filters cannot
+// drop those rules unconditionally (`ppc64le` and `s390x` could be added later
+// with their own layout checks). On `ENOSYS`, `EPERM`, or `EACCES` (e.g.
+// seccomp filters that deny legacy `__NR_fstat` while allowing
+// `newfstatat`/`statx`), tries `__NR_newfstatat(..., AT_EMPTY_PATH)` directly
+// (since glibc >= 2.38, glibc < 2.33, musl, and Bionic invoke `__NR_fstat` from
+// `fstat()`, and musl from `fstatat(AT_EMPTY_PATH)` too) before falling back to
+// libc's `fstat()` (genuine permission denials re-fail there).
+int PosixFstat(int fd, struct stat& st) {
+  // Also keeps MSan quiet: raw `syscall()` bypasses sanitizer `fstat`
+  // interceptors.
+  st = {};
+#if HWY_OS_LINUX && defined(__LP64__) && !defined(__LLVM_LIBC__) && \
+    (HWY_ARCH_X86_64 || HWY_ARCH_ARM_A64 || HWY_ARCH_RISCV_64) &&   \
+    defined(__NR_fstat)
+  // Extend these assertions if any additional `struct stat` field is read on
+  // Linux (`ClassifyFd`, `Size`, `FileStatFrom`).
+#if HWY_ARCH_X86_64
+  static_assert(sizeof(struct stat) == 144 &&
+                    offsetof(struct stat, st_dev) == 0 &&
+                    offsetof(struct stat, st_ino) == 8 &&
+                    offsetof(struct stat, st_mode) == 24 &&
+                    offsetof(struct stat, st_size) == 48,
+                "struct stat must match Linux x86_64 newfstat layout");
+#else
+  static_assert(sizeof(struct stat) == 128 &&
+                    offsetof(struct stat, st_dev) == 0 &&
+                    offsetof(struct stat, st_ino) == 8 &&
+                    offsetof(struct stat, st_mode) == 16 &&
+                    offsetof(struct stat, st_size) == 48,
+                "struct stat must match Linux asm-generic newfstat layout");
+#endif
+  for (;;) {
+    detail::RecordSyscall();
+    if (syscall(__NR_fstat, fd, &st) == 0) return 0;
+    const int err = errno;
+    if (err == EINTR) {
+      detail::RecordEintr();
+      continue;
+    }
+    if (err == ENOSYS || err == EPERM || err == EACCES) break;
+    return -1;
+  }
+#ifdef __NR_newfstatat
+  for (;;) {
+    detail::RecordSyscall();
+    if (syscall(__NR_newfstatat, fd, "", &st, AT_EMPTY_PATH) == 0) return 0;
+    const int err = errno;
+    if (err == EINTR) {
+      detail::RecordEintr();
+      continue;
+    }
+    if (err == ENOSYS || err == EPERM || err == EACCES) break;
+    return -1;
+  }
+#endif
+#endif
+  for (;;) {
+    detail::RecordSyscall();
+    if (fstat(fd, &st) == 0) return 0;
+    if (errno != EINTR) return -1;
+    detail::RecordEintr();
+  }
+}
+
 // Sets `kind` and returns `Status()` if `FilePosix` supports `fd` with `mode`.
 // Errors have an errno payload, as from `open`.
 Status ClassifyFd(int fd, FileMode mode, FdKind& kind) {
   struct stat st;
-  detail::RecordSyscall();
-  if (fstat(fd, &st) != 0) return ErrnoStatus(errno);
+  if (PosixFstat(fd, st) != 0) return ErrnoStatus(errno);
   // Only regular files support pread/pwrite at arbitrary offsets and mmap.
   // Notably, open(O_RDONLY) succeeds for directories.
   if (S_ISREG(st.st_mode)) {
@@ -405,13 +502,13 @@ class FilePosix : public File {
   }
 
   intptr_t Handle() const override { return fd_; }  // -1 after Close
+  void DetachFd() { fd_ = -1; }
 
   Status Size() const override {
     const Status open_status = CheckOpen();
     if (!open_status.ok()) return open_status;
     struct stat st;
-    detail::RecordSyscall();
-    if (fstat(fd_, &st) != 0) return ErrnoStatus(errno);
+    if (PosixFstat(fd_, st) != 0) return ErrnoStatus(errno);
     if (st.st_size < 0 ||
         static_cast<uint64_t>(st.st_size) > Status::kMaxPayload) {
       return Status::kRange;
@@ -424,8 +521,7 @@ class FilePosix : public File {
     const Status open_status = CheckOpen();
     if (!open_status.ok()) return open_status;
     struct stat st;
-    detail::RecordSyscall();
-    if (fstat(fd_, &st) != 0) return ErrnoStatus(errno);
+    if (PosixFstat(fd_, st) != 0) return ErrnoStatus(errno);
     const Status status = FileStatFrom(st, out);
     if (!status.ok()) out = FileStat();
     return status;
@@ -474,8 +570,7 @@ class FilePosix : public File {
     // `F_PEOFPOSMODE` allocates the requested number of bytes beyond the
     // currently allocated blocks (physical EOF) without changing `st_size`.
     struct stat st;
-    detail::RecordSyscall();
-    if (fstat(fd_, &st) != 0) return ErrnoStatus(errno);
+    if (PosixFstat(fd_, st) != 0) return ErrnoStatus(errno);
     // `st_blocks` rather than `st_size` because `SetSize` creates sparse tails.
     const uint64_t allocated =
         st.st_blocks > 0 ? static_cast<uint64_t>(st.st_blocks) * 512 : 0;
@@ -870,12 +965,20 @@ namespace {
 Status FinishOpen(int fd, OpenOptions options, FdAccess access,
                   HandleOwnership ownership, FdKind kind,
                   std::unique_ptr<File>& file) {
+  // Allocate before `TruncateToZero` so an allocation failure leaves an
+  // existing file untruncated, and use `std::nothrow` so callers owning `fd`
+  // can close it on failure without exceptions crossing C APIs.
+  std::unique_ptr<FilePosix> posix_file(
+      new (std::nothrow) FilePosix(fd, access, ownership, kind));
+  if (!posix_file) return Status::kResource;
   if (options.mode == FileMode::kWriteTruncate && kind == FdKind::kRegular) {
     const Status truncate_status = TruncateToZero(fd);
-    if (!truncate_status.ok()) return truncate_status;
+    if (!truncate_status.ok()) {
+      // Caller (`PosixFileSystem::Open` or `MaybeOpenHandle`) still owns `fd`.
+      posix_file->DetachFd();
+      return truncate_status;
+    }
   }
-  std::unique_ptr<FilePosix> posix_file =
-      std::make_unique<FilePosix>(fd, access, ownership, kind);
   if (options.hint != AccessHint::kNormal) {
     (void)posix_file->Advise(/*offset=*/0, /*size=*/0, options.hint);
   }
@@ -886,6 +989,136 @@ Status FinishOpen(int fd, OpenOptions options, FdAccess access,
 }  // namespace
 
 namespace {
+
+bool IsUnsupportedNoReplaceErrno(int err) {
+  if (err == ENOSYS || err == EINVAL) return true;
+#ifdef ENOTSUP
+  if (err == ENOTSUP) return true;
+#endif
+#if defined(EOPNOTSUPP) && (!defined(ENOTSUP) || EOPNOTSUPP != ENOTSUP)
+  if (err == EOPNOTSUPP) return true;
+#endif
+  return false;
+}
+
+Status RenameNoReplace(const Path& from, const Path& to) {
+#if HWY_OS_LINUX && defined(__NR_renameat2)
+  for (;;) {
+    detail::RecordSyscall();
+    if (syscall(__NR_renameat2, AT_FDCWD, from.c_str(), AT_FDCWD, to.c_str(),
+                RENAME_NOREPLACE) == 0) {
+      return Status();
+    }
+    const int err = errno;
+    if (err == EINTR) {
+      detail::RecordEintr();
+      continue;
+    }
+    // Also fall back on `EPERM` (e.g. seccomp filters denying `renameat2`); a
+    // genuine `EPERM` (such as a sticky directory) re-fails in the fallback.
+    if (err == EPERM || IsUnsupportedNoReplaceErrno(err)) break;
+    return ErrnoStatus(err);  // EEXIST -> IOCode::kExists
+  }
+#elif HWY_IO_RENAMEX_NP && defined(RENAME_EXCL)
+  for (;;) {
+    detail::RecordSyscall();
+    if (renamex_np(from.c_str(), to.c_str(), RENAME_EXCL) == 0) {
+      return Status();
+    }
+    const int err = errno;
+    if (err == EINTR) {
+      detail::RecordEintr();
+      continue;
+    }
+    if (err == EPERM || IsUnsupportedNoReplaceErrno(err)) break;
+    return ErrnoStatus(err);  // EEXIST -> IOCode::kExists
+  }
+#endif
+
+  struct stat from_st;
+  for (;;) {
+    detail::RecordSyscall();
+    if (lstat(from.c_str(), &from_st) == 0) break;
+    const int err = errno;
+    if (err != EINTR) return ErrnoStatus(err);
+    detail::RecordEintr();
+  }
+
+  // For regular files, `linkat` without `AT_SYMLINK_FOLLOW` atomically fails
+  // with `EEXIST` if `to` already exists (including as a dangling symlink or
+  // when `from` and `to` name the same file), and never follows a symlink if
+  // `from` is swapped after `lstat` (unlike `link` on macOS/BSD). Restricted to
+  // `S_ISREG` because hard-linking directories is disallowed and hard-linking
+  // symlinks fails (`EOPNOTSUPP`) on some OSes.
+  if (S_ISREG(from_st.st_mode)) {
+    for (;;) {
+      detail::RecordSyscall();
+#if !defined(__ANDROID_API__) || __ANDROID_API__ >= 21
+      const int link_rc =
+          linkat(AT_FDCWD, from.c_str(), AT_FDCWD, to.c_str(), /*flags=*/0);
+#else
+      // Linux `link` never follows symlinks.
+      const int link_rc = link(from.c_str(), to.c_str());
+#endif
+      if (link_rc == 0) {
+        for (;;) {
+          detail::RecordSyscall();
+          if (unlink(from.c_str()) == 0) return Status();
+          const int unlink_err = errno;
+          if (unlink_err == EINTR) {
+            detail::RecordEintr();
+            continue;
+          }
+          // If `from` was removed concurrently, `to` is now the only link.
+          if (unlink_err == ENOENT) return Status();
+          // Roll back `to` only when `from` is known to still exist; otherwise
+          // unlinking `to` could destroy the file's last name.
+          if (unlink_err == EPERM || unlink_err == EACCES ||
+              unlink_err == EBUSY) {
+            detail::RecordSyscall();
+            (void)unlink(to.c_str());
+          }
+          return ErrnoStatus(unlink_err);
+        }
+      }
+      const int err = errno;
+      if (err == EINTR) {
+        detail::RecordEintr();
+        continue;
+      }
+      // Fall through to `lstat`+`rename` when the file system does not support
+      // hard links (e.g. FAT/exFAT/FUSE returning `EPERM` or `EOPNOTSUPP`, or
+      // `EMLINK` at `LINK_MAX`).
+      if (err == EPERM || err == EMLINK || IsUnsupportedNoReplaceErrno(err)) {
+        break;
+      }
+      return ErrnoStatus(err);  // EEXIST -> IOCode::kExists
+    }
+  }
+
+  // Directories, symlinks, special files, or file systems without hard links:
+  // `lstat` does not follow symlinks, so dangling symlinks at `to` also fail
+  // with `IOCode::kExists`.
+  struct stat to_st;
+  for (;;) {
+    detail::RecordSyscall();
+    if (lstat(to.c_str(), &to_st) == 0) return ErrnoStatus(EEXIST);
+    const int err = errno;
+    if (err == EINTR) {
+      detail::RecordEintr();
+      continue;
+    }
+    if (err != ENOENT) return ErrnoStatus(err);
+    break;
+  }
+  for (;;) {
+    detail::RecordSyscall();
+    if (rename(from.c_str(), to.c_str()) == 0) return Status();
+    const int err = errno;
+    if (err != EINTR) return ErrnoStatus(err);
+    detail::RecordEintr();
+  }
+}
 
 class PosixFileSystem final : public FileSystem {
  public:
@@ -990,15 +1223,18 @@ class PosixFileSystem final : public FileSystem {
     }
   }
 
-  Status Rename(const Path& from, const Path& to) override {
+  Status Rename(const Path& from, const Path& to, RenameMode mode) override {
     PROFILER_ZONE("IO.Posix.Rename");
-    for (;;) {
-      detail::RecordSyscall();
-      if (rename(from.c_str(), to.c_str()) == 0) return Status();
-      const int err = errno;
-      if (err != EINTR) return ErrnoStatus(err);
-      detail::RecordEintr();
+    if (mode == RenameMode::kReplace) {
+      for (;;) {
+        detail::RecordSyscall();
+        if (rename(from.c_str(), to.c_str()) == 0) return Status();
+        const int err = errno;
+        if (err != EINTR) return ErrnoStatus(err);
+        detail::RecordEintr();
+      }
     }
+    return RenameNoReplace(from, to);
   }
 
   Status Remove(const Path& pathname) override {
@@ -1198,7 +1434,10 @@ Status OpenStream(int fd, StreamFile::Direction direction,
   if (fcntl(fd, F_GETFL) == -1) {
     return Status::Error(Status::kNotFound, static_cast<uint64_t>(errno));
   }
-  file = std::make_unique<StreamFilePosix>(fd, direction);
+  std::unique_ptr<StreamFilePosix> stream(new (std::nothrow)
+                                              StreamFilePosix(fd, direction));
+  if (!stream) return Status::kResource;
+  file = std::move(stream);
   return Status();
 }
 

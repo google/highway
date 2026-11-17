@@ -22,6 +22,7 @@
 
 #include <atomic>
 #include <memory>
+#include <new>  // std::nothrow
 #include <string>
 #include <utility>
 #include <vector>
@@ -684,7 +685,12 @@ class WindowsFileSystem final : public FileSystem {
       (void)CloseHandle(hFile);
       return WinStatus(ERROR_INVALID_PARAMETER);
     }
-    file = std::make_unique<FileWin>(hFile, mode);
+    std::unique_ptr<FileWin> win_file(new (std::nothrow) FileWin(hFile, mode));
+    if (!win_file) {
+      (void)CloseHandle(hFile);
+      return Status::kResource;
+    }
+    file = std::move(win_file);
     return Status();
   }
 
@@ -727,11 +733,22 @@ class WindowsFileSystem final : public FileSystem {
     return FileStatFrom(info, out);
   }
 
-  Status Rename(const Path& from, const Path& to) override {
+  Status Rename(const Path& from, const Path& to, RenameMode mode) override {
     PROFILER_ZONE("IO.Win.Rename");
     const std::vector<wchar_t> wide_from = Utf8ToWide(from);
     const std::vector<wchar_t> wide_to = Utf8ToWide(to);
     if (wide_from.empty() || wide_to.empty()) return Status::kArgument;
+
+    if (mode == RenameMode::kNoReplace) {
+      // Without `MOVEFILE_REPLACE_EXISTING`, `MoveFileExW` atomically fails
+      // with `ERROR_ALREADY_EXISTS` / `ERROR_FILE_EXISTS` (`IOCode::kExists`)
+      // if `to` already exists (for both files and directories).
+      detail::RecordSyscall();
+      if (!MoveFileExW(wide_from.data(), wide_to.data(), /*dwFlags=*/0)) {
+        return WinStatus(GetLastError());
+      }
+      return Status();
+    }
 
     // Prefer `SetFileInformationByHandle` with `FileRenameInfoEx` (Windows 10
     // 1607+ on NTFS/ReFS) and `FILE_RENAME_FLAG_POSIX_SEMANTICS`: unlike
@@ -1018,7 +1035,10 @@ Status OpenStdHandle(DWORD which, StreamFile::Direction direction,
       return Status::Error(Status::kNotFound, static_cast<uint64_t>(err));
     }
   }
-  file = std::make_unique<StreamFileWin>(handle, direction);
+  std::unique_ptr<StreamFileWin> stream(new (std::nothrow)
+                                            StreamFileWin(handle, direction));
+  if (!stream) return Status::kResource;
+  file = std::move(stream);
   return Status();
 }
 

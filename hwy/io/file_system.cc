@@ -139,13 +139,26 @@ HWY_IO_DLLEXPORT Status StatFile(const Path& pathname, FileStat& out) {
   return Status(out.size);
 }
 
-HWY_IO_DLLEXPORT Status RenameFile(const Path& from, const Path& to) {
-  PROFILER_ZONE("IO.Rename");
+namespace {
+
+Status RenameImpl(const Path& from, const Path& to, RenameMode mode) {
   if (from.empty() || to.empty()) return Status::kNotFound;
   FileSystem& fs_from = detail::FileSystemList::Find(from);
   FileSystem& fs_to = detail::FileSystemList::Find(to);
   if (&fs_from != &fs_to) return Status::kArgument;
-  return fs_from.Rename(from, to);
+  return fs_from.Rename(from, to, mode);
+}
+
+}  // namespace
+
+HWY_IO_DLLEXPORT Status RenameFile(const Path& from, const Path& to) {
+  PROFILER_ZONE("IO.Rename");
+  return RenameImpl(from, to, RenameMode::kReplace);
+}
+
+HWY_IO_DLLEXPORT Status RenameFileNoReplace(const Path& from, const Path& to) {
+  PROFILER_ZONE("IO.RenameNoReplace");
+  return RenameImpl(from, to, RenameMode::kNoReplace);
 }
 
 HWY_IO_DLLEXPORT Status RemoveFile(const Path& pathname) {
@@ -178,7 +191,8 @@ HWY_IO_DLLEXPORT Status RemoveDir(const Path& dir) {
   return detail::FileSystemList::Find(dir).RemoveDir(dir);
 }
 
-Status FileSystem::Rename(const Path& /*from*/, const Path& /*to*/) {
+Status FileSystem::Rename(const Path& /*from*/, const Path& /*to*/,
+                          RenameMode /*mode*/) {
   return Status::kUnimplemented;
 }
 

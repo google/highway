@@ -43,13 +43,16 @@ namespace hwy {
 // zero.
 class HWY_IO_DLLEXPORT MemoryFile : public detail::ClosableFile {
  public:
-  // Read-only file over existing bytes (`Size() == bytes.size()`).
+  // Read-only file over existing bytes (`Size() == bytes.size()`). In release
+  // builds, a null `bytes.data()` is treated as empty regardless of
+  // `bytes.size()`; debug/ASan builds assert `bytes.data() != nullptr ||
+  // bytes.empty()`.
   explicit MemoryFile(Span<const uint8_t> bytes)
       // Never mutated when `read_only_` is true
       // (`Write`/`MaybeSpanForWrite`/`SetSize` reject).
       : data_(NonNullData(const_cast<uint8_t*>(bytes.data()))),
-        capacity_(bytes.size()),
-        size_(bytes.size()),
+        capacity_(SizeOrZero(bytes.data(), bytes.size())),
+        size_(capacity_),
         read_only_(true) {}
 
   // File over mutable `buffer` opened according to `mode`:
@@ -58,12 +61,14 @@ class HWY_IO_DLLEXPORT MemoryFile : public detail::ClosableFile {
   // - kWriteUpdate: initially `Size() == buffer.size()`, writable in place
   //   up to `buffer.size()`.
   // - kRead: read-only (`Size() == buffer.size()`).
+  // A null `buffer.data()` is treated as empty (zero capacity) regardless of
+  // `buffer.size()`, so that writes cannot reach the internal dummy byte.
   MemoryFile(Span<uint8_t> buffer, FileMode mode)
       : data_(NonNullData(buffer.data())),
-        capacity_(buffer.size()),
+        capacity_(SizeOrZero(buffer.data(), buffer.size())),
         size_(mode == FileMode::kWriteTruncate || mode == FileMode::kWriteNew
                   ? 0
-                  : buffer.size()),
+                  : capacity_),
         read_only_(mode == FileMode::kRead) {}
 
   // As above, but takes ownership of the memory, which is freed when this
@@ -161,10 +166,17 @@ class HWY_IO_DLLEXPORT MemoryFile : public detail::ClosableFile {
  private:
   // Ensures `MaybeSpan(0, 0)` and `MaybeSpanForWrite(0, 0)` return a non-null
   // `data()` pointer even when constructed from a default `{nullptr, 0}` span
-  // (never dereferenced because `capacity_ == 0` whenever `p == nullptr`).
+  // (never dereferenced because `SizeOrZero` ensures `capacity_ == 0` whenever
+  // `p == nullptr`).
   static uint8_t* NonNullData(uint8_t* p) {
     static uint8_t dummy = 0;
     return p != nullptr ? p : &dummy;
+  }
+  // Treats a (possibly erroneous) non-empty span with null data as empty in
+  // release builds, while surfacing the caller bug in debug/ASan builds.
+  static uint64_t SizeOrZero(const uint8_t* p, size_t size) {
+    HWY_DASSERT(p != nullptr || size == 0);
+    return p != nullptr ? size : 0;
   }
 
   Status CheckWritable() const {

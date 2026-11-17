@@ -84,6 +84,12 @@ struct OpenOptions {
   AccessHint hint;
 };
 
+// Whether `FileSystem::Rename` replaces an existing destination.
+enum class RenameMode : uint8_t {
+  kReplace,    // `RenameFile`: replace `to` if it already exists
+  kNoReplace,  // `RenameFileNoReplace`: fail with `IOCode::kExists`
+};
+
 namespace detail {
 struct FileSystemList;
 }  // namespace detail
@@ -132,8 +138,9 @@ class HWY_IO_DLLEXPORT FileSystem {
   // treat `Status::kPermission` as existence.
   virtual Status Stat(const Path& pathname, FileStat& out) = 0;
 
-  // See `RenameFile`; only called if this file system claims both paths.
-  virtual Status Rename(const Path& from, const Path& to);
+  // See `RenameFile` and `RenameFileNoReplace`; only called if this file system
+  // claims both paths.
+  virtual Status Rename(const Path& from, const Path& to, RenameMode mode);
 
   // See `RemoveFile`.
   virtual Status Remove(const Path& pathname);
@@ -254,6 +261,21 @@ inline bool PathExists(const Path& pathname) {
 // for temp-then-rename output). Renames between different file systems fail
 // with `Status::kArgument`, and empty paths with `Status::kNotFound`.
 HWY_IO_DLLEXPORT Status RenameFile(const Path& from, const Path& to);
+
+// Atomically (where supported by the OS and file system: `renameat2(...,
+// RENAME_NOREPLACE)` on Linux, `renamex_np(..., RENAME_EXCL)` on Apple,
+// `MoveFileExW` without `MOVEFILE_REPLACE_EXISTING` on Windows) renames `from`
+// to `to` without replacing an existing entry at `to`, failing with
+// `IOCode::kExists` if another entry already exists at `to` (including a
+// directory or dangling symlink; if `from` and `to` name the same entry,
+// backends either return `IOCode::kExists` or succeed as a no-op). On POSIX
+// kernels/file systems without native atomic no-replace rename, falls back to
+// `linkat`+`unlink` for regular files (prevents overwriting `to`, but is not
+// crash-atomic: both names can remain after a crash) and, as a last resort for
+// directories/symlinks or file systems without hard links, a racy
+// `lstat`+`rename`. Renames between different file systems fail with
+// `Status::kArgument`, and empty paths with `Status::kNotFound`.
+HWY_IO_DLLEXPORT Status RenameFileNoReplace(const Path& from, const Path& to);
 
 // Removes a file at `pathname` (not directories, which fail with
 // `Status::kArgument`; see `RemoveDir`). Empty paths fail with

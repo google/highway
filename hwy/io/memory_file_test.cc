@@ -441,6 +441,42 @@ TEST(MemoryFileTest, TestOwnership) {
   HWY_ASSERT_EQ(1, frees);
 }
 
+#if !HWY_IS_DEBUG_BUILD
+// In release builds, a non-empty span with null data (e.g. from an unchecked
+// allocation failure) must behave as empty rather than exposing the internal
+// non-null dummy byte.
+TEST(MemoryFileTest, TestNullNonEmptySpan) {
+  {
+    MemoryFile file(Span<const uint8_t>(nullptr, 100));
+    HWY_ASSERT(file.Size() == Status(0));
+    HWY_ASSERT(file.MaybeSpan(0, 1).data() == nullptr);
+  }
+  for (FileMode mode : {FileMode::kWriteTruncate, FileMode::kWriteUpdate}) {
+    MemoryFile file(Span<uint8_t>(nullptr, 100), mode);
+    HWY_ASSERT(file.Size() == Status(0));
+    HWY_ASSERT(file.MaybeSpanForWrite(0, 1).data() == nullptr);
+    const uint8_t kBytes[2] = {1, 2};
+    HWY_ASSERT(!file.Write(0, ByteSpan(kBytes, 2)).ok());
+    HWY_ASSERT(file.Size() == Status(0));
+  }
+}
+#elif defined(GTEST_HAS_DEATH_TEST)
+TEST(MemoryFileDeathTest, TestNullNonEmptySpan) {
+  ASSERT_DEATH(
+      {
+        MemoryFile file(Span<const uint8_t>(nullptr, 100));
+        (void)file;
+      },
+      "p != nullptr");
+  ASSERT_DEATH(
+      {
+        MemoryFile file(Span<uint8_t>(nullptr, 100), FileMode::kWriteTruncate);
+        (void)file;
+      },
+      "p != nullptr");
+}
+#endif
+
 }  // namespace
 }  // namespace hwy
 

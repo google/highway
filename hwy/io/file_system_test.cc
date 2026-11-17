@@ -18,6 +18,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #include <memory>
@@ -45,6 +46,21 @@
 #define HWY_IO_TEST_POSIX 0
 #endif
 
+#if HWY_IO_TEST_POSIX && HWY_OS_LINUX && defined(__LP64__) &&       \
+    HWY_IS_LITTLE_ENDIAN && !(HWY_IS_SANITIZER && !HWY_IS_UBSAN) && \
+    !defined(__ANDROID__) &&                                        \
+    (HWY_ARCH_X86_64 || HWY_ARCH_ARM_A64 || HWY_ARCH_RISCV_64)
+#include <linux/audit.h>
+#include <linux/filter.h>
+#include <linux/seccomp.h>
+#include <sys/prctl.h>
+#include <sys/syscall.h>
+#include <sys/wait.h>
+#define HWY_IO_TEST_LINUX_SECCOMP 1
+#else
+#define HWY_IO_TEST_LINUX_SECCOMP 0
+#endif
+
 namespace hwy {
 namespace {
 
@@ -63,6 +79,8 @@ TEST(FileSystemTest, TestOpenMissingFile) {
     HWY_ASSERT(PathCapabilities(Path()).Empty());
     HWY_ASSERT(RenameFile(Path(), Path("a")).Is(Status::kNotFound));
     HWY_ASSERT(RenameFile(Path("a"), Path()).Is(Status::kNotFound));
+    HWY_ASSERT(RenameFileNoReplace(Path(), Path("a")).Is(Status::kNotFound));
+    HWY_ASSERT(RenameFileNoReplace(Path("a"), Path()).Is(Status::kNotFound));
     HWY_ASSERT(RemoveFile(Path()).Is(Status::kNotFound));
     HWY_ASSERT(!PathExists(Path()));
   }
@@ -118,6 +136,86 @@ TEST(FileSystemTest, TestOpenMissingFile) {
   HWY_ASSERT(!IsFile(renamed));
   HWY_ASSERT(RemoveFile(renamed).Is(Status::kNotFound));
   HWY_ASSERT(RenameFile(renamed, missing).Is(Status::kNotFound));
+  HWY_ASSERT(RenameFileNoReplace(renamed, missing).Is(Status::kNotFound));
+#endif
+}
+
+TEST(FileSystemTest, TestRenameFileNoReplace) {
+#if HWY_IO_TEST_OS_FILES
+  const Path src = TempPathname("hwy_io_test_noreplace_src.bin");
+  const Path dst = TempPathname("hwy_io_test_noreplace_dst.bin");
+  const Path dir = TempPathname("hwy_io_test_noreplace_dir");
+  const Path dir2 = TempPathname("hwy_io_test_noreplace_dir2");
+  (void)RemoveFile(src);
+  (void)RemoveFile(dst);
+  (void)RemoveDir(dir);
+  (void)RemoveDir(dir2);
+
+  const uint8_t kA[3] = {1, 2, 3};
+  const uint8_t kB[4] = {9, 8, 7, 6};
+  AlignedPtr<uint8_t> aligned;
+
+  HWY_ASSERT(WriteBytesToFile(src, ByteSpan(kA, 3)) == Status(3));
+  FileStat src_stat;
+  HWY_ASSERT(StatFile(src, src_stat) == Status(3));
+
+  // Missing destination: succeeds and preserves file identity and contents.
+  HWY_ASSERT(RenameFileNoReplace(src, dst).ok());
+  HWY_ASSERT(!PathExists(src));
+  FileStat dst_stat;
+  HWY_ASSERT(StatFile(dst, dst_stat) == Status(3));
+  HWY_ASSERT(FileStat::SameFile(src_stat, dst_stat));
+  HWY_ASSERT(ReadFileToAligned(dst, aligned) == Status(3));
+  HWY_ASSERT_ARRAY_EQ(kA, aligned.get(), 3);
+
+  // Missing source when destination exists fails with kNotFound.
+  HWY_ASSERT(RenameFileNoReplace(src, dst).Is(Status::kNotFound));
+
+  // Existing file destination: fails with IOCode::kExists without modifying
+  // either file (self-rename either returns kExists on POSIX or is a no-op on
+  // Windows).
+  const Status self_rename = RenameFileNoReplace(dst, dst);
+  HWY_ASSERT(self_rename.ok() || self_rename.Is(IOCode::kExists));
+  HWY_ASSERT(IsFile(dst));
+  HWY_ASSERT(WriteBytesToFile(src, ByteSpan(kB, 4)) == Status(4));
+  HWY_ASSERT(RenameFileNoReplace(src, dst).Is(IOCode::kExists));
+  HWY_ASSERT(ReadFileToAligned(src, aligned) == Status(4));
+  HWY_ASSERT_ARRAY_EQ(kB, aligned.get(), 4);
+  HWY_ASSERT(ReadFileToAligned(dst, aligned) == Status(3));
+  HWY_ASSERT_ARRAY_EQ(kA, aligned.get(), 3);
+
+  // Existing directory / file collisions also report IOCode::kExists, while
+  // renaming a directory to a missing path succeeds.
+  HWY_ASSERT(CreateDir(dir).ok());
+  HWY_ASSERT(RenameFileNoReplace(src, dir).Is(IOCode::kExists));
+  HWY_ASSERT(RenameFileNoReplace(dir, dst).Is(IOCode::kExists));
+  HWY_ASSERT(RenameFileNoReplace(dir, dir2).ok());
+  HWY_ASSERT(!PathExists(dir));
+  HWY_ASSERT(PathExists(dir2));
+
+#if !HWY_OS_WIN
+  // Symlink and dangling-symlink destinations also fail with IOCode::kExists.
+  const Path sym = TempPathname("hwy_io_test_noreplace_sym");
+  const Path dangling = TempPathname("hwy_io_test_noreplace_dangling");
+  const Path sym_moved = TempPathname("hwy_io_test_noreplace_sym_moved");
+  (void)unlink(sym.c_str());
+  (void)unlink(dangling.c_str());
+  (void)unlink(sym_moved.c_str());
+  HWY_ASSERT_EQ(0, symlink(dst.c_str(), sym.c_str()));
+  HWY_ASSERT_EQ(0, symlink(TempPathname("hwy_io_test_missing_target").c_str(),
+                           dangling.c_str()));
+  HWY_ASSERT(RenameFileNoReplace(src, sym).Is(IOCode::kExists));
+  HWY_ASSERT(RenameFileNoReplace(src, dangling).Is(IOCode::kExists));
+  HWY_ASSERT(IsFile(src));
+  HWY_ASSERT(RenameFileNoReplace(sym, sym_moved).ok());
+  HWY_ASSERT(IsFile(sym_moved));
+  HWY_ASSERT(RemoveFile(sym_moved).ok());
+  HWY_ASSERT(RemoveFile(dangling).ok());
+#endif
+
+  HWY_ASSERT(RemoveFile(src).ok());
+  HWY_ASSERT(RemoveFile(dst).ok());
+  HWY_ASSERT(RemoveDir(dir2).ok());
 #endif
 }
 
@@ -474,9 +572,13 @@ class HookFileSystem final : public FileSystem {
     return Status::kNotFound;
   }
 
-  Status Rename(const Path& from, const Path& to) override {
+  Status Rename(const Path& from, const Path& to, RenameMode mode) override {
     last_renamed_from = from.path;
     last_renamed_to = to.path;
+    last_rename_mode = mode;
+    if (mode == RenameMode::kNoReplace && to == Path("hook://memory")) {
+      return IOCode::kExists;
+    }
     return Status();
   }
 
@@ -510,6 +612,7 @@ class HookFileSystem final : public FileSystem {
   size_t stat_calls = 0;
   std::string last_renamed_from;
   std::string last_renamed_to;
+  RenameMode last_rename_mode = RenameMode::kReplace;
   std::string last_removed;
   std::string last_created;
 
@@ -648,12 +751,23 @@ TEST(FileSystemTest, TestFileSystem) {
   HWY_ASSERT(RenameFile(Path("hook://src"), Path("hook://dst")).ok());
   HWY_ASSERT(test_fs.last_renamed_from == "hook://src");
   HWY_ASSERT(test_fs.last_renamed_to == "hook://dst");
+  HWY_ASSERT(test_fs.last_rename_mode == RenameMode::kReplace);
+  HWY_ASSERT(RenameFileNoReplace(Path("hook://src"), Path("hook://memory"))
+                 .Is(IOCode::kExists));
+  HWY_ASSERT(test_fs.last_rename_mode == RenameMode::kNoReplace);
+  HWY_ASSERT(RenameFileNoReplace(Path("hook://src"), Path("hook://dst")).ok());
   const Path missing = TempPathname("hwy_io_test_hook_missing.bin");
   HWY_ASSERT(RenameFile(Path("hook://src"), missing).Is(Status::kArgument));
   HWY_ASSERT(RenameFile(missing, Path("hook://dst")).Is(Status::kArgument));
+  HWY_ASSERT(
+      RenameFileNoReplace(Path("hook://src"), missing).Is(Status::kArgument));
   HWY_ASSERT(RenameFile(Path("hook://src"), Path("other://dst"))
                  .Is(Status::kArgument));
+  HWY_ASSERT(RenameFileNoReplace(Path("hook://src"), Path("other://dst"))
+                 .Is(Status::kArgument));
   HWY_ASSERT(RenameFile(Path("other://a"), Path("other://b"))
+                 .Is(Status::kUnimplemented));
+  HWY_ASSERT(RenameFileNoReplace(Path("other://a"), Path("other://b"))
                  .Is(Status::kUnimplemented));
   HWY_ASSERT(RemoveFile(Path("other://a")).Is(Status::kUnimplemented));
   HWY_ASSERT(RemoveFile(Path("hook://dst")).ok());
@@ -1054,6 +1168,205 @@ TEST(FileSystemTest, TestMapSharedWritable) {
   }
 #endif  // HWY_IO_TEST_POSIX && HWY_OS_LINUX && memfd_create
 #endif  // HWY_IO_TEST_OS_FILES
+}
+
+#if HWY_IO_TEST_LINUX_SECCOMP
+#if HWY_ARCH_X86_64
+constexpr uint32_t kSeccompAuditArch = AUDIT_ARCH_X86_64;
+#elif HWY_ARCH_ARM_A64
+constexpr uint32_t kSeccompAuditArch = AUDIT_ARCH_AARCH64;
+#elif defined(AUDIT_ARCH_RISCV64)
+constexpr uint32_t kSeccompAuditArch = AUDIT_ARCH_RISCV64;
+#else
+constexpr uint32_t kSeccompAuditArch = 243u | 0x80000000u | 0x40000000u;
+#endif
+
+template <class Func>
+void RunWithSeccompFilter(std::vector<sock_filter>& filter, const Func& fn) {
+  fflush(nullptr);
+  const pid_t pid = fork();
+  HWY_ASSERT(pid >= 0);
+  if (pid == 0) {
+    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) _exit(0);
+    sock_fprog prog = {static_cast<unsigned short>(filter.size()),
+                       filter.data()};
+    if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) != 0) _exit(0);
+    fn();
+    _exit(0);
+  }
+  int wstatus = 0;
+  HWY_ASSERT_EQ(pid, waitpid(pid, &wstatus, 0));
+  HWY_ASSERT(WIFEXITED(wstatus) && WEXITSTATUS(wstatus) == 0);
+}
+
+// Runs `fn()` in a forked child with a seccomp filter that fails `blocked_nr1`
+// and `blocked_nr2` (if >= 0) with `err_code`. Skips if installing seccomp
+// filters is disallowed in the test environment.
+template <class Func>
+void RunWithBlockedSyscalls(int blocked_nr1, int blocked_nr2, uint16_t err_code,
+                            const Func& fn) {
+  std::vector<sock_filter> filter;
+  filter.push_back(
+      BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, arch)));
+  filter.push_back(
+      BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, kSeccompAuditArch, 1, 0));
+  filter.push_back(BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW));
+  filter.push_back(
+      BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)));
+  if (blocked_nr1 >= 0) {
+    filter.push_back(BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K,
+                              static_cast<uint32_t>(blocked_nr1), 0, 1));
+    filter.push_back(BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | err_code));
+  }
+  if (blocked_nr2 >= 0) {
+    filter.push_back(BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K,
+                              static_cast<uint32_t>(blocked_nr2), 0, 1));
+    filter.push_back(BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | err_code));
+  }
+  filter.push_back(BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW));
+  RunWithSeccompFilter(filter, fn);
+}
+
+#ifdef __NR_renameat2
+// Fails `renameat2` with `err_code` only when `flags` (`args[4]`) is non-zero,
+// leaving `renameat2(..., /*flags=*/0)` permitted so libc's `rename()` still
+// works on architectures without `__NR_rename`/`__NR_renameat` (e.g. riscv64,
+// aarch64 on newer glibc).
+template <class Func>
+void RunWithBlockedRenameat2Flags(uint16_t err_code, const Func& fn) {
+  std::vector<sock_filter> filter = {
+      BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, arch)),
+      BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, kSeccompAuditArch, 0, 5),
+      BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
+      BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, static_cast<uint32_t>(__NR_renameat2),
+               0, 3),
+      // Little-endian: low 32 bits of `args[4]` hold `unsigned int flags`.
+      BPF_STMT(BPF_LD | BPF_W | BPF_ABS,
+               offsetof(struct seccomp_data, args[4])),
+      BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0, 1, 0),
+      BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | err_code),
+      BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+  };
+  RunWithSeccompFilter(filter, fn);
+}
+#endif  // __NR_renameat2
+#endif  // HWY_IO_TEST_LINUX_SECCOMP
+
+TEST(FileSystemTest, TestLinuxRawFstatAndRenameFallback) {
+#if HWY_IO_TEST_LINUX_SECCOMP
+  HWY_MAYBE_UNUSED const uint8_t kPayload[5] = {10, 20, 30, 40, 50};
+#if !defined(__LLVM_LIBC__) && defined(__NR_fstat)
+  const Path path = TempPathname("hwy_io_test_raw_fstat.bin");
+  HWY_ASSERT(WriteBytesToFile(path, ByteSpan(kPayload, 5)) == Status(5));
+  FileStat expected;
+  HWY_ASSERT(StatFile(path, expected) == Status(5));
+  const int fd = open(path.c_str(), O_RDONLY | O_CLOEXEC);
+  HWY_ASSERT(fd >= 0);
+
+  // Deny `newfstatat` and `statx` so glibc 2.33..2.37's `fstat` wrapper would
+  // fail with `EPERM`, verifying `MaybeOpenHandle`, `Size()`, and `Stat()` use
+  // raw `__NR_fstat`.
+#ifdef __NR_newfstatat
+  const int nr_newfstatat = __NR_newfstatat;
+#else
+  const int nr_newfstatat = -1;
+#endif
+#ifdef __NR_statx
+  const int nr_statx = __NR_statx;
+#else
+  const int nr_statx = -1;
+#endif
+  RunWithBlockedSyscalls(nr_newfstatat, nr_statx, EPERM, [&]() {
+    std::unique_ptr<File> f;
+    HWY_ASSERT(
+        MaybeOpenHandle(fd, FileMode::kRead, HandleOwnership::kBorrow, f).ok());
+    HWY_ASSERT(f->Size() == Status(5));
+    FileStat got;
+    HWY_ASSERT(f->Stat(got) == Status(5));
+    HWY_ASSERT(got.kind == EntryKind::kFile);
+    HWY_ASSERT(FileStat::SameFile(got, expected));
+  });
+
+  // Also verify `PosixFstat` falls back to `newfstatat`/`fstat` when
+  // `__NR_fstat` fails with `ENOSYS`, `EPERM`, or `EACCES` (including on
+  // glibc >= 2.38 and musl where `fstat` invokes `__NR_fstat`).
+  for (uint16_t err : {uint16_t{ENOSYS}, uint16_t{EPERM}, uint16_t{EACCES}}) {
+    RunWithBlockedSyscalls(__NR_fstat, -1, err, [&]() {
+      std::unique_ptr<File> f;
+      HWY_ASSERT(
+          MaybeOpenHandle(fd, FileMode::kRead, HandleOwnership::kBorrow, f)
+              .ok());
+      HWY_ASSERT(f->Size() == Status(5));
+      FileStat got;
+      HWY_ASSERT(f->Stat(got) == Status(5));
+      HWY_ASSERT(FileStat::SameFile(got, expected));
+    });
+  }
+
+  // When both `__NR_fstat` and `__NR_newfstatat` are denied with `EPERM`,
+  // `PosixFstat` reaches the final `fstat()` fallback (succeeding if libc uses
+  // `statx`, or propagating `Status::kPermission` otherwise).
+  RunWithBlockedSyscalls(__NR_fstat, nr_newfstatat, EPERM, [&]() {
+    std::unique_ptr<File> f;
+    const Status st =
+        MaybeOpenHandle(fd, FileMode::kRead, HandleOwnership::kBorrow, f);
+    HWY_ASSERT(st.ok() || st.Is(Status::kPermission));
+  });
+  HWY_ASSERT_EQ(0, close(fd));
+  HWY_ASSERT(RemoveFile(path).ok());
+#endif  // !defined(__LLVM_LIBC__) && defined(__NR_fstat)
+
+#ifdef __NR_renameat2
+  // Force `ENOSYS` and `EPERM` on `renameat2(..., RENAME_NOREPLACE)` to
+  // exercise the POSIX `linkat`+`unlink` and `lstat`+`rename` fallbacks
+  // (including symlink sources) on Linux.
+  for (uint16_t err : {uint16_t{ENOSYS}, uint16_t{EPERM}}) {
+    const Path src = TempPathname("hwy_io_test_fallback_src.bin");
+    const Path dst = TempPathname("hwy_io_test_fallback_dst.bin");
+    const Path sym_src = TempPathname("hwy_io_test_fallback_sym_src");
+    const Path sym_dst = TempPathname("hwy_io_test_fallback_sym_dst");
+    const Path dang = TempPathname("hwy_io_test_fallback_dang");
+    const Path d1 = TempPathname("hwy_io_test_fallback_d1");
+    const Path d2 = TempPathname("hwy_io_test_fallback_d2");
+    (void)RemoveFile(src);
+    (void)RemoveFile(dst);
+    (void)unlink(sym_src.c_str());
+    (void)unlink(sym_dst.c_str());
+    (void)unlink(dang.c_str());
+    (void)RemoveDir(d1);
+    (void)RemoveDir(d2);
+    HWY_ASSERT(WriteBytesToFile(src, ByteSpan(kPayload, 5)) == Status(5));
+    HWY_ASSERT_EQ(0, symlink(src.c_str(), sym_src.c_str()));
+    HWY_ASSERT_EQ(
+        0, symlink(TempPathname("hwy_io_test_absent").c_str(), dang.c_str()));
+    HWY_ASSERT(CreateDir(d1).ok());
+
+    RunWithBlockedRenameat2Flags(err, [&]() {
+      HWY_ASSERT(RenameFileNoReplace(src, dst).ok());
+      HWY_ASSERT(!PathExists(src));
+      HWY_ASSERT(IsFile(dst));
+      HWY_ASSERT(RenameFileNoReplace(dst, dst).Is(IOCode::kExists));
+      HWY_ASSERT(WriteBytesToFile(src, ByteSpan(kPayload, 3)) == Status(3));
+      HWY_ASSERT(RenameFileNoReplace(src, dst).Is(IOCode::kExists));
+      HWY_ASSERT(RenameFileNoReplace(src, dang).Is(IOCode::kExists));
+      HWY_ASSERT(RenameFileNoReplace(sym_src, sym_dst).ok());
+      HWY_ASSERT(IsFile(sym_dst));
+      HWY_ASSERT(RenameFileNoReplace(d1, d2).ok());
+      HWY_ASSERT(!PathExists(d1));
+      HWY_ASSERT(PathExists(d2));
+      HWY_ASSERT(RenameFileNoReplace(d2, dst).Is(IOCode::kExists));
+    });
+
+    (void)RemoveFile(src);
+    (void)RemoveFile(dst);
+    (void)RemoveFile(sym_src);
+    (void)RemoveFile(sym_dst);
+    (void)RemoveFile(dang);
+    (void)RemoveDir(d1);
+    (void)RemoveDir(d2);
+  }
+#endif  // __NR_renameat2
+#endif  // HWY_IO_TEST_LINUX_SECCOMP
 }
 
 }  // namespace
