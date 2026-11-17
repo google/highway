@@ -2023,18 +2023,6 @@ HWY_API M FirstN(const D d, size_t n) {
 #endif
 }
 
-// ------------------------------ AfterN (Iota, Gt)
-
-#if HWY_TARGET > HWY_AVX3
-template <class D, HWY_IF_V_SIZE_D(D, 32), class M = MFromD<D>>
-HWY_API M AfterN(const D d, size_t n) {
-  n = HWY_MIN(n, MaxLanes(d));
-  const RebindToSigned<decltype(d)> di;
-  using TI = TFromD<decltype(di)>;
-  return RebindMask(d, Iota(di, 1) > Set(di, static_cast<TI>(n)));
-}
-#endif  // HWY_TARGET > HWY_AVX3
-
 // ================================================== ARITHMETIC
 
 // ------------------------------ Addition

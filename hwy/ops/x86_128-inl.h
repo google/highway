@@ -3667,24 +3667,6 @@ HWY_API M FirstN(D d, size_t num) {
 #endif  // HWY_TARGET <= HWY_AVX3
 }
 
-// ------------------------------ AfterN (Iota, Gt)
-
-#if HWY_TARGET > HWY_AVX3
-#ifdef HWY_NATIVE_AFTER_N
-#undef HWY_NATIVE_AFTER_N
-#else
-#define HWY_NATIVE_AFTER_N
-#endif
-
-template <class D, class M = MFromD<D>, HWY_IF_V_SIZE_LE_D(D, 16)>
-HWY_API M AfterN(D d, size_t num) {
-  num = HWY_MIN(num, MaxLanes(d));
-  const RebindToSigned<decltype(d)> di;
-  using TI = TFromD<decltype(di)>;
-  return RebindMask(d, Iota(di, 1) > Set(di, static_cast<TI>(num)));
-}
-#endif  // HWY_TARGET > HWY_AVX3
-
 // ------------------------------ InterleaveLower
 
 // Interleaves lanes from halves of the 128-bit blocks of "a" (which provides

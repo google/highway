@@ -1373,21 +1373,6 @@ HWY_API MFromD<D> FirstN(D d, size_t num) {
   return RebindMask(d, Iota(du, 0) < Set(du, static_cast<TU>(num)));
 }
 
-// ------------------------------ AfterN (Iota, Gt)
-
-#ifdef HWY_NATIVE_AFTER_N
-#undef HWY_NATIVE_AFTER_N
-#else
-#define HWY_NATIVE_AFTER_N
-#endif
-
-template <class D>
-HWY_API MFromD<D> AfterN(D d, size_t num) {
-  const RebindToUnsigned<decltype(d)> du;
-  using TU = TFromD<decltype(du)>;
-  return RebindMask(d, Iota(du, 1) > Set(du, static_cast<TU>(num)));
-}
-
 // ------------------------------ MaskedLoad
 template <class D, typename T = TFromD<D>>
 HWY_API VFromD<D> MaskedLoad(MFromD<D> m, D d, const T* HWY_RESTRICT p) {

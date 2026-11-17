@@ -405,21 +405,6 @@ HWY_API MFromD<D> FirstN(D d, size_t n) {
   return m;
 }
 
-#ifdef HWY_NATIVE_AFTER_N
-#undef HWY_NATIVE_AFTER_N
-#else
-#define HWY_NATIVE_AFTER_N
-#endif
-
-template <class D>
-HWY_API MFromD<D> AfterN(D d, size_t n) {
-  MFromD<D> m;
-  for (size_t i = 0; i < MaxLanes(d); ++i) {
-    m.bits[i] = MFromD<D>::FromBool(i >= n);
-  }
-  return m;
-}
-
 // Returns mask ? yes : no.
 template <typename T, size_t N>
 HWY_API Vec128<T, N> IfThenElse(Mask128<T, N> mask, Vec128<T, N> yes,

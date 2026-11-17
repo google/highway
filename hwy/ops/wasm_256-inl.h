@@ -550,15 +550,6 @@ HWY_API MFromD<D> FirstN(const D d, size_t num) {
   return RebindMask(d, Iota(di, 0) < Set(di, static_cast<TI>(num)));
 }
 
-// ------------------------------ AfterN (Iota, Ge)
-
-template <class D, HWY_IF_V_SIZE_D(D, 32)>
-HWY_API MFromD<D> AfterN(const D d, size_t num) {
-  const RebindToSigned<decltype(d)> di;
-  using TI = TFromD<decltype(di)>;
-  return RebindMask(d, Iota(di, 0) >= Set(di, static_cast<TI>(num)));
-}
-
 // ================================================== LOGICAL
 
 template <typename T>
