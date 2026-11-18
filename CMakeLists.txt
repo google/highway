@@ -72,7 +72,8 @@ set(HWY_CMAKE_ARM7 OFF CACHE BOOL "Set copts for Armv7 with NEON (requires vfpv4
 # skipped. For GCC 13.1+, you can also build with -fexcess-precision=standard.
 set(HWY_CMAKE_SSE2 OFF CACHE BOOL "Set SSE2 as baseline for 32-bit x86?")
 
-# Currently this will compile the entire codebase with `-march=rv<XLEN>gcv1p0`:
+# Currently this will compile the entire codebase with `-march=rv<XLEN>gcv1p0`,
+# unless -march is already present in CMAKE_C_FLAGS or CMAKE_CXX_FLAGS:
 set(HWY_CMAKE_RVV ON CACHE BOOL "Set copts for RISCV with RVV?")
 
 # Unconditionally adding -Werror risks breaking the build when new warnings
@@ -549,7 +550,13 @@ else()
   if(HWY_RISCV)
     # Add the gcv compiler flag so that RVV is available as a baseline target.
     # Without this, Clang 19+ can still use RVV via runtime dispatch.
-    if(HWY_CMAKE_RVV)
+    # User provided -march
+    string(TOUPPER "${CMAKE_BUILD_TYPE}" HWY_BUILD_TYPE_UPPER)
+    string(CONCAT HWY_USER_FLAGS
+      "${CMAKE_C_FLAGS} ${CMAKE_CXX_FLAGS} "
+      "${CMAKE_C_FLAGS_${HWY_BUILD_TYPE_UPPER}} "
+      "${CMAKE_CXX_FLAGS_${HWY_BUILD_TYPE_UPPER}}")
+    if(HWY_CMAKE_RVV AND NOT HWY_USER_FLAGS MATCHES "-march=")
       if(RISCV_XLEN EQUAL 64)
         list(APPEND HWY_FLAGS -march=rv64gcv1p0)
         add_link_options(-march=rv64gcv1p0)
