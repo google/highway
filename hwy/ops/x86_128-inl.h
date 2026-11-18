@@ -8152,7 +8152,15 @@ HWY_API void MaskedScatterIndex(VFromD<D> v, MFromD<D> m, D d,
 
 // ------------------------------ Gather (Load/Store)
 
-#if HWY_TARGET <= HWY_AVX2
+#undef HWY_X86_HAVE_GATHER
+#if HWY_TARGET <= HWY_AVX2 && \
+    (!defined(HWY_DISABLE_AVX2_AVX3_GATHER) || HWY_TARGET < HWY_AVX3_DL)
+#define HWY_X86_HAVE_GATHER 1
+#else
+#define HWY_X86_HAVE_GATHER 0
+#endif
+
+#if HWY_X86_HAVE_GATHER
 
 #ifdef HWY_NATIVE_GATHER
 #undef HWY_NATIVE_GATHER
@@ -8300,7 +8308,7 @@ HWY_API VFromD<D> MaskedGatherIndex(MFromD<D> m, D d,
   return MaskedGatherIndexOr(Zero(d), m, d, base, indices);
 }
 
-#endif  // HWY_TARGET <= HWY_AVX2
+#endif  // HWY_X86_HAVE_GATHER
 
 HWY_DIAGNOSTICS(pop)
 

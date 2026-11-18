@@ -40,6 +40,11 @@
 // AVX2 target for VMs which support AVX2 but not the other instruction sets)
 // #define HWY_DISABLE_BMI2_FMA
 
+// Uncomment to avoid emitting gather instructions on AVX2/AVX3/AVX3_DL
+// targets, instead using scalar loads (can be faster when gather is
+// microcode-mitigated, e.g. for GDS/Downfall).
+// #define HWY_DISABLE_AVX2_AVX3_GATHER
+
 // Uncomment to enable these on MSVC even if the predefined macros are not set.
 // #define HWY_WANT_SSE2 1
 // #define HWY_WANT_SSSE3 1

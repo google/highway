@@ -5053,6 +5053,8 @@ HWY_API void MaskedScatterIndex(VFromD<D> v, MFromD<D> m, D /* tag */,
 
 // ------------------------------ Gather
 
+#if HWY_X86_HAVE_GATHER
+
 namespace detail {
 
 template <int kScale, typename T, HWY_IF_UI32(T)>
@@ -5191,6 +5193,8 @@ HWY_API VFromD<D> MaskedGatherIndexOr(VFromD<D> no, MFromD<D> m, D /*d*/,
   return detail::NativeMaskedGatherOr256<sizeof(TFromD<D>)>(no, m, base,
                                                             indices);
 }
+
+#endif  // HWY_X86_HAVE_GATHER
 
 HWY_DIAGNOSTICS(pop)
 

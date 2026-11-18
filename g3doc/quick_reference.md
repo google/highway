@@ -3217,6 +3217,11 @@ least one baseline target which `HWY_EXPORT` can use.
 *   `HWY_DISABLE_BMI2_FMA` prevents emitting BMI/BMI2/FMA instructions. This
     allows using AVX2 in VMs that do not support the other instructions, but
     only if defined for all translation units.
+*   `HWY_DISABLE_AVX2_AVX3_GATHER` disables native vector gather instructions
+    on `HWY_AVX2`, `HWY_AVX3`, and `HWY_AVX3_DL` targets, instead falling back
+    to scalar loads (keeping native gather on `HWY_AVX3_ZEN4`,
+    `HWY_AVX3_SPR`, and `HWY_AVX10_2`). Its presence disables native gather
+    even if defined as `0`.
 *   `HWY_DISABLE_GCC_GATHER_WORKAROUND` restores the original x86 `GatherIndex`
     and `GatherOffset` intrinsic implementations when compiling with GCC.
     The workaround is enabled by default to break false dependencies on gather
