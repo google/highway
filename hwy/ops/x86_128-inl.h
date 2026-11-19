@@ -12271,6 +12271,35 @@ HWY_API VFromD<DU32> SumOfMulQuadAccumulate(
 }
 #endif  // HWY_X86_HAVE_AVX10_2_OPS
 
+#elif HWY_TARGET <= HWY_SSSE3
+
+#ifdef HWY_NATIVE_I8_I8_SUMOFMULQUADACCUMULATE
+#undef HWY_NATIVE_I8_I8_SUMOFMULQUADACCUMULATE
+#else
+#define HWY_NATIVE_I8_I8_SUMOFMULQUADACCUMULATE
+#endif
+
+// Generic for all vector lengths. Without VNNI, pmaddubsw still multiplies
+// bytes directly, but requires one unsigned operand: split a into its low seven
+// bits and its sign bit (a = lo - hi, both valid as unsigned bytes). The pair
+// sums of a*b can reach 32768 and overflow int16_t, whereas those of -(a*b)
+// cannot, hence compute hi*b - lo*b and negate while widening.
+template <class DI32, HWY_IF_I32_D(DI32)>
+HWY_API VFromD<DI32> SumOfMulQuadAccumulate(DI32 di32,
+                                            VFromD<Repartition<int8_t, DI32>> a,
+                                            VFromD<Repartition<int8_t, DI32>> b,
+                                            VFromD<DI32> sum) {
+  const Repartition<int16_t, decltype(di32)> di16;
+  const Repartition<uint8_t, decltype(di32)> du8;
+
+  const auto a_u = BitCast(du8, a);
+  const auto sign = SignBit(du8);
+  const auto hi = SatWidenMulPairwiseAdd(di16, And(a_u, sign), b);
+  const auto lo = SatWidenMulPairwiseAdd(di16, AndNot(sign, a_u), b);
+  return Add(sum,
+             WidenMulPairwiseAdd(di32, Sub(hi, lo), Set(di16, int16_t{-1})));
+}
+
 #endif  // HWY_TARGET <= HWY_AVX3_DL
 
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
