@@ -364,6 +364,7 @@ cc_test(
     deps = [
         ":helpers",
         ":vqsort_for_test",
+        "//third_party/grte:static_libs",
         "//:hwy",
         "//:hwy_test_util",
     ] + TEST_MAIN,
@@ -381,6 +382,7 @@ cc_test(
     deps = [
         ":helpers",
         ":vqsort_for_test",
+        "//third_party/grte:static_libs",
         "//:hwy",
         "//:hwy_test_util",
         "//:thread_pool",
@@ -400,6 +402,7 @@ cc_test(
         ":helpers",
         ":vqargsort",
         ":vqsort",
+        "//third_party/grte:static_libs",
         "//:hwy",
         "//:hwy_test_util",
         "//:nanobenchmark",
@@ -416,6 +419,7 @@ cc_binary(
     deps = [
         ":helpers",
         ":vqsort",
+        "//third_party/grte:static_libs",
         "//:hwy",
         "//:hwy_test_util",
         "//:nanobenchmark",
