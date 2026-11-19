@@ -166,6 +166,12 @@ https://github.com/google/highway/commit/6c285d64ae50e0f48866072ed3a476fc12df5ab
     naming convention that the function has the same name as the functor except
     for the `TestAll` prefix.
 
+4) Consider also adding the op to `hwy/tests/differential_test.cc`, which runs
+the same inputs on every target in one process (including EMU128) and compares
+the results bit for bit with an independent scalar reference. This catches
+cross-target disagreements, which the per-op tests cannot see because they only
+compare against their own expectations.
+
 ## Reducing the number of overloads via templates
 
 Most ops are supported for many types. Often it is possible to reuse the same
