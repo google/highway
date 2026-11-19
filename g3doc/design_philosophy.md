@@ -20,7 +20,7 @@
     tests may detect large regressions, but do not help choose the approach
     during initial development. Analysis tools can warn about some potential
     inefficiencies, but likely not all. We instead provide
-    [a carefully chosen set of vector types and operations that are efficient on all target platforms](instruction_matrix.pdf)
+    [a carefully chosen set of vector types and operations that are efficient on all target platforms](instruction_matrix.md)
     (Armv8, PPC8, x86).
 
 *   Future SIMD hardware features are difficult to predict. For example, AVX2
