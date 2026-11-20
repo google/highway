@@ -119,7 +119,8 @@ HWY_NOINLINE void TestDisjointSlicesNeverCollide() {
                    "disjoint slices produced a collision");
     }
   }
-  HWY_ASSERT_M(disjoint > 1000, "too few disjoint pairs to be meaningful");
+  HWY_ASSERT_M(disjoint > AdjustedReps(1000),
+               "too few disjoint pairs to be meaningful");
   fprintf(stderr, "  OK: %zu random disjoint pairs, no collision\n", disjoint);
 
   // Random pairs land far apart and so exercise the claim weakly. The case that
