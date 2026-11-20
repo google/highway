@@ -10111,7 +10111,24 @@ HWY_API Mask256<T> SetAtOrBeforeFirst(Mask256<T> mask) {
 }
 #endif  // HWY_TARGET <= HWY_AVX3
 
-// ------------------------------ Reductions in generic_ops
+// ------------------------------ MinOfLanes/MaxOfLanes (u8, i8)
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_UI8_D(D)>
+HWY_API VFromD<D> MinOfLanes(D d, VFromD<D> v) {
+  const Half<decltype(d)> dh;
+  const VFromD<decltype(dh)> min =
+      MinOfLanes(dh, Min(LowerHalf(dh, v), UpperHalf(dh, v)));
+  return Combine(d, min, min);
+}
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_UI8_D(D)>
+HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
+  const Half<decltype(d)> dh;
+  const VFromD<decltype(dh)> max =
+      MaxOfLanes(dh, Max(LowerHalf(dh, v), UpperHalf(dh, v)));
+  return Combine(d, max, max);
+}
+
+// ------------------------------ Other reductions in generic_ops
 
 // ------------------------------ BitShuffle
 #if HWY_TARGET <= HWY_AVX3_DL
