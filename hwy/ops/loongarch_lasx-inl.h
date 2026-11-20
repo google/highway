@@ -2721,6 +2721,17 @@ HWY_API VFromD<D> ConcatUpperUpper(D d, VFromD<D> hi, VFromD<D> lo) {
                         BitCast(du, hi).raw, BitCast(du, lo).raw, 0x31)});
 }
 
+// ------------------------------ ConcatEvenBlocks (ConcatLowerLower)
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> ConcatEvenBlocks(D d, VFromD<D> hi, VFromD<D> lo) {
+  return ConcatLowerLower(d, hi, lo);
+}
+// ------------------------------ ConcatOddBlocks (ConcatUpperUpper)
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> ConcatOddBlocks(D d, VFromD<D> hi, VFromD<D> lo) {
+  return ConcatUpperUpper(d, hi, lo);
+}
+
 // ---------------------------- InsertBlock (ConcatLowerLower, ConcatUpperLower)
 template <int kBlockIdx, class T>
 HWY_API Vec256<T> InsertBlock(Vec256<T> v, Vec128<T> blk_to_insert) {

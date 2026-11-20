@@ -5334,6 +5334,18 @@ HWY_API Vec256<double> ConcatUpperUpper(D /* tag */, Vec256<double> hi,
   return Vec256<double>{_mm256_permute2f128_pd(lo.raw, hi.raw, 0x31)};
 }
 
+// ------------------------------ ConcatEvenBlocks (ConcatLowerLower)
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> ConcatEvenBlocks(D d, VFromD<D> hi, VFromD<D> lo) {
+  return ConcatLowerLower(d, hi, lo);
+}
+
+// ------------------------------ ConcatOddBlocks (ConcatUpperUpper)
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> ConcatOddBlocks(D d, VFromD<D> hi, VFromD<D> lo) {
+  return ConcatUpperUpper(d, hi, lo);
+}
+
 // ------------------------------ TableLookupBytes (ZeroExtendVector)
 
 // Both full

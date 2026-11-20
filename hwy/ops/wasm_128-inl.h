@@ -3948,6 +3948,17 @@ HWY_API V InterleaveUpperBlocks(D, V a, V /*b*/) {
   return a;
 }
 
+// ------------------------------ ConcatEvenBlocks
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> ConcatEvenBlocks(D /*d*/, VFromD<D> /*hi*/, VFromD<D> lo) {
+  return lo;
+}
+// ------------------------------ ConcatOddBlocks
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> ConcatOddBlocks(D /*d*/, VFromD<D> hi, VFromD<D> /*lo*/) {
+  return hi;
+}
+
 // ------------------------------ ReverseBlocks
 template <class D>
 HWY_API VFromD<D> ReverseBlocks(D /* tag */, VFromD<D> v) {
