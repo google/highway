@@ -4789,6 +4789,125 @@ HWY_API VFromD<D> ConcatEven(D d, VFromD<D> hi, VFromD<D> lo) {
   return Combine(d, LowerHalf(dh, hi_even), LowerHalf(dh, lo_even));
 }
 
+// ------------------------------ ConcatEvenBlocks / ConcatOddBlocks (Compress)
+
+namespace detail {
+
+template <class DU>
+HWY_INLINE MFromD<DU> IsEvenBlock(DU /*du*/) {
+  using TU = TFromD<DU>;
+  constexpr TU kLanesPerBlock = static_cast<TU>(16 / sizeof(TU));
+  return EqS(AndS(Iota0(DFromV<VFromD<DU>>()), kLanesPerBlock), TU{0});
+}
+
+template <class DU>
+HWY_INLINE MFromD<DU> IsOddBlock(DU /*du*/) {
+  using TU = TFromD<DU>;
+  constexpr TU kLanesPerBlock = static_cast<TU>(16 / sizeof(TU));
+  return NeS(AndS(Iota0(DFromV<VFromD<DU>>()), kLanesPerBlock), TU{0});
+}
+
+// Widest unsigned lane type with a real (non virtual) RVV LMUL for D.Pow2():
+// uint64_t for Pow2 >= 0, uint32_t for -1, uint16_t for -2, uint8_t for -3.
+template <class D>
+using ConcatBlocksLaneT =
+    UnsignedFromSize<size_t{1} << HWY_MIN(3, HWY_MAX(0, HWY_POW2_D(D) + 3))>;
+
+// Full integer LMUL groups place hi in the upper half without vslideup.
+HWY_INLINE vuint64m2_t
+CombineConcatBlocks(Simd<uint64_t, HWY_LANES(uint64_t), 1> /*dt*/,
+                    vuint64m1_t hi, vuint64m1_t lo) {
+  return __riscv_vset_v_u64m1_u64m2(__riscv_vlmul_ext_v_u64m1_u64m2(lo), 1, hi);
+}
+HWY_INLINE vuint64m4_t
+CombineConcatBlocks(Simd<uint64_t, HWY_LANES(uint64_t), 2> /*dt*/,
+                    vuint64m2_t hi, vuint64m2_t lo) {
+  return __riscv_vset_v_u64m2_u64m4(__riscv_vlmul_ext_v_u64m2_u64m4(lo), 1, hi);
+}
+HWY_INLINE vuint64m8_t
+CombineConcatBlocks(Simd<uint64_t, HWY_LANES(uint64_t), 3> /*dt*/,
+                    vuint64m4_t hi, vuint64m4_t lo) {
+  return __riscv_vset_v_u64m4_u64m8(__riscv_vlmul_ext_v_u64m4_u64m8(lo), 1, hi);
+}
+template <class DT, class VH>
+HWY_INLINE VFromD<DT> CombineConcatBlocks(DT dt, VH hi, VH lo) {
+  return Combine(dt, hi, lo);
+}
+
+}  // namespace detail
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> ConcatEvenBlocks(D /*d*/, VFromD<D> /*hi*/, VFromD<D> lo) {
+  return lo;
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> ConcatOddBlocks(D /*d*/, VFromD<D> hi, VFromD<D> /*lo*/) {
+  return hi;
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> ConcatEvenBlocks(D d, VFromD<D> hi, VFromD<D> lo) {
+  using TU = detail::ConcatBlocksLaneT<D>;
+  const Repartition<TU, decltype(d)> du;
+  if (Lanes(du) <= 16 / sizeof(TU)) return lo;
+  return BitCast(d, ConcatLowerLower(du, BitCast(du, hi), BitCast(du, lo)));
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> ConcatOddBlocks(D d, VFromD<D> hi, VFromD<D> lo) {
+  using TU = detail::ConcatBlocksLaneT<D>;
+  const Repartition<TU, decltype(d)> du;
+  if (Lanes(du) <= 16 / sizeof(TU)) return hi;
+  return BitCast(d, ConcatUpperUpper(du, BitCast(du, hi), BitCast(du, lo)));
+}
+
+template <class D, HWY_IF_V_SIZE_GT_D(D, 32), HWY_IF_POW2_LE_D(D, 2)>
+HWY_API VFromD<D> ConcatEvenBlocks(D d, VFromD<D> hi, VFromD<D> lo) {
+  using TU = detail::ConcatBlocksLaneT<D>;
+  const Repartition<TU, decltype(d)> du;
+  if (Lanes(du) <= 16 / sizeof(TU)) return lo;
+  const Twice<decltype(du)> dt;
+  const VFromD<decltype(dt)> hl =
+      detail::CombineConcatBlocks(dt, BitCast(du, hi), BitCast(du, lo));
+  return BitCast(d, LowerHalf(du, Compress(hl, detail::IsEvenBlock(dt))));
+}
+
+template <class D, HWY_IF_V_SIZE_GT_D(D, 32), HWY_IF_POW2_GT_D(D, 2)>
+HWY_API VFromD<D> ConcatEvenBlocks(D d, VFromD<D> hi, VFromD<D> lo) {
+  const Repartition<uint64_t, decltype(d)> du;
+  const Half<decltype(du)> dh;
+  const MFromD<decltype(du)> is_even = detail::IsEvenBlock(du);
+  const VFromD<decltype(dh)> hi_even =
+      LowerHalf(dh, Compress(BitCast(du, hi), is_even));
+  const VFromD<decltype(dh)> lo_even =
+      LowerHalf(dh, Compress(BitCast(du, lo), is_even));
+  return BitCast(d, detail::CombineConcatBlocks(du, hi_even, lo_even));
+}
+
+template <class D, HWY_IF_V_SIZE_GT_D(D, 32), HWY_IF_POW2_LE_D(D, 2)>
+HWY_API VFromD<D> ConcatOddBlocks(D d, VFromD<D> hi, VFromD<D> lo) {
+  using TU = detail::ConcatBlocksLaneT<D>;
+  const Repartition<TU, decltype(d)> du;
+  if (Lanes(du) <= 16 / sizeof(TU)) return hi;
+  const Twice<decltype(du)> dt;
+  const VFromD<decltype(dt)> hl =
+      detail::CombineConcatBlocks(dt, BitCast(du, hi), BitCast(du, lo));
+  return BitCast(d, LowerHalf(du, Compress(hl, detail::IsOddBlock(dt))));
+}
+
+template <class D, HWY_IF_V_SIZE_GT_D(D, 32), HWY_IF_POW2_GT_D(D, 2)>
+HWY_API VFromD<D> ConcatOddBlocks(D d, VFromD<D> hi, VFromD<D> lo) {
+  const Repartition<uint64_t, decltype(d)> du;
+  const Half<decltype(du)> dh;
+  const MFromD<decltype(du)> is_odd = detail::IsOddBlock(du);
+  const VFromD<decltype(dh)> hi_odd =
+      LowerHalf(dh, Compress(BitCast(du, hi), is_odd));
+  const VFromD<decltype(dh)> lo_odd =
+      LowerHalf(dh, Compress(BitCast(du, lo), is_odd));
+  return BitCast(d, detail::CombineConcatBlocks(du, hi_odd, lo_odd));
+}
+
 // ------------------------------ PromoteEvenTo/PromoteOddTo/MulSub
 #include "hwy/ops/inside-inl.h"
 

@@ -1711,6 +1711,17 @@ HWY_API V InterleaveUpperBlocks(D, V a, V /*b*/) {
   return a;
 }
 
+// ------------------------------ ConcatEvenBlocks
+template <class D>
+HWY_API VFromD<D> ConcatEvenBlocks(D /*d*/, VFromD<D> /*hi*/, VFromD<D> lo) {
+  return lo;
+}
+// ------------------------------ ConcatOddBlocks
+template <class D>
+HWY_API VFromD<D> ConcatOddBlocks(D /*d*/, VFromD<D> hi, VFromD<D> /*lo*/) {
+  return hi;
+}
+
 // ------------------------------ TableLookupLanes
 
 // Returned by SetTableIndices for use by TableLookupLanes.

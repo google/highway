@@ -2889,6 +2889,19 @@ aligned!
     blocks are taken from `a` and the even blocks from `b`. Returns `b` if the
     vector has no more than one block (i.e. is 128 bits or scalar).
 
+*   <code>V **ConcatEvenBlocks**(D d, V hi, V lo)</code>: returns the even 16
+    byte blocks (`0, 2, ...`) of `lo` in the lower half, followed by the even 16
+    byte blocks (`0, 2, ...`) of `hi` in the upper half. Returns `lo` if
+    `Lanes(d) * sizeof(TFromD<D>) <= 16` (including scalar and partial tags).
+
+*   <code>V **ConcatOddBlocks**(D d, V hi, V lo)</code>: returns the odd 16 byte
+    blocks (`1, 3, ...`) of `lo` in the lower half, followed by the odd 16 byte
+    blocks (`1, 3, ...`) of `hi` in the upper half. Returns `hi` if
+    `Lanes(d) * sizeof(TFromD<D>) <= 16` (including scalar and partial tags).
+
+    For vectors of two or more blocks, `(ConcatEvenBlocks, ConcatOddBlocks)` is
+    the inverse of `(InterleaveLowerBlocks, InterleaveUpperBlocks)`.
+
 The following ops are undefined for vectors with less than two blocks; callers
 must first check `Lanes` before calling these ops:
 

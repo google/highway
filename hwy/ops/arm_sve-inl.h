@@ -2121,13 +2121,13 @@ HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SVE_CONCAT_EVERY_SECOND, ConcatOddFull,
                                    uzp2)
 #endif  // HWY_SVE_HAVE_BF16_FEATURE || HWY_SVE_HAVE_BF16_VEC
 #if defined(__ARM_FEATURE_SVE_MATMUL_FP64)
-HWY_SVE_FOREACH(HWY_SVE_CONCAT_EVERY_SECOND, ConcatEvenBlocks, uzp1q)
-HWY_SVE_FOREACH(HWY_SVE_CONCAT_EVERY_SECOND, ConcatOddBlocks, uzp2q)
+HWY_SVE_FOREACH(HWY_SVE_CONCAT_EVERY_SECOND, ConcatEvenBlocksFull, uzp1q)
+HWY_SVE_FOREACH(HWY_SVE_CONCAT_EVERY_SECOND, ConcatOddBlocksFull, uzp2q)
 #if HWY_SVE_HAVE_BF16_FEATURE || HWY_SVE_HAVE_BF16_VEC
 HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SVE_CONCAT_EVERY_SECOND,
-                                   ConcatEvenBlocks, uzp1q)
-HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SVE_CONCAT_EVERY_SECOND, ConcatOddBlocks,
-                                   uzp2q)
+                                   ConcatEvenBlocksFull, uzp1q)
+HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SVE_CONCAT_EVERY_SECOND,
+                                   ConcatOddBlocksFull, uzp2q)
 #endif  // HWY_SVE_HAVE_BF16_FEATURE || HWY_SVE_HAVE_BF16_VEC
 #endif  // defined(__ARM_FEATURE_SVE_MATMUL_FP64)
 #undef HWY_SVE_CONCAT_EVERY_SECOND
@@ -3864,7 +3864,7 @@ template <class D, class V>
 HWY_API V ConcatLowerLower(const D d, const V hi, const V lo) {
   if (detail::IsFull(d)) {
 #if defined(__ARM_FEATURE_SVE_MATMUL_FP64) && HWY_TARGET == HWY_SVE_256
-    return detail::ConcatEvenBlocks(hi, lo);
+    return detail::ConcatEvenBlocksFull(hi, lo);
 #endif
 #if HWY_TARGET == HWY_SVE2_128
     const Repartition<uint64_t, D> du64;
@@ -3891,7 +3891,7 @@ template <class D, class V>
 HWY_API V ConcatUpperUpper(const D d, const V hi, const V lo) {
   if (detail::IsFull(d)) {
 #if defined(__ARM_FEATURE_SVE_MATMUL_FP64) && HWY_TARGET == HWY_SVE_256
-    return detail::ConcatOddBlocks(hi, lo);
+    return detail::ConcatOddBlocksFull(hi, lo);
 #endif
 #if HWY_TARGET == HWY_SVE2_128
     const Repartition<uint64_t, D> du64;
@@ -4300,6 +4300,124 @@ HWY_API V InterleaveUpperBlocks(D d, V a, V b) {
   return BitCast(d, detail::ZipLowerSame(even, odd));
 #endif  // HWY_TARGET
 }
+
+// ------------------------------ ConcatEvenBlocks / ConcatOddBlocks
+// (ConcatLowerLower, ConcatUpperUpper)
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> ConcatEvenBlocks(const D /*d*/, const VFromD<D> /*hi*/,
+                                   const VFromD<D> lo) {
+  return lo;
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> ConcatOddBlocks(const D /*d*/, const VFromD<D> hi,
+                                  const VFromD<D> /*lo*/) {
+  return hi;
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> ConcatEvenBlocks(const D d, const VFromD<D> hi,
+                                   const VFromD<D> lo) {
+#if HWY_TARGET != HWY_SVE_256
+  if (Lanes(d) * sizeof(TFromD<D>) <= 16) return lo;
+#endif
+  return ConcatLowerLower(d, hi, lo);
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> ConcatOddBlocks(const D d, const VFromD<D> hi,
+                                  const VFromD<D> lo) {
+#if HWY_TARGET != HWY_SVE_256
+  if (Lanes(d) * sizeof(TFromD<D>) <= 16) return hi;
+#endif
+  return ConcatUpperUpper(d, hi, lo);
+}
+
+#if HWY_MAX_BYTES > 32
+#if !(defined(__ARM_FEATURE_SVE_MATMUL_FP64) && \
+      defined(__ARM_FEATURE_SVE_BITS) && __ARM_FEATURE_SVE_BITS >= 256)
+namespace detail {
+HWY_INLINE svuint64_t ConcatEvenBlocksU64(const svuint64_t hi,
+                                          const svuint64_t lo) {
+  const svuint64_t even = ConcatEvenFull(hi, lo);  // lo0 lo2 ... hi0 hi2 ...
+  const svuint64_t odd = ConcatOddFull(hi, lo);    // lo1 lo3 ... hi1 hi3 ...
+  return InterleaveEvenImpl(even, odd);            // lo0 lo1 lo4 lo5 ...
+}
+HWY_INLINE svuint64_t ConcatOddBlocksU64(const svuint64_t hi,
+                                         const svuint64_t lo) {
+  const svuint64_t even = ConcatEvenFull(hi, lo);  // lo0 lo2 ... hi0 hi2 ...
+  const svuint64_t odd = ConcatOddFull(hi, lo);    // lo1 lo3 ... hi1 hi3 ...
+  return InterleaveOddImpl(even, odd);             // lo2 lo3 lo6 lo7 ...
+}
+}  // namespace detail
+#endif
+
+template <class D, HWY_IF_V_SIZE_GT_D(D, 32)>
+HWY_API VFromD<D> ConcatEvenBlocks(const D d, const VFromD<D> hi,
+                                   const VFromD<D> lo) {
+  // UZP1.Q is undefined when runtime CurrentVL < 256, so only emit it when
+  // VL >= 256 is known at compile time (plus HWY_SVE_256 above).
+#if defined(__ARM_FEATURE_SVE_MATMUL_FP64) && \
+    defined(__ARM_FEATURE_SVE_BITS) && __ARM_FEATURE_SVE_BITS >= 256
+#if HWY_SVE_IS_POW2
+  if (detail::IsFull(d)) return detail::ConcatEvenBlocksFull(hi, lo);
+#endif
+  const size_t N = Lanes(d);
+  if (N * sizeof(TFromD<D>) <= 16) return lo;
+  const VFromD<D> hi_even = detail::ConcatEvenBlocksFull(hi, hi);
+  const VFromD<D> lo_even = detail::ConcatEvenBlocksFull(lo, lo);
+  return detail::Splice(hi_even, lo_even, FirstN(d, N / 2));
+#else
+  const Repartition<uint64_t, decltype(d)> du64;
+  const svuint64_t hi64 = BitCast(du64, hi);
+  const svuint64_t lo64 = BitCast(du64, lo);
+#if HWY_SVE_IS_POW2
+  if (detail::IsFull(d)) {
+    return BitCast(d, detail::ConcatEvenBlocksU64(hi64, lo64));
+  }
+#endif
+  const size_t lanes64 = Lanes(du64);
+  if (lanes64 <= 2) return lo;
+  const svuint64_t hi_even = detail::ConcatEvenBlocksU64(hi64, hi64);
+  const svuint64_t lo_even = detail::ConcatEvenBlocksU64(lo64, lo64);
+  return BitCast(d,
+                 detail::Splice(hi_even, lo_even, FirstN(du64, lanes64 / 2)));
+#endif
+}
+
+template <class D, HWY_IF_V_SIZE_GT_D(D, 32)>
+HWY_API VFromD<D> ConcatOddBlocks(const D d, const VFromD<D> hi,
+                                  const VFromD<D> lo) {
+  // UZP2.Q is undefined when runtime CurrentVL < 256, so only emit it when
+  // VL >= 256 is known at compile time (plus HWY_SVE_256 above).
+#if defined(__ARM_FEATURE_SVE_MATMUL_FP64) && \
+    defined(__ARM_FEATURE_SVE_BITS) && __ARM_FEATURE_SVE_BITS >= 256
+#if HWY_SVE_IS_POW2
+  if (detail::IsFull(d)) return detail::ConcatOddBlocksFull(hi, lo);
+#endif
+  const size_t N = Lanes(d);
+  if (N * sizeof(TFromD<D>) <= 16) return hi;
+  const VFromD<D> hi_odd = detail::ConcatOddBlocksFull(hi, hi);
+  const VFromD<D> lo_odd = detail::ConcatOddBlocksFull(lo, lo);
+  return detail::Splice(hi_odd, lo_odd, FirstN(d, N / 2));
+#else
+  const Repartition<uint64_t, decltype(d)> du64;
+  const svuint64_t hi64 = BitCast(du64, hi);
+  const svuint64_t lo64 = BitCast(du64, lo);
+#if HWY_SVE_IS_POW2
+  if (detail::IsFull(d)) {
+    return BitCast(d, detail::ConcatOddBlocksU64(hi64, lo64));
+  }
+#endif
+  const size_t lanes64 = Lanes(du64);
+  if (lanes64 <= 2) return hi;
+  const svuint64_t hi_odd = detail::ConcatOddBlocksU64(hi64, hi64);
+  const svuint64_t lo_odd = detail::ConcatOddBlocksU64(lo64, lo64);
+  return BitCast(d, detail::Splice(hi_odd, lo_odd, FirstN(du64, lanes64 / 2)));
+#endif
+}
+#endif  // HWY_MAX_BYTES > 32
 
 // ------------------------------ Reverse
 
