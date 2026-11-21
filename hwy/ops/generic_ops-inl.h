@@ -358,7 +358,11 @@ HWY_API Mask<D> SetMask(D d, bool val) {
 
 template <class D>
 HWY_API Mask<D> AfterN(D d, size_t n) {
+#if HWY_TARGET_IS_SVE
+  return AndNot(FirstN(d, n), SetMask(d, true));
+#else
   return Not(FirstN(d, n));
+#endif
 }
 
 // ------------------------------ IfNegativeThenElseZero
