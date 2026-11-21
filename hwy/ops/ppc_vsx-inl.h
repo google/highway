@@ -5590,8 +5590,8 @@ template <class D, HWY_IF_V_SIZE_LE_D(D, 8)>
 HWY_API bool AllTrue(D d, MFromD<D> mask) {
   const Full128<TFromD<D>> d_full;
   constexpr size_t kN = MaxLanes(d);
-  return AllTrue(
-      d_full, Or(MFromD<decltype(d_full)>{mask.raw}, Not(FirstN(d_full, kN))));
+  return AllTrue(d_full,
+                 Or(MFromD<decltype(d_full)>{mask.raw}, AfterN(d_full, kN)));
 }
 
 template <class D>

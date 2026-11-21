@@ -354,6 +354,21 @@ HWY_API Mask<D> SetMask(D d, bool val) {
 
 #endif  // HWY_NATIVE_SET_MASK
 
+// ------------------------------ AfterN
+#if (defined(HWY_NATIVE_AFTER_N) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_AFTER_N
+#undef HWY_NATIVE_AFTER_N
+#else
+#define HWY_NATIVE_AFTER_N
+#endif
+
+template <class D>
+HWY_API Mask<D> AfterN(D d, size_t n) {
+  return Not(FirstN(d, n));
+}
+
+#endif  // HWY_NATIVE_AFTER_N
+
 // ------------------------------ IfNegativeThenElseZero
 #if (defined(HWY_NATIVE_IF_NEG_THEN_ELSE_ZERO) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_IF_NEG_THEN_ELSE_ZERO

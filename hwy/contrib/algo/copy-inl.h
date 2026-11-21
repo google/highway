@@ -172,7 +172,7 @@ T* CopyIf(D d, const T* HWY_RESTRICT from, size_t count, T* HWY_RESTRICT to,
   // Number of elements before `from` or already written.
   const size_t invalid = idx - last;
   HWY_DASSERT(0 != invalid && invalid < N);
-  const Mask<D> mask = Not(FirstN(d, invalid));
+  const Mask<D> mask = AfterN(d, invalid);
   const Vec<D> v = MaskedLoad(mask, d, from + last);
   to += CompressBlendedStore(v, And(mask, func(d, v)), d, to);
 #endif
