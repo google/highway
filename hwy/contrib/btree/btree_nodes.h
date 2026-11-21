@@ -460,8 +460,6 @@ struct BTreeState {
   LeafT* last_leaf_ = nullptr;
   size_t tree_height_ = 0;
   size_t num_elements_ = 0;
-  size_t num_leaves_ = 0;
-  size_t num_internals_ = 0;
 };
 
 // -----------------------------------------------------------------------------

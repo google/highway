@@ -2886,16 +2886,19 @@ class BTree {
     state_->last_leaf_ = nullptr;
     state_->tree_height_ = 0;
     state_->num_elements_ = 0;
-    state_->num_leaves_ = 0;
-    state_->num_internals_ = 0;
   }
 
   size_t size() const { return state_->num_elements_; }
   bool empty() const { return state_->num_elements_ == 0; }
   size_t height() const { return state_->tree_height_; }
   size_t AllocatedBytes() const {
-    return state_->num_leaves_ * sizeof(Leaf) +
-           state_->num_internals_ * sizeof(Internal);
+    if (state_->root_ == nullptr) return 0;
+    if (state_->tree_height_ == 0) return sizeof(Leaf);
+    size_t num_leaves = 0;
+    size_t num_internals = 0;
+    CountSubtreeNodes(state_->root_, state_->tree_height_, &num_leaves,
+                      &num_internals);
+    return num_leaves * sizeof(Leaf) + num_internals * sizeof(Internal);
   }
 
   iterator begin() {
@@ -3131,7 +3134,6 @@ class BTree {
         auto* r_leaf = static_cast<Leaf*>(parent->children[merge_idx + 1]);
 
         MergeLeaves(l_leaf, r_leaf, state_->last_leaf_);
-        state_->num_leaves_--;
 
         // Remove separator key and child pointer from parent
         RemoveInternalEntry(parent, merge_idx);
@@ -3207,7 +3209,6 @@ class BTree {
 
             // 4. Free the absorbed right_internal node.
             delete right_internal;
-            state_->num_internals_--;
 
             // 5. Remove keys[u_merge_idx] (sep_key) and
             //    children[u_merge_idx + 1] (right_internal) from upper_parent,
@@ -3278,7 +3279,6 @@ class BTree {
           state_->root_ = root->children[0];
           state_->tree_height_--;
           delete root;
-          state_->num_internals_--;
         }
       }
     }
@@ -3307,7 +3307,6 @@ class BTree {
 
       // Case B: Parent is full (16 keys, 17 children) -> Internal node split!
       auto* new_internal = new Internal();
-      state_->num_internals_++;
 
       // Assemble all 17 keys and 18 children in sorted order on the stack.
       constexpr size_t kTotalK = Internal::kCapacity + 1;
@@ -3353,7 +3352,6 @@ class BTree {
 
     // Root split (grows tree height by 1)
     auto* new_root = new Internal();
-    state_->num_internals_++;
     new_root->keys[0] = promo_key;
     new_root->children[0] = state_->root_;
     new_root->children[1] = promo_child;
@@ -3382,7 +3380,6 @@ class BTree {
         state_->root_ = nullptr;
         state_->first_leaf_ = nullptr;
         state_->last_leaf_ = nullptr;
-        state_->num_leaves_ = 0;
       }
       return 1;
     }
@@ -3554,7 +3551,6 @@ class BTree {
     // Handle empty tree initialization
     if (HWY_UNLIKELY(state_->root_ == nullptr)) {
       state_->first_leaf_ = state_->last_leaf_ = new Leaf();
-      state_->num_leaves_ = 1;
       CompressIntoLeaf(state_->first_leaf_, &key, 1);
       state_->root_ = state_->first_leaf_;
       state_->tree_height_ = 0;
@@ -3579,7 +3575,6 @@ class BTree {
       // Tier 3: Root leaf split (allocates new leaf and creates root internal
       // node)
       auto* new_leaf = new Leaf();
-      state_->num_leaves_++;
       StorageKeyT promo_key = 0;
       SplitLeafNode(leaf, new_leaf, slot, key, &promo_key);
 
@@ -3592,7 +3587,6 @@ class BTree {
       state_->last_leaf_ = new_leaf;
 
       auto* new_root = new Internal();
-      state_->num_internals_++;
       new_root->keys[0] = promo_key;
       new_root->children[0] = leaf;
       new_root->children[1] = new_leaf;
@@ -3640,7 +3634,6 @@ class BTree {
     // 50/50 by default, boundary-biased for sequential appends/prepends, or
     // clamped to kMinModeCap if an outlier key forces a mode downgrade)
     auto* new_leaf = new Leaf();
-    state_->num_leaves_++;
     StorageKeyT promo_key = 0;
     SplitLeafNode(leaf, new_leaf, slot, key, &promo_key);
 
@@ -3681,7 +3674,6 @@ class BTree {
     // Handle empty tree initialization
     if (HWY_UNLIKELY(state_->root_ == nullptr)) {
       state_->first_leaf_ = state_->last_leaf_ = new Leaf();
-      state_->num_leaves_ = 1;
       CompressIntoLeaf(state_->first_leaf_, &key, &value, 1);
       state_->root_ = state_->first_leaf_;
       state_->tree_height_ = 0;
@@ -3709,7 +3701,6 @@ class BTree {
       // Tier 3: Root leaf split (allocates new leaf and creates root internal
       // node)
       auto* new_leaf = new Leaf();
-      state_->num_leaves_++;
       StorageKeyT promo_key = 0;
       SplitLeafNode(leaf, new_leaf, slot, key, value, &promo_key);
 
@@ -3722,7 +3713,6 @@ class BTree {
       state_->last_leaf_ = new_leaf;
 
       auto* new_root = new Internal();
-      state_->num_internals_++;
       new_root->keys[0] = promo_key;
       new_root->children[0] = leaf;
       new_root->children[1] = new_leaf;
@@ -3774,7 +3764,6 @@ class BTree {
     // 50/50 by default, boundary-biased for sequential appends/prepends, or
     // clamped to kMinModeCap if an outlier key forces a mode downgrade)
     auto* new_leaf = new Leaf();
-    state_->num_leaves_++;
     StorageKeyT promo_key = 0;
     SplitLeafNode(leaf, new_leaf, slot, key, value, &promo_key);
 
@@ -3853,7 +3842,6 @@ class BTree {
     // Build compressed leaf level
     for (size_t key_idx = 0; key_idx < num_keys;) {
       auto* leaf = new Leaf();
-      tree.state_->num_leaves_++;
       if (tree.state_->first_leaf_ == nullptr) tree.state_->first_leaf_ = leaf;
       if (prev_leaf != nullptr) {
         prev_leaf->SetNext(leaf);
@@ -3966,7 +3954,6 @@ class BTree {
 
       for (size_t idx = 0; idx < num_nodes;) {
         auto* internal = new Internal();
-        tree.state_->num_internals_++;
 
         const size_t remaining_nodes = num_nodes - idx;
         // Ensure every non-root internal node is at least 50% full (>= 9
@@ -4006,6 +3993,21 @@ class BTree {
     tree.state_->root_ = current_level_ptrs[0];
     tree.state_->tree_height_ = current_height;
     return tree;
+  }
+
+  static void CountSubtreeNodes(const void* node, size_t height,
+                                size_t* num_leaves, size_t* num_internals) {
+    HWY_DASSERT(node != nullptr && height >= 1);
+    const auto* internal = static_cast<const Internal*>(node);
+    ++(*num_internals);
+    if (height == 1) {
+      *num_leaves += static_cast<size_t>(internal->num_keys) + 1;
+      return;
+    }
+    for (size_t i = 0; i <= internal->num_keys; ++i) {
+      CountSubtreeNodes(internal->children[i], height - 1, num_leaves,
+                        num_internals);
+    }
   }
 
   static void DestroySubtree(void* node, size_t height) {

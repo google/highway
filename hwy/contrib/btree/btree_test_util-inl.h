@@ -48,6 +48,24 @@ struct IsPairLike<T, std::void_t<decltype(std::declval<T>().first),
                                  decltype(std::declval<T>().second)>>
     : std::true_type {};
 
+template <typename T, typename = void>
+struct HasAllocatedBytes : std::false_type {};
+
+template <typename T>
+struct HasAllocatedBytes<
+    T, std::void_t<decltype(std::declval<const T&>().AllocatedBytes())>>
+    : std::true_type {};
+
+template <typename TreeT>
+size_t CountLeaves(const TreeT& tree) {
+  size_t count = 0;
+  for (auto* leaf = tree.state()->first_leaf_; leaf != nullptr;
+       leaf = leaf->Next()) {
+    ++count;
+  }
+  return count;
+}
+
 template <typename KeyT>
 typename KeyCodec<KeyT>::LaneType KeyToRaw(KeyT k) {
   using LaneKeyT = typename KeyCodec<KeyT>::LaneType;
@@ -421,8 +439,9 @@ class BTreeChecker {
       HWY_ASSERT(st->first_leaf_ == nullptr);
       HWY_ASSERT(st->last_leaf_ == nullptr);
       HWY_ASSERT_EQ(st->tree_height_, size_t{0});
-      HWY_ASSERT_EQ(st->num_leaves_, size_t{0});
-      HWY_ASSERT_EQ(st->num_internals_, size_t{0});
+      if constexpr (HasAllocatedBytes<TreeT>::value) {
+        HWY_ASSERT_EQ(tree_.AllocatedBytes(), size_t{0});
+      }
       HWY_ASSERT(tree_.begin() == tree_.end());
       return;
     }
@@ -495,10 +514,13 @@ class BTreeChecker {
       level = std::move(next);
     }
 
-    HWY_ASSERT_EQ(visited_internals, st->num_internals_);
-    HWY_ASSERT_EQ(level.size(), st->num_leaves_);
-
     using LeafPtrT = decltype(st->first_leaf_);
+    using LeafNodeT = std::remove_pointer_t<LeafPtrT>;
+    if constexpr (HasAllocatedBytes<TreeT>::value) {
+      HWY_ASSERT_EQ(tree_.AllocatedBytes(),
+                    level.size() * sizeof(LeafNodeT) +
+                        visited_internals * sizeof(InternalNodeT));
+    }
     HWY_ASSERT(static_cast<LeafPtrT>(const_cast<void*>(level.front().node)) ==
                st->first_leaf_);
     HWY_ASSERT(static_cast<LeafPtrT>(const_cast<void*>(level.back().node)) ==
@@ -1218,7 +1240,7 @@ void DoExhaustiveLeafKernelSweepTest() {
 
         TreeT tree = build_leaf_tree(spec, count);
         HWY_ASSERT_EQ(tree.state()->tree_height_, size_t{0});
-        HWY_ASSERT_EQ(tree.state()->num_leaves_, size_t{1});
+        HWY_ASSERT_EQ(CountLeaves(tree), size_t{1});
         const auto* leaf = tree.state()->first_leaf_;
         HWY_ASSERT_EQ(leaf->BitMode(), spec.mode);
         HWY_ASSERT_EQ(leaf->NumKeys(), count);
@@ -1318,10 +1340,10 @@ void DoExhaustiveLeafKernelSweepTest() {
           if (count == 1) {
             HWY_ASSERT(scratch.empty());
             HWY_ASSERT(scratch.state()->root_ == nullptr);
-            HWY_ASSERT_EQ(scratch.state()->num_leaves_, size_t{0});
+            HWY_ASSERT_EQ(CountLeaves(scratch), size_t{0});
           } else {
             HWY_ASSERT_EQ(scratch.state()->tree_height_, size_t{0});
-            HWY_ASSERT_EQ(scratch.state()->num_leaves_, size_t{1});
+            HWY_ASSERT_EQ(CountLeaves(scratch), size_t{1});
             const auto* s_leaf = scratch.state()->first_leaf_;
             VerifyLeafNode(s_leaf);
             HWY_ASSERT_EQ(s_leaf->BitMode(), spec.mode);
@@ -1378,7 +1400,7 @@ void DoExhaustiveLeafKernelSweepTest() {
           HWY_ASSERT_EQ(scratch.size(), count + 1);
           if (expected_fits) {
             HWY_ASSERT_EQ(scratch.state()->tree_height_, size_t{0});
-            HWY_ASSERT_EQ(scratch.state()->num_leaves_, size_t{1});
+            HWY_ASSERT_EQ(CountLeaves(scratch), size_t{1});
             const auto* s_leaf = scratch.state()->first_leaf_;
             VerifyLeafNode(s_leaf);
             HWY_ASSERT_EQ(s_leaf->BitMode(), spec.mode);
@@ -1399,7 +1421,7 @@ void DoExhaustiveLeafKernelSweepTest() {
             }
           } else {
             BTreeChecker<TreeT, TreeT>::VerifyPhysicalTree(scratch);
-            HWY_ASSERT(scratch.state()->num_leaves_ == 2 ||
+            HWY_ASSERT(CountLeaves(scratch) == 2 ||
                        scratch.state()->first_leaf_->BitMode() > spec.mode);
             HWY_ASSERT(scratch.contains(new_uk));
           }
@@ -1441,7 +1463,7 @@ void DoExhaustiveLeafKernelSweepTest() {
           HWY_ASSERT_EQ(scratch.size(), count + 1);
           if (expected_fits) {
             HWY_ASSERT_EQ(scratch.state()->tree_height_, size_t{0});
-            HWY_ASSERT_EQ(scratch.state()->num_leaves_, size_t{1});
+            HWY_ASSERT_EQ(CountLeaves(scratch), size_t{1});
             const auto* s_leaf = scratch.state()->first_leaf_;
             VerifyLeafNode(s_leaf);
             HWY_ASSERT_EQ(s_leaf->BitMode(), spec.mode);
@@ -1463,7 +1485,7 @@ void DoExhaustiveLeafKernelSweepTest() {
             }
           } else {
             BTreeChecker<TreeT, TreeT>::VerifyPhysicalTree(scratch);
-            HWY_ASSERT(scratch.state()->num_leaves_ == 2 ||
+            HWY_ASSERT(CountLeaves(scratch) == 2 ||
                        scratch.state()->first_leaf_->BitMode() > spec.mode);
             HWY_ASSERT(scratch.contains(new_uk));
           }
@@ -1475,8 +1497,9 @@ void DoExhaustiveLeafKernelSweepTest() {
 
 // Sibling rebalancing on insert (Tier 2.5): when a leaf is full, keys are
 // redistributed with an adjacent sibling instead of allocating a new leaf.
-// The observable difference between "rebalanced" and "split" is num_leaves_,
-// so every scenario below asserts on it, then re-validates the physical tree.
+// The observable difference between "rebalanced" and "split" is the leaf count,
+// so every scenario below asserts on CountLeaves(tree), then re-validates the
+// physical tree.
 template <typename TreeT>
 void DoSiblingRebalanceTest() {
   using key_type = typename TreeT::key_type;
@@ -1528,7 +1551,7 @@ void DoSiblingRebalanceTest() {
   {
     TreeT tree;
     LaneKeyT next_key = kBase;
-    while (tree.state()->num_leaves_ < 4) {
+    while (CountLeaves(tree) < 4) {
       tree.insert(make_value(next_key));
       next_key += kStep;
     }
@@ -1552,7 +1575,7 @@ void DoSiblingRebalanceTest() {
       const size_t total = l2->NumKeys() + l3->NumKeys() + 1;
       const LaneKeyT probe = leaf_key(l2, 3) + kStep / 2;
       HWY_ASSERT(tree.insert(make_value(probe)).second);
-      HWY_ASSERT_EQ(tree.state()->num_leaves_, size_t{4});
+      HWY_ASSERT_EQ(CountLeaves(tree), size_t{4});
       HWY_ASSERT_EQ(l2->NumKeys(), total / 2);
       HWY_ASSERT_EQ(l3->NumKeys(), total - total / 2);
       check_sep(root->keys[2], l2, l3);
@@ -1573,11 +1596,11 @@ void DoSiblingRebalanceTest() {
         HWY_ASSERT(tree.insert(make_value(k)).second);
         ++gap;
       }
-      HWY_ASSERT_EQ(tree.state()->num_leaves_, size_t{4});
+      HWY_ASSERT_EQ(CountLeaves(tree), size_t{4});
       const size_t total = l2->NumKeys() + l3->NumKeys() + 1;
       const LaneKeyT probe = leaf_key(l3, l3->NumKeys() - 2) + kStep / 2;
       HWY_ASSERT(tree.insert(make_value(probe)).second);
-      HWY_ASSERT_EQ(tree.state()->num_leaves_, size_t{4});
+      HWY_ASSERT_EQ(CountLeaves(tree), size_t{4});
       HWY_ASSERT_EQ(l2->NumKeys(), total / 2);
       HWY_ASSERT_EQ(l3->NumKeys(), total - total / 2);
       check_sep(root->keys[2], l2, l3);
@@ -1597,7 +1620,7 @@ void DoSiblingRebalanceTest() {
         HWY_ASSERT_EQ(tree.erase(KeyFromRaw<key_type>(leaf_key(l2, 1))),
                       size_t{1});
       }
-      HWY_ASSERT_EQ(tree.state()->num_leaves_, size_t{4});
+      HWY_ASSERT_EQ(CountLeaves(tree), size_t{4});
       while (l3->NumKeys() < kCap16) {
         HWY_ASSERT(tree.insert(make_value(next_key)).second);
         next_key += kStep;
@@ -1605,7 +1628,7 @@ void DoSiblingRebalanceTest() {
       const size_t l2_before = l2->NumKeys();
       const size_t total = l2_before + l3->NumKeys() + 1;
       HWY_ASSERT(tree.insert(make_value(next_key)).second);
-      HWY_ASSERT_EQ(tree.state()->num_leaves_, size_t{4});
+      HWY_ASSERT_EQ(CountLeaves(tree), size_t{4});
       HWY_ASSERT(l2->NumKeys() > total / 2);
       HWY_ASSERT(l2->NumKeys() > l2_before);
       HWY_ASSERT(l2->NumKeys() <= kCap16);
@@ -1634,13 +1657,13 @@ void DoSiblingRebalanceTest() {
     for (size_t i = 0; i < kDense; ++i) {
       tree.insert(make_value(static_cast<LaneKeyT>(kBase + i)));
     }
-    HWY_ASSERT_EQ(tree.state()->num_leaves_, size_t{1});
+    HWY_ASSERT_EQ(CountLeaves(tree), size_t{1});
     // First far key cannot fit A in any mode -> boundary-biased root split:
     // A keeps all dense keys, B starts with one key.
     for (size_t i = 0; i < kCap16; ++i) {
       tree.insert(make_value(kFar + kStep * static_cast<LaneKeyT>(i)));
     }
-    HWY_ASSERT_EQ(tree.state()->num_leaves_, size_t{2});
+    HWY_ASSERT_EQ(CountLeaves(tree), size_t{2});
     LeafPtrT a = nth_leaf(tree, 0);
     LeafPtrT b = nth_leaf(tree, 1);
     HWY_ASSERT_EQ(a->NumKeys(), kDense);
@@ -1649,11 +1672,11 @@ void DoSiblingRebalanceTest() {
     HWY_ASSERT_EQ(b->BitMode(), static_cast<uint8_t>(kMode16Bit));
 
     // Insert into the middle of full B: B has no right sibling, A is too far
-    // away to share keys -> split (num_leaves_ 2 -> 3), no corruption.
+    // away to share keys -> split (leaf count 2 -> 3), no corruption.
     const LaneKeyT probe =
         kFar + kStep * static_cast<LaneKeyT>(kCap16 / 2) + kStep / 2;
     HWY_ASSERT(tree.insert(make_value(probe)).second);
-    HWY_ASSERT_EQ(tree.state()->num_leaves_, size_t{3});
+    HWY_ASSERT_EQ(CountLeaves(tree), size_t{3});
     HWY_ASSERT_EQ(a->NumKeys(), kDense);  // A untouched
     Checker::VerifyPhysicalTree(tree);
     for (size_t i = 0; i < kDense; ++i) {
