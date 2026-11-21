@@ -375,9 +375,11 @@ cc_library(
         "hwy/contrib/algo/find-inl.h",
         "hwy/contrib/algo/is_sorted-inl.h",
         "hwy/contrib/algo/minmax-inl.h",
+        "hwy/contrib/algo/shuffle-inl.h",
         "hwy/contrib/algo/transform-inl.h",
     ],
     deps = [
+        ":hash",
         ":hwy",
     ],
 )
