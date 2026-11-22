@@ -8306,18 +8306,9 @@ HWY_INLINE Vec<D> Lookup16(D d, const T* HWY_RESTRICT table, VI indices) {
   }
 
   HWY_IF_CONSTEXPR(HWY_HAVE_SCALABLE) {
-    // Scalable: first we must load two halves of the table into two vectors,
-    // regardless of vector size. We always use two-vector lookups to avoid
-    // runtime branching. Note that RVV can have U32x16 even with 128-bit
-    // vectors (LMUL=4), hence we must use the given LMUL, not FixedTag, but we
-    // still want to cap at 8 lanes to avoid overrunning the table.
-    const CappedTag<T, 8, d.Pow2()> d8;
-
-    // We want to use native lookup instructions (more efficient on SVE than two
-    // lookups plus a blend), hence cast. This has no runtime cost. No LoadU
-    // required because + 8 is still aligned relative to `d8`.
-    const Vec<D> t0 = ResizeBitCast(d, Load(d8, table));
-    const Vec<D> t1 = ResizeBitCast(d, Load(d8, table + 8));
+    // Load exactly eight lanes from each half, even for partial vectors.
+    const Vec<D> t0 = LoadN(d, table, 8);
+    const Vec<D> t1 = LoadN(d, table + 8, 8);
 
     // Now ensure indices for the second half of the table point to the second
     // vector. Note that SVE2_128 and SVE_256 are handled by the fixed-size case

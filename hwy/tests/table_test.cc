@@ -307,7 +307,8 @@ struct TestLookup16 {
 };
 
 HWY_NOINLINE void TestAllLookup16() {
-  ForUIF16(ForGE128Vectors<TestLookup16>());
+  // A half-width scalable vector can have eight or more 16-bit lanes at runtime.
+  ForUIF16(ForGEVectors<64, TestLookup16>());
 // For Lookup16 with 32-bit lanes, we require a scalable target (fine because
 // the test has a runtime check) or 256 bit vectors: 16 elements across two
 // vectors, hence at least eight per vector.
