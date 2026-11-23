@@ -108,6 +108,40 @@ HWY_NOINLINE void TestAllFirstN() {
   ForAllTypes(ForPartialVectors<TestFirstN>());
 }
 
+struct TestAfterN {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    auto bool_lanes = AllocateAligned<T>(N);
+    HWY_ASSERT(bool_lanes);
+
+    using TN = SignedFromSize<HWY_MIN(sizeof(size_t), sizeof(T))>;
+    const size_t max_len = static_cast<size_t>(LimitsMax<TN>());
+
+    const Vec<D> k1 = Set(d, ConvertScalarTo<T>(1));
+
+    const size_t max_lanes = HWY_MIN(2 * N, AdjustedReps(512));
+    for (size_t len = 0; len <= HWY_MIN(max_lanes, max_len); ++len) {
+      for (size_t i = 0; i < N; ++i) {
+        bool_lanes[i] = ConvertScalarTo<T>(i >= len ? 1 : 0);
+      }
+      const Mask<D> expected = Eq(Load(d, bool_lanes.get()), k1);
+      HWY_ASSERT_MASK_EQ(d, expected, AfterN(d, len));
+      HWY_ASSERT_MASK_EQ(d, Not(FirstN(d, len)), AfterN(d, len));
+    }
+
+    for (size_t i = 0; i < N; ++i) {
+      bool_lanes[i] = ConvertScalarTo<T>(i >= max_len ? 1 : 0);
+    }
+    const Mask<D> expected = Eq(Load(d, bool_lanes.get()), k1);
+    HWY_ASSERT_MASK_EQ(d, expected, AfterN(d, max_len));
+  }
+};
+
+HWY_NOINLINE void TestAllAfterN() {
+  ForAllTypes(ForPartialVectors<TestAfterN>());
+}
+
 struct TestSetBeforeFirst {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -354,6 +388,7 @@ namespace {
 HWY_BEFORE_TEST(HwyMaskSetTest);
 HWY_EXPORT_AND_TEST_P(HwyMaskSetTest, TestAllMaskFalse);
 HWY_EXPORT_AND_TEST_P(HwyMaskSetTest, TestAllFirstN);
+HWY_EXPORT_AND_TEST_P(HwyMaskSetTest, TestAllAfterN);
 HWY_EXPORT_AND_TEST_P(HwyMaskSetTest, TestAllSetBeforeFirst);
 HWY_EXPORT_AND_TEST_P(HwyMaskSetTest, TestAllSetAtOrBeforeFirst);
 HWY_EXPORT_AND_TEST_P(HwyMaskSetTest, TestAllSetOnlyFirst);
