@@ -34,11 +34,6 @@ fmod, nexttoward
 *   ShuffleSpan (see #3392)
 *   Reduce (see #3374)
 
-*   In-place Remove / RemoveIf, like CopyIf, but in-place.
-
-*   index-returning Mismatch(d, a, b, count) (in find-inl.h) - like EqualSpan,
-    but returns the first mismatched index.
-
 ### RVV codegen
 
 *   Use new mask<->vec cast instruction, possibly for OddEven, ExpandLoad
@@ -171,6 +166,8 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~FindLast / FindLastIf~~ (algo)
 *   ~~EqualSpan~~ (algo)
 *   ~~ReverseSpan~~ (algo)
+*   ~~Mismatch~~ (algo)
+*   ~~Remove / RemoveIf~~ (algo)
 *   ~~NEON dot product~~
 *   ~~ilogb, logb, modf, nextafter~~
 *   ~~Iguana~~
