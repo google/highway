@@ -9299,6 +9299,23 @@ HWY_INLINE VFromD<D> ReduceAcrossBlocks(D d, Func f, VFromD<D> v) {
 
 }  // namespace detail
 
+// ------------------------------ MinOfLanes/MaxOfLanes (u8, i8)
+
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_UI8_D(D)>
+HWY_API VFromD<D> MinOfLanes(D d, VFromD<D> v) {
+  const Half<decltype(d)> dh;
+  const VFromD<decltype(dh)> min =
+      MinOfLanes(dh, Min(LowerHalf(dh, v), UpperHalf(dh, v)));
+  return Combine(d, min, min);
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_UI8_D(D)>
+HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
+  const Half<decltype(d)> dh;
+  const VFromD<decltype(dh)> max =
+      MaxOfLanes(dh, Max(LowerHalf(dh, v), UpperHalf(dh, v)));
+  return Combine(d, max, max);
+}
+
 // ------------------------------ BitShuffle
 #if HWY_TARGET <= HWY_AVX3_DL
 template <class V, class VI, HWY_IF_UI64(TFromV<V>), HWY_IF_UI8(TFromV<VI>),

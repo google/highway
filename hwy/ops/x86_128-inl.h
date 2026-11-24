@@ -15631,16 +15631,16 @@ HWY_API VFromD<D> SumOfLanes(D d, VFromD<D> v) {
 }
 
 #if HWY_TARGET <= HWY_SSE4
-// We provide specializations of u8x8, u8x16, i8x16, u16x8, and i16x8, so
-// exclude those.
+// We provide specializations of u8x8, u16x8, i16x8, and u8 and i8 vectors of
+// 16 or more bytes, so exclude those.
 #undef HWY_IF_MINMAX_OF_LANES_D
-#define HWY_IF_MINMAX_OF_LANES_D(D)                                        \
-  HWY_IF_LANES_GT_D(D, 1),                                                 \
-      hwy::EnableIf<(!hwy::IsSame<TFromD<D>, uint8_t>() ||                 \
-                     ((HWY_V_SIZE_D(D) < 8) || (HWY_V_SIZE_D(D) > 16))) && \
-                    ((!hwy::IsSame<TFromD<D>, uint16_t>() &&               \
-                      !hwy::IsSameEither<TFromD<D>, int8_t, int16_t>()) || \
-                     (HWY_V_SIZE_D(D) != 16))>* = nullptr
+#define HWY_IF_MINMAX_OF_LANES_D(D)                                      \
+  HWY_IF_LANES_GT_D(D, 1),                                               \
+      hwy::EnableIf<                                                     \
+          (!hwy::IsSame<TFromD<D>, uint8_t>() || HWY_V_SIZE_D(D) < 8) && \
+          (!hwy::IsSame<TFromD<D>, int8_t>() || HWY_V_SIZE_D(D) < 16) && \
+          (!hwy::IsSameEither<TFromD<D>, uint16_t, int16_t>() ||         \
+           HWY_V_SIZE_D(D) != 16)>* = nullptr
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U16_D(D)>
 HWY_API Vec128<uint16_t> MinOfLanes(D /* tag */, Vec128<uint16_t> v) {
