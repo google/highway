@@ -350,8 +350,7 @@ struct TestRemove {
     const T sentinel = ConvertScalarTo<T>(99);
     inout[count] = sentinel;
 
-    const T threshold = ConvertScalarTo<T>(64);
-    const auto pred = [threshold](T x) { return x > threshold; };
+    const auto pred = [](T x) { return x > ConvertScalarTo<T>(64); };
     std::vector<T> expected(orig.get(), orig.get() + count);
     const auto new_end = std::remove_if(expected.begin(), expected.end(), pred);
     const size_t expected_count =
