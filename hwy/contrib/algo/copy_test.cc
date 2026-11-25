@@ -257,7 +257,7 @@ struct TestRemove {
         CheckRemoveIf(d, count, misalign, rng);
       }
     }
-    for (size_t count : {8 * N, 16 * N, 16 * N + N / 2}) {
+    for (size_t count : {5 * N + 1, 16 * N, 16 * N + N / 2}) {
       if (count == 0) continue;
       for (size_t misalign : misalignments) {
         CheckRemove(d, count, misalign, rng);
@@ -275,7 +275,7 @@ struct TestRemove {
 
     T* inout = storage.get() + misalign;
     for (size_t i = 0; i < count; ++i) {
-      const T v = Random7Bit<T>(rng);
+      const T v = ConvertScalarTo<T>(Random32(&rng) % 127);
       inout[i] = v;
       orig[i] = v;
     }
@@ -285,7 +285,7 @@ struct TestRemove {
     // A value that may or may not occur, plus pinned cases: a value known to
     // be absent, and (when count != 0) the first element so at least one is
     // removed.
-    const T candidates[2] = {ConvertScalarTo<T>(7), ConvertScalarTo<T>(200)};
+    const T candidates[2] = {ConvertScalarTo<T>(7), ConvertScalarTo<T>(127)};
     for (T value : candidates) {
       for (size_t i = 0; i < count; ++i) inout[i] = orig[i];
       inout[count] = sentinel;
@@ -350,7 +350,7 @@ struct TestRemove {
     const T sentinel = ConvertScalarTo<T>(99);
     inout[count] = sentinel;
 
-    const auto pred = [](T x) { return x > ConvertScalarTo<T>(64); };
+    const auto pred = [](T x) { return ConvertScalarTo<double>(x) > 64.0; };
     std::vector<T> expected(orig.get(), orig.get() + count);
     const auto new_end = std::remove_if(expected.begin(), expected.end(), pred);
     const size_t expected_count =
@@ -378,8 +378,8 @@ struct TestRemove {
 };
 
 void TestAllRemove() {
-  ForUI163264(ForPartialVectors<TestRemove>());
-  ForFloat3264Types(ForPartialVectors<TestRemove>());
+  ForUI(ForPartialVectors<TestRemove>());
+  ForFloatTypes(ForPartialVectors<TestRemove>());
 }
 
 struct DefaultGen {

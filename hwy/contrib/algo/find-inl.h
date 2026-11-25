@@ -436,29 +436,29 @@ size_t Mismatch(D d, const T* HWY_RESTRICT a, const T* HWY_RESTRICT b,
 
   // Unrolls 4x like EqualSpan. The position is only needed on a mismatch, so
   // each iteration is the loads, the compares and a single mask test until
-  // one of the four masks is non-empty; we then re-check per vector.
+  // one of the four masks has a false lane; we then re-check per vector.
   size_t i = 0;
   if (HWY_LIKELY(count >= 4 * N)) {
     for (; i <= count - 4 * N; i += 4 * N) {
-      const Mask<D> m0 = Ne(LoadU(d, a + i + 0 * N), LoadU(d, b + i + 0 * N));
-      const Mask<D> m1 = Ne(LoadU(d, a + i + 1 * N), LoadU(d, b + i + 1 * N));
-      const Mask<D> m2 = Ne(LoadU(d, a + i + 2 * N), LoadU(d, b + i + 2 * N));
-      const Mask<D> m3 = Ne(LoadU(d, a + i + 3 * N), LoadU(d, b + i + 3 * N));
-      if (HWY_UNLIKELY(!AllFalse(d, Or(Or(m0, m1), Or(m2, m3))))) {
-        const intptr_t pos0 = FindFirstTrue(d, m0);
+      const Mask<D> m0 = Eq(LoadU(d, a + i + 0 * N), LoadU(d, b + i + 0 * N));
+      const Mask<D> m1 = Eq(LoadU(d, a + i + 1 * N), LoadU(d, b + i + 1 * N));
+      const Mask<D> m2 = Eq(LoadU(d, a + i + 2 * N), LoadU(d, b + i + 2 * N));
+      const Mask<D> m3 = Eq(LoadU(d, a + i + 3 * N), LoadU(d, b + i + 3 * N));
+      if (HWY_UNLIKELY(!AllTrue(d, And(And(m0, m1), And(m2, m3))))) {
+        const intptr_t pos0 = FindFirstTrue(d, Not(m0));
         if (pos0 >= 0) return i + static_cast<size_t>(pos0);
-        const intptr_t pos1 = FindFirstTrue(d, m1);
+        const intptr_t pos1 = FindFirstTrue(d, Not(m1));
         if (pos1 >= 0) return i + N + static_cast<size_t>(pos1);
-        const intptr_t pos2 = FindFirstTrue(d, m2);
+        const intptr_t pos2 = FindFirstTrue(d, Not(m2));
         if (pos2 >= 0) return i + 2 * N + static_cast<size_t>(pos2);
-        return i + 3 * N + FindKnownFirstTrue(d, m3);
+        return i + 3 * N + FindKnownFirstTrue(d, Not(m3));
       }
     }
   }
 
   for (; i + N <= count; i += N) {
-    const Mask<D> ne = Ne(LoadU(d, a + i), LoadU(d, b + i));
-    const intptr_t pos = FindFirstTrue(d, ne);
+    const Mask<D> equal = Eq(LoadU(d, a + i), LoadU(d, b + i));
+    const intptr_t pos = FindFirstTrue(d, Not(equal));
     if (pos >= 0) return i + static_cast<size_t>(pos);
   }
 
@@ -468,9 +468,9 @@ size_t Mismatch(D d, const T* HWY_RESTRICT a, const T* HWY_RESTRICT b,
     // No FirstN mask here, unlike Find: LoadN zero-fills the lanes past
     // `remaining` on both sides, so those lanes hold the same value and cannot
     // produce a spurious mismatch.
-    const Mask<D> ne =
-        Ne(LoadN(d, a + i, remaining), LoadN(d, b + i, remaining));
-    const intptr_t pos = FindFirstTrue(d, ne);
+    const Mask<D> equal =
+        Eq(LoadN(d, a + i, remaining), LoadN(d, b + i, remaining));
+    const intptr_t pos = FindFirstTrue(d, Not(equal));
     if (pos >= 0) return i + static_cast<size_t>(pos);
   }
 

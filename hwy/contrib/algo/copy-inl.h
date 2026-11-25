@@ -232,16 +232,25 @@ void ReverseSpan(D d, T* HWY_RESTRICT inout, size_t count) {
 // mask, or a generic lambda if using C++14. Due to apparent limitations of
 // Clang on Windows, it is currently necessary to add HWY_ATTR before the
 // opening { of the lambda to avoid errors about "function .. requires target".
-//
-// NOTE: this is only supported for 16-, 32- or 64-bit types.
 template <class D, class Func, typename T = TFromD<D>>
 size_t RemoveIf(D d, T* HWY_RESTRICT inout, size_t count, const Func& func) {
   const size_t N = Lanes(d);
 
-  size_t i = 0;    // read position
-  size_t num = 0;  // write position = number of kept elements written
+  size_t i = 0;
+  // Leave the untouched prefix in place. Start compacting at the first
+  // group containing an element to remove.
+  for (; count - i >= 4 * N; i += 4 * N) {
+    const Mask<D> remove0 = func(d, LoadU(d, inout + i));
+    const Mask<D> remove1 = func(d, LoadU(d, inout + i + N));
+    const Mask<D> remove2 = func(d, LoadU(d, inout + i + 2 * N));
+    const Mask<D> remove3 = func(d, LoadU(d, inout + i + 3 * N));
+    if (!AllFalse(d, Or(Or(remove0, remove1), Or(remove2, remove3)))) {
+      break;
+    }
+  }
 
-  for (; i + 4 * N <= count; i += 4 * N) {
+  size_t num = i;
+  for (; count - i >= 4 * N; i += 4 * N) {
     const Vec<D> v1 = LoadU(d, inout + i);
     const Vec<D> v2 = LoadU(d, inout + i + N);
     const Vec<D> v3 = LoadU(d, inout + i + 2 * N);
@@ -255,7 +264,7 @@ size_t RemoveIf(D d, T* HWY_RESTRICT inout, size_t count, const Func& func) {
     num += CompressStore(v3, keep3, d, inout + num);
     num += CompressStore(v4, keep4, d, inout + num);
   }
-  for (; i + N <= count; i += N) {
+  for (; count - i >= N; i += N) {
     const Vec<D> v = LoadU(d, inout + i);
     num += CompressStore(v, Not(func(d, v)), d, inout + num);
   }
@@ -267,17 +276,15 @@ size_t RemoveIf(D d, T* HWY_RESTRICT inout, size_t count, const Func& func) {
     // AndNot(func, mask): keep lanes that hold a real element and failed the
     // predicate. Padding lanes from LoadN are excluded.
     const Mask<D> keep = AndNot(func(d, v), mask);
-    const size_t cnt = CountTrue(d, keep);
-    StoreN(Compress(v, keep), d, inout + num, cnt);
-    num += cnt;
+    num += CompressBlendedStore(v, keep, d, inout + num);
   }
 
   return num;
 }
 
 // Like std::remove: removes elements equal to `value` from `inout[0, count)`
-// and returns the new length. Same in-place compaction and type restriction
-// as RemoveIf. As with std::remove, a NaN is not equal to itself, so
+// and returns the new length. Uses the same in-place compaction as RemoveIf.
+// As with std::remove, a NaN is not equal to itself, so
 // Remove(..., NaN) leaves NaN elements in place.
 template <class D, typename T = TFromD<D>>
 size_t Remove(D d, T* HWY_RESTRICT inout, size_t count, T value) {

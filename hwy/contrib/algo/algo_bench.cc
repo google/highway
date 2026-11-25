@@ -368,17 +368,17 @@ struct BenchMismatch {
 };
 
 struct BenchRemoveIf {
-  static constexpr bool kBench8 = false;
+  static constexpr bool kBench8 = true;
   static constexpr const char* kName = "RemoveIf";
   static constexpr const size_t kNumBuffers = 1;
 
   template <class Gen, class T>
   size_t operator()(Ctx<Gen>& ctx, std::array<T*, kNumBuffers>& buffers) const {
     const ScalableTag<T> d;
-    const auto is_one = [](const auto d2, const auto v) HWY_ATTR {
-      return Eq(v, Set(d2, T{1}));
+    const auto is_zero = [](const auto d2, const auto v) HWY_ATTR {
+      return Eq(v, Zero(d2));
     };
-    return RemoveIf(d, buffers[0], ctx.size, is_one);
+    return RemoveIf(d, buffers[0], ctx.size, is_zero);
   }
 };
 
