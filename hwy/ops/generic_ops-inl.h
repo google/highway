@@ -1171,11 +1171,12 @@ HWY_API V SaturatedAbs(V v) {
 
 // ------------------------------ MaskedAbsOr
 
-#if (defined(HWY_NATIVE_MASKED_ABS) == defined(HWY_TARGET_TOGGLE))
-#ifdef HWY_NATIVE_MASKED_ABS
-#undef HWY_NATIVE_MASKED_ABS
+// Integer only; see also the float overloads after MaskedAndOr.
+#if (defined(HWY_NATIVE_MASKED_ABS_INT) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MASKED_ABS_INT
+#undef HWY_NATIVE_MASKED_ABS_INT
 #else
-#define HWY_NATIVE_MASKED_ABS
+#define HWY_NATIVE_MASKED_ABS_INT
 #endif
 
 template <class V, HWY_IF_SIGNED_V(V), class M>
@@ -1188,7 +1189,7 @@ template <class V, HWY_IF_SIGNED_V(V), class M>
 HWY_API V MaskedAbs(M m, V v) {
   return IfThenElseZero(m, Abs(v));
 }
-#endif  // HWY_NATIVE_MASKED_ABS
+#endif  // HWY_NATIVE_MASKED_ABS_INT
 
 // ------------------------------ Reductions
 
@@ -4816,6 +4817,14 @@ HWY_API V PopulationCount(V v) {
   return Add(ShiftRight<32>(vals), And(vals, Set(d, 0xFFULL)));
 }
 #endif
+
+// Signed: delegate to unsigned to avoid sign-extending ShiftRight.
+template <class V, HWY_IF_SIGNED_V(V)>
+HWY_API V PopulationCount(V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, PopulationCount(BitCast(du, v)));
+}
 
 #endif  // HWY_NATIVE_POPCNT
 
@@ -9703,6 +9712,44 @@ HWY_API V MaskedAndOr(V no, M m, V a, V b) {
   return IfThenElse(m, And(a, b), no);
 }
 #endif  // HWY_NATIVE_MASKED_AND_OR
+
+// ------------------------------ MaskedAbsOr, MaskedAbs (float)
+
+// Placed after MaskedAnd[Or] because targets with native masks can then fuse
+// the masking with clearing the sign bit.
+#if (defined(HWY_NATIVE_MASKED_ABS_FLOAT) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MASKED_ABS_FLOAT
+#undef HWY_NATIVE_MASKED_ABS_FLOAT
+#else
+#define HWY_NATIVE_MASKED_ABS_FLOAT
+#endif
+
+template <class V, HWY_IF_FLOAT_V(V), class M>
+HWY_API V MaskedAbsOr(V no, M m, V v) {
+#if HWY_NATIVE_MASK
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  const V not_sign = BitCast(d, Set(du, static_cast<TU>(~SignMask<TU>())));
+  return MaskedAndOr(no, m, v, not_sign);
+#else
+  return IfThenElse(m, Abs(v), no);
+#endif
+}
+
+template <class V, HWY_IF_FLOAT_V(V), class M>
+HWY_API V MaskedAbs(M m, V v) {
+#if HWY_NATIVE_MASK
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  const V not_sign = BitCast(d, Set(du, static_cast<TU>(~SignMask<TU>())));
+  return MaskedAnd(m, v, not_sign);
+#else
+  return IfThenElseZero(m, Abs(v));
+#endif
+}
+#endif  // HWY_NATIVE_MASKED_ABS_FLOAT
 
 // ------------------------------ MaskedOrOr
 

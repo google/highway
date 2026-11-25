@@ -91,6 +91,28 @@ struct TestMaskedAbs {
 
     HWY_ASSERT_VEC_EQ(d, v1_exp_z, MaskedAbs(first_five, vn1));
     HWY_ASSERT_VEC_EQ(d, v2_exp_z, MaskedAbs(first_five, vn2));
+
+    // first_five is all-true if Lanes(d) <= 5; ensure inactive lanes are also
+    // covered (zero_mask below handles Lanes(d) == 1).
+    const MFromD<D> half_mask = FirstN(d, HWY_MAX(Lanes(d) / 2, size_t{1}));
+
+    // Lowest value: must match Abs (wraps for integers, highest for floats).
+    const Vec<D> vlow = Set(d, LowestValue<T>());
+    HWY_ASSERT_VEC_EQ(d, IfThenElse(half_mask, Abs(vlow), vn1),
+                      MaskedAbsOr(vn1, half_mask, vlow));
+    HWY_ASSERT_VEC_EQ(d, IfThenElseZero(half_mask, Abs(vlow)),
+                      MaskedAbs(half_mask, vlow));
+
+    // For floats, the sign bit of -0 must be cleared in active lanes and
+    // preserved in `no`. Compare bits because -0 == 0 for float comparisons.
+    const RebindToUnsigned<D> du;
+    const Vec<D> vn0 = Neg(v0);
+    HWY_ASSERT_VEC_EQ(du, BitCast(du, IfThenElse(half_mask, v0, vn0)),
+                      BitCast(du, MaskedAbsOr(vn0, half_mask, vn0)));
+    HWY_ASSERT_VEC_EQ(du, BitCast(du, vn0),
+                      BitCast(du, MaskedAbsOr(vn0, zero_mask, vn0)));
+    HWY_ASSERT_VEC_EQ(du, BitCast(du, v0),
+                      BitCast(du, MaskedAbs(half_mask, vn0)));
   }
 };
 
@@ -98,6 +120,7 @@ HWY_NOINLINE void TestAllAbs() {
   ForSignedTypes(ForPartialVectors<TestAbs>());
   ForFloatTypes(ForPartialVectors<TestFloatAbs>());
   ForSignedTypes(ForPartialVectors<TestMaskedAbs>());
+  ForFloatTypes(ForPartialVectors<TestMaskedAbs>());
 }
 
 struct TestIntegerNeg {

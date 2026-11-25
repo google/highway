@@ -351,7 +351,7 @@ HWY_API Vec1<T> BroadcastSignBit(const Vec1<T> v) {
 #define HWY_NATIVE_POPCNT
 #endif
 
-template <typename T>
+template <typename T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec1<T> PopulationCount(Vec1<T> v) {
   return Vec1<T>(static_cast<T>(PopCount(v.raw)));
 }

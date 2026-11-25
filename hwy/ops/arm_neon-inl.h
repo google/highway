@@ -3122,9 +3122,14 @@ HWY_INLINE Vec128<T, N> PopulationCountImpl(hwy::SizeTag<8> /* tag */,
 
 }  // namespace detail
 
-template <typename T, size_t N, HWY_IF_NOT_FLOAT(T)>
+// Impl constructs vectors from unsigned intrinsic results, so call it with
+// unsigned vectors (signed Raw types differ).
+template <typename T, size_t N, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec128<T, N> PopulationCount(Vec128<T, N> v) {
-  return detail::PopulationCountImpl(hwy::SizeTag<sizeof(T)>(), v);
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, detail::PopulationCountImpl(hwy::SizeTag<sizeof(T)>(),
+                                                BitCast(du, v)));
 }
 
 // ================================================== SIGN

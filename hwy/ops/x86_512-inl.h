@@ -913,7 +913,7 @@ HWY_INLINE Vec512<T> PopulationCountImpl(hwy::SizeTag<8> /* tag */, Vec512<T> v)
 
 }  // namespace detail
 
-template <typename T>
+template <typename T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec512<T> PopulationCount(Vec512<T> v) {
   return detail::PopulationCountImpl(hwy::SizeTag<sizeof(T)>(), v);
 }

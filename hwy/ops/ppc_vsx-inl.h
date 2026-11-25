@@ -624,9 +624,12 @@ HWY_API Vec128<T, N> operator^(Vec128<T, N> a, Vec128<T, N> b) {
 #define HWY_NATIVE_POPCNT
 #endif
 
-template <typename T, size_t N, HWY_IF_UNSIGNED(T)>
+// vec_popcnt returns unsigned vectors even for signed inputs.
+template <typename T, size_t N, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec128<T, N> PopulationCount(Vec128<T, N> v) {
-  return Vec128<T, N>{vec_popcnt(v.raw)};
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, VFromD<decltype(du)>{vec_popcnt(BitCast(du, v).raw)});
 }
 
 // ================================================== SIGN

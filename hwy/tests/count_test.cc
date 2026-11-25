@@ -43,11 +43,20 @@ struct TestPopulationCount {
       }
       HWY_ASSERT_VEC_EQ(d, popcnt.get(), PopulationCount(Load(d, data.get())));
     }
+
+    // Deterministic boundary values. LimitsMin (only the sign bit set for
+    // signed T) detects sign-extending shifts.
+    const T kSpecial[5] = {T{0}, static_cast<T>(~T{0}), LimitsMin<T>(),
+                           LimitsMax<T>(), T{1}};
+    for (const T special : kSpecial) {
+      const T expected = static_cast<T>(PopCount(special));
+      HWY_ASSERT_VEC_EQ(d, Set(d, expected), PopulationCount(Set(d, special)));
+    }
   }
 };
 
 HWY_NOINLINE void TestAllPopulationCount() {
-  ForUnsignedTypes(ForPartialVectors<TestPopulationCount>());
+  ForIntegerTypes(ForPartialVectors<TestPopulationCount>());
 }
 
 template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T), HWY_IF_T_SIZE(T, 4)>

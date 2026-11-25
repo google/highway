@@ -917,7 +917,7 @@ HWY_INLINE Vec128<T, N> PopulationCountImpl(hwy::SizeTag<8> /* tag */,
 
 }  // namespace detail
 
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec128<T, N> PopulationCount(Vec128<T, N> v) {
   return detail::PopulationCountImpl(hwy::SizeTag<sizeof(T)>(), v);
 }
@@ -6154,10 +6154,11 @@ HWY_API Vec128<T, N> MaskedSatSubOr(Vec128<T, N> no, Mask128<T, N> m,
 
 // ------------------------------ MaskedAbsOr
 
-#ifdef HWY_NATIVE_MASKED_ABS
-#undef HWY_NATIVE_MASKED_ABS
+// Integer only; generic_ops-inl.h provides float via MaskedAnd[Or].
+#ifdef HWY_NATIVE_MASKED_ABS_INT
+#undef HWY_NATIVE_MASKED_ABS_INT
 #else
-#define HWY_NATIVE_MASKED_ABS
+#define HWY_NATIVE_MASKED_ABS_INT
 #endif
 
 template <typename T, size_t N, HWY_IF_I8(T)>

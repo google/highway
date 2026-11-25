@@ -1424,6 +1424,19 @@ HWY_SVE_FOREACH_I(HWY_SVE_RETV_ARGPV, SaturatedAbs, qabs)
 #endif  // HWY_SVE_HAVE_2
 
 // ------------------------------ MaskedAbsOr
+
+#ifdef HWY_NATIVE_MASKED_ABS_INT
+#undef HWY_NATIVE_MASKED_ABS_INT
+#else
+#define HWY_NATIVE_MASKED_ABS_INT
+#endif
+
+#ifdef HWY_NATIVE_MASKED_ABS_FLOAT
+#undef HWY_NATIVE_MASKED_ABS_FLOAT
+#else
+#define HWY_NATIVE_MASKED_ABS_FLOAT
+#endif
+
 HWY_SVE_FOREACH_IF(HWY_SVE_RETV_ARGMV_M, MaskedAbsOr, abs)
 
 // ------------------------------ MaskedAbs

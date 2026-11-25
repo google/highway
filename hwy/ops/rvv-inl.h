@@ -84,6 +84,26 @@ template <class D>
 using AdjustSimdTagToMinVecPow2 =
     typename AdjustSimdTagToMinVecPow2_t<RemoveConst<D>>::type;
 
+// RVV only supports LMUL >= SEW/64 (and <= 8); returns whether that holds for
+// D. Note that SEW = sizeof(T)*8 and LMUL = 1 << d.Pow2(). Add 3 to Pow2 to
+// avoid negative shift counts.
+template <class D>
+constexpr bool IsSupportedLMUL(D d) {
+  return d.Pow2() >= -3 && d.Pow2() <= 3 &&
+         (size_t{1} << (d.Pow2() + 3)) >= sizeof(TFromD<D>);
+}
+
+// True if d fills all lanes of its underlying VFromD<D> register/group, i.e.,
+// Lanes(d) == VLMAX of VFromD<D> (uncapped and using a native, non-virtual
+// LMUL). Prefer this over detail::IsFull, which requires kPow2 == 0 and is
+// therefore always false for native fractional LMULs (mf8..mf2) and register
+// groups (m2..m8). Note: returns false for virtual LMULs (!IsSupportedLMUL),
+// where VFromD<D> is twice as wide as d.
+template <typename T, size_t N, int kPow2>
+constexpr bool IsFullLMUL(Simd<T, N, kPow2> d) {
+  return N == HWY_LANES(T) && IsSupportedLMUL(d);
+}
+
 }  // namespace detail
 
 // ================================================== MACROS
@@ -545,7 +565,7 @@ HWY_RVV_FOREACH(HWY_SPECIALIZE, _, _, _ALL)
     /* same result as HWY_MIN(cap, Lanes(d)) */                                \
                                                                                \
     /* If no cap, avoid the HWY_MIN. */                                        \
-    return detail::IsFull(d)                                                   \
+    return detail::IsFullLMUL(d)                                               \
                ? __riscv_vsetvl_e##SEW##LMUL(cap)                              \
                : __riscv_vsetvl_e##SEW##LMUL(HWY_MIN(cap, kMaxLanes));         \
   }
@@ -557,11 +577,10 @@ HWY_RVV_FOREACH(HWY_SPECIALIZE, _, _, _ALL)
                       MLEN, NAME, OP)                                          \
   template <size_t N>                                                          \
   HWY_API size_t NAME(HWY_RVV_D(BASE, SEW, N, SHIFT) d) {                      \
-    constexpr size_t kFull = HWY_LANES(HWY_RVV_T(BASE, SEW));                  \
     constexpr size_t kCap = MaxLanes(d);                                       \
     /* If no cap, avoid generating a constant by using VLMAX. */               \
-    return N == kFull ? __riscv_vsetvlmax_e##SEW##LMUL()                       \
-                      : __riscv_vsetvl_e##SEW##LMUL(kCap);                     \
+    return detail::IsFullLMUL(d) ? __riscv_vsetvlmax_e##SEW##LMUL()            \
+                                 : __riscv_vsetvl_e##SEW##LMUL(kCap);          \
   }                                                                            \
   template <size_t N>                                                          \
   HWY_API size_t Capped##NAME(HWY_RVV_D(BASE, SEW, N, SHIFT) d, size_t cap) {  \
@@ -637,22 +656,27 @@ HWY_RVV_FOREACH(HWY_SPECIALIZE, _, _, _ALL)
                            SHIFT, MLEN, NAME, OP)                             \
   template <size_t N>                                                         \
   HWY_API size_t NAME(HWY_RVV_D(BASE, SEW, N, SHIFT) d) {                     \
+    constexpr size_t kFull = HWY_LANES(HWY_RVV_T(BASE, SEW));                 \
     constexpr size_t kCap = MaxLanes(d);                                      \
     /* In case of virtual LMUL (intrinsics do not provide "uint16mf8_t") */   \
     /* vsetvl may or may not be correct, so do it ourselves. */               \
     const size_t actual =                                                     \
         detail::ScaleByPower(__riscv_vlenb() / (SEW / 8), SHIFT);             \
-    return HWY_MIN(actual, kCap);                                             \
+    /* Do not use IsFull or IsFullLMUL: both are false for virtual LMULs, */  \
+    /* whereas actual already scaled down by SHIFT. */                        \
+    return N == kFull ? actual : HWY_MIN(actual, kCap);                       \
   }                                                                           \
   template <size_t N>                                                         \
   HWY_API size_t Capped##NAME(HWY_RVV_D(BASE, SEW, N, SHIFT) d, size_t cap) { \
+    constexpr size_t kFull = HWY_LANES(HWY_RVV_T(BASE, SEW));                 \
     /* In case of virtual LMUL (intrinsics do not provide "uint16mf8_t") */   \
     /* vsetvl may or may not be correct, so do it ourselves. */               \
     const size_t actual =                                                     \
         detail::ScaleByPower(__riscv_vlenb() / (SEW / 8), SHIFT);             \
-    /* If no cap, avoid an extra HWY_MIN. */                                  \
-    return detail::IsFull(d) ? HWY_MIN(actual, cap)                           \
-                             : HWY_MIN(HWY_MIN(actual, cap), MaxLanes(d));    \
+    /* If no cap, avoid an extra HWY_MIN. Do not use IsFull or IsFullLMUL */  \
+    /* (both are false for virtual LMULs). */                                 \
+    return N == kFull ? HWY_MIN(actual, cap)                                  \
+                      : HWY_MIN(HWY_MIN(actual, cap), MaxLanes(d));           \
   }
 
 HWY_RVV_FOREACH(HWY_RVV_LANES, Lanes, setvlmax_e, _ALL)
@@ -3792,8 +3816,10 @@ template <size_t kIndex, class D>
 static HWY_INLINE HWY_MAYBE_UNUSED VFromD<AdjustSimdTagToMinVecPow2<Half<D>>>
 Get(D d, VFromD<D> v) {
   static_assert(kIndex == 0 || kIndex == 1, "kIndex must be 0 or 1");
-  HWY_IF_CONSTEXPR(kIndex == 0 || detail::IsFull(d)) { return Get<kIndex>(v); }
-  HWY_IF_CONSTEXPR(kIndex != 0 && !detail::IsFull(d)) {
+  HWY_IF_CONSTEXPR(kIndex == 0 || detail::IsFullLMUL(d)) {
+    return Get<kIndex>(v);
+  }
+  HWY_IF_CONSTEXPR(kIndex != 0 && !detail::IsFullLMUL(d)) {
     const AdjustSimdTagToMinVecPow2<Half<decltype(d)>> dh;
     const size_t slide_down_amt =
         (dh.Pow2() < DFromV<decltype(v)>().Pow2()) ? Lanes(dh) : (Lanes(d) / 2);
@@ -3841,11 +3867,11 @@ HWY_RVV_FOREACH(HWY_RVV_PARTIAL_VEC_SET_HALF_SMALLEST, PartialVecSetHalf, mv,
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                          \
       NAME(HWY_RVV_D(BASE, SEW, N, SHIFT) d, HWY_RVV_V(BASE, SEW, LMUL) dest, \
            HWY_RVV_V(BASE, SEW, LMULH) v) {                                   \
-    HWY_IF_CONSTEXPR(detail::IsFull(d)) {                                     \
+    HWY_IF_CONSTEXPR(detail::IsFullLMUL(d)) {                                 \
       return __riscv_v##OP##_v_##CHAR##SEW##LMULH##_##CHAR##SEW##LMUL(        \
           dest, kIndex, v); /* no AVL */                                      \
     }                                                                         \
-    HWY_IF_CONSTEXPR(!detail::IsFull(d)) {                                    \
+    HWY_IF_CONSTEXPR(!detail::IsFullLMUL(d)) {                                \
       const Half<decltype(d)> dh;                                             \
       return PartialVecSetHalf<kIndex>(dest, v, Lanes(dh));                   \
     }                                                                         \
@@ -3919,7 +3945,7 @@ template <class D>
 HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
   v = detail::SlideDown(v, amt);
   // Zero out upper lanes if v is a partial vector
-  if (MaxLanes(d) < MaxLanes(DFromV<decltype(v)>())) {
+  if (!detail::IsFullLMUL(d)) {
     v = detail::SlideUp(v, Zero(d), Lanes(d) - amt);
   }
   return v;
@@ -3980,18 +4006,6 @@ HWY_API VFromD<D2> ZeroExtendVector(D2 d2, const V lo) {
 }
 
 // ------------------------------ Lower/UpperHalf
-
-namespace detail {
-
-// RVV may only support LMUL >= SEW/64; returns whether that holds for D. Note
-// that SEW = sizeof(T)*8 and LMUL = 1 << d.Pow2(). Add 3 to Pow2 to avoid
-// negative shift counts.
-template <class D>
-constexpr bool IsSupportedLMUL(D d) {
-  return (size_t{1} << (d.Pow2() + 3)) >= sizeof(TFromD<D>);
-}
-
-}  // namespace detail
 
 // If IsSupportedLMUL, just 'truncate' i.e. halve LMUL.
 template <class DH, hwy::EnableIf<detail::IsSupportedLMUL(DH())>* = nullptr>
@@ -4092,7 +4106,7 @@ template <class D>
 HWY_API VFromD<D> Slide1Down(D d, VFromD<D> v) {
   v = detail::Slide1DownImpl(v);
   // Zero out upper lanes if v is a partial vector
-  if (MaxLanes(d) < MaxLanes(DFromV<decltype(v)>())) {
+  if (!detail::IsFullLMUL(d)) {
     v = detail::SlideUp(v, Zero(d), Lanes(d) - 1);
   }
   return v;
@@ -4107,7 +4121,7 @@ HWY_API VFromD<D> Slide1Down(D d, VFromD<D> v) {
 template <class D>
 HWY_API VFromD<D> Slide1UpOr(TFromD<D> no, D d, VFromD<D> v) {
   v = detail::Slide1UpOrImpl(v, no);
-  if (MaxLanes(d) < MaxLanes(DFromV<decltype(v)>())) {
+  if (!detail::IsFullLMUL(d)) {
     v = detail::SlideUp(v, Zero(d), Lanes(d));
   }
   return v;
@@ -4115,7 +4129,7 @@ HWY_API VFromD<D> Slide1UpOr(TFromD<D> no, D d, VFromD<D> v) {
 
 template <class D>
 HWY_API VFromD<D> Slide1DownOr(TFromD<D> no, D d, VFromD<D> v) {
-  if (MaxLanes(d) < MaxLanes(DFromV<decltype(v)>())) {
+  if (!detail::IsFullLMUL(d)) {
     const auto v_no = InsertLane(Zero(d), /*i=*/0, no);
     return detail::SlideUp(detail::Slide1DownImpl(v), v_no, Lanes(d) - 1);
   } else {
@@ -6519,18 +6533,34 @@ HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGV2, Abs, fsgnjx, _ALL)
 
 #undef HWY_RVV_RETV_ARGV2
 
-#ifdef HWY_NATIVE_MASKED_ABS
-#undef HWY_NATIVE_MASKED_ABS
+#ifdef HWY_NATIVE_MASKED_ABS_INT
+#undef HWY_NATIVE_MASKED_ABS_INT
 #else
-#define HWY_NATIVE_MASKED_ABS
+#define HWY_NATIVE_MASKED_ABS_INT
+#endif
+
+#ifdef HWY_NATIVE_MASKED_ABS_FLOAT
+#undef HWY_NATIVE_MASKED_ABS_FLOAT
+#else
+#define HWY_NATIVE_MASKED_ABS_FLOAT
 #endif
 
 template <class V, HWY_IF_SIGNED_V(V), class M>
 HWY_API V MaskedAbsOr(V no, M m, V v) {
-  return IfThenElse(m, Abs(v), no);
+  return MaskedMaxOr(no, m, v, Neg(v));
 }
 
-template <class V, HWY_IF_SIGNED_V(V), class M>
+namespace detail {
+// fsgnjx(v, v) clears the sign bit, see Abs.
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGMVV, MaskedFsgnjxOr, fsgnjx, _ALL)
+}  // namespace detail
+
+template <class V, HWY_IF_FLOAT_V(V), class M>
+HWY_API V MaskedAbsOr(V no, M m, V v) {
+  return detail::MaskedFsgnjxOr(no, m, v, v);
+}
+
+template <class V, HWY_IF_NOT_UNSIGNED_V(V), class M>
 HWY_API V MaskedAbs(M m, V v) {
   const DFromV<V> d;
   return MaskedAbsOr(Zero(d), m, v);
