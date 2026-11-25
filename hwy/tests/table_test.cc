@@ -260,7 +260,7 @@ struct TestLookup8 {
 };
 
 HWY_NOINLINE void TestAllLookup8() {
-  ForUIF16(ForGE128Vectors<TestLookup8>());
+  ForUIF16(ForGEVectors<64, TestLookup8>());
   ForUIF32(ForGE128Vectors<TestLookup8>());
   // For Lookup8 with 64-bit lanes, we require a scalable target (fine because
   // the test has a runtime check) or 256 bit vectors: 8 elements across two
@@ -307,7 +307,8 @@ struct TestLookup16 {
 };
 
 HWY_NOINLINE void TestAllLookup16() {
-  ForUIF16(ForGE128Vectors<TestLookup16>());
+  // A half-width scalable vector can have eight or more 16-bit lanes at runtime.
+  ForUIF16(ForGEVectors<64, TestLookup16>());
 // For Lookup16 with 32-bit lanes, we require a scalable target (fine because
 // the test has a runtime check) or 256 bit vectors: 16 elements across two
 // vectors, hence at least eight per vector.
@@ -336,20 +337,19 @@ struct TestLookup32 {
     HWY_ASSERT(tbl && idx && expected);
     ZeroBytes(idx.get(), padded_N * sizeof(TU));
 
+    // Vary the table by vector shape so stale lanes cannot match a prior table.
     for (size_t i = 0; i < padded_N; ++i) {
-      tbl[i] = ConvertScalarTo<T>(i + static_cast<size_t>(Unpredictable1()));
+      tbl[i] = ConvertScalarTo<T>(static_cast<int>(i) + d.Pow2() + Unpredictable1());
     }
 
-    // Too many permutations to test exhaustively; choose one with repeated
-    // indices. Note that the ops checks that indices do not exceed 31.
-    // For larger vectors, upper lanes will be zero.
-    HWY_ALIGN TU idx_source[32] = {1,  3,  2,  2,  3,  15, 14, 9,
-                                   0,  4,  0,  4,  9,  15, 12, 12,
-                                   16, 31, 28, 20, 17, 25, 30, 22,
-                                   19, 24, 16, 27, 21, 31, 18, 23};
+    // Interleave both halves so even a 16-lane vector looks up both tables.
+    HWY_ALIGN TU idx_source[32] = {8, 24, 0, 16, 15, 31, 7, 23,
+                                   9, 25, 1, 17, 14, 30, 6, 22,
+                                   8, 24, 2, 18, 13, 29, 5, 21,
+                                   0, 16, 3, 19, 12, 28, 4, 20};
     for (size_t j = 0; j < padded_N; ++j) {
       idx[j] = static_cast<TU>(idx_source[j & 31]);
-      expected[j] = ConvertScalarTo<T>(idx[j] + 1);  // == v[idx[j]]
+      expected[j] = tbl[idx[j]];
     }
 
     const V actual = Lookup32(d, tbl.get(), Load(du, idx.get()));
@@ -358,7 +358,7 @@ struct TestLookup32 {
 };
 
 HWY_NOINLINE void TestAllLookup32() {
-  ForUI8(ForGE128Vectors<TestLookup32>());
+  ForUI8(ForGEVectors<64, TestLookup32>());
 // For Lookup32 with 16-bit lanes, we require a scalable target (fine because
 // the test has a runtime check) or 256 bit vectors: 32 elements across two
 // vectors, hence at least sixteen 2-byte elements per vector.

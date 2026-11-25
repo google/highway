@@ -341,6 +341,12 @@ struct Simd {
   using Twice = Simd<T, N, kPow2 + 1>;
 };
 
+// Upper bound on the number of lanes, typically used for SFINAE conditions and
+// to allocate storage for targets with known vector sizes. Note: this may be a
+// loose bound, instead use Lanes() as the actual size for AllocateAligned.
+// MSVC workaround: use static constant directly instead of a function.
+#define HWY_MAX_LANES_D(D) D::kPrivateLanes
+
 namespace detail {
 
 template <typename T, size_t N, int kPow2>
@@ -365,8 +371,14 @@ struct CappedTagChecker {
   // Safely handle non-power-of-two inputs by rounding down, which is allowed by
   // CappedTag. Otherwise, Simd<T, 3, 0> would static_assert.
   static constexpr size_t kLimitPow2 = size_t{1} << hwy::FloorLog2(kLimit);
-  static constexpr size_t N = HWY_MIN(kLimitPow2, HWY_LANES(T));
-  using type = typename ClampNAndPow2<T, N, kPow2>::type;
+  static constexpr int kClampedPow2 = HWY_MIN(kPow2, HWY_MAX_POW2);
+  using DFull = typename ScalableTagChecker<T, kClampedPow2>::type;
+  static constexpr size_t kMaxLanes =
+      HWY_MIN(kLimitPow2, HWY_MAX_LANES_D(DFull));
+  // NewN may encode a fractional lane count in the high bits. Passing it
+  // through ClampNAndPow2 would discard that encoding.
+  static constexpr size_t N = DFull::template NewN<kClampedPow2, kMaxLanes>();
+  using type = Simd<T, N, kClampedPow2>;
 };
 
 template <typename T, size_t kNumLanes>
@@ -446,12 +458,6 @@ using Full128 = Simd<T, 16 / sizeof(T), 0>;
 // Lane type.
 template <class D>
 using TFromD = typename D::T;
-
-// Upper bound on the number of lanes, typically used for SFINAE conditions and
-// to allocate storage for targets with known vector sizes. Note: this may be a
-// loose bound, instead use Lanes() as the actual size for AllocateAligned.
-// MSVC workaround: use static constant directly instead of a function.
-#define HWY_MAX_LANES_D(D) D::kPrivateLanes
 
 // Same as D().Pow2(), but this is too complex for SFINAE with MSVC, so we use a
 // static constant directly.

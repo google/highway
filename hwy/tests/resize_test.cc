@@ -138,21 +138,15 @@ class TestExtendingResizeBitCast {
     static_assert(kFromVectPow2 >= -3 && kFromVectPow2 <= 3,
                   "kFromVectPow2 must be between -3 and 3");
 
-    constexpr size_t kScaledMaxLanes =
-        HWY_MAX((kMaxLanes << 3) >> (kFromVectPow2 + 3), 1);
-    constexpr size_t kQuadrupleScaledLimit = kScaledMaxLanes;
-    constexpr size_t kOctupleScaledLimit = kScaledMaxLanes;
     constexpr int kQuadruplePow2 = HWY_MIN(kFromVectPow2 + 2, 3);
     constexpr int kOctuplePow2 = HWY_MIN(kFromVectPow2 + 3, 3);
 #else
-    constexpr size_t kQuadrupleScaledLimit = kMaxLanes * 4;
-    constexpr size_t kOctupleScaledLimit = kMaxLanes * 8;
     constexpr int kQuadruplePow2 = 0;
     constexpr int kOctuplePow2 = 0;
 #endif
 
-    const CappedTag<T, kQuadrupleScaledLimit, kQuadruplePow2> d_quadruple;
-    const CappedTag<T, kOctupleScaledLimit, kOctuplePow2> d_octuple;
+    const CappedTag<T, kMaxLanes * 4, kQuadruplePow2> d_quadruple;
+    const CappedTag<T, kMaxLanes * 8, kOctuplePow2> d_octuple;
 
     if (MaxLanes(d_quadruple) == kMaxLanes * 4) {
       DoExtResizeBitCastTest(d_quadruple, d);
