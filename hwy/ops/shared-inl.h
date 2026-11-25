@@ -349,6 +349,11 @@ struct Simd {
 
 namespace detail {
 
+// True for an uncapped single-register vector (kPow2 == 0). Do not use this on
+// RVV to check whether a tag fills its underlying VFromD<D> register/group
+// (Lanes(d) == VLMAX): RVV also has native fractional LMULs (kPow2 < 0) and
+// multi-register groups (kPow2 > 0), where kPow2 != 0 makes IsFull false; use
+// detail::IsFullLMUL in rvv-inl.h instead.
 template <typename T, size_t N, int kPow2>
 constexpr bool IsFull(Simd<T, N, kPow2> /* d */) {
   return N == HWY_LANES(T) && kPow2 == 0;
