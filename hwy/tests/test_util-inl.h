@@ -415,8 +415,7 @@ class ForExtendableVectors {
     // not supported
 #else
     constexpr size_t kMul = kMaxCapped >> kPow2;
-    constexpr size_t kMinArg = size_t{1} << kPow2;
-    detail::ForeachCappedR<T, kMul, kMinArg, Test, -kPow2>::Do(1, max_lanes);
+    detail::ForeachCappedR<T, kMul, 1, Test, -kPow2>::Do(1, max_lanes);
 #if HWY_HAVE_SCALABLE
     detail::ForeachPow2Trim<T, 0, kPow2, Test>::Do(1);
 #endif
@@ -527,11 +526,11 @@ class ForPromoteVectors {
 #if HWY_TARGET == HWY_SCALAR
     detail::ForeachCappedR<T, 1, 1, Test>::Do(1, 1);
 #else
-    using DLargestFrom = CappedTag<T, (kMaxCapped >> kPow2) * kFactor, -kPow2>;
+    using DLargestFrom = CappedTag<T, (kMaxCapped >> kPow2), -kPow2>;
     static_assert(HWY_MAX_LANES_D(DLargestFrom) <= (kMaxCapped >> kPow2),
                   "HWY_MAX_LANES_D(DLargestFrom) must be less than or equal to "
                   "(kMaxCapped >> kPow2)");
-    detail::ForeachCappedR<T, (kMaxCapped >> kPow2), kFactor, Test, -kPow2>::Do(
+    detail::ForeachCappedR<T, (kMaxCapped >> kPow2), 1, Test, -kPow2>::Do(
         1, max_lanes);
 #if HWY_HAVE_SCALABLE
     detail::ForeachPow2Trim<T, 0, kPow2, Test>::Do(1);
