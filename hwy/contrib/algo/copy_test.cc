@@ -378,8 +378,7 @@ struct TestRemove {
 };
 
 void TestAllRemove() {
-  ForUI(ForPartialVectors<TestRemove>());
-  ForFloatTypes(ForPartialVectors<TestRemove>());
+  ForAllTypes(ForPartialVectors<TestRemove>());
 }
 
 struct DefaultGen {

@@ -237,19 +237,30 @@ size_t RemoveIf(D d, T* HWY_RESTRICT inout, size_t count, const Func& func) {
   const size_t N = Lanes(d);
 
   size_t i = 0;
-  // Leave the untouched prefix in place. Start compacting at the first
-  // group containing an element to remove.
+  size_t num = 0;
+  // Leave the untouched prefix in place. Compact the first group containing
+  // a removal with the vectors and masks already computed.
   for (; count - i >= 4 * N; i += 4 * N) {
-    const Mask<D> remove0 = func(d, LoadU(d, inout + i));
-    const Mask<D> remove1 = func(d, LoadU(d, inout + i + N));
-    const Mask<D> remove2 = func(d, LoadU(d, inout + i + 2 * N));
-    const Mask<D> remove3 = func(d, LoadU(d, inout + i + 3 * N));
-    if (!AllFalse(d, Or(Or(remove0, remove1), Or(remove2, remove3)))) {
-      break;
+    const Vec<D> v0 = LoadU(d, inout + i);
+    const Vec<D> v1 = LoadU(d, inout + i + N);
+    const Vec<D> v2 = LoadU(d, inout + i + 2 * N);
+    const Vec<D> v3 = LoadU(d, inout + i + 3 * N);
+    const Mask<D> remove0 = func(d, v0);
+    const Mask<D> remove1 = func(d, v1);
+    const Mask<D> remove2 = func(d, v2);
+    const Mask<D> remove3 = func(d, v3);
+    if (AllFalse(d, Or(Or(remove0, remove1), Or(remove2, remove3)))) {
+      num += 4 * N;
+      continue;
     }
+    num += CompressStore(v0, Not(remove0), d, inout + num);
+    num += CompressStore(v1, Not(remove1), d, inout + num);
+    num += CompressStore(v2, Not(remove2), d, inout + num);
+    num += CompressStore(v3, Not(remove3), d, inout + num);
+    i += 4 * N;
+    break;
   }
 
-  size_t num = i;
   for (; count - i >= 4 * N; i += 4 * N) {
     const Vec<D> v1 = LoadU(d, inout + i);
     const Vec<D> v2 = LoadU(d, inout + i + N);
@@ -276,7 +287,9 @@ size_t RemoveIf(D d, T* HWY_RESTRICT inout, size_t count, const Func& func) {
     // AndNot(func, mask): keep lanes that hold a real element and failed the
     // predicate. Padding lanes from LoadN are excluded.
     const Mask<D> keep = AndNot(func(d, v), mask);
-    num += CompressBlendedStore(v, keep, d, inout + num);
+    const size_t cnt = CountTrue(d, keep);
+    StoreN(Compress(d, v, keep), d, inout + num, cnt);
+    num += cnt;
   }
 
   return num;
