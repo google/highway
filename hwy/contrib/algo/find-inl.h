@@ -423,6 +423,60 @@ bool EqualSpan(D d, const T* HWY_RESTRICT a, const T* HWY_RESTRICT b,
   return true;
 }
 
+// Returns the first index i in [0, count) where a[i] != b[i], or `count` if
+// the spans are equal element-wise. This is EqualSpan plus the position of
+// the first mismatch, and follows Find's "not found" convention rather than
+// std::mismatch's pair of pointers. As with EqualSpan and std::equal, a NaN
+// is not equal to itself, so a NaN at the same index in both spans is a
+// mismatch. Argument order matches EqualSpan.
+template <class D, typename T = TFromD<D>>
+size_t Mismatch(D d, const T* HWY_RESTRICT a, const T* HWY_RESTRICT b,
+                size_t count) {
+  HWY_LANES_CONSTEXPR size_t N = Lanes(d);
+
+  // Unrolls 4x like EqualSpan. The position is only needed on a mismatch, so
+  // each iteration is the loads, the compares and a single mask test until
+  // one of the four masks has a false lane; we then re-check per vector.
+  size_t i = 0;
+  if (HWY_LIKELY(count >= 4 * N)) {
+    for (; i <= count - 4 * N; i += 4 * N) {
+      const Mask<D> m0 = Eq(LoadU(d, a + i + 0 * N), LoadU(d, b + i + 0 * N));
+      const Mask<D> m1 = Eq(LoadU(d, a + i + 1 * N), LoadU(d, b + i + 1 * N));
+      const Mask<D> m2 = Eq(LoadU(d, a + i + 2 * N), LoadU(d, b + i + 2 * N));
+      const Mask<D> m3 = Eq(LoadU(d, a + i + 3 * N), LoadU(d, b + i + 3 * N));
+      if (HWY_UNLIKELY(!AllTrue(d, And(And(m0, m1), And(m2, m3))))) {
+        const intptr_t pos0 = FindFirstTrue(d, Not(m0));
+        if (pos0 >= 0) return i + static_cast<size_t>(pos0);
+        const intptr_t pos1 = FindFirstTrue(d, Not(m1));
+        if (pos1 >= 0) return i + N + static_cast<size_t>(pos1);
+        const intptr_t pos2 = FindFirstTrue(d, Not(m2));
+        if (pos2 >= 0) return i + 2 * N + static_cast<size_t>(pos2);
+        return i + 3 * N + FindKnownFirstTrue(d, Not(m3));
+      }
+    }
+  }
+
+  for (; i + N <= count; i += N) {
+    const Mask<D> equal = Eq(LoadU(d, a + i), LoadU(d, b + i));
+    const intptr_t pos = FindFirstTrue(d, Not(equal));
+    if (pos >= 0) return i + static_cast<size_t>(pos);
+  }
+
+  const size_t remaining = count - i;
+  HWY_DASSERT(remaining < N);
+  if (remaining != 0) {
+    // No FirstN mask here, unlike Find: LoadN zero-fills the lanes past
+    // `remaining` on both sides, so those lanes hold the same value and cannot
+    // produce a spurious mismatch.
+    const Mask<D> equal =
+        Eq(LoadN(d, a + i, remaining), LoadN(d, b + i, remaining));
+    const intptr_t pos = FindFirstTrue(d, Not(equal));
+    if (pos >= 0) return i + static_cast<size_t>(pos);
+  }
+
+  return count;
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy

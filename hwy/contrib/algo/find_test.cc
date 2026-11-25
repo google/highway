@@ -16,7 +16,7 @@
 
 #include <stdio.h>
 
-#include <algorithm>  // std::find_if, std::any_of, std::unique
+#include <algorithm>  // std::find_if, std::any_of, std::unique, std::mismatch
 #include <vector>
 
 #include "hwy/aligned_allocator.h"
@@ -491,6 +491,135 @@ void TestAllEqualSpan() {
   ForFloatTypes(ForPartialVectors<ForeachCountAndMisalign<TestEqualSpanNaN>>());
 }
 
+struct TestMismatch {
+  template <class D>
+  void operator()(D d, size_t count, size_t misalign, RandomState& rng) {
+    using T = TFromD<D>;
+    // Two separate allocations: Mismatch takes HWY_RESTRICT pointers, so the
+    // spans must not overlap. Must allocate at least one even if count is zero.
+    AlignedPtr<T> storage_a = AllocateAligned<T>(HWY_MAX(1, misalign + count));
+    AlignedPtr<T> storage_b = AllocateAligned<T>(HWY_MAX(1, misalign + count));
+    HWY_ASSERT(storage_a && storage_b);
+    T* a = storage_a.get() + misalign;
+    T* b = storage_b.get() + misalign;
+    for (size_t i = 0; i < count; ++i) {
+      a[i] = Random<T>(rng);
+      b[i] = a[i];
+    }
+
+    const auto check = [&](size_t expected, size_t pos) HWY_ATTR {
+      const size_t actual = Mismatch(d, a, b, count);
+      const size_t reference =
+          static_cast<size_t>(std::mismatch(a, a + count, b).first - a);
+      if (actual != expected || reference != expected) {
+        fprintf(stderr,
+                "%s count %d misalign %d differing pos %d: got %d, std %d, "
+                "want %d\n",
+                hwy::TypeName(T(), Lanes(d)).c_str(), static_cast<int>(count),
+                static_cast<int>(misalign), static_cast<int>(pos),
+                static_cast<int>(actual), static_cast<int>(reference),
+                static_cast<int>(expected));
+        HWY_ASSERT(false);
+      }
+    };
+
+    // Identical contents, including count == 0: first differing index is
+    // `count`.
+    check(count, count);
+    HWY_ASSERT(EqualSpan(d, a, b, count));
+
+    // Random<T> returns values in [-8, 8], so 9 never occurs and is guaranteed
+    // to differ from whatever is already there.
+    const T differs = ConvertScalarTo<T>(9);
+
+    // A single differing element must return its index wherever it is.
+    // Sweeping the final N indices is what catches a tail that is skipped,
+    // over-read, or masked off: those are the lanes LoadN zero-fills.
+    const size_t N = Lanes(d);
+    const size_t tail_begin = count > N ? count - N : 0;
+    for (size_t pos = tail_begin; pos < count; ++pos) {
+      const T old = b[pos];
+      b[pos] = differs;
+      check(pos, pos);
+      HWY_ASSERT(!EqualSpan(d, a, b, count));
+      b[pos] = old;
+    }
+
+    // Plus the first and middle elements, which land in the unrolled loop.
+    for (size_t pos : {size_t{0}, count / 2}) {
+      if (pos >= count) continue;
+      const T old = b[pos];
+      b[pos] = differs;
+      check(pos, pos);
+      b[pos] = old;
+    }
+
+    // Two differences: the first index wins.
+    if (count >= 2) {
+      const T old0 = b[0];
+      const T old1 = b[count - 1];
+      b[0] = differs;
+      b[count - 1] = differs;
+      check(0, 0);
+      b[0] = old0;
+      b[count - 1] = old1;
+    }
+
+    // Restored: equal again.
+    check(count, count);
+
+    // A shorter count must ignore a difference beyond it.
+    if (count != 0) {
+      const T old = b[count - 1];
+      b[count - 1] = differs;
+      HWY_ASSERT(Mismatch(d, a, b, count - 1) == count - 1);
+      b[count - 1] = old;
+    }
+  }
+};
+
+// As with EqualSpan and std::equal, a NaN at the same index is a mismatch.
+struct TestMismatchNaN {
+  template <class D>
+  void operator()(D d, size_t count, size_t misalign, RandomState& rng) {
+    using T = TFromD<D>;
+    if (count == 0) return;
+
+    AlignedPtr<T> storage_a = AllocateAligned<T>(misalign + count);
+    AlignedPtr<T> storage_b = AllocateAligned<T>(misalign + count);
+    HWY_ASSERT(storage_a && storage_b);
+    T* a = storage_a.get() + misalign;
+    T* b = storage_b.get() + misalign;
+    for (size_t i = 0; i < count; ++i) {
+      a[i] = Random<T>(rng);
+      b[i] = a[i];
+    }
+
+    const T nan = GetLane(NaN(d));
+    for (size_t pos : {size_t{0}, count / 2, count - 1}) {
+      const T old = a[pos];
+      a[pos] = nan;
+      b[pos] = nan;
+      HWY_ASSERT(!std::equal(a, a + count, b));
+      const size_t actual = Mismatch(d, a, b, count);
+      if (actual != pos) {
+        fprintf(stderr, "%s count %d misalign %d NaN at %d: got %d\n",
+                hwy::TypeName(T(), Lanes(d)).c_str(), static_cast<int>(count),
+                static_cast<int>(misalign), static_cast<int>(pos),
+                static_cast<int>(actual));
+        HWY_ASSERT(false);
+      }
+      a[pos] = old;
+      b[pos] = old;
+    }
+  }
+};
+
+void TestAllMismatch() {
+  ForAllTypes(ForPartialVectors<ForeachCountAndMisalign<TestMismatch>>());
+  ForFloatTypes(ForPartialVectors<ForeachCountAndMisalign<TestMismatchNaN>>());
+}
+
 void TestAllUnique() {
   ForUI(ForPartialVectors<ForeachCountAndMisalign<TestUnique>>());
   ForUI(ForGEVectors<64, TestUniqueBoundary>());
@@ -510,6 +639,7 @@ HWY_EXPORT_AND_TEST_P(FindTest, TestAllFind);
 HWY_EXPORT_AND_TEST_P(FindTest, TestAllFindIf);
 HWY_EXPORT_AND_TEST_P(FindTest, TestAllAnyAllNone);
 HWY_EXPORT_AND_TEST_P(FindTest, TestAllEqualSpan);
+HWY_EXPORT_AND_TEST_P(FindTest, TestAllMismatch);
 HWY_EXPORT_AND_TEST_P(FindTest, TestAllUnique);
 HWY_AFTER_TEST();
 }  // namespace

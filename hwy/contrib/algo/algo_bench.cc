@@ -46,6 +46,8 @@ constexpr bool kPrintOnlySummary = true;
 constexpr bool kBenchUnique = false;
 constexpr bool kBenchAllUnique = false;
 constexpr bool kBenchCopyIf = false;
+constexpr bool kBenchMismatch = false;
+constexpr bool kBenchRemoveIf = false;
 
 // in a single benchmark run, take the mean of inner_reps = min(kInnerRepsMax, max(kElemsPerInnerRep / size, 3))
 // and such runs: kOuterReps
@@ -336,6 +338,50 @@ struct BenchCopyIf {
   }
 };
 
+// Fills both spans identically so Mismatch must scan the whole length.
+struct IdenticalSpans {
+  static constexpr const char* kName = "identical";
+  static void PrintParam(size_t p) { printf("%14zu", p); }
+  static constexpr const size_t kParams[] = {0};
+  template <class T, size_t kNumBuffers>
+  void operator()(Ctx<IdenticalSpans>& ctx, std::array<T*, kNumBuffers> buffers,
+                  size_t /*p*/) const {
+    for (size_t i = 0; i < ctx.size; ++i) {
+      const T v = static_cast<T>(ctx.rng() & 255);
+      buffers[0][i] = v;
+      buffers[1][i] = v;
+    }
+  }
+  size_t ElemsProcessed(size_t n, size_t /*p*/) const { return 2 * n; }
+};
+
+struct BenchMismatch {
+  static constexpr bool kBench8 = true;
+  static constexpr const char* kName = "Mismatch";
+  static constexpr const size_t kNumBuffers = 2;
+
+  template <class Gen, class T>
+  size_t operator()(Ctx<Gen>& ctx, std::array<T*, kNumBuffers>& buffers) const {
+    const ScalableTag<T> d;
+    return Mismatch(d, buffers[0], buffers[1], ctx.size);
+  }
+};
+
+struct BenchRemoveIf {
+  static constexpr bool kBench8 = true;
+  static constexpr const char* kName = "RemoveIf";
+  static constexpr const size_t kNumBuffers = 1;
+
+  template <class Gen, class T>
+  size_t operator()(Ctx<Gen>& ctx, std::array<T*, kNumBuffers>& buffers) const {
+    const ScalableTag<T> d;
+    const auto is_zero = [](const auto d2, const auto v) HWY_ATTR {
+      return Eq(v, Zero(d2));
+    };
+    return RemoveIf(d, buffers[0], ctx.size, is_zero);
+  }
+};
+
 template<typename Func, typename Gen>
 void RunAllSizes(Func func, Gen gen, const std::vector<size_t>& sizes, BenchSummary& summary) {
   for (size_t size : sizes) {
@@ -358,6 +404,16 @@ HWY_NOINLINE void BenchAll() {
   if (kBenchCopyIf) {
     BenchSummary summary;
     RunAllSizes(BenchCopyIf{}, RandomDensity01{}, sizes, summary);
+    summary.Print();
+  }
+  if (kBenchMismatch) {
+    BenchSummary summary;
+    RunAllSizes(BenchMismatch{}, IdenticalSpans{}, sizes, summary);
+    summary.Print();
+  }
+  if (kBenchRemoveIf) {
+    BenchSummary summary;
+    RunAllSizes(BenchRemoveIf{}, RandomDensity01{}, sizes, summary);
     summary.Print();
   }
 }

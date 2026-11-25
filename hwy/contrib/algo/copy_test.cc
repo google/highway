@@ -16,6 +16,9 @@
 
 #include <stddef.h>
 
+#include <algorithm>  // std::remove, std::remove_if
+#include <vector>
+
 #include "hwy/aligned_allocator.h"
 
 // clang-format off
@@ -238,6 +241,146 @@ struct TestReverseSpan {
 
 void TestAllReverseSpan() { ForAllTypes(ForPartialVectors<TestReverseSpan>()); }
 
+// Remove/RemoveIf need counts past 2 * N so the 4x unrolled loop is used.
+struct TestRemove {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) const {
+    RandomState rng;
+    const size_t N = Lanes(d);
+    const size_t misalignments[3] = {0, N / 4, 3 * N / 5};
+
+    // Exhaustive to 4 * N: covers every tail length and the first entry into
+    // the unrolled loop. Then a few larger counts for the 4x path.
+    for (size_t count = 0; count <= 4 * N; ++count) {
+      for (size_t misalign : misalignments) {
+        CheckRemove(d, count, misalign, rng);
+        CheckRemoveIf(d, count, misalign, rng);
+      }
+    }
+    for (size_t count : {5 * N + 1, 16 * N, 16 * N + N / 2}) {
+      if (count == 0) continue;
+      for (size_t misalign : misalignments) {
+        CheckRemove(d, count, misalign, rng);
+        CheckRemoveIf(d, count, misalign, rng);
+      }
+    }
+  }
+
+  template <class D, typename T = TFromD<D>>
+  static void CheckRemove(D d, size_t count, size_t misalign,
+                          RandomState& rng) {
+    AlignedPtr<T> storage = AllocateAligned<T>(misalign + count + 1);
+    AlignedPtr<T> orig = AllocateAligned<T>(HWY_MAX(size_t{1}, count));
+    HWY_ASSERT(storage && orig);
+
+    T* inout = storage.get() + misalign;
+    for (size_t i = 0; i < count; ++i) {
+      const T v = ConvertScalarTo<T>(Random32(&rng) % 127);
+      inout[i] = v;
+      orig[i] = v;
+    }
+    const T sentinel = ConvertScalarTo<T>(99);
+    inout[count] = sentinel;
+
+    // A value that may or may not occur, plus pinned cases: a value known to
+    // be absent, and (when count != 0) the first element so at least one is
+    // removed.
+    const T candidates[2] = {ConvertScalarTo<T>(7), ConvertScalarTo<T>(127)};
+    for (T value : candidates) {
+      for (size_t i = 0; i < count; ++i) inout[i] = orig[i];
+      inout[count] = sentinel;
+
+      std::vector<T> expected(orig.get(), orig.get() + count);
+      const auto new_end = std::remove(expected.begin(), expected.end(), value);
+      const size_t expected_count =
+          static_cast<size_t>(new_end - expected.begin());
+
+      const size_t actual_count = Remove(d, inout, count, value);
+      if (actual_count != expected_count) {
+        fprintf(stderr, "%s Remove count %d: got %d, want %d\n",
+                hwy::TypeName(T(), Lanes(d)).c_str(), static_cast<int>(count),
+                static_cast<int>(actual_count),
+                static_cast<int>(expected_count));
+        HWY_ASSERT(false);
+      }
+      if (expected_count != 0) {
+        const auto info = hwy::detail::MakeTypeInfo<T>();
+        hwy::detail::AssertArrayEqual(
+            info, expected.data(), inout, expected_count,
+            hwy::TargetName(HWY_TARGET), __FILE__, __LINE__);
+      }
+      HWY_ASSERT(ConvertScalarTo<double>(inout[count]) ==
+                 ConvertScalarTo<double>(sentinel));
+    }
+
+    if (count != 0) {
+      for (size_t i = 0; i < count; ++i) inout[i] = orig[i];
+      inout[count] = sentinel;
+      const T value = orig[0];
+      std::vector<T> expected(orig.get(), orig.get() + count);
+      const auto new_end = std::remove(expected.begin(), expected.end(), value);
+      const size_t expected_count =
+          static_cast<size_t>(new_end - expected.begin());
+      const size_t actual_count = Remove(d, inout, count, value);
+      HWY_ASSERT_EQ(expected_count, actual_count);
+      if (expected_count != 0) {
+        const auto info = hwy::detail::MakeTypeInfo<T>();
+        hwy::detail::AssertArrayEqual(
+            info, expected.data(), inout, expected_count,
+            hwy::TargetName(HWY_TARGET), __FILE__, __LINE__);
+      }
+      HWY_ASSERT(ConvertScalarTo<double>(inout[count]) ==
+                 ConvertScalarTo<double>(sentinel));
+    }
+  }
+
+  template <class D, typename T = TFromD<D>>
+  static void CheckRemoveIf(D d, size_t count, size_t misalign,
+                            RandomState& rng) {
+    AlignedPtr<T> storage = AllocateAligned<T>(misalign + count + 1);
+    AlignedPtr<T> orig = AllocateAligned<T>(HWY_MAX(size_t{1}, count));
+    HWY_ASSERT(storage && orig);
+
+    T* inout = storage.get() + misalign;
+    for (size_t i = 0; i < count; ++i) {
+      const T v = Random7Bit<T>(rng);
+      inout[i] = v;
+      orig[i] = v;
+    }
+    const T sentinel = ConvertScalarTo<T>(99);
+    inout[count] = sentinel;
+
+    const auto pred = [](T x) { return ConvertScalarTo<double>(x) > 64.0; };
+    std::vector<T> expected(orig.get(), orig.get() + count);
+    const auto new_end = std::remove_if(expected.begin(), expected.end(), pred);
+    const size_t expected_count =
+        static_cast<size_t>(new_end - expected.begin());
+
+    const auto func = [](const auto d2, const auto v) HWY_ATTR {
+      return Gt(v, Set(d2, ConvertScalarTo<TFromD<decltype(d2)>>(64)));
+    };
+    const size_t actual_count = RemoveIf(d, inout, count, func);
+    if (actual_count != expected_count) {
+      fprintf(stderr, "%s RemoveIf count %d: got %d, want %d\n",
+              hwy::TypeName(T(), Lanes(d)).c_str(), static_cast<int>(count),
+              static_cast<int>(actual_count), static_cast<int>(expected_count));
+      HWY_ASSERT(false);
+    }
+    if (expected_count != 0) {
+      const auto info = hwy::detail::MakeTypeInfo<T>();
+      hwy::detail::AssertArrayEqual(info, expected.data(), inout,
+                                    expected_count, hwy::TargetName(HWY_TARGET),
+                                    __FILE__, __LINE__);
+    }
+    HWY_ASSERT(ConvertScalarTo<double>(inout[count]) ==
+               ConvertScalarTo<double>(sentinel));
+  }
+};
+
+void TestAllRemove() {
+  ForAllTypes(ForPartialVectors<TestRemove>());
+}
+
 struct DefaultGen {
   template<typename T>
   T operator()(RandomState& rng) {
@@ -273,6 +416,7 @@ HWY_EXPORT_AND_TEST_P(CopyTest, TestAllFill);
 HWY_EXPORT_AND_TEST_P(CopyTest, TestAllCopy);
 HWY_EXPORT_AND_TEST_P(CopyTest, TestAllCopyIf);
 HWY_EXPORT_AND_TEST_P(CopyTest, TestAllReverseSpan);
+HWY_EXPORT_AND_TEST_P(CopyTest, TestAllRemove);
 HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy

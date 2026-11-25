@@ -222,6 +222,91 @@ void ReverseSpan(D d, T* HWY_RESTRICT inout, size_t count) {
   }
 }
 
+// Like std::remove_if: removes elements in `inout[0, count)` for which
+// `func(d, vec)` is true, packing the kept elements to the front in the
+// original order, and returns the new length. Operates in-place: the write
+// index never passes the read index, following Unique. The elements in
+// [returned length, count) are unspecified. `count` may be zero.
+//
+// `func` is either a functor with a templated operator()(d, v) returning a
+// mask, or a generic lambda if using C++14. Due to apparent limitations of
+// Clang on Windows, it is currently necessary to add HWY_ATTR before the
+// opening { of the lambda to avoid errors about "function .. requires target".
+template <class D, class Func, typename T = TFromD<D>>
+size_t RemoveIf(D d, T* HWY_RESTRICT inout, size_t count, const Func& func) {
+  const size_t N = Lanes(d);
+
+  size_t i = 0;
+  size_t num = 0;
+  // Leave the untouched prefix in place. Compact the first group containing
+  // a removal with the vectors and masks already computed.
+  for (; count - i >= 4 * N; i += 4 * N) {
+    const Vec<D> v0 = LoadU(d, inout + i);
+    const Vec<D> v1 = LoadU(d, inout + i + N);
+    const Vec<D> v2 = LoadU(d, inout + i + 2 * N);
+    const Vec<D> v3 = LoadU(d, inout + i + 3 * N);
+    const Mask<D> remove0 = func(d, v0);
+    const Mask<D> remove1 = func(d, v1);
+    const Mask<D> remove2 = func(d, v2);
+    const Mask<D> remove3 = func(d, v3);
+    if (AllFalse(d, Or(Or(remove0, remove1), Or(remove2, remove3)))) {
+      num += 4 * N;
+      continue;
+    }
+    num += CompressStore(v0, Not(remove0), d, inout + num);
+    num += CompressStore(v1, Not(remove1), d, inout + num);
+    num += CompressStore(v2, Not(remove2), d, inout + num);
+    num += CompressStore(v3, Not(remove3), d, inout + num);
+    i += 4 * N;
+    break;
+  }
+
+  for (; count - i >= 4 * N; i += 4 * N) {
+    const Vec<D> v1 = LoadU(d, inout + i);
+    const Vec<D> v2 = LoadU(d, inout + i + N);
+    const Vec<D> v3 = LoadU(d, inout + i + 2 * N);
+    const Vec<D> v4 = LoadU(d, inout + i + 3 * N);
+    const Mask<D> keep1 = Not(func(d, v1));
+    const Mask<D> keep2 = Not(func(d, v2));
+    const Mask<D> keep3 = Not(func(d, v3));
+    const Mask<D> keep4 = Not(func(d, v4));
+    num += CompressStore(v1, keep1, d, inout + num);
+    num += CompressStore(v2, keep2, d, inout + num);
+    num += CompressStore(v3, keep3, d, inout + num);
+    num += CompressStore(v4, keep4, d, inout + num);
+  }
+  for (; count - i >= N; i += N) {
+    const Vec<D> v = LoadU(d, inout + i);
+    num += CompressStore(v, Not(func(d, v)), d, inout + num);
+  }
+
+  const size_t remaining = count - i;
+  if (remaining != 0) {
+    const Mask<D> mask = FirstN(d, remaining);
+    const Vec<D> v = LoadN(d, inout + i, remaining);
+    // AndNot(func, mask): keep lanes that hold a real element and failed the
+    // predicate. Padding lanes from LoadN are excluded.
+    const Mask<D> keep = AndNot(func(d, v), mask);
+    const size_t cnt = CountTrue(d, keep);
+    StoreN(Compress(d, v, keep), d, inout + num, cnt);
+    num += cnt;
+  }
+
+  return num;
+}
+
+// Like std::remove: removes elements equal to `value` from `inout[0, count)`
+// and returns the new length. Uses the same in-place compaction as RemoveIf.
+// As with std::remove, a NaN is not equal to itself, so
+// Remove(..., NaN) leaves NaN elements in place.
+template <class D, typename T = TFromD<D>>
+size_t Remove(D d, T* HWY_RESTRICT inout, size_t count, T value) {
+  const auto equal = [value](const auto d2, const auto v) HWY_ATTR {
+    return Eq(Set(d2, value), v);
+  };
+  return RemoveIf(d, inout, count, equal);
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
