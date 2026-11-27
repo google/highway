@@ -1696,14 +1696,14 @@ void DoTypedefsAndObserversTest() {
   using key_type = typename TreeT::key_type;
   using value_type = typename TreeT::value_type;
 
-  // 1. Static compile-time concept assertions
-  static_assert(requires { typename TreeT::key_compare; });
-  static_assert(requires { typename TreeT::value_compare; });
-  static_assert(requires { typename TreeT::reference; });
-  static_assert(requires { typename TreeT::const_reference; });
-  static_assert(requires { typename TreeT::pointer; });
-  static_assert(requires { typename TreeT::const_pointer; });
-  static_assert(requires { typename TreeT::allocator_type; });
+  // 1. Static compile-time typedef assertions
+  static_assert(!std::is_void_v<typename TreeT::key_compare>);
+  static_assert(!std::is_void_v<typename TreeT::value_compare>);
+  static_assert(!std::is_void_v<typename TreeT::reference>);
+  static_assert(!std::is_void_v<typename TreeT::const_reference>);
+  static_assert(!std::is_void_v<typename TreeT::pointer>);
+  static_assert(!std::is_void_v<typename TreeT::const_pointer>);
+  static_assert(!std::is_void_v<typename TreeT::allocator_type>);
   static_assert(
       std::is_same_v<typename TreeT::key_compare, std::less<key_type>>);
 
@@ -1814,8 +1814,10 @@ void DoCopyAndSwapTest() {
       HWY_ASSERT(overwriting_tree.contains(ExtractKey(v)));
     }
 
-    // Self-assignment (nothing changes)
-    assigned = assigned;
+    // Self-assignment (nothing changes); bind via reference to avoid
+    // -Wself-assign-overloaded.
+    const TreeT& self_ref = assigned;
+    assigned = self_ref;
     HWY_ASSERT_EQ(assigned.size(), orig.size());
 
     // Member and ADL swap
@@ -2275,7 +2277,7 @@ void DoInsertHintTest() {
 // Engine-only: moves must transfer contents through an adapter's external
 // state, matching copy-assignment and swap. Not part of RunFullTestSuite
 // because the dynamic-dispatch wrappers (hwy::BTreeSet / hwy::BTreeMap) have no
-// adapter constructor; btree_test.cc calls this directly.
+// adapter constructor; btree_internal_{set,map}_test.cc call this directly.
 template <typename TreeT>
 void DoAdapterMoveTest() {
   using key_type = typename TreeT::key_type;

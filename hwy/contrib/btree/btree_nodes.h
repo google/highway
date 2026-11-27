@@ -392,23 +392,25 @@ static_assert(sizeof(MapLeafNode<int64_t, uint32_t>) ==
 // -----------------------------------------------------------------------------
 
 // Internal node storing separator keys and child pointers.
-// Padded to 256 bytes (32-bit) / 320 bytes (64-bit) to match TCMalloc's size
-// classes.
+// Padded to a 64-byte multiple (256/320 bytes on 64-bit, 192/256 bytes on
+// 32-bit) to match cache lines and TCMalloc's size classes.
 template <typename KeyT>
 struct alignas(64) InternalNode {
   using StorageKeyT = typename KeyCodec<KeyT>::StorageKey;
   static constexpr size_t kCapacity = 16;
   static constexpr size_t kMaxChildren = 17;
+  static constexpr size_t kUsedBytes = kCapacity * sizeof(StorageKeyT) +
+                                       kMaxChildren * sizeof(void*) +
+                                       sizeof(uint8_t);
+  static constexpr size_t kNodeBytes = (kUsedBytes + 63) & ~size_t{63};
+  static constexpr size_t kPaddingBytes = kNodeBytes - kUsedBytes;
 
   StorageKeyT keys[kCapacity];
   void* children[kMaxChildren];
   uint8_t num_keys = 0;
-  // Pad struct to exactly 256 bytes (32-bit keys: 64 + 136 + 1 + 55) or
-  // 320 bytes (64-bit keys: 128 + 136 + 1 + 55), both TCMalloc size classes.
-  // For 64-bit keys, We could have also padded to 288 bytes which is also a
-  // tcmalloc size class bin but alignas(64) rounds up to 320 anyway; so padding
-  // explicitly is better.
-  HWY_MEMBER_VAR_MAYBE_UNUSED uint8_t padding[55] = {};
+  // Pad struct explicitly to kNodeBytes (on 64-bit: 256 bytes for 32-bit keys,
+  // 320 bytes for 64-bit keys; on 32-bit: 192 bytes / 256 bytes).
+  HWY_MEMBER_VAR_MAYBE_UNUSED uint8_t padding[kPaddingBytes] = {};
 
   InternalNode() {
     // Unused key slots hold the maximum value so SIMD comparisons ignore them.
@@ -417,14 +419,20 @@ struct alignas(64) InternalNode {
   }
 };
 
-static_assert(sizeof(InternalNode<uint32_t>) == 256,
-              "InternalNode<uint32_t> must be exactly 256 bytes");
-static_assert(sizeof(InternalNode<int32_t>) == 256,
-              "InternalNode<int32_t> must be exactly 256 bytes");
-static_assert(sizeof(InternalNode<uint64_t>) == 320,
-              "InternalNode<uint64_t> must be exactly 320 bytes");
-static_assert(sizeof(InternalNode<int64_t>) == 320,
-              "InternalNode<int64_t> must be exactly 320 bytes");
+static_assert(sizeof(InternalNode<uint32_t>) ==
+                  (sizeof(void*) == 8 ? 256 : 192),
+              "InternalNode<uint32_t> must be 256 bytes (64-bit) or 192 bytes "
+              "(32-bit)");
+static_assert(sizeof(InternalNode<int32_t>) == (sizeof(void*) == 8 ? 256 : 192),
+              "InternalNode<int32_t> must be 256 bytes (64-bit) or 192 bytes "
+              "(32-bit)");
+static_assert(sizeof(InternalNode<uint64_t>) ==
+                  (sizeof(void*) == 8 ? 320 : 256),
+              "InternalNode<uint64_t> must be 320 bytes (64-bit) or 256 bytes "
+              "(32-bit)");
+static_assert(sizeof(InternalNode<int64_t>) == (sizeof(void*) == 8 ? 320 : 256),
+              "InternalNode<int64_t> must be 320 bytes (64-bit) or 256 bytes "
+              "(32-bit)");
 
 // Maximum possible B-Tree height on 64-bit architectures.
 // Internal nodes have capacity for 16 keys (17 children) and split 50/50.

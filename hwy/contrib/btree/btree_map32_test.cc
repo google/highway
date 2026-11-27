@@ -1,0 +1,430 @@
+// Copyright 2026 Google LLC
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: BSD-3-Clause
+
+#include <stdint.h>
+#include <stdio.h>
+
+#include <limits>
+#include <map>
+#include <vector>
+
+// Skip older x86 and redundant Arm targets (NEON_WITHOUT_AES, SVE2, and
+// SVE2_128 still run) to keep CppCompile time well within CI limits.
+#ifndef HWY_DISABLED_TARGETS
+#define HWY_DISABLED_TARGETS                                              \
+  (HWY_SSE2 | HWY_SSSE3 | HWY_SSE4 | HWY_NEON | HWY_NEON_BF16 | HWY_SVE | \
+   HWY_SVE_256)
+#endif  // HWY_DISABLED_TARGETS
+
+#include "hwy/base.h"
+
+// clang-format off
+#undef HWY_TARGET_INCLUDE
+#define HWY_TARGET_INCLUDE "hwy/contrib/btree/btree_map32_test.cc"  // NOLINT
+// clang-format on
+
+#include "hwy/foreach_target.h"  // IWYU pragma: keep
+#include "hwy/highway.h"
+// After highway.h
+#include "hwy/contrib/btree/btree_map.h"
+#include "hwy/contrib/btree/btree_test_util-inl.h"
+#include "hwy/tests/hwy_gtest.h"
+#include "hwy/tests/test_util-inl.h"
+
+HWY_BEFORE_NAMESPACE();
+namespace hwy {
+namespace HWY_NAMESPACE {
+namespace {
+
+enum DefaultSignedEnum { kNeg = -42, kZero = 0, kPos = 42 };
+enum DefaultFullRangeEnum {
+  kMinVal = -0x7fffffff - 1,
+  kNegVal = -1,
+  kZeroVal = 0,
+  kMaxVal = 0x7fffffff
+};
+enum UnscopedSignedEnum32 : int32_t {};
+enum class ScopedUnsignedEnum32 : uint32_t {};
+
+struct Custom32 {
+  int16_t a = 0;
+  int16_t b = 0;
+
+  constexpr Custom32() = default;
+  constexpr Custom32(int v1, int v2)
+      : a(static_cast<int16_t>(v1)), b(static_cast<int16_t>(v2)) {}
+
+  bool operator==(const Custom32& other) const {
+    return a == other.a && b == other.b;
+  }
+};
+static_assert(sizeof(Custom32) == 4);
+static_assert(std::is_trivially_copyable_v<Custom32>);
+
+#if (HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128) && !HWY_IDE
+#define DEFINE_MAP_KEY_STUBS(KeySuffix)               \
+  HWY_NOINLINE void TestBTreeMap##KeySuffix##U32() {} \
+  HWY_NOINLINE void TestBTreeMap##KeySuffix##I32() {} \
+  HWY_NOINLINE void TestBTreeMap##KeySuffix##U64() {} \
+  HWY_NOINLINE void TestBTreeMap##KeySuffix##I64() {} \
+  HWY_NOINLINE void TestBTreeMap##KeySuffix##F32() {} \
+  HWY_NOINLINE void TestBTreeMap##KeySuffix##F64() {}
+
+DEFINE_MAP_KEY_STUBS(U32)
+DEFINE_MAP_KEY_STUBS(I32)
+#undef DEFINE_MAP_KEY_STUBS
+
+HWY_NOINLINE void TestBTreeMapEnum32() {}
+HWY_NOINLINE void TestMapCustomValues32() {}
+HWY_NOINLINE void TestMapBatchOperations32() {}
+HWY_NOINLINE void TestMapSignedBoundaries32() {}
+#else
+
+void TestCustomValues32() {
+  hwy::BTreeMap<uint32_t, Custom32> map32;
+  map32[10] = Custom32(1, 2);
+  map32[20] = Custom32(3, 4);
+  HWY_ASSERT_EQ(size_t{2}, map32.size());
+  HWY_ASSERT_EQ(true, (map32[10] == Custom32(1, 2)));
+  HWY_ASSERT_EQ(true, (map32[20] == Custom32(3, 4)));
+
+  auto it = map32.find(10);
+  HWY_ASSERT_EQ(true, it != map32.end());
+  HWY_ASSERT_EQ(true, (it->second == Custom32(1, 2)));
+
+  auto [it_new, inserted_new] = map32.emplace(30, 5, 6);
+  HWY_ASSERT_EQ(true, inserted_new);
+  HWY_ASSERT_EQ(true, (it_new->second == Custom32(5, 6)));
+
+  // emplace on existing key must NOT overwrite existing value
+  auto [it_dup, inserted_dup] = map32.emplace(10, 99, 99);
+  HWY_ASSERT_EQ(false, inserted_dup);
+  HWY_ASSERT_EQ(true, (it_dup->second == Custom32(1, 2)));
+  HWY_ASSERT_EQ(true, (map32[10] == Custom32(1, 2)));
+
+  map32.erase(10);
+  map32.erase(30);
+  HWY_ASSERT_EQ(size_t{1}, map32.size());
+  HWY_ASSERT_EQ(true, map32.find(10) == map32.end());
+}
+
+template <typename KeyT, typename ValueT, typename MakeValFunc>
+void TestBatchOperationsForType(MakeValFunc make_val) {
+  constexpr size_t kNumItems = 100;
+  std::vector<KeyT> sorted_keys(kNumItems);
+  std::vector<ValueT> sorted_vals(kNumItems);
+  for (size_t i = 0; i < kNumItems; ++i) {
+    sorted_keys[i] = KeyFromRawInt<KeyT>(i * 10);
+    sorted_vals[i] = make_val(i);
+  }
+
+  // 1. Test BTreeMap::Build
+  auto map = hwy::BTreeMap<KeyT, ValueT>::Build(sorted_keys.data(),
+                                                sorted_vals.data(), kNumItems);
+  HWY_ASSERT_EQ(kNumItems, map.size());
+
+  // 2. Test ContainsBatch
+  const KeyT queries[5] = {KeyFromRawInt<KeyT>(0), KeyFromRawInt<KeyT>(20),
+                           KeyFromRawInt<KeyT>(25), KeyFromRawInt<KeyT>(990),
+                           KeyFromRawInt<KeyT>(1000)};
+  bool contains_out[5] = {};
+  map.ContainsBatch(queries, 5, contains_out);
+  HWY_ASSERT_EQ(true, contains_out[0]);
+  HWY_ASSERT_EQ(true, contains_out[1]);
+  HWY_ASSERT_EQ(false, contains_out[2]);
+  HWY_ASSERT_EQ(true, contains_out[3]);
+  HWY_ASSERT_EQ(false, contains_out[4]);
+
+  // 3. Test FindBatch
+  using const_iterator = typename hwy::BTreeMap<KeyT, ValueT>::const_iterator;
+  const_iterator find_out[5] = {};
+  map.FindBatch(queries, 5, find_out);
+  HWY_ASSERT_EQ(true, find_out[0] != map.end());
+  VerifyEqualValues(sorted_keys[0], find_out[0]->first);
+  HWY_ASSERT_EQ(true, (find_out[0]->second == sorted_vals[0]));
+
+  HWY_ASSERT_EQ(true, find_out[1] != map.end());
+  VerifyEqualValues(sorted_keys[2], find_out[1]->first);
+  HWY_ASSERT_EQ(true, (find_out[1]->second == sorted_vals[2]));
+
+  HWY_ASSERT_EQ(true, find_out[2] == map.end());
+  HWY_ASSERT_EQ(true, find_out[3] != map.end());
+  HWY_ASSERT_EQ(true, find_out[4] == map.end());
+
+  // 4. Test LowerBoundBatch
+  const_iterator lb_out[5] = {};
+  map.LowerBoundBatch(queries, 5, lb_out);
+  HWY_ASSERT_EQ(true, lb_out[0] != map.end());
+  VerifyEqualValues(sorted_keys[0], lb_out[0]->first);
+
+  HWY_ASSERT_EQ(true, lb_out[1] != map.end());
+  VerifyEqualValues(sorted_keys[2], lb_out[1]->first);
+
+  HWY_ASSERT_EQ(true, lb_out[2] != map.end());
+  VerifyEqualValues(KeyFromRawInt<KeyT>(30), lb_out[2]->first);
+
+  HWY_ASSERT_EQ(true, lb_out[3] != map.end());
+  VerifyEqualValues(sorted_keys[99], lb_out[3]->first);
+
+  HWY_ASSERT_EQ(true, lb_out[4] == map.end());
+
+  // 5. Test LookupBatch
+  ValueT lookup_vals[5] = {};
+  bool lookup_found[5] = {};
+  map.LookupBatch(queries, 5, lookup_vals, lookup_found);
+  HWY_ASSERT_EQ(true, lookup_found[0]);
+  HWY_ASSERT_EQ(true, (lookup_vals[0] == sorted_vals[0]));
+
+  HWY_ASSERT_EQ(true, lookup_found[1]);
+  HWY_ASSERT_EQ(true, (lookup_vals[1] == sorted_vals[2]));
+
+  HWY_ASSERT_EQ(false, lookup_found[2]);
+
+  HWY_ASSERT_EQ(true, lookup_found[3]);
+  HWY_ASSERT_EQ(true, (lookup_vals[3] == sorted_vals[99]));
+
+  HWY_ASSERT_EQ(false, lookup_found[4]);
+}
+
+void TestBatchOperations32() {
+  TestBatchOperationsForType<uint32_t, float>(
+      [](size_t i) { return static_cast<float>(i) * 1.5f; });
+  TestBatchOperationsForType<uint32_t, Custom32>([](size_t i) {
+    return Custom32(static_cast<int>(i), static_cast<int>(i * 2));
+  });
+}
+
+template <typename KeyT, typename ValueT>
+void TestMapSpecificSemantics() {
+  hwy::BTreeMap<KeyT, ValueT> map;
+  const KeyT k10 = KeyFromRawInt<KeyT>(10);
+  const KeyT k20 = KeyFromRawInt<KeyT>(20);
+  const KeyT k30 = KeyFromRawInt<KeyT>(30);
+  const KeyT k40 = KeyFromRawInt<KeyT>(40);
+  const KeyT k999 = KeyFromRawInt<KeyT>(999);
+
+  // 1. operator[] insertions and updates
+  map[k10] = static_cast<ValueT>(100);
+  map[k20] = static_cast<ValueT>(200);
+  map[k30] = static_cast<ValueT>(300);
+  HWY_ASSERT_EQ(size_t{3}, map.size());
+  HWY_ASSERT_EQ(static_cast<ValueT>(100), map[k10]);
+  HWY_ASSERT_EQ(static_cast<ValueT>(200), map[k20]);
+  HWY_ASSERT_EQ(static_cast<ValueT>(300), map[k30]);
+
+  // Overwrite via operator[]
+  map[k20] = static_cast<ValueT>(250);
+  HWY_ASSERT_EQ(static_cast<ValueT>(250), map[k20]);
+  HWY_ASSERT_EQ(size_t{3}, map.size());
+
+  // 2. at() checked access (testing both const and mutable overloads)
+  const auto& const_map = map;
+  HWY_ASSERT_EQ(static_cast<ValueT>(100), const_map.at(k10));
+  HWY_ASSERT_EQ(static_cast<ValueT>(250), const_map.at(k20));
+  map.at(k10) = static_cast<ValueT>(105);
+  HWY_ASSERT_EQ(static_cast<ValueT>(105), const_map.at(k10));
+
+  // 3. FindValue direct pointer lookup (testing both const and mutable
+  // overloads)
+  const auto* const_val_ptr = const_map.FindValue(k30);
+  HWY_ASSERT_EQ(true, const_val_ptr != nullptr);
+  HWY_ASSERT_EQ(static_cast<ValueT>(300), *const_val_ptr);
+  HWY_ASSERT_EQ(true, const_map.FindValue(k999) == nullptr);
+
+  auto* mut_val_ptr = map.FindValue(k30);
+  HWY_ASSERT_EQ(true, mut_val_ptr != nullptr);
+  HWY_ASSERT_EQ(static_cast<ValueT>(300), *mut_val_ptr);
+  HWY_ASSERT_EQ(true, map.FindValue(k999) == nullptr);
+
+  // 4. In-place mutable iterator value updates
+  for (auto it = map.begin(); it != map.end(); ++it) {
+    it->second += static_cast<ValueT>(1);
+  }
+  HWY_ASSERT_EQ(static_cast<ValueT>(106), map[k10]);
+  HWY_ASSERT_EQ(static_cast<ValueT>(251), map[k20]);
+  HWY_ASSERT_EQ(static_cast<ValueT>(301), map[k30]);
+
+  // 5. insert_or_assign
+  auto res1 = map.insert_or_assign(k10, static_cast<ValueT>(110));
+  HWY_ASSERT_EQ(false, res1.second);  // existing key updated
+  HWY_ASSERT_EQ(static_cast<ValueT>(110), map[k10]);
+
+  auto res2 = map.insert_or_assign(k40, static_cast<ValueT>(400));
+  HWY_ASSERT_EQ(true, res2.second);  // new key inserted
+  HWY_ASSERT_EQ(static_cast<ValueT>(400), map[k40]);
+  HWY_ASSERT_EQ(size_t{4}, map.size());
+}
+
+template <typename KeyT, typename ValueT>
+void TestOneCombo() {
+  RunFullTestSuite<hwy::BTreeMap<KeyT, ValueT>, std::map<KeyT, ValueT> >();
+  TestMapSpecificSemantics<KeyT, ValueT>();
+}
+
+#define DEFINE_MAP_KEY_TESTS(KeySuffix, KeyT)        \
+  HWY_NOINLINE void TestBTreeMap##KeySuffix##U32() { \
+    TestOneCombo<KeyT, uint32_t>();                  \
+  }                                                  \
+  HWY_NOINLINE void TestBTreeMap##KeySuffix##I32() { \
+    TestOneCombo<KeyT, int32_t>();                   \
+  }                                                  \
+  HWY_NOINLINE void TestBTreeMap##KeySuffix##U64() { \
+    TestOneCombo<KeyT, uint64_t>();                  \
+  }                                                  \
+  HWY_NOINLINE void TestBTreeMap##KeySuffix##I64() { \
+    TestOneCombo<KeyT, int64_t>();                   \
+  }                                                  \
+  HWY_NOINLINE void TestBTreeMap##KeySuffix##F32() { \
+    TestOneCombo<KeyT, float>();                     \
+  }                                                  \
+  HWY_NOINLINE void TestBTreeMap##KeySuffix##F64() { \
+    TestOneCombo<KeyT, double>();                    \
+  }
+
+DEFINE_MAP_KEY_TESTS(U32, uint32_t)
+DEFINE_MAP_KEY_TESTS(I32, int32_t)
+
+#undef DEFINE_MAP_KEY_TESTS
+
+HWY_NOINLINE void TestBTreeMapEnum32() {
+  fprintf(stderr, "Running Public API BTreeMap 32-bit enum key tests...\n");
+  TestOneCombo<DefaultFullRangeEnum, int32_t>();
+  TestOneCombo<UnscopedSignedEnum32, uint64_t>();
+  TestOneCombo<ScopedUnsignedEnum32, float>();
+
+  // Direct test on an unscoped enum with no explicit underlying type and a
+  // negative enumerator.
+  hwy::BTreeMap<DefaultSignedEnum, int32_t> default_enum_map;
+  default_enum_map[kPos] = 100;
+  default_enum_map[kNeg] = -100;
+  default_enum_map[kZero] = 0;
+  HWY_ASSERT_EQ(size_t{3}, default_enum_map.size());
+  auto it = default_enum_map.begin();
+  VerifyEqualValues(it->first, kNeg);
+  HWY_ASSERT_EQ(-100, it->second);
+  ++it;
+  VerifyEqualValues(it->first, kZero);
+  HWY_ASSERT_EQ(0, it->second);
+  ++it;
+  VerifyEqualValues(it->first, kPos);
+  HWY_ASSERT_EQ(100, it->second);
+}
+
+HWY_NOINLINE void TestMapCustomValues32() {
+  fprintf(stderr, "Running Custom32 value type tests...\n");
+  TestCustomValues32();
+}
+
+HWY_NOINLINE void TestMapBatchOperations32() {
+  fprintf(stderr,
+          "Running 32-bit batch operations tests (float, Custom32)...\n");
+  TestBatchOperations32();
+}
+
+template <typename SignedKeyT, typename ValueT>
+void VerifySignedMapBoundaries() {
+  constexpr SignedKeyT kMin = std::numeric_limits<SignedKeyT>::min();
+  constexpr SignedKeyT kMax = std::numeric_limits<SignedKeyT>::max();
+  const SignedKeyT sorted_keys[] = {kMin, -1000, -1, 0, 1, 1000, kMax};
+  const ValueT sorted_vals[] = {10, 20, 30, 40, 50, 60, 70};
+  constexpr size_t kNumKeys = sizeof(sorted_keys) / sizeof(sorted_keys[0]);
+
+  auto map_sorted = hwy::BTreeMap<SignedKeyT, ValueT>::Build(
+      sorted_keys, sorted_vals, kNumKeys);
+  HWY_ASSERT_EQ(kNumKeys, map_sorted.size());
+
+  // Unsorted with duplicates: first occurrence of each key must win.
+  const SignedKeyT unsorted_keys[] = {kMax, 0,    kMin, -1,    0,
+                                      1,    kMin, 1000, -1000, kMax};
+  const ValueT unsorted_vals[] = {70, 40, 10, 30, 999, 50, 888, 60, 20, 777};
+  auto map_unsorted = hwy::BTreeMap<SignedKeyT, ValueT>::Build(
+      unsorted_keys, unsorted_vals,
+      sizeof(unsorted_keys) / sizeof(unsorted_keys[0]));
+  HWY_ASSERT_EQ(kNumKeys, map_unsorted.size());
+
+  // Exercise CopyConstruct and CopyAssign on signed storage-erased maps.
+  hwy::BTreeMap<SignedKeyT, ValueT> copied(map_sorted);
+  hwy::BTreeMap<SignedKeyT, ValueT> assigned;
+  assigned = map_unsorted;
+
+  for (const auto* m : {&map_sorted, &map_unsorted, &copied, &assigned}) {
+    size_t idx = 0;
+    for (auto kv : *m) {
+      HWY_ASSERT_EQ(sorted_keys[idx], kv.first);
+      HWY_ASSERT_EQ(sorted_vals[idx], kv.second);
+      ++idx;
+    }
+    HWY_ASSERT_EQ(kNumKeys, idx);
+
+    // 11 queries = 8-way SIMD micro-batch + 3-element scalar tail.
+    const SignedKeyT queries[11] = {kMin, -2000, -1000, -2,   -1,  0,
+                                    1,    2,     1000,  2000, kMax};
+    const bool expected_found[11] = {true, false, true, false, true, true,
+                                     true, false, true, false, true};
+    const ValueT expected_vals[11] = {10, 0, 20, 0, 30, 40, 50, 0, 60, 0, 70};
+
+    // Test both < 8 tail-only (count = 5) and >= 8 pipelined + tail (11).
+    for (size_t count : {size_t{5}, size_t{11}}) {
+      bool found[11] = {};
+      m->ContainsBatch(queries, count, found);
+      ValueT out_vals[11] = {};
+      bool lookup_found[11] = {};
+      m->LookupBatch(queries, count, out_vals, lookup_found);
+      typename hwy::BTreeMap<SignedKeyT, ValueT>::const_iterator find_it[11] =
+          {};
+      m->FindBatch(queries, count, find_it);
+      typename hwy::BTreeMap<SignedKeyT, ValueT>::const_iterator lb_it[11] = {};
+      m->LowerBoundBatch(queries, count, lb_it);
+
+      for (size_t i = 0; i < count; ++i) {
+        HWY_ASSERT_EQ(expected_found[i], found[i]);
+        HWY_ASSERT_EQ(expected_found[i], lookup_found[i]);
+        HWY_ASSERT_EQ(expected_found[i], find_it[i] != m->end());
+        if (expected_found[i]) {
+          HWY_ASSERT_EQ(expected_vals[i], out_vals[i]);
+          HWY_ASSERT_EQ(queries[i], find_it[i]->first);
+          HWY_ASSERT_EQ(expected_vals[i], find_it[i]->second);
+        }
+        auto scalar_lb = m->lower_bound(queries[i]);
+        HWY_ASSERT(lb_it[i] == scalar_lb);
+      }
+    }
+  }
+}
+
+HWY_NOINLINE void TestMapSignedBoundaries32() {
+  VerifySignedMapBoundaries<int32_t, uint32_t>();
+  VerifySignedMapBoundaries<int32_t, uint64_t>();
+}
+
+#endif  // (HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128) && !HWY_IDE
+
+}  // namespace
+// NOLINTNEXTLINE(google-readability-namespace-comments)
+}  // namespace HWY_NAMESPACE
+}  // namespace hwy
+HWY_AFTER_NAMESPACE();
+
+#if HWY_ONCE
+namespace hwy {
+HWY_BEFORE_TEST(BTreeMap32PublicTest);
+#define EXPORT_MAP_KEY_TESTS(KeySuffix)                                      \
+  HWY_EXPORT_AND_TEST_P(BTreeMap32PublicTest, TestBTreeMap##KeySuffix##U32); \
+  HWY_EXPORT_AND_TEST_P(BTreeMap32PublicTest, TestBTreeMap##KeySuffix##I32); \
+  HWY_EXPORT_AND_TEST_P(BTreeMap32PublicTest, TestBTreeMap##KeySuffix##U64); \
+  HWY_EXPORT_AND_TEST_P(BTreeMap32PublicTest, TestBTreeMap##KeySuffix##I64); \
+  HWY_EXPORT_AND_TEST_P(BTreeMap32PublicTest, TestBTreeMap##KeySuffix##F32); \
+  HWY_EXPORT_AND_TEST_P(BTreeMap32PublicTest, TestBTreeMap##KeySuffix##F64)
+
+EXPORT_MAP_KEY_TESTS(U32);
+EXPORT_MAP_KEY_TESTS(I32);
+#undef EXPORT_MAP_KEY_TESTS
+HWY_EXPORT_AND_TEST_P(BTreeMap32PublicTest, TestBTreeMapEnum32);
+HWY_EXPORT_AND_TEST_P(BTreeMap32PublicTest, TestMapCustomValues32);
+HWY_EXPORT_AND_TEST_P(BTreeMap32PublicTest, TestMapBatchOperations32);
+HWY_EXPORT_AND_TEST_P(BTreeMap32PublicTest, TestMapSignedBoundaries32);
+HWY_AFTER_TEST();
+}  // namespace hwy
+HWY_TEST_MAIN();
+#endif  // HWY_ONCE

@@ -8,7 +8,7 @@
 // To amortize this overhead, callers should prefer using the batch query APIs
 // (e.g. ContainsBatch, FindBatch, LowerBoundBatch). For maximum performance/
 // direct inlining without dynamic dispatch overhead, users should prefer
-// including "third_party/highway/hwy/contrib/btree/btree-inl.h" directly.
+// including "hwy/contrib/btree/btree-inl.h" directly.
 
 #ifndef HIGHWAY_HWY_CONTRIB_BTREE_BTREE_SET_H_
 #define HIGHWAY_HWY_CONTRIB_BTREE_BTREE_SET_H_
@@ -111,9 +111,9 @@ class BTreeSet {
   static constexpr bool kIsMap = false;
 
   BTreeSet() = default;
-  explicit BTreeSet(const key_compare& comp,
-                    const allocator_type& alloc = allocator_type()) {}
-  explicit BTreeSet(const allocator_type& alloc) {}
+  explicit BTreeSet(const key_compare& /*comp*/,
+                    const allocator_type& /*alloc*/ = allocator_type()) {}
+  explicit BTreeSet(const allocator_type& /*alloc*/) {}
   ~BTreeSet() { clear(); }
 
   BTreeSet(const BTreeSet& other) {

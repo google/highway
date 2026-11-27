@@ -8,7 +8,7 @@
 // To amortize this overhead, callers should prefer using the batch query APIs
 // (e.g. ContainsBatch, FindBatch, LowerBoundBatch, LookupBatch). For maximum
 // performance / direct inlining without dynamic dispatch overhead, users should
-// prefer including "third_party/highway/hwy/contrib/btree/btree-inl.h"
+// prefer including "hwy/contrib/btree/btree-inl.h"
 // directly.
 
 #ifndef HIGHWAY_HWY_CONTRIB_BTREE_BTREE_MAP_H_
@@ -81,10 +81,10 @@ struct MapDispatch;
     static void LookupBatch(const State* state, const StorageKeyT* keys,       \
                             size_t count, StorageKeyT sign_mask,               \
                             void* out_values, bool* out_found);                \
-  };
+  }
 
 #define HWY_BTREE_MAP_DISPATCH_DECLARE_VALUES(StorageKeyT) \
-  HWY_BTREE_MAP_DISPATCH_DECLARE(StorageKeyT, uint32_t)    \
+  HWY_BTREE_MAP_DISPATCH_DECLARE(StorageKeyT, uint32_t);   \
   HWY_BTREE_MAP_DISPATCH_DECLARE(StorageKeyT, uint64_t)
 
 HWY_BTREE_MAP_DISPATCH_DECLARE_VALUES(uint32_t);

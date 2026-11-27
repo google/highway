@@ -51,14 +51,18 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 static_assert(
     !IsSigned<BTREE_KEY_T>(),
     "BTREE_KEY_T must be an unsigned StorageKeyT (uint32_t or uint64_t)");
 
+using TreeLeaf = hwy::LeafNode<BTREE_KEY_T>;
+using TreeState = hwy::BTreeState<BTREE_KEY_T, TreeLeaf>;
+
+#if HWY_TARGET != HWY_SCALAR
+
 using TreeEngine = HWY_NAMESPACE::BTree<HWY_NAMESPACE::SetTraits<BTREE_KEY_T>>;
-using TreeState = typename TreeEngine::State;
-using TreeLeaf = typename TreeEngine::Leaf;
 
 static_assert(
     sizeof(typename TreeEngine::const_iterator) ==
@@ -192,6 +196,71 @@ void SetLowerBoundBatchImpl(const TreeState* state,
       sign_mask);
 }
 
+#else  // HWY_TARGET == HWY_SCALAR
+
+void SetClearImpl(TreeState*) {
+  HWY_ABORT("BTreeSet is not supported on HWY_SCALAR");
+}
+void SetCopyConstructImpl(TreeState*, const TreeState*) {
+  HWY_ABORT("BTreeSet is not supported on HWY_SCALAR");
+}
+void SetCopyAssignImpl(TreeState*, const TreeState*) {
+  HWY_ABORT("BTreeSet is not supported on HWY_SCALAR");
+}
+void SetMoveAssignImpl(TreeState*, TreeState*) {
+  HWY_ABORT("BTreeSet is not supported on HWY_SCALAR");
+}
+void SetMoveConstructImpl(TreeState*, TreeState*) {
+  HWY_ABORT("BTreeSet is not supported on HWY_SCALAR");
+}
+void SetBuildImpl(const BTREE_KEY_T* HWY_RESTRICT, size_t, float, BTREE_KEY_T,
+                  TreeState*) {
+  HWY_ABORT("BTreeSet is not supported on HWY_SCALAR");
+}
+bool SetContainsImpl(const TreeState*, BTREE_KEY_T) {
+  HWY_ABORT("BTreeSet is not supported on HWY_SCALAR");
+}
+std::pair<const TreeLeaf*, size_t> SetLowerBoundImpl(const TreeState*,
+                                                     BTREE_KEY_T) {
+  HWY_ABORT("BTreeSet is not supported on HWY_SCALAR");
+}
+std::pair<const TreeLeaf*, size_t> SetUpperBoundImpl(const TreeState*,
+                                                     BTREE_KEY_T) {
+  HWY_ABORT("BTreeSet is not supported on HWY_SCALAR");
+}
+std::pair<const TreeLeaf*, size_t> SetFindImpl(const TreeState*, BTREE_KEY_T) {
+  HWY_ABORT("BTreeSet is not supported on HWY_SCALAR");
+}
+void SetInsertImpl(TreeState*, BTREE_KEY_T, TreeLeaf**, size_t*, bool*) {
+  HWY_ABORT("BTreeSet is not supported on HWY_SCALAR");
+}
+std::pair<TreeLeaf*, size_t> SetInsertHintImpl(TreeState*, const TreeLeaf*,
+                                               size_t, BTREE_KEY_T) {
+  HWY_ABORT("BTreeSet is not supported on HWY_SCALAR");
+}
+void SetEraseImpl(TreeState*, BTREE_KEY_T, size_t*) {
+  HWY_ABORT("BTreeSet is not supported on HWY_SCALAR");
+}
+void SetEraseIterImpl(TreeState*, const TreeLeaf*, size_t, TreeLeaf**,
+                      size_t*) {
+  HWY_ABORT("BTreeSet is not supported on HWY_SCALAR");
+}
+void SetContainsBatchImpl(const TreeState*, const BTREE_KEY_T* HWY_RESTRICT,
+                          size_t, BTREE_KEY_T, bool* HWY_RESTRICT) {
+  HWY_ABORT("BTreeSet is not supported on HWY_SCALAR");
+}
+void SetFindBatchImpl(const TreeState*, const BTREE_KEY_T* HWY_RESTRICT, size_t,
+                      BTREE_KEY_T, void* HWY_RESTRICT) {
+  HWY_ABORT("BTreeSet is not supported on HWY_SCALAR");
+}
+void SetLowerBoundBatchImpl(const TreeState*, const BTREE_KEY_T* HWY_RESTRICT,
+                            size_t, BTREE_KEY_T, void* HWY_RESTRICT) {
+  HWY_ABORT("BTreeSet is not supported on HWY_SCALAR");
+}
+
+#endif  // HWY_TARGET != HWY_SCALAR
+
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy

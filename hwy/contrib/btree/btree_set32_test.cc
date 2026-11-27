@@ -9,9 +9,17 @@
 #include <set>
 #include <vector>
 
+// Skip older x86 and redundant Arm targets (NEON_WITHOUT_AES, SVE2, and
+// SVE2_128 still run) to keep CppCompile time well within CI limits.
+#ifndef HWY_DISABLED_TARGETS
+#define HWY_DISABLED_TARGETS                                              \
+  (HWY_SSE2 | HWY_SSSE3 | HWY_SSE4 | HWY_NEON | HWY_NEON_BF16 | HWY_SVE | \
+   HWY_SVE_256)
+#endif  // HWY_DISABLED_TARGETS
+
 // clang-format off
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "hwy/contrib/btree/btree_set_test.cc"  // NOLINT
+#define HWY_TARGET_INCLUDE "hwy/contrib/btree/btree_set32_test.cc"  // NOLINT
 // clang-format on
 
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
@@ -36,44 +44,32 @@ enum DefaultFullRangeEnum {
 };
 enum UnscopedSignedEnum32 : int32_t {};
 enum class ScopedUnsignedEnum32 : uint32_t {};
-enum class ScopedSignedEnum64 : int64_t {};
-enum class ScopedUnsignedEnum64 : uint64_t {};
+
+#if (HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128) && !HWY_IDE
+HWY_NOINLINE void TestBTreeSetU32() {}
+HWY_NOINLINE void TestBTreeSetI32() {}
+HWY_NOINLINE void TestBTreeSetEnum32() {}
+HWY_NOINLINE void TestBTreeSetSignedBoundaries32() {}
+#else
 
 HWY_NOINLINE void TestBTreeSetU32() {
   fprintf(stderr, "Running Public API BTreeSet uint32_t tests...\n");
-  RunFullTestSuite<hwy::BTreeSet<uint32_t>, std::set<uint32_t>>();
+  RunFullTestSuite<hwy::BTreeSet<uint32_t>, std::set<uint32_t> >();
 }
 
 HWY_NOINLINE void TestBTreeSetI32() {
   fprintf(stderr, "Running Public API BTreeSet int32_t tests...\n");
-  RunFullTestSuite<hwy::BTreeSet<int32_t>, std::set<int32_t>>();
+  RunFullTestSuite<hwy::BTreeSet<int32_t>, std::set<int32_t> >();
 }
 
-HWY_NOINLINE void TestBTreeSetU64() {
-  fprintf(stderr, "Running Public API BTreeSet uint64_t tests...\n");
-  RunFullTestSuite<hwy::BTreeSet<uint64_t>, std::set<uint64_t>>();
-}
-
-HWY_NOINLINE void TestBTreeSetI64() {
-  fprintf(stderr, "Running Public API BTreeSet int64_t tests...\n");
-  RunFullTestSuite<hwy::BTreeSet<int64_t>, std::set<int64_t>>();
-}
-
-HWY_NOINLINE void TestBTreeSetPtrAndEnum() {
-  fprintf(stderr, "Running Public API BTreeSet pointer and enum tests...\n");
-  RunFullTestSuite<hwy::BTreeSet<uint64_t*>, std::set<uint64_t*>>();
-  RunFullTestSuite<hwy::BTreeSet<const uint32_t*>, std::set<const uint32_t*>>();
-  RunFullTestSuite<hwy::BTreeSet<void*>, std::set<void*>>();
+HWY_NOINLINE void TestBTreeSetEnum32() {
+  fprintf(stderr, "Running Public API BTreeSet 32-bit enum tests...\n");
   RunFullTestSuite<hwy::BTreeSet<DefaultFullRangeEnum>,
-                   std::set<DefaultFullRangeEnum>>();
+                   std::set<DefaultFullRangeEnum> >();
   RunFullTestSuite<hwy::BTreeSet<UnscopedSignedEnum32>,
-                   std::set<UnscopedSignedEnum32>>();
+                   std::set<UnscopedSignedEnum32> >();
   RunFullTestSuite<hwy::BTreeSet<ScopedUnsignedEnum32>,
-                   std::set<ScopedUnsignedEnum32>>();
-  RunFullTestSuite<hwy::BTreeSet<ScopedSignedEnum64>,
-                   std::set<ScopedSignedEnum64>>();
-  RunFullTestSuite<hwy::BTreeSet<ScopedUnsignedEnum64>,
-                   std::set<ScopedUnsignedEnum64>>();
+                   std::set<ScopedUnsignedEnum32> >();
 
   // Direct test on an unscoped enum with no explicit underlying type and a
   // negative enumerator.
@@ -145,10 +141,11 @@ void VerifySignedSetBoundaries() {
   }
 }
 
-HWY_NOINLINE void TestBTreeSetSignedBoundaries() {
+HWY_NOINLINE void TestBTreeSetSignedBoundaries32() {
   VerifySignedSetBoundaries<int32_t>();
-  VerifySignedSetBoundaries<int64_t>();
 }
+
+#endif  // (HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128) && !HWY_IDE
 
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
@@ -158,16 +155,12 @@ HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
 namespace hwy {
-namespace {
-HWY_BEFORE_TEST(BTreeSetPublicTest);
-HWY_EXPORT_AND_TEST_P(BTreeSetPublicTest, TestBTreeSetU32);
-HWY_EXPORT_AND_TEST_P(BTreeSetPublicTest, TestBTreeSetI32);
-HWY_EXPORT_AND_TEST_P(BTreeSetPublicTest, TestBTreeSetU64);
-HWY_EXPORT_AND_TEST_P(BTreeSetPublicTest, TestBTreeSetI64);
-HWY_EXPORT_AND_TEST_P(BTreeSetPublicTest, TestBTreeSetPtrAndEnum);
-HWY_EXPORT_AND_TEST_P(BTreeSetPublicTest, TestBTreeSetSignedBoundaries);
+HWY_BEFORE_TEST(BTreeSet32PublicTest);
+HWY_EXPORT_AND_TEST_P(BTreeSet32PublicTest, TestBTreeSetU32);
+HWY_EXPORT_AND_TEST_P(BTreeSet32PublicTest, TestBTreeSetI32);
+HWY_EXPORT_AND_TEST_P(BTreeSet32PublicTest, TestBTreeSetEnum32);
+HWY_EXPORT_AND_TEST_P(BTreeSet32PublicTest, TestBTreeSetSignedBoundaries32);
 HWY_AFTER_TEST();
-}  // namespace
 }  // namespace hwy
 HWY_TEST_MAIN();
 #endif  // HWY_ONCE

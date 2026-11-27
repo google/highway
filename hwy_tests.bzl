@@ -43,6 +43,70 @@ HWY_CONTRIB_TESTS = (
         [":bit_pack"],
     ),
     (
+        "hwy/contrib/btree/",
+        "btree_internal_set32_test",
+        [
+            ":btree",
+            ":btree_test_util",
+        ],
+    ),
+    (
+        "hwy/contrib/btree/",
+        "btree_internal_set64_test",
+        [
+            ":btree",
+            ":btree_test_util",
+        ],
+    ),
+    (
+        "hwy/contrib/btree/",
+        "btree_internal_map32_test",
+        [
+            ":btree",
+            ":btree_test_util",
+        ],
+    ),
+    (
+        "hwy/contrib/btree/",
+        "btree_internal_map64_test",
+        [
+            ":btree",
+            ":btree_test_util",
+        ],
+    ),
+    (
+        "hwy/contrib/btree/",
+        "btree_set32_test",
+        [
+            ":btree",
+            ":btree_test_util",
+        ],
+    ),
+    (
+        "hwy/contrib/btree/",
+        "btree_set64_test",
+        [
+            ":btree",
+            ":btree_test_util",
+        ],
+    ),
+    (
+        "hwy/contrib/btree/",
+        "btree_map32_test",
+        [
+            ":btree",
+            ":btree_test_util",
+        ],
+    ),
+    (
+        "hwy/contrib/btree/",
+        "btree_map64_test",
+        [
+            ":btree",
+            ":btree_test_util",
+        ],
+    ),
+    (
         "hwy/contrib/coder/",
         "range_coder_test",
         [":range_coder"],

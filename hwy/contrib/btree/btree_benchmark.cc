@@ -14,19 +14,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// clang-format off
-#undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "hwy/contrib/btree/btree_benchmark.cc"  // NOLINT
-#include "hwy/foreach_target.h"  // IWYU pragma: keep
-#include "hwy/contrib/btree/btree-inl.h"
-#include "hwy/nanobenchmark.h"
-#include "hwy/tests/test_util-inl.h"
-// clang-format on
-
 #define HWY_HAVE_TCMALLOC 0
-#if HWY_HAVE_TCMALLOC
-#include // Placeholder for tcmalloc, do not remove
-#endif
+#define HWY_HAVE_ABSL 0
 
 #include <stddef.h>
 #include <stdint.h>
@@ -36,24 +25,44 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <random>
 #include <set>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
-#define HWY_HAVE_ABSL 0
+#if HWY_HAVE_TCMALLOC
+#include // Placeholder for tcmalloc, do not remove
+#endif
+
 #if HWY_HAVE_ABSL
 #include "third_party/absl/container/btree_map.h"
 #include "third_party/absl/container/btree_set.h"
-#include "third_party/absl/random/random.h"
 #endif
+
+#include "hwy/nanobenchmark.h"
+
+// clang-format off
+#undef HWY_TARGET_INCLUDE
+#define HWY_TARGET_INCLUDE "hwy/contrib/btree/btree_benchmark.cc"  // NOLINT
+#include "hwy/foreach_target.h"  // IWYU pragma: keep
+#include "hwy/contrib/btree/btree-inl.h"
+#include "hwy/contrib/random/random-inl.h"
+#include "hwy/tests/test_util-inl.h"
+// clang-format on
 
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
+#if HWY_TARGET != HWY_SCALAR
 
 // Set to true to sweep through multiple scale tiers
 HWY_INLINE_VAR constexpr bool kSweepSizes = false;
+
+static uint64_t UniformU64(RngStream& rng, uint64_t lo, uint64_t hi) {
+  return std::uniform_int_distribution<uint64_t>(lo, hi - 1)(rng);
+}
 
 static size_t AllocatedBefore() {
 #if HWY_HAVE_TCMALLOC
@@ -73,6 +82,7 @@ static size_t GetAllocatedBytes(size_t before, size_t guessed) {
   const size_t allocated = (after > before) ? (after - before) : 0;
   return (allocated != 0) ? allocated : guessed;
 #else
+  (void)before;
   return guessed;
 #endif
 }
@@ -97,29 +107,32 @@ void RunBenchmarkSuite(size_t num_keys) {
       "------------------------------------------------------------------------"
       "------------------------------------------------\n");
 
-  absl::BitGen bitgen;
+  AesCtrEngine engine(/*deterministic=*/true);
+  RngStream rng(engine, 42);
   std::vector<KeyT> keys;
   keys.reserve(num_keys);
   for (size_t i = 0; i < num_keys; ++i) {
     keys.push_back(static_cast<KeyT>((i + 1) * 10));
   }
-  std::shuffle(keys.begin(), keys.end(), bitgen);
+  std::shuffle(keys.begin(), keys.end(), rng);
 
   // 1. Build Containers
   const double start_std = hwy::platform::Now();
   std::set<KeyT> std_tree(keys.begin(), keys.end());
   const double end_std = hwy::platform::Now();
 
+#if HWY_HAVE_ABSL
   const double start_absl = hwy::platform::Now();
   absl::btree_set<KeyT> absl_tree(keys.begin(), keys.end());
   const double end_absl = hwy::platform::Now();
+  const double absl_build_ms = (end_absl - start_absl) * 1000.0;
+#endif
 
   const double start_hwy = hwy::platform::Now();
   auto hwy_tree = BTreeSet<KeyT>::Build(keys.data(), keys.size());
   const double end_hwy = hwy::platform::Now();
 
   const double std_build_ms = (end_std - start_std) * 1000.0;
-  const double absl_build_ms = (end_absl - start_absl) * 1000.0;
   const double hwy_build_ms = (end_hwy - start_hwy) * 1000.0;
 
   // 2. Generate Random Query Keys
@@ -128,11 +141,11 @@ void RunBenchmarkSuite(size_t num_keys) {
   queries.reserve(kNumQueries);
   for (size_t i = 0; i < kNumQueries; ++i) {
     queries.push_back(
-        static_cast<KeyT>(absl::Uniform<KeyT>(bitgen, 0, (num_keys + 1) * 10)));
+        static_cast<KeyT>(UniformU64(rng, 0, (num_keys + 1) * 10)));
   }
 
   // 3. Point Lookups (contains / find)
-  uint64_t hwy_hits = 0, absl_hits = 0, std_hits = 0;
+  uint64_t hwy_hits = 0, std_hits = 0;
 
   const double t0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumQueries; ++i) {
@@ -141,10 +154,13 @@ void RunBenchmarkSuite(size_t num_keys) {
   hwy::PreventElision(std_hits);
   const double t1 = hwy::platform::Now();
 
+#if HWY_HAVE_ABSL
+  uint64_t absl_hits = 0;
   for (size_t i = 0; i < kNumQueries; ++i) {
     absl_hits += (absl_tree.find(queries[i]) != absl_tree.end());
   }
   hwy::PreventElision(absl_hits);
+#endif
   const double t2 = hwy::platform::Now();
 
   for (size_t i = 0; i < kNumQueries; ++i) {
@@ -154,11 +170,13 @@ void RunBenchmarkSuite(size_t num_keys) {
   const double t3 = hwy::platform::Now();
 
   const double std_find_ns = (t1 - t0) * 1e9 / kNumQueries;
+#if HWY_HAVE_ABSL
   const double absl_find_ns = (t2 - t1) * 1e9 / kNumQueries;
+#endif
   const double hwy_find_ns = (t3 - t2) * 1e9 / kNumQueries;
 
   // 4. Ordered Range Queries (lower_bound)
-  uint64_t hwy_lb_sum = 0, absl_lb_sum = 0, std_lb_sum = 0;
+  uint64_t hwy_lb_sum = 0, std_lb_sum = 0;
 
   const double r0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumQueries; ++i) {
@@ -168,11 +186,14 @@ void RunBenchmarkSuite(size_t num_keys) {
   hwy::PreventElision(std_lb_sum);
   const double r1 = hwy::platform::Now();
 
+#if HWY_HAVE_ABSL
+  uint64_t absl_lb_sum = 0;
   for (size_t i = 0; i < kNumQueries; ++i) {
     auto it = absl_tree.lower_bound(queries[i]);
     if (it != absl_tree.end()) absl_lb_sum += *it;
   }
   hwy::PreventElision(absl_lb_sum);
+#endif
   const double r2 = hwy::platform::Now();
 
   for (size_t i = 0; i < kNumQueries; ++i) {
@@ -183,11 +204,13 @@ void RunBenchmarkSuite(size_t num_keys) {
   const double r3 = hwy::platform::Now();
 
   const double std_lb_ns = (r1 - r0) * 1e9 / kNumQueries;
+#if HWY_HAVE_ABSL
   const double absl_lb_ns = (r2 - r1) * 1e9 / kNumQueries;
+#endif
   const double hwy_lb_ns = (r3 - r2) * 1e9 / kNumQueries;
 
   // 4b. Ordered Range Queries (upper_bound)
-  uint64_t hwy_ub_sum = 0, absl_ub_sum = 0, std_ub_sum = 0;
+  uint64_t hwy_ub_sum = 0, std_ub_sum = 0;
 
   const double u0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumQueries; ++i) {
@@ -197,11 +220,14 @@ void RunBenchmarkSuite(size_t num_keys) {
   hwy::PreventElision(std_ub_sum);
   const double u1 = hwy::platform::Now();
 
+#if HWY_HAVE_ABSL
+  uint64_t absl_ub_sum = 0;
   for (size_t i = 0; i < kNumQueries; ++i) {
     auto it = absl_tree.upper_bound(queries[i]);
     if (it != absl_tree.end()) absl_ub_sum += *it;
   }
   hwy::PreventElision(absl_ub_sum);
+#endif
   const double u2 = hwy::platform::Now();
 
   for (size_t i = 0; i < kNumQueries; ++i) {
@@ -212,14 +238,16 @@ void RunBenchmarkSuite(size_t num_keys) {
   const double u3 = hwy::platform::Now();
 
   const double std_ub_ns = (u1 - u0) * 1e9 / kNumQueries;
+#if HWY_HAVE_ABSL
   const double absl_ub_ns = (u2 - u1) * 1e9 / kNumQueries;
+#endif
   const double hwy_ub_ns = (u3 - u2) * 1e9 / kNumQueries;
 
   // 4c. Full Ordered Iteration (begin -> end)
   const size_t kIterPasses =
       std::max<size_t>(10, (10 * kNumQueries) / num_keys);
   const size_t kTotalIterSteps = kIterPasses * num_keys;
-  uint64_t hwy_iter_sum = 0, absl_iter_sum = 0, std_iter_sum = 0;
+  uint64_t hwy_iter_sum = 0, std_iter_sum = 0;
 
   const double it0 = hwy::platform::Now();
   for (size_t p = 0; p < kIterPasses; ++p) {
@@ -230,12 +258,15 @@ void RunBenchmarkSuite(size_t num_keys) {
   hwy::PreventElision(std_iter_sum);
   const double it1 = hwy::platform::Now();
 
+#if HWY_HAVE_ABSL
+  uint64_t absl_iter_sum = 0;
   for (size_t p = 0; p < kIterPasses; ++p) {
     for (KeyT k : absl_tree) {
       absl_iter_sum += k;
     }
   }
   hwy::PreventElision(absl_iter_sum);
+#endif
   const double it2 = hwy::platform::Now();
 
   for (size_t p = 0; p < kIterPasses; ++p) {
@@ -247,7 +278,9 @@ void RunBenchmarkSuite(size_t num_keys) {
   const double it3 = hwy::platform::Now();
 
   const double std_iter_ns = (it1 - it0) * 1e9 / kTotalIterSteps;
+#if HWY_HAVE_ABSL
   const double absl_iter_ns = (it2 - it1) * 1e9 / kTotalIterSteps;
+#endif
   const double hwy_iter_ns = (it3 - it2) * 1e9 / kTotalIterSteps;
 
   // 5. Batch Point Lookups (ContainsBatch)
@@ -286,8 +319,8 @@ void RunBenchmarkSuite(size_t num_keys) {
   std::vector<KeyT> mutation_keys;
   mutation_keys.reserve(kNumMutations);
   for (size_t i = 0; i < kNumMutations; ++i) {
-    mutation_keys.push_back(static_cast<KeyT>(
-        absl::Uniform<uint64_t>(bitgen, 0, (num_keys + 1) * 20)));
+    mutation_keys.push_back(
+        static_cast<KeyT>(UniformU64(rng, 0, (num_keys + 1) * 20)));
   }
 
   std::set<KeyT> std_dyn_set;
@@ -296,6 +329,7 @@ void RunBenchmarkSuite(size_t num_keys) {
     std_dyn_set.insert(mutation_keys[i]);
   }
   const double mi_std_1 = hwy::platform::Now();
+  const size_t dyn_unique_keys = std_dyn_set.size();
 
   const double me_std_0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumErases; ++i) {
@@ -303,19 +337,23 @@ void RunBenchmarkSuite(size_t num_keys) {
   }
   const double me_std_1 = hwy::platform::Now();
 
+#if HWY_HAVE_ABSL
   absl::btree_set<KeyT> absl_dyn_set;
   const double mi_absl_0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumMutations; ++i) {
     absl_dyn_set.insert(mutation_keys[i]);
   }
   const double mi_absl_1 = hwy::platform::Now();
-  const size_t dyn_unique_keys = absl_dyn_set.size();
+  HWY_ASSERT(absl_dyn_set.size() == dyn_unique_keys);
 
   const double me_absl_0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumErases; ++i) {
     absl_dyn_set.erase(mutation_keys[i]);
   }
   const double me_absl_1 = hwy::platform::Now();
+  const double absl_ins_ns = (mi_absl_1 - mi_absl_0) * 1e9 / kNumMutations;
+  const double absl_erase_ns = (me_absl_1 - me_absl_0) * 1e9 / kNumErases;
+#endif
 
   BTreeSet<KeyT> hwy_dyn_set;
   const double mi_hwy_0 = hwy::platform::Now();
@@ -332,19 +370,15 @@ void RunBenchmarkSuite(size_t num_keys) {
   const double me_hwy_1 = hwy::platform::Now();
 
   const double std_ins_ns = (mi_std_1 - mi_std_0) * 1e9 / kNumMutations;
-  const double absl_ins_ns = (mi_absl_1 - mi_absl_0) * 1e9 / kNumMutations;
   const double hwy_ins_ns = (mi_hwy_1 - mi_hwy_0) * 1e9 / kNumMutations;
 
   const double std_erase_ns = (me_std_1 - me_std_0) * 1e9 / kNumErases;
-  const double absl_erase_ns = (me_absl_1 - me_absl_0) * 1e9 / kNumErases;
   const double hwy_erase_ns = (me_hwy_1 - me_hwy_0) * 1e9 / kNumErases;
 
   // Print Formatted Rows
-  char std_ins_del[32], absl_ins_del[32], hwy_ins_del[32];
+  char std_ins_del[32], hwy_ins_del[32];
   snprintf(std_ins_del, sizeof(std_ins_del), "%5.1f / %5.1f", std_ins_ns,
            std_erase_ns);
-  snprintf(absl_ins_del, sizeof(absl_ins_del), "%5.1f / %5.1f", absl_ins_ns,
-           absl_erase_ns);
   snprintf(hwy_ins_del, sizeof(hwy_ins_del), "%5.1f / %5.1f", hwy_ins_ns,
            hwy_erase_ns);
 
@@ -353,17 +387,23 @@ void RunBenchmarkSuite(size_t num_keys) {
       "%9.1f ns %18s\n",
       "std::set", std_build_ms, std_find_ns, std_lb_ns, std_ub_ns, std_iter_ns,
       std_find_ns, std_lb_ns, std_ins_del);
+#if HWY_HAVE_ABSL
+  char absl_ins_del[32];
+  snprintf(absl_ins_del, sizeof(absl_ins_del), "%5.1f / %5.1f", absl_ins_ns,
+           absl_erase_ns);
   printf(
       "%-17s %8.1f ms %7.1f ns %7.1f ns %7.1f ns %7.2f ns %9.1f ns "
       "%9.1f ns %18s\n",
       "absl::btree_set", absl_build_ms, absl_find_ns, absl_lb_ns, absl_ub_ns,
       absl_iter_ns, absl_find_ns, absl_lb_ns, absl_ins_del);
+#endif
   printf(
       "%-17s %8.1f ms %7.1f ns %7.1f ns %7.1f ns %7.2f ns %9.1f ns "
       "%9.1f ns %18s\n",
       "hwy::btree_set", hwy_build_ms, hwy_find_ns, hwy_lb_ns, hwy_ub_ns,
       hwy_iter_ns, hwy_batch_find_ns, hwy_batch_lb_ns, hwy_ins_del);
 
+#if HWY_HAVE_ABSL
   char build_sp[32], find_sp[32], lb_sp[32], ub_sp[32], iter_sp[32],
       bfind_sp[32], blb_sp[32], ins_del_sp[32];
   snprintf(build_sp, sizeof(build_sp), "(%.1fx)",
@@ -385,18 +425,21 @@ void RunBenchmarkSuite(size_t num_keys) {
   printf("%-17s %11s %10s %10s %10s %10s %12s %12s %18s\n", "  faster vs absl",
          build_sp, find_sp, lb_sp, ub_sp, iter_sp, bfind_sp, blb_sp,
          ins_del_sp);
+#endif
   printf(
       "========================================================================"
       "================================================\n");
 
-  HWY_ASSERT(std_hits == absl_hits);
-  HWY_ASSERT(hwy_hits == absl_hits);
-  HWY_ASSERT(batch_hits == absl_hits);
-  HWY_ASSERT(std_lb_sum == absl_lb_sum);
-  HWY_ASSERT(hwy_lb_sum == absl_lb_sum);
-  HWY_ASSERT(batch_lb_sum == absl_lb_sum);
-  HWY_ASSERT(std_iter_sum == absl_iter_sum);
-  HWY_ASSERT(hwy_iter_sum == absl_iter_sum);
+  HWY_ASSERT(hwy_hits == std_hits);
+  HWY_ASSERT(batch_hits == std_hits);
+  HWY_ASSERT(hwy_lb_sum == std_lb_sum);
+  HWY_ASSERT(batch_lb_sum == std_lb_sum);
+  HWY_ASSERT(hwy_iter_sum == std_iter_sum);
+#if HWY_HAVE_ABSL
+  HWY_ASSERT(absl_hits == std_hits);
+  HWY_ASSERT(absl_lb_sum == std_lb_sum);
+  HWY_ASSERT(absl_iter_sum == std_iter_sum);
+#endif
 }
 
 template <typename KeyT, typename ValueT>
@@ -422,7 +465,8 @@ void RunMapBenchmarkSuite(size_t num_keys) {
       "------------------------------------------------------------------------"
       "------------------------------------------------\n");
 
-  absl::BitGen bitgen;
+  AesCtrEngine engine(/*deterministic=*/true);
+  RngStream rng(engine, 42);
   std::vector<KeyT> keys;
   std::vector<ValueT> vals;
   std::vector<std::pair<KeyT, ValueT>> kv_pairs;
@@ -434,7 +478,7 @@ void RunMapBenchmarkSuite(size_t num_keys) {
     ValueT v = static_cast<ValueT>((i + 1) * 100);
     kv_pairs.push_back({k, v});
   }
-  std::shuffle(kv_pairs.begin(), kv_pairs.end(), bitgen);
+  std::shuffle(kv_pairs.begin(), kv_pairs.end(), rng);
   for (const auto& [k, v] : kv_pairs) {
     keys.push_back(k);
     vals.push_back(v);
@@ -445,9 +489,12 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   std::map<KeyT, ValueT> std_map(kv_pairs.begin(), kv_pairs.end());
   const double end_std = hwy::platform::Now();
 
+#if HWY_HAVE_ABSL
   const double start_absl = hwy::platform::Now();
   absl::btree_map<KeyT, ValueT> absl_map(kv_pairs.begin(), kv_pairs.end());
   const double end_absl = hwy::platform::Now();
+  const double absl_build_ms = (end_absl - start_absl) * 1000.0;
+#endif
 
   const double start_hwy = hwy::platform::Now();
   auto hwy_map =
@@ -455,7 +502,6 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   const double end_hwy = hwy::platform::Now();
 
   const double std_build_ms = (end_std - start_std) * 1000.0;
-  const double absl_build_ms = (end_absl - start_absl) * 1000.0;
   const double hwy_build_ms = (end_hwy - start_hwy) * 1000.0;
 
   // 2. Generate Random Query Keys
@@ -463,12 +509,12 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   std::vector<KeyT> queries;
   queries.reserve(kNumQueries);
   for (size_t i = 0; i < kNumQueries; ++i) {
-    queries.push_back(static_cast<KeyT>(
-        absl::Uniform<uint64_t>(bitgen, 0, (num_keys + 1) * 10)));
+    queries.push_back(
+        static_cast<KeyT>(UniformU64(rng, 0, (num_keys + 1) * 10)));
   }
 
   // 3. Point Lookups (FindValue / find)
-  uint64_t hwy_hits = 0, absl_hits = 0, std_hits = 0;
+  uint64_t hwy_hits = 0, std_hits = 0;
 
   const double t0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumQueries; ++i) {
@@ -478,11 +524,14 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   hwy::PreventElision(std_hits);
   const double t1 = hwy::platform::Now();
 
+#if HWY_HAVE_ABSL
+  uint64_t absl_hits = 0;
   for (size_t i = 0; i < kNumQueries; ++i) {
     auto it = absl_map.find(queries[i]);
     if (it != absl_map.end()) absl_hits += static_cast<uint64_t>(it->second);
   }
   hwy::PreventElision(absl_hits);
+#endif
   const double t2 = hwy::platform::Now();
 
   for (size_t i = 0; i < kNumQueries; ++i) {
@@ -493,11 +542,13 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   const double t3 = hwy::platform::Now();
 
   const double std_find_ns = (t1 - t0) * 1e9 / kNumQueries;
+#if HWY_HAVE_ABSL
   const double absl_find_ns = (t2 - t1) * 1e9 / kNumQueries;
+#endif
   const double hwy_find_ns = (t3 - t2) * 1e9 / kNumQueries;
 
   // 4. Ordered Range Queries (lower_bound)
-  uint64_t hwy_lb_sum = 0, absl_lb_sum = 0, std_lb_sum = 0;
+  uint64_t hwy_lb_sum = 0, std_lb_sum = 0;
 
   const double r0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumQueries; ++i) {
@@ -507,11 +558,14 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   hwy::PreventElision(std_lb_sum);
   const double r1 = hwy::platform::Now();
 
+#if HWY_HAVE_ABSL
+  uint64_t absl_lb_sum = 0;
   for (size_t i = 0; i < kNumQueries; ++i) {
     auto it = absl_map.lower_bound(queries[i]);
     if (it != absl_map.end()) absl_lb_sum += static_cast<uint64_t>(it->second);
   }
   hwy::PreventElision(absl_lb_sum);
+#endif
   const double r2 = hwy::platform::Now();
 
   for (size_t i = 0; i < kNumQueries; ++i) {
@@ -522,11 +576,13 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   const double r3 = hwy::platform::Now();
 
   const double std_lb_ns = (r1 - r0) * 1e9 / kNumQueries;
+#if HWY_HAVE_ABSL
   const double absl_lb_ns = (r2 - r1) * 1e9 / kNumQueries;
+#endif
   const double hwy_lb_ns = (r3 - r2) * 1e9 / kNumQueries;
 
   // 4b. Ordered Range Queries (upper_bound)
-  uint64_t hwy_ub_sum = 0, absl_ub_sum = 0, std_ub_sum = 0;
+  uint64_t hwy_ub_sum = 0, std_ub_sum = 0;
 
   const double u0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumQueries; ++i) {
@@ -536,11 +592,14 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   hwy::PreventElision(std_ub_sum);
   const double u1 = hwy::platform::Now();
 
+#if HWY_HAVE_ABSL
+  uint64_t absl_ub_sum = 0;
   for (size_t i = 0; i < kNumQueries; ++i) {
     auto it = absl_map.upper_bound(queries[i]);
     if (it != absl_map.end()) absl_ub_sum += static_cast<uint64_t>(it->second);
   }
   hwy::PreventElision(absl_ub_sum);
+#endif
   const double u2 = hwy::platform::Now();
 
   for (size_t i = 0; i < kNumQueries; ++i) {
@@ -551,14 +610,16 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   const double u3 = hwy::platform::Now();
 
   const double std_ub_ns = (u1 - u0) * 1e9 / kNumQueries;
+#if HWY_HAVE_ABSL
   const double absl_ub_ns = (u2 - u1) * 1e9 / kNumQueries;
+#endif
   const double hwy_ub_ns = (u3 - u2) * 1e9 / kNumQueries;
 
   // 4c. Full Ordered Iteration (begin -> end)
   const size_t kIterPasses =
       std::max<size_t>(10, (10 * kNumQueries) / num_keys);
   const size_t kTotalIterSteps = kIterPasses * num_keys;
-  uint64_t hwy_iter_sum = 0, absl_iter_sum = 0, std_iter_sum = 0;
+  uint64_t hwy_iter_sum = 0, std_iter_sum = 0;
 
   const double it0 = hwy::platform::Now();
   for (size_t p = 0; p < kIterPasses; ++p) {
@@ -570,6 +631,8 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   hwy::PreventElision(std_iter_sum);
   const double it1 = hwy::platform::Now();
 
+#if HWY_HAVE_ABSL
+  uint64_t absl_iter_sum = 0;
   for (size_t p = 0; p < kIterPasses; ++p) {
     for (const auto& kv : absl_map) {
       absl_iter_sum +=
@@ -577,6 +640,7 @@ void RunMapBenchmarkSuite(size_t num_keys) {
     }
   }
   hwy::PreventElision(absl_iter_sum);
+#endif
   const double it2 = hwy::platform::Now();
 
   for (size_t p = 0; p < kIterPasses; ++p) {
@@ -589,7 +653,9 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   const double it3 = hwy::platform::Now();
 
   const double std_iter_ns = (it1 - it0) * 1e9 / kTotalIterSteps;
+#if HWY_HAVE_ABSL
   const double absl_iter_ns = (it2 - it1) * 1e9 / kTotalIterSteps;
+#endif
   const double hwy_iter_ns = (it3 - it2) * 1e9 / kTotalIterSteps;
 
   // 5. Batch Value Lookups (LookupBatch)
@@ -629,10 +695,9 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   std::vector<std::pair<KeyT, ValueT>> mutation_pairs;
   mutation_pairs.reserve(kNumMutations);
   for (size_t i = 0; i < kNumMutations; ++i) {
-    mutation_pairs.push_back({static_cast<KeyT>(absl::Uniform<uint64_t>(
-                                  bitgen, 0, (num_keys + 1) * 20)),
-                              static_cast<ValueT>(absl::Uniform<uint64_t>(
-                                  bitgen, 1, (num_keys + 1) * 200))});
+    mutation_pairs.push_back(
+        {static_cast<KeyT>(UniformU64(rng, 0, (num_keys + 1) * 20)),
+         static_cast<ValueT>(UniformU64(rng, 1, (num_keys + 1) * 200))});
   }
 
   std::map<KeyT, ValueT> std_dyn_map;
@@ -641,6 +706,7 @@ void RunMapBenchmarkSuite(size_t num_keys) {
     std_dyn_map.insert(mutation_pairs[i]);
   }
   const double mi_std_1 = hwy::platform::Now();
+  const size_t dyn_unique_pairs = std_dyn_map.size();
 
   const double me_std_0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumErases; ++i) {
@@ -648,19 +714,23 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   }
   const double me_std_1 = hwy::platform::Now();
 
+#if HWY_HAVE_ABSL
   absl::btree_map<KeyT, ValueT> absl_dyn_map;
   const double mi_absl_0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumMutations; ++i) {
     absl_dyn_map.insert(mutation_pairs[i]);
   }
   const double mi_absl_1 = hwy::platform::Now();
-  const size_t dyn_unique_pairs = absl_dyn_map.size();
+  HWY_ASSERT(absl_dyn_map.size() == dyn_unique_pairs);
 
   const double me_absl_0 = hwy::platform::Now();
   for (size_t i = 0; i < kNumErases; ++i) {
     absl_dyn_map.erase(mutation_pairs[i].first);
   }
   const double me_absl_1 = hwy::platform::Now();
+  const double absl_ins_ns = (mi_absl_1 - mi_absl_0) * 1e9 / kNumMutations;
+  const double absl_erase_ns = (me_absl_1 - me_absl_0) * 1e9 / kNumErases;
+#endif
 
   BTreeMap<KeyT, ValueT> hwy_dyn_map;
   const double mi_hwy_0 = hwy::platform::Now();
@@ -677,18 +747,14 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   const double me_hwy_1 = hwy::platform::Now();
 
   const double std_ins_ns = (mi_std_1 - mi_std_0) * 1e9 / kNumMutations;
-  const double absl_ins_ns = (mi_absl_1 - mi_absl_0) * 1e9 / kNumMutations;
   const double hwy_ins_ns = (mi_hwy_1 - mi_hwy_0) * 1e9 / kNumMutations;
 
   const double std_erase_ns = (me_std_1 - me_std_0) * 1e9 / kNumErases;
-  const double absl_erase_ns = (me_absl_1 - me_absl_0) * 1e9 / kNumErases;
   const double hwy_erase_ns = (me_hwy_1 - me_hwy_0) * 1e9 / kNumErases;
 
-  char std_ins_del[32], absl_ins_del[32], hwy_ins_del[32];
+  char std_ins_del[32], hwy_ins_del[32];
   snprintf(std_ins_del, sizeof(std_ins_del), "%5.1f / %5.1f", std_ins_ns,
            std_erase_ns);
-  snprintf(absl_ins_del, sizeof(absl_ins_del), "%5.1f / %5.1f", absl_ins_ns,
-           absl_erase_ns);
   snprintf(hwy_ins_del, sizeof(hwy_ins_del), "%5.1f / %5.1f", hwy_ins_ns,
            hwy_erase_ns);
 
@@ -697,17 +763,23 @@ void RunMapBenchmarkSuite(size_t num_keys) {
       "%9.1f ns %18s\n",
       "std::map", std_build_ms, std_find_ns, std_lb_ns, std_ub_ns, std_iter_ns,
       std_find_ns, std_lb_ns, std_ins_del);
+#if HWY_HAVE_ABSL
+  char absl_ins_del[32];
+  snprintf(absl_ins_del, sizeof(absl_ins_del), "%5.1f / %5.1f", absl_ins_ns,
+           absl_erase_ns);
   printf(
       "%-17s %8.1f ms %7.1f ns %7.1f ns %7.1f ns %7.2f ns %9.1f ns "
       "%9.1f ns %18s\n",
       "absl::btree_map", absl_build_ms, absl_find_ns, absl_lb_ns, absl_ub_ns,
       absl_iter_ns, absl_find_ns, absl_lb_ns, absl_ins_del);
+#endif
   printf(
       "%-17s %8.1f ms %7.1f ns %7.1f ns %7.1f ns %7.2f ns %9.1f ns "
       "%9.1f ns %18s\n",
       "hwy::btree_map", hwy_build_ms, hwy_find_ns, hwy_lb_ns, hwy_ub_ns,
       hwy_iter_ns, hwy_batch_find_ns, hwy_batch_lb_ns, hwy_ins_del);
 
+#if HWY_HAVE_ABSL
   char build_sp[32], find_sp[32], lb_sp[32], ub_sp[32], iter_sp[32],
       bfind_sp[32], blb_sp[32], ins_del_sp[32];
   snprintf(build_sp, sizeof(build_sp), "(%.1fx)",
@@ -729,17 +801,20 @@ void RunMapBenchmarkSuite(size_t num_keys) {
   printf("%-17s %11s %10s %10s %10s %10s %12s %12s %18s\n", "  faster vs absl",
          build_sp, find_sp, lb_sp, ub_sp, iter_sp, bfind_sp, blb_sp,
          ins_del_sp);
+#endif
   printf(
       "========================================================================"
       "================================================\n");
 
-  HWY_ASSERT(std_hits == absl_hits);
-  HWY_ASSERT(hwy_hits == absl_hits);
-  HWY_ASSERT(std_lb_sum == absl_lb_sum);
-  HWY_ASSERT(hwy_lb_sum == absl_lb_sum);
-  HWY_ASSERT(batch_lb_sum == absl_lb_sum);
-  HWY_ASSERT(std_iter_sum == absl_iter_sum);
-  HWY_ASSERT(hwy_iter_sum == absl_iter_sum);
+  HWY_ASSERT(hwy_hits == std_hits);
+  HWY_ASSERT(hwy_lb_sum == std_lb_sum);
+  HWY_ASSERT(batch_lb_sum == std_lb_sum);
+  HWY_ASSERT(hwy_iter_sum == std_iter_sum);
+#if HWY_HAVE_ABSL
+  HWY_ASSERT(absl_hits == std_hits);
+  HWY_ASSERT(absl_lb_sum == std_lb_sum);
+  HWY_ASSERT(absl_iter_sum == std_iter_sum);
+#endif
 }
 
 // ---------------------------------------------------------------------------
@@ -752,7 +827,9 @@ struct SetMemOps {
   using Key = KeyT;
   using Elem = KeyT;
   using Hwy = BTreeSet<KeyT>;
+#if HWY_HAVE_ABSL
   using Absl = absl::btree_set<KeyT>;
+#endif
   using Std = std::set<KeyT>;
   static constexpr const char* kHwyName = "hwy::btree_set";
   static constexpr const char* kAbslName = "absl::btree_set";
@@ -770,7 +847,9 @@ struct MapMemOps {
   using Key = KeyT;
   using Elem = std::pair<KeyT, ValueT>;
   using Hwy = BTreeMap<KeyT, ValueT>;
+#if HWY_HAVE_ABSL
   using Absl = absl::btree_map<KeyT, ValueT>;
+#endif
   using Std = std::map<KeyT, ValueT>;
   static constexpr const char* kHwyName = "hwy::btree_map";
   static constexpr const char* kAbslName = "absl::btree_map";
@@ -814,14 +893,16 @@ MemPair BulkBuildMemory(const std::vector<typename Ops::Key>& keys) {
   elems.reserve(keys.size());
   for (auto k : keys) elems.push_back(Ops::MakeElem(k));
 
-  MemPair m;
+  MemPair m = {0.0, 0.0, 0.0};
   size_t before = AllocatedBefore();
   const typename Ops::Hwy hwy_tree = Ops::Build(keys);
   m.hwy = BytesPerElem(before, hwy_tree);
 
+#if HWY_HAVE_ABSL
   before = AllocatedBefore();
   const typename Ops::Absl absl_tree(elems.begin(), elems.end());
   m.absl = BytesPerElem(before, absl_tree);
+#endif
 
   before = AllocatedBefore();
   const typename Ops::Std std_tree(elems.begin(), elems.end());
@@ -848,34 +929,42 @@ std::pair<double, double> InsertEraseMemory(
 template <class Ops>
 MemPair InsertMemory(const std::vector<typename Ops::Key>& keys) {
   return {InsertEraseMemory<Ops, typename Ops::Hwy>(keys, 0).first,
+#if HWY_HAVE_ABSL
           InsertEraseMemory<Ops, typename Ops::Absl>(keys, 0).first,
+#else
+          0.0,
+#endif
           InsertEraseMemory<Ops, typename Ops::Std>(keys, 0).first};
 }
 
 template <class Ops>
 void RunMemorySuite(const char* name, size_t n) {
   using KeyT = typename Ops::Key;
-  absl::BitGen bitgen;
+  AesCtrEngine engine(/*deterministic=*/true);
+  RngStream rng(engine, 42);
 
   // Compressible: 10, 20, ..., 10*N in random order.
   std::vector<KeyT> keys(n);
   for (size_t i = 0; i < n; ++i) keys[i] = static_cast<KeyT>((i + 1) * 10);
-  std::shuffle(keys.begin(), keys.end(), bitgen);
+  std::shuffle(keys.begin(), keys.end(), rng);
 
   // Uncompressible: unique random even keys over the whole key range, in
   // random order. Neighbors are ~2^bits / N apart, so leaves stay raw.
   std::vector<KeyT> worst(n);
   for (auto& k : worst) {
     k = static_cast<KeyT>(
-        absl::Uniform<KeyT>(bitgen, 0, std::numeric_limits<KeyT>::max() / 2) *
-        2);
+        UniformU64(rng, 0, std::numeric_limits<KeyT>::max() / 2) * 2);
   }
   std::sort(worst.begin(), worst.end());
   worst.erase(std::unique(worst.begin(), worst.end()), worst.end());
-  std::shuffle(worst.begin(), worst.end(), bitgen);
+  std::shuffle(worst.begin(), worst.end(), rng);
 
   const auto hwy_mut = InsertEraseMemory<Ops, typename Ops::Hwy>(keys, n / 2);
+#if HWY_HAVE_ABSL
   const auto absl_mut = InsertEraseMemory<Ops, typename Ops::Absl>(keys, n / 2);
+#else
+  const std::pair<double, double> absl_mut = {0.0, 0.0};
+#endif
   const auto std_mut = InsertEraseMemory<Ops, typename Ops::Std>(keys, n / 2);
   std::vector<KeyT> sorted = keys;
   std::sort(sorted.begin(), sorted.end());
@@ -909,16 +998,20 @@ void RunMemorySuite(const char* name, size_t n) {
       "------------------------------------------------\n");
   printf("%-18s", Ops::kStdName);
   for (const MemPair& c : cols) printf(" %11.2f B", c.std);
+#if HWY_HAVE_ABSL
   printf("\n%-18s", Ops::kAbslName);
   for (const MemPair& c : cols) printf(" %11.2f B", c.absl);
+#endif
   printf("\n%-18s", Ops::kHwyName);
   for (const MemPair& c : cols) printf(" %11.2f B", c.hwy);
+#if HWY_HAVE_ABSL
   printf("\n%-18s", "  smaller vs absl");
   for (const MemPair& c : cols) {
     char ratio[32];
     snprintf(ratio, sizeof(ratio), "(%.2fx)", c.absl / (c.hwy + 1e-6));
     printf(" %13s", ratio);
   }
+#endif
   printf(
       "\n====================================================================="
       "===================================================\n");
@@ -1005,6 +1098,11 @@ HWY_NOINLINE void BenchmarkAll() {
   PrintBenchmarkLegend();
 }
 
+#else   // HWY_TARGET == HWY_SCALAR
+HWY_NOINLINE void BenchmarkAll() {}
+#endif  // HWY_TARGET != HWY_SCALAR
+
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -1013,15 +1111,10 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 
 namespace hwy {
-namespace {
-HWY_EXPORT(BenchmarkAll);
-}  // namespace
+HWY_BEFORE_TEST(BTreeBenchmark);
+HWY_EXPORT_AND_TEST_BEST_P(BTreeBenchmark, BenchmarkAll);
+HWY_AFTER_TEST();
 }  // namespace hwy
-
-int main(int argc, char** argv) {
-  using namespace hwy;  // NOLINT
-  HWY_DYNAMIC_DISPATCH(BenchmarkAll)();
-  return 0;
-}
+HWY_TEST_MAIN();
 
 #endif  // HWY_ONCE

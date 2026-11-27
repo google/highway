@@ -58,15 +58,19 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+namespace {
 
 static_assert(
     !IsSigned<BTREE_KEY_T>(),
     "BTREE_KEY_T must be an unsigned StorageKeyT (uint32_t or uint64_t)");
 
+using TreeLeaf = hwy::MapLeafNode<BTREE_KEY_T, BTREE_VALUE_T>;
+using TreeState = hwy::BTreeState<BTREE_KEY_T, TreeLeaf>;
+
+#if HWY_TARGET != HWY_SCALAR
+
 using TreeEngine =
     HWY_NAMESPACE::BTree<HWY_NAMESPACE::MapTraits<BTREE_KEY_T, BTREE_VALUE_T>>;
-using TreeState = typename TreeEngine::State;
-using TreeLeaf = typename TreeEngine::Leaf;
 
 static_assert(
     sizeof(typename TreeEngine::const_iterator) ==
@@ -220,6 +224,81 @@ void MapLookupBatchImpl(const TreeState* state,
                    out_found, sign_mask);
 }
 
+#else  // HWY_TARGET == HWY_SCALAR
+
+void MapClearImpl(TreeState*) {
+  HWY_ABORT("BTreeMap is not supported on HWY_SCALAR");
+}
+void MapCopyConstructImpl(TreeState*, const TreeState*) {
+  HWY_ABORT("BTreeMap is not supported on HWY_SCALAR");
+}
+void MapCopyAssignImpl(TreeState*, const TreeState*) {
+  HWY_ABORT("BTreeMap is not supported on HWY_SCALAR");
+}
+void MapMoveAssignImpl(TreeState*, TreeState*) {
+  HWY_ABORT("BTreeMap is not supported on HWY_SCALAR");
+}
+void MapMoveConstructImpl(TreeState*, TreeState*) {
+  HWY_ABORT("BTreeMap is not supported on HWY_SCALAR");
+}
+void MapBuildImpl(const BTREE_KEY_T* HWY_RESTRICT, const void* HWY_RESTRICT,
+                  size_t, float, BTREE_KEY_T, TreeState*) {
+  HWY_ABORT("BTreeMap is not supported on HWY_SCALAR");
+}
+bool MapContainsImpl(const TreeState*, BTREE_KEY_T) {
+  HWY_ABORT("BTreeMap is not supported on HWY_SCALAR");
+}
+std::pair<const TreeLeaf*, size_t> MapLowerBoundImpl(const TreeState*,
+                                                     BTREE_KEY_T) {
+  HWY_ABORT("BTreeMap is not supported on HWY_SCALAR");
+}
+std::pair<const TreeLeaf*, size_t> MapUpperBoundImpl(const TreeState*,
+                                                     BTREE_KEY_T) {
+  HWY_ABORT("BTreeMap is not supported on HWY_SCALAR");
+}
+std::pair<const TreeLeaf*, size_t> MapFindImpl(const TreeState*, BTREE_KEY_T) {
+  HWY_ABORT("BTreeMap is not supported on HWY_SCALAR");
+}
+const BTREE_VALUE_T* MapFindValueImpl(const TreeState*, BTREE_KEY_T) {
+  HWY_ABORT("BTreeMap is not supported on HWY_SCALAR");
+}
+void MapInsertImpl(TreeState*, BTREE_KEY_T, const BTREE_VALUE_T&, bool,
+                   TreeLeaf**, size_t*, bool*) {
+  HWY_ABORT("BTreeMap is not supported on HWY_SCALAR");
+}
+std::pair<TreeLeaf*, size_t> MapInsertHintImpl(TreeState*, const TreeLeaf*,
+                                               size_t, BTREE_KEY_T,
+                                               BTREE_VALUE_T, bool) {
+  HWY_ABORT("BTreeMap is not supported on HWY_SCALAR");
+}
+void MapEraseImpl(TreeState*, BTREE_KEY_T, size_t*) {
+  HWY_ABORT("BTreeMap is not supported on HWY_SCALAR");
+}
+void MapEraseIterImpl(TreeState*, const TreeLeaf*, size_t, TreeLeaf**,
+                      size_t*) {
+  HWY_ABORT("BTreeMap is not supported on HWY_SCALAR");
+}
+void MapContainsBatchImpl(const TreeState*, const BTREE_KEY_T* HWY_RESTRICT,
+                          size_t, BTREE_KEY_T, bool* HWY_RESTRICT) {
+  HWY_ABORT("BTreeMap is not supported on HWY_SCALAR");
+}
+void MapFindBatchImpl(const TreeState*, const BTREE_KEY_T* HWY_RESTRICT, size_t,
+                      BTREE_KEY_T, void* HWY_RESTRICT) {
+  HWY_ABORT("BTreeMap is not supported on HWY_SCALAR");
+}
+void MapLowerBoundBatchImpl(const TreeState*, const BTREE_KEY_T* HWY_RESTRICT,
+                            size_t, BTREE_KEY_T, void* HWY_RESTRICT) {
+  HWY_ABORT("BTreeMap is not supported on HWY_SCALAR");
+}
+void MapLookupBatchImpl(const TreeState*, const BTREE_KEY_T* HWY_RESTRICT,
+                        size_t, BTREE_KEY_T, void* HWY_RESTRICT,
+                        bool* HWY_RESTRICT) {
+  HWY_ABORT("BTreeMap is not supported on HWY_SCALAR");
+}
+
+#endif  // HWY_TARGET != HWY_SCALAR
+
+}  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy

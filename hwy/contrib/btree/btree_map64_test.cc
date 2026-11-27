@@ -9,11 +9,19 @@
 #include <map>
 #include <vector>
 
+// Skip older x86 and redundant Arm targets (NEON_WITHOUT_AES, SVE2, and
+// SVE2_128 still run) to keep CppCompile time well within CI limits.
+#ifndef HWY_DISABLED_TARGETS
+#define HWY_DISABLED_TARGETS                                              \
+  (HWY_SSE2 | HWY_SSSE3 | HWY_SSE4 | HWY_NEON | HWY_NEON_BF16 | HWY_SVE | \
+   HWY_SVE_256)
+#endif  // HWY_DISABLED_TARGETS
+
 #include "hwy/base.h"
 
 // clang-format off
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "hwy/contrib/btree/btree_map_test.cc"  // NOLINT
+#define HWY_TARGET_INCLUDE "hwy/contrib/btree/btree_map64_test.cc"  // NOLINT
 // clang-format on
 
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
@@ -29,15 +37,6 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
 
-enum DefaultSignedEnum { kNeg = -42, kZero = 0, kPos = 42 };
-enum DefaultFullRangeEnum {
-  kMinVal = -0x7fffffff - 1,
-  kNegVal = -1,
-  kZeroVal = 0,
-  kMaxVal = 0x7fffffff
-};
-enum UnscopedSignedEnum32 : int32_t {};
-enum class ScopedUnsignedEnum32 : uint32_t {};
 enum class ScopedSignedEnum64 : int64_t {};
 enum class ScopedUnsignedEnum64 : uint64_t {};
 
@@ -70,53 +69,40 @@ struct Custom64 {
 static_assert(sizeof(Custom64) == 8);
 static_assert(std::is_trivially_copyable_v<Custom64>);
 
-void TestCustomValues() {
-  // Test 32-bit custom struct value
-  {
-    hwy::BTreeMap<uint32_t, Custom32> map32;
-    map32[10] = Custom32(1, 2);
-    map32[20] = Custom32(3, 4);
-    HWY_ASSERT_EQ(size_t{2}, map32.size());
-    HWY_ASSERT_EQ(true, (map32[10] == Custom32(1, 2)));
-    HWY_ASSERT_EQ(true, (map32[20] == Custom32(3, 4)));
+#if (HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128) && !HWY_IDE
+#define DEFINE_MAP_KEY_STUBS(KeySuffix)               \
+  HWY_NOINLINE void TestBTreeMap##KeySuffix##U32() {} \
+  HWY_NOINLINE void TestBTreeMap##KeySuffix##I32() {} \
+  HWY_NOINLINE void TestBTreeMap##KeySuffix##U64() {} \
+  HWY_NOINLINE void TestBTreeMap##KeySuffix##I64() {} \
+  HWY_NOINLINE void TestBTreeMap##KeySuffix##F32() {} \
+  HWY_NOINLINE void TestBTreeMap##KeySuffix##F64() {}
 
-    auto it = map32.find(10);
-    HWY_ASSERT_EQ(true, it != map32.end());
-    HWY_ASSERT_EQ(true, (it->second == Custom32(1, 2)));
+DEFINE_MAP_KEY_STUBS(U64)
+DEFINE_MAP_KEY_STUBS(I64)
+#undef DEFINE_MAP_KEY_STUBS
 
-    auto [it_new, inserted_new] = map32.emplace(30, 5, 6);
-    HWY_ASSERT_EQ(true, inserted_new);
-    HWY_ASSERT_EQ(true, (it_new->second == Custom32(5, 6)));
+HWY_NOINLINE void TestBTreeMapPtrAndEnum64() {}
+HWY_NOINLINE void TestMapCustomValues64() {}
+HWY_NOINLINE void TestMapBatchOperations64() {}
+HWY_NOINLINE void TestMapSignedBoundaries64() {}
+#else
 
-    // emplace on existing key must NOT overwrite existing value
-    auto [it_dup, inserted_dup] = map32.emplace(10, 99, 99);
-    HWY_ASSERT_EQ(false, inserted_dup);
-    HWY_ASSERT_EQ(true, (it_dup->second == Custom32(1, 2)));
-    HWY_ASSERT_EQ(true, (map32[10] == Custom32(1, 2)));
+void TestCustomValues64() {
+  hwy::BTreeMap<int64_t, Custom64> map64;
+  map64[-100] = Custom64(10, 20);
+  map64[200] = Custom64(30, 40);
+  HWY_ASSERT_EQ(size_t{2}, map64.size());
+  HWY_ASSERT_EQ(true, (map64[-100] == Custom64(10, 20)));
+  HWY_ASSERT_EQ(true, (map64[200] == Custom64(30, 40)));
 
-    map32.erase(10);
-    map32.erase(30);
-    HWY_ASSERT_EQ(size_t{1}, map32.size());
-    HWY_ASSERT_EQ(true, map32.find(10) == map32.end());
-  }
+  auto it = map64.find(200);
+  HWY_ASSERT_EQ(true, it != map64.end());
+  HWY_ASSERT_EQ(true, (it->second == Custom64(30, 40)));
 
-  // Test 64-bit custom struct value
-  {
-    hwy::BTreeMap<int64_t, Custom64> map64;
-    map64[-100] = Custom64(10, 20);
-    map64[200] = Custom64(30, 40);
-    HWY_ASSERT_EQ(size_t{2}, map64.size());
-    HWY_ASSERT_EQ(true, (map64[-100] == Custom64(10, 20)));
-    HWY_ASSERT_EQ(true, (map64[200] == Custom64(30, 40)));
-
-    auto it = map64.find(200);
-    HWY_ASSERT_EQ(true, it != map64.end());
-    HWY_ASSERT_EQ(true, (it->second == Custom64(30, 40)));
-
-    const Custom64* val_ptr = map64.FindValue(-100);
-    HWY_ASSERT_EQ(true, val_ptr != nullptr);
-    HWY_ASSERT_EQ(true, (*val_ptr == Custom64(10, 20)));
-  }
+  const Custom64* val_ptr = map64.FindValue(-100);
+  HWY_ASSERT_EQ(true, val_ptr != nullptr);
+  HWY_ASSERT_EQ(true, (*val_ptr == Custom64(10, 20)));
 }
 
 template <typename KeyT, typename ValueT, typename MakeValFunc>
@@ -197,22 +183,12 @@ void TestBatchOperationsForType(MakeValFunc make_val) {
   HWY_ASSERT_EQ(false, lookup_found[4]);
 }
 
-void TestBatchOperations() {
-  // Fundamental float (32-bit)
-  TestBatchOperationsForType<uint32_t, float>(
-      [](size_t i) { return static_cast<float>(i) * 1.5f; });
-  // Fundamental double (64-bit)
+void TestBatchOperations64() {
   TestBatchOperationsForType<int64_t, double>(
       [](size_t i) { return static_cast<double>(i) * 2.5; });
-  // Custom 32-bit struct
-  TestBatchOperationsForType<uint32_t, Custom32>([](size_t i) {
-    return Custom32(static_cast<int>(i), static_cast<int>(i * 2));
-  });
-  // Custom 64-bit struct
   TestBatchOperationsForType<int64_t, Custom64>([](size_t i) {
     return Custom64(static_cast<int>(i), static_cast<int>(i * 3));
   });
-  // Pointer and enum keys with custom structs
   TestBatchOperationsForType<void*, Custom64>([](size_t i) {
     return Custom64(static_cast<int>(i), static_cast<int>(i * 3));
   });
@@ -284,7 +260,7 @@ void TestMapSpecificSemantics() {
 
 template <typename KeyT, typename ValueT>
 void TestOneCombo() {
-  RunFullTestSuite<hwy::BTreeMap<KeyT, ValueT>, std::map<KeyT, ValueT>>();
+  RunFullTestSuite<hwy::BTreeMap<KeyT, ValueT>, std::map<KeyT, ValueT> >();
   TestMapSpecificSemantics<KeyT, ValueT>();
 }
 
@@ -308,53 +284,31 @@ void TestOneCombo() {
     TestOneCombo<KeyT, double>();                    \
   }
 
-DEFINE_MAP_KEY_TESTS(U32, uint32_t)
-DEFINE_MAP_KEY_TESTS(I32, int32_t)
 DEFINE_MAP_KEY_TESTS(U64, uint64_t)
 DEFINE_MAP_KEY_TESTS(I64, int64_t)
 
 #undef DEFINE_MAP_KEY_TESTS
 
-HWY_NOINLINE void TestBTreeMapPtrAndEnum() {
+HWY_NOINLINE void TestBTreeMapPtrAndEnum64() {
   fprintf(stderr,
-          "Running Public API BTreeMap pointer and enum key tests...\n");
+          "Running Public API BTreeMap pointer and 64-bit enum key tests...\n");
   TestOneCombo<uint64_t*, uint64_t>();
   TestOneCombo<const uint32_t*, double>();
   TestOneCombo<void*, uint32_t>();
-  TestOneCombo<DefaultFullRangeEnum, int32_t>();
-  TestOneCombo<UnscopedSignedEnum32, uint64_t>();
-  TestOneCombo<ScopedUnsignedEnum32, float>();
   TestOneCombo<ScopedSignedEnum64, double>();
   TestOneCombo<ScopedUnsignedEnum64, uint64_t>();
-
-  // Direct test on an unscoped enum with no explicit underlying type and a
-  // negative enumerator.
-  hwy::BTreeMap<DefaultSignedEnum, int32_t> default_enum_map;
-  default_enum_map[kPos] = 100;
-  default_enum_map[kNeg] = -100;
-  default_enum_map[kZero] = 0;
-  HWY_ASSERT_EQ(size_t{3}, default_enum_map.size());
-  auto it = default_enum_map.begin();
-  VerifyEqualValues(it->first, kNeg);
-  HWY_ASSERT_EQ(-100, it->second);
-  ++it;
-  VerifyEqualValues(it->first, kZero);
-  HWY_ASSERT_EQ(0, it->second);
-  ++it;
-  VerifyEqualValues(it->first, kPos);
-  HWY_ASSERT_EQ(100, it->second);
 }
 
-HWY_NOINLINE void TestMapCustomValues() {
-  fprintf(stderr, "Running Custom32/Custom64 value type tests...\n");
-  TestCustomValues();
+HWY_NOINLINE void TestMapCustomValues64() {
+  fprintf(stderr, "Running Custom64 value type tests...\n");
+  TestCustomValues64();
 }
 
-HWY_NOINLINE void TestMapBatchOperations() {
+HWY_NOINLINE void TestMapBatchOperations64() {
   fprintf(stderr,
-          "Running batch operations tests (float, double, Custom32, "
+          "Running 64-bit batch operations tests (double, Custom32, "
           "Custom64)...\n");
-  TestBatchOperations();
+  TestBatchOperations64();
 }
 
 template <typename SignedKeyT, typename ValueT>
@@ -428,12 +382,12 @@ void VerifySignedMapBoundaries() {
   }
 }
 
-HWY_NOINLINE void TestMapSignedBoundaries() {
-  VerifySignedMapBoundaries<int32_t, uint32_t>();
-  VerifySignedMapBoundaries<int32_t, uint64_t>();
+HWY_NOINLINE void TestMapSignedBoundaries64() {
   VerifySignedMapBoundaries<int64_t, uint32_t>();
   VerifySignedMapBoundaries<int64_t, uint64_t>();
 }
+
+#endif  // (HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128) && !HWY_IDE
 
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
@@ -443,27 +397,23 @@ HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
 namespace hwy {
-namespace {
-HWY_BEFORE_TEST(BTreeMapPublicTest);
-#define EXPORT_MAP_KEY_TESTS(KeySuffix)                                    \
-  HWY_EXPORT_AND_TEST_P(BTreeMapPublicTest, TestBTreeMap##KeySuffix##U32); \
-  HWY_EXPORT_AND_TEST_P(BTreeMapPublicTest, TestBTreeMap##KeySuffix##I32); \
-  HWY_EXPORT_AND_TEST_P(BTreeMapPublicTest, TestBTreeMap##KeySuffix##U64); \
-  HWY_EXPORT_AND_TEST_P(BTreeMapPublicTest, TestBTreeMap##KeySuffix##I64); \
-  HWY_EXPORT_AND_TEST_P(BTreeMapPublicTest, TestBTreeMap##KeySuffix##F32); \
-  HWY_EXPORT_AND_TEST_P(BTreeMapPublicTest, TestBTreeMap##KeySuffix##F64)
+HWY_BEFORE_TEST(BTreeMap64PublicTest);
+#define EXPORT_MAP_KEY_TESTS(KeySuffix)                                      \
+  HWY_EXPORT_AND_TEST_P(BTreeMap64PublicTest, TestBTreeMap##KeySuffix##U32); \
+  HWY_EXPORT_AND_TEST_P(BTreeMap64PublicTest, TestBTreeMap##KeySuffix##I32); \
+  HWY_EXPORT_AND_TEST_P(BTreeMap64PublicTest, TestBTreeMap##KeySuffix##U64); \
+  HWY_EXPORT_AND_TEST_P(BTreeMap64PublicTest, TestBTreeMap##KeySuffix##I64); \
+  HWY_EXPORT_AND_TEST_P(BTreeMap64PublicTest, TestBTreeMap##KeySuffix##F32); \
+  HWY_EXPORT_AND_TEST_P(BTreeMap64PublicTest, TestBTreeMap##KeySuffix##F64)
 
-EXPORT_MAP_KEY_TESTS(U32);
-EXPORT_MAP_KEY_TESTS(I32);
 EXPORT_MAP_KEY_TESTS(U64);
 EXPORT_MAP_KEY_TESTS(I64);
 #undef EXPORT_MAP_KEY_TESTS
-HWY_EXPORT_AND_TEST_P(BTreeMapPublicTest, TestBTreeMapPtrAndEnum);
-HWY_EXPORT_AND_TEST_P(BTreeMapPublicTest, TestMapCustomValues);
-HWY_EXPORT_AND_TEST_P(BTreeMapPublicTest, TestMapBatchOperations);
-HWY_EXPORT_AND_TEST_P(BTreeMapPublicTest, TestMapSignedBoundaries);
+HWY_EXPORT_AND_TEST_P(BTreeMap64PublicTest, TestBTreeMapPtrAndEnum64);
+HWY_EXPORT_AND_TEST_P(BTreeMap64PublicTest, TestMapCustomValues64);
+HWY_EXPORT_AND_TEST_P(BTreeMap64PublicTest, TestMapBatchOperations64);
+HWY_EXPORT_AND_TEST_P(BTreeMap64PublicTest, TestMapSignedBoundaries64);
 HWY_AFTER_TEST();
-}  // namespace
 }  // namespace hwy
 HWY_TEST_MAIN();
 #endif  // HWY_ONCE

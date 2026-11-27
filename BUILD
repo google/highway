@@ -727,6 +727,52 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "btree",
+    srcs = [
+        "hwy/contrib/btree/btreemap_u32_u32.cc",
+        "hwy/contrib/btree/btreemap_u32_u64.cc",
+        "hwy/contrib/btree/btreemap_u64_u32.cc",
+        "hwy/contrib/btree/btreemap_u64_u64.cc",
+        "hwy/contrib/btree/btreeset_u32.cc",
+        "hwy/contrib/btree/btreeset_u64.cc",
+    ],
+    hdrs = [
+        "hwy/contrib/btree/btree_map.h",
+        "hwy/contrib/btree/btree_nodes.h",
+        "hwy/contrib/btree/btree_set.h",
+    ],
+    compatible_with = [],
+    copts = COPTS,
+    local_defines = ["hwy_contrib_EXPORTS"],
+    textual_hdrs = [
+        "hwy/contrib/btree/btree-inl.h",
+        "hwy/contrib/btree/btreemap_impl-inl.h",
+        "hwy/contrib/btree/btreeset_impl-inl.h",
+    ],
+    deps = [
+        ":algo",
+        ":hwy",
+        "//hwy/contrib/sort:vqsort",
+    ],
+)
+
+cc_library(
+    name = "btree_test_util",
+    testonly = True,
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/btree/btree_test_util-inl.h",
+    ],
+    deps = [
+        ":btree",
+        ":hwy",
+        ":hwy_test_util",
+        ":random",
+    ],
+)
+
 # Everything required for tests that use Highway.
 cc_library(
     name = "hwy_test_util",
@@ -1138,6 +1184,79 @@ test_suite(
         ":math_sweep_test",
         ":math_tan_sweep_test",
         ":math_trig_sweep_test",
+    ],
+)
+
+[
+    cc_test(
+        name = name + "_sweep_test",
+        size = "large",
+        timeout = "eternal",
+        srcs = ["hwy/contrib/btree/" + name + "_test.cc"],
+        copts = COPTS + HWY_TEST_COPTS,
+        linkstatic = True,
+        local_defines = [
+            "HWY_IS_TEST",
+            "HWY_BTREE_SWEEP_ALL=1",
+        ],
+        # Placeholder for malloc, do not remove
+        shard_count = 30,
+        tags = [
+            "manual",
+            "notap",
+        ],
+        deps = HWY_TEST_DEPS + [
+            ":btree",
+            ":btree_test_util",
+        ],
+    )
+    for name in [
+        "btree_internal_set32",
+        "btree_internal_set64",
+        "btree_internal_map32",
+        "btree_internal_map64",
+        "btree_set32",
+        "btree_set64",
+        "btree_map32",
+        "btree_map64",
+    ]
+]
+
+test_suite(
+    name = "btree_sweep_tests",
+    tags = [
+        "manual",
+        "notap",
+    ],
+    tests = [
+        ":btree_internal_map32_sweep_test",
+        ":btree_internal_map64_sweep_test",
+        ":btree_internal_set32_sweep_test",
+        ":btree_internal_set64_sweep_test",
+        ":btree_map32_sweep_test",
+        ":btree_map64_sweep_test",
+        ":btree_set32_sweep_test",
+        ":btree_set64_sweep_test",
+    ],
+)
+
+cc_test(
+    name = "btree_benchmark",
+    size = "medium",
+    timeout = "long",
+    srcs = ["hwy/contrib/btree/btree_benchmark.cc"],
+    copts = COPTS + HWY_TEST_COPTS,
+    linkstatic = True,
+    local_defines = ["HWY_IS_TEST"],
+    tags = [
+        "manual",
+        "notap",
+    ],
+    deps = HWY_TEST_DEPS + [
+        ":btree",
+        ":random",
+        # Placeholder for absl btree, do not remove
+        # Placeholder2 for flat_hash_set, do not remove
     ],
 )
 
