@@ -19,7 +19,10 @@ license(
 # Dual-licensed Apache 2 and 3-clause BSD.
 licenses(["notice"])
 
-exports_files(["LICENSE"])
+exports_files([
+    "LICENSE",
+    # Placeholder for METADATA, do not remove
+])
 
 # Detect compiler:
 config_setting(
