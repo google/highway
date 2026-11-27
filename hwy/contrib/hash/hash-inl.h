@@ -81,7 +81,6 @@
 #include "hwy/aligned_allocator.h"
 #include "hwy/highway.h"
 
-#if HWY_TARGET != HWY_SCALAR
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
@@ -283,6 +282,8 @@ class MaskedTriple32 {
 };
 
 using Triple32 = MaskedTriple32<32>;  // no masking
+
+#if HWY_TARGET != HWY_SCALAR
 
 // ----------------------------------------------------------------------------
 // 64-bit hashes
@@ -867,9 +868,10 @@ AlignedVector<T> FillRandomDistinct(size_t count, uint64_t key) {
   return v;
 }
 
+#endif  // HWY_TARGET != HWY_SCALAR
+
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
-#endif  // HWY_TARGET != HWY_SCALAR
 
 #endif  // HIGHWAY_HWY_CONTRIB_HASH_HASH_INL_H_
