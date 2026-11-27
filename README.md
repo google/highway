@@ -2,6 +2,8 @@
 
 [//]: # (placeholder, do not remove)
 
+[**中文文档**](README.zh.md) | **English**
+
 Highway is a C++ library that provides portable SIMD/vector intrinsics.
 
 [Documentation](https://google.github.io/highway/en/master/)
