@@ -5037,6 +5037,42 @@ HWY_API Vec512<double> ConcatUpperLower(D /* tag */, Vec512<double> hi,
   return Vec512<double>{_mm512_mask_blend_pd(mask, hi.raw, lo.raw)};
 }
 
+// hi3,hi2,hi1,hi0 lo3,lo2,lo1,lo0 |-> hi2,hi0,lo2,lo0 (= even blocks)
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_FLOAT3264_D(D)>
+HWY_API VFromD<D> ConcatEvenBlocks(D d, VFromD<D> hi, VFromD<D> lo) {
+  const RebindToUnsigned<decltype(d)> du;  // for float16_t
+  return BitCast(d,
+                 VFromD<decltype(du)>{_mm512_shuffle_i32x4(
+                     BitCast(du, lo).raw, BitCast(du, hi).raw, _MM_PERM_CACA)});
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> ConcatEvenBlocks(D /* tag */, VFromD<D> hi, VFromD<D> lo) {
+  return VFromD<D>{_mm512_shuffle_f32x4(lo.raw, hi.raw, _MM_PERM_CACA)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F64_D(D)>
+HWY_API Vec512<double> ConcatEvenBlocks(D /* tag */, Vec512<double> hi,
+                                        Vec512<double> lo) {
+  return Vec512<double>{_mm512_shuffle_f64x2(lo.raw, hi.raw, _MM_PERM_CACA)};
+}
+
+// hi3,hi2,hi1,hi0 lo3,lo2,lo1,lo0 |-> hi3,hi1,lo3,lo1 (= odd blocks)
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_FLOAT3264_D(D)>
+HWY_API VFromD<D> ConcatOddBlocks(D d, VFromD<D> hi, VFromD<D> lo) {
+  const RebindToUnsigned<decltype(d)> du;  // for float16_t
+  return BitCast(d,
+                 VFromD<decltype(du)>{_mm512_shuffle_i32x4(
+                     BitCast(du, lo).raw, BitCast(du, hi).raw, _MM_PERM_DBDB)});
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> ConcatOddBlocks(D /* tag */, VFromD<D> hi, VFromD<D> lo) {
+  return VFromD<D>{_mm512_shuffle_f32x4(lo.raw, hi.raw, _MM_PERM_DBDB)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F64_D(D)>
+HWY_API Vec512<double> ConcatOddBlocks(D /* tag */, Vec512<double> hi,
+                                       Vec512<double> lo) {
+  return Vec512<double>{_mm512_shuffle_f64x2(lo.raw, hi.raw, _MM_PERM_DBDB)};
+}
+
 // ------------------------------ CombineShiftRightBytes
 
 template <int kBytes, class D, HWY_IF_V_SIZE_D(D, 64)>
@@ -8954,14 +8990,14 @@ HWY_API void LoadTransposedBlocks4(D d, const TFromD<D>* HWY_RESTRICT unaligned,
   const VFromD<D> vba98 = LoadU(d, unaligned + 2 * N);
   const VFromD<D> vfedc = LoadU(d, unaligned + 3 * N);
 
-  const VFromD<D> v5410 = detail::Shuffle128<_MM_PERM_BABA>(v3210, v7654);
-  const VFromD<D> vdc98 = detail::Shuffle128<_MM_PERM_BABA>(vba98, vfedc);
-  const VFromD<D> v7632 = detail::Shuffle128<_MM_PERM_DCDC>(v3210, v7654);
-  const VFromD<D> vfeba = detail::Shuffle128<_MM_PERM_DCDC>(vba98, vfedc);
-  vA = detail::Shuffle128<_MM_PERM_CACA>(v5410, vdc98);
-  vB = detail::Shuffle128<_MM_PERM_DBDB>(v5410, vdc98);
-  vC = detail::Shuffle128<_MM_PERM_CACA>(v7632, vfeba);
-  vD = detail::Shuffle128<_MM_PERM_DBDB>(v7632, vfeba);
+  const VFromD<D> v5410 = ConcatLowerLower(d, v7654, v3210);
+  const VFromD<D> vdc98 = ConcatLowerLower(d, vfedc, vba98);
+  const VFromD<D> v7632 = ConcatUpperUpper(d, v7654, v3210);
+  const VFromD<D> vfeba = ConcatUpperUpper(d, vfedc, vba98);
+  vA = ConcatEvenBlocks(d, vdc98, v5410);
+  vB = ConcatOddBlocks(d, vdc98, v5410);
+  vC = ConcatEvenBlocks(d, vfeba, v7632);
+  vD = ConcatOddBlocks(d, vfeba, v7632);
 }
 
 }  // namespace detail
@@ -9036,18 +9072,14 @@ HWY_API void StoreTransposedBlocks4(const VFromD<D> i, const VFromD<D> j,
                                     const VFromD<D> k, const VFromD<D> l, D d,
                                     TFromD<D>* HWY_RESTRICT unaligned) {
   HWY_LANES_CONSTEXPR size_t N = Lanes(d);
-  const VFromD<D> j1_j0_i1_i0 = detail::Shuffle128<_MM_PERM_BABA>(i, j);
-  const VFromD<D> l1_l0_k1_k0 = detail::Shuffle128<_MM_PERM_BABA>(k, l);
-  const VFromD<D> j3_j2_i3_i2 = detail::Shuffle128<_MM_PERM_DCDC>(i, j);
-  const VFromD<D> l3_l2_k3_k2 = detail::Shuffle128<_MM_PERM_DCDC>(k, l);
-  const VFromD<D> out0 =
-      detail::Shuffle128<_MM_PERM_CACA>(j1_j0_i1_i0, l1_l0_k1_k0);
-  const VFromD<D> out1 =
-      detail::Shuffle128<_MM_PERM_DBDB>(j1_j0_i1_i0, l1_l0_k1_k0);
-  const VFromD<D> out2 =
-      detail::Shuffle128<_MM_PERM_CACA>(j3_j2_i3_i2, l3_l2_k3_k2);
-  const VFromD<D> out3 =
-      detail::Shuffle128<_MM_PERM_DBDB>(j3_j2_i3_i2, l3_l2_k3_k2);
+  const VFromD<D> j1_j0_i1_i0 = ConcatLowerLower(d, j, i);
+  const VFromD<D> l1_l0_k1_k0 = ConcatLowerLower(d, l, k);
+  const VFromD<D> j3_j2_i3_i2 = ConcatUpperUpper(d, j, i);
+  const VFromD<D> l3_l2_k3_k2 = ConcatUpperUpper(d, l, k);
+  const VFromD<D> out0 = ConcatEvenBlocks(d, l1_l0_k1_k0, j1_j0_i1_i0);
+  const VFromD<D> out1 = ConcatOddBlocks(d, l1_l0_k1_k0, j1_j0_i1_i0);
+  const VFromD<D> out2 = ConcatEvenBlocks(d, l3_l2_k3_k2, j3_j2_i3_i2);
+  const VFromD<D> out3 = ConcatOddBlocks(d, l3_l2_k3_k2, j3_j2_i3_i2);
   StoreU(out0, d, unaligned + 0 * N);
   StoreU(out1, d, unaligned + 1 * N);
   StoreU(out2, d, unaligned + 2 * N);

@@ -9239,6 +9239,30 @@ HWY_API V BroadcastBlock(V v) {
 
 #endif  // HWY_NATIVE_BLK_INSERT_EXTRACT
 
+// ------------------------------ ConcatEvenBlocks / ConcatOddBlocks
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> ConcatEvenBlocks(D /*d*/, VFromD<D> /*hi*/, VFromD<D> lo) {
+  return lo;
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> ConcatOddBlocks(D /*d*/, VFromD<D> hi, VFromD<D> /*lo*/) {
+  return hi;
+}
+
+#if HWY_MAX_BYTES >= 32 && !HWY_HAVE_SCALABLE
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> ConcatEvenBlocks(D d, VFromD<D> hi, VFromD<D> lo) {
+  return ConcatLowerLower(d, hi, lo);
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> ConcatOddBlocks(D d, VFromD<D> hi, VFromD<D> lo) {
+  return ConcatUpperUpper(d, hi, lo);
+}
+#endif  // HWY_MAX_BYTES >= 32 && !HWY_HAVE_SCALABLE
+
 // ------------------------------ BroadcastLane
 #if (defined(HWY_NATIVE_BROADCASTLANE) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_BROADCASTLANE

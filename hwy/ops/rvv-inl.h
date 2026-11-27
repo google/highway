@@ -6522,6 +6522,98 @@ HWY_API MFromD<D> SetMask(D d, bool val) {
 #endif
 }
 
+// ------------------------------ ConcatEvenBlocks / ConcatOddBlocks (Compress)
+// (generic_ops-inl.h handles <= 16 bytes; callers ensure at least two blocks.)
+
+namespace detail {
+
+// Widest unsigned lane type with a real (non virtual) RVV LMUL for D.Pow2():
+// uint64_t for Pow2 >= 0, uint32_t for -1, uint16_t for -2, uint8_t for -3.
+template <class D>
+using ConcatBlocksLaneT =
+    UnsignedFromSize<size_t{1} << HWY_MIN(3, HWY_MAX(0, HWY_POW2_D(D) + 3))>;
+
+#if HWY_COMPILER_CLANG >= 1700 || HWY_COMPILER_GCC_ACTUAL >= 1400
+template <bool kOdd, class DU, HWY_IF_T_SIZE_D(DU, 8)>
+HWY_INLINE MFromD<DU> BlockParityMask(DU du) {
+  const ScalableTag<uint8_t, SufficientPow2ForMask<DU>()> du8;
+  return U8MaskBitsVecToMask(
+      du, ChangeLMUL(ScalableTag<uint8_t>(),
+                     Set(du8, static_cast<uint8_t>(kOdd ? 0xCCu : 0x33u))));
+}
+
+template <bool kOdd, class DU, HWY_IF_T_SIZE_D(DU, 4)>
+HWY_INLINE MFromD<DU> BlockParityMask(DU du) {
+  const ScalableTag<uint8_t, SufficientPow2ForMask<DU>()> du8;
+  return U8MaskBitsVecToMask(
+      du, ChangeLMUL(ScalableTag<uint8_t>(),
+                     Set(du8, static_cast<uint8_t>(kOdd ? 0xF0u : 0x0Fu))));
+}
+
+template <bool kOdd, class DU, HWY_IF_T_SIZE_D(DU, 2)>
+HWY_INLINE MFromD<DU> BlockParityMask(DU du) {
+  constexpr int kPow2 = HWY_MAX(SufficientPow2ForMask<DU>(), -2);
+  const ScalableTag<uint8_t, kPow2> du8;
+  const ScalableTag<uint16_t, kPow2> du16;
+  return U8MaskBitsVecToMask(
+      du, ChangeLMUL(ScalableTag<uint8_t>(),
+                     BitCast(du8, Set(du16, static_cast<uint16_t>(
+                                                kOdd ? 0xFF00u : 0x00FFu)))));
+}
+
+template <bool kOdd, class DU, HWY_IF_T_SIZE_D(DU, 1)>
+HWY_INLINE MFromD<DU> BlockParityMask(DU du) {
+  constexpr int kPow2 = HWY_MAX(SufficientPow2ForMask<DU>(), -1);
+  const ScalableTag<uint8_t, kPow2> du8;
+  const ScalableTag<uint32_t, kPow2> du32;
+  return U8MaskBitsVecToMask(
+      du,
+      ChangeLMUL(ScalableTag<uint8_t>(),
+                 BitCast(du8, Set(du32, kOdd ? 0xFFFF0000u : 0x0000FFFFu))));
+}
+#else
+template <bool kOdd, class DU>
+HWY_INLINE MFromD<DU> BlockParityMask(DU /*du*/) {
+  using TU = TFromD<DU>;
+  constexpr TU kLanesPerBlock = static_cast<TU>(16 / sizeof(TU));
+  const auto masked = AndS(Iota0(DFromV<VFromD<DU>>()), kLanesPerBlock);
+  return kOdd ? NeS(masked, TU{0}) : EqS(masked, TU{0});
+}
+#endif  // HWY_COMPILER_CLANG >= 1700 || HWY_COMPILER_GCC_ACTUAL >= 1400
+
+template <bool kOdd, class D, HWY_IF_POW2_LE_D(D, 2)>
+HWY_INLINE VFromD<D> ConcatParityBlocks(D d, VFromD<D> hi, VFromD<D> lo) {
+  using TU = ConcatBlocksLaneT<D>;
+  const Repartition<TU, decltype(d)> du;
+  const Twice<decltype(du)> dt;
+  const VFromD<decltype(dt)> hl = Combine(dt, BitCast(du, hi), BitCast(du, lo));
+  return BitCast(d, LowerHalf(du, Compress(hl, BlockParityMask<kOdd>(dt))));
+}
+
+template <bool kOdd, class D, HWY_IF_POW2_GT_D(D, 2)>
+HWY_INLINE VFromD<D> ConcatParityBlocks(D d, VFromD<D> hi, VFromD<D> lo) {
+  const Repartition<uint64_t, decltype(d)> du;
+  const Half<decltype(du)> dh;
+  const MFromD<decltype(du)> mask = BlockParityMask<kOdd>(du);
+  const VFromD<decltype(dh)> hi_half =
+      LowerHalf(dh, Compress(BitCast(du, hi), mask));
+  const VFromD<decltype(dh)> lo_half =
+      LowerHalf(dh, Compress(BitCast(du, lo), mask));
+  return BitCast(d, Combine(du, hi_half, lo_half));
+}
+
+}  // namespace detail
+
+template <class D, HWY_IF_V_SIZE_GT_D(D, 16)>
+HWY_API VFromD<D> ConcatEvenBlocks(D d, VFromD<D> hi, VFromD<D> lo) {
+  return detail::ConcatParityBlocks</*kOdd=*/false>(d, hi, lo);
+}
+
+template <class D, HWY_IF_V_SIZE_GT_D(D, 16)>
+HWY_API VFromD<D> ConcatOddBlocks(D d, VFromD<D> hi, VFromD<D> lo) {
+  return detail::ConcatParityBlocks</*kOdd=*/true>(d, hi, lo);
+}
+
 // ------------------------------ Abs (Max, Neg)
 
 template <class V, HWY_IF_SIGNED_V(V)>

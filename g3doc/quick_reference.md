@@ -2918,6 +2918,17 @@ must first check `Lanes` before calling these ops:
     first/lowest the first in the upper half of A, then the first in the upper
     half of B, then the next highest from A, then the next highest from B, etc.
 
+*   <code>V **ConcatEvenBlocks**(D d, V hi, V lo)</code>: returns the even 16
+    byte blocks (`0, 2, ...`) of `lo` in the lower half, followed by the even 16
+    byte blocks (`0, 2, ...`) of `hi` in the upper half.
+
+*   <code>V **ConcatOddBlocks**(D d, V hi, V lo)</code>: returns the odd 16 byte
+    blocks (`1, 3, ...`) of `lo` in the lower half, followed by the odd 16 byte
+    blocks (`1, 3, ...`) of `hi` in the upper half.
+
+    `(ConcatEvenBlocks, ConcatOddBlocks)` is the inverse of
+    `(InterleaveLowerBlocks, InterleaveUpperBlocks)`.
+
 ### Reductions
 
 **Note**: Horizontal operations (across lanes of the same vector) such as
