@@ -2275,7 +2275,8 @@ class BTree {
   // Parameters:
   // - keys: Pointer to keys, in any order; duplicates are allowed.
   // - num_keys: Total number of keys in the array.
-  // - fill_ratio: Target fill factor per leaf node (between 0.1 and 1.0).
+  // - fill_ratio: Target fill factor per leaf node (between 0.1 and 1.0;
+  //   out-of-range values are clamped, and NaN defaults to 1.0).
   //     * 1.0f (default): Maximum memory density and fastest throughput for
   //       read-heavy or static lookup workloads.
   //     * 0.75f - 0.85f: Leaves headroom in leaves to accommodate subsequent
@@ -2342,7 +2343,8 @@ class BTree {
   // - keys: Pointer to keys.
   // - values: Pointer to corresponding values.
   // - num_keys: Number of key-value pairs.
-  // - fill_ratio: Target fill factor per leaf node (between 0.1 and 1.0).
+  // - fill_ratio: Target fill factor per leaf node (between 0.1 and 1.0;
+  //   out-of-range values are clamped, and NaN defaults to 1.0).
   template <typename V = mapped_type,
             typename = std::enable_if_t<Traits::kIsMap && !std::is_void_v<V>>>
   static BTree Build(const KeyT* keys, const V* values, size_t num_keys,
@@ -3818,7 +3820,8 @@ class BTree {
     }
 
     tree.state_->num_elements_ = num_keys;
-    fill_ratio = std::clamp(fill_ratio, 0.1f, 1.0f);
+    fill_ratio =
+        ScalarIsNaN(fill_ratio) ? 1.0f : std::clamp(fill_ratio, 0.1f, 1.0f);
 
     // Unique 8-bit offsets (0..255) fit at most 256 keys; trying kMax8 (488+)
     // keys would always fail the span check below.

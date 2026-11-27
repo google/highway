@@ -932,6 +932,27 @@ void DoBulkBuildAndBatchTest(size_t n, uint32_t seed) {
       HWY_ASSERT(r_it == dup_ref.end());
     }
   }
+
+  // Verify non-finite fill_ratio values: NaN defaults to 1.0f, while -inf/+inf
+  // clamp to [0.1f, 1.0f].
+  {
+    const TreeT full_tree = BuildTreeFromValues<TreeT>(values, 1.0f);
+    const TreeT min_fill_tree = BuildTreeFromValues<TreeT>(values, 0.1f);
+    const float neg_nan = BitCastScalar<float>(uint32_t{0xFFFFFFFFU});
+    for (float ratio : {ScalarNaN<float>(), neg_nan, ScalarInf<float>()}) {
+      TreeT built = BuildTreeFromValues<TreeT>(values, ratio);
+      HWY_ASSERT_EQ(built.size(), ref.size());
+      HWY_ASSERT_EQ(built.height(), full_tree.height());
+      HWY_ASSERT_EQ(CountLeaves(built), CountLeaves(full_tree));
+      BTreeChecker<TreeT, StdRefT>::VerifyPhysicalTree(built);
+    }
+    TreeT neg_inf_tree =
+        BuildTreeFromValues<TreeT>(values, -ScalarInf<float>());
+    HWY_ASSERT_EQ(neg_inf_tree.size(), ref.size());
+    HWY_ASSERT_EQ(neg_inf_tree.height(), min_fill_tree.height());
+    HWY_ASSERT_EQ(CountLeaves(neg_inf_tree), CountLeaves(min_fill_tree));
+    BTreeChecker<TreeT, StdRefT>::VerifyPhysicalTree(neg_inf_tree);
+  }
 }
 
 template <typename TreeT, typename StdRefT>
