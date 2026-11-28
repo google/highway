@@ -1771,7 +1771,7 @@ HWY_API V GetMantissa0p75_1p5(V v) {
 #endif  // HWY_NATIVE_GET_MANTISSA_TOGGLE
 // ------------------------------ LoadInterleaved2
 
-#if HWY_IDE || \
+#if (HWY_IDE && HWY_TARGET != HWY_SCALAR) || \
     (defined(HWY_NATIVE_LOAD_STORE_INTERLEAVED) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_LOAD_STORE_INTERLEAVED
 #undef HWY_NATIVE_LOAD_STORE_INTERLEAVED
@@ -2676,8 +2676,9 @@ HWY_API V PairwiseSub(D d, V a, V b) {
 // generic implementations. The toggle must be flipped exactly once per target,
 // including those that do not define HWY_GENERIC_IF_EMULATED_D (such as
 // HWY_SCALAR), otherwise it would be out of sync for subsequent targets.
-#if HWY_IDE || (defined(HWY_NATIVE_LOAD_STORE_SPECIAL_FLOAT_INTERLEAVED) == \
-                defined(HWY_TARGET_TOGGLE))
+#if (HWY_IDE && HWY_TARGET != HWY_SCALAR) || \
+    (defined(HWY_NATIVE_LOAD_STORE_SPECIAL_FLOAT_INTERLEAVED) == \
+     defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_LOAD_STORE_SPECIAL_FLOAT_INTERLEAVED
 #undef HWY_NATIVE_LOAD_STORE_SPECIAL_FLOAT_INTERLEAVED
 #else
