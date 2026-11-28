@@ -124,7 +124,6 @@ hwy_sources = files(
     'hwy/nanobenchmark.cc',
     'hwy/os_rng.cc',
     'hwy/per_target.cc',
-    'hwy/perf_counters.cc',
     'hwy/print.cc',
     'hwy/profiler.cc',
     'hwy/stats.cc',
@@ -792,6 +791,10 @@ if tests_enabled
         test_srcs = [test_src]
         if exe_name == 'skeleton_test'
             test_srcs += files('hwy/examples/skeleton.cc')
+        endif
+        # perf_counters code is only used by its test.
+        if exe_name == 'perf_counters_test'
+            test_srcs += files('hwy/perf_counters.cc')
         endif
 
         test_deps = [hwy_test_dep, gtest_main_dep]
