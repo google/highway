@@ -8260,18 +8260,9 @@ HWY_INLINE Vec<D> Lookup8(D d, const T* HWY_RESTRICT table, VI indices) {
   }
 
   HWY_IF_CONSTEXPR(HWY_HAVE_SCALABLE) {
-    // Scalable: first we must load two halves of the table into two vectors,
-    // regardless of vector size. We always use two-vector lookups to avoid
-    // runtime branching. Note that RVV can have U64x8 even with 128-bit
-    // vectors (LMUL=4), hence we must use the given LMUL, not FixedTag, but we
-    // still want to cap at 4 lanes to avoid overrunning the table.
-    const CappedTag<T, 4, d.Pow2()> d4;
-
-    // We want to use native lookup instructions (more efficient on SVE than two
-    // lookups plus a blend), hence cast. This has no runtime cost. No LoadU
-    // required because + 4 is still aligned relative to `d4`.
-    const Vec<D> t0 = ResizeBitCast(d, Load(d4, table));
-    const Vec<D> t1 = ResizeBitCast(d, Load(d4, table + 4));
+    // Load exactly 4 lanes from each half, even for partial vectors.
+    const Vec<D> t0 = LoadN(d, table, 4);
+    const Vec<D> t1 = LoadN(d, table + 4, 4);
 
     // Now ensure indices for the second half of the table point to the second
     // vector. Note that SVE2_128 and SVE_256 are handled by the fixed-size case
@@ -8392,18 +8383,9 @@ HWY_INLINE Vec<D> Lookup32(D d, const T* HWY_RESTRICT table, VI indices) {
   }
 
   HWY_IF_CONSTEXPR(HWY_HAVE_SCALABLE) {
-    // Scalable: first we must load two halves of the table into two vectors,
-    // regardless of vector size. We always use two-vector lookups to avoid
-    // runtime branching. Note that RVV can have U8x32 even with 128-bit
-    // vectors (LMUL=2), hence we must use the given LMUL, not FixedTag, but we
-    // still want to cap at 16 lanes to avoid overrunning the table.
-    const CappedTag<T, 16, d.Pow2()> d16;
-
-    // We want to use native lookup instructions (more efficient on SVE than two
-    // lookups plus a blend), hence cast. This has no runtime cost. No LoadU
-    // required because + 16 is still aligned relative to `d16`.
-    const Vec<D> t0 = ResizeBitCast(d, Load(d16, table));
-    const Vec<D> t1 = ResizeBitCast(d, Load(d16, table + 16));
+    // Load exactly 16 lanes from each half, even for partial vectors.
+    const Vec<D> t0 = LoadN(d, table, 16);
+    const Vec<D> t1 = LoadN(d, table + 16, 16);
 
 #if HWY_TARGET_IS_SVE
     const Mask<decltype(di)> ge_16 = detail::GeN(indices, 16);
